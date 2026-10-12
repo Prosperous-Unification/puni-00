@@ -6,6 +6,7 @@ import { parseOrThrow } from '@shared/validation';
 import { afterEach, describe, expect, test } from 'bun:test';
 
 import { ContentManifestRequest } from '../contracts/records';
+import { type CliInvocation, invokeCli } from '../invoke-cli';
 
 interface RelationshipReport {
   schemaVersion: 1;
@@ -258,24 +259,34 @@ function addJsonDeclarationFixture(repository: string, publicJsonType: boolean):
   });
 }
 
-function invoke(
+/** A finished child process as the same record {@link invokeCli} returns. */
+function fromProcess(invocation: ReturnType<typeof Bun.spawnSync>): CliInvocation {
+  // Every spawn here pipes both streams; an absent one is a harness fault, not silence.
+  if (invocation.stdout === undefined || invocation.stderr === undefined)
+    throw new Error('the invocation captured no stdout or stderr');
+  return {
+    exitCode: invocation.exitCode,
+    stdout: invocation.stdout.toString('utf8'),
+    stderr: invocation.stderr.toString('utf8'),
+  };
+}
+
+/**
+ * Runs `extract-relationships` in this process through the CLI entry, or as its own Bun process
+ * when `env` is given: those cases prove a candidate script never runs, and the sentinel path they
+ * pass must reach any child the extractor could start.
+ */
+async function invoke(
   repository: string,
   revision: string,
   requestPath: string,
   env?: Record<string, string>,
-): ReturnType<typeof Bun.spawnSync> {
-  return Bun.spawnSync(
-    [
-      process.execPath,
-      'run',
-      cliPath,
-      'extract-relationships',
-      'committed',
-      repository,
-      revision,
-      requestPath,
-    ],
-    {
+): Promise<CliInvocation> {
+  const argv = ['extract-relationships', 'committed', repository, revision, requestPath];
+  if (env === undefined)
+    return invokeCli(argv, { TOOL_WIKI_TRUSTED_NODE_MODULES: trustedNodeModules });
+  return fromProcess(
+    Bun.spawnSync([process.execPath, 'run', cliPath, ...argv], {
       // The trusted caller starts outside the candidate so candidate Bun configuration cannot load.
       cwd: import.meta.dir,
       env: {
@@ -285,32 +296,17 @@ function invoke(
       },
       stderr: 'pipe',
       stdout: 'pipe',
-    },
+    }),
   );
 }
 
-function output(invocation: ReturnType<typeof Bun.spawnSync>): string {
-  return `${invocation.stdout?.toString('utf8') ?? ''}${invocation.stderr?.toString('utf8') ?? ''}`;
+function output(invocation: CliInvocation): string {
+  return `${invocation.stdout}${invocation.stderr}`;
 }
 
-/**
- * One captured stream of a finished invocation.
- *
- * @throws Error when the stream was not captured: that is a harness fault, and reading it as empty
- * would let an assertion about silence pass on an invocation nobody listened to.
- */
-function streamText(
-  invocation: ReturnType<typeof Bun.spawnSync>,
-  stream: 'stdout' | 'stderr',
-): string {
-  const captured = invocation[stream];
-  if (captured === undefined) throw new Error(`the invocation captured no ${stream}`);
-  return captured.toString('utf8');
-}
-
-function report(invocation: ReturnType<typeof Bun.spawnSync>): RelationshipReport {
+function report(invocation: CliInvocation): RelationshipReport {
   expect(invocation.exitCode, output(invocation)).toBe(0);
-  return JSON.parse(invocation.stdout?.toString('utf8') ?? '') as RelationshipReport;
+  return JSON.parse(invocation.stdout) as RelationshipReport;
 }
 
 function relationshipInput(extracted: RelationshipReport, inputId: string): string | undefined {
@@ -323,7 +319,7 @@ afterEach(() => {
 });
 
 describe('relationship extraction production CLI', () => {
-  test('strictly versions relationship requests and rejects ambiguous selector sets', () => {
+  test('strictly versions relationship requests and rejects ambiguous selector sets', async () => {
     const repository = createRepository();
     const revision = commitAll(repository, 'strict request boundary');
     const cases = [
@@ -387,16 +383,20 @@ describe('relationship extraction production CLI', () => {
       },
     ];
     for (const boundary of cases) {
-      const failed = invoke(repository, revision, writeRequestInput(repository, boundary.input));
+      const failed = await invoke(
+        repository,
+        revision,
+        writeRequestInput(repository, boundary.input),
+      );
       expect(failed.exitCode).toBe(1);
       expect(output(failed)).toContain(boundary.expected);
     }
   }, 30_000);
 
-  test('publishes exact TypeScript and nested Nx selectors with extractor and manifest identities', () => {
+  test('publishes exact TypeScript and nested Nx selectors with extractor and manifest identities', async () => {
     const repository = createRepository();
     const revision = commitAll(repository, 'initial graph');
-    const extracted = report(invoke(repository, revision, writeRequest(repository)));
+    const extracted = report(await invoke(repository, revision, writeRequest(repository)));
 
     expect(extracted.schemaVersion).toBe(1);
     expect(extracted.selection.kind).toBe('committed');
@@ -576,14 +576,14 @@ describe('relationship extraction production CLI', () => {
     ]);
   });
 
-  test('extracts every TypeScript declaration while retaining real JSON dependency edges', () => {
+  test('extracts every TypeScript declaration while retaining real JSON dependency edges', async () => {
     const repository = createRepository();
     const requestPath = addJsonDeclarationFixture(repository, false);
     // Proof: forcing compiler-recognized JSON classification false on 2026-09-21 sent
     // packages/apps/consumer/project.json through targeted emit; this production test failed
     // with `declaration emit failed ... project.json: no diagnostic` instead of extracting.
     const extracted = report(
-      invoke(repository, commitAll(repository, 'implementation-only JSON'), requestPath),
+      await invoke(repository, commitAll(repository, 'implementation-only JSON'), requestPath),
     );
     // Proof: skipping JSON targets in the import loop on 2026-09-21 made this exact forward
     // edge assertion receive `[]`; reverse edges derive from that same retained import list.
@@ -628,10 +628,10 @@ describe('relationship extraction production CLI', () => {
     ).not.toContain('schema.json');
   }, 20_000);
 
-  test('refuses a JSON dependency retained by the public declaration', () => {
+  test('refuses a JSON dependency retained by the public declaration', async () => {
     const repository = createRepository();
     const requestPath = addJsonDeclarationFixture(repository, true);
-    const invocation = invoke(
+    const invocation = await invoke(
       repository,
       commitAll(repository, 'public JSON declaration'),
       requestPath,
@@ -640,20 +640,20 @@ describe('relationship extraction production CLI', () => {
     // Proof: returning false instead of refusing the JSON dependency on 2026-09-21 made this
     // production invocation exit 0 and publish a public identity without schema.json.
     expect(invocation.exitCode).toBe(1);
-    expect(streamText(invocation, 'stdout')).toBe('');
-    expect(streamText(invocation, 'stderr')).toContain(
+    expect(invocation.stdout).toBe('');
+    expect(invocation.stderr).toContain(
       'TypeScript public declaration JSON dependency unsupported: packages/provider/src/json-helper.ts -> packages/provider/src/schema.json',
     );
   }, 45_000);
 
-  test('refuses a genuine compiler error before declaration emit', () => {
+  test('refuses a genuine compiler error before declaration emit', async () => {
     const repository = createRepository();
     write(
       repository,
       'packages/provider/src/public.ts',
       'export interface PublicThing { broken: MissingType }\n',
     );
-    const invocation = invoke(
+    const invocation = await invoke(
       repository,
       commitAll(repository, 'compiler error'),
       writeRequest(repository),
@@ -662,12 +662,12 @@ describe('relationship extraction production CLI', () => {
     // Proof: removing the pre-emit diagnostic refusal on 2026-09-21 made the MissingType
     // production fixture exit 0 instead of reporting `TypeScript compiler failed:`.
     expect(invocation.exitCode).toBe(1);
-    expect(streamText(invocation, 'stdout')).toBe('');
-    expect(streamText(invocation, 'stderr')).toContain('TypeScript compiler failed:');
-    expect(streamText(invocation, 'stderr')).toContain("Cannot find name 'MissingType'");
+    expect(invocation.stdout).toBe('');
+    expect(invocation.stderr).toContain('TypeScript compiler failed:');
+    expect(invocation.stderr).toContain("Cannot find name 'MissingType'");
   }, 20_000);
 
-  test('preserves a single-source bundled declaration and rejects invalid JSON outFile options', () => {
+  test('preserves a single-source bundled declaration and rejects invalid JSON outFile options', async () => {
     const repository = createRepository();
     write(
       repository,
@@ -692,7 +692,7 @@ describe('relationship extraction production CLI', () => {
       typescript: { configPaths: ['tsconfig.json'], publicEntrypoints: ['src/index.ts'] },
     });
     const extracted = report(
-      invoke(repository, commitAll(repository, 'single-source bundle'), requestPath),
+      await invoke(repository, commitAll(repository, 'single-source bundle'), requestPath),
     );
 
     expect(extracted.typescript.publicDeclarations).toHaveLength(1);
@@ -731,20 +731,20 @@ describe('relationship extraction production CLI', () => {
       schemaVersion: 1,
       typescript: { configPaths: ['tsconfig.json'], publicEntrypoints: ['src/index.ts'] },
     });
-    const failed = invoke(
+    const failed = await invoke(
       jsonRepository,
       commitAll(jsonRepository, 'invalid JSON bundle'),
       jsonRequestPath,
     );
 
     expect(failed.exitCode).toBe(1);
-    expect(streamText(failed, 'stdout')).toBe('');
-    expect(streamText(failed, 'stderr')).toContain(
+    expect(failed.stdout).toBe('');
+    expect(failed.stderr).toContain(
       "Option '--resolveJsonModule' cannot be specified when 'module' is set to 'none', 'system', or 'umd'.",
     );
   }, 30_000);
 
-  test('refuses a multi-source bundled declaration', () => {
+  test('refuses a multi-source bundled declaration', async () => {
     const repository = createRepository();
     write(
       repository,
@@ -769,7 +769,7 @@ describe('relationship extraction production CLI', () => {
       schemaVersion: 1,
       typescript: { configPaths: ['tsconfig.json'], publicEntrypoints: ['src/index.ts'] },
     });
-    const invocation = invoke(
+    const invocation = await invoke(
       repository,
       commitAll(repository, 'multi-source bundle'),
       requestPath,
@@ -778,18 +778,18 @@ describe('relationship extraction production CLI', () => {
     // Proof: removing the multi-source callback refusal on 2026-09-21 made this production
     // fixture exit 0 with the bundle mapped only to the first source.
     expect(invocation.exitCode).toBe(1);
-    expect(streamText(invocation, 'stdout')).toBe('');
-    expect(streamText(invocation, 'stderr')).toContain(
+    expect(invocation.stdout).toBe('');
+    expect(invocation.stderr).toContain(
       'TypeScript bundled declaration has multiple candidate sources for tsconfig.json: src/index.ts, src/second.ts',
     );
   }, 20_000);
 
-  test('normalizes the materialized compiler root across repeat and restored extractions', () => {
+  test('normalizes the materialized compiler root across repeat and restored extractions', async () => {
     const repository = createRepository();
     const requestPath = writeRequest(repository);
     const initialRevision = commitAll(repository, 'stable compiler root');
-    const initial = report(invoke(repository, initialRevision, requestPath));
-    const repeated = report(invoke(repository, initialRevision, requestPath));
+    const initial = report(await invoke(repository, initialRevision, requestPath));
+    const repeated = report(await invoke(repository, initialRevision, requestPath));
 
     expect(repeated.typescript.publicDeclarations[0].configurationIdentity).toBe(
       initial.typescript.publicDeclarations[0].configurationIdentity,
@@ -804,7 +804,11 @@ describe('relationship extraction production CLI', () => {
       "export interface PublicThing { value: number; nested: import('./hidden').Hidden; declared: import('./shapes').Declared }\n",
     );
     const changed = report(
-      invoke(repository, commitAll(repository, 'change then restore public type'), requestPath),
+      await invoke(
+        repository,
+        commitAll(repository, 'change then restore public type'),
+        requestPath,
+      ),
     );
     expect(changed.typescript.publicDeclarations[0].identity).not.toBe(
       initial.typescript.publicDeclarations[0].identity,
@@ -816,7 +820,7 @@ describe('relationship extraction production CLI', () => {
       "export interface PublicThing { value: string; nested: import('./hidden').Hidden; declared: import('./shapes').Declared }\n",
     );
     const restored = report(
-      invoke(repository, commitAll(repository, 'restore stable compiler root'), requestPath),
+      await invoke(repository, commitAll(repository, 'restore stable compiler root'), requestPath),
     );
     expect(restored.typescript.publicDeclarations[0].configurationIdentity).toBe(
       initial.typescript.publicDeclarations[0].configurationIdentity,
@@ -826,11 +830,11 @@ describe('relationship extraction production CLI', () => {
     );
   }, 90_000);
 
-  test('stales resolved declarations behind an unchanged barrel and returns current when restored', () => {
+  test('stales resolved declarations behind an unchanged barrel and returns current when restored', async () => {
     const repository = createRepository();
     const requestPath = writeRequest(repository);
     const initialRevision = commitAll(repository, 'string public type');
-    const initial = report(invoke(repository, initialRevision, requestPath));
+    const initial = report(await invoke(repository, initialRevision, requestPath));
     const initialDeclaration = initial.typescript.publicDeclarations[0];
 
     write(
@@ -839,7 +843,7 @@ describe('relationship extraction production CLI', () => {
       "export interface PublicThing { value: number; nested: import('./hidden').Hidden; declared: import('./shapes').Declared }\n",
     );
     const changedRevision = commitAll(repository, 'number public type');
-    const changed = report(invoke(repository, changedRevision, requestPath));
+    const changed = report(await invoke(repository, changedRevision, requestPath));
     // Proof: hashing only the unchanged barrel kept both revisions at fc5f9f1d...; this exact
     // production assertion failed because the re-exported `value: number` was not structural input.
     expect(changed.typescript.publicDeclarations[0].identity).not.toBe(initialDeclaration.identity);
@@ -859,18 +863,18 @@ describe('relationship extraction production CLI', () => {
       "export interface PublicThing { value: string; nested: import('./hidden').Hidden; declared: import('./shapes').Declared }\n",
     );
     const restoredRevision = commitAll(repository, 'restore public type');
-    const restored = report(invoke(repository, restoredRevision, requestPath));
+    const restored = report(await invoke(repository, restoredRevision, requestPath));
     expect(restored.typescript.publicDeclarations[0].identity).toBe(initialDeclaration.identity);
     expect(relationshipInput(restored, 'typescript.public-declarations')).toBe(
       relationshipInput(initial, 'typescript.public-declarations'),
     );
   }, 45_000);
 
-  test('stales an import-type public declaration when its hidden declaration changes', () => {
+  test('stales an import-type public declaration when its hidden declaration changes', async () => {
     const repository = createRepository();
     const requestPath = writeRequest(repository);
     const initialRevision = commitAll(repository, 'number import type');
-    const initial = report(invoke(repository, initialRevision, requestPath));
+    const initial = report(await invoke(repository, initialRevision, requestPath));
 
     write(
       repository,
@@ -878,7 +882,7 @@ describe('relationship extraction production CLI', () => {
       "import type { PathLike } from 'node:fs';\nimport type { Type } from 'typescript';\nexport interface Hidden { code: string; path?: PathLike; compiler?: Type }\n",
     );
     const changedRevision = commitAll(repository, 'string import type');
-    const changed = report(invoke(repository, changedRevision, requestPath));
+    const changed = report(await invoke(repository, changedRevision, requestPath));
     expect(changed.typescript.publicDeclarations[0].identity).not.toBe(
       initial.typescript.publicDeclarations[0].identity,
     );
@@ -892,18 +896,18 @@ describe('relationship extraction production CLI', () => {
       "import type { PathLike } from 'node:fs';\nimport type { Type } from 'typescript';\nexport interface Hidden { code: number; path?: PathLike; compiler?: Type }\n",
     );
     const restored = report(
-      invoke(repository, commitAll(repository, 'restore number import type'), requestPath),
+      await invoke(repository, commitAll(repository, 'restore number import type'), requestPath),
     );
     expect(restored.typescript.publicDeclarations[0].identity).toBe(
       initial.typescript.publicDeclarations[0].identity,
     );
   }, 45_000);
 
-  test('stales a public declaration when a transitive local declaration source changes', () => {
+  test('stales a public declaration when a transitive local declaration source changes', async () => {
     const repository = createRepository();
     const requestPath = writeRequest(repository);
     const initialRevision = commitAll(repository, 'string local declaration');
-    const initial = report(invoke(repository, initialRevision, requestPath));
+    const initial = report(await invoke(repository, initialRevision, requestPath));
 
     write(
       repository,
@@ -911,7 +915,7 @@ describe('relationship extraction production CLI', () => {
       shapesDeclaration.replace('label: string', 'label: number'),
     );
     const changedRevision = commitAll(repository, 'number local declaration');
-    const changed = report(invoke(repository, changedRevision, requestPath));
+    const changed = report(await invoke(repository, changedRevision, requestPath));
     expect(changed.typescript.publicDeclarations[0].identity).not.toBe(
       initial.typescript.publicDeclarations[0].identity,
     );
@@ -921,18 +925,18 @@ describe('relationship extraction production CLI', () => {
 
     write(repository, 'packages/provider/src/shapes.d.ts', shapesDeclaration);
     const restored = report(
-      invoke(repository, commitAll(repository, 'restore local declaration'), requestPath),
+      await invoke(repository, commitAll(repository, 'restore local declaration'), requestPath),
     );
     expect(restored.typescript.publicDeclarations[0].identity).toBe(
       initial.typescript.publicDeclarations[0].identity,
     );
   }, 45_000);
 
-  test('stales provider topology when a local declaration importer is added', () => {
+  test('stales provider topology when a local declaration importer is added', async () => {
     const repository = createRepository();
     const requestPath = writeRequest(repository);
     const initial = report(
-      invoke(repository, commitAll(repository, 'initial declaration importers'), requestPath),
+      await invoke(repository, commitAll(repository, 'initial declaration importers'), requestPath),
     );
     const initialProvider = initial.typescript.reverseEdges.find(
       (selector) => selector.provider === 'packages/provider/src/hidden.ts',
@@ -944,7 +948,7 @@ describe('relationship extraction production CLI', () => {
       "import type { Hidden } from './hidden';\nexport type Additional = Hidden;\n",
     );
     const changed = report(
-      invoke(repository, commitAll(repository, 'add declaration importer'), requestPath),
+      await invoke(repository, commitAll(repository, 'add declaration importer'), requestPath),
     );
     const changedProvider = changed.typescript.reverseEdges.find(
       (selector) => selector.provider === 'packages/provider/src/hidden.ts',
@@ -964,11 +968,11 @@ describe('relationship extraction production CLI', () => {
     ]);
   }, 45_000);
 
-  test('stales a public declaration when a referenced global declaration changes', () => {
+  test('stales a public declaration when a referenced global declaration changes', async () => {
     const repository = createRepository();
     const requestPath = writeRequest(repository);
     const initialRevision = commitAll(repository, 'string global declaration');
-    const initial = report(invoke(repository, initialRevision, requestPath));
+    const initial = report(await invoke(repository, initialRevision, requestPath));
 
     write(
       repository,
@@ -976,7 +980,7 @@ describe('relationship extraction production CLI', () => {
       'interface GlobalHidden { code: number }\n',
     );
     const changedRevision = commitAll(repository, 'number global declaration');
-    const changed = report(invoke(repository, changedRevision, requestPath));
+    const changed = report(await invoke(repository, changedRevision, requestPath));
 
     // Proof: omitting resolved triple-slash dependencies kept the public identity unchanged;
     // this production assertion received equality after `GlobalHidden.code` became `number`.
@@ -996,14 +1000,14 @@ describe('relationship extraction production CLI', () => {
       'interface GlobalHidden { code: string }\n',
     );
     const restored = report(
-      invoke(repository, commitAll(repository, 'restore global declaration'), requestPath),
+      await invoke(repository, commitAll(repository, 'restore global declaration'), requestPath),
     );
     expect(restored.typescript.publicDeclarations[0].identity).toBe(
       initial.typescript.publicDeclarations[0].identity,
     );
   }, 45_000);
 
-  test('retains an original TypeScript source path reference in its emitted public closure', () => {
+  test('retains an original TypeScript source path reference in its emitted public closure', async () => {
     const repository = createRepository();
     const requestPath = writeRequest(repository);
     write(
@@ -1022,7 +1026,7 @@ describe('relationship extraction production CLI', () => {
       "import type { Hidden } from './hidden';\nexport interface Declared { label: string; hidden: Hidden }\n",
     );
     const initialRevision = commitAll(repository, 'source references string global');
-    const initial = report(invoke(repository, initialRevision, requestPath));
+    const initial = report(await invoke(repository, initialRevision, requestPath));
 
     write(
       repository,
@@ -1030,7 +1034,7 @@ describe('relationship extraction production CLI', () => {
       'interface GlobalHidden { code: number }\n',
     );
     const changedRevision = commitAll(repository, 'source references number global');
-    const changed = report(invoke(repository, changedRevision, requestPath));
+    const changed = report(await invoke(repository, changedRevision, requestPath));
 
     expect(changed.typescript.publicDeclarations[0].identity).not.toBe(
       initial.typescript.publicDeclarations[0].identity,
@@ -1054,18 +1058,22 @@ describe('relationship extraction production CLI', () => {
       'interface GlobalHidden { code: string }\n',
     );
     const restored = report(
-      invoke(repository, commitAll(repository, 'restore source referenced global'), requestPath),
+      await invoke(
+        repository,
+        commitAll(repository, 'restore source referenced global'),
+        requestPath,
+      ),
     );
     expect(restored.typescript.publicDeclarations[0].identity).toBe(
       initial.typescript.publicDeclarations[0].identity,
     );
   }, 45_000);
 
-  test('keys provider topology by exact reverse edges, not unchanged importer bytes', () => {
+  test('keys provider topology by exact reverse edges, not unchanged importer bytes', async () => {
     const repository = createRepository();
     const requestPath = writeRequest(repository);
     const initial = report(
-      invoke(repository, commitAll(repository, 'initial callers'), requestPath),
+      await invoke(repository, commitAll(repository, 'initial callers'), requestPath),
     );
     const initialProvider = initial.typescript.reverseEdges.find(
       (selector) => selector.provider === 'packages/provider/src/index.ts',
@@ -1077,7 +1085,7 @@ describe('relationship extraction production CLI', () => {
       "import type { PublicThing } from './index';\nexport const inspect = (value: PublicThing) => value.nested.code;\n",
     );
     const internalEdit = report(
-      invoke(repository, commitAll(repository, 'internal implementation edit'), requestPath),
+      await invoke(repository, commitAll(repository, 'internal implementation edit'), requestPath),
     );
     expect(
       internalEdit.typescript.reverseEdges.find(
@@ -1091,7 +1099,7 @@ describe('relationship extraction production CLI', () => {
       "import type { PublicThing } from '../../../provider/src/index';\nexport type Second = PublicThing;\n",
     );
     const newImporter = report(
-      invoke(repository, commitAll(repository, 'add reverse edge'), requestPath),
+      await invoke(repository, commitAll(repository, 'add reverse edge'), requestPath),
     );
     const changedProvider = newImporter.typescript.reverseEdges.find(
       (selector) => selector.provider === 'packages/provider/src/index.ts',
@@ -1106,10 +1114,10 @@ describe('relationship extraction production CLI', () => {
     ]);
   }, 45_000);
 
-  test('refuses absent, unreadable, malformed, unresolved and failed TypeScript inputs distinctly', () => {
+  test('refuses absent, unreadable, malformed, unresolved and failed TypeScript inputs distinctly', async () => {
     const missingRepository = createRepository();
     const missingRevision = commitAll(missingRepository, 'missing config request');
-    const missing = invoke(
+    const missing = await invoke(
       missingRepository,
       missingRevision,
       writeRequest(missingRepository, ['missing-tsconfig.json']),
@@ -1119,7 +1127,7 @@ describe('relationship extraction production CLI', () => {
 
     const unreadableRepository = createRepository();
     const unreadableRevision = commitAll(unreadableRepository, 'directory as config');
-    const unreadable = invoke(
+    const unreadable = await invoke(
       unreadableRepository,
       unreadableRevision,
       writeRequest(unreadableRepository, ['packages']),
@@ -1130,7 +1138,7 @@ describe('relationship extraction production CLI', () => {
     const malformedRepository = createRepository();
     write(malformedRepository, 'config/tsconfig.json', '{ malformed\n');
     const malformedRevision = commitAll(malformedRepository, 'malformed config');
-    const malformed = invoke(
+    const malformed = await invoke(
       malformedRepository,
       malformedRevision,
       writeRequest(malformedRepository),
@@ -1150,7 +1158,7 @@ describe('relationship extraction production CLI', () => {
       "import type { Missing } from './absent';\nexport type Use = Missing;\n",
     );
     const unresolvedRevision = commitAll(unresolvedRepository, 'unresolved import');
-    const unresolved = invoke(
+    const unresolved = await invoke(
       unresolvedRepository,
       unresolvedRevision,
       writeRequest(unresolvedRepository),
@@ -1161,7 +1169,7 @@ describe('relationship extraction production CLI', () => {
     );
   }, 30_000);
 
-  test('omits a compiler-supported ambient non-code import without inventing a target', () => {
+  test('omits a compiler-supported ambient non-code import without inventing a target', async () => {
     const repository = createRepository();
     write(repository, 'packages/apps/consumer/src/non-code.d.ts', "declare module '*.css';\n");
     write(
@@ -1178,7 +1186,11 @@ describe('relationship extraction production CLI', () => {
         publicEntrypoints: ['packages/apps/consumer/src/use.ts'],
       },
     });
-    const invocation = invoke(repository, commitAll(repository, 'ambient stylesheet'), requestPath);
+    const invocation = await invoke(
+      repository,
+      commitAll(repository, 'ambient stylesheet'),
+      requestPath,
+    );
     expect(invocation.exitCode, output(invocation)).toBe(0);
     const extracted = report(invocation);
     expect(
@@ -1194,7 +1206,7 @@ describe('relationship extraction production CLI', () => {
     );
   }, 20_000);
 
-  test('fails closed on unresolved declaration reference directives', () => {
+  test('fails closed on unresolved declaration reference directives', async () => {
     const cases = [
       {
         name: 'path',
@@ -1219,7 +1231,7 @@ describe('relationship extraction production CLI', () => {
     for (const boundary of cases) {
       const repository = createRepository();
       write(repository, 'packages/provider/src/shapes.d.ts', boundary.source);
-      const failed = invoke(
+      const failed = await invoke(
         repository,
         commitAll(repository, `unresolved ${boundary.name} reference`),
         writeRequest(repository),
@@ -1229,7 +1241,7 @@ describe('relationship extraction production CLI', () => {
     }
   }, 30_000);
 
-  test('reads Nx project JSON without executing candidate plugins', () => {
+  test('reads Nx project JSON without executing candidate plugins', async () => {
     const repository = createRepository();
     const marker = join(dirname(repository), `${basename(repository)}-plugin-ran`);
     pathsToRemove.push(marker);
@@ -1247,7 +1259,7 @@ describe('relationship extraction production CLI', () => {
       `await Bun.write(${JSON.stringify(marker)}, 'candidate plugin ran\\n');\nexport default {};\n`,
     );
     const extracted = report(
-      invoke(
+      await invoke(
         repository,
         commitAll(repository, 'candidate plugin is data'),
         writeRequest(repository),
@@ -1276,35 +1288,39 @@ describe('relationship extraction production CLI', () => {
     const bundleDirectory = mkdtempSync(join(tmpdir(), 'tool-wiki-bundled-validator-'));
     pathsToRemove.push(bundleDirectory);
     const bundle = join(bundleDirectory, 'validator.mjs');
-    const built = Bun.spawnSync(
-      ['bun', 'build', cliPath, '--target=bun', '--format=esm', `--outfile=${bundle}`],
-      { stderr: 'pipe', stdout: 'pipe' },
+    const built = fromProcess(
+      Bun.spawnSync(
+        ['bun', 'build', cliPath, '--target=bun', '--format=esm', `--outfile=${bundle}`],
+        { stderr: 'pipe', stdout: 'pipe' },
+      ),
     );
     expect(built.exitCode, output(built)).toBe(0);
 
-    const invocation = Bun.spawnSync(
-      [
-        process.execPath,
-        'run',
-        '--cwd',
-        bundleDirectory,
-        '--no-env-file',
-        bundle,
-        'extract-relationships',
-        'committed',
-        repository,
-        revision,
-        requestPath,
-      ],
-      {
-        cwd: bundleDirectory,
-        env: {
-          PATH: process.env['PATH'] ?? '',
-          TOOL_WIKI_TRUSTED_NODE_MODULES: trustedNodeModules,
+    const invocation = fromProcess(
+      Bun.spawnSync(
+        [
+          process.execPath,
+          'run',
+          '--cwd',
+          bundleDirectory,
+          '--no-env-file',
+          bundle,
+          'extract-relationships',
+          'committed',
+          repository,
+          revision,
+          requestPath,
+        ],
+        {
+          cwd: bundleDirectory,
+          env: {
+            PATH: process.env['PATH'] ?? '',
+            TOOL_WIKI_TRUSTED_NODE_MODULES: trustedNodeModules,
+          },
+          stderr: 'pipe',
+          stdout: 'pipe',
         },
-        stderr: 'pipe',
-        stdout: 'pipe',
-      },
+      ),
     );
 
     expect(invocation.exitCode, output(invocation)).toBe(0);
@@ -1315,10 +1331,10 @@ describe('relationship extraction production CLI', () => {
     ]);
   }, 20_000);
 
-  test('refuses malformed static Nx project data without running candidate code', () => {
+  test('refuses malformed static Nx project data without running candidate code', async () => {
     const repository = createRepository();
     write(repository, 'packages/provider/project.json', '{ malformed\n');
-    const failed = invoke(
+    const failed = await invoke(
       repository,
       commitAll(repository, 'malformed project data'),
       writeRequest(repository),
@@ -1330,12 +1346,12 @@ describe('relationship extraction production CLI', () => {
     );
   });
 
-  test('supports contained symlinks and refuses an effective intermediate-symlink escape', () => {
+  test('supports contained symlinks and refuses an effective intermediate-symlink escape', async () => {
     const repository = createRepository();
     const requestPath = writeRequest(repository);
     symlinkSync('packages/provider/src/hidden.ts', join(repository, 'safe-hidden'));
     const safeRevision = commitAll(repository, 'contained candidate symlink');
-    report(invoke(repository, safeRevision, requestPath));
+    report(await invoke(repository, safeRevision, requestPath));
 
     const outsidePath = join(dirname(repository), `${basename(repository)}-outside.ts`);
     pathsToRemove.push(outsidePath);
@@ -1343,7 +1359,7 @@ describe('relationship extraction production CLI', () => {
     symlinkSync('.', join(repository, 'pivot'));
     symlinkSync(`pivot/../${basename(outsidePath)}`, join(repository, 'escape'));
     const escapingRevision = commitAll(repository, 'effective candidate symlink escape');
-    const escaped = invoke(repository, escapingRevision, requestPath);
+    const escaped = await invoke(repository, escapingRevision, requestPath);
 
     expect(escaped.exitCode).toBe(1);
     expect(output(escaped)).toContain(
@@ -1353,7 +1369,7 @@ describe('relationship extraction production CLI', () => {
   }, 30_000);
 });
 
-test('reads static Nx configuration without executing candidate plugins', () => {
+test('reads static Nx configuration without executing candidate plugins', async () => {
   const repository = createRepository();
   const sentinel = join(repository, '..', `${basename(repository)}.plugin-executed`);
   pathsToRemove.push(sentinel);
@@ -1369,7 +1385,7 @@ test('reads static Nx configuration without executing candidate plugins', () => 
   );
   const revision = commitAll(repository, 'candidate Nx plugin');
 
-  const invocation = invoke(repository, revision, writeRequest(repository), {
+  const invocation = await invoke(repository, revision, writeRequest(repository), {
     MODULE_WIKI_PLUGIN_SENTINEL: sentinel,
   });
 
@@ -1383,7 +1399,7 @@ test('reads static Nx configuration without executing candidate plugins', () => 
   ]);
 });
 
-test('reads static Nx configuration without executing a candidate-local wrapper', () => {
+test('reads static Nx configuration without executing a candidate-local wrapper', async () => {
   const repository = createRepository();
   const sentinel = join(repository, '..', `${basename(repository)}.local-nx-executed`);
   pathsToRemove.push(sentinel);
@@ -1400,7 +1416,7 @@ test('reads static Nx configuration without executing a candidate-local wrapper'
   );
   const revision = commitAll(repository, 'candidate-local Nx wrapper');
 
-  const invocation = invoke(repository, revision, writeRequest(repository), {
+  const invocation = await invoke(repository, revision, writeRequest(repository), {
     MODULE_WIKI_NX_SENTINEL: sentinel,
   });
 
@@ -1414,10 +1430,10 @@ test('reads static Nx configuration without executing a candidate-local wrapper'
   ]);
 });
 
-test('uses trusted Nx when candidate root package metadata claims its package name', () => {
+test('uses trusted Nx when candidate root package metadata claims its package name', async () => {
   const repository = createRepository();
   const requestPath = writeRequest(repository);
-  report(invoke(repository, commitAll(repository, 'declarative Nx baseline'), requestPath));
+  report(await invoke(repository, commitAll(repository, 'declarative Nx baseline'), requestPath));
   const sentinel = join(repository, '..', `${basename(repository)}.self-reference-executed`);
   pathsToRemove.push(sentinel);
   write(
@@ -1441,7 +1457,7 @@ test('uses trusted Nx when candidate root package metadata claims its package na
   );
   const revision = commitAll(repository, 'candidate package self-reference');
 
-  const invocation = invoke(repository, revision, requestPath);
+  const invocation = await invoke(repository, revision, requestPath);
   expect(existsSync(sentinel)).toBe(false);
   const extracted = report(invocation);
   expect(extracted.nx.projects.map(({ name }) => name)).toEqual([
@@ -1451,10 +1467,10 @@ test('uses trusted Nx when candidate root package metadata claims its package na
   ]);
 }, 30_000);
 
-test('starts the trusted relationship CLI outside a candidate with a Bun preload', () => {
+test('starts the trusted relationship CLI outside a candidate with a Bun preload', async () => {
   const repository = createRepository();
   const requestPath = writeRequest(repository);
-  report(invoke(repository, commitAll(repository, 'declarative Nx baseline'), requestPath));
+  report(await invoke(repository, commitAll(repository, 'declarative Nx baseline'), requestPath));
   const sentinel = join(repository, '..', `${basename(repository)}.bun-preload-executed`);
   pathsToRemove.push(sentinel);
   write(repository, 'bunfig.toml', 'preload = ["./candidate-preload.ts"]\n');
@@ -1465,7 +1481,7 @@ test('starts the trusted relationship CLI outside a candidate with a Bun preload
   );
   const revision = commitAll(repository, 'candidate Bun preload');
 
-  const invocation = invoke(repository, revision, requestPath);
+  const invocation = await invoke(repository, revision, requestPath);
   // Proof: starting the production CLI with `cwd: repository` loaded candidate-preload.ts, wrote
   // this sentinel, and failed the assertion before relationship extraction began.
   expect(existsSync(sentinel)).toBe(false);
@@ -1477,7 +1493,7 @@ test('starts the trusted relationship CLI outside a candidate with a Bun preload
   ]);
 }, 30_000);
 
-test('stales an implicit ambient declaration used by the public surface', () => {
+test('stales an implicit ambient declaration used by the public surface', async () => {
   const repository = createRepository();
   write(
     repository,
@@ -1490,14 +1506,18 @@ test('stales an implicit ambient declaration used by the public surface', () => 
     'interface ImplicitAmbient { value: string }\n',
   );
   const requestPath = writeRequest(repository);
-  const initial = report(invoke(repository, commitAll(repository, 'ambient string'), requestPath));
+  const initial = report(
+    await invoke(repository, commitAll(repository, 'ambient string'), requestPath),
+  );
 
   write(
     repository,
     'packages/provider/src/ambient.d.ts',
     'interface ImplicitAmbient { value: number }\n',
   );
-  const changed = report(invoke(repository, commitAll(repository, 'ambient number'), requestPath));
+  const changed = report(
+    await invoke(repository, commitAll(repository, 'ambient number'), requestPath),
+  );
 
   expect(
     changed.typescript.publicDeclarations[0].declarations.map(({ sourcePath }) => sourcePath),
@@ -1507,7 +1527,7 @@ test('stales an implicit ambient declaration used by the public surface', () => 
   );
 }, 30_000);
 
-test('stales an applicable module augmentation of a public type', () => {
+test('stales an applicable module augmentation of a public type', async () => {
   const repository = createRepository();
   write(
     repository,
@@ -1516,7 +1536,7 @@ test('stales an applicable module augmentation of a public type', () => {
   );
   const requestPath = writeRequest(repository);
   const initial = report(
-    invoke(repository, commitAll(repository, 'string augmentation'), requestPath),
+    await invoke(repository, commitAll(repository, 'string augmentation'), requestPath),
   );
 
   write(
@@ -1525,7 +1545,7 @@ test('stales an applicable module augmentation of a public type', () => {
     "import './hidden';\ndeclare module './hidden' { interface Hidden { augmented: number } }\n",
   );
   const changed = report(
-    invoke(repository, commitAll(repository, 'number augmentation'), requestPath),
+    await invoke(repository, commitAll(repository, 'number augmentation'), requestPath),
   );
 
   expect(
@@ -1537,7 +1557,7 @@ test('stales an applicable module augmentation of a public type', () => {
 }, 30_000);
 
 for (const ambientUse of ['keyof', 'generic default'] as const) {
-  test(`stales an ambient declaration referenced through ${ambientUse}`, () => {
+  test(`stales an ambient declaration referenced through ${ambientUse}`, async () => {
     const repository = createRepository();
     const exportedDeclaration =
       ambientUse === 'keyof'
@@ -1556,7 +1576,7 @@ for (const ambientUse of ['keyof', 'generic default'] as const) {
     );
     const requestPath = writeRequest(repository);
     const initial = report(
-      invoke(repository, commitAll(repository, 'ambient before'), requestPath),
+      await invoke(repository, commitAll(repository, 'ambient before'), requestPath),
     );
 
     write(
@@ -1564,7 +1584,9 @@ for (const ambientUse of ['keyof', 'generic default'] as const) {
       'packages/provider/src/ambient.d.ts',
       'interface ImplicitAmbient { after: number }\n',
     );
-    const changed = report(invoke(repository, commitAll(repository, 'ambient after'), requestPath));
+    const changed = report(
+      await invoke(repository, commitAll(repository, 'ambient after'), requestPath),
+    );
 
     expect(
       changed.typescript.publicDeclarations[0].declarations.map(({ sourcePath }) => sourcePath),

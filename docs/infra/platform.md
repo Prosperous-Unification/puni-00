@@ -280,3 +280,45 @@ log body, and writes the `logs-puni.otel-<environment>` data stream. Its
 stores extra dynamic attributes unindexed. Alert routes and recipients come from
 the `alertmanager-puni` Secret; `Watchdog` is the dead-man signal.
 Store-specific backups and restores are in [recovery](recovery.md).
+
+### Failure reports
+
+A WBS service logs a failure as one pino JSON line whose `err` is the redacted,
+bounded diagnostic report from `@shared/failures` (`LogRecord` in
+`libs/wbs/adapters/observability/src/log-schema.ts`). The collector's filelog
+operators parse a body that starts with `{` (`json_parser`, `on_error: send`, so
+a body that does not parse ships as text) and lift a closed set of fields into
+attributes; the body keeps the whole line. JSON whose `service` is not a WBS
+service lifts nothing, and each field is lifted only when its value has the
+declared shape, so a malformed value stays in the body and is never defaulted.
+
+| Pino field          | Attribute               | Mapping           | Lifted when                                     |
+| ------------------- | ----------------------- | ----------------- | ----------------------------------------------- |
+| `service`           | `service`               | `keyword`         | `be-01`, `gw-01`, `fe-01` or `mcp-01`           |
+| `level`             | `level`                 | `keyword`         | a level label (`trace` … `fatal`), not a number |
+| `msg`               | `msg`                   | `match_only_text` | a string; credential shapes are redacted        |
+| `time`              | `time`                  | `date` (ms)       | a number                                        |
+| `err.occurrence_id` | `failure.occurrence_id` | `keyword`         | `[A-Za-z0-9_.:-]{1,128}`                        |
+| `err.fingerprint`   | `failure.fingerprint`   | `keyword`         | `[A-Za-z0-9_.:-]{1,128}`                        |
+| `err.v`             | `failure.v`             | `keyword`         | `corj/` and up to 32 version characters         |
+
+`elastic/settings/failure-fields.json` maps these explicitly in
+`logs-otel@custom`, so they stay indexed under the field limit. Like any
+template change, the mapping applies from the data stream's next backing index:
+the daily rollover, or at once with
+`POST logs-puni.otel-<environment>/_rollover`. A test in
+`wbs-observability` (`failure-mapping.test.ts`) fails when a lifted field is
+missing from the mapping, is not declared by `LogRecord`, or when the
+collector's service and level lists drift from the schema. Nothing beyond the
+already redacted report is lifted; `fingerprint` is a hash of the failure's
+kind and place, and the lines share the `puni-logs` 30-day retention.
+
+The `kibana-objects` Job (`kibana/objects`) imports a data view over
+`logs-puni.otel-*`, the Lens panels "Failures by fingerprint" and "Latest
+occurrence per fingerprint", and the dashboard **Failures**, which opens on the
+last 7 days. It waits for Kibana to report `available` (60 checks, 10 s apart),
+imports with `overwrite=true`, and fails unless Kibana's verdict is
+`success: true`. Its objects and script, like `failure-fields.json`, are
+generated ConfigMaps whose names carry a content hash, so a change recreates the
+Job (`force: enabled`). Fingerprint alerting is not part of this; the k3d proof
+is in [the change's verify record](../../openspec/changes/log-failure-records/verify.md).

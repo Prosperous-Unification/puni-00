@@ -8,6 +8,8 @@ import {
 } from '@wbs/contracts';
 import { useCallback, useEffect, useState } from 'react';
 
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { browserClient, failureMessage, unreachable } from '@/lib/http';
 
 import {
@@ -18,6 +20,17 @@ import {
   RELOAD,
   said,
 } from './organization-access';
+import {
+  ALERT_CLASS,
+  CONTROL_HEIGHT,
+  FIELD_CLASS,
+  FIELD_LABEL_CLASS,
+  FORM_CLASS,
+  LIST_CLASS,
+  OrganizationSection,
+  ROW_ACTIONS_CLASS,
+  STATUS_CLASS,
+} from './organization-section';
 
 const domains = browserClient([
   listOrganizationDomains,
@@ -140,16 +153,17 @@ export function DomainsPanel({
   }
 
   return (
-    <section aria-labelledby="domains-heading" className="mb-8">
-      <h2 id="domains-heading" className="mb-2 text-xl font-semibold">
-        Domains
-      </h2>
-      {view.kind === 'loading' && <p>Loading domains…</p>}
-      {view.kind === 'failure' && <p role="alert">{view.message}</p>}
+    <OrganizationSection id="domains-heading" title="Domains">
+      {view.kind === 'loading' && <p className={STATUS_CLASS}>Loading domains…</p>}
+      {view.kind === 'failure' && (
+        <p role="alert" className={ALERT_CLASS}>
+          {view.message}
+        </p>
+      )}
       {view.kind === 'ready' && (
         <>
           <form
-            className="mb-4 flex flex-wrap gap-2"
+            className={FORM_CLASS}
             onSubmit={(event) => {
               event.preventDefault();
               void change(async () => {
@@ -164,23 +178,31 @@ export function DomainsPanel({
               }, 'Challenge issued. Publish the TXT record below, then verify.');
             }}
           >
-            <label htmlFor="domain-name">Domain</label>
-            <input
-              id="domain-name"
-              className="border p-2"
-              value={domain}
-              onChange={(event) => {
-                setDomain(event.target.value);
-              }}
-              required
-              maxLength={253}
-            />
-            <button type="submit" disabled={sending}>
+            <span className={`${FIELD_CLASS} sm:flex-1`}>
+              <label htmlFor="domain-name" className={FIELD_LABEL_CLASS}>
+                Domain
+              </label>
+              <Input
+                id="domain-name"
+                className={CONTROL_HEIGHT}
+                value={domain}
+                onChange={(event) => {
+                  setDomain(event.target.value);
+                }}
+                required
+                maxLength={253}
+              />
+            </span>
+            <Button type="submit" className={CONTROL_HEIGHT} disabled={sending}>
               Claim domain
-            </button>
+            </Button>
           </form>
           {challenge !== null && (
-            <div aria-label="TXT record to publish" role="region" className="mb-4">
+            <div
+              aria-label="TXT record to publish"
+              role="region"
+              className="bg-muted flex flex-col gap-2 rounded-md p-3 text-sm"
+            >
               <p>
                 Publish this TXT record for {challenge.domain} before{' '}
                 <time dateTime={new Date(challenge.expiresAt).toISOString()}>
@@ -188,42 +210,47 @@ export function DomainsPanel({
                 </time>
                 :
               </p>
-              <dl>
-                <dt>Name</dt>
-                <dd>
-                  <code>{challenge.dnsName}</code>
+              <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1">
+                <dt className="text-muted-foreground">Name</dt>
+                <dd className="m-0">
+                  <code className="font-mono break-all">{challenge.dnsName}</code>
                 </dd>
-                <dt>Value</dt>
-                <dd>
-                  <code>{challenge.dnsValue}</code>
+                <dt className="text-muted-foreground">Value</dt>
+                <dd className="m-0">
+                  <code className="font-mono break-all">{challenge.dnsValue}</code>
                 </dd>
               </dl>
             </div>
           )}
           {view.claims.length === 0 ? (
-            <p>No domains claimed yet.</p>
+            <p className="text-muted-foreground text-sm">No domains claimed yet.</p>
           ) : (
-            <ul>
+            <ul className={`${LIST_CLASS} border-border divide-border divide-y border-t`}>
               {view.claims.map((claim) => (
-                <li key={claim.id} className="mb-2">
-                  <span>{claim.domain}</span> <span>{STATUS_NAMES[claim.status]}</span>
+                <li key={claim.id} className="flex flex-col gap-2 py-3">
+                  <span className="flex flex-wrap items-center gap-x-3">
+                    <span className="min-w-0 font-medium break-all">{claim.domain}</span>{' '}
+                    <span className="text-muted-foreground text-sm">
+                      {STATUS_NAMES[claim.status]}
+                    </span>
+                  </span>
                   {/*
                    * Proof: 2026-09-29, keying this notice on `pending` failed
                    * `renders suspension and a failed proof check as distinct states`.
                    */}
                   {claim.status === 'suspended' && (
-                    <p>
+                    <p className={ALERT_CLASS}>
                       Suspended: the TXT proof has not been found for 14 days. Members and content
                       are kept; publish the proof and verify to recover the domain.
                     </p>
                   )}
                   {claim.status === 'verified' && claim.proofWarning && (
-                    <p>
+                    <p className={ALERT_CLASS}>
                       The last proof check failed. Keep the TXT record published or the domain will
                       be suspended.
                     </p>
                   )}
-                  <p>
+                  <p className="text-muted-foreground text-sm">
                     Last successful check: {moment(claim.lastSuccessAt)}. Last check:{' '}
                     {moment(claim.lastCheckedAt)}.
                   </p>
@@ -232,114 +259,131 @@ export function DomainsPanel({
                    * failed `replaces Verify on a pending claim whose challenge expired`.
                    */}
                   {isChallengeExpired(claim, view.readAt) && (
-                    <p>Challenge expired, issue a new one.</p>
+                    <p className="text-sm">Challenge expired, issue a new one.</p>
                   )}
-                  {claim.status !== 'verified' && !isChallengeExpired(claim, view.readAt) && (
-                    <button
-                      type="button"
-                      disabled={sending}
-                      aria-label={`Verify ${claim.domain}`}
-                      onClick={() => {
-                        void change(
-                          () =>
-                            domains.postApiOrganizationDomainsByIdVerify({
-                              params: { id: claim.id },
-                            }),
-                          `${claim.domain} is verified.`,
-                        );
-                      }}
-                    >
-                      Verify
-                    </button>
-                  )}
-                  {claim.status === 'pending' && (
-                    <button
-                      type="button"
-                      disabled={sending}
-                      aria-label={`Issue a new challenge for ${claim.domain}`}
-                      onClick={() => {
-                        void change(async () => {
-                          const reply = await domains.postApiOrganizationDomainsChallenges({
-                            body: { domain: claim.domain },
-                          });
-                          if (reply.kind === 'success')
-                            setChallenge({ ...reply.body, issuedFor: 'pending' });
-                          return reply;
-                        }, 'Challenge issued. Publish the TXT record below, then verify.');
-                      }}
-                    >
-                      New challenge
-                    </button>
-                  )}
-                  {claim.status !== 'pending' && (
-                    <button
-                      type="button"
-                      disabled={sending}
-                      aria-label={`Rotate the proof for ${claim.domain}`}
-                      onClick={() => {
-                        void change(async () => {
-                          const reply = await domains.postApiOrganizationDomainsByIdRotate({
-                            params: { id: claim.id },
-                          });
-                          if (reply.kind === 'success')
-                            setChallenge({ ...reply.body, issuedFor: claim.status });
-                          return reply;
-                        }, 'New proof issued. The previous one stays valid for up to 24 hours.');
-                      }}
-                    >
-                      Rotate proof
-                    </button>
-                  )}
-                  {releasing === claim.id ? (
-                    <>
-                      <button
+                  <span className={ROW_ACTIONS_CLASS}>
+                    {claim.status !== 'verified' && !isChallengeExpired(claim, view.readAt) && (
+                      <Button
                         type="button"
+                        className={CONTROL_HEIGHT}
                         disabled={sending}
-                        aria-label={`Confirm releasing ${claim.domain}`}
+                        aria-label={`Verify ${claim.domain}`}
                         onClick={() => {
-                          setReleasing(null);
                           void change(
                             () =>
-                              domains.deleteApiOrganizationDomainsById({
+                              domains.postApiOrganizationDomainsByIdVerify({
                                 params: { id: claim.id },
                               }),
-                            `${claim.domain} was released.`,
+                            `${claim.domain} is verified.`,
                           );
                         }}
                       >
-                        Confirm release
-                      </button>
-                      <button
+                        Verify
+                      </Button>
+                    )}
+                    {claim.status === 'pending' && (
+                      <Button
                         type="button"
+                        variant="outline"
+                        className={CONTROL_HEIGHT}
+                        disabled={sending}
+                        aria-label={`Issue a new challenge for ${claim.domain}`}
                         onClick={() => {
-                          setReleasing(null);
+                          void change(async () => {
+                            const reply = await domains.postApiOrganizationDomainsChallenges({
+                              body: { domain: claim.domain },
+                            });
+                            if (reply.kind === 'success')
+                              setChallenge({ ...reply.body, issuedFor: 'pending' });
+                            return reply;
+                          }, 'Challenge issued. Publish the TXT record below, then verify.');
                         }}
                       >
-                        Keep
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      type="button"
-                      disabled={sending}
-                      aria-label={`Release ${claim.domain}`}
-                      onClick={() => {
-                        // Proof: 2026-09-29, deleting here without the confirm
-                        // step failed `releases only after confirmation`.
-                        setReleasing(claim.id);
-                      }}
-                    >
-                      Release
-                    </button>
-                  )}
+                        New challenge
+                      </Button>
+                    )}
+                    {claim.status !== 'pending' && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className={CONTROL_HEIGHT}
+                        disabled={sending}
+                        aria-label={`Rotate the proof for ${claim.domain}`}
+                        onClick={() => {
+                          void change(async () => {
+                            const reply = await domains.postApiOrganizationDomainsByIdRotate({
+                              params: { id: claim.id },
+                            });
+                            if (reply.kind === 'success')
+                              setChallenge({ ...reply.body, issuedFor: claim.status });
+                            return reply;
+                          }, 'New proof issued. The previous one stays valid for up to 24 hours.');
+                        }}
+                      >
+                        Rotate proof
+                      </Button>
+                    )}
+                    {releasing === claim.id ? (
+                      <>
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          className={CONTROL_HEIGHT}
+                          disabled={sending}
+                          aria-label={`Confirm releasing ${claim.domain}`}
+                          onClick={() => {
+                            setReleasing(null);
+                            void change(
+                              () =>
+                                domains.deleteApiOrganizationDomainsById({
+                                  params: { id: claim.id },
+                                }),
+                              `${claim.domain} was released.`,
+                            );
+                          }}
+                        >
+                          Confirm release
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className={CONTROL_HEIGHT}
+                          onClick={() => {
+                            setReleasing(null);
+                          }}
+                        >
+                          Keep
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className={`text-destructive hover:text-destructive ${CONTROL_HEIGHT}`}
+                        disabled={sending}
+                        aria-label={`Release ${claim.domain}`}
+                        onClick={() => {
+                          // Proof: 2026-09-29, deleting here without the confirm
+                          // step failed `releases only after confirmation`.
+                          setReleasing(claim.id);
+                        }}
+                      >
+                        Release
+                      </Button>
+                    )}
+                  </span>
                 </li>
               ))}
             </ul>
           )}
         </>
       )}
-      {message !== '' && <p role="status">{message}</p>}
-    </section>
+      {message !== '' && (
+        <p role="status" className={STATUS_CLASS}>
+          {message}
+        </p>
+      )}
+    </OrganizationSection>
   );
 }
 

@@ -279,6 +279,22 @@ Time-bounded ownership of a reservation or workspace, fenced by a token so an
 expired owner cannot act.
 _Avoid_: Lock, session
 
+**Generation**:
+One atomic grant of claims to a session in the admission authority, numbered from
+one counter that never resets; its number fences every later write of that session.
+See **Lease**.
+_Avoid_: Attempt, version
+
+**Publication marker**:
+The immutable ref recording that one integration's Git transaction committed, so a
+later process can finish the publication without moving any ref again.
+_Avoid_: Tag, flag
+
+**Authority bootstrap**:
+The explicit, one-time creation of a repository's admission authority store; opening
+an absent store refuses instead.
+_Avoid_: Initialization on open, auto-create
+
 **Effect**:
 An externally visible action a worker requests, recorded with a stable identity
 before dispatch so its outcome can be reconciled.

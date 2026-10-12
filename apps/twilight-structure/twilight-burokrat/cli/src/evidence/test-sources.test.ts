@@ -7,6 +7,7 @@ import { afterEach, expect, test } from 'bun:test';
 
 import { checkIndexes } from '../indexes/check-indexes';
 import { readCandidate } from '../inventory/read-candidate';
+import { invokeCli } from '../invoke-cli';
 import { registeredRules } from '../rules/registry';
 import { hashCanonical } from './content-manifest';
 
@@ -195,28 +196,22 @@ afterEach(() => {
   for (const path of scratch.splice(0)) rmSync(path, { recursive: true, force: true });
 });
 
-function inspect(setup: ReturnType<typeof fixture>): {
+async function inspect(setup: ReturnType<typeof fixture>): Promise<{
   exitCode: number;
   stdout: string;
   stderr: string;
-} {
-  const call = Bun.spawnSync(
-    [
-      process.execPath,
-      'run',
-      join(import.meta.dir, '..', 'cli.ts'),
-      'inspect-test-sources',
-      setup.root,
-      setup.revision,
-      setup.policyPath,
-      mode,
-    ],
-    { stdout: 'pipe', stderr: 'pipe' },
-  );
+}> {
+  const call = await invokeCli([
+    'inspect-test-sources',
+    setup.root,
+    setup.revision,
+    setup.policyPath,
+    mode,
+  ]);
   return {
     exitCode: call.exitCode,
-    stdout: call.stdout.toString(),
-    stderr: call.stderr.toString(),
+    stdout: call.stdout,
+    stderr: call.stderr,
   };
 }
 
@@ -297,8 +292,8 @@ function publishCases(
   writeFileSync(join(setup.bundle, 'manifest.json'), JSON.stringify(setup.manifest));
 }
 
-function observation(setup: ReturnType<typeof fixture>): Record<string, unknown> {
-  const call = inspect(setup);
+async function observation(setup: ReturnType<typeof fixture>): Promise<Record<string, unknown>> {
+  const call = await inspect(setup);
   expect(call.exitCode, call.stderr).toBe(0);
   return JSON.parse(call.stdout) as Record<string, unknown>;
 }
@@ -367,9 +362,9 @@ function addIndexDebt(setup: ReturnType<typeof fixture>, indexPath: string): voi
   );
 }
 
-test('[TEST-AXES-048] production CLI binds exact nested owner and source', () => {
+test('[TEST-AXES-048] production CLI binds exact nested owner and source', async () => {
   const setup = fixture();
-  const report = observation(setup);
+  const report = await observation(setup);
   const bindings = report['bindings'] as {
     caseId: string;
     file: string;
@@ -403,22 +398,16 @@ test('[TEST-AXES-048] production CLI binds exact nested owner and source', () =>
   const nested = checked.indexes.find(({ moduleId }) => moduleId === 'module.nested');
   if (nested === undefined) throw new Error('fixture nested index absent');
   expect(bindings[0]?.owner.indexIdentity).toBe(nested.identity);
-  const reportCall = Bun.spawnSync(
-    [
-      process.execPath,
-      'run',
-      join(import.meta.dir, '..', 'cli.ts'),
-      'inspect-test-reports',
-      setup.root,
-      setup.revision,
-      setup.policyPath,
-      mode,
-    ],
-    { stdout: 'pipe', stderr: 'pipe' },
-  );
-  expect(reportCall.exitCode, reportCall.stderr.toString()).toBe(0);
+  const reportCall = await invokeCli([
+    'inspect-test-reports',
+    setup.root,
+    setup.revision,
+    setup.policyPath,
+    mode,
+  ]);
+  expect(reportCall.exitCode, reportCall.stderr).toBe(0);
   expect(report['reportObservationDigest']).toBe(
-    (JSON.parse(reportCall.stdout.toString()) as { observationDigest: string }).observationDigest,
+    (JSON.parse(reportCall.stdout) as { observationDigest: string }).observationDigest,
   );
   expect(report['authentication']).toEqual({ kind: 'absent' });
   expect(report['certifies']).toBe(false);
@@ -426,9 +415,9 @@ test('[TEST-AXES-048] production CLI binds exact nested owner and source', () =>
   expect(observationDigest).toBe(hashCanonical(payload));
 });
 
-test('[TEST-AXES-049] a committed reported source outside every index refuses without JSON', () => {
+test('[TEST-AXES-049] a committed reported source outside every index refuses without JSON', async () => {
   const setup = fixture('regular', 'unowned');
-  const call = inspect(setup);
+  const call = await inspect(setup);
   expect(call.exitCode).not.toBe(0);
   expect(call.stderr).toContain(
     `test source has no unique validated index owner: ${setup.caseFile}`,
@@ -436,12 +425,12 @@ test('[TEST-AXES-049] a committed reported source outside every index refuses wi
   expect(call.stdout).toBe('');
 });
 
-test('[TEST-AXES-049] duplicate committed module identity retains the index checker refusal', () => {
+test('[TEST-AXES-049] duplicate committed module identity retains the index checker refusal', async () => {
   const setup = fixture();
   const path = join(setup.root, 'apps/alpha/nested/README.md');
   writeFileSync(path, readFileSync(path, 'utf8').replace('module.nested', 'module.outer'));
   commitCandidate(setup);
-  const call = inspect(setup);
+  const call = await inspect(setup);
   expect(call.exitCode).not.toBe(0);
   expect(call.stderr).toContain('duplicate index module identity: module.outer');
   expect(call.stdout).toBe('');
@@ -485,7 +474,7 @@ test('[TEST-AXES-050] faulted candidate reader cannot provide staged ownership',
   expect(call.stdout).toBe('');
 });
 
-test('[TEST-AXES-051] working index replacement cannot repair missing committed ownership', () => {
+test('[TEST-AXES-051] working index replacement cannot repair missing committed ownership', async () => {
   const setup = fixture('regular', 'unowned');
   const metadata = {
     schemaVersion: 1,
@@ -516,35 +505,35 @@ test('[TEST-AXES-051] working index replacement cannot repair missing committed 
       readCandidate(setup.root, { kind: 'working', base: setup.revision }),
     ).indexes.some(({ moduleId }) => moduleId === 'module.root'),
   ).toBe(true);
-  const call = inspect(setup);
+  const call = await inspect(setup);
   expect(call.exitCode).not.toBe(0);
   expect(call.stderr).toContain('test source has no unique validated index owner');
   expect(call.stdout).toBe('');
 });
 
-test('[TEST-AXES-051] only committed index bytes affect a valid ownership observation', () => {
+test('[TEST-AXES-051] only committed index bytes affect a valid ownership observation', async () => {
   const setup = fixture();
-  const first = observation(setup);
+  const first = await observation(setup);
   writeFileSync(join(setup.root, 'apps/alpha/nested/README.md'), '# Dirty replacement\n');
-  const second = observation(setup);
+  const second = await observation(setup);
   expect(second).toEqual(first);
 });
 
-test('[TEST-AXES-051] missing source and invalid external policy retain upstream refusals', () => {
+test('[TEST-AXES-051] missing source and invalid external policy retain upstream refusals', async () => {
   const missing = fixture('missing');
-  const missingCall = inspect(missing);
+  const missingCall = await inspect(missing);
   expect(missingCall.exitCode).not.toBe(0);
   expect(missingCall.stderr).toContain('test report case source is not a regular committed blob');
   expect(missingCall.stdout).toBe('');
   const policy = fixture();
   writeFileSync(policy.policyPath, '{');
-  const policyCall = inspect(policy);
+  const policyCall = await inspect(policy);
   expect(policyCall.exitCode).not.toBe(0);
   expect(policyCall.stderr).toContain('JSON');
   expect(policyCall.stdout).toBe('');
 });
 
-test('[TEST-AXES-051] malformed committed index metadata and broken links retain checker refusals', () => {
+test('[TEST-AXES-051] malformed committed index metadata and broken links retain checker refusals', async () => {
   const malformed = fixture();
   const path = join(malformed.root, 'apps/alpha/nested/README.md');
   writeFileSync(
@@ -552,7 +541,7 @@ test('[TEST-AXES-051] malformed committed index metadata and broken links retain
     readFileSync(path, 'utf8').replace('"moduleId":"module.nested"', '"moduleId":3'),
   );
   commitCandidate(malformed);
-  const malformedCall = inspect(malformed);
+  const malformedCall = await inspect(malformed);
   expect(malformedCall.exitCode).not.toBe(0);
   expect(malformedCall.stderr).toContain('index metadata malformed');
   expect(malformedCall.stdout).toBe('');
@@ -563,41 +552,41 @@ test('[TEST-AXES-051] malformed committed index metadata and broken links retain
     readFileSync(brokenPath, 'utf8').replace('(case.spec.ts)', '(absent.ts)'),
   );
   commitCandidate(broken);
-  const brokenCall = inspect(broken);
+  const brokenCall = await inspect(broken);
   expect(brokenCall.exitCode).not.toBe(0);
   expect(brokenCall.stderr).toContain('Markdown path absent in apps/alpha/nested/README.md');
   expect(brokenCall.stdout).toBe('');
 });
 
-test('[TEST-AXES-051] absent, malformed UTF-8 and unreadable committed indexes retain distinct refusals', () => {
+test('[TEST-AXES-051] absent, malformed UTF-8 and unreadable committed indexes retain distinct refusals', async () => {
   const absent = fixture();
   rmSync(join(absent.root, 'apps/alpha/README.md'));
   rmSync(join(absent.root, 'apps/alpha/nested/README.md'));
   commitCandidate(absent);
-  const absentCall = inspect(absent);
+  const absentCall = await inspect(absent);
   expect(absentCall.exitCode).not.toBe(0);
   expect(absentCall.stderr).toContain('selected candidate contains no module indexes');
   expect(absentCall.stdout).toBe('');
   const malformed = fixture();
   writeFileSync(join(malformed.root, 'apps/alpha/nested/README.md'), Buffer.from([0xff]));
   commitCandidate(malformed);
-  const malformedCall = inspect(malformed);
+  const malformedCall = await inspect(malformed);
   expect(malformedCall.exitCode).not.toBe(0);
   expect(malformedCall.stderr).toContain('selected Markdown is not UTF-8');
   expect(malformedCall.stdout).toBe('');
   const unreadable = fixture();
   const blob = git(unreadable.root, ['rev-parse', 'HEAD:apps/alpha/nested/README.md']);
   rmSync(join(unreadable.root, '.git/objects', blob.slice(0, 2), blob.slice(2)));
-  const unreadableCall = inspect(unreadable);
+  const unreadableCall = await inspect(unreadable);
   expect(unreadableCall.exitCode).not.toBe(0);
   expect(unreadableCall.stderr).toContain('cannot read selected index apps/alpha/nested/README.md');
   expect(unreadableCall.stdout).toBe('');
 });
 
-test('[TEST-AXES-051] corrupted Browser report publication retains the report refusal', () => {
+test('[TEST-AXES-051] corrupted Browser report publication retains the report refusal', async () => {
   const setup = fixture();
   writeFileSync(join(setup.bundle, 'report.xml'), '<invalid/>');
-  const call = inspect(setup);
+  const call = await inspect(setup);
   expect(call.exitCode).not.toBe(0);
   expect(call.stderr).toContain('digest');
   expect(call.stdout).toBe('');
@@ -627,22 +616,22 @@ test('[TEST-AXES-051] omitted, extra and unsupported modes refuse usage without 
   }
 });
 
-test('[TEST-AXES-051] symbolic revision refuses source selection before publication', () => {
+test('[TEST-AXES-051] symbolic revision refuses source selection before publication', async () => {
   const setup = fixture();
   setup.revision = 'HEAD';
-  const call = inspect(setup);
+  const call = await inspect(setup);
   expect(call.exitCode).not.toBe(0);
   expect(call.stderr).toContain('test source selection requires a full committed SHA');
   expect(call.stdout).toBe('');
 });
 
-test('[TEST-AXES-053] failed and skipped observations retain outcomes with unresolved level', () => {
+test('[TEST-AXES-053] failed and skipped observations retain outcomes with unresolved level', async () => {
   const setup = fixture();
   publishCases(setup, [
     { title: 'failed case', status: 'failed' },
     { title: 'skipped case', status: 'skipped' },
   ]);
-  const report = observation(setup);
+  const report = await observation(setup);
   const bindings = report['bindings'] as { status: string; level: unknown }[];
   expect(bindings.map(({ status }) => status).sort()).toEqual(['failed', 'skipped']);
   expect(bindings.map(({ level }) => level)).toEqual([
@@ -661,11 +650,11 @@ test('[TEST-AXES-053] failed and skipped observations retain outcomes with unres
     expect(Object.hasOwn(report, claim)).toBe(false);
 });
 
-test('[TEST-AXES-053] index review debt survives a successful ownership inspection', () => {
+test('[TEST-AXES-053] index review debt survives a successful ownership inspection', async () => {
   const setup = fixture();
   addIndexDebt(setup, 'apps/alpha/nested/README.md');
   commitCandidate(setup);
-  const report = observation(setup);
+  const report = await observation(setup);
   expect(report['indexReviewDebt']).toEqual([
     { indexPath: 'apps/alpha/nested/README.md', directEntries: 41, limit: 40 },
   ]);
@@ -673,7 +662,7 @@ test('[TEST-AXES-053] index review debt survives a successful ownership inspecti
   expect(observationDigest).toBe(hashCanonical(payload));
 });
 
-test('[TEST-AXES-052] reordered real report cases and index debt have stable normalized identity', () => {
+test('[TEST-AXES-052] reordered real report cases and index debt have stable normalized identity', async () => {
   const setup = fixture();
   publishCases(setup, [
     { title: 'first', status: 'passed' },
@@ -682,7 +671,7 @@ test('[TEST-AXES-052] reordered real report cases and index debt have stable nor
   addIndexDebt(setup, 'apps/alpha/README.md');
   addIndexDebt(setup, 'apps/alpha/nested/README.md');
   commitCandidate(setup);
-  const canonical = observation(setup);
+  const canonical = await observation(setup);
   const reportFault = inspectFault(
     setup,
     join(import.meta.dir, 'test-reports.ts'),
@@ -699,17 +688,17 @@ test('[TEST-AXES-052] reordered real report cases and index debt have stable nor
   expect(JSON.parse(debtFault.stdout)).toEqual(canonical);
 });
 
-test('[TEST-AXES-052] source, outcome, report and ownership changes alter complete observation identity', () => {
+test('[TEST-AXES-052] source, outcome, report and ownership changes alter complete observation identity', async () => {
   const baseline = fixture();
-  const original = observation(baseline);
+  const original = await observation(baseline);
   const source = fixture();
   writeFileSync(join(source.root, file), 'test("changed source", () => {});\n');
   commitCandidate(source);
-  const sourceReport = observation(source);
+  const sourceReport = await observation(source);
   expect(sourceReport['observationDigest']).not.toBe(original['observationDigest']);
   const outcome = fixture();
   publishCases(outcome, [{ title, status: 'failed' }]);
-  expect(observation(outcome)['observationDigest']).not.toBe(original['observationDigest']);
+  expect((await observation(outcome))['observationDigest']).not.toBe(original['observationDigest']);
   const owner = fixture();
   const indexPath = join(owner.root, 'apps/alpha/nested/README.md');
   writeFileSync(
@@ -717,7 +706,7 @@ test('[TEST-AXES-052] source, outcome, report and ownership changes alter comple
     readFileSync(indexPath, 'utf8').replace('module.nested', 'module.renamed'),
   );
   commitCandidate(owner);
-  const ownerReport = observation(owner);
+  const ownerReport = await observation(owner);
   expect(ownerReport['observationDigest']).not.toBe(original['observationDigest']);
   for (const report of [original, sourceReport, ownerReport]) {
     const { observationDigest, ...payload } = report;
@@ -725,9 +714,9 @@ test('[TEST-AXES-052] source, outcome, report and ownership changes alter comple
   }
 });
 
-test('[TEST-AXES-052] isolated upstream provenance and membership identity faults change the digest', () => {
+test('[TEST-AXES-052] isolated upstream provenance and membership identity faults change the digest', async () => {
   const setup = fixture();
-  const baseline = observation(setup);
+  const baseline = await observation(setup);
   const faults = [
     [
       join(import.meta.dir, 'test-reports.ts'),

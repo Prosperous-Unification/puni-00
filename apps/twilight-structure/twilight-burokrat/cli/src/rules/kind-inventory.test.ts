@@ -6,10 +6,10 @@ import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, test } from 'bun:test';
 
 import type { CandidateEntry } from '../inventory/read-candidate';
+import { invokeCli } from '../invoke-cli';
 import { resolveKinds } from './kinds';
 import { registeredRules } from './registry';
 
-const cliPath = join(import.meta.dir, '..', 'cli.ts');
 const trustedNodeModules = dirname(
   dirname(Bun.resolveSync('typescript/package.json', import.meta.dir)),
 );
@@ -116,30 +116,14 @@ interface Verdict {
   unevaluated: { ruleId: string; reason: string }[];
 }
 
-function check(
+async function check(
   candidate: { repository: string; revision: string },
   ruleId: string,
   policyPath = writePolicy({ namesInventory: true }),
-): { exitCode: number; stderr: string; verdict: Verdict } {
-  const invocation = Bun.spawnSync(
-    [
-      process.execPath,
-      'run',
-      cliPath,
-      'check',
-      'committed',
-      candidate.repository,
-      candidate.revision,
-      policyPath,
-      '--rule',
-      ruleId,
-    ],
-    {
-      cwd: import.meta.dir,
-      env: { ...process.env, TOOL_WIKI_TRUSTED_NODE_MODULES: trustedNodeModules },
-      stderr: 'pipe',
-      stdout: 'pipe',
-    },
+): Promise<{ exitCode: number; stderr: string; verdict: Verdict }> {
+  const invocation = await invokeCli(
+    ['check', 'committed', candidate.repository, candidate.revision, policyPath, '--rule', ruleId],
+    { TOOL_WIKI_TRUSTED_NODE_MODULES: trustedNodeModules },
   );
   const stderr = Buffer.from(invocation.stderr).toString('utf8');
   const stdout = Buffer.from(invocation.stdout).toString('utf8');
@@ -206,41 +190,25 @@ describe('kind inventory in the kind graph', () => {
 });
 
 describe('kind inventory through the production CLI', () => {
-  test('refuses a policy missing an unselected registered rule mode', () => {
+  test('refuses a policy missing an unselected registered rule mode', async () => {
     // Proof: disabling the policy's registered-rule coverage loop made this
     // selected-K2 invocation succeed despite the omitted PERF-THRESHOLD mode.
     const candidate = commitCandidate(deliveryImportsStore, storeIsResource);
     const policyPath = writePolicy({ namesInventory: true, omitRuleId: 'PERF-THRESHOLD' });
-    const invocation = Bun.spawnSync(
-      [
-        process.execPath,
-        'run',
-        cliPath,
-        'check',
-        'committed',
-        candidate.repository,
-        candidate.revision,
-        policyPath,
-        '--rule',
-        'K2',
-      ],
-      {
-        cwd: import.meta.dir,
-        env: { ...process.env, TOOL_WIKI_TRUSTED_NODE_MODULES: trustedNodeModules },
-        stderr: 'pipe',
-        stdout: 'pipe',
-      },
+    const invocation = await invokeCli(
+      ['check', 'committed', candidate.repository, candidate.revision, policyPath, '--rule', 'K2'],
+      { TOOL_WIKI_TRUSTED_NODE_MODULES: trustedNodeModules },
     );
     expect(invocation.exitCode).toBe(1);
-    expect(invocation.stderr.toString()).toContain('rule policy states no mode for PERF-THRESHOLD');
-    expect(invocation.stdout.toString()).toBe('');
+    expect(invocation.stderr).toContain('rule policy states no mode for PERF-THRESHOLD');
+    expect(invocation.stdout).toBe('');
   }, 30_000);
 
-  test('an inventory-declared resource makes an unsuffixed delivery import a K2 finding', () => {
+  test('an inventory-declared resource makes an unsuffixed delivery import a K2 finding', async () => {
     const candidate = commitCandidate(deliveryImportsStore, storeIsResource);
     // Proof: on 2026-09-27, passing no inventory entries to resolveKinds in check.ts made this test
     // receive `findings: []`.
-    const outcome = check(candidate, 'K2');
+    const outcome = await check(candidate, 'K2');
     expect(outcome.verdict.findings).toEqual([
       {
         ruleId: 'K2',
@@ -312,10 +280,10 @@ describe('kind inventory through the production CLI', () => {
   ];
 
   for (const [ruleId, sources, inventory, source, target] of unsuffixedEdges) {
-    test(`an inventory-declared forbidden edge is a ${ruleId} finding`, () => {
+    test(`an inventory-declared forbidden edge is a ${ruleId} finding`, async () => {
       // Proof: on 2026-09-27, passing no inventory entries to resolveKinds in check.ts made each of
       // these tests receive `findings: []`.
-      const outcome = check(commitCandidate(sources, inventory), ruleId);
+      const outcome = await check(commitCandidate(sources, inventory), ruleId);
       expect(
         outcome.verdict.findings.map((finding) => [finding.ruleId, finding.path, finding.subject]),
       ).toEqual([[ruleId, source, target]]);
@@ -323,13 +291,13 @@ describe('kind inventory through the production CLI', () => {
     }, 30_000);
   }
 
-  test('an unreadable selected inventory blob is reported as a Git read failure', () => {
+  test('an unreadable selected inventory blob is reported as a Git read failure', async () => {
     const candidate = commitCandidate(deliveryImportsStore, storeIsResource);
     const blob = runGit(candidate.repository, ['rev-parse', `HEAD:${inventoryPath}`]);
     rmSync(join(candidate.repository, '.git', 'objects', blob.slice(0, 2), blob.slice(2)));
     // Proof: on 2026-09-27, moving the blob read inside the JSON error boundary made this reason
     // start `malformed kind inventory JSON` instead.
-    const outcome = check(candidate, 'K2');
+    const outcome = await check(candidate, 'K2');
     expect(outcome.verdict.unevaluated).toHaveLength(1);
     expect(outcome.verdict.unevaluated[0]?.reason).toStartWith(
       `cannot read selected blob ${blob} for ${inventoryPath}`,
@@ -337,29 +305,29 @@ describe('kind inventory through the production CLI', () => {
     expect(outcome.exitCode).toBe(1);
   }, 30_000);
 
-  test('without a named inventory the same candidate stays suffix-only', () => {
+  test('without a named inventory the same candidate stays suffix-only', async () => {
     const candidate = commitCandidate(deliveryImportsStore, storeIsResource);
-    const outcome = check(candidate, 'K2', writePolicy({ namesInventory: false }));
+    const outcome = await check(candidate, 'K2', writePolicy({ namesInventory: false }));
     expect(outcome.verdict.findings).toEqual([]);
     expect(outcome.exitCode, outcome.stderr).toBe(0);
   }, 30_000);
 
-  test('a support entry is never judged', () => {
+  test('a support entry is never judged', async () => {
     const candidate = commitCandidate(deliveryImportsStore, [
       { path: 'src/m/store.ts', kind: 'support', disposition: 're-export shim; fixture' },
     ]);
-    const outcome = check(candidate, 'K2');
+    const outcome = await check(candidate, 'K2');
     expect(outcome.verdict.findings).toEqual([]);
     expect(outcome.verdict.unevaluated).toEqual([]);
     expect(outcome.exitCode, outcome.stderr).toBe(0);
   }, 30_000);
 
-  test('reads the inventory of the selected revision, not the checkout', () => {
+  test('reads the inventory of the selected revision, not the checkout', async () => {
     const candidate = commitCandidate(deliveryImportsStore, storeIsResource);
     writeFileSync(join(candidate.repository, inventoryPath), inventorySource([]), 'utf8');
     // Proof: on 2026-09-27, reading the inventory with readFileSync from the repository checkout
     // made this test receive `findings: []`.
-    expect(check(candidate, 'K2').verdict.findings.map((finding) => finding.path)).toEqual([
+    expect((await check(candidate, 'K2')).verdict.findings.map((finding) => finding.path)).toEqual([
       'src/m/view/panel.ts',
     ]);
   }, 30_000);
@@ -427,10 +395,10 @@ describe('kind inventory through the production CLI', () => {
   ];
 
   for (const [name, inventory, extra, reason] of refusals) {
-    test(`leaves every kind rule unevaluated for an inventory ${name}`, () => {
+    test(`leaves every kind rule unevaluated for an inventory ${name}`, async () => {
       const candidate = commitCandidate({ ...deliveryImportsStore, ...extra }, inventory);
       for (const ruleId of ['F1', 'K2', 'K6', 'MOD-LAYOUT']) {
-        const outcome = check(candidate, ruleId);
+        const outcome = await check(candidate, ruleId);
         expect(outcome.verdict.unevaluated.map((entry) => entry.ruleId)).toEqual([ruleId]);
         expect(outcome.verdict.unevaluated[0]?.reason).toContain(reason);
         expect(outcome.verdict.allowed).toBe(false);

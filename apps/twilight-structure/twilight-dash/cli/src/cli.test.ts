@@ -263,6 +263,10 @@ test('unknown commands and flags refuse before any store open', async () => {
     ['inspect-authority', root, '--session'],
     ['inspect-authority', root, '--session', 'a', '--session', 'b'],
     ['inspect-authority', root, 'extra'],
+    ['recover-publication', root],
+    ['recover-publication', root, '--integration-id'],
+    ['recover-publication', root, '--id', 'x'],
+    ['recover-publication', root, '--integration-id', 'x', 'extra'],
     ['acquire-claims', root],
     ['publish', root],
   ];

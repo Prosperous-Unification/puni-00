@@ -7,6 +7,7 @@ import {
   realpathSync,
   renameSync,
   rmSync,
+  symlinkSync,
   watch,
   writeFileSync,
 } from 'node:fs';
@@ -27,9 +28,13 @@ import {
 import { Database } from 'bun:sqlite';
 import { afterAll, expect, test } from 'bun:test';
 
-import { MemoryAuthorityStore, resolveAuthorityDatabasePath } from './authority-store';
+import {
+  MemoryAuthorityStore,
+  openAuthority,
+  resolveAuthorityDatabasePath,
+} from './authority-store';
 import { acquireClaims } from './claims';
-import { rejectGeneration } from './generations';
+import { rejectGeneration, releaseGeneration } from './generations';
 import { composeIntegrationCandidate } from './integration-compose';
 import { createAdmissionPacket } from './packet-binding';
 import {
@@ -2538,3 +2543,302 @@ test('the queue deadline is refreshed between failed attempts', async () => {
   expect(probes).toBe(2);
   subject.store.close();
 });
+
+function recoverThroughCli(repository: string, integrationId: string) {
+  const execution = Bun.spawnSync(
+    [
+      process.execPath,
+      join(import.meta.dir, '..', 'entrypoint.ts'),
+      'recover-publication',
+      repository,
+      '--integration-id',
+      integrationId,
+    ],
+    { stderr: 'pipe', stdout: 'pipe' },
+  );
+  return {
+    exitCode: execution.exitCode,
+    stderr: execution.stderr.toString('utf8'),
+    stdout: execution.stdout.toString('utf8'),
+  };
+}
+
+function authorityDigest(repository: string): string {
+  return new Bun.CryptoHasher('sha256')
+    .update(readFileSync(resolveAuthorityDatabasePath(repository)))
+    .digest('hex');
+}
+
+/** The wall clock, which the recovery CLI also reads; tests may read it, production may not. */
+const LIVE_CLOCK = { read: () => Date.now() };
+
+function readRefOrUndefined(repository: string, ref: string): string | undefined {
+  const invocation = Bun.spawnSync(
+    ['git', '-C', repository, 'rev-parse', '--verify', '--quiet', ref],
+    {
+      stderr: 'pipe',
+      stdout: 'pipe',
+    },
+  );
+  return invocation.exitCode === 0 ? invocation.stdout.toString('utf8').trim() : undefined;
+}
+
+// The CLI composes the wall clock, so these fixtures start near it: a fixture at 1 000 ms would
+// read as a queue older than the five-minute deadline and starve.
+test('a fresh process publishes a reserved integration whose refs never moved', () => {
+  const subject = fixture({ now: Date.now() });
+  const { commit, reserved } = preparePublication(subject, 'recover-before');
+  const base = git(subject.repository, ['rev-parse', 'refs/heads/main']);
+  subject.store.close();
+  expect(readRefOrUndefined(subject.repository, reserved.markerRef)).toBeUndefined();
+  // Proof: bypassing `updateRefs` when the marker is absent made this fresh process report
+  // `waiting` (`publication-contended`) with both refs unchanged (2026-10-12).
+  const recovered = recoverThroughCli(subject.repository, 'recover-before');
+  expect(recovered.exitCode, recovered.stderr).toBe(0);
+  expect(JSON.parse(recovered.stdout)).toMatchObject({ commit, status: 'integrated' });
+  expect(git(subject.repository, ['rev-parse', reserved.markerRef])).toBe(commit);
+  expect(git(subject.repository, ['rev-parse', 'refs/heads/main'])).toBe(commit);
+  expect(git(subject.repository, ['rev-parse', `${commit}^`])).toBe(base);
+  const store = openAuthority(subject.repository, { clock: LIVE_CLOCK });
+  const state = store.inspect();
+  store.close();
+  expect(state.integrations[0]?.status).toBe('published');
+  expect(state.generations[0]?.status).toBe('integrated');
+});
+
+test('a fresh process finalizes a marker-proven publication without a second CAS', () => {
+  // Queued ten minutes ago: past the five-minute deadline the CLI enforces before any CAS.
+  const subject = fixture({ now: Date.now() - 10 * 60_000 });
+  const { commit, reserved } = preparePublication(subject, 'recover-after');
+  expect(publishIntegrationRefs(subject.store, subject.repository, reserved)).toBe(true);
+  subject.store.close();
+  const advanced = subject.advance('other.ts', 'export const other = 9;\n');
+  // Proof: deleting the marker-proven finalization in publishReservedIntegration sent this
+  // recovery to the pre-CAS deadline check, which reported `terminal` `starvation` for a commit
+  // the marker already proves published (2026-10-12).
+  const recovered = recoverThroughCli(subject.repository, 'recover-after');
+  expect(recovered.exitCode, recovered.stderr).toBe(0);
+  expect(JSON.parse(recovered.stdout)).toMatchObject({ commit, status: 'integrated' });
+  expect(git(subject.repository, ['rev-parse', reserved.markerRef])).toBe(commit);
+  expect(git(subject.repository, ['rev-parse', 'refs/heads/main'])).toBe(advanced);
+  const store = openAuthority(subject.repository, { clock: LIVE_CLOCK });
+  expect(store.inspect().integrations[0]?.status).toBe('published');
+  store.close();
+});
+
+test('repeated recovery reports the same publication and moves no ref', () => {
+  const subject = fixture({ now: Date.now() });
+  const { reserved } = preparePublication(subject, 'recover-twice');
+  subject.store.close();
+  const first = recoverThroughCli(subject.repository, 'recover-twice');
+  expect(first.exitCode, first.stderr).toBe(0);
+  const refs = [reserved.markerRef, 'refs/heads/main'].map((ref) =>
+    git(subject.repository, ['rev-parse', ref]),
+  );
+  const digest = authorityDigest(subject.repository);
+  // Proof: removing the `published` branch from recoverPublication made the repeat refuse as
+  // needing a certifier instead of printing the same report (2026-10-12).
+  expect(recoverThroughCli(subject.repository, 'recover-twice')).toEqual(first);
+  expect(
+    [reserved.markerRef, 'refs/heads/main'].map((ref) =>
+      git(subject.repository, ['rev-parse', ref]),
+    ),
+  ).toEqual(refs);
+  expect(authorityDigest(subject.repository)).toBe(digest);
+});
+
+test('recovery refuses records that need a certifier', () => {
+  const subject = fixture({ now: Date.now() });
+  const one = subject.submission('one', 'src/one.ts', 'export const one = 2;\n');
+  const request = { policy, submissions: [one] };
+  enqueueIntegration(subject.store, request, options('recover-queued'));
+  subject.store.close();
+  const queued = recoverThroughCli(subject.repository, 'recover-queued');
+  expect(queued.exitCode).toBe(1);
+  expect(queued.stderr).toBe(
+    'error: publication needs a certifier; not recoverable here: recover-queued is queued\n',
+  );
+  const store = openAuthority(subject.repository, { clock: LIVE_CLOCK });
+  const candidate = composeIntegrationCandidate(store, subject.repository, request);
+  recordIntegrationCheck(store, 'recover-queued', candidate);
+  store.close();
+  expect(recoverThroughCli(subject.repository, 'recover-queued').stderr).toContain(
+    'recover-queued is checking',
+  );
+});
+
+/**
+ * The pre-relocation authority, vendored: `fixtures/authority/pre-relocation-burokrat.tar` is the
+ * exact `git archive --format=tar e57278139bc168eb454125cd2c730d6ed7769f86 -- <14 paths>` output
+ * (the paths and command are in that directory's README). It holds the old
+ * `admission-runtime/{authority-store,claims,generations}.ts` with their whole relative import
+ * closure, plus `@shared/validation` at the same commit, so the proof needs neither repository
+ * history nor today's workspace source. Only `arktype` and Bun's built-ins resolve from the
+ * workspace. `e57278139` is slice S0's split, the last commit whose Burokrat package held the
+ * runtime authority.
+ */
+const PRE_RELOCATION_SHA = 'e57278139bc168eb454125cd2c730d6ed7769f86';
+const PRE_RELOCATION_ARCHIVE = join(
+  import.meta.dir,
+  '..',
+  '..',
+  'fixtures',
+  'authority',
+  'pre-relocation-burokrat.tar',
+);
+const PRE_RELOCATION_ARCHIVE_SHA256 =
+  '502f07f713804adf7914beb552f31f76e36870570fb0b7cb5167d42b886504aa';
+const WORKSPACE_ROOT = join(import.meta.dir, '..', '..', '..', '..', '..', '..');
+
+interface PreRelocationAuthority {
+  readonly openAuthorityStore: (
+    worktreePath: string,
+    options: { readonly clock: { read(): number } },
+  ) => {
+    inspect(): unknown;
+    close(): void;
+  };
+  readonly acquireClaims: (
+    store: unknown,
+    request: unknown,
+  ) => { generation: number; sessionId: string };
+  readonly heartbeatGeneration: (store: unknown, token: unknown) => unknown;
+}
+
+/**
+ * Verifies the vendored archive's digest, extracts it into scratch and loads its authority
+ * modules.
+ *
+ * @throws Error naming the archive when it is missing, unreadable or its digest differs.
+ */
+async function loadPreRelocationAuthority(
+  archivePath = PRE_RELOCATION_ARCHIVE,
+): Promise<PreRelocationAuthority> {
+  let bytes: Uint8Array;
+  try {
+    bytes = readFileSync(archivePath);
+  } catch (cause) {
+    throw new Error(`pre-relocation authority archive is unreadable: ${archivePath}`, { cause });
+  }
+  const digest = new Bun.CryptoHasher('sha256').update(bytes).digest('hex');
+  if (digest !== PRE_RELOCATION_ARCHIVE_SHA256) {
+    throw new Error(
+      `pre-relocation authority archive digest ${digest} differs from ${PRE_RELOCATION_ARCHIVE_SHA256} (source ${PRE_RELOCATION_SHA})`,
+    );
+  }
+  const root = mkdtempSync(join(tmpdir(), 'dash-rollback-'));
+  scratch.push(root);
+  const extract = Bun.spawnSync(['tar', '-x', '-C', root], { stderr: 'pipe', stdin: bytes });
+  if (extract.exitCode !== 0) throw new Error(extract.stderr.toString('utf8'));
+  writeFileSync(
+    join(root, 'tsconfig.json'),
+    `${JSON.stringify({
+      compilerOptions: {
+        paths: { '@shared/validation': [join(root, 'libs/shared/domain/validation/src/index.ts')] },
+      },
+    })}\n`,
+  );
+  symlinkSync(join(WORKSPACE_ROOT, 'node_modules'), join(root, 'node_modules'));
+  const runtime = join(root, 'apps/twilight-structure/twilight-burokrat/cli/src/admission-runtime');
+  // The pinned modules are loaded by path; their exports are typed by the interface above, which
+  // the assertions below exercise call by call.
+  const [store, claims, generations] = (await Promise.all([
+    import(join(runtime, 'authority-store.ts')),
+    import(join(runtime, 'claims.ts')),
+    import(join(runtime, 'generations.ts')),
+  ])) as [
+    Pick<PreRelocationAuthority, 'openAuthorityStore'>,
+    Pick<PreRelocationAuthority, 'acquireClaims'>,
+    Pick<PreRelocationAuthority, 'heartbeatGeneration'>,
+  ];
+  return {
+    acquireClaims: claims.acquireClaims,
+    heartbeatGeneration: generations.heartbeatGeneration,
+    openAuthorityStore: store.openAuthorityStore,
+  };
+}
+
+async function refusalOf(pending: Promise<unknown>): Promise<string> {
+  try {
+    await pending;
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+  throw new Error('the archive loaded');
+}
+
+test('the vendored pre-relocation archive is refused when missing or altered', async () => {
+  const altered = join(mkdtempSync(join(tmpdir(), 'dash-rollback-altered-')), 'altered.tar');
+  scratch.push(join(altered, '..'));
+  const bytes = readFileSync(PRE_RELOCATION_ARCHIVE);
+  bytes[bytes.length - 1] ^= 1;
+  writeFileSync(altered, bytes);
+  // Proof: removing the digest comparison let the altered archive load and this case fail on
+  // `the archive loaded`; removing the read guard surfaced a bare ENOENT (2026-10-12).
+  expect(await refusalOf(loadPreRelocationAuthority(altered))).toContain(
+    'pre-relocation authority archive digest',
+  );
+  expect(await refusalOf(loadPreRelocationAuthority(join(altered, '..', 'missing.tar')))).toContain(
+    'pre-relocation authority archive is unreadable',
+  );
+});
+
+test('the pre-relocation authority opens a Dash-written store with identical state and continues its generations', async () => {
+  const subject = fixture({ now: Date.now() });
+  const { reserved } = preparePublication(subject, 'rollback');
+  expect(publishIntegrationRefs(subject.store, subject.repository, reserved)).toBe(true);
+  finalizeIntegrationPublication(subject.store, subject.repository, reserved);
+  subject.submission('two', 'src/two.ts', 'export const two = 2;\n');
+  const live = acquireClaims(subject.store, {
+    conflictGroups: [],
+    owner: { sessionId: 'live', worktreePath: subject.repository },
+    paths: [{ access: 'write', path: 'src/three.ts' }],
+  });
+  const released = releaseGeneration(
+    subject.store,
+    acquireClaims(subject.store, {
+      conflictGroups: [],
+      owner: { sessionId: 'released', worktreePath: subject.repository },
+      paths: [{ access: 'write', path: 'src/four.ts' }],
+    }),
+  );
+  const dashState = subject.store.inspect();
+  subject.store.close();
+  expect(dashState.integrations[0]?.status).toBe('published');
+
+  const old = await loadPreRelocationAuthority();
+  const store = old.openAuthorityStore(subject.repository, { clock: LIVE_CLOCK });
+  expect(store.inspect()).toEqual(dashState);
+  expect(
+    old.acquireClaims(store, {
+      conflictGroups: [],
+      owner: { sessionId: 'after-rollback', worktreePath: subject.repository },
+      paths: [{ access: 'write', path: 'src/five.ts' }],
+    }),
+  ).toEqual({ generation: dashState.nextGeneration, sessionId: 'after-rollback' });
+  expect(() =>
+    old.acquireClaims(store, {
+      conflictGroups: [],
+      owner: { sessionId: 'overlap', worktreePath: subject.repository },
+      paths: [{ access: 'write', path: 'src/three.ts' }],
+    }),
+  ).toThrow('path claim overlaps session live');
+  expect(old.heartbeatGeneration(store, live)).toEqual(live);
+  expect(() => old.heartbeatGeneration(store, released)).toThrow(
+    'generation is terminal: released',
+  );
+  store.close();
+
+  // The comparison is live: one persisted status byte flipped behind both codes' backs makes the
+  // pre-relocation open refuse the store.
+  // Proof: with the flip the old open refused `authority database corrupt or incompatible`;
+  // with the flip line removed the same old open returned a store and this assertion failed
+  // (2026-10-12).
+  const database = new Database(resolveAuthorityDatabasePath(subject.repository));
+  database.run('PRAGMA ignore_check_constraints = ON');
+  database.run("UPDATE authority_generation SET status = 'publishedx' WHERE session_id = 'two'");
+  database.close();
+  expect(() => old.openAuthorityStore(subject.repository, { clock: LIVE_CLOCK })).toThrow(
+    'authority database corrupt',
+  );
+}, 60_000);

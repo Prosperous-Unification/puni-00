@@ -1,0 +1,45 @@
+# Imports the failure dashboard's saved objects into Kibana, the way elastic-settings applies
+# Elasticsearch settings: idempotent (`overwrite=true`) and recreated by Flux when its spec,
+# including the content-hashed objects ConfigMap name, changes.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kibana-objects
+  namespace: observability
+  annotations:
+    kustomize.toolkit.fluxcd.io/force: enabled
+spec:
+  backoffLimit: 10
+  activeDeadlineSeconds: 1200
+  template:
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: apply
+          # The Elasticsearch image is already locked and carries curl; no second image is pulled.
+          image: docker.elastic.co/elasticsearch/elasticsearch:9.3.8@sha256:f96812864b81e62a9ce7562c4f4bbef1186bb4e8798f814bc6a5f2b84b51b540
+          command: [sh, /objects/apply.sh]
+          env:
+            - name: ELASTIC_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: elasticsearch-es-elastic-user, key: elastic }
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { cpu: 200m, memory: 128Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          volumeMounts:
+            - { name: objects, mountPath: /objects, readOnly: true }
+            - { name: kibana-ca, mountPath: /kibana-ca, readOnly: true }
+      volumes:
+        - name: objects
+          configMap: { name: kibana-objects }
+        - name: kibana-ca
+          secret: { secretName: kibana-kb-http-certs-public }

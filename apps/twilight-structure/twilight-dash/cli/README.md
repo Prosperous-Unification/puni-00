@@ -1,9 +1,10 @@
 # Twilight Dash
 
 Dash owns the runtime admission authority ([`src/authority`](src/authority/authority-store.ts))
-and exposes four local commands. `bootstrap-authority <repository>` is the only command that
+and exposes five local commands. `bootstrap-authority <repository>` is the only command that
 creates an authority; every other command refuses an absent one. `inspect-authority <repository>
-[--session <id>]` prints the authority state, read-only. `submit-admission <repository>
+[--session <id>]` prints the authority state, read-only. `recover-publication <repository> --integration-id
+<id>` finishes an interrupted publication from its durable record. `submit-admission <repository>
 <packet-json> <staged|committed> <revision-or-base>` freezes a bound packet's candidate and
 prints its submission report; it judges the packet through Twilight Burokrat's
 [admission judge](../../twilight-burokrat/cli/src/judge-facade.ts). `plan-enrollment`
