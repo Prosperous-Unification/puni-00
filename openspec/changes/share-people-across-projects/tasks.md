@@ -464,7 +464,12 @@ sequence`, `push failure retains durable event`, `expired replay requires snapsh
       recorded. Not ported: the batch-9 in-memory fan-out record reset (no such memory now), the
       project-deletion guard (6j fans deletion out), the restore-audit (shared restore is
       refused), and the 8.0 cost measurement. The fe switch is 7.1's.
-      Owed before `SUPPORTED_CAPACITY_MODES` gains `shared` (WBS step 4, standing model-test rule):
-      the shared-people model test needs a `SwitchMode` command.
+      WBS 010.4.16's standing model-test prerequisite now has `SwitchMode` in the installed
+      shared-owner model: round trips/no-ops, outcome and generation eviction while isolated,
+      held post-commit delivery, queued demotion and atomic event-insert rollback, plus bounded
+      generated histories with reachability checks. Its independent oracle tracks ordered A/B
+      fan-out and audit/mode state; automatic edit debounces are held explicitly by the fixture.
+      `SUPPORTED_CAPACITY_MODES` remains isolated-only; solver-image activation is still separate.
+      Evidence and seven production-path mutation proofs: verify.md "SwitchMode model (010.4.16)".
 - [x] 8.2 Negative: policy removed → an admin gets 200, not 403. Evidence with the other route,
       storage and owner faults: verify.md "Mode route 8 port (batch 10)".
