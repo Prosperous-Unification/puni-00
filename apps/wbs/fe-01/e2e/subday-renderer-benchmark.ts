@@ -12,6 +12,14 @@ const browserErrors: string[] = [];
 page.on('pageerror', (error) => browserErrors.push(error.message));
 try {
   await page.goto('http://127.0.0.1:4337/benchmarks/subday-axis.html');
+  const sha = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+  const artifact = await page.evaluate(() => window.subdayBenchmark.artifact);
+  // Proof: stale SHA, development mode and false PROD injections each reject the artifact before timing (see verify.md).
+  if (artifact.sha !== sha || artifact.mode !== 'production' || !artifact.production) {
+    throw new Error(
+      `Benchmark artifact provenance mismatch: ${JSON.stringify(artifact)}; runner ${sha}`,
+    );
+  }
   const measurements = [];
   for (const viewport of [
     { width: 1440, height: 900 },
@@ -146,7 +154,8 @@ try {
   expect(browserErrors).toEqual([]);
   const evidence = {
     date: new Date().toISOString(),
-    sha: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
+    sha,
+    artifact,
     hardware: {
       platform: platform(),
       arch: arch(),

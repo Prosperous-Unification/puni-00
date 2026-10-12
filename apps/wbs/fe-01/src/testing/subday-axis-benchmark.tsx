@@ -120,6 +120,12 @@ function SubdayPanelFixture({
   return <GanttPanel {...shared} scheduleError={null} />;
 }
 
+declare const __SUBDAY_SOURCE_SHA__: string;
+const artifact = {
+  sha: __SUBDAY_SOURCE_SHA__,
+  mode: import.meta.env.MODE,
+  production: import.meta.env.PROD,
+};
 const root = createRoot(document.body);
 
 /** Fresh panel mount followed by the experiment's two-frame completion wait. */
@@ -157,8 +163,8 @@ async function mountPanel(
 
 declare global {
   interface Window {
-    subdayBenchmark: { mountPanel: typeof mountPanel };
+    subdayBenchmark: { mountPanel: typeof mountPanel; artifact: typeof artifact };
   }
 }
-window.subdayBenchmark = { mountPanel };
+window.subdayBenchmark = { mountPanel, artifact };
 void mountPanel(1);
