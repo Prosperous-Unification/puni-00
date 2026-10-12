@@ -19,6 +19,36 @@ spies on `hashBytes` through a module namespace. It still passed with a `hashByt
 before the tuple check, both on main `21a6bd537` and after S0. The spy never intercepts, so its
 `not.toHaveBeenCalled` assertion proves nothing. This change does not fix it.
 
+## S1: move, alias, fences and CI shard
+
+Observed 2026-10-12 on branch `batch-10/080-activation-relocation-s1` (head `9f48574b1`, then the
+environment fix `acaefb93a`).
+
+| Command                                      | Result                                                                                                     |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| full `twilight-burokrat:test` at `acaefb93a` | 1032 pass, 0 fail, 63 files, 1129.9 s                                                                      |
+| Dash suite at `9f48574b1`                    | 1523 pass, 1 fail (`common freeze core …`: missing `TOOL_WIKI_TRUSTED_NODE_MODULES`, fixed in `acaefb93a`) |
+| that file alone after `acaefb93a`            | 1 pass, 0 fail                                                                                             |
+| devsync and gate-workflow oracles            | 93 pass, 0 fail                                                                                            |
+| `gate-entrypoints` tests                     | 58 pass, 0 fail                                                                                            |
+
+Count change: Burokrat 2330 at S0 − 1299 moved + 1 new bundle test = 1032. Dash 1524 = 215
+before S1 + 1299 moved + 10 units tests.
+
+| Injected fault                                            | Observed failure                                                            |
+| --------------------------------------------------------- | --------------------------------------------------------------------------- |
+| the `activation/**` and `review/**` lint override removed | uncached `twilight-dash:lint`: 19 × `Imports of apps are forbidden`         |
+| the override widened to `^@twilight-burokrat/`            | boundaries oracle: `+ "^@twilight-burokrat/"`                               |
+| `ProcessReviewInvoker` re-imported into Burokrat `cli.ts` | bundle test: `validator.mjs` carries `ProcessReviewInvoker`                 |
+| CI excludes only `--exclude=twilight-burokrat`            | pins test: `Expected: 2`, `Received: 1`                                     |
+| `h2puni-gate-steps.sh` without `,twilight-dash`           | pins test: `Expected: 1`, `Received: 0`                                     |
+| the old `gate_mode` filter fed `["twilight-dash"]`        | gate-workflow test: `Expected: "twilight=run"`, `Received: "twilight=skip"` |
+
+Each fault was reverted; the head's results above are with every check in place.
+
+The tool-devsync handoff corpus (`repo-namespacing-handoff.test.ts`) was re-pinned twice: at S0
+(45 files, 322 lines, `1cb67b80…`) and at S1 (`8801695d…`).
+
 ## S2: clocks
 
 Observed 2026-10-12 on branch `batch-10/080-activation-relocation-s2` (from S1 `9f48574b1`, then
@@ -363,3 +393,72 @@ path to reproduce `launcherIdentity`.
 | re-observed: `Restart=no` removed (template `Proof: restart`)                                            | `observation service template requires …` and `renderer binds exact …`: `Expected to contain: "Restart=no"`                                                | pass     |
 | re-observed: `ExecStart=/bin/true` added to the timer (template `Proof: timerexec`)                      | `timer artifact cannot grant execution authority`: `Expected to not contain: "ExecStart"`                                                                  | pass     |
 | re-observed: the root-account check in `render.ts` replaced by `false` (`Proof: account`)                | `renderer refuses root account unsafe layout …`: `Received function did not throw`                                                                         | pass     |
+
+## S5: rollback proof, ADR 0051 and documents
+
+Observed 2026-10-12 on branch `batch-10/080-activation-relocation-s5` (from the S2+S3+S4 merge
+`f7a81200f`).
+
+`fixtures/activation/pre-relocation-activation.tar` is the exact `git archive --format=tar` at
+`802c26bd8579f61134545ef4832d759c151bf9fa` of 33 paths: the runtime import closure of the old
+`activation-controller/observation-state.ts` and `controller.ts` (computed with
+`Bun.Transpiler.scanImports`, so type-only imports are elided as Bun elides them) plus
+`@shared/validation`. At that commit the controller imports `../judge-facade`, so the closure
+holds the facade and every judge module it re-exports, including `relationships/*`. It is
+696,320 bytes, under the 2 MB bound of A40, so nothing was narrowed. SHA-256
+`3c0ee3fecd16a45e47b97b190db3debce02b40d3bed8ad894848c424501a3c2d`; the command in the fixture
+README reproduced that digest. It is declared by exact path in `docs/wiki-policy/policy.json`,
+`bootstrap-policy.json` and `docs/code-organization/rule-policy.json`.
+
+`activation/rollback.db.test.ts` verifies the digest, extracts the archive into scratch and loads
+the old modules with only `arktype`, `typescript`, `yaml` and Bun built-ins from the workspace.
+Dash bootstraps a store through `runDash bootstrap-observation`, then writes one complete and one
+provider-failure attempt through its own `withRecoveryObservation`. The old
+`openActivationController` opens that v10 store, lists no requests and leaves every observation
+row and `user_version` unchanged. The old `withRecoveryObservation` then takes attempt 3 with
+outcome `complete`, keeping attempts 1 and 2 byte-equal.
+
+| Command                                                                                                                               | Result                                                                 |
+| ------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Dash suite before S5 (`f7a81200f`)                                                                                                    | 1544 pass, 0 fail, 5540 `expect()` calls, 37 files                     |
+| Dash suite after S5                                                                                                                   | 1546 pass, 0 fail, 5554 `expect()` calls, 38 files                     |
+| the same with `TMPDIR=/var/tmp`                                                                                                       | 1546 pass, 0 fail, 5558 `expect()` calls, 38 files                     |
+| Burokrat `src/policy/pilot-policy.test.ts` with the tar declared                                                                      | 23 pass, 0 fail                                                        |
+| `classify-candidate committed . HEAD` with `policy.json`'s `classificationPolicy`                                                     | exit 0; the tar classifies as `binary`, `application/x-tar`            |
+| the same with the parent's policy (no declaration)                                                                                    | exit 1, `undeclared binary content at …/pre-relocation-activation.tar` |
+| `bun test tools/tool-devsync/src/{workspace-targets,eslint-boundaries,workspace-projects,adr-index,repo-namespacing-handoff}.test.ts` | 80 pass, 0 fail                                                        |
+| `bun run tools/tool-git-hooks/src/hooks/migration-lint.ts $(git ls-files '*.sql')`                                                    | exit 0                                                                 |
+| `bunx tsc --build --force apps/twilight-structure/twilight-dash/cli/tsconfig.json`                                                    | exit 0                                                                 |
+| `bunx nx run twilight-dash:lint --skip-nx-cache`                                                                                      | `Successfully ran target lint for project twilight-dash`               |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                                              | 183 items, 183 passed, 0 failed                                        |
+| `bun …/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                                                                 | exit 0                                                                 |
+
+Dash count change: `rollback.db.test.ts` adds 2 tests, so 1544 + 2 = 1546 across 38 files.
+
+| Injected fault                                                                  | Observed failure                                                                                                               | Restored |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | -------- |
+| none: `health` flipped from `healthy` to `healthz` before the old recovery open | the old `withRecoveryObservation` refused `observation state corrupt` (its `PRAGMA quick_check`) before any attempt            | —        |
+| the flip line removed                                                           | the same old call returned an owned attempt; the case failed on `resolved without a refusal`                                   | pass     |
+| digest comparison disabled (`&& false`)                                         | the altered archive loaded; the archive case failed on `resolved without a refusal`                                            | pass     |
+| read guard removed                                                              | missing archive: `Expected to contain: "pre-relocation activation archive is unreadable"`, `Received: "ENOENT: …/missing.tar"` | pass     |
+| policy declaration absent (parent's `policy.json`)                              | `classify-candidate` exit 1, `undeclared binary content at …/pre-relocation-activation.tar`                                    | pass     |
+
+Findings and assumptions:
+
+1. The old `openActivationController` reads no observation row and runs no `quick_check`, so a
+   flipped observation status byte does not make it refuse; probed once (it opened the flipped
+   store and listed `[]`). The refusing old open is `withRecoveryObservation`, the path that
+   continues the attempt sequence. The test records this beside its `Proof:`.
+2. The packet's "old `withObservationAttempt`" is read as `withRecoveryObservation`, as in S3:
+   `withObservationAttempt` accepts only v9.
+3. A first run of the tool-devsync oracles failed `eslint-boundaries` cases (at least 7 shown) with empty rule
+   lists, and `repo-namespacing-handoff` refused the then-untracked ADR 0051 file. After the
+   commit, the rerun alone passed 80/0. The legacy-corpus digest did not change, so it was not
+   re-pinned.
+4. ADR 0051 is the next number on `origin/main` (which ends at 0050); a concurrent lane taking
+   0051 would need a renumber.
+5. ADR 0048 gained one pointer line and stays `proposed` (V6). Its subject, activation authority
+   independent of the candidate, is the controller's, so the pointer is correct.
+6. Whole-tree classification with `bootstrap-policy.json` and `rule-policy.json` still fails for
+   the pre-existing reasons the 080.19 lane recorded (`.agents/skills/.openspec-target` unmatched;
+   website favicons undeclared in `rule-policy`); neither names the new tar.

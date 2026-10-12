@@ -32,5 +32,5 @@ in verify.md.
 
 ## 6. Rollback and documents (S5)
 
-- [ ] 6.1 A vendored `pre-relocation-activation.tar`, declared in the three policies, for the old-opens-new proof.
-- [ ] 6.2 ADR 0051, `names.md`, `LLM_README.md`, `CONTEXT.md`, the READMEs and the runbook pointer.
+- [x] 6.1 A vendored `pre-relocation-activation.tar`, declared in the three policies, for the old-opens-new proof.
+- [x] 6.2 ADR 0051, `names.md`, `LLM_README.md`, `CONTEXT.md`, the READMEs and the runbook pointer.
