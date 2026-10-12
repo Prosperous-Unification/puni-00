@@ -24,7 +24,7 @@ const steps = [
 test('reads only leaf nodes in step order, with effective numbers and null for uncoded steps', async () => {
   const addresses = await readStepAddresses('project', { workItems, steps }, digest);
   expect(addresses.stepNodes).toEqual([
-    { id: `sn1.${leafId}.${devId}`, workItemId: leafId, stepId: devId, reference: '010.1.dev' },
+    { id: `sn1.${leafId}.${devId}`, workItemId: leafId, stepId: devId, reference: '010.1.s1-dev' },
     { id: `sn1.${leafId}.${qaId}`, workItemId: leafId, stepId: qaId, reference: null },
   ]);
   expect(addresses.addressRevision).toMatch(/^ar1:[0-9a-f]{64}$/);

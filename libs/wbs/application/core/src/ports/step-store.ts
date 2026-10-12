@@ -15,7 +15,7 @@ export interface Step {
    */
   position: number;
   /**
-   * The step's step code — `dev` in the reference `010.dev` — or `null` while
+   * The step's step code — `dev` in the reference `010.s1-dev` — or `null` while
    * the step is **uncoded**: an older release inserted it mid-swap without one,
    * and the post-swap backfill has not run yet. `null` is that modeled state,
    * never a default: an uncoded step's nodes have no step reference but keep

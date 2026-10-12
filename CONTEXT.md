@@ -224,7 +224,7 @@ _Avoid_: discipline, type, category
 A step's short, immutable, project-unique name for references — `dev`, `qa`, `review`:
 a lowercase letter, then lowercase letters, digits or hyphens. Suggested from the name
 when the step is created; renaming the step keeps it. Codes shaped `s<digits>` or
-`s<digits>-…` are reserved for ordinal aliases.
+`s<digits>-…` are reserved for ordinal references.
 _Avoid_: slug, step key, step id (which is the stored identity)
 
 **Step node**:
@@ -259,11 +259,14 @@ reorder; a deleted and recreated step yields new step node IDs.
 _Avoid_: step reference (which is the readable, changeable spelling)
 
 **Step reference**:
-A step node's readable spelling: work item number, a dot, step code — `010.dev`,
-`020.2.review`. Changes when the work item is renumbered; stable once its number is
-frozen. Input may also spell the step by displayed ordinal, `010.s1-dev`, which must
-agree with the code and is never stored.
-_Avoid_: node id, path, `010.s1-dev` as the canonical form
+A step node's readable spelling: work item number, then its displayed step ordinal
+before its immutable code — `010.s1-dev`, or `010.s01-dev` when a project has ten
+or more steps. The ordinal is padded to the decimal width of the project's step
+count, so a work item's references sort in step order. Renumbering, reordering
+or repadding changes the spelling; the step node ID remains stable. Code-only
+`010.dev` and unpadded ordinal forms remain accepted input at the current
+address revision.
+_Avoid_: node id, path, step code alone as the canonical form
 
 **Step graph**:
 The ordering edges between one leaf's step nodes that come from the project's steps rather
