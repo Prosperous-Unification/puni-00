@@ -1,0 +1,6 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "outDir": "../../../dist/tools/test/clock-reads", "declaration": true },
+  "include": ["*.ts"],
+  "exclude": ["*.test.ts", "*.spec.ts"]
+}

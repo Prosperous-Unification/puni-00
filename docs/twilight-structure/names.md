@@ -85,8 +85,8 @@ reads still in the package measure checks the process itself runs:
 | `policy/prepare-relocation-activation-cli.ts` | start and end of each candidate check it runs | a CheckRun receipt protocol |
 
 `no-ambient-clock.test.ts` in the Burokrat package fails on a reference to the JavaScript or Bun
-clock APIs outside these files, or on more references in them than they hold today. Its JSDoc
-lists what it cannot see.
+clock APIs outside these files, or on more references in them than they hold today. The shared
+detector it applies, `tools/test/clock-reads/detector.ts`, lists in its JSDoc what it cannot see.
 
 ## How the tools depend on each other
 
