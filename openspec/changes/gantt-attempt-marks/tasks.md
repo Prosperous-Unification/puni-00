@@ -35,7 +35,7 @@
 
 ## 2. Paint, availability, card and the browser
 
-- [ ] 2.1 Red: `gantt-panel.test.tsx` and its zoned suite: all four `data-attempt` values and
+- [x] 2.1 Red: `gantt-panel.test.tsx` and its zoned suite: all four `data-attempt` values and
       their actual solid/hatch/dot/open-edge paint; planned slices underneath on completed
       rows; a two-minute attempt is a tick in the collision list; original instants, attempt
       number, outcome, executor and reference in cards; absent start, absent zone and both
@@ -53,6 +53,11 @@
       zone → zoned-instants test fails under `TZ=America/Los_Angeles`; substitute today or
       browser zone for an absent input → availability cases fail; translate paint without
       its hit surfaces → the browser selection case fails. Record every observed proof.
+
+Checkpoint 2026-10-12: panel production paint, cards, availability, clock memoization,
+translated header/hits and export are implemented; component mutation observations are
+recorded in `verify.md`. Tasks 2.2–2.3 remain open for the unrun browser fixture and browser
+translation proof after estimate-units integration. No browser acceptance is claimed.
 
 ## 3. Verify
 

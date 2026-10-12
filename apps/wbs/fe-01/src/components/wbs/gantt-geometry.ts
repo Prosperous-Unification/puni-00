@@ -3418,6 +3418,7 @@ export function projectAttemptMarks(
 ): AttemptProjection {
   if (rung.cellsPerWorkday === 1)
     return { availability: { state: 'day' }, marks: [], forecast, rangeStart: 0 };
+  // Proof: substituting UTC for an absent zone failed both missing-zone panel states (2026-10-12).
   const availability = resolveAttemptAvailability(startDate, plan.timezone);
   if (availability.state === 'unavailable')
     return { availability, marks: [], forecast, rangeStart: 0 };

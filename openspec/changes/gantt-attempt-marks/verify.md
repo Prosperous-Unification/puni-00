@@ -128,3 +128,80 @@ issue and confirmed the mutation logs; its prerequisite-wording correction is ap
 
 After the mechanical naming pass, geometry/input suites passed all 220 tests (4.24s),
 changed-file ESLint exited 0, and Nx `typecheck` passed again.
+
+## Slice 2 checkpoint — panel overlay, 2026-10-12
+
+Branch `batch-10/attempt-marks-next` starts at #374
+`2065563ca6677b0f01ef4c377243e8f0307063a9`. Axis prerequisite helper checkpoint
+`1e5405a8f0dd25b4a0150b9abdc15dc79d637729` was normally merged as `3669ea3b1`;
+additive end-of-file geometry/test conflicts and an older verify note were resolved by
+retaining both implementations and the complete attempt verification history. Its 216
+geometry tests passed after resolution. Axis panel checkpoint
+`060f34e452f87458bcf21275419bfa44bd3569a1` was normally merged conflict-free as `6b89ae63b`.
+No main merge or release has occurred.
+
+The real panel now draws attempt marks and actual hatch/dot/solid/open-edge paint above
+forecast slices. `gantt-attempt.tsx` owns extracted mark, pattern and original-instant card
+components. The same translated projection feeds forecasts, hit surfaces and calendar
+headers. Attempt identities participate in the axis's shared pointer map and collision
+chooser; selected attempts open their own cards. Missing calendar fields render the specified
+messages. One panel clock reading feeds every running mark; an explicit `now` participates
+in memoization. Export clones the actual marks and definitions with the same translated axis.
+
+The first panel RED run observed five failures and one unchanged-day pass. Expanded RED
+coverage observed nine failures/two passes before panel wiring. Interaction RED then caught
+forecast-to-attempt card clearing and a 7.84px vertical hit surface; both were corrected.
+The final component suite also covers completed leaves, changed attempt history, malformed
+start/zone/instant containment, translated selection geometry and exported marks. Tests live
+in a dedicated `gantt-attempt-panel.test.tsx` at the real panel boundary, with the zoned
+card oracle in `gantt-attempt.zoned.test.tsx`.
+
+| Command                                                                        | Observed result                                                    |
+| ------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| `BUN_TMPDIR=/tmp bun install --frozen-lockfile`                                | 1,573 installs checked, no changes, exit 0                         |
+| UTC Vitest geometry/input/panel/attempt-panel/detail suites, serial one worker | 540 passed, 5 files, 19.82s                                        |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-fe-01:typecheck`     | Module checks and root build passed, 6.5s                          |
+| Direct changed-file ESLint                                                     | Exit 0 after import ordering, clock purity and test callback fixes |
+
+Initial typecheck caught a test date parameter inferred as one literal; its type was widened.
+Initial ESLint rejected `Date.now()` in render. The panel follows the existing `new Date()`
+clock convention and passes its millisecond value down; geometry still never reads a clock.
+
+| Check                 | Injected fault                                                 | Production-path observer                                                               | Observed                                                              |
+| --------------------- | -------------------------------------------------------------- | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Actual paint          | Swap hatch/dot URL mappings, leaving outcome attributes intact | `paints all four outcomes with hatch strokes, dots, solid fill and an open right edge` | Exit 1                                                                |
+| Original project zone | Omit formatter `timeZone` under `TZ=America/Los_Angeles`       | Real extracted `AttemptCard` overnight zoned test                                      | Exit 1; rendered Aug 3 06:30–16:10 instead of Aug 3 16:30–Aug 4 02:10 |
+| Missing start         | Substitute a date for absent panel start                       | Both missing-start panel states                                                        | Exit 1, two failed                                                    |
+| Missing zone          | Substitute UTC for absent zone                                 | Both missing-zone panel states                                                         | Exit 1, two failed                                                    |
+| Translated hits       | Omit translated `mark.x` from the hit surface                  | `aligns translated headers, forecast and attempt hit surfaces`                         | Exit 1                                                                |
+| Clock memo            | Omit `before.now === after.now`                                | `uses the supplied clock and repaints a new clock through memoization`                 | Exit 1                                                                |
+| Shared chooser        | Remove the attempt collision branch                            | `includes a tick and its forecast in the shared collision chooser`                     | Exit 1                                                                |
+| Vertical pointer size | Original 0.28-row height                                       | `gives a two-minute attempt an 18px pointer surface in both dimensions`                | Failed at 7.84px before correction                                    |
+
+All temporary mutation faults were restored. Adjacent `Proof:` comments name the observations.
+The attempt hit explicitly targets its fill, matching the axis worker's browser discovery
+that an SVG hit rect's stroke footprint can exceed its bounding box. An attribute regression
+was watched failing before this explicit targeting was added. Pointer movement rechecks the
+shared collision membership after the hover delay.
+
+### Still open
+
+- The new `e2e/gantt-attempts.spec.ts` fixture includes three attempts on one slice, all four
+  outcomes, a completed row, a two-minute tick and an attempt before the forecast. It has not
+  been run. Browser acceptance and the browser translation mutation remain open until the
+  estimate-units prerequisite integrates, per the coordinator's instruction.
+- Full fe-01 component/zoned suites, existing Gantt browser shards, full format/lint/build,
+  host gate and attempt-inclusive performance measurement have not been run for this checkpoint.
+- Tasks 2.2, 2.3 and 3 remain open; production overlay coverage does not claim browser or
+  release acceptance. The host gate is reserved for the reviewed integration SHA.
+
+Final checkpoint checks after explicit fill targeting and pointer-move support:
+
+| Command                                                  | Observed result            |
+| -------------------------------------------------------- | -------------------------- |
+| UTC dedicated attempt panel suite                        | 17 passed, 4.94s           |
+| `TZ=America/Los_Angeles` dedicated zoned card suite      | 1 passed, 1.93s            |
+| Nx `typecheck` with daemon/plugin isolation disabled     | Passed, 9.2s               |
+| Nx `lint:fast` with daemon/plugin isolation disabled     | Passed, 1m 16s             |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json` | 184 items passed, 0 failed |
+| `git diff --check`                                       | Exit 0                     |

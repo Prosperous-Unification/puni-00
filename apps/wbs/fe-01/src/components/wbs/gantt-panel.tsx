@@ -16,6 +16,7 @@ import {
   Profiler,
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -32,6 +33,7 @@ import type {
 } from '@/lib/wbs-api';
 
 import type { DepLights } from './dep-light-store';
+import { AttemptCard, AttemptMark, AttemptPatterns, identifyAttemptMark } from './gantt-attempt';
 import {
   AXIS_RUNGS,
   buildClockCells,
@@ -47,6 +49,7 @@ import {
   DONE_BAR_STROKE,
   droppedLinkWords,
   type EstimateTrio,
+  type GanttAttemptMark,
   type GanttBar,
   GanttDataError,
   type GanttPlan,
@@ -59,6 +62,7 @@ import {
   type PlacedBar,
   placeOnCalendar,
   placeOnWorkdays,
+  projectAttemptMarks,
   routeArrow,
   ROW_MIDDLE,
   type ServiceTeamLabel,
@@ -1538,13 +1542,16 @@ export function workdayAxis(horizon: number): AxisDay[] {
  * not one is malformed trusted data, and the panel lets it reach the error
  * boundary rather than drawing an axis of `Invalid Date`.
  */
-function calendarAxis(startDate: IsoDate, horizon: number): AxisDay[] {
+function calendarAxis(startDate: IsoDate, horizon: number, rangeStart = 0): AxisDay[] {
   const origin = addWorkdays(startDate, 0);
   // Counted as the days are walked rather than asked for per cell: the workday
   // a calendar day is, is how many working days have gone before it, and the
   // walk already knows. The origin is a workday by construction, so the first
   // cell takes 0.
   let workday = -1;
+  for (let offset = rangeStart; offset < 0; offset += 1) {
+    if (!isWeekend(addCalendarDays(origin, offset))) workday -= 1;
+  }
   // A bare ceil, and **not** `wholeDaysCovering` — which the workday axis does
   // count with, because there the horizon is the engine's own drifted numbers.
   // The invariant here: this horizon is read off marks already placed by
@@ -1554,7 +1561,7 @@ function calendarAxis(startDate: IsoDate, horizon: number): AxisDay[] {
   // one. `gantt-calendar-snap`'s `verify.md` records the injection that stayed
   // green and why.
   return Array.from({ length: Math.ceil(horizon) }, (_, offset) => {
-    const date = addCalendarDays(origin, offset);
+    const date = addCalendarDays(origin, offset + rangeStart);
     const weekend = isWeekend(date);
     if (!weekend) workday += 1;
     return {
@@ -2912,6 +2919,8 @@ export const GanttPanel = memo(
   (before, after) =>
     before.generation === after.generation &&
     before.startDate === after.startDate &&
+    // Proof: omitting now failed the supplied-clock panel memoization case (2026-10-12).
+    before.now === after.now &&
     before.scheduleError === after.scheduleError &&
     before.heightPx === after.heightPx &&
     before.roomPx === after.roomPx &&
@@ -2935,6 +2944,7 @@ export const GanttPanel = memo(
 );
 
 function GanttPanelContent({
+  now = new Date().getTime(),
   plan,
   depLights,
   startDate,
@@ -2987,6 +2997,7 @@ function GanttPanelContent({
   }
   return (
     <GanttChart
+      now={now}
       plan={plan}
       depLights={depLights}
       startDate={startDate}
@@ -3014,6 +3025,8 @@ function GanttPanelContent({
 
 /** What the panel is given: one chart read, and what to do with a click on it. */
 interface GanttProps {
+  /** One clock reading for all running attempts in this render; no refresh timer is introduced. */
+  now?: number;
   plan: GanttPlan;
   /** Raw wire relationships; validated while the chart fault boundary is mounted. */
   typedDependencies?: readonly TypedDependencyView[];
@@ -3276,6 +3289,7 @@ interface OpenSurface {
  * there.
  */
 function GanttChart({
+  now,
   plan,
   depLights,
   startDate,
@@ -3300,6 +3314,7 @@ function GanttChart({
 }: Omit<
   GanttProps,
   | 'scheduleError'
+  | 'now'
   | 'dayPx'
   | 'onPickDayPx'
   | 'labelsShown'
@@ -3311,6 +3326,7 @@ function GanttChart({
   | 'onCreateMarker'
   | 'newMarkerId'
 > & {
+  now: number;
   dayPx: DayPx;
   onPickDayPx: (dayPx: DayPx, notice?: string) => void;
   labelsShown: boolean;
@@ -3614,6 +3630,9 @@ function GanttChart({
     };
   }, [fullScreen]);
   const [open, setOpen] = useState<OpenSurface | null>(null);
+  const [openAttempt, setOpenAttempt] = useState<{ markId: string; anchor: AnchorRect } | null>(
+    null,
+  );
   const [collision, setCollision] = useState<{ markIds: string[]; anchor: AnchorRect } | null>(
     null,
   );
@@ -3642,7 +3661,11 @@ function GanttChart({
   );
   const hasOpenSurface = useRef(false);
   hasOpenSurface.current =
-    open !== null || openDay !== null || openMarkers !== null || collision !== null;
+    open !== null ||
+    openAttempt !== null ||
+    openDay !== null ||
+    openMarkers !== null ||
+    collision !== null;
   /**
    * The calendar-marker composer's day, and it is the **date** rather than the
    * offset the cell was drawn at.
@@ -3838,6 +3861,7 @@ function GanttChart({
     if (!hasOpenSurface.current) return;
     hasOpenSurface.current = false;
     setOpen(null);
+    setOpenAttempt(null);
     setCollision(null);
     setOpenDay(null);
     setOpenMarkers(null);
@@ -3887,6 +3911,7 @@ function GanttChart({
   // {@link GanttProps.generation}.
   useEffect(() => {
     setOpen(null);
+    setOpenAttempt(null);
     setCollision(null);
     setOpenDay(null);
   }, [generation]);
@@ -3909,10 +3934,17 @@ function GanttChart({
    * workday numbers stand as they are, no scale is built and nothing is asked
    * for a date. That is a state this panel is in, not a path it falls through.
    */
-  const placed = useMemo(
+  const forecast = useMemo(
     () => (startDate === null ? placeOnWorkdays(chart) : placeOnCalendar(chart, startDate)),
     [chart, startDate],
   );
+  const projection = useMemo(
+    // Proof: substituting a date for absent startDate failed both missing-start panel states (2026-10-12).
+    () => projectAttemptMarks(plan, forecast, startDate, rung, now),
+    [plan, forecast, startDate, rung, now],
+  );
+  const placed = projection.forecast;
+  const attemptPatternPrefix = `attempt-${useId().replaceAll(':', '')}`;
   /**
    * The bars that are drawn, which since 2026-09-11 is **all of them**.
    *
@@ -4112,8 +4144,10 @@ function GanttChart({
   );
   const axis = useMemo(
     () =>
-      startDate === null ? workdayAxis(placed.horizon) : calendarAxis(startDate, placed.horizon),
-    [placed, startDate],
+      startDate === null
+        ? workdayAxis(placed.horizon)
+        : calendarAxis(startDate, placed.horizon, projection.rangeStart),
+    [placed, startDate, projection.rangeStart],
   );
   /**
    * This project's markers grouped by the day they stand on, in the order
@@ -4351,6 +4385,7 @@ function GanttChart({
    * instead — see the panel's `onScroll`.
    */
   const showSurface = (sliceId: string, mark: SVGElement): void => {
+    setOpenAttempt(null);
     setCollision(null);
     const box = mark.getBoundingClientRect();
     setOpenDay(null);
@@ -4359,9 +4394,47 @@ function GanttChart({
       anchor: { left: box.left, right: box.right, top: box.top, bottom: box.bottom },
     });
   };
+  const showAttemptSurface = (
+    mark: GanttAttemptMark,
+    target: SVGRectElement,
+    point?: { x: number; y: number },
+  ): void => {
+    cancelOpening();
+    const openSurface = () => {
+      const box = target.getBoundingClientRect();
+      const anchor = { left: box.left, right: box.right, top: box.top, bottom: box.bottom };
+      setOpen(null);
+      setOpenDay(null);
+      setOpenMarkers(null);
+      setOpenAttempt(null);
+      if (point !== undefined) {
+        const surfaces = [...pointerMarks.current].map(([markId, hit]) => {
+          const bounds = hit.getBoundingClientRect();
+          return {
+            markId,
+            left: bounds.left,
+            right: bounds.right,
+            top: bounds.top,
+            bottom: bounds.bottom,
+          };
+        });
+        const markIds = selectMarksAtPointer(surfaces, point.x, point.y);
+        // Proof: removing this branch failed the shared forecast/attempt collision chooser case (2026-10-12).
+        if (markIds.length > 1) {
+          setCollision({ markIds, anchor });
+          return;
+        }
+      }
+      setCollision(null);
+      setOpenAttempt({ markId: identifyAttemptMark(mark), anchor });
+    };
+    if (point === undefined) openSurface();
+    else opening.current = setTimeout(openSurface, HOVER_OPEN_MS);
+  };
   const showDaySurface = (offset: number, cell: HTMLElement): void => {
     const box = cell.getBoundingClientRect();
     setOpen(null);
+    setOpenAttempt(null);
     setCollision(null);
     setOpenMarkers(null);
     setOpenDay({
@@ -4384,6 +4457,7 @@ function GanttChart({
   const showMarkerOverflow = (offset: number, badge: HTMLElement): void => {
     const box = badge.getBoundingClientRect();
     setOpen(null);
+    setOpenAttempt(null);
     setCollision(null);
     setOpenDay(null);
     setOpenMarkers({
@@ -5182,6 +5256,7 @@ function GanttChart({
                   if (markIds.length > 1) {
                     const box = mark.getBoundingClientRect();
                     setOpen(null);
+                    setOpenAttempt(null);
                     setOpenDay(null);
                     setOpenMarkers(null);
                     setCollision({
@@ -6338,6 +6413,24 @@ function GanttChart({
                 )}
 
                 {marksOverLight}
+                <AttemptPatterns prefix={attemptPatternPrefix} dayPx={dayPx} rowPx={ROW_PX} />
+                {projection.marks.map((mark) => (
+                  <AttemptMark
+                    key={identifyAttemptMark(mark)}
+                    mark={mark}
+                    prefix={attemptPatternPrefix}
+                    dayPx={dayPx}
+                    rowPx={ROW_PX}
+                    onShow={showAttemptSurface}
+                    registerHit={(hit) => {
+                      if (hit === null) pointerMarks.current.delete(identifyAttemptMark(mark));
+                      else pointerMarks.current.set(identifyAttemptMark(mark), hit);
+                    }}
+                    onDismiss={() => {
+                      if (!gesture.current.collisionOpen) dismiss();
+                    }}
+                  />
+                ))}
               </svg>
 
               {barWords}
@@ -6432,6 +6525,20 @@ function GanttChart({
               Close mark list
             </button>
             {collision.markIds.map((markId) => {
+              const attempt = projection.marks.find((mark) => identifyAttemptMark(mark) === markId);
+              if (attempt !== undefined)
+                return (
+                  <button
+                    key={markId}
+                    type="button"
+                    className="block text-xs"
+                    onClick={() => {
+                      setOpen(null);
+                      setOpenAttempt({ markId, anchor: collision.anchor });
+                      setCollision(null);
+                    }}
+                  >{`Attempt ${String(attempt.attempt.attemptNumber)} — ${attempt.attempt.outcome ?? 'running'} · ${attempt.nodeReference ?? attempt.nodeId}`}</button>
+                );
               const placedBar = drawnBars.find(({ bar }) => bar.sliceId === markId);
               if (placedBar === undefined) return null;
               const { bar } = placedBar;
@@ -6449,6 +6556,25 @@ function GanttChart({
             })}
           </HoverCard>
         )}
+        {openAttempt !== null &&
+          projection.availability.state === 'available' &&
+          (() => {
+            const mark = projection.marks.find(
+              (candidate) => identifyAttemptMark(candidate) === openAttempt.markId,
+            );
+            return mark === undefined ? null : (
+              <HoverCard
+                label={`Facts for attempt ${String(mark.attempt.attemptNumber)}`}
+                anchor={openAttempt.anchor}
+              >
+                <AttemptCard
+                  mark={mark}
+                  timezone={projection.availability.timezone}
+                  personNames={plan.personNames}
+                />
+              </HoverCard>
+            );
+          })()}
         {openBar !== null && open !== null && (
           <HoverCard label={`Facts for ${openBar.workItemNumber}`} anchor={open.anchor}>
             {(() => {
@@ -6867,6 +6993,19 @@ function GanttChart({
         outside it in either direction — and on a phone the controls land in
         the thumb's half of the screen rather than under the plan above.
       */}
+      {projection.availability.state === 'unavailable' &&
+        projection.availability.missing.map((missing) => (
+          <p
+            key={missing}
+            role="status"
+            data-attempt-unavailable
+            className="text-muted-foreground px-3 py-1 text-sm"
+          >
+            {missing === 'startDate'
+              ? 'Attempt marks unavailable: set a project start date'
+              : 'Attempt marks unavailable: project timezone is unavailable'}
+          </p>
+        ))}
       <div
         data-gantt-controls
         className="border-border text-muted-foreground flex flex-wrap items-center gap-1 border-t px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase"
