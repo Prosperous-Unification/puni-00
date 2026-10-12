@@ -121,7 +121,12 @@ workflow checks that revision out. Provisioning refuses an archive whose selecte
 root's `launcher-path` names and runs it against the archive's own `trusted-node-modules`. The
 launcher, the push audit and the h2puni host gate all default `TOOL_WIKI_TRUSTED_NODE_MODULES` to
 that directory and refuse when it is absent; the validator refuses runtime modules inside the
-candidate. A consumer repository therefore needs the three variables and this workflow, never a
+candidate. Relationship extraction copies requested complete packages into a physical candidate
+`node_modules`, preserving scoped and nested topology. Compiler configuration, compilation and
+relationship resolution share one filesystem boundary: an absent trusted dependency cannot resolve
+through the runtime directory's ancestors. Unreadable packages and escaping trusted symlinks refuse;
+only the bundled compiler's standard library declarations have an explicit outside-path exception.
+A consumer repository therefore needs the three variables and this workflow, never a
 checkout of the wiki's source. Nx relationships are read statically from
 `nx.json` and `project.json`; candidate plugins and inferred plugin targets are never executed or
 admitted by this bootstrap boundary.

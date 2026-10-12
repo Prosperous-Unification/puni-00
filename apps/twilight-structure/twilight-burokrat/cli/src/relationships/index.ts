@@ -60,7 +60,10 @@ function trustedModules(candidateRoot: string): string {
   return modules;
 }
 
-function materializeCandidate(repository: string, candidate: CandidateSnapshot): string {
+function materializeCandidate(
+  repository: string,
+  candidate: CandidateSnapshot,
+): { workspace: string; installedModules: string } {
   if (candidate.untracked.length > 0) {
     throw new Error(
       `relationship extraction cannot resolve untracked diagnostic paths: ${candidate.untracked.join(', ')}`,
@@ -76,64 +79,67 @@ function materializeCandidate(repository: string, candidate: CandidateSnapshot):
   }
   const installedModules = trustedModules(candidateRoot);
   const workspace = mkdtempSync(join(tmpdir(), 'tool-wiki-candidate-'));
-  const blobs = readBlobs(repository, candidate);
-  const effectiveWorkspace = realpathSync(workspace);
-  for (const entry of candidate.entries) {
-    const destination = resolve(workspace, entry.path);
-    assertContained(workspace, destination, `candidate path ${entry.path}`);
-    if (entry.mode === '160000') {
-      mkdirSync(destination, { recursive: true });
-      continue;
+  try {
+    const blobs = readBlobs(repository, candidate);
+    const effectiveWorkspace = realpathSync(workspace);
+    for (const entry of candidate.entries) {
+      const destination = resolve(workspace, entry.path);
+      assertContained(workspace, destination, `candidate path ${entry.path}`);
+      if (entry.mode === '160000') {
+        mkdirSync(destination, { recursive: true });
+        continue;
+      }
+      const bytes = blobs.get(entry.path);
+      if (bytes === undefined)
+        throw new Error(`relationship candidate blob missing for ${entry.path}`);
+      mkdirSync(dirname(destination), { recursive: true });
+      if (entry.mode === '120000') {
+        let target: string;
+        try {
+          target = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
+        } catch (cause) {
+          const detail = cause instanceof Error ? cause.message : String(cause);
+          throw new Error(
+            `relationship candidate symlink target malformed at ${entry.path}: ${detail}`,
+            {
+              cause,
+            },
+          );
+        }
+        assertContained(
+          workspace,
+          resolve(dirname(destination), target),
+          `candidate symlink ${entry.path}`,
+        );
+        symlinkSync(target, destination);
+        continue;
+      }
+      writeFileSync(destination, bytes);
+      if (entry.mode === '100755') chmodSync(destination, 0o755);
     }
-    const bytes = blobs.get(entry.path);
-    if (bytes === undefined)
-      throw new Error(`relationship candidate blob missing for ${entry.path}`);
-    mkdirSync(dirname(destination), { recursive: true });
-    if (entry.mode === '120000') {
-      let target: string;
+    for (const entry of candidate.entries) {
+      if (entry.mode !== '120000') continue;
+      const destination = resolve(workspace, entry.path);
+      let effectiveTarget: string;
       try {
-        target = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
+        effectiveTarget = realpathSync(destination);
       } catch (cause) {
         const detail = cause instanceof Error ? cause.message : String(cause);
-        throw new Error(
-          `relationship candidate symlink target malformed at ${entry.path}: ${detail}`,
-          {
-            cause,
-          },
-        );
+        throw new Error(`relationship candidate symlink unresolved at ${entry.path}: ${detail}`, {
+          cause,
+        });
       }
-      assertContained(
-        workspace,
-        resolve(dirname(destination), target),
-        `candidate symlink ${entry.path}`,
-      );
-      symlinkSync(target, destination);
-      continue;
+      // Proof: omitting effective resolution let `escape -> pivot/../outside` exit 0 when
+      // `pivot -> .`; the production CLI expected the escape refusal before TypeScript ran.
+      assertContained(effectiveWorkspace, effectiveTarget, `candidate symlink ${entry.path}`);
     }
-    writeFileSync(destination, bytes);
-    if (entry.mode === '100755') chmodSync(destination, 0o755);
+    return { workspace, installedModules };
+  } catch (cause) {
+    // Proof: omitting cleanup left tool-wiki-candidate-* after a candidate symlink refusal;
+    // `cleans a candidate rejected during snapshot symlink materialization` failed.
+    rmSync(workspace, { force: true, recursive: true });
+    throw cause;
   }
-  for (const entry of candidate.entries) {
-    if (entry.mode !== '120000') continue;
-    const destination = resolve(workspace, entry.path);
-    let effectiveTarget: string;
-    try {
-      effectiveTarget = realpathSync(destination);
-    } catch (cause) {
-      const detail = cause instanceof Error ? cause.message : String(cause);
-      throw new Error(`relationship candidate symlink unresolved at ${entry.path}: ${detail}`, {
-        cause,
-      });
-    }
-    // Proof: omitting effective resolution let `escape -> pivot/../outside` exit 0 when
-    // `pivot -> .`; the production CLI expected the escape refusal before TypeScript ran.
-    assertContained(effectiveWorkspace, effectiveTarget, `candidate symlink ${entry.path}`);
-  }
-  const modulesPath = join(workspace, 'node_modules');
-  if (!candidate.entries.some((entry) => entry.path === 'node_modules')) {
-    symlinkSync(installedModules, modulesPath, 'dir');
-  }
-  return workspace;
 }
 
 function relationshipInput(inputId: string, selectors: unknown): { inputId: string; blob: string } {
@@ -150,9 +156,13 @@ export function extractRelationships(
   candidate: CandidateSnapshot,
   request: RelationshipRequest,
 ) {
-  const workspace = materializeCandidate(repository, candidate);
+  const { workspace, installedModules } = materializeCandidate(repository, candidate);
   try {
-    const typescript = extractTypeScriptRelationships(workspace, request.typescript);
+    const typescript = extractTypeScriptRelationships(
+      workspace,
+      request.typescript,
+      installedModules,
+    );
     const nx = extractNxRelationships(workspace);
     const declarations =
       (request.declarationPaths?.length ?? 0) === 0
@@ -205,6 +215,8 @@ export function extractRelationships(
       },
     };
   } finally {
+    // Proof: omitting workspace cleanup left tool-wiki-candidate-* in the dedicated scratch root;
+    // the production `refuses trusted package copy failure` cleanup assertion failed.
     rmSync(workspace, { force: true, recursive: true });
   }
 }
