@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { answerEmpty, answerJson as answer, stubServer } from '@/testing/stub-server';
 
 import { JoinRequestsPanel } from './join-requests-panel';
+import { type AccessLoss } from './organization-access';
 
 afterEach(() => {
   cleanup();
@@ -17,7 +18,7 @@ const request = (id: string, email: string, status = 'pending') => ({
   createdAt: 1,
 });
 
-function renderPanel(onAccessLost: (loss: string) => void = () => undefined) {
+function renderPanel(onAccessLost: (loss: AccessLoss) => void = () => undefined) {
   render(<JoinRequestsPanel onAccessLost={onAccessLost} />);
 }
 
@@ -109,7 +110,7 @@ describe('join requests', () => {
   });
 
   it('hands a lost membership to the page', async () => {
-    const losses: string[] = [];
+    const losses: AccessLoss[] = [];
     stubServer({
       'GET /api/organization/join-requests': [
         () => answer(200, { requests: [request('r', 'ada@acme.test')] }),

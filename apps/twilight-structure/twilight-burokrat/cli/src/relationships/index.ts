@@ -14,6 +14,7 @@ import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 
 import type { RelationshipRequest } from '../contracts/records';
 import { hashCanonical } from '../evidence/content-manifest';
+import { readSelectedBlob } from '../inventory/read-blob';
 import type { CandidateSnapshot } from '../inventory/read-candidate';
 import { extractDeclaredRelationships } from './declarations';
 import { extractNxRelationships } from './nx';
@@ -22,50 +23,12 @@ import { extractTypeScriptRelationships } from './typescript';
 const compareText = (left: string, right: string): number =>
   Buffer.compare(Buffer.from(left, 'utf8'), Buffer.from(right, 'utf8'));
 
-function invokeGit(repository: string, argv: string[], stdin?: Uint8Array): Uint8Array {
-  const invocation = Bun.spawnSync(['git', '-C', repository, ...argv], {
-    stdin,
-    stderr: 'pipe',
-    stdout: 'pipe',
-  });
-  if (invocation.exitCode !== 0) {
-    const detail = invocation.stderr.toString('utf8').trim();
-    throw new Error(
-      `relationship candidate blob read failed: ${detail.length === 0 ? `git exited ${String(invocation.exitCode)}` : detail}`,
-    );
-  }
-  return invocation.stdout;
-}
-
 function readBlobs(repository: string, candidate: CandidateSnapshot): Map<string, Uint8Array> {
-  const requested = candidate.entries.filter((entry) => entry.mode !== '160000');
-  const input = Buffer.from(`${requested.map((entry) => entry.blob).join('\n')}\n`, 'utf8');
-  const output = Buffer.from(invokeGit(repository, ['cat-file', '--batch'], input));
   const blobs = new Map<string, Uint8Array>();
-  let offset = 0;
-  for (const entry of requested) {
-    const newline = output.indexOf(0x0a, offset);
-    if (newline < 0)
-      throw new Error(`relationship candidate blob output malformed for ${entry.path}`);
-    const header = output.subarray(offset, newline).toString('utf8');
-    const match = /^([0-9a-f]{40}(?:[0-9a-f]{24})?) blob ([0-9]+)$/.exec(header);
-    if (match?.[1] !== entry.blob) {
-      throw new Error(`relationship candidate blob output malformed for ${entry.path}: ${header}`);
-    }
-    const length = Number(match[2]);
-    if (!Number.isSafeInteger(length) || length < 0) {
-      throw new Error(`relationship candidate blob length malformed for ${entry.path}`);
-    }
-    const start = newline + 1;
-    const end = start + length;
-    if (end >= output.length || output[end] !== 0x0a) {
-      throw new Error(`relationship candidate blob bytes truncated for ${entry.path}`);
-    }
-    blobs.set(entry.path, output.subarray(start, end));
-    offset = end + 1;
+  for (const entry of candidate.entries) {
+    if (entry.mode === '160000') continue;
+    blobs.set(entry.path, readSelectedBlob(repository, candidate.entries, entry.blob, entry.path));
   }
-  if (offset !== output.length)
-    throw new Error('relationship candidate blob output has trailing bytes');
   return blobs;
 }
 

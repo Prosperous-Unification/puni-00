@@ -3863,3 +3863,27 @@ in three consecutive runs. Both tests depend on wall-clock deadlines in the hund
 milliseconds to 2 s, so they are load-sensitive. That is an open flakiness risk for the host gate,
 not a fixed result. Nx `typecheck` and `lint:fast` reported success at this head, and OpenSpec
 `validate --all` passed 171/171.
+
+### Host-environment fixes after the round-7 h2puni gate (2026-10-12)
+
+The h2puni gate on integration-7 `c8285f9a3` failed two activation-controller tests that
+GitHub CI passed.
+
+- **`selected check stages only bytes from trusted complete-tree manifests`.** Its expected
+  opened-descriptor set hard-coded `'/tmp'`, but h2puni's temporary root is `/var/tmp`. The
+  expected set now derives every ancestor of the actual staged roots. With the old test,
+  `TMPDIR=/var/tmp` reproduced the failure locally (0/1). The derived set passes under both
+  roots.
+  - A package-wide grep found one other literal `/tmp`. It is production staging, not a test
+    expectation: `review-attestation.ts` uses `mkdtempSync('/tmp/review-attestation-')`.
+  - That literal was left unchanged. Its suite passes on h2puni's `/tmp`.
+- **`pinned runner terminates the descendant process rather than only cancelling its pipe`.**
+  On a loaded host, the SIGKILLed descendant was still `R` when checked. The runner's contract
+  says "terminates", so the fix is in the runner. After killing the process group,
+  `runPinnedOfflineGh` now waits, bounded at 2 s, until `kill(-pgid, 0)` reports ESRCH.
+  Past the bound it adds a named cleanup failure. The test now requires the descendant
+  `/proc` entry to be gone, not merely a zombie.
+  - With the wait removed, the test failed 1 of 10 runs idle and 3 of 10 runs with 2×nproc
+    CPU spinners. Each failure read `Received: "R"`, the h2puni symptom.
+  - Restored, the test passed 10 of 10 runs under the same load. The whole attestation suite
+    passed 66/66.

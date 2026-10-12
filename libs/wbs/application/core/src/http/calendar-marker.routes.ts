@@ -297,7 +297,7 @@ export function calendarMarkerRoutes(
   return [
     bind(listCalendarMarkers, async ({ params, principal }) => {
       const resolved = await organizations.resolve(principal);
-      if (!resolved.ok) return organizationRefusal(resolved.refusal);
+      if (!resolved.ok) return organizationRefusal(resolved);
       const outcome = await markers.listWithin(params.id, resolved.access);
       return outcome.ok
         ? { ok: true, status: 200, body: { markers: outcome.value.map(answered) } }
@@ -309,7 +309,7 @@ export function calendarMarkerRoutes(
         const created = createProblem(body);
         if (isCreateProblem(created)) return refuse(created);
         const resolved = await organizations.resolve(principal);
-        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        if (!resolved.ok) return organizationRefusal(resolved);
         const outcome = await write(
           resolved.access,
           params.id,
@@ -340,7 +340,7 @@ export function calendarMarkerRoutes(
         const change = patchProblem(body);
         if (isProblem(change)) return refuse(change);
         const resolved = await organizations.resolve(principal);
-        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        if (!resolved.ok) return organizationRefusal(resolved);
         const outcome =
           change.kind === 'name'
             ? await write(
@@ -379,7 +379,7 @@ export function calendarMarkerRoutes(
     ),
     bind(removeCalendarMarker, async ({ params, principal }) => {
       const resolved = await organizations.resolve(principal);
-      if (!resolved.ok) return organizationRefusal(resolved.refusal);
+      if (!resolved.ok) return organizationRefusal(resolved);
       const outcome = await write(
         resolved.access,
         params.id,

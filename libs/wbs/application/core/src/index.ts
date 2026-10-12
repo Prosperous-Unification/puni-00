@@ -79,18 +79,28 @@ export * from './module/capacity/capacity.resource';
 export * from './module/directory/directory.resource';
 export * from './module/plan-commands/command-bindings';
 export * from './module/realtime/gateway-broadcaster';
+export * from './ports/credential-rules';
 export * from './ports/email-delivery';
 export * from './ports/email-verification';
+export * from './ports/enterprise-connections';
 export * from './ports/invitation';
 export * from './ports/join-request';
 export * from './ports/membership-administration';
 export * from './ports/onboarding';
 export * from './ports/organization-access';
+export * from './ports/organization-audit';
 export * from './ports/project-event';
 export * from './ports/project-rank-store';
 export * from './ports/project-store';
+export * from './ports/provisioning-tokens';
 export type { PushTransport } from './ports/push-transport';
-export type { Digest, PasswordHasher, SessionClaims, TokenCodec } from './ports/runtime';
+export type {
+  Digest,
+  PasswordHasher,
+  SessionClaims,
+  TokenCodec,
+  VerifiedSessionClaims,
+} from './ports/runtime';
 export type { PlanInputReads, SavedPlanCaptureStore } from './ports/saved-plan-capture-store';
 export type {
   SavedPlanBodyWrite,
@@ -106,6 +116,8 @@ export type {
   StoredSavedPlan,
 } from './ports/saved-plan-store';
 export * from './ports/scheduler';
+export * from './ports/scim-users';
+export * from './ports/session-policies';
 export * from './ports/source';
 export * from './ports/space-store';
 export * from './ports/step-store';

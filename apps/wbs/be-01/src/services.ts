@@ -20,6 +20,7 @@ import { type FetchLike, PushClient, systemTimers } from '@wbs/runtime-portable'
 import {
   capturedOptimizationReaderOf,
   DrizzleEventLogStore,
+  EnterpriseConnectionRepository,
   scheduleInputHash,
   type SqliteSource,
 } from '@wbs/store-sqlite';
@@ -163,6 +164,10 @@ export function buildServices(options: ServicesOptions): BeServices {
       onPlanChanged: (projectId) => coordinator?.inputChanged(projectId),
       passwords: bunPasswordHasher,
       tokens: joseTokenCodec(options.jwtKey),
+      // Proof: 2026-10-12, wiring a collaborator that proves nothing here made
+      // `enterprise email trust, composed > trusts a proven connection's email
+      // on its domain` in `enterprise-email-trust.controller.db.test.ts` fail.
+      enterprise: new EnterpriseConnectionRepository(source.db, source.gate),
       ...(options.oidc === undefined ? {} : { oidc: options.oidc }),
       ...(options.passwordSessions === undefined
         ? {}

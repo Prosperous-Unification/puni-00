@@ -6,6 +6,7 @@ import { dirname, join, resolve } from 'node:path';
 import { afterEach, expect, test } from 'bun:test';
 
 import { hashBytes } from '../evidence/content-manifest';
+import { invokeCli } from '../invoke-cli';
 import { registeredRules } from './registry';
 
 const source = 'openspec/specs/example/spec.md';
@@ -101,13 +102,13 @@ interface CheckVerdict {
   };
 }
 
-function check(
+async function check(
   repository: string,
   candidate: string,
   scenarios?: Record<string, unknown>,
   kind: 'committed' | 'staged' | 'working' = 'committed',
   mode: 'observe' | 'enforce' = 'observe',
-): { exitCode: number; stderr: string; verdict?: CheckVerdict } {
+): Promise<{ exitCode: number; stderr: string; verdict?: CheckVerdict }> {
   const policyRoot = mkdtempSync(join(tmpdir(), 'burokrat-specifications-policy-'));
   scratchRoots.push(policyRoot);
   const policyPath = join(policyRoot, 'rule-policy.json');
@@ -123,39 +124,34 @@ function check(
       ...(scenarios === undefined ? {} : { scenarios }),
     }),
   );
-  const invocation = Bun.spawnSync(
-    [
-      process.execPath,
-      'run',
-      join(import.meta.dir, '..', 'cli.ts'),
-      'check',
-      kind,
-      repository,
-      candidate,
-      policyPath,
-      '--rule',
-      'SPEC-SCENARIOS',
-    ],
-    { cwd: import.meta.dir, stdout: 'pipe', stderr: 'pipe' },
-  );
-  const stdout = Buffer.from(invocation.stdout).toString('utf8');
+  const invocation = await invokeCli([
+    'check',
+    kind,
+    repository,
+    candidate,
+    policyPath,
+    '--rule',
+    'SPEC-SCENARIOS',
+  ]);
   return {
     exitCode: invocation.exitCode,
-    stderr: Buffer.from(invocation.stderr).toString('utf8'),
-    ...(stdout.length === 0 ? {} : { verdict: JSON.parse(stdout) as CheckVerdict }),
+    stderr: invocation.stderr,
+    ...(invocation.stdout.length === 0
+      ? {}
+      : { verdict: JSON.parse(invocation.stdout) as CheckVerdict }),
   };
 }
 
-test('production check requires external specifications authority', () => {
+test('production check requires external specifications authority', async () => {
   const { repository, candidate } = fixture();
-  const response = check(repository, candidate);
+  const response = await check(repository, candidate);
   expect(response.exitCode).toBe(1);
   expect(response.stderr).toContain('policy.scenarios');
 });
 
-test('production check accepts an unchanged journal with an ancestor base and binds its identity', () => {
+test('production check accepts an unchanged journal with an ancestor base and binds its identity', async () => {
   const { repository, base, candidate } = fixture();
-  const response = check(repository, candidate, { baseRevision: base });
+  const response = await check(repository, candidate, { baseRevision: base });
   expect(response.exitCode, response.stderr).toBe(0);
   expect(response.verdict?.allowed).toBe(true);
   expect(response.verdict?.scenarios).toMatchObject({
@@ -167,100 +163,102 @@ test('production check accepts an unchanged journal with an ancestor base and bi
   });
 });
 
-test('production check refuses a candidate pinned as its own base', () => {
+test('production check refuses a candidate pinned as its own base', async () => {
   const { repository, candidate } = fixture();
-  const response = check(repository, candidate, { baseRevision: candidate });
+  const response = await check(repository, candidate, { baseRevision: candidate });
   expect(response.exitCode).toBe(1);
   expect(response.verdict?.unevaluated).toEqual([
     { ruleId: 'SPEC-SCENARIOS', reason: 'specifications base must precede candidate' },
   ]);
 });
 
-test('production check refuses an absent pinned commit', () => {
+test('production check refuses an absent pinned commit', async () => {
   const { repository, candidate } = fixture();
-  const response = check(repository, candidate, { baseRevision: '0'.repeat(40) });
+  const response = await check(repository, candidate, { baseRevision: '0'.repeat(40) });
   expect(response.exitCode).toBe(1);
   expect(JSON.stringify(response.verdict?.unevaluated)).toContain(
     'cannot verify specifications base',
   );
 });
 
-test('production check refuses a malformed full base SHA', () => {
+test('production check refuses a malformed full base SHA', async () => {
   const { repository, candidate } = fixture();
-  const response = check(repository, candidate, { baseRevision: `${candidate.slice(0, 39)}z` });
+  const response = await check(repository, candidate, {
+    baseRevision: `${candidate.slice(0, 39)}z`,
+  });
   expect(response.exitCode).toBe(1);
   expect(response.stderr).toContain('baseRevision');
   expect(response.verdict).toBeUndefined();
 });
 
-test('production check refuses an annotated tag object pinned to the candidate', () => {
+test('production check refuses an annotated tag object pinned to the candidate', async () => {
   const { repository, candidate } = fixture();
   runGit(repository, ['tag', '-a', 'candidate-base', candidate, '-m', 'wrong base object']);
   const tagObject = runGit(repository, ['rev-parse', 'refs/tags/candidate-base']);
-  const response = check(repository, candidate, { baseRevision: tagObject });
+  const response = await check(repository, candidate, { baseRevision: tagObject });
   expect(response.exitCode).toBe(1);
   expect(JSON.stringify(response.verdict?.unevaluated)).toContain('must name a commit object');
 });
 
-test('production check refuses an unrelated base', () => {
+test('production check refuses an unrelated base', async () => {
   const { repository, base, candidate } = fixture();
   runGit(repository, ['checkout', '--orphan', 'elsewhere']);
   const unrelated = commit(repository, 'unrelated');
-  const response = check(repository, candidate, { baseRevision: unrelated });
+  const response = await check(repository, candidate, { baseRevision: unrelated });
   expect(response.exitCode).toBe(1);
   expect(JSON.stringify(response.verdict?.unevaluated)).toContain('not a candidate ancestor');
   expect(base).not.toBe(unrelated);
 });
 
-test('production check ignores local Git replacement objects for the trusted base', () => {
+test('production check ignores local Git replacement objects for the trusted base', async () => {
   const { repository, base, candidate } = fixture();
   runGit(repository, ['checkout', '--orphan', 'replacement']);
   rmSync(join(repository, journalPath));
   const replacement = commit(repository, 'replacement tree without journal');
   runGit(repository, ['replace', base, replacement]);
-  const response = check(repository, candidate, { baseRevision: base });
+  const response = await check(repository, candidate, { baseRevision: base });
   expect(response.exitCode, response.stderr).toBe(0);
   expect(response.verdict?.scenarios?.baseJournalDigest).toBe(
     hashBytes(new TextEncoder().encode(initialJournal)),
   );
 });
 
-test('production check ignores local Git replacement objects for a selected journal blob', () => {
+test('production check ignores local Git replacement objects for a selected journal blob', async () => {
   const { repository, base, candidate } = fixture();
   const original = runGit(repository, ['rev-parse', `${base}:${journalPath}`]);
   const replacementPath = join(repository, 'replacement-journal.json');
   writeFileSync(replacementPath, '{broken');
   const replacement = runGit(repository, ['hash-object', '-w', replacementPath]);
   runGit(repository, ['replace', original, replacement]);
-  const response = check(repository, candidate, { baseRevision: base });
+  const response = await check(repository, candidate, { baseRevision: base });
   expect(response.exitCode, response.stderr).toBe(0);
   expect(response.verdict?.scenarios?.candidateJournalDigest).toBe(
     hashBytes(new TextEncoder().encode(initialJournal)),
   );
 });
 
-test('production staged selection requires the pinned base to be an ancestor of HEAD', () => {
+test('production staged selection requires the pinned base to be an ancestor of HEAD', async () => {
   const { repository, base } = fixture();
   runGit(repository, ['checkout', '--orphan', 'elsewhere']);
   commit(repository, 'unrelated checkout');
-  const response = check(repository, base, { baseRevision: base }, 'staged');
+  const response = await check(repository, base, { baseRevision: base }, 'staged');
   expect(response.exitCode).toBe(1);
   expect(JSON.stringify(response.verdict?.unevaluated)).toContain('not a checkout ancestor');
 });
 
-test('production staged selection refuses a policy pin different from its selected base', () => {
+test('production staged selection refuses a policy pin different from its selected base', async () => {
   const { repository, base, candidate } = fixture();
-  const response = check(repository, candidate, { baseRevision: base }, 'staged');
+  const response = await check(repository, candidate, { baseRevision: base }, 'staged');
   expect(response.exitCode).toBe(1);
   expect(JSON.stringify(response.verdict?.unevaluated)).toContain(
     'base differs from candidate selection',
   );
 });
 
-test('production check refuses a removed or rewritten predecessor event', () => {
+test('production check refuses a removed or rewritten predecessor event', async () => {
   const { repository, base } = fixture();
   const removed = nextCommit(repository, { [journalPath]: journal([]) });
-  const removedResponse = check(repository, removed, { baseRevision: base });
+  const removedResponse = await check(repository, removed, { baseRevision: base });
   expect(removedResponse.exitCode).toBe(1);
   expect(JSON.stringify(removedResponse.verdict?.unevaluated)).toContain(
     'rewrote or removed base event',
@@ -268,22 +266,22 @@ test('production check refuses a removed or rewritten predecessor event', () => 
   const rewritten = nextCommit(repository, {
     [journalPath]: journal([{ ...firstEvent, title: 'Changed case' }]),
   });
-  const rewrittenResponse = check(repository, rewritten, { baseRevision: base });
+  const rewrittenResponse = await check(repository, rewritten, { baseRevision: base });
   expect(rewrittenResponse.exitCode).toBe(1);
   expect(JSON.stringify(rewrittenResponse.verdict?.unevaluated)).toContain(
     'rewrote or removed base event',
   );
 });
 
-test('production check compares journal event values independent of JSON key order', () => {
+test('production check compares journal event values independent of JSON key order', async () => {
   const { repository, base } = fixture();
   const sameEvent = { title: 'First case', source, id: 'EXAMPLE-001', kind: 'import' };
   const candidate = nextCommit(repository, { [journalPath]: journal([sameEvent]) });
-  const response = check(repository, candidate, { baseRevision: base });
+  const response = await check(repository, candidate, { baseRevision: base });
   expect(response.exitCode, response.stderr).toBe(0);
 });
 
-test('production check refuses resurrection after deleting a retirement event', () => {
+test('production check refuses resurrection after deleting a retirement event', async () => {
   const { repository } = fixture();
   write(repository, source, '#### Scenario: Legacy case\n');
   write(repository, journalPath, journal([firstEvent, { kind: 'retire', id: 'EXAMPLE-001' }]));
@@ -292,12 +290,12 @@ test('production check refuses resurrection after deleting a retirement event', 
     [source]: heading,
     [journalPath]: journal([firstEvent]),
   });
-  const response = check(repository, candidate, { baseRevision: base });
+  const response = await check(repository, candidate, { baseRevision: base });
   expect(response.exitCode).toBe(1);
   expect(JSON.stringify(response.verdict?.unevaluated)).toContain('rewrote or removed base event');
 });
 
-test('production check requires a reviewed bootstrap for an absent base journal', () => {
+test('production check requires a reviewed bootstrap for an absent base journal', async () => {
   const repository = mkdtempSync(join(tmpdir(), 'burokrat-bootstrap-'));
   scratchRoots.push(repository);
   runGit(repository, ['init', '--initial-branch=main']);
@@ -306,10 +304,10 @@ test('production check requires a reviewed bootstrap for an absent base journal'
   write(repository, source, heading);
   const base = commit(repository, 'before adoption');
   const candidate = nextCommit(repository, { [journalPath]: initialJournal });
-  const missing = check(repository, candidate, { baseRevision: base });
+  const missing = await check(repository, candidate, { baseRevision: base });
   expect(missing.exitCode).toBe(1);
   expect(JSON.stringify(missing.verdict?.unevaluated)).toContain('requires reviewed bootstrap');
-  const accepted = check(repository, candidate, {
+  const accepted = await check(repository, candidate, {
     baseRevision: base,
     bootstrap: {
       baseRevision: base,
@@ -320,7 +318,7 @@ test('production check requires a reviewed bootstrap for an absent base journal'
   });
   expect(accepted.exitCode, accepted.stderr).toBe(0);
   expect(accepted.verdict?.scenarios?.baseJournalDigest).toBeNull();
-  const wrongBase = check(repository, candidate, {
+  const wrongBase = await check(repository, candidate, {
     baseRevision: base,
     bootstrap: {
       baseRevision: candidate,
@@ -331,7 +329,7 @@ test('production check requires a reviewed bootstrap for an absent base journal'
   });
   expect(wrongBase.exitCode).toBe(1);
   expect(JSON.stringify(wrongBase.verdict?.unevaluated)).toContain('requires reviewed bootstrap');
-  const wrongDigest = check(repository, candidate, {
+  const wrongDigest = await check(repository, candidate, {
     baseRevision: base,
     bootstrap: {
       baseRevision: base,
@@ -344,9 +342,9 @@ test('production check requires a reviewed bootstrap for an absent base journal'
   expect(JSON.stringify(wrongDigest.verdict?.unevaluated)).toContain('requires reviewed bootstrap');
 });
 
-test('production check refuses a bootstrap when the base already has a journal', () => {
+test('production check refuses a bootstrap when the base already has a journal', async () => {
   const { repository, base, candidate } = fixture();
-  const response = check(repository, candidate, {
+  const response = await check(repository, candidate, {
     baseRevision: base,
     bootstrap: {
       baseRevision: base,
@@ -361,66 +359,66 @@ test('production check refuses a bootstrap when the base already has a journal',
   );
 });
 
-test('production check refuses a journal stored as a Git symlink', () => {
+test('production check refuses a journal stored as a Git symlink', async () => {
   const { repository, base } = fixture();
   rmSync(join(repository, journalPath));
   symlinkSync('elsewhere.json', join(repository, journalPath));
   const candidate = commit(repository, 'symlink journal');
-  const response = check(repository, candidate, { baseRevision: base });
+  const response = await check(repository, candidate, { baseRevision: base });
   expect(response.exitCode).toBe(1);
   expect(JSON.stringify(response.verdict?.unevaluated)).toContain('regular blob');
 });
 
-test('production check refuses an active spec stored as a Git symlink', () => {
+test('production check refuses an active spec stored as a Git symlink', async () => {
   const { repository, base } = fixture();
   rmSync(join(repository, source));
   symlinkSync('elsewhere.md', join(repository, source));
   const candidate = commit(repository, 'symlink active spec');
-  const response = check(repository, candidate, { baseRevision: base });
+  const response = await check(repository, candidate, { baseRevision: base });
   expect(response.exitCode).toBe(1);
   expect(JSON.stringify(response.verdict?.unevaluated)).toContain(
     'canonical specification must be a regular blob',
   );
 });
 
-test('production check ignores fenced scenario headings', () => {
+test('production check ignores fenced scenario headings', async () => {
   const { repository, base } = fixture();
   const candidate = nextCommit(repository, {
     [source]: `${heading}\n\`\`\`md\n#### Scenario: [EXAMPLE-999] In sample\n\`\`\`\n`,
   });
-  const response = check(repository, candidate, { baseRevision: base });
+  const response = await check(repository, candidate, { baseRevision: base });
   expect(response.exitCode, response.stderr).toBe(0);
 });
 
 test.each(['`', '~'])(
   'production check keeps a shorter %s fence inside the containing fence',
-  (marker) => {
+  async (marker) => {
     const { repository, base } = fixture();
     const candidate = nextCommit(repository, {
       [source]: `${heading}\n${marker.repeat(4)}md\n${marker.repeat(3)}\n#### Scenario: [EXAMPLE-999] In sample\n${marker.repeat(4)}\n`,
     });
-    const response = check(repository, candidate, { baseRevision: base });
+    const response = await check(repository, candidate, { baseRevision: base });
     expect(response.exitCode, response.stderr).toBe(0);
     expect(response.verdict?.allowed).toBe(true);
   },
 );
 
-test('production check closes a backtick fence with a trailing horizontal tab', () => {
+test('production check closes a backtick fence with a trailing horizontal tab', async () => {
   const { repository, base } = fixture();
   const candidate = nextCommit(repository, {
     [source]: `${heading}\n\`\`\`md\n\`\`\`\t\n#### Scenario: [EXAMPLE-999] Missing allocation\n`,
   });
-  const response = check(repository, candidate, { baseRevision: base });
+  const response = await check(repository, candidate, { baseRevision: base });
   expect(response.exitCode).toBe(1);
   expect(JSON.stringify(response.verdict?.unevaluated)).toContain('EXAMPLE-999');
 });
 
-test('production check rejects a backtick fence opener with a backtick in its info string', () => {
+test('production check rejects a backtick fence opener with a backtick in its info string', async () => {
   const { repository, base } = fixture();
   const candidate = nextCommit(repository, {
     [source]: `${heading}\n\`\`\`md\`invalid\n#### Scenario: [EXAMPLE-999] Missing allocation\n\`\`\`\n`,
   });
-  const response = check(repository, candidate, { baseRevision: base });
+  const response = await check(repository, candidate, { baseRevision: base });
   expect(response.exitCode).toBe(1);
   expect(JSON.stringify(response.verdict?.unevaluated)).toContain('EXAMPLE-999');
 });
@@ -439,18 +437,18 @@ test.each([
     `${heading}\n\`\`\`md\r\`\`\`\r#### Scenario: [EXAMPLE-999] Missing allocation\r`,
   ],
   ['three-space heading', `${heading}\n   #### Scenario: [EXAMPLE-999] Missing allocation\n`],
-])('production check sees a scenario after %s', (_case, markdown) => {
+])('production check sees a scenario after %s', async (_case, markdown) => {
   const { repository, base } = fixture();
   const candidate = nextCommit(repository, { [source]: markdown });
-  const response = check(repository, candidate, { baseRevision: base });
+  const response = await check(repository, candidate, { baseRevision: base });
   expect(response.exitCode).toBe(1);
   expect(JSON.stringify(response.verdict?.unevaluated)).toContain('EXAMPLE-999');
 });
 
-test('production check reports unidentified legacy headings as debt or refusal by mode', () => {
+test('production check reports unidentified legacy headings as debt or refusal by mode', async () => {
   const { repository, base } = fixture();
   const candidate = nextCommit(repository, { [source]: `${heading}#### Scenario: Legacy case\n` });
-  const observed = check(repository, candidate, { baseRevision: base });
+  const observed = await check(repository, candidate, { baseRevision: base });
   expect(observed.exitCode, observed.stderr).toBe(0);
   expect(observed.verdict?.findings).toEqual([
     {
@@ -460,16 +458,22 @@ test('production check reports unidentified legacy headings as debt or refusal b
       effect: 'debt',
     },
   ]);
-  const enforced = check(repository, candidate, { baseRevision: base }, 'committed', 'enforce');
+  const enforced = await check(
+    repository,
+    candidate,
+    { baseRevision: base },
+    'committed',
+    'enforce',
+  );
   expect(enforced.exitCode).toBe(1);
   expect(enforced.verdict?.findings[0]?.effect).toBe('refusal');
 });
 
-test('production evidence identity changes when only the trusted base changes', () => {
+test('production evidence identity changes when only the trusted base changes', async () => {
   const { repository, base, candidate: middle } = fixture();
   const candidate = commit(repository, 'same journal later candidate');
-  const first = check(repository, candidate, { baseRevision: base });
-  const second = check(repository, candidate, { baseRevision: middle });
+  const first = await check(repository, candidate, { baseRevision: base });
+  const second = await check(repository, candidate, { baseRevision: middle });
   expect(first.exitCode, first.stderr).toBe(0);
   expect(second.exitCode, second.stderr).toBe(0);
   expect(first.verdict?.scenarios?.candidateJournalDigest).toBe(
@@ -482,36 +486,36 @@ test('production evidence identity changes when only the trusted base changes', 
   );
 });
 
-test('production check refuses a removed identified heading that remains active in the journal', () => {
+test('production check refuses a removed identified heading that remains active in the journal', async () => {
   const { repository, base } = fixture();
   const candidate = nextCommit(repository, {
     [source]: '## Requirements\n### Requirement: First requirement\n#### Scenario: Legacy case\n',
   });
-  const response = check(repository, candidate, { baseRevision: base });
+  const response = await check(repository, candidate, { baseRevision: base });
   expect(response.exitCode).toBe(1);
   expect(JSON.stringify(response.verdict?.unevaluated)).toContain(
     'active allocated scenario missing',
   );
 });
 
-test('production check refuses absent and malformed candidate journals', () => {
+test('production check refuses absent and malformed candidate journals', async () => {
   const { repository, base } = fixture();
   rmSync(join(repository, journalPath));
   const absent = commit(repository, 'remove journal');
-  const absentResponse = check(repository, absent, { baseRevision: base });
+  const absentResponse = await check(repository, absent, { baseRevision: base });
   expect(absentResponse.exitCode).toBe(1);
   expect(JSON.stringify(absentResponse.verdict?.unevaluated)).toContain(
     'candidate scenario journal is absent',
   );
   const malformed = nextCommit(repository, { [journalPath]: '{broken' });
-  const malformedResponse = check(repository, malformed, { baseRevision: base });
+  const malformedResponse = await check(repository, malformed, { baseRevision: base });
   expect(malformedResponse.exitCode).toBe(1);
   expect(JSON.stringify(malformedResponse.verdict?.unevaluated)).toContain(
     'candidate scenario journal is unreadable or malformed',
   );
 });
 
-test('production check refuses a malformed base journal even when the candidate repairs it', () => {
+test('production check refuses a malformed base journal even when the candidate repairs it', async () => {
   const repository = mkdtempSync(join(tmpdir(), 'burokrat-malformed-base-'));
   scratchRoots.push(repository);
   runGit(repository, ['init', '--initial-branch=main']);
@@ -521,67 +525,67 @@ test('production check refuses a malformed base journal even when the candidate 
   write(repository, journalPath, '{broken');
   const base = commit(repository, 'malformed base');
   const candidate = nextCommit(repository, { [journalPath]: initialJournal });
-  const response = check(repository, candidate, { baseRevision: base });
+  const response = await check(repository, candidate, { baseRevision: base });
   expect(response.exitCode).toBe(1);
   expect(JSON.stringify(response.verdict?.unevaluated)).toContain(
     'base scenario journal is unreadable or malformed',
   );
 });
 
-test('production check refuses an identified heading without allocation', () => {
+test('production check refuses an identified heading without allocation', async () => {
   const { repository, base } = fixture();
   const candidate = nextCommit(repository, {
     [source]: `${heading}#### Scenario: [EXAMPLE-002] Unallocated\n`,
   });
-  const response = check(repository, candidate, { baseRevision: base });
+  const response = await check(repository, candidate, { baseRevision: base });
   expect(response.exitCode).toBe(1);
   expect(JSON.stringify(response.verdict?.unevaluated)).toContain(
     'lacks canonical allocator provenance: EXAMPLE-002',
   );
 });
 
-test('production check refuses a duplicated canonical identifier', () => {
+test('production check refuses a duplicated canonical identifier', async () => {
   const { repository, base } = fixture();
   const candidate = nextCommit(repository, {
     [source]: `${heading}#### Scenario: [EXAMPLE-001] First case\n`,
   });
-  const response = check(repository, candidate, { baseRevision: base });
+  const response = await check(repository, candidate, { baseRevision: base });
   expect(response.exitCode).toBe(1);
   expect(JSON.stringify(response.verdict?.unevaluated)).toContain(
     'duplicate canonical scenario identifier: EXAMPLE-001',
   );
 });
 
-test('production check refuses an empty active spec inventory', () => {
+test('production check refuses an empty active spec inventory', async () => {
   const { repository, base } = fixture();
   rmSync(join(repository, source));
   const candidate = commit(repository, 'remove only spec');
-  const response = check(repository, candidate, { baseRevision: base });
+  const response = await check(repository, candidate, { baseRevision: base });
   expect(response.exitCode).toBe(1);
   expect(JSON.stringify(response.verdict?.unevaluated)).toContain(
     'active canonical specification inventory is absent',
   );
 });
 
-test('production check ignores archive copies but refuses conflicting active copies', () => {
+test('production check ignores archive copies but refuses conflicting active copies', async () => {
   const { repository, base } = fixture();
   const archived = nextCommit(repository, {
     'openspec/changes/archive/old/specs/example/spec.md':
       '#### Scenario: [EXAMPLE-001] Changed case\n',
   });
-  expect(check(repository, archived, { baseRevision: base }).exitCode).toBe(0);
+  expect((await check(repository, archived, { baseRevision: base })).exitCode).toBe(0);
   const conflicting = nextCommit(repository, {
     'openspec/changes/active/specs/example/spec.md':
       '## ADDED Requirements\n### Requirement: First requirement\n#### Scenario: [EXAMPLE-001] Changed case\n',
   });
-  const response = check(repository, conflicting, { baseRevision: base });
+  const response = await check(repository, conflicting, { baseRevision: base });
   expect(response.exitCode).toBe(1);
   expect(JSON.stringify(response.verdict?.unevaluated)).toContain(
     'conflicting active specification requirement',
   );
 });
 
-test('production selector applies modified and added requirements without losing canonical scenarios', () => {
+test('production selector applies modified and added requirements without losing canonical scenarios', async () => {
   const { repository, base } = fixture();
   const overlay = 'openspec/changes/add-example/specs/example/spec.md';
   const candidate = nextCommit(repository, {
@@ -597,7 +601,7 @@ test('production selector applies modified and added requirements without losing
       { kind: 'allocate', id: 'EXAMPLE-003', source: overlay, title: 'New requirement case' },
     ]),
   });
-  const response = check(repository, candidate, { baseRevision: base });
+  const response = await check(repository, candidate, { baseRevision: base });
   expect(response.exitCode, response.stderr).toBe(0);
   expect(response.verdict?.scenarios?.selectorVersion).toBe(3);
   expect(response.verdict?.scenarios?.selection?.inputs.map(({ path }) => path)).toEqual([
@@ -615,7 +619,7 @@ test('production selector applies modified and added requirements without losing
   ]);
 });
 
-test('production selector retains the distinct DI label and binding-origin requirements', () => {
+test('production selector retains the distinct DI label and binding-origin requirements', async () => {
   const { repository, base } = fixture();
   const sourceRoot = resolve(import.meta.dir, '../../../../../..');
   const originalPath = 'openspec/changes/adopt-di-composition/specs/di-composition/spec.md';
@@ -624,7 +628,7 @@ test('production selector retains the distinct DI label and binding-origin requi
     [originalPath]: readFileSync(join(sourceRoot, originalPath), 'utf8'),
     [surfacePath]: readFileSync(join(sourceRoot, surfacePath), 'utf8'),
   });
-  const response = check(repository, candidate, { baseRevision: base });
+  const response = await check(repository, candidate, { baseRevision: base });
   expect(response.verdict?.unevaluated).toEqual([]);
   expect(response.exitCode, response.stderr).toBe(0);
   const operations = response.verdict?.scenarios?.selection?.operations;
@@ -668,7 +672,7 @@ test('production selector retains the distinct DI label and binding-origin requi
   ]);
 });
 
-test('production selector still refuses a second active DI binding-origin operation', () => {
+test('production selector still refuses a second active DI binding-origin operation', async () => {
   const { repository, base } = fixture();
   const sourceRoot = resolve(import.meta.dir, '../../../../../..');
   const originalPath = 'openspec/changes/adopt-di-composition/specs/di-composition/spec.md';
@@ -682,7 +686,7 @@ test('production selector still refuses a second active DI binding-origin operat
     // test fail (expected exit 1, received 0); restoring it retains the conflict.
     [competingPath]: surface,
   });
-  const response = check(repository, candidate, { baseRevision: base });
+  const response = await check(repository, candidate, { baseRevision: base });
   expect(response.exitCode).toBe(1);
   expect(response.verdict?.unevaluated).toEqual([
     {
@@ -739,10 +743,10 @@ function pointedSources(): Record<string, string> {
   };
 }
 
-test('production selector composes exactly five pointed-row requirements and twenty scenarios from disjoint active owners', () => {
+test('production selector composes exactly five pointed-row requirements and twenty scenarios from disjoint active owners', async () => {
   const { repository, base } = fixture();
   const candidate = nextCommit(repository, pointedSources());
-  const response = check(repository, candidate, { baseRevision: base });
+  const response = await check(repository, candidate, { baseRevision: base });
   expect(response.exitCode, response.stderr).toBe(0);
   const selection = response.verdict?.scenarios?.selection;
   expect(selection?.inputs.map(({ path }) => path)).toEqual([
@@ -772,7 +776,7 @@ test('production selector composes exactly five pointed-row requirements and twe
   ]);
 });
 
-test('production selector refuses pointed-row modification without its canonical predecessor', () => {
+test('production selector refuses pointed-row modification without its canonical predecessor', async () => {
   const { repository, base } = fixture();
   const sources = pointedSources();
   const canonical = sources[pointedCanonicalPath];
@@ -782,7 +786,7 @@ test('production selector refuses pointed-row modification without its canonical
   // it received a TypeError reason for predecessor.scenarios, not the modeled refusal.
   sources[pointedCanonicalPath] = canonical.slice(0, first) + canonical.slice(second);
   const candidate = nextCommit(repository, sources);
-  const response = check(repository, candidate, { baseRevision: base });
+  const response = await check(repository, candidate, { baseRevision: base });
   expect(response.exitCode).toBe(1);
   expect(response.verdict?.unevaluated).toEqual([
     {
@@ -792,7 +796,7 @@ test('production selector refuses pointed-row modification without its canonical
   ]);
 });
 
-test('production selector refuses a competing first pointed-row modification', () => {
+test('production selector refuses a competing first pointed-row modification', async () => {
   const { repository, base } = fixture();
   const sources = pointedSources();
   // Proof: disabling the production competing-operation guard made this assertion
@@ -800,7 +804,7 @@ test('production selector refuses a competing first pointed-row modification', (
   sources['openspec/changes/competing-pointed-row/specs/wbs-domain/spec.md'] =
     sources[pointedInkPath];
   const candidate = nextCommit(repository, sources);
-  const response = check(repository, candidate, { baseRevision: base });
+  const response = await check(repository, candidate, { baseRevision: base });
   expect(response.exitCode).toBe(1);
   expect(response.verdict?.unevaluated).toEqual([
     {
@@ -810,7 +814,7 @@ test('production selector refuses a competing first pointed-row modification', (
   ]);
 });
 
-test('production selector refuses a pointed-row render overlay that drops editor continuity', () => {
+test('production selector refuses a pointed-row render overlay that drops editor continuity', async () => {
   const { repository, base } = fixture();
   const sources = pointedSources();
   const cost = sources[pointedCostPath];
@@ -825,7 +829,7 @@ test('production selector refuses a pointed-row render overlay that drops editor
   // fail (exit 1; expected 1, received 0) with the editor scenario still dropped.
   sources[pointedCostPath] = cost.slice(0, editor) + cost.slice(isolation);
   const candidate = nextCommit(repository, sources);
-  const response = check(repository, candidate, { baseRevision: base });
+  const response = await check(repository, candidate, { baseRevision: base });
   expect(response.exitCode).toBe(1);
   expect(response.verdict?.unevaluated).toEqual([
     {
@@ -863,10 +867,10 @@ function ganttSources(): Record<string, string> {
   };
 }
 
-test('production selector preserves calendar ownership and all hover obligations as a distinct added requirement', () => {
+test('production selector preserves calendar ownership and all hover obligations as a distinct added requirement', async () => {
   const { repository, base } = fixture();
   const candidate = nextCommit(repository, ganttSources());
-  const response = check(repository, candidate, { baseRevision: base });
+  const response = await check(repository, candidate, { baseRevision: base });
   expect(response.exitCode, response.stderr).toBe(0);
   const selection = response.verdict?.scenarios?.selection;
   expect(selection?.inputs.map(({ path }) => path)).toEqual([
@@ -954,7 +958,7 @@ test('production selector preserves calendar ownership and all hover obligations
   );
 });
 
-test('production selector refuses the prior competing Gantt bar explanation operation', () => {
+test('production selector refuses the prior competing Gantt bar explanation operation', async () => {
   const { repository, base } = fixture();
   const sources = ganttSources();
   // Proof: disabling the production competing-operation guard made this refusal
@@ -964,7 +968,7 @@ test('production selector refuses the prior competing Gantt bar explanation oper
     `## MODIFIED Requirements\n\n### Requirement: ${ganttOriginalTitle}`,
   );
   const candidate = nextCommit(repository, sources);
-  const response = check(repository, candidate, { baseRevision: base });
+  const response = await check(repository, candidate, { baseRevision: base });
   expect(response.exitCode).toBe(1);
   expect(response.verdict?.unevaluated).toEqual([
     {
@@ -974,7 +978,7 @@ test('production selector refuses the prior competing Gantt bar explanation oper
   ]);
 });
 
-test('production selector refuses the calendar modification without its canonical bar predecessor', () => {
+test('production selector refuses the calendar modification without its canonical bar predecessor', async () => {
   const { repository, base } = fixture();
   const sources = ganttSources();
   const canonical = sources[ganttCanonicalPath];
@@ -984,7 +988,7 @@ test('production selector refuses the calendar modification without its canonica
   // assertion fail with a TypeError reason for predecessor.scenarios instead.
   sources[ganttCanonicalPath] = canonical.slice(0, start) + canonical.slice(end);
   const candidate = nextCommit(repository, sources);
-  const response = check(repository, candidate, { baseRevision: base });
+  const response = await check(repository, candidate, { baseRevision: base });
   expect(response.exitCode).toBe(1);
   expect(response.verdict?.unevaluated).toEqual([
     {
@@ -1001,12 +1005,12 @@ const renamedBody =
   '## MODIFIED Requirements\n### Requirement: Renamed requirement\n' +
   '#### Scenario: [EXAMPLE-001] First case\n- **THEN** revised behavior\n';
 
-test('production selector records a rename-only operation and binds its effective title', () => {
+test('production selector records a rename-only operation and binds its effective title', async () => {
   const { repository, base, candidate: before } = fixture();
   const overlay = 'openspec/changes/rename/specs/example/spec.md';
   const candidate = nextCommit(repository, { [overlay]: renamePair });
-  const prior = check(repository, before, { baseRevision: base });
-  const response = check(repository, candidate, { baseRevision: base });
+  const prior = await check(repository, before, { baseRevision: base });
+  const response = await check(repository, candidate, { baseRevision: base });
   expect(prior.exitCode, prior.stderr).toBe(0);
   expect(response.exitCode, response.stderr).toBe(0);
   expect(response.verdict?.scenarios?.selection?.effective[0]).toMatchObject({
@@ -1028,7 +1032,7 @@ test('production selector records a rename-only operation and binds its effectiv
   ]);
 });
 
-test('production selector keeps a renamed requirement between its canonical neighbors', () => {
+test('production selector keeps a renamed requirement between its canonical neighbors', async () => {
   const { repository } = fixture();
   const canonical = nextCommit(repository, {
     [source]:
@@ -1039,7 +1043,7 @@ test('production selector keeps a renamed requirement between its canonical neig
   const candidate = nextCommit(repository, {
     'openspec/changes/rename/specs/example/spec.md': renamePair,
   });
-  const response = check(repository, candidate, { baseRevision: canonical });
+  const response = await check(repository, candidate, { baseRevision: canonical });
   expect(response.exitCode, response.stderr).toBe(0);
   expect(response.verdict?.scenarios?.selection?.effective.map(({ title }) => title)).toEqual([
     'Earlier',
@@ -1051,11 +1055,11 @@ test('production selector keeps a renamed requirement between its canonical neig
 // Proof: disabling rename parsing made both production checks refuse the valid pair.
 test.each([renamePair + renamedBody, renamedBody + renamePair])(
   'production selector preserves position, scenario and effective body across requirement rename',
-  (markdown) => {
+  async (markdown) => {
     const { repository, base } = fixture();
     const overlay = 'openspec/changes/rename/specs/example/spec.md';
     const candidate = nextCommit(repository, { [overlay]: markdown });
-    const response = check(repository, candidate, { baseRevision: base });
+    const response = await check(repository, candidate, { baseRevision: base });
     expect(response.exitCode, response.stderr).toBe(0);
     expect(response.verdict?.scenarios?.selection?.effective).toMatchObject([
       { title: 'Renamed requirement', source: overlay, aliases: [source] },
@@ -1110,17 +1114,17 @@ test.each([
       '## MODIFIED Requirements\n### Requirement: Renamed requirement\n#### Scenario: Changed case\n',
     'drops canonical scenario',
   ],
-])('production selector refuses requirement rename %s', (_label, markdown, reason) => {
+])('production selector refuses requirement rename %s', async (_label, markdown, reason) => {
   const { repository, base } = fixture();
   const candidate = nextCommit(repository, {
     'openspec/changes/rename/specs/example/spec.md': markdown,
   });
-  const response = check(repository, candidate, { baseRevision: base });
+  const response = await check(repository, candidate, { baseRevision: base });
   expect(response.exitCode).toBe(1);
   expect(JSON.stringify(response.verdict?.unevaluated)).toContain(reason);
 });
 
-test('production selector refuses another change targeting either rename endpoint', () => {
+test('production selector refuses another change targeting either rename endpoint', async () => {
   const { repository, base } = fixture();
   const candidate = nextCommit(repository, {
     'openspec/changes/rename/specs/example/spec.md': renamePair,
@@ -1128,12 +1132,12 @@ test('production selector refuses another change targeting either rename endpoin
       '## MODIFIED Requirements\n### Requirement: First requirement\n' +
       '#### Scenario: [EXAMPLE-001] First case\n',
   });
-  const response = check(repository, candidate, { baseRevision: base });
+  const response = await check(repository, candidate, { baseRevision: base });
   expect(response.exitCode).toBe(1);
   expect(JSON.stringify(response.verdict?.unevaluated)).toContain('competing');
 });
 
-test('production selector refuses another change targeting the rename destination', () => {
+test('production selector refuses another change targeting the rename destination', async () => {
   const { repository, base } = fixture();
   const candidate = nextCommit(repository, {
     'openspec/changes/rename/specs/example/spec.md': renamePair,
@@ -1141,19 +1145,19 @@ test('production selector refuses another change targeting the rename destinatio
       '## MODIFIED Requirements\n### Requirement: Renamed requirement\n' +
       '#### Scenario: [EXAMPLE-001] First case\n',
   });
-  const response = check(repository, candidate, { baseRevision: base });
+  const response = await check(repository, candidate, { baseRevision: base });
   expect(response.exitCode).toBe(1);
   expect(JSON.stringify(response.verdict?.unevaluated)).toContain('competing');
 });
 
-test('production selector refuses an empty rename section beside a valid operation', () => {
+test('production selector refuses an empty rename section beside a valid operation', async () => {
   const { repository, base } = fixture();
   const candidate = nextCommit(repository, {
     'openspec/changes/rename/specs/example/spec.md':
       '## RENAMED Requirements\n\n## ADDED Requirements\n' +
       '### Requirement: New requirement\n#### Scenario: New case\n',
   });
-  const response = check(repository, candidate, { baseRevision: base });
+  const response = await check(repository, candidate, { baseRevision: base });
   expect(response.exitCode).toBe(1);
   expect(JSON.stringify(response.verdict?.unevaluated)).toContain(
     'malformed requirement rename pair',
@@ -1181,69 +1185,69 @@ test.each([
     '## MODIFIED Requirements\n### Requirement: First requirement\n#### Scenario: [EXAMPLE-001] First case\n',
     'competing overlay operation',
   ],
-])('production selector refuses %s', (label, overlayMarkdown, reason) => {
+])('production selector refuses %s', async (label, overlayMarkdown, reason) => {
   const { repository, base } = fixture();
   const first = 'openspec/changes/a/specs/example/spec.md';
   const second = 'openspec/changes/b/specs/example/spec.md';
   const files: Record<string, string> = { [first]: overlayMarkdown };
   if (label === 'competing modifications') files[second] = overlayMarkdown;
   const candidate = nextCommit(repository, files);
-  const response = check(repository, candidate, { baseRevision: base });
+  const response = await check(repository, candidate, { baseRevision: base });
   expect(response.exitCode).toBe(1);
   expect(JSON.stringify(response.verdict?.unevaluated)).toContain(reason);
 });
 
-test('production selector refuses a scenario outside its requirement section', () => {
+test('production selector refuses a scenario outside its requirement section', async () => {
   const { repository, base } = fixture();
   const candidate = nextCommit(repository, {
     [source]: `${heading}## Notes\n#### Scenario: [EXAMPLE-999] Orphan\n`,
   });
-  const response = check(repository, candidate, { baseRevision: base });
+  const response = await check(repository, candidate, { baseRevision: base });
   expect(response.exitCode).toBe(1);
   expect(JSON.stringify(response.verdict?.unevaluated)).toContain('outside a requirement');
 });
 
-test('production selector refuses an orphan scenario after a depth-one heading', () => {
+test('production selector refuses an orphan scenario after a depth-one heading', async () => {
   const { repository, base } = fixture();
   const candidate = nextCommit(repository, {
     [source]: `${heading}# Notes\n#### Scenario: [EXAMPLE-999] Orphan\n`,
   });
-  const response = check(repository, candidate, { baseRevision: base });
+  const response = await check(repository, candidate, { baseRevision: base });
   expect(response.exitCode).toBe(1);
   expect(JSON.stringify(response.verdict?.unevaluated)).toContain('outside a requirement');
 });
 
-test('production selector refuses an overlay requirement after a depth-one heading', () => {
+test('production selector refuses an overlay requirement after a depth-one heading', async () => {
   const { repository, base } = fixture();
   const candidate = nextCommit(repository, {
     'openspec/changes/invalid/specs/example/spec.md':
       '## ADDED Requirements\n# Notes\n### Requirement: Invented\n#### Scenario: Invented case\n',
   });
-  const response = check(repository, candidate, { baseRevision: base });
+  const response = await check(repository, candidate, { baseRevision: base });
   expect(response.exitCode).toBe(1);
   expect(JSON.stringify(response.verdict?.unevaluated)).toContain(
     'overlay requirement has no operation',
   );
 });
 
-test('production selector refuses a canonical requirement after a depth-one heading', () => {
+test('production selector refuses a canonical requirement after a depth-one heading', async () => {
   const { repository, base } = fixture();
   const candidate = nextCommit(repository, {
     [source]: `${heading}# Notes\n### Requirement: Invented\n#### Scenario: Invented case\n`,
   });
-  const response = check(repository, candidate, { baseRevision: base });
+  const response = await check(repository, candidate, { baseRevision: base });
   expect(response.exitCode).toBe(1);
   expect(JSON.stringify(response.verdict?.unevaluated)).toContain(
     'canonical requirement outside Requirements',
   );
 });
 
-test('production selector refuses a canonical requirement under Notes', () => {
+test('production selector refuses a canonical requirement under Notes', async () => {
   const { repository, base } = fixture();
   const candidate = nextCommit(repository, {
     [source]: `## Notes\n${requirementHeading}`,
   });
-  const response = check(repository, candidate, { baseRevision: base });
+  const response = await check(repository, candidate, { baseRevision: base });
   expect(response.exitCode).toBe(1);
   expect(JSON.stringify(response.verdict?.unevaluated)).toContain(
     'canonical requirement outside Requirements',
@@ -1266,52 +1270,52 @@ test.each([
     '## ADDED Requirements\n### Requirement: New requirement\nNo scenario yet.\n',
     'active requirement has no scenarios',
   ],
-])('production selector refuses %s', (_label, markdown, reason) => {
+])('production selector refuses %s', async (_label, markdown, reason) => {
   const { repository, base } = fixture();
   const candidate = nextCommit(repository, {
     'openspec/changes/invalid/specs/example/spec.md': markdown,
   });
-  const response = check(repository, candidate, { baseRevision: base });
+  const response = await check(repository, candidate, { baseRevision: base });
   expect(response.exitCode).toBe(1);
   expect(JSON.stringify(response.verdict?.unevaluated)).toContain(reason);
 });
 
-test('production selector refuses duplicate canonical requirement titles', () => {
+test('production selector refuses duplicate canonical requirement titles', async () => {
   const { repository, base } = fixture();
   const candidate = nextCommit(repository, { [source]: `${heading}${heading}` });
-  const response = check(repository, candidate, { baseRevision: base });
+  const response = await check(repository, candidate, { baseRevision: base });
   expect(response.exitCode).toBe(1);
   expect(JSON.stringify(response.verdict?.unevaluated)).toContain(
     'duplicate canonical requirement',
   );
 });
 
-test('production selector requires retirement when a removed requirement contained adopted IDs', () => {
+test('production selector requires retirement when a removed requirement contained adopted IDs', async () => {
   const { repository, base } = fixture();
   const candidate = nextCommit(repository, {
     'openspec/changes/remove-example/specs/example/spec.md':
       '## REMOVED Requirements\n### Requirement: First requirement\n',
   });
-  const response = check(repository, candidate, { baseRevision: base });
+  const response = await check(repository, candidate, { baseRevision: base });
   expect(response.exitCode).toBe(1);
   expect(JSON.stringify(response.verdict?.unevaluated)).toContain('requires retirement');
 });
 
-test('production selector accepts a removed requirement after its identifier is retired', () => {
+test('production selector accepts a removed requirement after its identifier is retired', async () => {
   const { repository, base } = fixture();
   const candidate = nextCommit(repository, {
     'openspec/changes/remove-example/specs/example/spec.md':
       '## REMOVED Requirements\n### Requirement: First requirement\n',
     [journalPath]: journal([firstEvent, { kind: 'retire', id: 'EXAMPLE-001' }]),
   });
-  const response = check(repository, candidate, { baseRevision: base });
+  const response = await check(repository, candidate, { baseRevision: base });
   expect(response.exitCode, response.stderr).toBe(0);
   expect(response.verdict?.scenarios?.selection?.removals).toEqual([
     { capability: 'example', title: 'First requirement', ids: ['EXAMPLE-001'] },
   ]);
 });
 
-test('production selector retains unidentified canonical titles through modification', () => {
+test('production selector retains unidentified canonical titles through modification', async () => {
   const { repository } = fixture();
   const canonical = nextCommit(repository, { [source]: `${heading}#### Scenario: Legacy case\n` });
   const candidate = nextCommit(repository, {
@@ -1319,12 +1323,12 @@ test('production selector retains unidentified canonical titles through modifica
       '## MODIFIED Requirements\n### Requirement: First requirement\n' +
       '#### Scenario: [EXAMPLE-001] First case\n#### Scenario: Renamed legacy case\n',
   });
-  const response = check(repository, candidate, { baseRevision: canonical });
+  const response = await check(repository, candidate, { baseRevision: canonical });
   expect(response.exitCode).toBe(1);
   expect(JSON.stringify(response.verdict?.unevaluated)).toContain('drops canonical scenario');
 });
 
-test('production selector appends independent new requirements in stable title order', () => {
+test('production selector appends independent new requirements in stable title order', async () => {
   const { repository, base } = fixture();
   const zed = 'openspec/changes/a-zed/specs/example/spec.md';
   const alpha = 'openspec/changes/z-alpha/specs/example/spec.md';
@@ -1338,7 +1342,7 @@ test('production selector appends independent new requirements in stable title o
       { kind: 'allocate', id: 'EXAMPLE-003', source: alpha, title: 'Alpha case' },
     ]),
   });
-  const response = check(repository, candidate, { baseRevision: base });
+  const response = await check(repository, candidate, { baseRevision: base });
   expect(response.exitCode, response.stderr).toBe(0);
   expect(response.verdict?.scenarios?.selection?.effective.map(({ title }) => title)).toEqual([
     'First requirement',
@@ -1347,14 +1351,14 @@ test('production selector appends independent new requirements in stable title o
   ]);
 });
 
-test('production evidence binds every active overlay even when effective requirements are unchanged', () => {
+test('production evidence binds every active overlay even when effective requirements are unchanged', async () => {
   const { repository, base, candidate: initial } = fixture();
   const alias = 'openspec/changes/duplicate/specs/example/spec.md';
   const candidate = nextCommit(repository, {
     [alias]: `## ADDED Requirements\n${requirementHeading}`,
   });
-  const before = check(repository, initial, { baseRevision: base });
-  const after = check(repository, candidate, { baseRevision: base });
+  const before = await check(repository, initial, { baseRevision: base });
+  const after = await check(repository, candidate, { baseRevision: base });
   expect(before.exitCode, before.stderr).toBe(0);
   expect(after.exitCode, after.stderr).toBe(0);
   expect(after.verdict?.scenarios?.selection?.inputs).toEqual([
@@ -1370,7 +1374,7 @@ test('production evidence binds every active overlay even when effective require
   );
 });
 
-test('production selection preserves an adopted journal source after its change is synced', () => {
+test('production selection preserves an adopted journal source after its change is synced', async () => {
   const repository = mkdtempSync(join(tmpdir(), 'burokrat-synced-source-'));
   scratchRoots.push(repository);
   runGit(repository, ['init', '--initial-branch=main']);
@@ -1381,7 +1385,7 @@ test('production selection preserves an adopted journal source after its change 
   write(repository, journalPath, journal([{ ...firstEvent, source: importedFrom }]));
   const base = commit(repository, 'synced base');
   const candidate = commit(repository, 'synced candidate');
-  const response = check(repository, candidate, { baseRevision: base });
+  const response = await check(repository, candidate, { baseRevision: base });
   expect(response.exitCode, response.stderr).toBe(0);
   expect(response.verdict?.scenarios?.selection?.effective[0]?.aliases).toEqual([importedFrom]);
 });

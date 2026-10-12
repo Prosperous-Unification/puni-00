@@ -53,6 +53,17 @@ test('keeps browser organization selection out of the generated MCP tools', () =
   expect(names).not.toContain('postApiOrganizationActive');
 });
 
+test('keeps provisioning-token administration out of the generated MCP tools', () => {
+  const names = toolsFromDocument(readDocument()).map((tool) => tool.name);
+  for (const operation of [
+    'getApiOrganizationProvisioningTokens',
+    'postApiOrganizationProvisioningTokens',
+    'postApiOrganizationProvisioningTokensByIdRotate',
+    'deleteApiOrganizationProvisioningTokensById',
+  ])
+    expect(names).not.toContain(operation);
+});
+
 test('pins every generated MCP operation name independently of the registry', () => {
   // Proof: removing importProject from httpShapes failed with
   // `postApiProjectsImport` as the one expected-only operation.
@@ -64,6 +75,7 @@ test('pins every generated MCP operation name independently of the registry', ()
     'deleteApiOrganizationDomainsById',
     'deleteApiOrganizationInvitationsById',
     'deleteApiOrganizationMembersByUserId',
+    'deleteApiOrganizationSso-connectionsById',
     'deleteApiProjectsByIdCalendar-markersByMarkerId',
     'deleteApiProjectsByIdStepsByStepId',
     'deleteApiSaved-plansById',
@@ -77,6 +89,8 @@ test('pins every generated MCP operation name independently of the registry', ()
     'getApiOrganizationJoinRequests',
     'getApiOrganizationMembers',
     'getApiOrganizationProject-rank',
+    'getApiOrganizationSession-policy',
+    'getApiOrganizationSso-connections',
     'getApiPeople',
     'getApiPeopleByPersonIdLoad',
     'getApiPeopleLoad',
@@ -104,6 +118,7 @@ test('pins every generated MCP operation name independently of the registry', ()
     'getPlansBy-solutionBySlug',
     'patchApiOrganization',
     'patchApiOrganizationMembersByUserId',
+    'patchApiOrganizationSso-connectionsById',
     'patchApiProjectsById',
     'patchApiProjectsByIdCalendar-markersByMarkerId',
     'patchApiProjectsByIdStepsByStepId',
@@ -122,6 +137,7 @@ test('pins every generated MCP operation name independently of the registry', ()
     'postApiOrganizationJoinRequestsByIdApprove',
     'postApiOrganizationJoinRequestsByIdDeny',
     'postApiOrganizationProjectsByIdRank',
+    'postApiOrganizationSso-connections',
     'postApiProjects',
     'postApiProjectsByIdCalendar-markers',
     'postApiProjectsByIdCommands',
@@ -135,6 +151,7 @@ test('pins every generated MCP operation name independently of the registry', ()
     'postApiSpaces',
     'postApiSpacesByIdProjects',
     'postApiSpacesByIdProjectsByProjectIdMove',
+    'putApiOrganizationSession-policy',
   ]);
 });
 

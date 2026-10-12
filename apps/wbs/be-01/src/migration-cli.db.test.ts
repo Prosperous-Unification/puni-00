@@ -378,7 +378,7 @@ describe('migration deploy entrypoints', () => {
     const dbPath = join(root, 'plan.db');
     const capturePath = join(root, 'capture.json');
     const lifecycle = '20261001020000_older_candidate_probe';
-    const addition = '20261012010000_add_after_lifecycle';
+    const addition = '20991012010000_add_after_lifecycle';
     cpSync(MIGRATIONS, join(root, 'drizzle'), { recursive: true });
     addMigration(
       root,
@@ -679,8 +679,8 @@ describe('migration deploy entrypoints', () => {
     roots.push(root);
     const dbPath = join(root, 'plan.db');
     const capturePath = join(root, 'capture.json');
-    const first = '20261013010000_first_after_baseline';
-    const second = '20261013020000_second_after_baseline';
+    const first = '20991012010000_first_after_baseline';
+    const second = '20991012020000_second_after_baseline';
     cpSync(MIGRATIONS, join(root, 'drizzle'), { recursive: true });
     runMigrations(dbPath, MIGRATIONS);
     const baseline = migrationLedgerAt(dbPath);

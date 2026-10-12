@@ -16,6 +16,7 @@ import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, test } from 'bun:test';
 
 import { hashCanonical } from '../evidence/content-manifest';
+import { type CliInvocation, invokeCli } from '../invoke-cli';
 import { evaluateAudit } from '../review/audit';
 import { resolveValidatorArtifactPaths } from './trust';
 
@@ -595,12 +596,9 @@ function createFixture(mode: Mode, reportMode: Mode = mode): CandidateFixture {
   return fixture;
 }
 
-function runLocal(fixture: CandidateFixture, mode: Mode): ReturnType<typeof Bun.spawnSync> {
-  return Bun.spawnSync(
+function runLocal(fixture: CandidateFixture, mode: Mode): Promise<CliInvocation> {
+  return invokeCli(
     [
-      process.execPath,
-      'run',
-      cliPath,
       'lint-local',
       mode,
       'committed',
@@ -609,12 +607,7 @@ function runLocal(fixture: CandidateFixture, mode: Mode): ReturnType<typeof Bun.
       fixture.bindingPath,
       fixture.evidencePath,
     ],
-    {
-      cwd: import.meta.dir,
-      env: { ...process.env, TOOL_WIKI_TRUSTED_NODE_MODULES: trustedNodeModules },
-      stderr: 'pipe',
-      stdout: 'pipe',
-    },
+    { TOOL_WIKI_TRUSTED_NODE_MODULES: trustedNodeModules },
   );
 }
 
@@ -623,18 +616,9 @@ function runCi(
   bindingPath: string | null = fixture.bindingPath,
   extraArguments: string[] = [],
   kind: 'committed' | 'staged' | 'working' = 'committed',
-): ReturnType<typeof Bun.spawnSync> {
-  const env: Record<string, string | undefined> & { TOOL_WIKI_CI_TRUSTED_BINDING?: string } = {
-    ...process.env,
-    TOOL_WIKI_TRUSTED_NODE_MODULES: trustedNodeModules,
-  };
-  if (bindingPath === null) delete env.TOOL_WIKI_CI_TRUSTED_BINDING;
-  else env.TOOL_WIKI_CI_TRUSTED_BINDING = bindingPath;
-  return Bun.spawnSync(
+): Promise<CliInvocation> {
+  return invokeCli(
     [
-      process.execPath,
-      'run',
-      cliPath,
       'lint-ci',
       ...extraArguments,
       kind,
@@ -642,7 +626,10 @@ function runCi(
       fixture.revision,
       fixture.evidencePath,
     ],
-    { cwd: import.meta.dir, env, stderr: 'pipe', stdout: 'pipe' },
+    {
+      TOOL_WIKI_TRUSTED_NODE_MODULES: trustedNodeModules,
+      TOOL_WIKI_CI_TRUSTED_BINDING: bindingPath ?? undefined,
+    },
   );
 }
 
@@ -732,31 +719,29 @@ function writeActivation(
   return nextBindingPath;
 }
 
-function runActivation(
-  fixture: CandidateFixture,
-  nextBindingPath: string,
-): ReturnType<typeof Bun.spawnSync> {
-  return Bun.spawnSync(
-    [
-      process.execPath,
-      'run',
-      cliPath,
-      'validate-policy-activation',
-      fixture.repository,
-      fixture.bindingPath,
-      nextBindingPath,
-    ],
-    { cwd: import.meta.dir, stderr: 'pipe', stdout: 'pipe' },
-  );
+function runActivation(fixture: CandidateFixture, nextBindingPath: string): Promise<CliInvocation> {
+  return invokeCli([
+    'validate-policy-activation',
+    fixture.repository,
+    fixture.bindingPath,
+    nextBindingPath,
+  ]);
 }
 
-function outputOf(invocation: ReturnType<typeof Bun.spawnSync>): string {
-  return `${pipeText(invocation.stdout, 'lint stdout')}${pipeText(invocation.stderr, 'lint stderr')}`;
+/** A finished launcher process as the same record {@link invokeCli} returns. */
+function fromProcess(invocation: ReturnType<typeof Bun.spawnSync>): CliInvocation {
+  // Every spawn here pipes both streams; an absent one is a harness fault, not silence.
+  if (invocation.stdout === undefined || invocation.stderr === undefined)
+    throw new Error('the launcher invocation captured no stdout or stderr');
+  return {
+    exitCode: invocation.exitCode,
+    stdout: Buffer.from(invocation.stdout).toString('utf8'),
+    stderr: Buffer.from(invocation.stderr).toString('utf8'),
+  };
 }
 
-function pipeText(stream: Uint8Array | undefined, subject: string): string {
-  if (stream === undefined) throw new Error(`${subject} was unavailable`);
-  return Buffer.from(stream).toString('utf8');
+function outputOf(invocation: CliInvocation): string {
+  return `${invocation.stdout}${invocation.stderr}`;
 }
 
 afterEach(() => {
@@ -772,13 +757,13 @@ describe('trusted policy production CLI', () => {
     '%s rollout runs whole-tree checks with its debt disposition',
     // Proof: the former three-invocation aggregate timed out in CI at 5030.53ms;
     // separated production CLI cases completed in 1606.02-1633.68ms on one core.
-    (mode, exitCode, disposition) => {
+    async (mode, exitCode, disposition) => {
       const fixture = createFixture(mode);
-      const invocation = runLocal(fixture, mode);
+      const invocation = await runLocal(fixture, mode);
       const output = outputOf(invocation);
 
       expect(invocation.exitCode, output).toBe(exitCode);
-      const report = JSON.parse(pipeText(invocation.stdout, 'lint stdout')) as LintReportFixture;
+      const report = JSON.parse(invocation.stdout) as LintReportFixture;
       expect(report.deterministicChecks.map((check: { kind: string }) => check.kind)).toEqual([
         'inventory',
         'classification',
@@ -790,13 +775,13 @@ describe('trusted policy production CLI', () => {
     },
   );
 
-  test('enforce refuses observe evidence even when deterministic checks pass', () => {
+  test('enforce refuses observe evidence even when deterministic checks pass', async () => {
     const fixture = createFixture('enforce', 'observe');
-    const invocation = runLocal(fixture, 'enforce');
+    const invocation = await runLocal(fixture, 'enforce');
     const output = outputOf(invocation);
 
     expect(invocation.exitCode, output).toBe(1);
-    const report = JSON.parse(pipeText(invocation.stdout, 'lint stdout')) as {
+    const report = JSON.parse(invocation.stdout) as {
       accepted: boolean;
       refusals: { kind: string; reason: string }[];
     };
@@ -807,7 +792,7 @@ describe('trusted policy production CLI', () => {
     });
   });
 
-  test('enforce names a trusted obligation omitted from candidate evidence', () => {
+  test('enforce names a trusted obligation omitted from candidate evidence', async () => {
     const fixture = createFixture('enforce');
     const evidence = JSON.parse(readFileSync(fixture.evidencePath, 'utf8')) as {
       obligations: { obligationId: string }[];
@@ -817,10 +802,10 @@ describe('trusted policy production CLI', () => {
     );
     write(fixture.evidencePath, `${JSON.stringify(evidence)}\n`);
 
-    const invocation = runLocal(fixture, 'enforce');
+    const invocation = await runLocal(fixture, 'enforce');
     const output = outputOf(invocation);
     expect(invocation.exitCode, output).toBe(1);
-    expect(JSON.parse(pipeText(invocation.stdout, 'lint stdout'))).toMatchObject({
+    expect(JSON.parse(invocation.stdout)).toMatchObject({
       unmetObligationIds: ['obligation.application'],
       refusals: [
         {
@@ -832,15 +817,15 @@ describe('trusted policy production CLI', () => {
     });
   });
 
-  test('ratchet refuses an exact-tuple regression in an adopted non-authority boundary', () => {
+  test('ratchet refuses an exact-tuple regression in an adopted non-authority boundary', async () => {
     const fixture = createFixture('ratchet');
     write(join(fixture.repository, 'src/app.ts'), 'export const value = 2;\n');
     fixture.revision = commit(fixture.repository, 'change adopted application tuple');
 
-    const invocation = runLocal(fixture, 'ratchet');
+    const invocation = await runLocal(fixture, 'ratchet');
     const output = outputOf(invocation);
     expect(invocation.exitCode, output).toBe(1);
-    expect(JSON.parse(pipeText(invocation.stdout, 'lint stdout'))).toMatchObject({
+    expect(JSON.parse(invocation.stdout)).toMatchObject({
       changedBoundaryIds: ['boundary.application'],
       unmetObligationIds: ['obligation.application'],
       refusals: [
@@ -854,7 +839,7 @@ describe('trusted policy production CLI', () => {
     });
   });
 
-  test('ratchet treats an unmodeled exact path rename as a changed boundary', () => {
+  test('ratchet treats an unmodeled exact path rename as a changed boundary', async () => {
     const fixture = createFixture('ratchet');
     runGit(fixture.repository, ['mv', 'validator.ts', 'renamed-validator.ts']);
     write(
@@ -877,10 +862,10 @@ describe('trusted policy production CLI', () => {
     binding.policy.sha256 = sha256(readFileSync(fixture.policyPath));
     write(fixture.bindingPath, `${JSON.stringify(binding)}\n`);
 
-    const invocation = runLocal(fixture, 'ratchet');
+    const invocation = await runLocal(fixture, 'ratchet');
     const observed = outputOf(invocation);
     expect(invocation.exitCode, observed).toBe(1);
-    expect(JSON.parse(pipeText(invocation.stdout, 'lint stdout'))).toMatchObject({
+    expect(JSON.parse(invocation.stdout)).toMatchObject({
       changedBoundaryIds: ['boundary.validator'],
       refusals: [
         {
@@ -898,7 +883,7 @@ describe('trusted policy production CLI', () => {
     });
   });
 
-  test('refuses a non-pilot source selector with no reviewed source revision', () => {
+  test('refuses a non-pilot source selector with no reviewed source revision', async () => {
     const fixture = createFixture('ratchet');
     runGit(fixture.repository, ['mv', 'validator.ts', 'renamed-validator.ts']);
     write(
@@ -926,7 +911,7 @@ describe('trusted policy production CLI', () => {
     binding.policy.sha256 = sha256(readFileSync(fixture.policyPath));
     write(fixture.bindingPath, `${JSON.stringify(binding)}\n`);
 
-    const invocation = runLocal(fixture, 'ratchet');
+    const invocation = await runLocal(fixture, 'ratchet');
     const observed = outputOf(invocation);
     expect(invocation.exitCode, observed).toBe(1);
     expect(observed).toContain(
@@ -934,7 +919,7 @@ describe('trusted policy production CLI', () => {
     );
   });
 
-  test('refuses a non-pilot creation revision with no reviewed source revision', () => {
+  test('refuses a non-pilot creation revision with no reviewed source revision', async () => {
     const fixture = createFixture('ratchet');
     const policy = JSON.parse(readFileSync(fixture.policyPath, 'utf8')) as {
       boundaries: { boundaryId: string; creationRevision?: string }[];
@@ -951,7 +936,7 @@ describe('trusted policy production CLI', () => {
     binding.policy.sha256 = sha256(readFileSync(fixture.policyPath));
     write(fixture.bindingPath, `${JSON.stringify(binding)}\n`);
 
-    const invocation = runLocal(fixture, 'ratchet');
+    const invocation = await runLocal(fixture, 'ratchet');
     const observed = outputOf(invocation);
     expect(invocation.exitCode, observed).toBe(1);
     expect(observed).toContain(
@@ -959,15 +944,15 @@ describe('trusted policy production CLI', () => {
     );
   });
 
-  test('ratchet refuses a candidate that removes an adopted boundary from its own policy', () => {
+  test('ratchet refuses a candidate that removes an adopted boundary from its own policy', async () => {
     const fixture = createFixture('ratchet');
     write(join(fixture.repository, 'policy.json'), '{"boundaries":["validator","exemptions"]}\n');
     fixture.revision = commit(fixture.repository, 'remove adopted policy boundary');
 
-    const invocation = runLocal(fixture, 'ratchet');
+    const invocation = await runLocal(fixture, 'ratchet');
     const output = outputOf(invocation);
     expect(invocation.exitCode, output).toBe(1);
-    const report = JSON.parse(pipeText(invocation.stdout, 'lint stdout')) as {
+    const report = JSON.parse(invocation.stdout) as {
       accepted: boolean;
       changedBoundaryIds: string[];
       refusals: object[];
@@ -983,7 +968,7 @@ describe('trusted policy production CLI', () => {
     });
   });
 
-  test('ratchet refuses a candidate that weakens its own validator', () => {
+  test('ratchet refuses a candidate that weakens its own validator', async () => {
     const fixture = createFixture('ratchet');
     write(
       join(fixture.repository, 'validator.ts'),
@@ -991,10 +976,10 @@ describe('trusted policy production CLI', () => {
     );
     fixture.revision = commit(fixture.repository, 'weaken candidate validator');
 
-    const invocation = runLocal(fixture, 'ratchet');
+    const invocation = await runLocal(fixture, 'ratchet');
     const output = outputOf(invocation);
     expect(invocation.exitCode, output).toBe(1);
-    const report = JSON.parse(pipeText(invocation.stdout, 'lint stdout')) as {
+    const report = JSON.parse(invocation.stdout) as {
       accepted: boolean;
       changedBoundaryIds: string[];
       refusals: object[];
@@ -1010,15 +995,15 @@ describe('trusted policy production CLI', () => {
     });
   });
 
-  test('ratchet refuses a candidate edit to its own exemptions', () => {
+  test('ratchet refuses a candidate edit to its own exemptions', async () => {
     const fixture = createFixture('ratchet');
     write(join(fixture.repository, 'exemptions.json'), '{"exemptions":["application"]}\n');
     fixture.revision = commit(fixture.repository, 'weaken candidate exemptions');
 
-    const invocation = runLocal(fixture, 'ratchet');
+    const invocation = await runLocal(fixture, 'ratchet');
     const output = outputOf(invocation);
     expect(invocation.exitCode, output).toBe(1);
-    const report = JSON.parse(pipeText(invocation.stdout, 'lint stdout')) as {
+    const report = JSON.parse(invocation.stdout) as {
       accepted: boolean;
       changedBoundaryIds: string[];
       refusals: object[];
@@ -1034,26 +1019,26 @@ describe('trusted policy production CLI', () => {
     });
   });
 
-  test('checks the whole selected tree when a new path is outside the edited authority boundary', () => {
+  test('checks the whole selected tree when a new path is outside the edited authority boundary', async () => {
     const fixture = createFixture('observe');
     write(join(fixture.repository, 'src/unindexed.ts'), 'export const hidden = true;\n');
     fixture.revision = commit(fixture.repository, 'add unindexed source');
 
-    const invocation = runLocal(fixture, 'observe');
+    const invocation = await runLocal(fixture, 'observe');
     const output = outputOf(invocation);
     expect(invocation.exitCode, output).toBe(1);
     expect(output).toContain('unindexed candidate path in README.md');
     expect(output).toContain('src/unindexed.ts');
   });
 
-  test('CI uses only its preselected external binding and can certify complete enforce evidence', () => {
+  test('CI uses only its preselected external binding and can certify complete enforce evidence', async () => {
     const fixture = createFixture('enforce');
     satisfyApplication(fixture);
 
-    const invocation = runCi(fixture);
+    const invocation = await runCi(fixture);
     const output = outputOf(invocation);
     expect(invocation.exitCode, output).toBe(0);
-    expect(JSON.parse(pipeText(invocation.stdout, 'lint stdout'))).toMatchObject({
+    expect(JSON.parse(invocation.stdout)).toMatchObject({
       mode: 'enforce',
       trustProvenance: 'ci-preselected',
       certified: true,
@@ -1061,16 +1046,16 @@ describe('trusted policy production CLI', () => {
     });
   });
 
-  test('CI cannot certify changed candidate bytes with unchanged obligation evidence', () => {
+  test('CI cannot certify changed candidate bytes with unchanged obligation evidence', async () => {
     const fixture = createFixture('enforce');
     satisfyApplication(fixture);
     write(join(fixture.repository, 'src/app.ts'), 'export const value = 2;\n');
     fixture.revision = commit(fixture.repository, 'change source after evidence');
 
-    const invocation = runCi(fixture);
+    const invocation = await runCi(fixture);
     const output = outputOf(invocation);
     expect(invocation.exitCode, output).toBe(1);
-    const report = JSON.parse(pipeText(invocation.stdout, 'lint stdout')) as {
+    const report = JSON.parse(invocation.stdout) as {
       accepted: boolean;
       certified: boolean;
       unmetObligationIds: string[];
@@ -1082,7 +1067,7 @@ describe('trusted policy production CLI', () => {
     expect(report.unmetObligationIds).toContain('obligation.application');
   });
 
-  test('caller labels cannot replace check receipts or trusted review provenance', () => {
+  test('caller labels cannot replace check receipts or trusted review provenance', async () => {
     for (const fault of ['missing-check-receipt', 'local-review'] as const) {
       const fixture = createFixture('enforce');
       satisfyApplication(fixture);
@@ -1106,10 +1091,10 @@ describe('trusted policy production CLI', () => {
       write(fixture.authorityPath, `${JSON.stringify(authority)}\n`);
       rebindAuthority(fixture);
 
-      const invocation = runCi(fixture);
+      const invocation = await runCi(fixture);
       const output = outputOf(invocation);
       expect(invocation.exitCode, `${fault}: ${output}`).toBe(1);
-      const report = JSON.parse(pipeText(invocation.stdout, 'lint stdout')) as {
+      const report = JSON.parse(invocation.stdout) as {
         accepted: boolean;
         unmetObligationIds: string[];
       };
@@ -1118,7 +1103,7 @@ describe('trusted policy production CLI', () => {
     }
   });
 
-  test('self-declared journal and invocation labels cannot certify reviews', () => {
+  test('self-declared journal and invocation labels cannot certify reviews', async () => {
     const fixture = createFixture('enforce');
     satisfyApplication(fixture);
     const authority = JSON.parse(readFileSync(fixture.authorityPath, 'utf8')) as {
@@ -1145,10 +1130,10 @@ describe('trusted policy production CLI', () => {
     write(fixture.authorityPath, `${JSON.stringify(authority)}\n`);
     rebindAuthority(fixture);
 
-    const invocation = runCi(fixture);
+    const invocation = await runCi(fixture);
     const output = outputOf(invocation);
     expect(invocation.exitCode, output).toBe(1);
-    const report = JSON.parse(pipeText(invocation.stdout, 'lint stdout')) as {
+    const report = JSON.parse(invocation.stdout) as {
       accepted: boolean;
       certified: boolean;
       unmetObligationIds: string[];
@@ -1160,7 +1145,7 @@ describe('trusted policy production CLI', () => {
     expect(report.unmetObligationIds).toContain('obligation.application');
   });
 
-  test('observe audit debt cannot discharge enforce review obligations', () => {
+  test('observe audit debt cannot discharge enforce review obligations', async () => {
     const fixture = createFixture('enforce');
     satisfyApplication(fixture);
     const authority = JSON.parse(readFileSync(fixture.authorityPath, 'utf8')) as {
@@ -1171,10 +1156,10 @@ describe('trusted policy production CLI', () => {
     write(fixture.authorityPath, `${JSON.stringify(authority)}\n`);
     rebindAuthority(fixture);
 
-    const invocation = runCi(fixture);
+    const invocation = await runCi(fixture);
     const output = outputOf(invocation);
     expect(invocation.exitCode, output).toBe(1);
-    const report = JSON.parse(pipeText(invocation.stdout, 'lint stdout')) as {
+    const report = JSON.parse(invocation.stdout) as {
       accepted: boolean;
       certified: boolean;
       unmetObligationIds: string[];
@@ -1183,7 +1168,7 @@ describe('trusted policy production CLI', () => {
     expect(report.unmetObligationIds).toContain('obligation.application');
   });
 
-  test('audit source base must bind the selected candidate source base', () => {
+  test('audit source base must bind the selected candidate source base', async () => {
     const fixture = createFixture('enforce');
     satisfyApplication(fixture);
     const authority = JSON.parse(readFileSync(fixture.authorityPath, 'utf8')) as {
@@ -1194,10 +1179,10 @@ describe('trusted policy production CLI', () => {
     write(fixture.authorityPath, `${JSON.stringify(authority)}\n`);
     rebindAuthority(fixture);
 
-    const invocation = runCi(fixture);
+    const invocation = await runCi(fixture);
     const output = outputOf(invocation);
     expect(invocation.exitCode, output).toBe(1);
-    const report = JSON.parse(pipeText(invocation.stdout, 'lint stdout')) as {
+    const report = JSON.parse(invocation.stdout) as {
       accepted: boolean;
       certified: boolean;
       unmetObligationIds: string[];
@@ -1206,7 +1191,7 @@ describe('trusted policy production CLI', () => {
     expect(report.unmetObligationIds).toContain('obligation.application');
   });
 
-  test('changed authority bytes cannot remove a trusted failed behavior check', () => {
+  test('changed authority bytes cannot remove a trusted failed behavior check', async () => {
     const fixture = createFixture('enforce');
     write(join(fixture.repository, 'src/app.ts'), 'export const value = 2;\n');
     fixture.revision = commit(fixture.repository, 'change application behavior');
@@ -1263,7 +1248,7 @@ describe('trusted policy production CLI', () => {
     });
     write(fixture.authorityPath, `${JSON.stringify(authority)}\n`);
     rebindAuthority(fixture);
-    const failed = runCi(fixture);
+    const failed = await runCi(fixture);
     expect(failed.exitCode, outputOf(failed)).toBe(1);
 
     const rule = authority.obligationRequest.policy.behaviorRules[0] as {
@@ -1271,25 +1256,25 @@ describe('trusted policy production CLI', () => {
     };
     rule.consumerChecks = [];
     write(fixture.authorityPath, `${JSON.stringify(authority)}\n`);
-    const weakened = runCi(fixture);
+    const weakened = await runCi(fixture);
     const output = outputOf(weakened);
     expect(weakened.exitCode, output).toBe(1);
     expect(output).toContain('trusted authority digest does not match binding');
   });
 
-  test('a candidate child whose name starts with two dots is still inside the candidate', () => {
+  test('a candidate child whose name starts with two dots is still inside the candidate', async () => {
     const fixture = createFixture('enforce');
     satisfyApplication(fixture);
     const candidateBinding = join(fixture.repository, '..trust', 'binding.json');
     write(candidateBinding, readFileSync(fixture.bindingPath, 'utf8'));
 
-    const invocation = runCi(fixture, candidateBinding);
+    const invocation = await runCi(fixture, candidateBinding);
     const output = outputOf(invocation);
     expect(invocation.exitCode, output).toBe(1);
     expect(output).toContain('trusted binding resolves inside selected candidate');
   });
 
-  test('binding cannot omit a transitive production module that decides acceptance', () => {
+  test('binding cannot omit a transitive production module that decides acceptance', async () => {
     const fixture = createFixture('enforce');
     satisfyApplication(fixture);
     const binding = JSON.parse(readFileSync(fixture.bindingPath, 'utf8')) as {
@@ -1300,7 +1285,7 @@ describe('trusted policy production CLI', () => {
     );
     write(fixture.bindingPath, `${JSON.stringify(binding)}\n`);
 
-    const invocation = runCi(fixture);
+    const invocation = await runCi(fixture);
     const output = outputOf(invocation);
     expect(invocation.exitCode, output).toBe(1);
     expect(output).toContain(
@@ -1308,15 +1293,15 @@ describe('trusted policy production CLI', () => {
     );
   });
 
-  test('CI reports but cannot certify a mutable working selection or its untracked paths', () => {
+  test('CI reports but cannot certify a mutable working selection or its untracked paths', async () => {
     const fixture = createFixture('enforce');
     satisfyApplication(fixture);
     write(join(fixture.repository, 'untracked.ts'), 'export const untracked = true;\n');
 
-    const invocation = runCi(fixture, fixture.bindingPath, [], 'working');
+    const invocation = await runCi(fixture, fixture.bindingPath, [], 'working');
     const output = outputOf(invocation);
     expect(invocation.exitCode, output).toBe(1);
-    const stdout = pipeText(invocation.stdout, 'lint stdout');
+    const stdout = invocation.stdout;
     expect(stdout.length, output).toBeGreaterThan(0);
     const report = JSON.parse(stdout) as LintReportFixture & { refusals: object[] };
     expect(report).toMatchObject({
@@ -1331,7 +1316,7 @@ describe('trusted policy production CLI', () => {
     });
   });
 
-  test('lint validates that every trusted selector actually selects candidate inputs', () => {
+  test('lint validates that every trusted selector actually selects candidate inputs', async () => {
     const fixture = createFixture('enforce');
     satisfyApplication(fixture);
     const policy = JSON.parse(readFileSync(fixture.policyPath, 'utf8')) as {
@@ -1354,7 +1339,7 @@ describe('trusted policy production CLI', () => {
     binding.policy.sha256 = sha256(readFileSync(fixture.policyPath));
     write(fixture.bindingPath, `${JSON.stringify(binding)}\n`);
 
-    const invocation = runCi(fixture);
+    const invocation = await runCi(fixture);
     const output = outputOf(invocation);
     expect(invocation.exitCode, output).toBe(1);
     expect(output).toContain(
@@ -1363,7 +1348,7 @@ describe('trusted policy production CLI', () => {
     expect(output).not.toContain('trusted policy digest does not match binding');
   });
 
-  test('CI resolves README relationship selectors against extracted candidate inputs', () => {
+  test('CI resolves README relationship selectors against extracted candidate inputs', async () => {
     const fixture = createFixture('enforce');
     write(
       join(fixture.repository, 'tsconfig.json'),
@@ -1408,13 +1393,13 @@ describe('trusted policy production CLI', () => {
     binding.policy.sha256 = sha256(readFileSync(fixture.policyPath));
     write(fixture.bindingPath, `${JSON.stringify(binding)}\n`);
 
-    const invocation = runCi(fixture);
+    const invocation = await runCi(fixture);
     const output = outputOf(invocation);
     expect(invocation.exitCode, output).toBe(1);
     expect(output).toContain('unknown relationship selector in README.md: selector.does-not-exist');
   });
 
-  test('CI trusted lint reads static Nx configuration without executing candidate plugins', () => {
+  test('CI trusted lint reads static Nx configuration without executing candidate plugins', async () => {
     const fixture = createFixture('enforce');
     const sentinel = join(
       fixture.repository,
@@ -1473,7 +1458,7 @@ describe('trusted policy production CLI', () => {
 
     const environmentSentinel = process.env['MODULE_WIKI_PLUGIN_SENTINEL'];
     process.env['MODULE_WIKI_PLUGIN_SENTINEL'] = sentinel;
-    const invocation = runCi(fixture);
+    const invocation = await runCi(fixture);
     if (environmentSentinel === undefined) delete process.env['MODULE_WIKI_PLUGIN_SENTINEL'];
     else process.env['MODULE_WIKI_PLUGIN_SENTINEL'] = environmentSentinel;
     const output = outputOf(invocation);
@@ -1481,7 +1466,7 @@ describe('trusted policy production CLI', () => {
     // failed the assertion before trusted lint could accept the static project declarations.
     expect(existsSync(sentinel)).toBe(false);
     expect(invocation.exitCode, output).toBe(0);
-    expect(JSON.parse(pipeText(invocation.stdout, 'lint stdout'))).toMatchObject({
+    expect(JSON.parse(invocation.stdout)).toMatchObject({
       accepted: true,
       certified: true,
     });
@@ -1575,25 +1560,27 @@ describe('trusted policy production CLI', () => {
     const runtime = mkdtempSync(join(workspace, '.tool-wiki-launcher-'));
     scratchPaths.push(runtime);
 
-    const invocation = Bun.spawnSync(
-      [
-        'bash',
-        join(workspace, 'bin/tool-wiki-lint.sh'),
-        'committed',
-        fixture.repository,
-        fixture.revision,
-      ],
-      {
-        env: {
-          ...process.env,
-          TMPDIR: runtime,
-          TOOL_WIKI_ACTIVATION_ROOT: activation,
-          TOOL_WIKI_REQUIRE_CERTIFIED: '1',
-          TOOL_WIKI_TRUSTED_NODE_MODULES: trustedNodeModules,
+    const invocation = fromProcess(
+      Bun.spawnSync(
+        [
+          'bash',
+          join(workspace, 'bin/tool-wiki-lint.sh'),
+          'committed',
+          fixture.repository,
+          fixture.revision,
+        ],
+        {
+          env: {
+            ...process.env,
+            TMPDIR: runtime,
+            TOOL_WIKI_ACTIVATION_ROOT: activation,
+            TOOL_WIKI_REQUIRE_CERTIFIED: '1',
+            TOOL_WIKI_TRUSTED_NODE_MODULES: trustedNodeModules,
+          },
+          stderr: 'pipe',
+          stdout: 'pipe',
         },
-        stderr: 'pipe',
-        stdout: 'pipe',
-      },
+      ),
     );
 
     const output = outputOf(invocation);
@@ -1601,7 +1588,7 @@ describe('trusted policy production CLI', () => {
     // and failed the assertion before trusted lint could accept the static project declarations.
     expect(existsSync(sentinel)).toBe(false);
     expect(invocation.exitCode, output).toBe(0);
-    expect(JSON.parse(pipeText(invocation.stdout, 'lint stdout'))).toMatchObject({
+    expect(JSON.parse(invocation.stdout)).toMatchObject({
       accepted: true,
       certified: true,
     });
@@ -1699,31 +1686,33 @@ describe('trusted policy production CLI', () => {
     const runtime = mkdtempSync(join(workspace, '.tool-wiki-launcher-'));
     scratchPaths.push(runtime);
 
-    const invocation = Bun.spawnSync(
-      [
-        'bash',
-        join(workspace, 'bin/tool-wiki-lint.sh'),
-        'committed',
-        fixture.repository,
-        fixture.revision,
-      ],
-      {
-        env: {
-          ...process.env,
-          TMPDIR: runtime,
-          TOOL_WIKI_ACTIVATION_ROOT: activation,
-          TOOL_WIKI_REQUIRE_CERTIFIED: '1',
-          TOOL_WIKI_TRUSTED_NODE_MODULES: trustedNodeModules,
+    const invocation = fromProcess(
+      Bun.spawnSync(
+        [
+          'bash',
+          join(workspace, 'bin/tool-wiki-lint.sh'),
+          'committed',
+          fixture.repository,
+          fixture.revision,
+        ],
+        {
+          env: {
+            ...process.env,
+            TMPDIR: runtime,
+            TOOL_WIKI_ACTIVATION_ROOT: activation,
+            TOOL_WIKI_REQUIRE_CERTIFIED: '1',
+            TOOL_WIKI_TRUSTED_NODE_MODULES: trustedNodeModules,
+          },
+          stderr: 'pipe',
+          stdout: 'pipe',
         },
-        stderr: 'pipe',
-        stdout: 'pipe',
-      },
+      ),
     );
 
     const output = outputOf(invocation);
     expect(existsSync(sentinel)).toBe(false);
     expect(invocation.exitCode, output).toBe(0);
-    expect(JSON.parse(pipeText(invocation.stdout, 'lint stdout'))).toMatchObject({
+    expect(JSON.parse(invocation.stdout)).toMatchObject({
       accepted: true,
       certified: true,
     });
@@ -1809,37 +1798,39 @@ describe('trusted policy production CLI', () => {
     const runtime = mkdtempSync(join(workspace, '.tool-wiki-launcher-'));
     scratchPaths.push(runtime);
 
-    const invocation = Bun.spawnSync(
-      [
-        'bash',
-        join(workspace, 'bin/tool-wiki-lint.sh'),
-        'committed',
-        fixture.repository,
-        fixture.revision,
-      ],
-      {
-        env: {
-          ...process.env,
-          TMPDIR: runtime,
-          TOOL_WIKI_ACTIVATION_ROOT: activation,
-          TOOL_WIKI_REQUIRE_CERTIFIED: '1',
-          TOOL_WIKI_TRUSTED_NODE_MODULES: trustedNodeModules,
+    const invocation = fromProcess(
+      Bun.spawnSync(
+        [
+          'bash',
+          join(workspace, 'bin/tool-wiki-lint.sh'),
+          'committed',
+          fixture.repository,
+          fixture.revision,
+        ],
+        {
+          env: {
+            ...process.env,
+            TMPDIR: runtime,
+            TOOL_WIKI_ACTIVATION_ROOT: activation,
+            TOOL_WIKI_REQUIRE_CERTIFIED: '1',
+            TOOL_WIKI_TRUSTED_NODE_MODULES: trustedNodeModules,
+          },
+          stderr: 'pipe',
+          stdout: 'pipe',
         },
-        stderr: 'pipe',
-        stdout: 'pipe',
-      },
+      ),
     );
 
     const output = outputOf(invocation);
     expect(existsSync(sentinel)).toBe(false);
     expect(invocation.exitCode, output).toBe(0);
-    expect(JSON.parse(pipeText(invocation.stdout, 'lint stdout'))).toMatchObject({
+    expect(JSON.parse(invocation.stdout)).toMatchObject({
       accepted: true,
       certified: true,
     });
   }, 30_000);
 
-  test('production lint refuses absent external consumers and unresolved applicable checks', () => {
+  test('production lint refuses absent external consumers and unresolved applicable checks', async () => {
     const mutations = [
       {
         name: 'external consumer',
@@ -1968,14 +1959,14 @@ describe('trusted policy production CLI', () => {
       binding.policy.sha256 = sha256(readFileSync(fixture.policyPath));
       write(fixture.bindingPath, `${JSON.stringify(binding)}\n`);
 
-      const invocation = runCi(fixture);
+      const invocation = await runCi(fixture);
       const output = outputOf(invocation);
       expect(invocation.exitCode, output).toBe(1);
       expect(output).toContain(mutation.expected);
     }
   }, 90_000);
 
-  test('trusted obligations must retain one exact boundary assignment', () => {
+  test('trusted obligations must retain one exact boundary assignment', async () => {
     const fixture = createFixture('enforce');
     satisfyApplication(fixture);
     const policy = JSON.parse(readFileSync(fixture.policyPath, 'utf8')) as {
@@ -1993,7 +1984,7 @@ describe('trusted policy production CLI', () => {
     binding.policy.sha256 = sha256(readFileSync(fixture.policyPath));
     write(fixture.bindingPath, `${JSON.stringify(binding)}\n`);
 
-    const invocation = runCi(fixture);
+    const invocation = await runCi(fixture);
     const output = outputOf(invocation);
     expect(invocation.exitCode, output).toBe(1);
     expect(output).toContain(
@@ -2001,10 +1992,10 @@ describe('trusted policy production CLI', () => {
     );
   });
 
-  test('CI rejects an ordinary mode argument and a candidate field that tries to select trust', () => {
+  test('CI rejects an ordinary mode argument and a candidate field that tries to select trust', async () => {
     const fixture = createFixture('enforce');
     satisfyApplication(fixture);
-    const withMode = runCi(fixture, fixture.bindingPath, ['observe']);
+    const withMode = await runCi(fixture, fixture.bindingPath, ['observe']);
     expect(withMode.exitCode, outputOf(withMode)).toBe(1);
     expect(outputOf(withMode)).toContain('usage: twilight-burokrat');
 
@@ -2013,14 +2004,14 @@ describe('trusted policy production CLI', () => {
       fixture.evidencePath,
       `${JSON.stringify({ ...evidence, trustedBindingPath: fixture.bindingPath })}\n`,
     );
-    const withBindingField = runCi(fixture);
+    const withBindingField = await runCi(fixture);
     expect(withBindingField.exitCode, outputOf(withBindingField)).toBe(1);
     expect(outputOf(withBindingField)).toContain('trustedBindingPath must be removed');
   });
 
-  test('CI fails closed when its caller did not preselect a trusted binding', () => {
+  test('CI fails closed when its caller did not preselect a trusted binding', async () => {
     const fixture = createFixture('enforce');
-    const invocation = runCi(fixture, null);
+    const invocation = await runCi(fixture, null);
     const output = outputOf(invocation);
     expect(invocation.exitCode, output).toBe(1);
     expect(output).toContain('CI trusted binding was not preselected by the caller');
@@ -2028,7 +2019,7 @@ describe('trusted policy production CLI', () => {
 
   // This three-process negative control passed alone in 4.629s but crossed the shared suite's
   // default at 5.005s; the explicit bound preserves the assertions under host load.
-  test('binding, policy and validator aliases cannot resolve inside the selected candidate', () => {
+  test('binding, policy and validator aliases cannot resolve inside the selected candidate', async () => {
     const cases = ['binding', 'policy', 'validator'] as const;
     for (const subject of cases) {
       const fixture = createFixture('enforce');
@@ -2057,14 +2048,14 @@ describe('trusted policy production CLI', () => {
         write(fixture.bindingPath, `${JSON.stringify(binding)}\n`);
       }
 
-      const invocation = runCi(fixture, bindingPath);
+      const invocation = await runCi(fixture, bindingPath);
       const output = outputOf(invocation);
       expect(invocation.exitCode, output).toBe(1);
       expect(output).toContain('resolves inside selected candidate');
     }
   }, 20_000);
 
-  test('trusted authority aliases cannot resolve inside the selected candidate', () => {
+  test('trusted authority aliases cannot resolve inside the selected candidate', async () => {
     const fixture = createFixture('enforce');
     satisfyApplication(fixture);
     const candidateAuthority = join(fixture.repository, 'candidate-authority.json');
@@ -2078,13 +2069,13 @@ describe('trusted policy production CLI', () => {
     };
     write(fixture.bindingPath, `${JSON.stringify(binding)}\n`);
 
-    const invocation = runCi(fixture);
+    const invocation = await runCi(fixture);
     const output = outputOf(invocation);
     expect(invocation.exitCode, output).toBe(1);
     expect(output).toContain('trusted authority resolves inside selected candidate');
   });
 
-  test('binding cannot omit executable source that actually decides acceptance', () => {
+  test('binding cannot omit executable source that actually decides acceptance', async () => {
     const fixture = createFixture('enforce');
     const binding = JSON.parse(readFileSync(fixture.bindingPath, 'utf8')) as {
       validator: { artifacts: { path: string; sha256: string }[] };
@@ -2094,7 +2085,7 @@ describe('trusted policy production CLI', () => {
     );
     write(fixture.bindingPath, `${JSON.stringify(binding)}\n`);
 
-    const invocation = runLocal(fixture, 'enforce');
+    const invocation = await runLocal(fixture, 'enforce');
     const output = outputOf(invocation);
     expect(invocation.exitCode, output).toBe(1);
     expect(output).toContain(
@@ -2102,7 +2093,7 @@ describe('trusted policy production CLI', () => {
     );
   });
 
-  test('compatible activation retains both identities and deterministically reselects affected checks', () => {
+  test('compatible activation retains both identities and deterministically reselects affected checks', async () => {
     const fixture = createFixture('enforce');
     const nextBindingPath = writeActivation(
       fixture,
@@ -2131,10 +2122,10 @@ describe('trusted policy production CLI', () => {
       },
     );
 
-    const invocation = runActivation(fixture, nextBindingPath);
+    const invocation = await runActivation(fixture, nextBindingPath);
     const output = outputOf(invocation);
     expect(invocation.exitCode, output).toBe(0);
-    expect(JSON.parse(pipeText(invocation.stdout, 'activation stdout'))).toMatchObject({
+    expect(JSON.parse(invocation.stdout)).toMatchObject({
       compatible: true,
       previous: { bindingId: 'binding.enforce.v1', policyId: 'policy.trusted.v1' },
       next: { bindingId: 'binding.next.v1', policyId: 'policy.trusted.v1' },
@@ -2155,7 +2146,7 @@ describe('trusted policy production CLI', () => {
     });
   });
 
-  test('compatible activation rejects a predecessor identity selected from somewhere else', () => {
+  test('compatible activation rejects a predecessor identity selected from somewhere else', async () => {
     const fixture = createFixture('enforce');
     const nextBindingPath = writeActivation(fixture, () => undefined, {
       addedBoundaryIds: [],
@@ -2170,13 +2161,13 @@ describe('trusted policy production CLI', () => {
     binding.predecessor.bindingIdentity = '0'.repeat(64);
     write(nextBindingPath, `${JSON.stringify(binding)}\n`);
 
-    const invocation = runActivation(fixture, nextBindingPath);
+    const invocation = await runActivation(fixture, nextBindingPath);
     const output = outputOf(invocation);
     expect(invocation.exitCode, output).toBe(1);
     expect(output).toContain('activation predecessor does not match the previous trusted binding');
   });
 
-  test('compatible activation loads and validates the successor authority artifact', () => {
+  test('compatible activation loads and validates the successor authority artifact', async () => {
     const fixture = createFixture('enforce');
     const nextBindingPath = writeActivation(fixture, () => undefined, {
       addedBoundaryIds: [],
@@ -2194,13 +2185,13 @@ describe('trusted policy production CLI', () => {
     };
     write(nextBindingPath, `${JSON.stringify(binding)}\n`);
 
-    const invocation = runActivation(fixture, nextBindingPath);
+    const invocation = await runActivation(fixture, nextBindingPath);
     const output = outputOf(invocation);
     expect(invocation.exitCode, output).toBe(1);
     expect(output).toContain('cannot open trusted authority');
   });
 
-  test('compatible activation cannot remove authority-owned check requirements', () => {
+  test('compatible activation cannot remove authority-owned check requirements', async () => {
     const fixture = createFixture('enforce');
     const authority = JSON.parse(readFileSync(fixture.authorityPath, 'utf8')) as {
       obligationRequest: { policy: { behaviorRules: object[] } };
@@ -2238,7 +2229,7 @@ describe('trusted policy production CLI', () => {
     };
     write(nextBindingPath, `${JSON.stringify(binding)}\n`);
 
-    const invocation = runActivation(fixture, nextBindingPath);
+    const invocation = await runActivation(fixture, nextBindingPath);
     const output = outputOf(invocation);
     expect(invocation.exitCode, output).toBe(1);
     expect(output).toContain(
@@ -2246,7 +2237,7 @@ describe('trusted policy production CLI', () => {
     );
   });
 
-  test('compatible activation cannot narrow a retained audit obligation before its authority certifies CI', () => {
+  test('compatible activation cannot narrow a retained audit obligation before its authority certifies CI', async () => {
     const fixture = createFixture('enforce');
     satisfyApplication(fixture);
     const nextBindingPath = writeActivation(fixture, () => undefined, {
@@ -2299,15 +2290,15 @@ describe('trusted policy production CLI', () => {
     };
     write(nextBindingPath, `${JSON.stringify(binding)}\n`);
 
-    const downstream = runCi(fixture, nextBindingPath);
+    const downstream = await runCi(fixture, nextBindingPath);
     const downstreamOutput = outputOf(downstream);
     expect(downstream.exitCode, downstreamOutput).toBe(0);
-    expect(JSON.parse(pipeText(downstream.stdout, 'lint stdout'))).toMatchObject({
+    expect(JSON.parse(downstream.stdout)).toMatchObject({
       accepted: true,
       certified: true,
     });
 
-    const activation = runActivation(fixture, nextBindingPath);
+    const activation = await runActivation(fixture, nextBindingPath);
     const activationOutput = outputOf(activation);
     expect(activation.exitCode, activationOutput).toBe(1);
     expect(activationOutput).toContain(
@@ -2315,7 +2306,7 @@ describe('trusted policy production CLI', () => {
     );
   });
 
-  test('compatible activation cannot weaken settings for a retained audit risk stratum', () => {
+  test('compatible activation cannot weaken settings for a retained audit risk stratum', async () => {
     const fixture = createFixture('enforce');
     satisfyApplication(fixture);
     interface AuditStratumFixture {
@@ -2406,15 +2397,15 @@ describe('trusted policy production CLI', () => {
     };
     write(nextBindingPath, `${JSON.stringify(nextBinding)}\n`);
 
-    const downstream = runCi(fixture, nextBindingPath);
+    const downstream = await runCi(fixture, nextBindingPath);
     const downstreamOutput = outputOf(downstream);
     expect(downstream.exitCode, downstreamOutput).toBe(0);
-    expect(JSON.parse(pipeText(downstream.stdout, 'lint stdout'))).toMatchObject({
+    expect(JSON.parse(downstream.stdout)).toMatchObject({
       accepted: true,
       certified: true,
     });
 
-    const activation = runActivation(fixture, nextBindingPath);
+    const activation = await runActivation(fixture, nextBindingPath);
     const activationOutput = outputOf(activation);
     expect(activation.exitCode, activationOutput).toBe(1);
     expect(activationOutput).toContain(
@@ -2422,7 +2413,7 @@ describe('trusted policy production CLI', () => {
     );
   });
 
-  test('compatible activation cannot reduce sampling for a retained audit risk stratum', () => {
+  test('compatible activation cannot reduce sampling for a retained audit risk stratum', async () => {
     const fixture = createFixture('enforce');
     const nextBindingPath = writeActivation(fixture, () => undefined, {
       addedBoundaryIds: [],
@@ -2447,7 +2438,7 @@ describe('trusted policy production CLI', () => {
     };
     write(nextBindingPath, `${JSON.stringify(nextBinding)}\n`);
 
-    const activation = runActivation(fixture, nextBindingPath);
+    const activation = await runActivation(fixture, nextBindingPath);
     const activationOutput = outputOf(activation);
     expect(activation.exitCode, activationOutput).toBe(1);
     expect(activationOutput).toContain(
@@ -2455,7 +2446,7 @@ describe('trusted policy production CLI', () => {
     );
   });
 
-  test('compatible activation permits stronger retained audit risk stratum settings', () => {
+  test('compatible activation permits stronger retained audit risk stratum settings', async () => {
     for (const change of [
       { field: 'sampleRateBps', previous: 2500, next: 10000 },
       { field: 'disagreementTriggerBps', previous: 10000, next: 2500 },
@@ -2490,12 +2481,12 @@ describe('trusted policy production CLI', () => {
       };
       write(nextBindingPath, `${JSON.stringify(nextBinding)}\n`);
 
-      const activation = runActivation(fixture, nextBindingPath);
+      const activation = await runActivation(fixture, nextBindingPath);
       expect(activation.exitCode, `${change.field}: ${outputOf(activation)}`).toBe(0);
     }
   });
 
-  test('compatible authority activation deterministically reselects its checks and reviews', () => {
+  test('compatible authority activation deterministically reselects its checks and reviews', async () => {
     const fixture = createFixture('enforce');
     const nextBindingPath = writeActivation(fixture, () => undefined, {
       addedBoundaryIds: [],
@@ -2541,10 +2532,10 @@ describe('trusted policy production CLI', () => {
     binding.activation.authorityChanged = true;
     write(nextBindingPath, `${JSON.stringify(binding)}\n`);
 
-    const invocation = runActivation(fixture, nextBindingPath);
+    const invocation = await runActivation(fixture, nextBindingPath);
     const output = outputOf(invocation);
     expect(invocation.exitCode, output).toBe(0);
-    const report = JSON.parse(pipeText(invocation.stdout, 'activation stdout')) as {
+    const report = JSON.parse(invocation.stdout) as {
       reselectedCheckIds: string[];
       reselectedReviewIds: string[];
     };
@@ -2565,7 +2556,7 @@ describe('trusted policy production CLI', () => {
   });
 
   for (const changed of ['policy', 'validator'] as const) {
-    test(`${changed} activation reselects every current authority check and review`, () => {
+    test(`${changed} activation reselects every current authority check and review`, async () => {
       const fixture = createFixture('enforce');
       const authority = JSON.parse(readFileSync(fixture.authorityPath, 'utf8')) as {
         obligationRequest: {
@@ -2644,10 +2635,10 @@ describe('trusted policy production CLI', () => {
         );
       }
 
-      const invocation = runActivation(fixture, nextBindingPath);
+      const invocation = await runActivation(fixture, nextBindingPath);
       const output = outputOf(invocation);
       expect(invocation.exitCode, `${changed}: ${output}`).toBe(0);
-      const report = JSON.parse(pipeText(invocation.stdout, 'activation stdout')) as {
+      const report = JSON.parse(invocation.stdout) as {
         reselectedCheckIds: string[];
         reselectedReviewIds: string[];
       };
@@ -2679,7 +2670,7 @@ describe('trusted policy production CLI', () => {
     });
   }
 
-  test('compatible activation rejects a boundary addition omitted from its declaration', () => {
+  test('compatible activation rejects a boundary addition omitted from its declaration', async () => {
     const fixture = createFixture('enforce');
     const nextBindingPath = writeActivation(
       fixture,
@@ -2701,7 +2692,7 @@ describe('trusted policy production CLI', () => {
       },
     );
 
-    const invocation = runActivation(fixture, nextBindingPath);
+    const invocation = await runActivation(fixture, nextBindingPath);
     const output = outputOf(invocation);
     expect(invocation.exitCode, output).toBe(1);
     expect(output).toContain(
@@ -2709,7 +2700,7 @@ describe('trusted policy production CLI', () => {
     );
   });
 
-  test('compatible activation requires an explicit boundary declaration for obligation coverage changes', () => {
+  test('compatible activation requires an explicit boundary declaration for obligation coverage changes', async () => {
     const fixture = createFixture('enforce');
     const nextBindingPath = writeActivation(
       fixture,
@@ -2733,7 +2724,7 @@ describe('trusted policy production CLI', () => {
       },
     );
 
-    const invocation = runActivation(fixture, nextBindingPath);
+    const invocation = await runActivation(fixture, nextBindingPath);
     const output = outputOf(invocation);
     expect(invocation.exitCode, output).toBe(1);
     expect(output).toContain(
@@ -2741,7 +2732,7 @@ describe('trusted policy production CLI', () => {
     );
   });
 
-  test('compatible activation can retain a historical validator and select all checks for its replacement', () => {
+  test('compatible activation can retain a historical validator and select all checks for its replacement', async () => {
     const fixture = createFixture('enforce');
     const historicalValidatorPath = join(fixture.trustDirectory, 'validator-historical.ts');
     write(historicalValidatorPath, 'export const accepts = false;\n');
@@ -2769,10 +2760,10 @@ describe('trusted policy production CLI', () => {
       nextArtifacts,
     );
 
-    const invocation = runActivation(fixture, nextBindingPath);
+    const invocation = await runActivation(fixture, nextBindingPath);
     const output = outputOf(invocation);
     expect(invocation.exitCode, output).toBe(0);
-    const report = JSON.parse(pipeText(invocation.stdout, 'activation stdout')) as {
+    const report = JSON.parse(invocation.stdout) as {
       previous: { validatorIdentity: string };
       next: { validatorIdentity: string };
       reselectedCheckIds: string[];
@@ -2786,7 +2777,7 @@ describe('trusted policy production CLI', () => {
     ]);
   });
 
-  test('compatible activation rejects an undeclared coverage shrink', () => {
+  test('compatible activation rejects an undeclared coverage shrink', async () => {
     const fixture = createFixture('enforce');
     const nextBindingPath = writeActivation(
       fixture,
@@ -2810,13 +2801,13 @@ describe('trusted policy production CLI', () => {
       },
     );
 
-    const invocation = runActivation(fixture, nextBindingPath);
+    const invocation = await runActivation(fixture, nextBindingPath);
     const output = outputOf(invocation);
     expect(invocation.exitCode, output).toBe(1);
     expect(output).toContain('compatible activation cannot remove boundary: boundary.application');
   });
 
-  test('compatible activation cannot narrow an existing selector', () => {
+  test('compatible activation cannot narrow an existing selector', async () => {
     const fixture = createFixture('enforce');
     const nextBindingPath = writeActivation(
       fixture,
@@ -2840,7 +2831,7 @@ describe('trusted policy production CLI', () => {
       },
     );
 
-    const invocation = runActivation(fixture, nextBindingPath);
+    const invocation = await runActivation(fixture, nextBindingPath);
     const output = outputOf(invocation);
     expect(invocation.exitCode, output).toBe(1);
     expect(output).toContain(
@@ -2848,7 +2839,7 @@ describe('trusted policy production CLI', () => {
     );
   });
 
-  test('compatible activation cannot delete existing check or review requirements', () => {
+  test('compatible activation cannot delete existing check or review requirements', async () => {
     for (const requirement of ['checkIds', 'reviewIds'] as const) {
       const fixture = createFixture('enforce');
       const nextBindingPath = writeActivation(
@@ -2874,7 +2865,7 @@ describe('trusted policy production CLI', () => {
         },
       );
 
-      const invocation = runActivation(fixture, nextBindingPath);
+      const invocation = await runActivation(fixture, nextBindingPath);
       const output = outputOf(invocation);
       expect(invocation.exitCode, `${requirement}: ${output}`).toBe(1);
       expect(output).toContain(
@@ -2883,7 +2874,7 @@ describe('trusted policy production CLI', () => {
     }
   });
 
-  test('compatible activation cannot move an existing obligation to another boundary', () => {
+  test('compatible activation cannot move an existing obligation to another boundary', async () => {
     const fixture = createFixture('enforce');
     const nextBindingPath = writeActivation(
       fixture,
@@ -2922,7 +2913,7 @@ describe('trusted policy production CLI', () => {
       },
     );
 
-    const invocation = runActivation(fixture, nextBindingPath);
+    const invocation = await runActivation(fixture, nextBindingPath);
     const output = outputOf(invocation);
     expect(invocation.exitCode, output).toBe(1);
     expect(output).toContain(
@@ -2930,7 +2921,7 @@ describe('trusted policy production CLI', () => {
     );
   });
 
-  test('compatible activation rejects a minimum-mode weakening', () => {
+  test('compatible activation rejects a minimum-mode weakening', async () => {
     const fixture = createFixture('enforce');
     const nextBindingPath = writeActivation(
       fixture,
@@ -2946,13 +2937,13 @@ describe('trusted policy production CLI', () => {
       },
     );
 
-    const invocation = runActivation(fixture, nextBindingPath);
+    const invocation = await runActivation(fixture, nextBindingPath);
     const output = outputOf(invocation);
     expect(invocation.exitCode, output).toBe(1);
     expect(output).toContain('compatible activation cannot weaken minimum mode');
   });
 
-  test('compatible activation rejects a new exemption that weakens enforcement', () => {
+  test('compatible activation rejects a new exemption that weakens enforcement', async () => {
     const fixture = createFixture('enforce');
     const nextBindingPath = writeActivation(
       fixture,
@@ -2975,7 +2966,7 @@ describe('trusted policy production CLI', () => {
       },
     );
 
-    const invocation = runActivation(fixture, nextBindingPath);
+    const invocation = await runActivation(fixture, nextBindingPath);
     const output = outputOf(invocation);
     expect(invocation.exitCode, output).toBe(1);
     expect(output).toContain('compatible activation cannot add or weaken exemption');

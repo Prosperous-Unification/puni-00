@@ -10,9 +10,21 @@ The WBS logger serializes an `err` into `{ type, message, stack }` while the dec
 - To: the logger writes the sanitized diagnostic report of one failure under `err` — for every value a boundary logged there, `undefined` included — and the log schema declares that record as exactly one of a diagnostic report or a visible reporting loss, so an operator can correlate a line with what a user or agent was told.
 - Impact: contractual for anything reading WBS log lines; the Pino envelope, levels and correlation fields are unchanged.
 
+**Failure report search (2026-10-11 amendment, WBS 080.23)**
+
+- From: the collector ships a failure line as text, so `fingerprint` is buried in `body.text` and nothing groups failures.
+- To: the collector lifts the report's `fingerprint`, `occurrence_id` and `v`, plus `service`, `level`, `msg` and `time`, into keyword-mapped attributes, and a Kibana Job imports a 7-day dashboard grouped by fingerprint.
+- Impact: infrastructure only (`infra/platform/observability`); the log line, the report and the schema are unchanged.
+
+**Log loss alert (2026-10-12 amendment, A30)**
+
+- From: a hung-connection drop shows only in a counter, and the log-export rules query a `_total` name Prometheus does not store.
+- To: `PuniLogRecordsDropped` fires on every send drop and `PuniLogQueueFull` on a full, blocking queue; the rules read the stored names.
+- Impact: alert rules and docs only.
+
 ## Non-Goals
 
-No boundary adopts the contract in this change: the backend unexpected-error boundary, the MCP tool-call boundary and the gateway remain as they are. No new service name, no new telemetry endpoint, no dashboard or ingestion query change, no HTTP status, WebSocket frame or MCP envelope change, and no browser-execution claim.
+No boundary adopts the contract in this change: the backend unexpected-error boundary, the MCP tool-call boundary and the gateway remain as they are. No new service name, no new telemetry endpoint, no HTTP status, WebSocket frame or MCP envelope change, and no browser-execution claim. The 2026-10-11 amendment adds the ingestion and dashboard this change first excluded, and still adds no fingerprint alerting, no change to the report format, and no shared logger for the website's be-01, which keeps `console.error` until its own WBS row.
 
 ## Constraints
 
@@ -23,6 +35,7 @@ A caught value is untrusted data, so provenance is a registration this process p
 ### New Capabilities
 
 - `failure-log-records`: What a log line carries about one failure, and what it must never carry.
+- `failure-report-search`: How a failure line becomes a searchable, grouped document without losing or inventing a line.
 
 ### Modified Capabilities
 
@@ -37,5 +50,7 @@ None.
 None.
 
 ## Impact
+
+The amendment touches `infra/platform/observability/{otel/collector.yaml,elastic/settings/**,kibana/**}`, `docs/infra/platform.md`, `tools/tool-fleet/src/{platform.ts,platform-manifests.ts,platform.test.ts}` (the locked graph and the Kibana CA that ECK produces) and adds `libs/wbs/adapters/observability/src/failure-mapping.test.ts`.
 
 `libs/wbs/adapters/observability/src/{serializers.ts,logger.ts,log-schema.ts,index.ts}` and their tests. The ten existing `logger.error`, `logger.warn` and `logger.info` call sites that pass `err` in `apps/wbs/be-01`, `apps/wbs/gw-01` and `libs/wbs/application/core` keep compiling and change only the shape of the `err` field they produce.

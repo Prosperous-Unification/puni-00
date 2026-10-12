@@ -18,7 +18,11 @@ import { isUniqueViolation, UNIQUE_INDEXES } from './constraint';
 import type { Gate } from './gate';
 import { readOrganizationActivation } from './organization-activation';
 import { loadPublicEmailPolicy } from './public-email-policy';
-import { organizationDomainClaim, organizationMembership } from './schema';
+import {
+  organizationDomainClaim,
+  organizationMembership,
+  organizationSsoConnection,
+} from './schema';
 
 /** A pending claim with its current challenge; only the token's digest is stored. */
 export interface OpenedDomainClaim {
@@ -514,7 +518,9 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
     organizationId: string,
     actorId: string,
     claimId: string,
-  ): Promise<'released' | 'forbidden' | 'not_found' | 'stale' | 'inactive'> {
+  ): Promise<
+    'released' | 'forbidden' | 'not_found' | 'stale' | 'inactive' | 'sso_connection_exists'
+  > {
     return this.gate.enter(async () => {
       await Promise.resolve();
       // Proof: 2026-09-28, removing this transaction and injecting an
@@ -558,6 +564,17 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
           // `releases ownership and requires a fresh claim before another organization can verify`
           // return 204 instead of stale 409 before initial proof.
           if (claim.status !== 'verified' && claim.status !== 'suspended') return 'stale' as const;
+          // A connection routes logins and vouches for emails on this domain;
+          // the super-admin deletes it first (`organization-sso`).
+          // Proof: 2026-10-12, dropping this check made mounted `refuses
+          // releasing a domain while a connection names it` in
+          // `sso-connection.controller.db.test.ts` fail its 409.
+          const connected = tx
+            .select({ id: organizationSsoConnection.id })
+            .from(organizationSsoConnection)
+            .where(eq(organizationSsoConnection.domainClaimId, claimId))
+            .get();
+          if (connected !== undefined) return 'sso_connection_exists' as const;
           // Proof: 2026-09-28, keeping pre-release pending rows made mounted
           // `releases ownership and requires a fresh claim before another organization can verify`
           // accept B's old proof instead of returning 404.

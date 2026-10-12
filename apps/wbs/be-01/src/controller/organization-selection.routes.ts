@@ -1,4 +1,5 @@
 import { listOrganizationMemberships, selectActiveOrganization } from '@wbs/contracts';
+import { organizationRefusal } from '@wbs/core/http/organization-refusal';
 
 import { bind } from '../http/endpoint';
 import { organizationCookieCarrier } from '../runtime/organization-cookie';
@@ -70,6 +71,7 @@ export function organizationSelectionRoutes(selection: OrganizationSelection) {
       if (organizationCookieCarrier(request.headers).kind === 'invalid')
         return { ok: false, status: 401, body: { error: 'unauthenticated' } } as const;
       const outcome = await selection.select(principal, body.organizationId);
+      if (outcome.kind === 'refused') return organizationRefusal({ ok: false, ...outcome.refusal });
       if (outcome.kind !== 'selected') return refusal(outcome, true);
       return {
         ok: true,

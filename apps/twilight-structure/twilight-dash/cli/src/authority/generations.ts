@@ -146,6 +146,32 @@ export function submitGeneration(
 }
 
 /** Freezes publication only if the generation still has the packet's exact authority state. */
+function matchesExpectedAuthority(
+  generation: AuthorityGeneration,
+  expected: ExpectedSubmissionAuthority,
+): boolean {
+  return (
+    generation.worktreePath === expected.worktreePath &&
+    authorityClaimsMatch(generation.claims, expected.claims) &&
+    generation.packet?.packetIdentity === expected.packetIdentity
+  );
+}
+
+function sameSubmission(
+  stored: SubmissionIdentity | undefined,
+  requested: SubmissionIdentity,
+): boolean {
+  return (
+    stored?.patchIdentity === requested.patchIdentity &&
+    stored.candidateDiffIdentity === requested.candidateDiffIdentity &&
+    stored.contentIdentity === requested.contentIdentity
+  );
+}
+
+/**
+ * Submits a working generation whose authority matches `expected`. Repeating the exact
+ * submission after it committed (a lost response) returns the token and writes nothing.
+ */
 export function submitGenerationMatching(
   store: AuthorityStore,
   token: ClaimToken,
@@ -162,6 +188,18 @@ export function submitGenerationMatching(
     // observed that `submitGeneration` returned its stale token instead of refusing.
     if (generation.status === 'investigating') {
       throw new Error(`generation is fenced for investigation: ${token.sessionId}`);
+    }
+    // A lost response is reconciled by repeating the exact request: the same packet binding,
+    // worktree, claims and all three submission identities return the token without a write.
+    // Proof: dropping this branch made `an exact repeated submission is a no-op` refuse
+    // `generation already submitted: session-a` (2026-10-12).
+    if (
+      generation.status === 'submitted' &&
+      expected !== undefined &&
+      matchesExpectedAuthority(generation, expected) &&
+      sameSubmission(generation.submission, submission)
+    ) {
+      return token;
     }
     // Proof: removing only this diagnostic guard made the production lifecycle test receive
     // `generation is terminal: session-a`, not the modeled already-submitted diagnostic.

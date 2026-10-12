@@ -12,8 +12,9 @@ import { cn } from '@/lib/utils';
  * re-point of the palette rather than a second copy of this file.
  *
  * This is the shadcn registry's own variant table with two removals. There is
- * no `asChild`, because it needs `@radix-ui/react-slot` and nothing in this app
- * renders a button as a link. And there is no `icon` size with a lucide glyph
+ * no `asChild`, because it needs `@radix-ui/react-slot`; the one link drawn as
+ * a button (`credential-refusal-state.tsx`) puts `cn(buttonVariants())` on its
+ * own `<a>`. And there is no `icon` size with a lucide glyph
  * in it: this app's icons are its own — text where a codepoint reads (`✕`) and
  * inline SVG where one does not (`wbs/toolbar-icons.tsx`, since the plan
  * toolbar's `⌨` turned out to be a hairline outline on macOS) — and a

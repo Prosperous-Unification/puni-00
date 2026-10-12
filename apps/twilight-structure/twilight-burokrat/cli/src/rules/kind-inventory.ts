@@ -1,7 +1,7 @@
 import { parseOrThrow, type } from '@shared/validation';
 
 import { RelativePath } from '../contracts/records';
-import { readCandidateBlob } from '../inventory/read-blob';
+import { readSelectedBlob } from '../inventory/read-blob';
 import type { CandidateSnapshot } from '../inventory/read-candidate';
 
 /**
@@ -55,7 +55,7 @@ export function readKindInventory(
   // Outside the try: an unreadable blob is a Git failure, not a malformed inventory.
   // Proof: on 2026-09-27, reading the checkout's file instead made the selected-revision CLI test
   // receive `findings: []`.
-  const bytes = readCandidateBlob(repository, stored.blob, path);
+  const bytes = readSelectedBlob(repository, candidate.entries, stored.blob, path);
   let input: unknown;
   // Proof: on 2026-09-27, rethrowing the parser's error unchanged made the malformed-inventory CLI
   // test receive only `JSON Parse error: Expected '}'`.

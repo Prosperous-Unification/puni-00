@@ -29,6 +29,7 @@ import { installStep } from './module/step/check';
 import { installWorkItem } from './module/work-item/check';
 import type { Clock } from './ports/clock';
 import { CREATOR_ADMISSION, type EditAdmission, NO_ADMISSION } from './ports/edit-admission';
+import type { EnterpriseConnections } from './ports/enterprise-connections';
 import type { BeforeProjectUpdate, BeforeStepRemoval } from './ports/fanout-capture-store';
 import type { OidcVerifier } from './ports/oidc-verifier';
 import type { ResourceAccess } from './ports/organization-access';
@@ -63,6 +64,8 @@ export interface RuntimePorts {
 export interface AccountRuntime {
   readonly passwords: PasswordHasher;
   readonly tokens: TokenCodec;
+  /** Which enterprise connections are proven, for enterprise email trust (D4). */
+  readonly enterprise: Pick<EnterpriseConnections, 'provenFor'>;
   readonly oidc?: OidcVerifier;
   readonly passwordSessions?: boolean;
   readonly localIdentity?: AuthenticatedUser;
@@ -233,6 +236,7 @@ interface AccountlessOptions {
   readonly runtime: RuntimePorts & {
     readonly passwords?: never;
     readonly tokens?: never;
+    readonly enterprise?: never;
     readonly oidc?: never;
     readonly passwordSessions?: never;
     readonly localIdentity?: never;
@@ -424,6 +428,7 @@ export function composeServices(
       passwords: runtime.passwords,
       tokens: runtime.tokens,
       clock: runtime.clock,
+      enterprise: runtime.enterprise,
       ...(runtime.oidc === undefined ? {} : { oidc: runtime.oidc }),
       ...(runtime.passwordSessions === undefined
         ? {}

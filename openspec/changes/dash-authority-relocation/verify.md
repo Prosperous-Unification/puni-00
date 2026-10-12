@@ -98,8 +98,10 @@ ln -s <repo>/node_modules <scratch>/node_modules   # plus <scratch>/tsconfig.jso
 GOLDEN_OUTPUT=<out> bun test src/admission-runtime/integration-races.test.ts -t "golden producer"
 ```
 
-`fixtures/authority/module-wiki-authority.v5.sql` is that `.schema` plus a fresh store's meta row;
-`burokrat-written-v5.sql` and `.state.json` are the dump and `inspect()` output.
+`fixtures/authority/module-wiki-authority.v5.sqlite-dump` is that `.schema` plus a fresh store's
+meta row; `burokrat-written-v5.sqlite-dump` and `.state.json` are the dump and `inspect()`
+output. They are not named `.sql`: every tracked `.sql` file is a migration, and migration lint
+refuses one outside a migration tree.
 
 ## Fable review fixes (S1, S3)
 
@@ -113,6 +115,86 @@ GOLDEN_OUTPUT=<out> bun test src/admission-runtime/integration-races.test.ts -t 
 
 Dash suite 202/0; devsync oracles 129/0; uncached `twilight-dash:lint` exit 0.
 
-## S4–S6
+## S4: exact-identity submission retry and the lifecycle model
 
-Recorded by each slice as it lands.
+| Command                                                           | Result                     |
+| ----------------------------------------------------------------- | -------------------------- |
+| `bun test --preload … src --timeout=30000` in `twilight-dash/cli` | 209 pass, 0 fail, 14 files |
+
+Mandatory proof "lost-response reconciliation" (submission half): `submit.test.ts` cases
+`an exact repeated submission returns the same report without a write` (CLI twice, byte-equal
+stdout and database) and `a different candidate after a lost response is refused`; publication
+half in S5.
+
+| Injected fault                                            | Observed failure                                                                                                          |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| exact-repeat branch dropped in `submitGenerationMatching` | `an exact repeated submission is a no-op`: `generation already submitted: session-a`; the CLI case: outputs differ        |
+| `transact` rewrites rows when the operation wrote nothing | same test: database sha256 changed                                                                                        |
+| authority comparison dropped from the exact-repeat branch | `an equal submission under a different authority binding is still refused`: returned the token                            |
+| store opened before the packet is decoded                 | `submit-admission refuses before opening the store on a malformed packet`: `authority absent` instead of the packet field |
+| five lifecycle sabotages                                  | `authority lifecycle matches its model across concurrent processes`; counterexamples in its `Proof:`                      |
+
+## S5: `recover-publication` and the mandatory proofs
+
+| Command                                                           | Result                     |
+| ----------------------------------------------------------------- | -------------------------- |
+| `bun test --preload … src --timeout=30000` in `twilight-dash/cli` | 213 pass, 0 fail, 14 files |
+
+Each recovery test has process A's work done in the test process (store closed afterwards, so no
+in-memory state survives). Process B is the real entrypoint, `recover-publication`, run as a
+fresh Bun process.
+
+| Injected fault                                                       | Observed failure                                                                                                              |
+| -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `updateRefs` bypassed when the marker is absent                      | `a fresh process publishes a reserved integration whose refs never moved`: `waiting` report, refs unchanged                   |
+| marker-proven finalization deleted from `publishReservedIntegration` | `a fresh process finalizes a marker-proven publication without a second CAS`: `terminal` `starvation` (queued 10 min earlier) |
+| `published` branch removed from `recoverPublication`                 | `repeated recovery reports the same publication and moves no ref`: `needs a certifier … is published`                         |
+| `recover-publication` grammar loosened to `argv.length < 3`          | CLI canary: `authority absent` instead of usage                                                                               |
+
+A Git `reference-transaction` hook cannot observe a stale second CAS: Git refuses the old value at
+`prepare`, before the hook runs. The deleted branch shows up only through the deadline ordering.
+
+### The six mandatory proofs (observed passing at this head)
+
+1. **Interrupted publication before and after ref movement**: `a fresh process publishes a
+reserved integration whose refs never moved`; `a fresh process finalizes a marker-proven
+publication without a second CAS`.
+2. **Missing versus unreadable adoption state**: `refuses an absent authority instead of creating
+one`; `distinguishes an unreadable authority from an absent one` (S3).
+3. **Overlapping worktree claims**: `two Bun processes atomically refuse overlap and both admit
+disjoint work`; the lifecycle model's I5 (S4).
+4. **Old-writer fencing**: `separate processes fence stale generations and preserve a successor
+and frozen publication`; `every old-writer mutation is fenced after successor acquisition`;
+   `a restarted coordinator fences a durable checking attempt and stale certification`; `a stale
+attempt identity cannot reserve an equal checked candidate`.
+5. **Lost-response reconciliation**: `an exact repeated submission returns the same report without
+a write`; `a different candidate after a lost response is refused` (S4); `repeated recovery
+reports the same publication and moves no ref`; token recovery through `inspect-authority
+--session` (`inspect-authority prints the state and refuses an absent store`, S3).
+6. **Rollback preserving accepted identities**: S6.
+
+## S6: rollback proof and documents
+
+Mandatory proof "rollback preserving accepted identities":
+`integration-races.test.ts`: `the pre-relocation authority opens a Dash-written store with
+identical state and continues its generations`. Dash writes a store with a published
+integration and its marker, a submitted session, a live session and a released session. The test
+verifies the SHA-256 of the vendored `fixtures/authority/pre-relocation-burokrat.tar`
+(`502f07f7…04aa`, the exact `git archive` of the old runtime modules' import closure and
+`@shared/validation` at `e57278139`; command in the fixture README), extracts it into scratch,
+and loads the old `admission-runtime/{authority-store,claims,generations}.ts`. The old
+`openAuthorityStore` opens the store, and its `inspect()` deep-equals Dash's. Old `acquireClaims`
+continues at Dash's `nextGeneration` and refuses an overlapping path. Old `heartbeatGeneration`
+accepts Dash's live token and refuses the released one (`generation is terminal: released`). No
+repository history is read, so a squash, rebase or gc of `e57278139` cannot break the proof.
+
+| Injected fault                                                                                     | Observed                                                                                                                   |
+| -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| none (built-in live half): one persisted status flipped to `publishedx` with check constraints off | old open refused `authority database corrupt or incompatible`                                                              |
+| the flip removed                                                                                   | the same old open returned a store; the assertion failed                                                                   |
+| digest comparison removed                                                                          | `the vendored pre-relocation archive is refused when missing or altered`: an altered archive loaded (`the archive loaded`) |
+| read guard removed                                                                                 | same case: bare `ENOENT` instead of `pre-relocation authority archive is unreadable`                                       |
+
+Documents: ADR 0050 (0048 and 0049 were taken), the pointer line in ADR 0021, `names.md` row and
+bullet, `LLM_README.md` line (139 lines), and three `CONTEXT.md` terms (Generation, Publication
+marker, Authority bootstrap). Dash README lists five commands.

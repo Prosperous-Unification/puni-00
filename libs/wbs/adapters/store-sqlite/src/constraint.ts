@@ -115,6 +115,7 @@ export type UniqueIndexColumns = readonly [string, ...string[]];
  */
 export const UNIQUE_INDEXES = {
   personName: ['person.name'],
+  provenAuth0Connection: ['organization_sso_connection.auth0_connection'],
   serviceName: ['service.name'],
   stepNameInProject: ['step.project_id', 'step.name'],
   stepCodeInProject: ['step.project_id', 'step.code'],

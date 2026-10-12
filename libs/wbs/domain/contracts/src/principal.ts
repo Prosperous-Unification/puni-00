@@ -28,7 +28,24 @@ export interface AuthenticatedUser {
     readonly credential: VerifiedOrganizationCredential;
     readonly cookie: string | null;
   };
+  /**
+   * What authenticated this request's credential, for the organization
+   * credential rules (enforced SSO and session policy). Absent when nothing
+   * is known — a direct context, the local development identity — which
+   * every rule treats as failing.
+   */
+  authentication?: CredentialAuthentication;
 }
+
+/**
+ * How a credential was authenticated, from its verifier and never from a
+ * caller: an upstream pair (a verified provider token, or the pair a
+ * delegation carries), or a first-party password session and when it was
+ * issued, in epoch milliseconds.
+ */
+export type CredentialAuthentication =
+  | { readonly kind: 'upstream'; readonly issuer: string; readonly subject: string }
+  | { readonly kind: 'first_party'; readonly issuedAt: number };
 
 /** Evidence from the credential verifier, never from caller-declared kind or expiry. */
 export interface VerifiedOrganizationCredential {

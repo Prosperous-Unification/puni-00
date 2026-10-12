@@ -254,6 +254,10 @@
           },
           {
             "kind": "suffix",
+            "value": ".ndjson"
+          },
+          {
+            "kind": "suffix",
             "value": ".config.ts"
           },
           {
@@ -514,6 +518,15 @@
       }
     ],
     "binaryDeclarations": [
+      {
+        "path": "apps/twilight-structure/twilight-dash/cli/fixtures/authority/pre-relocation-burokrat.tar",
+        "format": "application/x-tar",
+        "consumer": "apps/twilight-structure/twilight-dash/cli/src/authority/integration-races.test.ts",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "apps/twilight-structure/twilight-dash/cli/fixtures/authority/README.md"
+        }
+      },
       {
         "path": "docs/assistant/work-view-prototype-A.png",
         "format": "image/png",

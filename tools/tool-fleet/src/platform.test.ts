@@ -76,7 +76,7 @@ describe('validatePlatform', () => {
         'otel-agent',
         'velero',
       ],
-      workloadImages: 8,
+      workloadImages: 9,
       secrets: 0,
     });
   });
@@ -214,6 +214,32 @@ describe('validatePlatform', () => {
       'kind: Kustomization\npatches: []\nresources:',
     );
     expect(validatePlatform(root)).rejects.toThrow(/networking.*native Kustomization.*patches/i);
+  });
+
+  it('rejects a generated ConfigMap outside the locked graph', async () => {
+    const root = await mutablePlatform();
+    await replaceManifestText(
+      root,
+      'infra/platform/observability/kibana/objects/kustomization.yaml',
+      '      - objects.ndjson\n',
+      '      - objects.ndjson\n      - job.yaml\n',
+    );
+    expect(validatePlatform(root)).rejects.toThrow(
+      /kibana\/objects.*generators differ from the locked graph/i,
+    );
+  });
+
+  it('rejects a generator that disables the content hash a Job rerun depends on', async () => {
+    const root = await mutablePlatform();
+    await replaceManifestText(
+      root,
+      'infra/platform/observability/elastic/settings/kustomization.yaml',
+      '    namespace: observability\n',
+      '    namespace: observability\n    options:\n      disableNameSuffixHash: true\n',
+    );
+    expect(validatePlatform(root)).rejects.toThrow(
+      /elastic\/settings.*native Kustomization is invalid.*options/i,
+    );
   });
 
   it('rejects a substituted native Kustomize resource graph', async () => {

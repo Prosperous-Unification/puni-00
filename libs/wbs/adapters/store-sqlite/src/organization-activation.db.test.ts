@@ -212,6 +212,9 @@ describe('organization activation marker schema', () => {
   it('rolls back before activation and reapplies with a fresh seed', () => {
     expect(rollbackTo(path, FOLDER, ORGANIZATION_OWNERSHIP)).toEqual([
       '20261012120000_add_step_node_attempts',
+      '20261012090200_widen_organization_audit',
+      '20261012090100_add_browser_auth_times',
+      '20261012090000_add_enterprise_sso_records',
       '20261011200000_add_shared_people_audit',
       '20261011120000_add_browser_auth_lifecycle',
       '20261005110000_add_shared_people',

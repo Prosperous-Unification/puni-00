@@ -435,8 +435,12 @@ const repository = join(import.meta.dir, '../..');
 function stageRepository(paths: string[]) {
   const root = mkdtempSync(join(tmpdir(), 'puni-stage-'));
   roots.push(root);
+  // `.bun-version` is optional: readBaseline uses it only when package.json has no packageManager,
+  // and the private companion pins Bun in package.json alone.
+  // Proof: copying it unconditionally failed both staging tests in puni-pr-00 with ENOENT.
+  const bunVersion = existsSync(join(repository, '.bun-version')) ? ['.bun-version'] : [];
   for (const file of [
-    '.bun-version',
+    ...bunVersion,
     'package.json',
     'nx.json',
     'tsconfig.base.json',

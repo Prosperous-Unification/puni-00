@@ -341,7 +341,19 @@ type BareRefusalCode =
   | 'capacity_mode_unsupported'
   // A project PATCH naming a zone the server runtime does not support
   // (`step-node-attempts` D3).
-  | 'invalid_timezone';
+  | 'invalid_timezone'
+  // Enterprise SSO (`organization-sso`): connection administration refusals,
+  // a domain release a connection still names, and an unknown login slug.
+  | 'domain_not_verified'
+  | 'sso_connection_exists'
+  | 'login_slug_taken'
+  | 'provisioning_active'
+  | 'sso_connection_unproven'
+  | 'enforcement_would_lock_out_actor'
+  | 'sso_connection_not_found'
+  // Provisioning tokens (`organization-scim`): two tokens already live
+  // (`sso_connection_unproven` above also refuses a token).
+  | 'token_limit';
 
 type SharedCommandCode =
   'not_found' | 'forbidden' | 'name_required' | 'taken' | 'in_use' | 'calendar_range';
@@ -402,6 +414,14 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
     dependency_unavailable: {
       status: 'migrating' | 'database_unreachable' | 'schema_missing';
       commit: string | null;
+    };
+    /** Enforced SSO refused this credential in this organization only (`organization-sso`). */
+    sso_required: { organizationId: string; login: string; link: true };
+    /** A session policy bound is exceeded or unknown (`organization-session-policy`). */
+    reauthentication_required: {
+      organizationId: string;
+      reason: 'max_session' | 'reauthenticate_after';
+      login: string;
     };
   };
 

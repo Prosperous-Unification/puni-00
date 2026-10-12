@@ -1,3 +1,4 @@
+import { type CredentialRefusal } from '@/components/organization/organization-access';
 import { unreachable } from '@/lib/http';
 
 /** Every refusal word a space route answers, as `@wbs/contracts` declares them. */
@@ -19,23 +20,34 @@ export type SpaceRefusalCode =
   | 'invalid_json'
   | 'invalid_params';
 
+/** A space route's refusal body: a code alone, or a refused credential's whole body. */
+export type SpaceRefusal = { error: SpaceRefusalCode } | CredentialRefusal;
+
 /**
  * What a spaces page does with one refusal: replace the page with a state
- * (the page can show nothing of this organization), or say a sentence in
- * place and keep what it shows.
+ * (the page can show nothing of this organization) — a sentence, or a refused
+ * credential's sign-in state — or say a sentence in place and keep what it shows.
  */
 export type SpaceRefusalOutcome =
-  { kind: 'page'; text: string } | { kind: 'message'; text: string };
+  | { kind: 'page'; text: string }
+  | { kind: 'credential'; refusal: CredentialRefusal }
+  | { kind: 'message'; text: string };
 
 /** The copy and the reach of each space refusal. */
-export function spaceRefusal(code: SpaceRefusalCode): SpaceRefusalOutcome {
-  switch (code) {
+export function spaceRefusal(refusal: SpaceRefusal): SpaceRefusalOutcome {
+  switch (refusal.error) {
     case 'unauthenticated':
       return { kind: 'page', text: 'Your session ended. Sign in again.' };
     case 'no_active_organization':
       return { kind: 'page', text: 'No organization is selected for this session.' };
     case 'not_a_member':
       return { kind: 'page', text: 'You no longer have access to this organization.' };
+    // Proof: 2026-10-12, answering the headline as page text failed `gives the
+    // page up to the company sign-in when enforced SSO refuses it` and `gives
+    // the space up to a fresh sign-in when the session policy refuses it`.
+    case 'sso_required':
+    case 'reauthentication_required':
+      return { kind: 'credential', refusal };
     case 'organization_required':
       return {
         kind: 'page',
@@ -68,6 +80,26 @@ export function spaceRefusal(code: SpaceRefusalCode): SpaceRefusalOutcome {
         text: 'The request could not be understood. Reload and try again.',
       };
     default:
-      return unreachable(code);
+      return unreachable(refusal);
+  }
+}
+
+/** What a page shows once a refusal ends or interrupts its read. */
+export type RefusedView =
+  | { kind: 'refused'; message: string }
+  | { kind: 'credential'; refusal: CredentialRefusal }
+  | { kind: 'failure'; message: string };
+
+/** The view a refusal leaves: the page given up, or a sentence where the content would be. */
+export function refusedView(outcome: SpaceRefusalOutcome): RefusedView {
+  switch (outcome.kind) {
+    case 'page':
+      return { kind: 'refused', message: outcome.text };
+    case 'credential':
+      return { kind: 'credential', refusal: outcome.refusal };
+    case 'message':
+      return { kind: 'failure', message: outcome.text };
+    default:
+      return unreachable(outcome);
   }
 }

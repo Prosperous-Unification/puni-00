@@ -1,6 +1,7 @@
 import { changeMemberRole, type ClientReply, listMembers, removeMember } from '@wbs/contracts';
 import { useCallback, useEffect, useState } from 'react';
 
+import { Button } from '@/components/ui/button';
 import { browserClient, failureMessage, unreachable } from '@/lib/http';
 
 import {
@@ -11,6 +12,16 @@ import {
   RELOAD,
   said,
 } from './organization-access';
+import {
+  ALERT_CLASS,
+  CONTROL_HEIGHT,
+  LIST_CLASS,
+  OrganizationSection,
+  ROW_ACTIONS_CLASS,
+  ROW_CLASS,
+  ROW_SELECT_CLASS,
+  STATUS_CLASS,
+} from './organization-section';
 
 const members = browserClient([listMembers, changeMemberRole, removeMember]);
 
@@ -52,7 +63,7 @@ export function MembersPanel({
         setView({ kind: 'failure', message: failureMessage(reply.failure) });
         return;
       case 'refusal': {
-        const outcome = memberRefusal(reply.body.error, 'view members');
+        const outcome = memberRefusal(reply.body, 'view members');
         if (outcome.kind === 'lost') onAccessLost(outcome.loss);
         else setView({ kind: 'failure', message: outcome.text });
         return;
@@ -87,7 +98,7 @@ export function MembersPanel({
           setMessage(failureMessage(reply.failure));
           return;
         case 'refusal': {
-          const outcome = memberRefusal(reply.body.error, 'make this change');
+          const outcome = memberRefusal(reply.body, 'make this change');
           if (outcome.kind === 'lost') {
             onAccessLost(outcome.loss);
             return;
@@ -107,109 +118,133 @@ export function MembersPanel({
   }
 
   return (
-    <section aria-labelledby="members-heading" className="mb-8">
-      <h2 id="members-heading" className="mb-2 text-xl font-semibold">
-        Members
-      </h2>
-      {view.kind === 'loading' && <p>Loading members…</p>}
-      {view.kind === 'failure' && <p role="alert">{view.message}</p>}
-      {view.kind === 'ready' && view.members.length === 0 && <p>No members.</p>}
+    <OrganizationSection id="members-heading" title="Members">
+      {view.kind === 'loading' && <p className={STATUS_CLASS}>Loading members…</p>}
+      {view.kind === 'failure' && (
+        <p role="alert" className={ALERT_CLASS}>
+          {view.message}
+        </p>
+      )}
+      {view.kind === 'ready' && view.members.length === 0 && (
+        <p className="text-muted-foreground text-sm">No members.</p>
+      )}
       {view.kind === 'ready' && view.members.length > 0 && (
-        <ul aria-label="Members">
+        <ul aria-label="Members" className={`${LIST_CLASS} divide-border -my-3 divide-y`}>
           {view.members.map((member) => {
             const role = chosen[member.userId] ?? member.role;
             return (
-              <li key={member.userId} className="flex flex-wrap items-center gap-2">
-                <span>{member.username}</span>
-                <span>{member.email ?? 'No email address'}</span>
-                <label htmlFor={`member-role-${member.userId}`}>Role for {member.username}</label>
-                <select
-                  id={`member-role-${member.userId}`}
-                  className="border p-2"
-                  value={role}
-                  onChange={(event) => {
-                    const next = roleOf(event.target.value);
-                    setChosen((current) => ({ ...current, [member.userId]: next }));
-                  }}
-                >
-                  <option value="viewer">Viewer</option>
-                  <option value="member">Member</option>
-                  <option value="admin">Admin</option>
-                  <option value="super_admin">Super-admin</option>
-                </select>
-                <button
-                  type="button"
-                  disabled={sending || role === member.role}
-                  aria-label={`Change the role of ${member.username}`}
-                  onClick={() => {
-                    // Proof: 2026-09-29, sending the listed role instead of the
-                    // chosen one failed `changes a role to the chosen one and
-                    // re-reads the list`: expected { role: 'viewer' } to deeply equal { role: 'member' }.
-                    void change(
-                      () =>
-                        members.patchApiOrganizationMembersByUserId({
-                          params: { userId: member.userId },
-                          body: { role },
-                        }),
-                      `${member.username} is now ${ROLE_NAMES[role]}.`,
-                    );
-                  }}
-                >
-                  Change role
-                </button>
-                {removing === member.userId ? (
-                  <>
-                    <button
-                      type="button"
-                      disabled={sending}
-                      aria-label={`Confirm removing ${member.username}`}
-                      onClick={() => {
-                        setRemoving(null);
-                        void change(
-                          () =>
-                            members.deleteApiOrganizationMembersByUserId({
-                              params: { userId: member.userId },
-                            }),
-                          `${member.username} was removed.`,
-                        );
-                      }}
-                    >
-                      Confirm removal
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setRemoving(null);
-                      }}
-                    >
-                      Keep
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    type="button"
-                    disabled={sending}
-                    aria-label={`Remove ${member.username}`}
-                    onClick={() => {
-                      // Proof: 2026-09-29, removing on the first click failed
-                      // `removes only after confirmation`.
-                      setRemoving(member.userId);
+              <li key={member.userId} className={ROW_CLASS}>
+                <span className="flex min-w-0 flex-col">
+                  <span className="font-medium [overflow-wrap:anywhere]">{member.username}</span>
+                  <span className="text-muted-foreground text-sm [overflow-wrap:anywhere]">
+                    {member.email ?? 'No email address'}
+                  </span>
+                </span>
+                <span className={ROW_ACTIONS_CLASS}>
+                  <label htmlFor={`member-role-${member.userId}`} className="sr-only">
+                    Role for {member.username}
+                  </label>
+                  <select
+                    id={`member-role-${member.userId}`}
+                    className={ROW_SELECT_CLASS}
+                    value={role}
+                    onChange={(event) => {
+                      const next = roleOf(event.target.value);
+                      setChosen((current) => ({ ...current, [member.userId]: next }));
                     }}
                   >
-                    Remove
-                  </button>
-                )}
+                    <option value="viewer">Viewer</option>
+                    <option value="member">Member</option>
+                    <option value="admin">Admin</option>
+                    <option value="super_admin">Super-admin</option>
+                  </select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className={CONTROL_HEIGHT}
+                    disabled={sending || role === member.role}
+                    aria-label={`Change the role of ${member.username}`}
+                    onClick={() => {
+                      // Proof: 2026-09-29, sending the listed role instead of the
+                      // chosen one failed `changes a role to the chosen one and
+                      // re-reads the list`: expected { role: 'viewer' } to deeply equal { role: 'member' }.
+                      void change(
+                        () =>
+                          members.patchApiOrganizationMembersByUserId({
+                            params: { userId: member.userId },
+                            body: { role },
+                          }),
+                        `${member.username} is now ${ROLE_NAMES[role]}.`,
+                      );
+                    }}
+                  >
+                    Change role
+                  </Button>
+                  {removing === member.userId ? (
+                    <>
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        className={CONTROL_HEIGHT}
+                        disabled={sending}
+                        aria-label={`Confirm removing ${member.username}`}
+                        onClick={() => {
+                          setRemoving(null);
+                          void change(
+                            () =>
+                              members.deleteApiOrganizationMembersByUserId({
+                                params: { userId: member.userId },
+                              }),
+                            `${member.username} was removed.`,
+                          );
+                        }}
+                      >
+                        Confirm removal
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className={CONTROL_HEIGHT}
+                        onClick={() => {
+                          setRemoving(null);
+                        }}
+                      >
+                        Keep
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className={`text-destructive hover:text-destructive ${CONTROL_HEIGHT}`}
+                      disabled={sending}
+                      aria-label={`Remove ${member.username}`}
+                      onClick={() => {
+                        // Proof: 2026-09-29, removing on the first click failed
+                        // `removes only after confirmation`.
+                        setRemoving(member.userId);
+                      }}
+                    >
+                      Remove
+                    </Button>
+                  )}
+                </span>
               </li>
             );
           })}
         </ul>
       )}
-      {message !== '' && <p role="status">{message}</p>}
-    </section>
+      {message !== '' && (
+        <p role="status" className={STATUS_CLASS}>
+          {message}
+        </p>
+      )}
+    </OrganizationSection>
   );
 }
 
-const ROLE_NAMES: Record<Role, string> = {
+/** The words each membership role reads as. */
+export const ROLE_NAMES: Record<Role, string> = {
   super_admin: 'Super-admin',
   admin: 'Admin',
   member: 'Member',
@@ -223,10 +258,10 @@ function roleOf(value: string): Role {
   throw new Error(`Unexpected membership role option: ${value}`);
 }
 
-type MemberRefusalCode = Extract<
+type MemberRefusal = Extract<
   ClientReply<typeof listMembers | typeof changeMemberRole | typeof removeMember>,
   { kind: 'refusal' }
->['body']['error'];
+>['body'];
 
 /**
  * Every modeled member refusal receives its own copy.
@@ -234,13 +269,16 @@ type MemberRefusalCode = Extract<
  * Proof: 2026-09-29, answering `last_super_admin` with the role copy failed
  * `renders the last_super_admin change refusal`.
  */
-function memberRefusal(error: MemberRefusalCode, action: string): RefusalOutcome {
-  switch (error) {
+function memberRefusal(refusal: MemberRefusal, action: string): RefusalOutcome {
+  switch (refusal.error) {
     case 'onboarding_inactive':
     case 'unauthenticated':
     case 'no_active_organization':
     case 'not_a_member':
-      return lostAccess(error);
+      return lostAccess(refusal.error);
+    case 'sso_required':
+    case 'reauthentication_required':
+      return lostAccess(refusal);
     case 'forbidden':
       return said(`Your role cannot ${action}.`);
     case 'last_super_admin':
@@ -256,6 +294,6 @@ function memberRefusal(error: MemberRefusalCode, action: string): RefusalOutcome
     case 'invalid_origin':
       return said(RELOAD);
     default:
-      return unreachable(error);
+      return unreachable(refusal);
   }
 }

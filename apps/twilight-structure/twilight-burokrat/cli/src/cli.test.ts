@@ -1,4 +1,3 @@
-import { Buffer } from 'node:buffer';
 import {
   chmodSync,
   copyFileSync,
@@ -13,6 +12,8 @@ import { tmpdir } from 'node:os';
 import { delimiter, dirname, join } from 'node:path';
 
 import { afterEach, describe, expect, test } from 'bun:test';
+
+import { type CliInvocation, invokeCli } from './invoke-cli';
 
 const repositories: string[] = [];
 const cliPath = join(import.meta.dir, 'cli.ts');
@@ -58,39 +59,39 @@ function hash(repository: string, path: string): string {
   return runGit(repository, ['hash-object', path]);
 }
 
-function runCandidateCli(
+/**
+ * Runs `read-candidate` in this process through the CLI entry, or as its own Bun process when an
+ * `env` must reach the Git the reader spawns.
+ */
+async function runCandidateCli(
   repository: string,
   kind: 'committed' | 'staged' | 'working',
   base: string,
   env?: Record<string, string>,
-): ReturnType<typeof Bun.spawnSync> {
-  return Bun.spawnSync(
-    [process.execPath, 'run', cliPath, 'read-candidate', kind, repository, base],
-    {
-      cwd: import.meta.dir,
-      env: env === undefined ? process.env : { ...process.env, ...env },
-      stderr: 'pipe',
-      stdout: 'pipe',
-    },
-  );
-}
-
-function readPipe(
-  stream: Uint8Array | undefined,
-  name: 'candidate stdout' | 'candidate stderr',
-): string {
-  if (stream === undefined) throw new Error(`${name} pipe was unavailable`);
-  return Buffer.from(stream).toString('utf8');
+): Promise<CliInvocation> {
+  const argv = ['read-candidate', kind, repository, base];
+  if (env === undefined) return invokeCli(argv);
+  const invocation = Bun.spawnSync([process.execPath, 'run', cliPath, ...argv], {
+    cwd: import.meta.dir,
+    env: { ...process.env, ...env },
+    stderr: 'pipe',
+    stdout: 'pipe',
+  });
+  return {
+    exitCode: invocation.exitCode,
+    stdout: invocation.stdout.toString('utf8'),
+    stderr: invocation.stderr.toString('utf8'),
+  };
 }
 
 function expectCandidate(
-  invocation: ReturnType<typeof Bun.spawnSync>,
+  invocation: CliInvocation,
   selection: object,
   entries: GitEntry[],
   untracked: string[] = [],
 ): void {
-  const stdout = readPipe(invocation.stdout, 'candidate stdout');
-  const output = `${stdout}${readPipe(invocation.stderr, 'candidate stderr')}`;
+  const stdout = invocation.stdout;
+  const output = `${stdout}${invocation.stderr}`;
   expect(invocation.exitCode, output).toBe(0);
   // Proof: this full-object oracle failed on the actual selected candidate when the reader
   // separately dropped `link`, omitted `added.txt`, substituted `deleted.txt` at equal count,
@@ -108,7 +109,7 @@ afterEach(() => {
 });
 
 describe('read-candidate production CLI', () => {
-  test('reads the selected commit instead of a changed index or working tree', () => {
+  test('reads the selected commit instead of a changed index or working tree', async () => {
     const repository = createRepository();
     write(repository, 'tracked.txt', 'committed\n');
     const revision = commitAll(repository, 'initial');
@@ -120,13 +121,13 @@ describe('read-candidate production CLI', () => {
     write(repository, 'tracked.txt', 'working\n');
 
     expectCandidate(
-      runCandidateCli(repository, 'committed', revision),
+      await runCandidateCli(repository, 'committed', revision),
       { kind: 'committed', revision, tree },
       [{ path: 'tracked.txt', mode: '100644', blob: committedBlob }],
     );
   });
 
-  test('selects the requested worktree whose root ends in whitespace', () => {
+  test('selects the requested worktree whose root ends in whitespace', async () => {
     const neighborhood = mkdtempSync(join(tmpdir(), 'tool-wiki-neighboring-roots-'));
     repositories.push(neighborhood);
     const neighbor = join(neighborhood, 'space');
@@ -144,13 +145,13 @@ describe('read-candidate production CLI', () => {
     const tree = runGit(requested, ['rev-parse', `${revision}^{tree}`]);
 
     expectCandidate(
-      runCandidateCli(requested, 'committed', 'HEAD'),
+      await runCandidateCli(requested, 'committed', 'HEAD'),
       { kind: 'committed', revision, tree },
       [{ path: 'requested.txt', mode: '100644', blob: hash(requested, 'requested.txt') }],
     );
   });
 
-  test('preserves a leading UTF-8 BOM as part of an exact Git path', () => {
+  test('preserves a leading UTF-8 BOM as part of an exact Git path', async () => {
     const repository = createRepository();
     write(repository, 'name', 'plain\n');
     write(repository, '\uFEFFname', 'bom\n');
@@ -158,7 +159,7 @@ describe('read-candidate production CLI', () => {
     const tree = runGit(repository, ['rev-parse', `${revision}^{tree}`]);
 
     expectCandidate(
-      runCandidateCli(repository, 'committed', revision),
+      await runCandidateCli(repository, 'committed', revision),
       { kind: 'committed', revision, tree },
       [
         { path: 'name', mode: '100644', blob: hash(repository, 'name') },
@@ -167,7 +168,7 @@ describe('read-candidate production CLI', () => {
     );
   });
 
-  test('reads the immutable staged index tree with additions, deletion, both rename sides, modes and symlink blobs', () => {
+  test('reads the immutable staged index tree with additions, deletion, both rename sides, modes and symlink blobs', async () => {
     const repository = createRepository();
     write(repository, 'deleted.txt', 'delete me\n');
     write(repository, 'renamed-from.txt', 'rename me\n');
@@ -196,13 +197,13 @@ describe('read-candidate production CLI', () => {
     write(repository, 'untracked.txt', 'reported only by working mode\n');
 
     expectCandidate(
-      runCandidateCli(repository, 'staged', base),
+      await runCandidateCli(repository, 'staged', base),
       { kind: 'staged', base, indexTree },
       expectedEntries,
     );
   });
 
-  test('freezes tracked working bytes and reports new untracked paths separately', () => {
+  test('freezes tracked working bytes and reports new untracked paths separately', async () => {
     const repository = createRepository();
     write(repository, 'tracked.txt', 'committed\n');
     write(repository, 'removed.txt', 'removed\n');
@@ -212,9 +213,9 @@ describe('read-candidate production CLI', () => {
     rmSync(join(repository, 'removed.txt'));
     write(repository, 'new/untracked.txt', 'untracked bytes\n');
 
-    const invocation = runCandidateCli(repository, 'working', base);
-    const stdout = readPipe(invocation.stdout, 'candidate stdout');
-    const output = `${stdout}${readPipe(invocation.stderr, 'candidate stderr')}`;
+    const invocation = await runCandidateCli(repository, 'working', base);
+    const stdout = invocation.stdout;
+    const output = `${stdout}${invocation.stderr}`;
     expect(invocation.exitCode, output).toBe(0);
     const candidate = JSON.parse(stdout) as unknown;
     expect(candidate).toMatchObject({
@@ -229,7 +230,7 @@ describe('read-candidate production CLI', () => {
     });
   });
 
-  test('normalizes an interior repository path before snapshotting the whole working tree', () => {
+  test('normalizes an interior repository path before snapshotting the whole working tree', async () => {
     const repository = createRepository();
     write(repository, 'root.txt', 'root committed\n');
     write(repository, 'nested/tracked.txt', 'nested committed\n');
@@ -239,9 +240,9 @@ describe('read-candidate production CLI', () => {
     write(repository, 'root-new.txt', 'root untracked\n');
     write(repository, 'nested/nested-new.txt', 'nested untracked\n');
 
-    const invocation = runCandidateCli(join(repository, 'nested'), 'working', base);
-    const stdout = readPipe(invocation.stdout, 'candidate stdout');
-    const output = `${stdout}${readPipe(invocation.stderr, 'candidate stderr')}`;
+    const invocation = await runCandidateCli(join(repository, 'nested'), 'working', base);
+    const stdout = invocation.stdout;
+    const output = `${stdout}${invocation.stderr}`;
     expect(invocation.exitCode, output).toBe(0);
     expect(JSON.parse(stdout) as unknown).toMatchObject({
       selection: { kind: 'working', base },
@@ -257,7 +258,7 @@ describe('read-candidate production CLI', () => {
     });
   });
 
-  test('refuses an index change while staged or working candidates are being read', () => {
+  test('refuses an index change while staged or working candidates are being read', async () => {
     for (const kind of ['staged', 'working'] as const) {
       const repository = createRepository();
       write(repository, 'tracked.txt', 'committed\n');
@@ -278,18 +279,18 @@ describe('read-candidate production CLI', () => {
         { mode: 0o755 },
       );
 
-      const invocation = runCandidateCli(repository, kind, base, {
+      const invocation = await runCandidateCli(repository, kind, base, {
         PATH: `${wrapperDirectory}${delimiter}${process.env['PATH'] ?? ''}`,
         WIKI_INDEX_RACE_MARKER: markerPath,
         WIKI_REAL_GIT: realGit,
       });
-      const output = `${readPipe(invocation.stdout, 'candidate stdout')}${readPipe(invocation.stderr, 'candidate stderr')}`;
+      const output = `${invocation.stdout}${invocation.stderr}`;
       expect(invocation.exitCode, output).toBe(1);
       expect(output).toContain(`Git index changed while selecting ${kind} candidate`);
     }
   });
 
-  test('refuses an index removed after capture instead of selecting Git empty tree', () => {
+  test('refuses an index removed after capture instead of selecting Git empty tree', async () => {
     const repository = createRepository();
     write(repository, 'tracked.txt', 'committed\n');
     const base = commitAll(repository, 'initial');
@@ -306,17 +307,17 @@ describe('read-candidate production CLI', () => {
       { mode: 0o755 },
     );
 
-    const invocation = runCandidateCli(repository, 'staged', base, {
+    const invocation = await runCandidateCli(repository, 'staged', base, {
       PATH: `${wrapperDirectory}${delimiter}${process.env['PATH'] ?? ''}`,
       WIKI_INDEX_REMOVAL_MARKER: markerPath,
       WIKI_REAL_GIT: realGit,
     });
-    const output = `${readPipe(invocation.stdout, 'candidate stdout')}${readPipe(invocation.stderr, 'candidate stderr')}`;
+    const output = `${invocation.stdout}${invocation.stderr}`;
     expect(invocation.exitCode, output).toBe(1);
     expect(output).toContain('absent required Git index during staged selection');
   });
 
-  test('refuses tracked working bytes that change across snapshot passes', () => {
+  test('refuses tracked working bytes that change across snapshot passes', async () => {
     const repository = createRepository();
     write(repository, 'tracked.txt', 'committed\n');
     const base = commitAll(repository, 'initial');
@@ -335,17 +336,17 @@ describe('read-candidate production CLI', () => {
       { mode: 0o755 },
     );
 
-    const invocation = runCandidateCli(repository, 'working', base, {
+    const invocation = await runCandidateCli(repository, 'working', base, {
       PATH: `${wrapperDirectory}${delimiter}${process.env['PATH'] ?? ''}`,
       WIKI_REAL_GIT: realGit,
       WIKI_WORKING_RACE_MARKER: markerPath,
     });
-    const output = `${readPipe(invocation.stdout, 'candidate stdout')}${readPipe(invocation.stderr, 'candidate stderr')}`;
+    const output = `${invocation.stdout}${invocation.stderr}`;
     expect(invocation.exitCode, output).toBe(1);
     expect(output).toContain('working tree changed while selecting diagnostic candidate');
   });
 
-  test('refuses untracked membership that changes across snapshot passes', () => {
+  test('refuses untracked membership that changes across snapshot passes', async () => {
     const repository = createRepository();
     write(repository, 'tracked.txt', 'committed\n');
     const base = commitAll(repository, 'initial');
@@ -364,17 +365,17 @@ describe('read-candidate production CLI', () => {
       { mode: 0o755 },
     );
 
-    const invocation = runCandidateCli(repository, 'working', base, {
+    const invocation = await runCandidateCli(repository, 'working', base, {
       PATH: `${wrapperDirectory}${delimiter}${process.env['PATH'] ?? ''}`,
       WIKI_REAL_GIT: realGit,
       WIKI_UNTRACKED_RACE_MARKER: markerPath,
     });
-    const output = `${readPipe(invocation.stdout, 'candidate stdout')}${readPipe(invocation.stderr, 'candidate stderr')}`;
+    const output = `${invocation.stdout}${invocation.stderr}`;
     expect(invocation.exitCode, output).toBe(1);
     expect(output).toContain('working tree changed while selecting diagnostic candidate');
   });
 
-  test('refuses an empty path record in malformed untracked output', () => {
+  test('refuses an empty path record in malformed untracked output', async () => {
     const repository = createRepository();
     write(repository, 'tracked.txt', 'committed\n');
     const base = commitAll(repository, 'initial');
@@ -390,16 +391,16 @@ describe('read-candidate production CLI', () => {
       { mode: 0o755 },
     );
 
-    const invocation = runCandidateCli(repository, 'working', base, {
+    const invocation = await runCandidateCli(repository, 'working', base, {
       PATH: `${wrapperDirectory}${delimiter}${process.env['PATH'] ?? ''}`,
       WIKI_REAL_GIT: realGit,
     });
-    const output = `${readPipe(invocation.stdout, 'candidate stdout')}${readPipe(invocation.stderr, 'candidate stderr')}`;
+    const output = `${invocation.stdout}${invocation.stderr}`;
     expect(invocation.exitCode, output).toBe(1);
     expect(output).toContain('malformed untracked path output: empty path record');
   });
 
-  test('distinguishes absent, unreadable and malformed required index state without returning an empty inventory', () => {
+  test('distinguishes absent, unreadable and malformed required index state without returning an empty inventory', async () => {
     const cases = ['absent', 'unreadable', 'malformed'] as const;
 
     for (const state of cases) {
@@ -413,8 +414,8 @@ describe('read-candidate production CLI', () => {
       if (state === 'unreadable') chmodSync(indexPath, 0o000);
       if (state === 'malformed') writeFileSync(indexPath, 'not a Git index', 'utf8');
 
-      const invocation = runCandidateCli(repository, 'staged', base);
-      const output = `${readPipe(invocation.stdout, 'candidate stdout')}${readPipe(invocation.stderr, 'candidate stderr')}`;
+      const invocation = await runCandidateCli(repository, 'staged', base);
+      const output = `${invocation.stdout}${invocation.stderr}`;
       expect(invocation.exitCode, output).toBe(1);
       expect(output).toContain(`${state} required Git index`);
 
@@ -423,25 +424,25 @@ describe('read-candidate production CLI', () => {
     }
   });
 
-  test('refuses an absent revision distinctly from a non-repository path', () => {
+  test('refuses an absent revision distinctly from a non-repository path', async () => {
     const repository = createRepository();
     write(repository, 'tracked.txt', 'committed\n');
     commitAll(repository, 'initial');
 
-    const absentRevision = runCandidateCli(repository, 'committed', '0'.repeat(40));
-    const absentOutput = `${readPipe(absentRevision.stdout, 'candidate stdout')}${readPipe(absentRevision.stderr, 'candidate stderr')}`;
+    const absentRevision = await runCandidateCli(repository, 'committed', '0'.repeat(40));
+    const absentOutput = `${absentRevision.stdout}${absentRevision.stderr}`;
     expect(absentRevision.exitCode, absentOutput).toBe(1);
     expect(absentOutput).toContain('absent committed revision');
 
     const directory = mkdtempSync(join(tmpdir(), 'tool-wiki-not-repository-'));
     repositories.push(directory);
-    const notRepository = runCandidateCli(directory, 'committed', 'HEAD');
-    const repositoryOutput = `${readPipe(notRepository.stdout, 'candidate stdout')}${readPipe(notRepository.stderr, 'candidate stderr')}`;
+    const notRepository = await runCandidateCli(directory, 'committed', 'HEAD');
+    const repositoryOutput = `${notRepository.stdout}${notRepository.stderr}`;
     expect(notRepository.exitCode, repositoryOutput).toBe(1);
     expect(repositoryOutput).toContain('not a readable Git repository');
   });
 
-  test('refuses malformed or failed ls-tree output instead of substituting zero entries', () => {
+  test('refuses malformed or failed ls-tree output instead of substituting zero entries', async () => {
     const repository = createRepository();
     write(repository, 'tracked.txt', 'committed\n');
     const revision = commitAll(repository, 'initial');
@@ -465,12 +466,12 @@ describe('read-candidate production CLI', () => {
       ['bad-kind', 'malformed git ls-tree object kind'],
     ] as const;
     for (const [fault, expected] of cases) {
-      const invocation = runCandidateCli(repository, 'committed', revision, {
+      const invocation = await runCandidateCli(repository, 'committed', revision, {
         PATH: `${wrapperDirectory}${delimiter}${process.env['PATH'] ?? ''}`,
         WIKI_REAL_GIT: realGit,
         WIKI_TREE_FAULT: fault,
       });
-      const output = `${readPipe(invocation.stdout, 'candidate stdout')}${readPipe(invocation.stderr, 'candidate stderr')}`;
+      const output = `${invocation.stdout}${invocation.stderr}`;
       expect(invocation.exitCode, output).toBe(1);
       expect(output).toContain(expected);
     }

@@ -33,6 +33,7 @@ import { testLoginThrottle } from './testing/login-throttle-fixture';
 import {
   legacyOrganizationAccess,
   refusingDomains,
+  refusingEnterpriseConnections,
   refusingMemberships,
 } from './testing/organization-access-fixture';
 import { testPriorityBandService } from './testing/priority-band-fixture';
@@ -49,6 +50,7 @@ function options(): AppOptions {
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
     domains: refusingDomains,
+    enterpriseConnections: refusingEnterpriseConnections,
     emailVerification: refusingEmailVerification,
     invitations: refusingInvitations,
     joinRequests: refusingJoinRequests,
@@ -152,6 +154,13 @@ const REQUEST_BODIES: Readonly<Record<string, unknown>> = {
   postApiOrganizationActive: { organizationId: ROUTE_ID },
   postApiOnboardingJoinRequests: { organizationId: ROUTE_ID },
   postApiOrganizationDomainsChallenges: { domain: 'example.org' },
+  'postApiOrganizationSso-connections': {
+    domainClaimId: ROUTE_ID,
+    auth0Connection: 'route-probe',
+    strategy: 'samlp',
+    loginSlug: 'route-probe',
+  },
+  'patchApiOrganizationSso-connectionsById': { loginSlug: 'route-probe' },
   postApiOnboardingEmailChallenges: { email: 'test@example.org' },
   postApiOnboardingEmailChallengesConfirm: { email: 'test@example.org', token: 'invalid' },
   postApiOrganizationInvitations: { email: 'test@example.org', role: 'viewer' },
@@ -195,6 +204,10 @@ const REQUEST_BODIES: Readonly<Record<string, unknown>> = {
   postApiSpacesByIdProjectsByProjectIdMove: {},
   postApiOrganizationProjectsByIdRank: {},
   patchApiOrganization: { sharedPeople: true },
+  'putApiOrganizationSession-policy': {
+    maxSessionSeconds: 28_800,
+    reauthenticateAfterSeconds: null,
+  },
   'patchApiSaved-plansById': { name: 'Renamed snapshot' },
   postInternalForward: { message: { kind: 'route-probe' }, trace_id: 'route-probe' },
   postInternalResume: { resume_points: { subscription: -1 }, trace_id: 'route-probe' },
@@ -244,6 +257,9 @@ const SIGNED_IN_OPERATIONS = [
   'getApiOrganizationMembers',
   'getApiOrganizationMemberships',
   'getApiOrganizationProject-rank',
+  'getApiOrganizationProvisioningTokens',
+  'getApiOrganizationSession-policy',
+  'getApiOrganizationSso-connections',
   'getApiPeople',
   'getApiPeopleByPersonIdLoad',
   'getApiPeopleLoad',
@@ -274,6 +290,8 @@ const WRITE_SCOPE_OPERATIONS = [
   'deleteApiOrganizationDomainsById',
   'deleteApiOrganizationInvitationsById',
   'deleteApiOrganizationMembersByUserId',
+  'deleteApiOrganizationProvisioningTokensById',
+  'deleteApiOrganizationSso-connectionsById',
   'deleteApiProjectsByIdCalendar-markersByMarkerId',
   'deleteApiProjectsByIdStepsByStepId',
   'deleteApiSaved-plansById',
@@ -281,6 +299,7 @@ const WRITE_SCOPE_OPERATIONS = [
   'deleteApiSpacesByIdProjectsByProjectId',
   'patchApiOrganization',
   'patchApiOrganizationMembersByUserId',
+  'patchApiOrganizationSso-connectionsById',
   'patchApiProjectsById',
   'patchApiProjectsByIdCalendar-markersByMarkerId',
   'patchApiProjectsByIdStepsByStepId',
@@ -299,6 +318,9 @@ const WRITE_SCOPE_OPERATIONS = [
   'postApiOrganizationJoinRequestsByIdApprove',
   'postApiOrganizationJoinRequestsByIdDeny',
   'postApiOrganizationProjectsByIdRank',
+  'postApiOrganizationProvisioningTokens',
+  'postApiOrganizationProvisioningTokensByIdRotate',
+  'postApiOrganizationSso-connections',
   'postApiProjects',
   'postApiProjectsByIdCalendar-markers',
   'postApiProjectsByIdCommands',
@@ -312,6 +334,7 @@ const WRITE_SCOPE_OPERATIONS = [
   'postApiSpaces',
   'postApiSpacesByIdProjects',
   'postApiSpacesByIdProjectsByProjectIdMove',
+  'putApiOrganizationSession-policy',
 ] as const;
 const INTERNAL_OPERATIONS = ['postInternalForward'] as const;
 const GATEWAY_OPERATIONS = ['postInternalGatewayProjectAccess'] as const;
@@ -336,6 +359,8 @@ const ALWAYS_ORIGIN_OPERATIONS = [
 const COOKIE_ORIGIN_OPERATIONS = [
   'deleteApiOrganizationDomainsById',
   'deleteApiOrganizationMembersByUserId',
+  'deleteApiOrganizationProvisioningTokensById',
+  'deleteApiOrganizationSso-connectionsById',
   'deleteApiProjectsByIdCalendar-markersByMarkerId',
   'deleteApiProjectsByIdStepsByStepId',
   'deleteApiSaved-plansById',
@@ -344,6 +369,7 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'getApiProjectsByIdHistory',
   'patchApiOrganization',
   'patchApiOrganizationMembersByUserId',
+  'patchApiOrganizationSso-connectionsById',
   'patchApiProjectsById',
   'patchApiProjectsByIdCalendar-markersByMarkerId',
   'patchApiProjectsByIdStepsByStepId',
@@ -358,6 +384,9 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'postApiOrganizationDomainsByIdVerify',
   'postApiOrganizationDomainsChallenges',
   'postApiOrganizationProjectsByIdRank',
+  'postApiOrganizationProvisioningTokens',
+  'postApiOrganizationProvisioningTokensByIdRotate',
+  'postApiOrganizationSso-connections',
   'postApiProjects',
   'postApiProjectsByIdCalendar-markers',
   'postApiProjectsByIdCommands',
@@ -372,6 +401,7 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'postApiSpaces',
   'postApiSpacesByIdProjects',
   'postApiSpacesByIdProjectsByProjectIdMove',
+  'putApiOrganizationSession-policy',
 ] as const;
 const NO_ORIGIN_OPERATIONS = [
   'postInternalGatewayProjectBrowserAccess',
@@ -389,6 +419,8 @@ const NO_ORIGIN_OPERATIONS = [
   'getApiOrganizationJoinRequests',
   'getApiOrganizationMembers',
   'getApiOrganizationProject-rank',
+  'getApiOrganizationProvisioningTokens',
+  'getApiOrganizationSession-policy',
   'getApiPeople',
   'getApiPeopleByPersonIdLoad',
   'getApiPeopleLoad',
@@ -418,6 +450,7 @@ const NO_ORIGIN_OPERATIONS = [
   'postInternalForward',
   'postInternalGatewayProjectAccess',
   'postInternalResume',
+  'getApiOrganizationSso-connections',
 ] as const;
 
 async function reachabilityOptions(

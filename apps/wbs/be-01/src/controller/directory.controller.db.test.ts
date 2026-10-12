@@ -47,6 +47,7 @@ import { refusingOnboarding } from '../testing/onboarding-fixture';
 import {
   legacyOrganizationAccess,
   refusingDomains,
+  refusingEnterpriseConnections,
   refusingMemberships,
 } from '../testing/organization-access-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
@@ -139,6 +140,7 @@ beforeEach(async () => {
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
     domains: refusingDomains,
+    enterpriseConnections: refusingEnterpriseConnections,
     emailVerification: refusingEmailVerification,
     invitations: refusingInvitations,
     joinRequests: refusingJoinRequests,

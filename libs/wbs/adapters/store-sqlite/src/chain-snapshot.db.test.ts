@@ -133,6 +133,7 @@ function snapshots(
         await afterAuthority();
         return 'org-a';
       },
+      now: Date.now,
       optimization: { contractVersion: '15+0.2.0', budgetMs: 1000, now: () => 100 },
       schedulerOf: (readCaptured) =>
         createScheduler(
@@ -411,6 +412,7 @@ describe('the chain snapshot', () => {
     const store = createChainSnapshotStore({
       dbPath: path,
       schedulerOf: () => fast,
+      now: Date.now,
       activeOrganizationOf: (db) => async () => {
         db.run(sql`UPDATE project SET name = 'unsafe' WHERE id = 'a4'`);
         return Promise.resolve('org-a');

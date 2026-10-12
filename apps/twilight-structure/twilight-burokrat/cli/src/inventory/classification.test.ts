@@ -13,8 +13,9 @@ import { dirname, join } from 'node:path';
 
 import { afterEach, describe, expect, test } from 'bun:test';
 
+import { type CliInvocation, invokeCli } from '../invoke-cli';
+
 const repositories: string[] = [];
-const cliPath = join(import.meta.dir, '..', 'cli.ts');
 const shippedPolicyPath = join(
   import.meta.dir,
   '..',
@@ -194,37 +195,20 @@ function writePolicy(repository: string, policyRecord: object): string {
   return path;
 }
 
-function classify(
+async function classify(
   repository: string,
   revision: string,
   policyPath: string,
-): ReturnType<typeof Bun.spawnSync> {
-  return Bun.spawnSync(
-    [
-      process.execPath,
-      'run',
-      cliPath,
-      'classify-candidate',
-      'committed',
-      repository,
-      revision,
-      policyPath,
-    ],
-    { cwd: import.meta.dir, stderr: 'pipe', stdout: 'pipe' },
-  );
+): Promise<CliInvocation> {
+  return await invokeCli(['classify-candidate', 'committed', repository, revision, policyPath]);
 }
 
-function output(invocation: ReturnType<typeof Bun.spawnSync>): string {
-  const stdout = invocation.stdout;
-  const stderr = invocation.stderr;
-  if (stdout === undefined || stderr === undefined) throw new Error('classification pipe missing');
-  return `${Buffer.from(stdout).toString('utf8')}${Buffer.from(stderr).toString('utf8')}`;
+function output(invocation: CliInvocation): string {
+  return `${invocation.stdout}${invocation.stderr}`;
 }
 
-function standardOutput(invocation: ReturnType<typeof Bun.spawnSync>): string {
-  const stdout = invocation.stdout;
-  if (stdout === undefined) throw new Error('classification stdout pipe missing');
-  return Buffer.from(stdout).toString('utf8');
+function standardOutput(invocation: CliInvocation): string {
+  return invocation.stdout;
 }
 
 afterEach(() => {
@@ -234,7 +218,7 @@ afterEach(() => {
 });
 
 describe('entry classification production CLI', () => {
-  test('partitions every exact candidate tuple into ordinary content or an allowlisted evidence schema', () => {
+  test('partitions every exact candidate tuple into ordinary content or an allowlisted evidence schema', async () => {
     const repository = createRepository();
     const external = createRepository();
     write(external, 'README.md', 'external boundary\n');
@@ -304,8 +288,8 @@ describe('entry classification production CLI', () => {
     const tree = runGit(repository, ['rev-parse', 'HEAD^{tree}']);
     const policyPath = writePolicy(repository, policy(gitlinkObject));
 
-    const invocation = classify(repository, revision, policyPath);
-    const stdout = invocation.stdout?.toString('utf8') ?? '';
+    const invocation = await classify(repository, revision, policyPath);
+    const stdout = invocation.stdout;
     expect(invocation.exitCode, output(invocation)).toBe(0);
     const expectedEntries = [
       ...ordinary.map(([path, , contentClass]) => ({
@@ -383,7 +367,7 @@ describe('entry classification production CLI', () => {
     });
   });
 
-  test('refuses disguised or malformed reserved evidence and undeclared Gitlinks', () => {
+  test('refuses disguised or malformed reserved evidence and undeclared Gitlinks', async () => {
     const cases: readonly (readonly [string, (repository: string) => string, string])[] = [
       [
         'hidden source',
@@ -473,7 +457,7 @@ describe('entry classification production CLI', () => {
         repository,
         policy(gitlinkObject, name !== 'undeclared Gitlink'),
       );
-      const invocation = classify(repository, revision, policyPath);
+      const invocation = await classify(repository, revision, policyPath);
       expect(invocation.exitCode, `${name}: ${output(invocation)}`).toBe(1);
       expect(output(invocation)).toContain(expected);
     }
@@ -481,7 +465,7 @@ describe('entry classification production CLI', () => {
     // Bun's 5-second default, after its child was still running (`Received: null`).
   }, 20_000);
 
-  test('refuses unknown selector versions, changed evidence roots and silently dropped classes', () => {
+  test('refuses unknown selector versions, changed evidence roots and silently dropped classes', async () => {
     const repository = createRepository();
     write(repository, 'README.md', '# Policy boundary\n');
     const revision = commitAll(repository);
@@ -489,7 +473,7 @@ describe('entry classification production CLI', () => {
       selectorVersion: number;
     };
     unknownVersion.selectorVersion = 99;
-    const versionInvocation = classify(
+    const versionInvocation = await classify(
       repository,
       revision,
       writePolicy(repository, unknownVersion),
@@ -503,7 +487,11 @@ describe('entry classification production CLI', () => {
     changedRoots.evidenceRoots = changedRoots.evidenceRoots.filter(
       (root) => root.path !== 'docs/review-evidence',
     );
-    const rootsInvocation = classify(repository, revision, writePolicy(repository, changedRoots));
+    const rootsInvocation = await classify(
+      repository,
+      revision,
+      writePolicy(repository, changedRoots),
+    );
     expect(rootsInvocation.exitCode, output(rootsInvocation)).toBe(1);
     expect(output(rootsInvocation)).toContain('the two reserved evidence roots');
 
@@ -517,19 +505,19 @@ describe('entry classification production CLI', () => {
     incomplete.contentRules = incomplete.contentRules.filter(
       (rule) => rule.contentClass !== 'source',
     );
-    const invocation = classify(repository, revision, writePolicy(repository, incomplete));
+    const invocation = await classify(repository, revision, writePolicy(repository, incomplete));
 
     expect(invocation.exitCode, output(invocation)).toBe(1);
     expect(output(invocation)).toContain('exactly one rule for every supported content class');
   });
 
-  test('routes a reserved-root symlink through evidence validation', () => {
+  test('routes a reserved-root symlink through evidence validation', async () => {
     const repository = createRepository();
     write(repository, 'README.md', '# Evidence symlink target\n');
     mkdirSync(join(repository, 'docs/review-evidence'), { recursive: true });
     symlinkSync('../../README.md', join(repository, 'docs/review-evidence/link.v1.json'));
     const revision = commitAll(repository);
-    const invocation = classify(
+    const invocation = await classify(
       repository,
       revision,
       writePolicy(repository, policy('1'.repeat(40))),
@@ -539,7 +527,7 @@ describe('entry classification production CLI', () => {
     expect(output(invocation)).toContain('reserved evidence must use mode 100644');
   });
 
-  test('routes a reserved-root Gitlink through evidence validation', () => {
+  test('routes a reserved-root Gitlink through evidence validation', async () => {
     const repository = createRepository();
     const external = createRepository();
     write(external, 'README.md', '# Evidence Gitlink target\n');
@@ -568,19 +556,19 @@ describe('entry classification production CLI', () => {
         repository: 'https://example.test/evidence.git',
       },
     ];
-    const invocation = classify(repository, revision, writePolicy(repository, policyRecord));
+    const invocation = await classify(repository, revision, writePolicy(repository, policyRecord));
 
     expect(invocation.exitCode, output(invocation)).toBe(1);
     expect(output(invocation)).toContain('reserved evidence must use mode 100644');
   });
 
-  test('preserves a leading BOM byte sequence in a symlink target', () => {
+  test('preserves a leading BOM byte sequence in a symlink target', async () => {
     const repository = createRepository();
     const target = '\uFEFFREADME.md';
     write(repository, target, '# BOM target\n');
     symlinkSync(target, join(repository, 'bom-link'));
     const revision = commitAll(repository);
-    const invocation = classify(
+    const invocation = await classify(
       repository,
       revision,
       writePolicy(repository, policy('1'.repeat(40))),
@@ -598,12 +586,12 @@ describe('entry classification production CLI', () => {
     });
   });
 
-  test('uses the shipped policy to classify a real TSX test suffix as test content', () => {
+  test('uses the shipped policy to classify a real TSX test suffix as test content', async () => {
     const repository = createRepository();
     const path = 'apps/fe-01/src/app.test.tsx';
     write(repository, path, 'export const tested = true;\n');
     const revision = commitAll(repository);
-    const invocation = classify(repository, revision, shippedPolicyPath);
+    const invocation = await classify(repository, revision, shippedPolicyPath);
 
     expect(invocation.exitCode, output(invocation)).toBe(0);
     const classified = JSON.parse(standardOutput(invocation)) as {
@@ -623,7 +611,7 @@ describe('entry classification production CLI', () => {
 
   test.each(['policy.json', 'bootstrap-policy.json'])(
     'classifies fleet Containerfiles and package NOTICE with docs/wiki-policy/%s',
-    (policyName) => {
+    async (policyName) => {
       const repository = createRepository();
       const containerfile = 'infra/controller/Containerfile';
       const notice = 'apps/twilight-structure/twilight-burokrat/cli/NOTICE';
@@ -636,7 +624,7 @@ describe('entry classification production CLI', () => {
           'utf8',
         ),
       ) as { classificationPolicy: object };
-      const invocation = classify(
+      const invocation = await classify(
         repository,
         revision,
         writePolicy(repository, trustedPolicy.classificationPolicy),
@@ -659,11 +647,11 @@ describe('entry classification production CLI', () => {
     },
   );
 
-  test('refuses an ordinary path that matches no selector', () => {
+  test('refuses an ordinary path that matches no selector', async () => {
     const repository = createRepository();
     write(repository, 'unknown.zzz', 'unknown\n');
     const revision = commitAll(repository);
-    const invocation = classify(
+    const invocation = await classify(
       repository,
       revision,
       writePolicy(repository, policy('1'.repeat(40))),
@@ -675,7 +663,7 @@ describe('entry classification production CLI', () => {
     );
   });
 
-  test('refuses an ordinary path that matches multiple selectors', () => {
+  test('refuses an ordinary path that matches multiple selectors', async () => {
     const repository = createRepository();
     const path = 'src/ambiguous.ts';
     write(repository, path, 'export const ambiguous = true;\n');
@@ -686,13 +674,13 @@ describe('entry classification production CLI', () => {
     const testRule = policyRecord.contentRules.find((rule) => rule.contentClass === 'test');
     if (testRule === undefined) throw new Error('test rule missing from fixture');
     testRule.include.push({ kind: 'suffix', value: '.ts' });
-    const invocation = classify(repository, revision, writePolicy(repository, policyRecord));
+    const invocation = await classify(repository, revision, writePolicy(repository, policyRecord));
 
     expect(invocation.exitCode, output(invocation)).toBe(1);
     expect(output(invocation)).toContain(`ordinary content ${path} matched 2 classification rules`);
   });
 
-  test('refuses a Gitlink whose object differs from its pinned boundary', () => {
+  test('refuses a Gitlink whose object differs from its pinned boundary', async () => {
     const repository = createRepository();
     const external = createRepository();
     write(external, 'README.md', '# External\n');
@@ -705,7 +693,7 @@ describe('entry classification production CLI', () => {
     ]);
     runGit(repository, ['commit', '--message', 'mismatched Gitlink']);
     const revision = runGit(repository, ['rev-parse', 'HEAD']);
-    const invocation = classify(
+    const invocation = await classify(
       repository,
       revision,
       writePolicy(repository, policy('1'.repeat(40))),
@@ -717,12 +705,12 @@ describe('entry classification production CLI', () => {
     );
   });
 
-  test('refuses a symlink target that escapes the repository', () => {
+  test('refuses a symlink target that escapes the repository', async () => {
     const repository = createRepository();
     mkdirSync(join(repository, 'links'), { recursive: true });
     symlinkSync('../../outside', join(repository, 'links/escape'));
     const revision = commitAll(repository);
-    const invocation = classify(
+    const invocation = await classify(
       repository,
       revision,
       writePolicy(repository, policy('1'.repeat(40))),
@@ -734,12 +722,12 @@ describe('entry classification production CLI', () => {
     );
   });
 
-  test('refuses an undeclared NUL-bearing binary at a source path', () => {
+  test('refuses an undeclared NUL-bearing binary at a source path', async () => {
     const repository = createRepository();
     const path = 'src/undeclared.ts';
     write(repository, path, wasmHeader);
     const revision = commitAll(repository);
-    const invocation = classify(
+    const invocation = await classify(
       repository,
       revision,
       writePolicy(repository, policy('1'.repeat(40))),
@@ -749,12 +737,12 @@ describe('entry classification production CLI', () => {
     expect(output(invocation)).toContain(`undeclared binary content at ${path}`);
   });
 
-  test('bounds the NUL sniff so a later literal NUL remains UTF-8 source', () => {
+  test('bounds the NUL sniff so a later literal NUL remains UTF-8 source', async () => {
     const repository = createRepository();
     const path = 'src/late-nul.test.ts';
     write(repository, path, `${'a'.repeat(8192)}\u0000`);
     const revision = commitAll(repository);
-    const invocation = classify(
+    const invocation = await classify(
       repository,
       revision,
       writePolicy(repository, policy('1'.repeat(40))),
@@ -770,7 +758,7 @@ describe('entry classification production CLI', () => {
     });
   });
 
-  test('refuses invalid UTF-8 beyond the bounded NUL sniff', () => {
+  test('refuses invalid UTF-8 beyond the bounded NUL sniff', async () => {
     const repository = createRepository();
     const path = 'src/invalid-utf8.ts';
     const bytes = new Uint8Array(8_002);
@@ -778,7 +766,7 @@ describe('entry classification production CLI', () => {
     bytes[8_001] = 0xff;
     write(repository, path, bytes);
     const revision = commitAll(repository);
-    const invocation = classify(
+    const invocation = await classify(
       repository,
       revision,
       writePolicy(repository, policy('1'.repeat(40))),

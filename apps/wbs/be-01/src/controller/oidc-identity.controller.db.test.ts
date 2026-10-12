@@ -43,6 +43,7 @@ import { refusingOnboarding } from '../testing/onboarding-fixture';
 import {
   legacyOrganizationAccess,
   refusingDomains,
+  refusingEnterpriseConnections,
   refusingMemberships,
 } from '../testing/organization-access-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
@@ -103,6 +104,8 @@ describe('the OIDC callback after activation', () => {
     | ((call: number) => Promise<{ accessToken: string; expiresIn: number; refreshToken: string }>)
     | null;
   let callbackAccessClaims: JwtClaims;
+  /** What the pre-saved login transaction asked the provider for, if anything. */
+  let savedReauthentication: { prompt: 'login'; maxAge: number | null } | undefined;
   let localTokens: InMemoryTokenStore;
   let nativeSessionKey: string;
 
@@ -129,6 +132,7 @@ describe('the OIDC callback after activation', () => {
     revokeCalls = 0;
     refreshResponse = null;
     callbackAccessClaims = { ...claims, exp: Math.floor((now + 900_000) / 1000) };
+    savedReauthentication = undefined;
   });
 
   afterEach(() => {
@@ -168,6 +172,7 @@ describe('the OIDC callback after activation', () => {
       nonce: 'nonce-1',
       state: 'state-1',
       verifier: 'verifier-1',
+      ...(savedReauthentication === undefined ? {} : { reauthentication: savedReauthentication }),
     });
     const oidc = {
       appOrigin: 'https://dev.wbs.test',
@@ -265,6 +270,7 @@ describe('the OIDC callback after activation', () => {
         organizations: legacyOrganizationAccess,
         memberships: refusingMemberships,
         domains: refusingDomains,
+        enterpriseConnections: refusingEnterpriseConnections,
         emailVerification: refusingEmailVerification,
         invitations: refusingInvitations,
         joinRequests: refusingJoinRequests,
@@ -1055,7 +1061,7 @@ describe('the OIDC callback after activation', () => {
       digest: createHash('sha256').update('access-1').digest('hex'),
       expiresAt: now + 900_000,
     };
-    await lifecycle.open('session-1', credential);
+    await lifecycle.open('session-1', credential, { openedAt: 1, reauthenticatedAt: null });
     refreshClaims = { ...claims, sub: 'subject-2', exp: Math.floor((now + 900_000) / 1000) };
     let replacements = 0;
     const observedLifecycle: BrowserAuthLifecycle = {
@@ -1115,7 +1121,7 @@ describe('the OIDC callback after activation', () => {
       digest: createHash('sha256').update('access-1').digest('hex'),
       expiresAt: now + 900_000,
     };
-    await lifecycle.open('session-1', credential);
+    await lifecycle.open('session-1', credential, { openedAt: 1, reauthenticatedAt: null });
     refreshClaims = { ...claims, sub: 'unknown-subject', exp: Math.floor((now + 900_000) / 1000) };
     const app = mounted(claims, lifecycle);
     localTokens.save({
@@ -1157,7 +1163,7 @@ describe('the OIDC callback after activation', () => {
       digest: createHash('sha256').update('access-1').digest('hex'),
       expiresAt: now + 900_000,
     };
-    await lifecycle.open('session-1', first);
+    await lifecycle.open('session-1', first, { openedAt: 1, reauthenticatedAt: null });
     const app = mounted(claims, lifecycle);
     localTokens.save({
       sessionCorrelation: 'session-1',
@@ -1206,7 +1212,7 @@ describe('the OIDC callback after activation', () => {
       digest: createHash('sha256').update('access-1').digest('hex'),
       expiresAt: now + 900_000,
     };
-    await lifecycle.open('session-1', first);
+    await lifecycle.open('session-1', first, { openedAt: 1, reauthenticatedAt: null });
     const app = mounted(claims, lifecycle);
     localTokens.save({
       sessionCorrelation: 'session-1',
@@ -1243,7 +1249,7 @@ describe('the OIDC callback after activation', () => {
       digest: createHash('sha256').update('access-1').digest('hex'),
       expiresAt: now + 900_000,
     };
-    await lifecycle.open('session-1', first);
+    await lifecycle.open('session-1', first, { openedAt: 1, reauthenticatedAt: null });
     const app = mounted(claims, lifecycle);
     localTokens.save({
       sessionCorrelation: 'session-1',
@@ -1277,7 +1283,7 @@ describe('the OIDC callback after activation', () => {
       expiresAt: now + 900_000,
     };
     const second = { ...first, digest: createHash('sha256').update('access-2').digest('hex') };
-    await lifecycle.open('session-1', first);
+    await lifecycle.open('session-1', first, { openedAt: 1, reauthenticatedAt: null });
     await lifecycle.replace('session-1', 1, first, second, now);
     const app = mounted(claims, lifecycle);
     localTokens.save({
@@ -1310,7 +1316,7 @@ describe('the OIDC callback after activation', () => {
       digest: createHash('sha256').update('access-1').digest('hex'),
       expiresAt: now + 900_000,
     };
-    await lifecycle.open('session-1', first);
+    await lifecycle.open('session-1', first, { openedAt: 1, reauthenticatedAt: null });
     const app = mounted(claims, lifecycle);
     localTokens.save({
       sessionCorrelation: 'session-1',
@@ -1346,7 +1352,7 @@ describe('the OIDC callback after activation', () => {
       digest: createHash('sha256').update('expired-access').digest('hex'),
       expiresAt: now - 1_000,
     };
-    await lifecycle.open('session-1', first);
+    await lifecycle.open('session-1', first, { openedAt: 1, reauthenticatedAt: null });
     const app = mounted(claims, lifecycle);
     localTokens.save({
       sessionCorrelation: 'session-1',
@@ -1384,8 +1390,8 @@ describe('the OIDC callback after activation', () => {
       ...first,
       digest: createHash('sha256').update('foreign-access').digest('hex'),
     };
-    await lifecycle.open('session-1', first);
-    await lifecycle.open('session-2', foreign);
+    await lifecycle.open('session-1', first, { openedAt: 1, reauthenticatedAt: null });
+    await lifecycle.open('session-2', foreign, { openedAt: 1, reauthenticatedAt: null });
     const app = mounted(claims, lifecycle);
     localTokens.save({
       sessionCorrelation: 'session-1',
@@ -1421,7 +1427,7 @@ describe('the OIDC callback after activation', () => {
       digest: createHash('sha256').update('access-1').digest('hex'),
       expiresAt: now + 900_000,
     };
-    await lifecycle.open('session-1', first);
+    await lifecycle.open('session-1', first, { openedAt: 1, reauthenticatedAt: null });
     const restarted = mounted(claims, lifecycle);
     const response = await restarted.handle(
       new Request('https://dev.wbs.test/api/auth/refresh', {
@@ -1448,7 +1454,7 @@ describe('the OIDC callback after activation', () => {
       digest: createHash('sha256').update('access-1').digest('hex'),
       expiresAt: now + 900_000,
     };
-    await lifecycle.open('session-1', first);
+    await lifecycle.open('session-1', first, { openedAt: 1, reauthenticatedAt: null });
     refreshClaims = claims;
     let replacements = 0;
     const observedLifecycle: BrowserAuthLifecycle = {
@@ -1497,7 +1503,7 @@ describe('the OIDC callback after activation', () => {
         digest: createHash('sha256').update('access-1').digest('hex'),
         expiresAt: now + 900_000,
       };
-      await lifecycle.open('session-1', first);
+      await lifecycle.open('session-1', first, { openedAt: 1, reauthenticatedAt: null });
       refreshSecret = providerSecret;
       const app = mounted(claims, lifecycle);
       localTokens.save({
@@ -1534,7 +1540,7 @@ describe('the OIDC callback after activation', () => {
       digest: createHash('sha256').update('access-1').digest('hex'),
       expiresAt: now + 900_000,
     };
-    await lifecycle.open('session-1', first);
+    await lifecycle.open('session-1', first, { openedAt: 1, reauthenticatedAt: null });
     const app = mounted(claims, lifecycle);
     localTokens.save({
       sessionCorrelation: 'session-1',
@@ -1571,7 +1577,7 @@ describe('the OIDC callback after activation', () => {
       digest: createHash('sha256').update('access-1').digest('hex'),
       expiresAt: now + 900_000,
     };
-    await lifecycle.open('session-1', first);
+    await lifecycle.open('session-1', first, { openedAt: 1, reauthenticatedAt: null });
     const app = mounted(claims, lifecycle);
     localTokens.save({
       sessionCorrelation: 'session-1',
@@ -1607,7 +1613,7 @@ describe('the OIDC callback after activation', () => {
       digest: createHash('sha256').update('access-1').digest('hex'),
       expiresAt: now + 900_000,
     };
-    await lifecycle.open('session-1', first);
+    await lifecycle.open('session-1', first, { openedAt: 1, reauthenticatedAt: null });
     const app = mounted(claims, lifecycle);
     localTokens.save({
       sessionCorrelation: 'session-1',
@@ -1641,7 +1647,7 @@ describe('the OIDC callback after activation', () => {
       digest: createHash('sha256').update('access-1').digest('hex'),
       expiresAt: now + 900_000,
     };
-    await lifecycle.open('session-1', first);
+    await lifecycle.open('session-1', first, { openedAt: 1, reauthenticatedAt: null });
     const logs: string[] = [];
     const app = mounted(claims, lifecycle, logs);
     localTokens.save({
@@ -1689,7 +1695,7 @@ describe('the OIDC callback after activation', () => {
       digest: createHash('sha256').update('access-1').digest('hex'),
       expiresAt: now + 900_000,
     };
-    await lifecycle.open('session-1', first);
+    await lifecycle.open('session-1', first, { openedAt: 1, reauthenticatedAt: null });
     let releaseInstall = (): void => {
       throw new Error('install hold missing');
     };
@@ -1762,8 +1768,8 @@ describe('the OIDC callback after activation', () => {
       expiresAt: now + 900_000,
     };
     const second = { ...first, digest: createHash('sha256').update('access-2').digest('hex') };
-    await lifecycle.open('session-1', first);
-    await lifecycle.open('session-2', second);
+    await lifecycle.open('session-1', first, { openedAt: 1, reauthenticatedAt: null });
+    await lifecycle.open('session-2', second, { openedAt: 1, reauthenticatedAt: null });
     const app = mounted(claims, lifecycle);
     localTokens.save({
       sessionCorrelation: 'session-1',
@@ -1840,7 +1846,7 @@ describe('the OIDC callback after activation', () => {
       digest: createHash('sha256').update('access-1').digest('hex'),
       expiresAt: now + 900_000,
     };
-    await lifecycle.open('session-1', first);
+    await lifecycle.open('session-1', first, { openedAt: 1, reauthenticatedAt: null });
     let releaseInstall = (): void => {
       throw new Error('install hold missing');
     };
@@ -1917,7 +1923,7 @@ describe('the OIDC callback after activation', () => {
       digest: createHash('sha256').update('access-1').digest('hex'),
       expiresAt: now + 900_000,
     };
-    await lifecycle.open('session-1', first);
+    await lifecycle.open('session-1', first, { openedAt: 1, reauthenticatedAt: null });
     const app = mounted(claims, lifecycle);
     localTokens.save({
       sessionCorrelation: 'session-1',
@@ -1975,7 +1981,7 @@ describe('the OIDC callback after activation', () => {
       digest: createHash('sha256').update('access-1').digest('hex'),
       expiresAt: now + 900_000,
     };
-    await lifecycle.open('session-1', first);
+    await lifecycle.open('session-1', first, { openedAt: 1, reauthenticatedAt: null });
     const app = mounted(claims, lifecycle);
     localTokens.save({
       sessionCorrelation: 'session-1',
@@ -2025,7 +2031,7 @@ describe('the OIDC callback after activation', () => {
         digest: createHash('sha256').update('access-1').digest('hex'),
         expiresAt: now + 900_000,
       };
-      await lifecycle.open('session-1', first);
+      await lifecycle.open('session-1', first, { openedAt: 1, reauthenticatedAt: null });
       const app = mounted(claims, lifecycle);
       localTokens.save({
         sessionCorrelation: 'session-1',
@@ -2101,7 +2107,7 @@ describe('the OIDC callback after activation', () => {
         digest: createHash('sha256').update('access-1').digest('hex'),
         expiresAt: now + 900_000,
       };
-      await lifecycle.open('session-1', first);
+      await lifecycle.open('session-1', first, { openedAt: 1, reauthenticatedAt: null });
       let releaseInstall = (): void => {
         throw new Error('install hold missing');
       };
@@ -2189,7 +2195,7 @@ describe('the OIDC callback after activation', () => {
       digest: createHash('sha256').update('access-1').digest('hex'),
       expiresAt: now + 900_000,
     };
-    await lifecycle.open('session-1', first);
+    await lifecycle.open('session-1', first, { openedAt: 1, reauthenticatedAt: null });
     const app = mounted(claims, lifecycle);
     localTokens.save({
       sessionCorrelation: 'session-1',
@@ -2229,7 +2235,7 @@ describe('the OIDC callback after activation', () => {
       digest: createHash('sha256').update('access-1').digest('hex'),
       expiresAt: now + 900_000,
     };
-    await lifecycle.open('session-1', first);
+    await lifecycle.open('session-1', first, { openedAt: 1, reauthenticatedAt: null });
     const app = mounted(claims, lifecycle);
     localTokens.save({
       sessionCorrelation: 'session-1',
@@ -2266,8 +2272,8 @@ describe('the OIDC callback after activation', () => {
       expiresAt: now + 900_000,
     };
     const second = { ...first, digest: createHash('sha256').update('access-2').digest('hex') };
-    await lifecycle.open('session-1', first);
-    await lifecycle.open('session-2', second);
+    await lifecycle.open('session-1', first, { openedAt: 1, reauthenticatedAt: null });
+    await lifecycle.open('session-2', second, { openedAt: 1, reauthenticatedAt: null });
     const app = mounted(claims, lifecycle);
     localTokens.save({
       sessionCorrelation: 'session-1',
@@ -2570,7 +2576,7 @@ describe('the OIDC callback after activation', () => {
       digest: createHash('sha256').update('access-1').digest('hex'),
       expiresAt: now + 900_000,
     };
-    await lifecycle.open('session-1', first);
+    await lifecycle.open('session-1', first, { openedAt: 1, reauthenticatedAt: null });
     const app = mounted(claims, lifecycle);
     localTokens.save({
       sessionCorrelation: 'session-1',
@@ -2678,5 +2684,42 @@ describe('the OIDC callback after activation', () => {
       credential: expected,
     });
     expect(response.headers.get('set-cookie')).toContain('__Host-wbs_access=access-1;');
+  });
+
+  describe('sign-in times (organization-session-policy)', () => {
+    const times = () =>
+      all('SELECT opened_at, reauthenticated_at FROM browser_auth_lifecycle') as {
+        opened_at: number | null;
+        reauthenticated_at: number | null;
+      }[];
+    const signIn = (providerClaims: Readonly<Record<string, unknown>> = claims) => {
+      const lifecycle = new SqliteBrowserAuthLifecycle(openDrizzle(path), OPEN);
+      const app = mounted(providerClaims, lifecycle);
+      return app.handle(
+        new Request('https://dev.wbs.test/api/auth/okta/callback?code=c&state=state-1', {
+          headers: { cookie: `${browserBindingCookieName('binding-1')}=binding-1` },
+        }),
+      );
+    };
+
+    it('opens a plain sign-in with no reauthentication proved', async () => {
+      expect((await signIn()).status).toBe(302);
+      expect(times()).toEqual([{ opened_at: now, reauthenticated_at: null }]);
+    });
+
+    // Proof: opening the lifecycle without the callback's reauthentication
+    // time made this store null; watched 2026-10-12.
+    it('records when a prompted sign-in reauthenticated', async () => {
+      savedReauthentication = { prompt: 'login', maxAge: null };
+      expect((await signIn()).status).toBe(302);
+      expect(times()).toEqual([{ opened_at: now, reauthenticated_at: now }]);
+    });
+
+    it('reads a verified auth_time under max_age', async () => {
+      savedReauthentication = { prompt: 'login', maxAge: 3_600 };
+      const authTime = Math.floor(now / 1000) - 100;
+      expect((await signIn({ ...claims, auth_time: authTime })).status).toBe(302);
+      expect(times()).toEqual([{ opened_at: now, reauthenticated_at: authTime * 1000 }]);
+    });
   });
 });

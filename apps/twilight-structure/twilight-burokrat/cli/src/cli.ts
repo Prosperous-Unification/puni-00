@@ -17,8 +17,12 @@ import {
   validateArtifacts,
 } from './evidence/content-manifest';
 import { checkIndexes, checkRootMigration } from './indexes';
-import { type ClassifiedCandidate, classifyEntries } from './inventory/classify-entries';
-import { readCandidateBlob } from './inventory/read-blob';
+import {
+  type ClassifiedCandidate,
+  classifyEntries,
+  type ReadBlob,
+} from './inventory/classify-entries';
+import { readSelectedBlob } from './inventory/read-blob';
 import { type CandidateRequest, readCandidate } from './inventory/read-candidate';
 import { extractRelationships } from './relationships';
 import {
@@ -103,7 +107,7 @@ function classifyCandidate(argv: string[]): void {
     `${JSON.stringify({
       selection: candidate.selection,
       entries: classifyEntries(candidate.entries, policy, (blob, path) =>
-        readCandidateBlob(repository, blob, path),
+        readSelectedBlob(repository, candidate.entries, blob, path),
       ),
       untracked: candidate.untracked,
       policyId: policy.policyId,
@@ -116,7 +120,7 @@ function classifySelectedCandidate(
   repository: string,
   revision: string,
   policyPath: string,
-): { candidate: ClassifiedCandidate; policyBlob: string } {
+): { candidate: ClassifiedCandidate; policyBlob: string; readBlob: ReadBlob } {
   if (kind !== 'committed' && kind !== 'staged' && kind !== 'working') {
     throw new Error('candidate kind must be committed, staged or working');
   }
@@ -125,16 +129,17 @@ function classifySelectedCandidate(
   const request: CandidateRequest =
     kind === 'committed' ? { kind, revision } : { kind, base: revision };
   const snapshot = readCandidate(repository, request);
+  const readBlob: ReadBlob = (blob, path) =>
+    readSelectedBlob(repository, snapshot.entries, blob, path);
   return {
     candidate: {
       selection: snapshot.selection,
-      entries: classifyEntries(snapshot.entries, policy, (blob, path) =>
-        readCandidateBlob(repository, blob, path),
-      ),
+      entries: classifyEntries(snapshot.entries, policy, readBlob),
       untracked: snapshot.untracked,
       policyId: policy.policyId,
     },
     policyBlob: hashBytes(policyDocument.bytes),
+    readBlob,
   };
 }
 
@@ -156,9 +161,7 @@ function writeArtifactValidation(argv: string[]): void {
   const [kind, repository, revision, policyPath, graphPath] = argv.slice(1);
   const graph = parseOrThrow(ArtifactGraph, readJson(graphPath));
   const classified = classifySelectedCandidate(kind, repository, revision, policyPath);
-  const report = validateArtifacts(classified.candidate, graph, (blob, path) =>
-    readCandidateBlob(repository, blob, path),
-  );
+  const report = validateArtifacts(classified.candidate, graph, classified.readBlob);
   process.stdout.write(`${JSON.stringify(report)}\n`);
 }
 
@@ -476,11 +479,19 @@ function fail(cause: unknown): void {
   process.exitCode = 1;
 }
 
-if (import.meta.main) {
+/**
+ * Runs one command as the process entry does: output goes to `process.stdout`, a refusal is
+ * written to `process.stderr` and sets `process.exitCode` to 1. Never rejects.
+ *
+ * Tests call this in-process instead of spawning `bun run cli.ts`, which cost a Bun start per
+ * case on the gate host; only cases about the process boundary itself still spawn.
+ */
+export async function executeCli(argv: readonly string[]): Promise<void> {
   try {
-    const pending = runCli(process.argv.slice(2));
-    if (pending !== undefined) void pending.catch(fail);
+    await runCli(argv);
   } catch (cause) {
     fail(cause);
   }
 }
+
+if (import.meta.main) void executeCli(process.argv.slice(2));

@@ -83,7 +83,8 @@ function protectedBytes(path: string, maxBytes: number): string {
       throw new Error('observation service protected ancestor malformed');
   }
   // Proof: nofollow removed O_NOFOLLOW; a symlinked explicit credential reached a GET.
-  // Proof: nonblock removed O_NONBLOCK; a credential FIFO held the child past 2 seconds.
+  // Proof: nonblock removed O_NONBLOCK; a credential FIFO held the child past 2 seconds, and on
+  // 2026-10-12 past the test's 20-second FIFO bound (`Received: "timeout"`).
   const descriptor = openSync(
     path,
     constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK | CloseOnExec,
@@ -172,7 +173,8 @@ export async function runObservationService(
     // service refusal to the later tick failure. No authority was admitted.
     // Pin the independently selected bootstrap before any GET or state mutation.
     // Proof: bootstrap_fifo removed the bounded protected open; a FIFO held
-    // the executable before its tick deadline and the child missed 2 seconds.
+    // the executable before its tick deadline and the child missed 2 seconds, and on 2026-10-12
+    // the test's 20-second FIFO bound (`Received: "timeout"`).
     const bootstrapBytes = protectedBytes(configuration.bootstrapPath, 16 * 1024);
     decodeBootstrapConfiguration(bootstrapBytes, configuration.pin);
     const token = credential(configuration.credentialPath);

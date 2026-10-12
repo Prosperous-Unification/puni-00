@@ -153,7 +153,7 @@ export function projectRoutes(
       createProject,
       async ({ body, principal }): Promise<HttpReply<typeof createProject>> => {
         const resolved = await organizations.resolve(principal);
-        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        if (!resolved.ok) return organizationRefusal(resolved);
         const outcome = await projects.createWithin(body.name, principal.id, resolved.access);
         return outcome.ok
           ? { ok: true, status: 200, body: outcome.value }
@@ -171,7 +171,7 @@ export function projectRoutes(
         if (paged === undefined)
           return { ok: false, status: 400, body: { error: 'invalid_query' } };
         const resolved = await organizations.resolve(principal);
-        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        if (!resolved.ok) return organizationRefusal(resolved);
         // Confined to the organization before anything is ordered, cut or
         // given a cursor: a page never counts a project the caller cannot read.
         // Proof, observed 2026-09-29: listing with legacy access instead made
@@ -193,7 +193,7 @@ export function projectRoutes(
       recordProjectOpen,
       async ({ params, principal }): Promise<HttpReply<typeof recordProjectOpen>> => {
         const resolved = await organizations.resolve(principal);
-        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        if (!resolved.ok) return organizationRefusal(resolved);
         return (await projects.openWithin(params.id, principal.id, resolved.access))
           ? { ok: true, status: 204, body: EMPTY }
           : { ok: false, status: 404, body: { error: 'not_found' } };
@@ -203,7 +203,7 @@ export function projectRoutes(
       exportProject,
       async ({ params, query, principal }): Promise<HttpReply<typeof exportProject>> => {
         const resolved = await organizations.resolve(principal);
-        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        if (!resolved.ok) return organizationRefusal(resolved);
         // Proof: reading through `projects.read` instead made `answers 404 alike
         // for a foreign and an absent project, and changes nothing` in
         // `project-organization.controller.db.test.ts` answer 200 with the
@@ -287,7 +287,7 @@ export function projectRoutes(
     ),
     bind(readProject, async ({ params, principal }): Promise<HttpReply<typeof readProject>> => {
       const resolved = await organizations.resolve(principal);
-      if (!resolved.ok) return organizationRefusal(resolved.refusal);
+      if (!resolved.ok) return organizationRefusal(resolved);
       const found = await projects.readWithin(params.id, resolved.access);
       return found === null
         ? { ok: false, status: 404, body: { error: 'not_found' } }
@@ -297,7 +297,7 @@ export function projectRoutes(
       patchProject,
       async ({ params, body, principal }): Promise<HttpReply<typeof patchProject>> => {
         const resolved = await organizations.resolve(principal);
-        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        if (!resolved.ok) return organizationRefusal(resolved);
         const outcome = await projects.updateWithin(params.id, principal.id, body, resolved.access);
         if (outcome.ok) return { ok: true, status: 200, body: { project: outcome.value } };
         switch (outcome.reason) {
@@ -323,7 +323,7 @@ export function projectRoutes(
       retryProjectOptimization,
       async ({ params, body, principal }): Promise<HttpReply<typeof retryProjectOptimization>> => {
         const resolved = await organizations.resolve(principal);
-        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        if (!resolved.ok) return organizationRefusal(resolved);
         const authorization = await projects.authorizeRetry(
           params.id,
           principal.id,

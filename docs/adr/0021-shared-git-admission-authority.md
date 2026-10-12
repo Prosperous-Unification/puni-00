@@ -26,3 +26,6 @@ every editing-time filesystem write. Protocol, state machine, failure tests and 
 sequence are in [the change](../../openspec/changes/agent-scalable-llm-wiki/design.md).
 Accepted under the user's 2026-09-08 authorization to resolve assumptions autonomously;
 no authority has been activated by writing this decision.
+
+Ownership moved to Twilight Dash with its on-disk identity kept and absence refused:
+[ADR 0050](0050-the-admission-authority-keeps-its-on-disk-identity-in-dash.md).

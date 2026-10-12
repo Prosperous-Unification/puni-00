@@ -6,6 +6,7 @@ import {
   InternalResumeResponse,
 } from '../internal';
 import { defineEndpointShape } from './endpoint-shape';
+import { organizationRefusal } from './organization-refusal';
 import { requestSchema, responseSchema } from './schema-shape';
 
 /**
@@ -111,12 +112,8 @@ export const gatewayProjectAccess = defineEndpointShape({
   refusals: [
     { status: 400, schema: responseSchema(type({ error: "'invalid_params' | 'invalid_body'" })) },
     { status: 401, schema: responseSchema(type({ error: "'unauthorized' | 'unauthenticated'" })) },
-    {
-      status: 403,
-      schema: responseSchema(
-        type({ error: "'insufficient_scope' | 'no_active_organization' | 'not_a_member'" }),
-      ),
-    },
+    { status: 403, schema: responseSchema(type({ error: "'insufficient_scope'" })) },
+    organizationRefusal,
     { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
   ],
   document: { summary: 'Check a gateway delegation against current project access.' },
@@ -137,12 +134,8 @@ export const gatewayBrowserProjectAccess = defineEndpointShape({
   refusals: [
     { status: 400, schema: responseSchema(type({ error: "'invalid_params' | 'invalid_body'" })) },
     { status: 401, schema: responseSchema(type({ error: "'unauthorized' | 'unauthenticated'" })) },
-    {
-      status: 403,
-      schema: responseSchema(
-        type({ error: "'insufficient_scope' | 'no_active_organization' | 'not_a_member'" }),
-      ),
-    },
+    { status: 403, schema: responseSchema(type({ error: "'insufficient_scope'" })) },
+    organizationRefusal,
     { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
   ],
   document: { summary: 'Check a gateway socket principal against current project access.' },

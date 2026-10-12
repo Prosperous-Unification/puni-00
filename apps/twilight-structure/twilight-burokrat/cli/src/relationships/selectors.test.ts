@@ -4,6 +4,8 @@ import { dirname, join } from 'node:path';
 
 import { afterEach, describe, expect, test } from 'bun:test';
 
+import { type CliInvocation, invokeCli } from '../invoke-cli';
+
 interface SelectorReport {
   declarations: {
     coverage: { declarationId: string; scope: string; families: string[] }[];
@@ -24,7 +26,6 @@ type Fact = Record<string, unknown>;
 type Edge = Record<string, unknown>;
 
 const pathsToRemove: string[] = [];
-const cliPath = join(import.meta.dir, '..', 'cli.ts');
 
 function write(repository: string, path: string, source: string): void {
   const absolutePath = join(repository, path);
@@ -306,33 +307,18 @@ function writeRequest(repository: string, declarationPaths: string[]): string {
   return requestPath;
 }
 
-function invoke(
-  repository: string,
-  revision: string,
-  requestPath: string,
-): ReturnType<typeof Bun.spawnSync> {
-  return Bun.spawnSync(
-    [
-      process.execPath,
-      'run',
-      cliPath,
-      'extract-relationships',
-      'committed',
-      repository,
-      revision,
-      requestPath,
-    ],
-    { cwd: repository, stderr: 'pipe', stdout: 'pipe' },
-  );
+/** Runs `extract-relationships` in this process through the CLI entry; see {@link invokeCli}. */
+function invoke(repository: string, revision: string, requestPath: string): Promise<CliInvocation> {
+  return invokeCli(['extract-relationships', 'committed', repository, revision, requestPath]);
 }
 
-function output(invocation: ReturnType<typeof Bun.spawnSync>): string {
-  return `${invocation.stdout?.toString('utf8') ?? ''}${invocation.stderr?.toString('utf8') ?? ''}`;
+function output(invocation: CliInvocation): string {
+  return `${invocation.stdout}${invocation.stderr}`;
 }
 
-function report(invocation: ReturnType<typeof Bun.spawnSync>): SelectorReport {
+function report(invocation: CliInvocation): SelectorReport {
   expect(invocation.exitCode, output(invocation)).toBe(0);
-  return JSON.parse(invocation.stdout?.toString('utf8') ?? '') as SelectorReport;
+  return JSON.parse(invocation.stdout) as SelectorReport;
 }
 
 afterEach(() => {
@@ -340,7 +326,7 @@ afterEach(() => {
 });
 
 describe('declared relationship selectors through the production CLI', () => {
-  test('extracts every supported fact family and keeps declared and unresolved provenance explicit', () => {
+  test('extracts every supported fact family and keeps declared and unresolved provenance explicit', async () => {
     const repository = createRepository();
     const facts = currentFacts(repository);
     const requestPath = writeInputs(
@@ -371,7 +357,7 @@ describe('declared relationship selectors through the production CLI', () => {
       ]),
     );
     const revision = commitAll(repository, 'all selector families');
-    const extracted = report(invoke(repository, revision, requestPath));
+    const extracted = report(await invoke(repository, revision, requestPath));
 
     expect(extracted.declarations.coverage).toEqual([
       {
@@ -443,7 +429,7 @@ describe('declared relationship selectors through the production CLI', () => {
     expect(relationshipInputs).toContain('declarations.unresolved');
   }, 20_000);
 
-  test('reports the named fact or edge mismatch when a selector or authority is forged', () => {
+  test('reports the named fact or edge mismatch when a selector or authority is forged', async () => {
     const mutations: {
       name: string;
       mutate(repository: string, facts: Fact[], edges: Edge[]): void;
@@ -540,13 +526,17 @@ describe('declared relationship selectors through the production CLI', () => {
       const edges: Edge[] = [];
       fault.mutate(repository, facts, edges);
       const requestPath = writeInputs(repository, declaration(facts, edges));
-      const failed = invoke(repository, commitAll(repository, `forged ${fault.name}`), requestPath);
+      const failed = await invoke(
+        repository,
+        commitAll(repository, `forged ${fault.name}`),
+        requestPath,
+      );
       expect(failed.exitCode).toBe(1);
       expect(output(failed)).toContain(fault.expected);
     }
   }, 60_000);
 
-  test('applies statically resolvable HTTP object overrides and refuses dynamic ones', () => {
+  test('applies statically resolvable HTTP object overrides and refuses dynamic ones', async () => {
     const cases = [
       {
         name: 'object spread',
@@ -577,13 +567,13 @@ describe('declared relationship selectors through the production CLI', () => {
       );
       if (fact === undefined) throw new Error('HTTP fixture absent');
       const requestPath = writeInputs(repository, declaration([fact], []));
-      const failed = invoke(repository, commitAll(repository, boundary.name), requestPath);
+      const failed = await invoke(repository, commitAll(repository, boundary.name), requestPath);
       expect(failed.exitCode).toBe(1);
       expect(output(failed)).toContain(boundary.expected);
     }
   }, 30_000);
 
-  test('refuses mutable or escaping HTTP object bindings while retaining static const spreads', () => {
+  test('refuses mutable or escaping HTTP object bindings while retaining static const spreads', async () => {
     const cases = [
       {
         name: 'static const object',
@@ -650,13 +640,13 @@ describe('declared relationship selectors through the production CLI', () => {
       );
       if (fact === undefined) throw new Error('HTTP fixture absent');
       const requestPath = writeInputs(repository, declaration([fact], []));
-      const failed = invoke(repository, commitAll(repository, boundary.name), requestPath);
+      const failed = await invoke(repository, commitAll(repository, boundary.name), requestPath);
       expect(failed.exitCode).toBe(1);
       expect(output(failed)).toContain(boundary.expected);
     }
   }, 60_000);
 
-  test('reads current authorities only through exact selected candidate entries', () => {
+  test('reads current authorities only through exact selected candidate entries', async () => {
     const repository = createRepository();
     const typescriptPackage = Bun.resolveSync('typescript/package.json', import.meta.dir);
     const hostFact = {
@@ -669,7 +659,7 @@ describe('declared relationship selectors through the production CLI', () => {
     };
     const hostRequest = writeInputs(repository, declaration([hostFact], []));
     const hostRevision = commitAll(repository, 'host authority escape');
-    const escaped = invoke(repository, hostRevision, hostRequest);
+    const escaped = await invoke(repository, hostRevision, hostRequest);
     expect(escaped.exitCode).toBe(1);
     expect(output(escaped)).toContain(
       'fact host.typescript-package authority outside selected candidate: node_modules/typescript/package.json',
@@ -692,7 +682,7 @@ describe('declared relationship selectors through the production CLI', () => {
       `160000,${gitlinkRevision},gitlink`,
     ]);
     runGit(linkedGitRepository, ['commit', '--message', 'selected symlink resolves to gitlink']);
-    const gitlink = invoke(
+    const gitlink = await invoke(
       linkedGitRepository,
       runGit(linkedGitRepository, ['rev-parse', 'HEAD']),
       gitlinkRequest,
@@ -711,7 +701,7 @@ describe('declared relationship selectors through the production CLI', () => {
     port['path'] = 'selected.env';
     const linkedRequest = writeInputs(linkedRepository, declaration([port], []));
     const linked = report(
-      invoke(
+      await invoke(
         linkedRepository,
         commitAll(linkedRepository, 'selected authority symlink'),
         linkedRequest,
@@ -757,7 +747,7 @@ describe('declared relationship selectors through the production CLI', () => {
     'extracts migration tables only from complete executable SQL statements: %s',
     // Proof: the former six-invocation aggregate timed out under one-core contention at
     // 15009.09ms; separated production CLI cases completed in 4190.79-4436.07ms.
-    (name, migration, expected) => {
+    async (name, migration, expected) => {
       const repository = createRepository();
       write(repository, 'migrations/001_create_work_item/migration.sql', migration);
       const fact = currentFacts(repository).find(
@@ -766,14 +756,14 @@ describe('declared relationship selectors through the production CLI', () => {
       if (fact === undefined) throw new Error('migration fixture absent');
       fact['expected'] = name === 'SQL string and comment' ? 'ghost' : 'real';
       const requestPath = writeInputs(repository, declaration([fact], []));
-      const failed = invoke(repository, commitAll(repository, name), requestPath);
+      const failed = await invoke(repository, commitAll(repository, name), requestPath);
       expect(failed.exitCode).toBe(1);
       expect(output(failed)).toContain(expected);
     },
     20_000,
   );
 
-  test('retains a syntactically valid modeled ALTER statement', () => {
+  test('retains a syntactically valid modeled ALTER statement', async () => {
     const cases = [
       {
         name: 'table created in authority',
@@ -797,13 +787,13 @@ describe('declared relationship selectors through the production CLI', () => {
       fact['expected'] = boundary.expected;
       const requestPath = writeInputs(repository, declaration([fact], []));
       const extracted = report(
-        invoke(repository, commitAll(repository, boundary.name), requestPath),
+        await invoke(repository, commitAll(repository, boundary.name), requestPath),
       );
       expect(extracted.declarations.facts.map(({ actual }) => actual)).toEqual([boundary.expected]);
     }
   }, 30_000);
 
-  test('selects the table component of supported schema-qualified migration names', () => {
+  test('selects the table component of supported schema-qualified migration names', async () => {
     const cases = [
       { name: 'unquoted schema', migration: 'CREATE TABLE main.real (`id` text);\n' },
       { name: 'quoted schema', migration: 'CREATE TABLE "main"."real" (`id` text);\n' },
@@ -818,7 +808,7 @@ describe('declared relationship selectors through the production CLI', () => {
       fact['expected'] = 'real';
       const requestPath = writeInputs(repository, declaration([fact], []));
       const extracted = report(
-        invoke(repository, commitAll(repository, boundary.name), requestPath),
+        await invoke(repository, commitAll(repository, boundary.name), requestPath),
       );
       expect(extracted.declarations.facts.map(({ actual }) => actual)).toEqual(['real']);
     }
@@ -838,7 +828,7 @@ describe('declared relationship selectors through the production CLI', () => {
       unsupportedRepository,
       declaration([unsupportedFact], []),
     );
-    const failed = invoke(
+    const failed = await invoke(
       unsupportedRepository,
       commitAll(unsupportedRepository, 'unsupported schema'),
       unsupportedRequest,
@@ -849,7 +839,7 @@ describe('declared relationship selectors through the production CLI', () => {
     );
   }, 30_000);
 
-  test('selects one exact occurrence from the real four-table migration', () => {
+  test('selects one exact occurrence from the real four-table migration', async () => {
     const repository = createRepository();
     const migrationPath = 'migrations/teams/migration.sql';
     const realMigration = join(
@@ -876,7 +866,7 @@ describe('declared relationship selectors through the production CLI', () => {
     }));
     const requestPath = writeInputs(repository, declaration(facts, []));
     const revision = commitAll(repository, 'real multi-table migration');
-    const extracted = report(invoke(repository, revision, requestPath));
+    const extracted = report(await invoke(repository, revision, requestPath));
     expect(
       Object.fromEntries(
         extracted.declarations.facts.map(({ factId, actual }) => [factId, actual]),
@@ -890,7 +880,7 @@ describe('declared relationship selectors through the production CLI', () => {
 
     facts[3].expected = 'service_team';
     const mismatchRequest = writeInputs(repository, declaration(facts, []));
-    const mismatch = invoke(
+    const mismatch = await invoke(
       repository,
       commitAll(repository, 'forged fourth table'),
       mismatchRequest,
@@ -901,7 +891,7 @@ describe('declared relationship selectors through the production CLI', () => {
     );
   }, 30_000);
 
-  test('resolves a historical selector at its explicit Git base while checking current facts at the candidate', () => {
+  test('resolves a historical selector at its explicit Git base while checking current facts at the candidate', async () => {
     const repository = createRepository();
     const historicalRevision = commitAll(repository, 'port 3100');
     write(repository, '.env.example', 'PORT=3200\nAUTH_MODE=local\n');
@@ -917,7 +907,7 @@ describe('declared relationship selectors through the production CLI', () => {
     });
     const requestPath = writeInputs(repository, declaration(facts, []));
     const revision = commitAll(repository, 'port 3200 with historical declaration');
-    const extracted = report(invoke(repository, revision, requestPath));
+    const extracted = report(await invoke(repository, revision, requestPath));
 
     expect(extracted.declarations.facts.map(({ factId, actual }) => ({ factId, actual }))).toEqual([
       { factId: 'port.backend', actual: 3200 },
@@ -925,7 +915,7 @@ describe('declared relationship selectors through the production CLI', () => {
     ]);
   }, 15_000);
 
-  test('fails closed for absent, unselected and malformed authorities and unavailable history', () => {
+  test('fails closed for absent, unselected and malformed authorities and unavailable history', async () => {
     const cases: {
       name: string;
       prepare(repository: string, fact: Fact): void;
@@ -968,7 +958,7 @@ describe('declared relationship selectors through the production CLI', () => {
       if (fact === undefined) throw new Error('port fixture absent');
       boundary.prepare(repository, fact);
       const requestPath = writeInputs(repository, declaration([fact], []));
-      const failed = invoke(
+      const failed = await invoke(
         repository,
         commitAll(repository, `${boundary.name} authority`),
         requestPath,
@@ -978,7 +968,7 @@ describe('declared relationship selectors through the production CLI', () => {
     }
   }, 45_000);
 
-  test('fails closed for absent, unreadable and malformed declaration documents', () => {
+  test('fails closed for absent, unreadable and malformed declaration documents', async () => {
     const cases: {
       name: string;
       declarationPath: string;
@@ -1008,7 +998,7 @@ describe('declared relationship selectors through the production CLI', () => {
       const repository = createRepository();
       boundary.prepare?.(repository);
       const requestPath = writeRequest(repository, [boundary.declarationPath]);
-      const failed = invoke(
+      const failed = await invoke(
         repository,
         commitAll(repository, `${boundary.name} declaration`),
         requestPath,
@@ -1018,7 +1008,7 @@ describe('declared relationship selectors through the production CLI', () => {
     }
   }, 30_000);
 
-  test('rejects unknown declaration versions and duplicate identities at the JSON boundary', () => {
+  test('rejects unknown declaration versions and duplicate identities at the JSON boundary', async () => {
     const repository = createRepository();
     const facts = currentFacts(repository).filter(({ factId }) => factId === 'port.backend');
     const boundaries = [
@@ -1054,7 +1044,7 @@ describe('declared relationship selectors through the production CLI', () => {
     ];
     for (const [index, boundary] of boundaries.entries()) {
       const requestPath = writeInputs(repository, boundary.input);
-      const failed = invoke(
+      const failed = await invoke(
         repository,
         commitAll(repository, `strict declaration ${String(index)}`),
         requestPath,
@@ -1071,18 +1061,18 @@ describe('declared relationship selectors through the production CLI', () => {
       ),
     );
     const requestRevision = commitAll(requestRepository, 'valid request paths');
-    const validRequest = report(invoke(requestRepository, requestRevision, validRequestPath));
+    const validRequest = report(await invoke(requestRepository, requestRevision, validRequestPath));
     expect(validRequest.declarations.facts).toHaveLength(1);
     const duplicateRequest = writeRequest(requestRepository, [
       'relationships.v1.json',
       'relationships.v1.json',
     ]);
-    const requestFailure = invoke(requestRepository, requestRevision, duplicateRequest);
+    const requestFailure = await invoke(requestRepository, requestRevision, duplicateRequest);
     expect(requestFailure.exitCode).toBe(1);
     expect(output(requestFailure)).toContain('unique relationship declaration paths');
   }, 45_000);
 
-  test('rejects declaration, fact and relationship identities repeated across documents', () => {
+  test('rejects declaration, fact and relationship identities repeated across documents', async () => {
     const cases = [
       {
         name: 'declaration',
@@ -1136,7 +1126,7 @@ describe('declared relationship selectors through the production CLI', () => {
         })}\n`,
       );
       const requestPath = writeRequest(repository, ['first.v1.json', 'second.v1.json']);
-      const failed = invoke(
+      const failed = await invoke(
         repository,
         commitAll(repository, `cross-document duplicate ${boundary.name}`),
         requestPath,

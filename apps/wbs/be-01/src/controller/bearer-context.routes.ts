@@ -1,4 +1,5 @@
 import { issueBearerContext } from '@wbs/contracts';
+import { organizationRefusal } from '@wbs/core/http/organization-refusal';
 
 import { bind } from '../http/endpoint';
 import { bearerContextCredential, type IssueBearerContext } from '../runtime/bearer-context';
@@ -28,6 +29,8 @@ export function bearerContextRoutes(issue: IssueBearerContext) {
           return { ok: false, status: 401, body: { error: 'invalid_binding' } } as const;
         case 'forbidden':
           return { ok: false, status: 403, body: { error: 'forbidden' } } as const;
+        case 'refused':
+          return organizationRefusal({ ok: false, ...outcome.refusal });
       }
     }),
   ] as const;

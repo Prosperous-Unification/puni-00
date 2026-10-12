@@ -6,6 +6,7 @@ import {
 } from '@wbs/contracts';
 import { useCallback, useEffect, useState } from 'react';
 
+import { Button } from '@/components/ui/button';
 import { browserClient, failureMessage, unreachable } from '@/lib/http';
 
 import {
@@ -16,6 +17,16 @@ import {
   RELOAD,
   said,
 } from './organization-access';
+import {
+  ALERT_CLASS,
+  CONTROL_HEIGHT,
+  LIST_CLASS,
+  OrganizationSection,
+  ROW_ACTIONS_CLASS,
+  ROW_CLASS,
+  ROW_SELECT_CLASS,
+  STATUS_CLASS,
+} from './organization-section';
 
 const joinRequests = browserClient([listJoinRequests, approveJoinRequest, denyJoinRequest]);
 
@@ -55,7 +66,7 @@ export function JoinRequestsPanel({
         setView({ kind: 'failure', message: failureMessage(reply.failure) });
         return;
       case 'refusal': {
-        const outcome = decisionRefusal(reply.body.error, 'view join requests');
+        const outcome = decisionRefusal(reply.body, 'view join requests');
         if (outcome.kind === 'lost') onAccessLost(outcome.loss);
         else setView({ kind: 'failure', message: outcome.text });
         return;
@@ -101,7 +112,7 @@ export function JoinRequestsPanel({
           setMessage(failureMessage(reply.failure));
           return;
         case 'refusal': {
-          const outcome = decisionRefusal(reply.body.error, 'decide join requests');
+          const outcome = decisionRefusal(reply.body, 'decide join requests');
           if (outcome.kind === 'lost') {
             onAccessLost(outcome.loss);
             return;
@@ -125,66 +136,87 @@ export function JoinRequestsPanel({
   const resolved =
     view.kind === 'ready' ? view.requests.filter((request) => request.status !== 'pending') : [];
   return (
-    <section aria-labelledby="join-requests-heading" className="mb-8">
-      <h2 id="join-requests-heading" className="mb-2 text-xl font-semibold">
-        Join requests
-      </h2>
-      {view.kind === 'loading' && <p>Loading join requests…</p>}
-      {view.kind === 'failure' && <p role="alert">{view.message}</p>}
-      {view.kind === 'ready' && pending.length === 0 && <p>No pending join requests.</p>}
+    <OrganizationSection id="join-requests-heading" title="Join requests">
+      {view.kind === 'loading' && <p className={STATUS_CLASS}>Loading join requests…</p>}
+      {view.kind === 'failure' && (
+        <p role="alert" className={ALERT_CLASS}>
+          {view.message}
+        </p>
+      )}
+      {view.kind === 'ready' && pending.length === 0 && (
+        <p className="text-muted-foreground text-sm">No pending join requests.</p>
+      )}
       {pending.length > 0 && (
-        <ul aria-label="Pending join requests">
+        <ul
+          aria-label="Pending join requests"
+          className={`${LIST_CLASS} divide-border -my-3 divide-y`}
+        >
           {pending.map((request) => (
-            <li key={request.id} className="flex flex-wrap items-center gap-2">
-              <span>{request.email}</span>
-              <label htmlFor={`join-role-${request.id}`}>Role for {request.email}</label>
-              <select
-                id={`join-role-${request.id}`}
-                className="border p-2"
-                value={roles[request.id] ?? 'member'}
-                onChange={(event) => {
-                  const role = approvalRoleOf(event.target.value);
-                  setRoles((current) => ({ ...current, [request.id]: role }));
-                }}
-              >
-                <option value="viewer">Viewer</option>
-                <option value="member">Member</option>
-              </select>
-              <button
-                type="button"
-                disabled={sending}
-                aria-label={`Approve ${request.email}`}
-                onClick={() => {
-                  void decide(request, 'approve');
-                }}
-              >
-                Approve
-              </button>
-              <button
-                type="button"
-                disabled={sending}
-                aria-label={`Deny ${request.email}`}
-                onClick={() => {
-                  void decide(request, 'deny');
-                }}
-              >
-                Deny
-              </button>
+            <li key={request.id} className={ROW_CLASS}>
+              <span className="min-w-0 font-medium [overflow-wrap:anywhere]">{request.email}</span>
+              <span className={ROW_ACTIONS_CLASS}>
+                <label htmlFor={`join-role-${request.id}`} className="sr-only">
+                  Role for {request.email}
+                </label>
+                <select
+                  id={`join-role-${request.id}`}
+                  className={ROW_SELECT_CLASS}
+                  value={roles[request.id] ?? 'member'}
+                  onChange={(event) => {
+                    const role = approvalRoleOf(event.target.value);
+                    setRoles((current) => ({ ...current, [request.id]: role }));
+                  }}
+                >
+                  <option value="viewer">Viewer</option>
+                  <option value="member">Member</option>
+                </select>
+                <Button
+                  type="button"
+                  className={CONTROL_HEIGHT}
+                  disabled={sending}
+                  aria-label={`Approve ${request.email}`}
+                  onClick={() => {
+                    void decide(request, 'approve');
+                  }}
+                >
+                  Approve
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={CONTROL_HEIGHT}
+                  disabled={sending}
+                  aria-label={`Deny ${request.email}`}
+                  onClick={() => {
+                    void decide(request, 'deny');
+                  }}
+                >
+                  Deny
+                </Button>
+              </span>
             </li>
           ))}
         </ul>
       )}
       {resolved.length > 0 && (
-        <ul aria-label="Resolved join requests">
+        <ul
+          aria-label="Resolved join requests"
+          className={`${LIST_CLASS} flex flex-col gap-1 text-sm`}
+        >
           {resolved.map((request) => (
-            <li key={request.id}>
-              <span>{request.email}</span> <span>{STATUS_NAMES[request.status]}</span>
+            <li key={request.id} className="flex flex-wrap gap-x-3">
+              <span className="min-w-0 [overflow-wrap:anywhere]">{request.email}</span>{' '}
+              <span className="text-muted-foreground">{STATUS_NAMES[request.status]}</span>
             </li>
           ))}
         </ul>
       )}
-      {message !== '' && <p role="status">{message}</p>}
-    </section>
+      {message !== '' && (
+        <p role="status" className={STATUS_CLASS}>
+          {message}
+        </p>
+      )}
+    </OrganizationSection>
   );
 }
 
@@ -207,17 +239,20 @@ function approvalRoleOf(value: string): ApprovalRole {
  * `renders the domain_changed approval refusal`.
  */
 function decisionRefusal(
-  error:
-    | Extract<ClientReply<typeof approveJoinRequest>, { kind: 'refusal' }>['body']['error']
-    | Extract<ClientReply<typeof listJoinRequests>, { kind: 'refusal' }>['body']['error'],
+  refusal:
+    | Extract<ClientReply<typeof approveJoinRequest>, { kind: 'refusal' }>['body']
+    | Extract<ClientReply<typeof listJoinRequests>, { kind: 'refusal' }>['body'],
   action: string,
 ): RefusalOutcome {
-  switch (error) {
+  switch (refusal.error) {
     case 'onboarding_inactive':
     case 'unauthenticated':
     case 'no_active_organization':
     case 'not_a_member':
-      return lostAccess(error);
+      return lostAccess(refusal.error);
+    case 'sso_required':
+    case 'reauthentication_required':
+      return lostAccess(refusal);
     case 'forbidden':
       return said(`Your role cannot ${action}.`);
     case 'request_resolved':
@@ -239,6 +274,6 @@ function decisionRefusal(
     case 'invalid_origin':
       return said(RELOAD);
     default:
-      return unreachable(error);
+      return unreachable(refusal);
   }
 }

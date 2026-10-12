@@ -103,4 +103,47 @@ describe('the spaces page', () => {
     expect((await screen.findByRole('alert')).textContent).toContain('Spaces need an organization');
     expect(screen.getByRole('link', { name: 'All projects' })).toBeDefined();
   });
+
+  it('gives the page up to the company sign-in when enforced SSO refuses it', async () => {
+    stubServer({
+      'GET /api/spaces': [
+        () =>
+          answer(403, {
+            error: 'sso_required',
+            organizationId: 'org_7f3a',
+            login: '/api/auth/login?organization=acme-eu-2',
+            link: true,
+          }),
+      ],
+    });
+    routed(<SpacesPage nav={null} account={null} />);
+    const action = await screen.findByRole('link', { name: 'Sign in with your company' });
+    expect(action.getAttribute('href')).toBe('/api/auth/login?organization=acme-eu-2');
+    expect(screen.queryByRole('link', { name: 'All projects' })).toBeNull();
+  });
+});
+
+describe('the spaces page, drawn', () => {
+  it("draws every control with the chrome's rounded box, inside a card", async () => {
+    stubServer({
+      'GET /api/spaces': [
+        () =>
+          answer(200, { spaces: [space('s1', 'Launch', 2), space('s2', 'Q3')], writable: true }),
+      ],
+    });
+    routed(<SpacesPage nav={null} account={null} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Rename Launch' }));
+    await screen.findByLabelText('New name for Launch');
+    const controls = [...document.querySelectorAll('main button, main input, main select')];
+    expect(controls.length).toBeGreaterThan(4);
+    const unstyled = controls
+      .filter((control) => !control.classList.contains('rounded-md'))
+      .map((control) => control.getAttribute('aria-label') ?? (control.id || control.textContent));
+    // Proof: 2026-10-12, restoring the bare Rename and Delete `<button>`s failed
+    // this listing `Rename Q3` and `Delete Q3`.
+    expect(unstyled).toEqual([]);
+    expect(
+      screen.getByRole('list', { name: 'Spaces' }).closest('.rounded-lg.border'),
+    ).not.toBeNull();
+  });
 });

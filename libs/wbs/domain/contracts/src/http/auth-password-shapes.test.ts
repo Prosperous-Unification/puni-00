@@ -82,5 +82,7 @@ test('context exchange fixes its audience and models credential and authority re
       })
     ).issues,
   ).toBeDefined();
-  expect(issueBearerContext.refusals.map(({ status }) => status)).toEqual([400, 401, 403, 403]);
+  expect(issueBearerContext.refusals.map(({ status }) => status)).toEqual([
+    400, 401, 403, 403, 403,
+  ]);
 });

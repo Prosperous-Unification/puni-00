@@ -1173,6 +1173,90 @@ function assertSubmittedGenerations(store: AuthorityStore, record: IntegrationQu
   });
 }
 
+/** The report for a durable `published` record, after re-proving its commit and marker in Git. */
+function reportPublishedRecord(
+  repository: string,
+  record: IntegrationQueueRecord,
+): IntegrationPublishedReport {
+  if (
+    record.attemptIdentity === undefined ||
+    record.candidateCommit === undefined ||
+    record.candidateTree === undefined ||
+    record.markerRef === undefined ||
+    record.baseCommit === undefined ||
+    record.compositionIdentity === undefined
+  ) {
+    throw new Error('published integration record is incomplete');
+  }
+  assertPublishedCommit(repository, {
+    attemptIdentity: record.attemptIdentity,
+    baseCommit: record.baseCommit,
+    candidateCommit: record.candidateCommit,
+    candidateTree: record.candidateTree,
+    compositionIdentity: record.compositionIdentity,
+    integrationId: record.integrationId,
+    markerRef: record.markerRef,
+    submissions: record.submissions,
+    targetRef: record.targetRef,
+  });
+  return {
+    attempts: record.attemptCount,
+    commit: record.candidateCommit,
+    integrationId: record.integrationId,
+    markerRef: record.markerRef,
+    queueTimeMs: record.statusAt - record.queuedAt,
+    reworkCount: Math.max(0, record.attemptCount - 1),
+    status: 'integrated',
+    tree: record.candidateTree,
+  };
+}
+
+/** The report for a durable `terminal` record. */
+function reportTerminalRecord(record: IntegrationQueueRecord): IntegrationTerminalReport {
+  const reason = record.terminalReason;
+  if (
+    reason !== 'starvation' &&
+    reason !== 'attempts-exhausted' &&
+    reason !== 'candidate-refused' &&
+    reason !== 'incompatible-submission'
+  ) {
+    throw new Error('terminal integration reason is invalid');
+  }
+  return {
+    attempts: record.attemptCount,
+    integrationId: record.integrationId,
+    queueTimeMs: record.statusAt - record.queuedAt,
+    reason,
+    reworkCount: Math.max(0, record.attemptCount - 1),
+    status: 'terminal',
+  };
+}
+
+/** The exact reservation a durable `publishing` record carries. */
+function reservationOf(record: IntegrationQueueRecord): ReservedIntegrationPublication {
+  if (
+    record.attemptIdentity === undefined ||
+    record.baseCommit === undefined ||
+    record.candidateCommit === undefined ||
+    record.candidateTree === undefined ||
+    record.compositionIdentity === undefined ||
+    record.markerRef === undefined
+  ) {
+    throw new Error('publishing integration record is incomplete');
+  }
+  return {
+    attemptIdentity: record.attemptIdentity,
+    baseCommit: record.baseCommit,
+    candidateCommit: record.candidateCommit,
+    candidateTree: record.candidateTree,
+    compositionIdentity: record.compositionIdentity,
+    integrationId: record.integrationId,
+    markerRef: record.markerRef,
+    submissions: record.submissions,
+    targetRef: record.targetRef,
+  };
+}
+
 /**
  * Integrates exact submitted bytes with a three-attempt recovery budget.
  *
@@ -1188,80 +1272,10 @@ export async function integrateWithRecovery(
   const repository = realpathSync(coordinatorRepository);
   requireTargetRef(repository, options.targetRef);
   let record = enqueueIntegration(store, request, options);
-  if (record.status === 'published') {
-    if (
-      record.attemptIdentity === undefined ||
-      record.candidateCommit === undefined ||
-      record.candidateTree === undefined ||
-      record.markerRef === undefined ||
-      record.baseCommit === undefined ||
-      record.compositionIdentity === undefined
-    ) {
-      throw new Error('published integration record is incomplete');
-    }
-    assertPublishedCommit(repository, {
-      attemptIdentity: record.attemptIdentity,
-      baseCommit: record.baseCommit,
-      candidateCommit: record.candidateCommit,
-      candidateTree: record.candidateTree,
-      compositionIdentity: record.compositionIdentity,
-      integrationId: record.integrationId,
-      markerRef: record.markerRef,
-      submissions: record.submissions,
-      targetRef: record.targetRef,
-    });
-    return {
-      attempts: record.attemptCount,
-      commit: record.candidateCommit,
-      integrationId: record.integrationId,
-      markerRef: record.markerRef,
-      queueTimeMs: record.statusAt - record.queuedAt,
-      reworkCount: Math.max(0, record.attemptCount - 1),
-      status: 'integrated',
-      tree: record.candidateTree,
-    };
-  }
-  if (record.status === 'terminal') {
-    const reason = record.terminalReason;
-    if (
-      reason !== 'starvation' &&
-      reason !== 'attempts-exhausted' &&
-      reason !== 'candidate-refused' &&
-      reason !== 'incompatible-submission'
-    ) {
-      throw new Error('terminal integration reason is invalid');
-    }
-    return {
-      attempts: record.attemptCount,
-      integrationId: record.integrationId,
-      queueTimeMs: record.statusAt - record.queuedAt,
-      reason,
-      reworkCount: Math.max(0, record.attemptCount - 1),
-      status: 'terminal',
-    };
-  }
+  if (record.status === 'published') return reportPublishedRecord(repository, record);
+  if (record.status === 'terminal') return reportTerminalRecord(record);
   if (record.status === 'publishing') {
-    if (
-      record.attemptIdentity === undefined ||
-      record.baseCommit === undefined ||
-      record.candidateCommit === undefined ||
-      record.candidateTree === undefined ||
-      record.compositionIdentity === undefined ||
-      record.markerRef === undefined
-    ) {
-      throw new Error('publishing integration record is incomplete');
-    }
-    const recovered = publishReservedIntegration(store, repository, {
-      attemptIdentity: record.attemptIdentity,
-      baseCommit: record.baseCommit,
-      candidateCommit: record.candidateCommit,
-      candidateTree: record.candidateTree,
-      compositionIdentity: record.compositionIdentity,
-      integrationId: record.integrationId,
-      markerRef: record.markerRef,
-      submissions: record.submissions,
-      targetRef: record.targetRef,
-    });
+    const recovered = publishReservedIntegration(store, repository, reservationOf(record));
     if (recovered !== undefined) return recovered;
     record = readIntegration(store, record.integrationId);
   } else if (record.status === 'checking') {
@@ -1422,4 +1436,43 @@ export async function integrateWithRecovery(
     }
   }
   return terminal(store, record, 'attempts-exhausted');
+}
+
+/** A durable integration that cannot be finished without a certifier. */
+export class PublicationNeedsCertifierError extends Error {
+  constructor(integrationId: string, status: string) {
+    super(`publication needs a certifier; not recoverable here: ${integrationId} is ${status}`);
+    this.name = 'PublicationNeedsCertifierError';
+  }
+}
+
+/**
+ * Finishes a publication from its durable record alone, for a coordinator that died after
+ * reserving it. `publishing` resumes through {@link publishReservedIntegration}: refs that never
+ * moved are published, and a marker that already proves the commit is finalized without a second
+ * ref transaction. If Git's ref lock is contended while the target is unchanged, the result is a
+ * `waiting` report with reason `publication-contended`: the command exits 0, the record stays
+ * `publishing`, and a later call retries. A record older than the queue deadline with no marker
+ * ends `terminal` (`starvation`). `published` and `terminal` are reported from the record and
+ * move no ref, so a repeated call after a lost response returns the same report. Every other
+ * status, and a
+ * reservation whose target moved before any marker existed, needs a certifier.
+ *
+ * @throws PublicationNeedsCertifierError for `queued`, `checking` and `rework` records.
+ */
+export function recoverPublication(
+  store: AuthorityStore,
+  coordinatorRepository: string,
+  integrationId: string,
+): IntegrationCoordinatorReport {
+  const repository = realpathSync(coordinatorRepository);
+  const record = readIntegration(store, integrationId);
+  if (record.status === 'published') return reportPublishedRecord(repository, record);
+  if (record.status === 'terminal') return reportTerminalRecord(record);
+  if (record.status === 'publishing') {
+    const recovered = publishReservedIntegration(store, repository, reservationOf(record));
+    if (recovered !== undefined) return recovered;
+    throw new PublicationNeedsCertifierError(integrationId, 'rework');
+  }
+  throw new PublicationNeedsCertifierError(integrationId, record.status);
 }

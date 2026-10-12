@@ -2073,3 +2073,322 @@ Faults injected by hand, each restored and rerun green:
 | `undefined` argument test off                                      | detector test lost `new Date(undefined)`                                                                    |
 | every `new Date(x)` treated as a read                              | detector flagged pure lines 2 and 3; scan flagged six pure uses                                             |
 | type-position skip off                                             | detector flagged `let typed: Date`; scan flagged four type uses                                             |
+
+## WBS 352d2d65 (batch 10, under 080) — Burokrat test suite cost — 2026-10-12
+
+`twilight-burokrat:test` took about 35 minutes on h2puni (load about 9) in the round-5/6 gates.
+Most of it was process starts: a case spawned `bun run cli.ts <command>`, which loads every CLI
+module, and Manual cases also built a fresh Git fixture each. A trivial `bun run cli.ts explain
+MOD-INDEX` took 2.9 to 3.8 s at load 12 on the workstation.
+
+What changed:
+
+- `executeCli` (`cli.ts`) is the function the process entry now calls; `invokeCli`
+  (`invoke-cli.ts`) runs it in-process and captures stdout, stderr and the exit code. Its JSDoc
+  says when a case must still spawn.
+- These suites call the CLI in-process: `manual`, `rules`, `specifications`, `relationships`,
+  `selectors`, `trusted-policy`, `indexes`, `root-migration`, `templates`, `kind-inventory`,
+  `test-sources`, `performance`, `test-reports`, `browser`, `classification`, `scenarios` and
+  `read-candidate` in `cli.test.ts`. Cases kept as processes: missing `--now`, wrong arity, unknown
+  command, the verdict exit status (new case `inspect-manual ends its own process with the verdict
+exit status`), every fake `git` on `PATH` or other child environment, the candidate-script
+  sentinels, the README-cycle kill timeouts, the launcher and bundled-validator cases, and the
+  preload fault in `test-sources`.
+- Manual cases copy one prebuilt candidate repository per `baseLamp` variant instead of building
+  one each; commit IDs survive the copy.
+- The target still runs its files serially. Three Bun workers (`--parallel=3`) finished locally in
+  547 s, but on the CI runner, beside Nx's typecheck and build, 128 tests timed out (2215 pass,
+  128 fail, 2826 s) with Git children killed at their budgets, so the change was reverted
+  (`310d79fd6`). Workers need a measurement on the gate host first.
+- Child-start bounds that also measured a loaded Bun start were widened: the two FIFO service cases
+  (2 s to 20 s) and the three entered-marker waits in `observation-tick.db.test.ts` (2 s to 20 s).
+  The waits after the marker keep their 2-second bounds.
+
+Not converted: `pilot-policy.test.ts`. Its cost is the lint itself, not process starts: one
+`lint-local` over this repository started 16,936 `git cat-file blob` processes (strace), and
+routing its lints in-process left the file at 540 s, so that change was dropped. `relationships`
+spends about 5 s per extraction in-process on TypeScript program construction.
+`relocation-activation` drives `prepare-relocation-activation-cli.ts`, a different entry.
+
+### Timings
+
+Seconds per file, serial, `bun test --preload ../../../../tools/test/scratch/preload.ts
+--timeout=60000 <file>` from the project directory under `env -u CLAUDECODE -u
+CLAUDE_CODE_ENTRYPOINT`. Column 1 is the base `c8285f9a3` alone (load 9 to 20 from other
+sessions). Columns 2 and 3 ran at the same time, base and branch side by side, so they share their
+load. Rows are files at or above 5 s in either run.
+
+| File                                  | base alone | base, side by side | branch, side by side |
+| ------------------------------------- | ---------- | ------------------ | -------------------- |
+| `policy/pilot-policy.test.ts`         | 504        | 784                | 516                  |
+| `relationships/relationships.test.ts` | 236        | 222                | 135                  |
+| `evidence/manual.test.ts`             | 190        | 216                | 19                   |
+| `rules/rules.test.ts`                 | 158        | 214                | 31                   |
+| `policy/trusted-policy.test.ts`       | 108        | 191                | 64                   |
+| `rules/specifications.test.ts`        | 144        | 116                | 9                    |
+| `relationships/selectors.test.ts`     | 95         | 112                | 45                   |
+| `rules/kind-inventory.test.ts`        | 57         | 89                 | 12                   |
+| `indexes/root-migration.test.ts`      | 69         | 60                 | 31                   |
+| `indexes/indexes.test.ts`             | 57         | 52                 | 5                    |
+| `evidence/performance.test.ts`        | 40         | 49                 | 2                    |
+| `evidence/test-sources.test.ts`       | 42         | 48                 | 18                   |
+| `rules/scenarios.test.ts`             | 55         | 41                 | 2                    |
+| `templates/templates.test.ts`         | 35         | 35                 | 4                    |
+| `evidence/test-reports.test.ts`       | 28         | 31                 | 4                    |
+| `evidence/browser.test.ts`            | 22         | 24                 | 2                    |
+| `cli.test.ts`                         | 19         | 21                 | 12                   |
+| `inventory/classification.test.ts`    | 18         | 18                 | 1                    |
+| the 62 other files                    | 545        | 735                | 449                  |
+| **total**                             | **2208**   | **2754**           | **1360**             |
+
+Both side-by-side runs failed `observation-tick.db.test.ts` on a 2-second child-start wait (base 2
+cases, branch 1); that is the bound widened above. The base-alone run passed every file.
+
+The whole target after the change, serial, `bun test` with the target's flags from the project
+directory: `Ran 2329 tests across 81 files. [976.45s]`, `2329 pass, 0 fail`, at load 2 to 4. An
+earlier serial run through Nx took 1184.50 s and failed one test, `selected check closes remaining
+owned descriptors after a leaf descriptor was closed` (`/proc/self/fd` count `Expected: 21,
+Received: 20`): that test counts process-wide descriptors, so a descriptor another file's async
+work closed mid-test fails it. It passed in the second run and in a subset run twice. On CI the
+tool-wiki gate's test target went from `Ran 2325 tests across 80 files. [2364.42s]` (integration-7
+run 38187173535) to `Ran 2329 tests across 81 files. [1159.81s]`, `2329 pass, 0 fail` (run
+38194371198). `pilot-policy.test.ts` (about 500 s) is now nearly half the target; see the
+decision in the lane record. The h2puni gate was not run by this lane.
+
+### Proofs re-run
+
+Every Proof comment in `evidence/manual.ts` and the `inspect-manual` Proofs in `cli.ts` and
+`policy/trust.ts` were re-injected one at a time against the refactored `manual.test.ts` (a
+script applied each fault to a separate worktree at `5c0b9fab5`, ran the whole file, recorded the
+failing tests and restored the file). All 111 faults failed the suite; none survived. Where a Proof
+names more than one branch, each branch was its own fault (`37a`/`37b`/`37c`, `67a` to `67c`,
+`70a`/`70b`, `71a` to `71c`). The guard faults wrap the condition in `false && (...)`. The
+column is the number of failing tests and the first one.
+
+Not re-run: `manual.ts` Proof 61 (`checkIndexes` on malformed intermediate metadata) names no
+fault; Proof 90 (bypassing B3) and Proof 95 (bypassing the committed-object read) have no
+one-line fault that leaves the rest of the function valid.
+
+| Fault                                 | Failing tests | First failing test                                                                              |
+| ------------------------------------- | ------------- | ----------------------------------------------------------------------------------------------- |
+| `c1-arity-refusal`                    | 1             | inspect-manual refuses unknown Manual policy fields and wrong command arity                     |
+| `c2-ambient-clock`                    | 3             | inspect-manual evaluated at the last instant of the deadline date (2026-10-09T23:59:59.999Z)    |
+| `c3-exit-mapping`                     | 29            | inspect-manual maps a stale passing report to a failing CLI verdict                             |
+| `c4-fail-exit`                        | 88            | inspect-manual refuses to run without an evaluation instant                                     |
+| `m01-version`                         | 2             | inspect-manual refuses unsupported version in an intervening procedure                          |
+| `m02a-scope-module-keys`              | 1             | inspect-manual refuses unknown fields in reviewed scope and report step records                 |
+| `m02b-scope-keys`                     | 1             | inspect-manual refuses unknown fields in reviewed scope and report step records                 |
+| `m03-disposition-keys`                | 1             | inspect-manual refuses unknown fields in committed disposition and procedure                    |
+| `m04-procedure-keys`                  | 1             | inspect-manual refuses unknown fields in committed disposition and procedure                    |
+| `m05-procedure-step-keys`             | 1             | inspect-manual refuses unknown fields on Manual pins and nested step records                    |
+| `m06-report-keys`                     | 1             | inspect-manual refuses unknown schema version and fields                                        |
+| `m07-report-step-keys`                | 1             | inspect-manual refuses unknown fields in reviewed scope and report step records                 |
+| `m08-environment-keys`                | 1             | inspect-manual refuses malformed and unknown fields in every external record                    |
+| `m09-review-keys`                     | 1             | inspect-manual refuses malformed and unknown fields in every external record                    |
+| `m10-acceptance-keys`                 | 1             | inspect-manual refuses malformed and unknown fields in every external record                    |
+| `m11-now-calendar`                    | 2             | inspect-manual refuses a malformed evaluation instant                                           |
+| `m12-utc-instant`                     | 4             | inspect-manual refuses malformed timestamp with approved bytes                                  |
+| `m13-utc-date`                        | 1             | inspect-manual refuses malformed deadline with approved bytes                                   |
+| `m14-report-identity`                 | 1             | inspect-manual refuses report scenario with approved bytes                                      |
+| `m15-run-id-blank`                    | 1             | inspect-manual refuses blank run ID with approved bytes                                         |
+| `m16-report-disposition-digest`       | 1             | inspect-manual refuses report disposition digest with approved bytes                            |
+| `m17-report-procedure-digest`         | 1             | inspect-manual refuses report procedure digest with approved bytes                              |
+| `m18-review-scenario`                 | 1             | inspect-manual refuses review scenario with approved bytes                                      |
+| `m19-review-disposition`              | 1             | inspect-manual refuses review disposition digest with approved bytes                            |
+| `m20-review-procedure`                | 1             | inspect-manual refuses review procedure digest with approved bytes                              |
+| `m21-review-scope`                    | 1             | inspect-manual refuses review scope with approved bytes                                         |
+| `m22-review-identity`                 | 1             | inspect-manual refuses review identity with approved bytes                                      |
+| `m23-operator-blank`                  | 1             | inspect-manual refuses blank operator with approved bytes                                       |
+| `m24-environment-digest`              | 1             | inspect-manual refuses environment digest with approved bytes                                   |
+| `m25-environment-attributes`          | 1             | inspect-manual refuses environment attributes with approved bytes                               |
+| `m26-acceptance-report`               | 1             | inspect-manual refuses acceptance report digest with approved bytes                             |
+| `m27-acceptance-environment`          | 1             | inspect-manual refuses acceptance environment digest with approved bytes                        |
+| `m28-acceptance-run`                  | 1             | inspect-manual refuses acceptance run with approved bytes                                       |
+| `m29-acceptance-operator`             | 1             | inspect-manual refuses acceptance operator with approved bytes                                  |
+| `m30-acceptance-times`                | 1             | inspect-manual refuses acceptance times with approved bytes                                     |
+| `m31-acceptance-identity`             | 1             | inspect-manual refuses acceptance identity with approved bytes                                  |
+| `m32-run-chronology`                  | 1             | inspect-manual refuses run order with approved bytes                                            |
+| `m33-acceptance-chronology`           | 1             | inspect-manual refuses acceptance order with approved bytes                                     |
+| `m34-deadline-before-review`          | 1             | inspect-manual refuses deadline before review with approved bytes                               |
+| `m35-step-comparison`                 | 3             | inspect-manual refuses missing step with approved bytes                                         |
+| `m36-blank-observation`               | 1             | inspect-manual refuses blank observation with approved bytes                                    |
+| `m37a-failed-precedence`              | 6             | inspect-manual maps an internally consistent failed run to failed verdict                       |
+| `m37b-skipped-precedence`             | 2             | inspect-manual maps an internally consistent skipped run to failed verdict                      |
+| `m37c-aggregate-join`                 | 4             | inspect-manual refuses inconsistent report outcome without a JSON verdict                       |
+| `m38a-overdue-comparison`             | 3             | inspect-manual maps an overdue approved report to a named refusal verdict                       |
+| `m38b-overdue-inclusive`              | 1             | inspect-manual evaluated at the last instant of the deadline date (2026-10-09T23:59:59.999Z)    |
+| `m39-canonical-path`                  | 2             | inspect-manual refuses aliases of one external report pin                                       |
+| `m40-suppress-lstat-error`            | 3             | inspect-manual refuses absent and unreadable external report separately                         |
+| `m41-symlink`                         | 1             | inspect-manual refuses external symlinks and candidate path escape                              |
+| `m42-nonfatal-utf8`                   | 2             | inspect-manual refuses malformed external UTF-8 and JSON                                        |
+| `m43-directory-report`                | 1             | inspect-manual refuses absent and unreadable external report separately                         |
+| `m44-open-wrapper`                    | 1             | inspect-manual refuses an unreadable regular report with EACCES                                 |
+| `m45-regular-blob`                    | 2             | inspect-manual refuses absent committed disposition and procedure blobs                         |
+| `m46-bom-stripping`                   | 1             | inspect-manual detects a pretested side edit under a BOM-prefixed module path                   |
+| `m47-path-terminator`                 | 1             | inspect-manual refuses truncated Git path output on a side branch                               |
+| `m48-shallow`                         | 1             | inspect-manual refuses incomplete shallow Git history                                           |
+| `m49-grafts`                          | 1             | inspect-manual refuses a grafted history                                                        |
+| `m50-nonancestor`                     | 1             | inspect-manual refuses a tested commit outside selected ancestry                                |
+| `m51-first-parent-history`            | 6             | inspect-manual handles a pretested side branch with touched module change then revert           |
+| `m52-object-preflight`                | 1             | inspect-manual refuses a missing blob from a reverted side branch                               |
+| `m53-endpoints-only`                  | 21            | inspect-manual detects a module change followed by a byte-for-byte revert                       |
+| `m54-parent-list`                     | 1             | inspect-manual refuses malformed Git parent output on a side branch                             |
+| `m55-first-parent-merge`              | 2             | inspect-manual sees a relevant second-parent edge of a pretested side merge                     |
+| `m56-parent-closure`                  | 1             | inspect-manual refuses a missing older blob on an excluded side-merge parent                    |
+| `m57-retired-scenario`                | 1             | inspect-manual refuses a retired scenario in an intervening journal                             |
+| `m58-historical-regular-spec`         | 1             | inspect-manual refuses a nonregular historical canonical spec                                   |
+| `m59-historical-ambiguous`            | 1             | inspect-manual refuses duplicate containing historical scenarios                                |
+| `m60-historical-title-join`           | 1             | inspect-manual refuses a historical journal title conflicting with its spec                     |
+| `m62-missing-index-branch`            | 1             | inspect-manual refuses a touched module ID absent from tested indexes                           |
+| `m63-index-own-tuple`                 | 86            | inspect-manual accepts an exact external approval chain as a noncertifying passing observation  |
+| `m64-forced-mode`                     | 1             | inspect-manual marks an executable-mode change to a module member stale                         |
+| `m65-module-set-equality`             | 3             | inspect-manual refuses omitted reviewed module scope                                            |
+| `m66-intermediate-parse`              | 1             | inspect-manual refuses unsupported version in an intervening procedure                          |
+| `m67a-intermediate-nonempty`          | 1             | inspect-manual refuses empty steps in an intervening procedure                                  |
+| `m67b-intermediate-duplicate`         | 1             | inspect-manual refuses duplicate steps in an intervening procedure                              |
+| `m67c-intermediate-blank-instruction` | 1             | inspect-manual refuses blank instruction in an intervening procedure                            |
+| `m68-intermediate-title`              | 1             | inspect-manual refuses wrong title in an intervening procedure                                  |
+| `m69-historical-title`                | 1             | inspect-manual refuses a historical scenario title outside the reviewed report                  |
+| `m70a-tested-requirement-scope`       | 1             | inspect-manual refuses a reviewed requirement digest outside tested Git source                  |
+| `m70b-tested-module-scope`            | 2             | inspect-manual refuses a reviewed module digest outside tested Git source                       |
+| `m71a-descendant-requirement`         | 4             | inspect-manual marks changed requirement stale from the production command                      |
+| `m71b-descendant-procedure`           | 3             | inspect-manual marks changed procedure stale from the production command                        |
+| `m71c-descendant-modules`             | 13            | inspect-manual maps a stale passing report to a failing CLI verdict                             |
+| `m72-touched-directory`               | 2             | inspect-manual handles a pretested side branch with touched module change then revert           |
+| `m73-overdue-branch`                  | 3             | inspect-manual maps an overdue approved report to a named refusal verdict                       |
+| `m74-failed-branch`                   | 4             | inspect-manual maps an internally consistent failed run to failed verdict                       |
+| `m75-stale-branch`                    | 22            | inspect-manual maps a stale passing report to a failing CLI verdict                             |
+| `m76-current-state`                   | 9             | inspect-manual accepts an exact external approval chain as a noncertifying passing observation  |
+| `m77-policy-manual`                   | 1             | inspect-manual requires policy authority and exact report and disposition pins                  |
+| `m78-canonical-pins`                  | 1             | inspect-manual refuses aliases of one external report pin                                       |
+| `m79-duplicate-pin`                   | 1             | inspect-manual refuses duplicate policy pins and duplicate procedure steps                      |
+| `m80-report-pin`                      | 1             | inspect-manual requires policy authority and exact report and disposition pins                  |
+| `m81-disposition-reason-missing`      | 1             | inspect-manual names a missing or blank disposition reason                                      |
+| `m82-disposition-reason-blank`        | 1             | inspect-manual names a missing or blank disposition reason                                      |
+| `m83-disposition-pin`                 | 1             | inspect-manual requires policy authority and exact report and disposition pins                  |
+| `m84-touched-modules`                 | 1             | inspect-manual refuses an empty or repeated touched-module set                                  |
+| `m85-procedure-steps`                 | 1             | inspect-manual names a procedure with no ordered steps                                          |
+| `m86-procedure-scenario`              | 2             | inspect-manual names a mismatched procedure scenario                                            |
+| `m87-procedure-step-blank`            | 1             | inspect-manual refuses blank instructions and expected observations                             |
+| `m88-duplicate-step`                  | 1             | inspect-manual refuses duplicate policy pins and duplicate procedure steps                      |
+| `m89-policy-scenarios`                | 1             | inspect-manual requires external B3 scenarios authority                                         |
+| `m91-scenario-active`                 | 2             | inspect-manual refuses an unknown scenario ID                                                   |
+| `m92-scenario-title`                  | 1             | inspect-manual refuses a disposition title that differs from B3                                 |
+| `m93-external-pin`                    | 1             | inspect-manual requires exact environment and approval pins                                     |
+| `m94-environment-revision`            | 2             | inspect-manual refuses environment revision with approved bytes                                 |
+| `m96-exact-commit`                    | 1             | inspect-manual refuses an annotated tag object SHA as the tested revision                       |
+| `m97-tested-nonempty`                 | 1             | inspect-manual refuses an empty tested procedure even after the candidate repairs it            |
+| `m98-tested-procedure-title`          | 1             | inspect-manual refuses a tested procedure title repaired only in the candidate                  |
+| `m99-candidate-procedure`             | 1             | inspect-manual validates report steps against the tested procedure after candidate steps change |
+| `m100-certifies`                      | 8             | inspect-manual accepts an exact external approval chain as a noncertifying passing observation  |
+| `m101-tested-digest`                  | 1             | inspect-manual validates report steps against the tested procedure after candidate steps change |
+
+New and changed checks, each watched failing with the fault in place and restored:
+
+| Fault                                                                 | Observed                                                                                                                                                                                        |
+| --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `invokeCli` overlap guard removed                                     | `invokeCli refuses an overlapping call` failed: the promise resolved                                                                                                                            |
+| `invokeCli` restores `process.exitCode` to Bun's initial `undefined`  | `Expected: 0`, `Received: 1`; with that bug every in-process refusal left the whole `bun test` run at exit 1 though all tests passed (`specifications.test.ts` at `6d1e9e803`: 84 pass, exit 1) |
+| `invokeCli` restores a bound copy of `write`                          | identity assertion `Received: false`                                                                                                                                                            |
+| `O_NONBLOCK` removed from the service's protected open                | both FIFO cases `Received: "timeout"` at 20 s                                                                                                                                                   |
+| the bootstrap read through `readFileSync` instead of the bounded open | bootstrap FIFO case `Received: "timeout"` at 20 s                                                                                                                                               |
+| the CLI fixture held before `runObservationCli`                       | SIGINT case `tick test watchdog expired` at 20,063 ms                                                                                                                                           |
+
+Checks: `bunx nx run-many -t typecheck lint:fast -p twilight-burokrat --skip-nx-cache` passed;
+`bunx prettier --check` on every changed file passed; `tools/tool-devsync/src/workspace-targets.test.ts`
+passed 22/22. Not run: the `lint` target (whole-repository wiki lint) and the h2puni gate.
+
+### Follow-up: CI silent stop and peak memory — 2026-10-12
+
+CI run 38199478694 (`gate tool wiki`) stopped after `synchronous current work cannot commit after
+whole-tick deadline` with no Bun summary. The next case, `transaction crossing monotonic deadline
+rolls back every subject write`, holds a writer 600 ms past a 500 ms tick with a 200 ms cleanup
+budget; a stall over 100 ms after the hold reaches the tick's `process.exit(124)` inside the test
+runner. Raising the hold to 720 ms reproduced it locally: exit 124, output ending at the same line.
+The case now gives cleanup 5 s; the 720 ms hold passes and a 300 ms hold (inside the deadline)
+fails its rolled-back assertions.
+
+Peak RSS of the serial target (`/usr/bin/time -v`, maximum over the process tree):
+
+| Tree                                                                                                                                                                         | Peak RSS                                |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| base `c8285f9a3` (CLI spawned per case)                                                                                                                                      | 2,606,084 KB                            |
+| branch before the fix (in-process, lazy GC)                                                                                                                                  | 5,586,416 KB                            |
+| branch at `563835ec2`, the CI command `nx run-many -t test typecheck build -p twilight-burokrat --parallel=2` under `systemd-run --scope -p MemoryMax=6G -p MemorySwapMax=0` | 2,284,600 KB, exit 0, 2330 pass, 0 fail |
+
+The growth was lazy collection, not retention: `relationships.test.ts` alone peaked at 3,894,420
+KB and at 1,190,804 KB with a full collection after each command, in the same time. `invokeCli`
+now forces that collection; `trusted-policy` went from 1,835,400 to 982,648 KB and `rules` from
+1,733,880 to 1,003,940 KB.
+
+## WBS 7774401a (batch 10, under 080) — Burokrat reads selected blobs in one batch — 2026-10-12
+
+Decision A31: every Burokrat command read each selected blob with its own `git cat-file blob`
+process, about three times per path (classification, index reading, relationship extraction or a
+rule). `readSelectedBlob` (`inventory/read-blob.ts`) replaces that. The first read of a candidate's
+entry list starts one `git cat-file --batch` for all of its non-Gitlink blobs, and every later
+consumer of the same list shares that read. The JSDoc names the refusals.
+
+- Each answer is parsed by the documented `<sha> <type> <size>\n<bytes>\n` framing, and its bytes
+  are hashed as a Git blob and compared with the identity the selected tree or index named. The
+  old artifacts fault ("changed bytes on a second read") is now `refuses batch bytes whose digest
+differs from the selected index`, because there is no second read.
+- `<sha> missing` refuses only reads of that blob, so a rule that never reads it is unaffected.
+  Every other refusal applies to the whole selection: the reader failed, the output ended early,
+  the answer named another object or type, the digest differs, or there were trailing bytes. A
+  refused selection stays refused; the reader is not started again.
+- `GIT_NO_REPLACE_OBJECTS=1` now applies to every candidate read. Before, `policy/trust.ts` and
+  `relationships/index.ts` read without it.
+- Converted: `cli.ts`, `policy/trust.ts`, `indexes/read-indexes.ts`, `indexes/root-migration.ts`
+  (selected files), `relationships/index.ts`, `review/exhaustive-coverage.ts`, `rules/registry.ts`,
+  `rules/specifications.ts`, `rules/kind-inventory.ts`, `rules/size-ratchet.ts`,
+  `evidence/manual.ts`, `evidence/browser.ts`, `evidence/test-reports.ts` and `templates/verify.ts`.
+  The template judge batches only the subject's entries.
+- Single-object reads kept: the root migration's historical source blobs, which come from pinned
+  revisions outside the selection. The activation controller's review-selection readers have
+  their own object boundary and were not changed.
+
+### Measurements
+
+Workstation, 24 cores, `bun test --preload ../../../../tools/test/scratch/preload.ts` from the
+project directory under `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`, with
+`TOOL_WIKI_TRUSTED_NODE_MODULES` set as the target sets it. Base: `21a6bd537`.
+
+| Measure                                                                                   | Base                  | Branch                                     |
+| ----------------------------------------------------------------------------------------- | --------------------- | ------------------------------------------ |
+| `pilot-policy.test.ts`, whole file                                                        | 478.6 s (load 5)      | 159.6 s (load 13 to 33), 188.3 s (load 35) |
+| `pins exact pre-index tuples …` under `strace -f -e execve`: wall                         | 224.9 s               | 16.6 s                                     |
+| same: `git` executions                                                                    | 22,744                | 52                                         |
+| same: `git cat-file` executions (one `check-indexes` and one `lint-local` over this repo) | 22,694 (1 batch)      | 2 (both `--batch`)                         |
+| `nx run twilight-burokrat:test --skip-nx-cache`                                           | 976 s (lane 352d2d65) | 702.0 s; 928.7 s with `TMPDIR=/var/tmp`    |
+
+The earlier lane's strace counted 16,936 `cat-file blob` processes for the `lint-local` alone; the
+rest of the base count is `check-indexes`. The repository has 5,673 tracked files (72.6 MB), and
+one batch over all of them takes 0.33 s. The CI `gate tool wiki` step runs the same target through
+`nx run-many -t test typecheck build`; its time is in the PR's run.
+
+### Proofs
+
+Each fault was applied alone and restored. Reader faults ran against `read-blob.test.ts`.
+
+| Fault                                                               | Failing tests                                                                                                                                                                                                                |
+| ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| header newline check disabled                                       | `refuses a batch that ends inside a header or before the announced size`                                                                                                                                                     |
+| answered-identity check disabled                                    | `refuses a batch answer that names another object`                                                                                                                                                                           |
+| object-type check disabled                                          | `refuses a batch header that names another object type`                                                                                                                                                                      |
+| announced-size check disabled                                       | `refuses a batch that ends inside a header or before the announced size`                                                                                                                                                     |
+| digest binding disabled                                             | `refuses batch bytes whose digest differs from the selected object identity`; artifacts CLI `refuses batch bytes whose digest differs from the selected index` (received the allowlisted-schema refusal instead)             |
+| trailing-bytes check disabled                                       | `refuses output the batch did not ask for`                                                                                                                                                                                   |
+| exit-status check disabled                                          | `refuses a reader that exits early and does not start a second one`                                                                                                                                                          |
+| selection not memoized                                              | `reads every selected blob … in a single cat-file batch`; the early-exit case (two readers started)                                                                                                                          |
+| refused selection not rethrown                                      | six refusal cases in `read-blob.test.ts`                                                                                                                                                                                     |
+| not-in-selection check disabled                                     | `refuses a blob that is not part of the selected candidate`                                                                                                                                                                  |
+| missing-object check disabled                                       | `refuses a missing object for its own path and still serves the others`                                                                                                                                                      |
+| the shared view returned instead of a copy                          | `hands each caller its own copy of the selected bytes`                                                                                                                                                                       |
+| `GIT_NO_REPLACE_OBJECTS` removed                                    | `production check ignores local Git replacement objects for a selected journal blob`; `inspect-manual ignores Git replacement objects for module indexes` (`batch read digest differs from the index … at source/README.md`) |
+| `cannot read selected index` context removed from `read-indexes.ts` | `[TEST-AXES-051] … retain distinct refusals`; both reader-fault cases in `indexes.test.ts`                                                                                                                                   |
+
+Checks: `nx run twilight-burokrat:typecheck` and `lint:fast` (`--skip-nx-cache`) passed; the target
+passed `2341 pass, 0 fail` twice, once with `TMPDIR=/var/tmp`. Not run: the whole-repository
+`twilight-burokrat:lint` target (it needs an activation root and reports inactive without one)
+and the h2puni gate.

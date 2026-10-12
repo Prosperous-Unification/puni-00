@@ -33,7 +33,11 @@ import {
 import { DirectoryRepository } from './directory';
 import { DrizzleEventLogStore } from './event-log';
 import { OPEN } from './gate';
-import { type ActiveOrganizationOf, SqliteOrganizationAccess } from './organization-access';
+import {
+  type ActiveOrganizationOf,
+  currentMembershipAccess,
+  SqliteOrganizationAccess,
+} from './organization-access';
 import { readOrganizationActivation } from './organization-activation';
 import { ProjectRepository } from './project';
 import { ProjectRankRepository } from './project-rank';
@@ -54,6 +58,8 @@ export interface ChainSnapshotOptions {
     readCaptured: OptimizedScheduleAdapter['readCaptured'] | undefined,
   ) => Scheduler;
   readonly optimization?: CapturedOptimizationReaderOptions;
+  /** The reading service's injected clock, for the session policy at admission. */
+  readonly now: () => number;
 }
 
 /**
@@ -81,6 +87,7 @@ export class ChainSnapshotRepository implements ChainSnapshotStore {
         const resolved = await new SqliteOrganizationAccess(
           db,
           this.options.activeOrganizationOf(db),
+          this.options.now,
         ).resolve(principal);
         if (!resolved.ok) {
           transaction.commit();
@@ -355,9 +362,7 @@ async function readLiveAggregateIn(
   // marker reset returned 200 with dates instead of 403/no_active_organization.
   if (readOrganizationActivation(db) === 'pre_activation')
     return { kind: 'access_refused', refusal: 'no_active_organization' };
-  const resolved = await new SqliteOrganizationAccess(db, () =>
-    Promise.resolve(access.scope.organizationId),
-  ).resolve({ id: access.scope.userId });
+  const resolved = currentMembershipAccess(db, access.scope.organizationId, access.scope.userId);
   // Proof: bypassing this check made revocation between route admission and the
   // aggregate snapshot answer 200 with held dates instead of 403/not_a_member.
   if (!resolved.ok) return { kind: 'access_refused', refusal: resolved.refusal };
@@ -428,9 +433,11 @@ async function readLivePlanIn(
     if (readOrganizationActivation(db) === 'pre_activation')
       return { kind: 'access_refused', refusal: 'no_active_organization' };
     // Recheck the actual admitted human identity on this observation's connection.
-    const resolved = await new SqliteOrganizationAccess(db, () =>
-      Promise.resolve(admitted.scope.organizationId),
-    ).resolve({ id: admitted.scope.userId });
+    const resolved = currentMembershipAccess(
+      db,
+      admitted.scope.organizationId,
+      admitted.scope.userId,
+    );
     // Proof: ignoring this refusal failed mounted six-route revocation (403 became 200 with updated upstream rows).
     if (!resolved.ok) return { kind: 'access_refused', refusal: resolved.refusal };
   }

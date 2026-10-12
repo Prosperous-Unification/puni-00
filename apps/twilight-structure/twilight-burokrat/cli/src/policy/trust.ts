@@ -20,6 +20,7 @@ import { hashBytes, hashCanonical } from '../evidence/content-manifest';
 import { checkIndexes } from '../indexes/check-indexes';
 import { readIndexes } from '../indexes/read-indexes';
 import { classifyEntries } from '../inventory/classify-entries';
+import { readSelectedBlob } from '../inventory/read-blob';
 import {
   type CandidateEntry,
   type CandidateRequest,
@@ -1236,19 +1237,6 @@ export function validateCompatibleActivation(
   };
 }
 
-function readSelectedBlob(repository: string, blob: string, path: string): Uint8Array {
-  const invocation = Bun.spawnSync(['git', '-C', repository, 'cat-file', 'blob', blob], {
-    stderr: 'pipe',
-    stdout: 'pipe',
-  });
-  if (invocation.exitCode !== 0) {
-    throw new Error(
-      `cannot read selected blob ${blob} for ${path}: ${invocation.stderr.toString('utf8').trim()}`,
-    );
-  }
-  return invocation.stdout;
-}
-
 function sameTuple(left: CandidateEntry, right: typeof ExactTuple.infer): boolean {
   return left.path === right.path && left.mode === right.mode && left.blob === right.blob;
 }
@@ -1339,6 +1327,7 @@ function validatePilotModuleMapping(
   }
   const candidateMappingBytes = readSelectedBlob(
     repository,
+    candidate.entries,
     candidateEntry.blob,
     selected.candidatePath,
   );
@@ -1699,7 +1688,7 @@ export function lintTrustedCandidate(request: TrustedLintRequest): TrustedLintRe
   const classified = classifyEntries(
     candidate.entries,
     trust.policy.classificationPolicy,
-    (blob, path) => readSelectedBlob(repository, blob, path),
+    (blob, path) => readSelectedBlob(repository, candidate.entries, blob, path),
   );
   // Proof: replacing this production whole-tree index check with an empty report made an
   // unindexed src/unindexed.ts candidate exit 0 with accepted true.

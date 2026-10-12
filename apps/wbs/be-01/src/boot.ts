@@ -5,18 +5,23 @@ import type { Logger } from '@wbs/observability';
 import {
   DomainClaimRepository,
   EmailVerificationRepository,
+  EnterpriseConnectionRepository,
   InvitationRepository,
   JoinRequestRepository,
   NO_BOUND_ORGANIZATION,
   OnboardingRepository,
   openSqliteSource,
   OrganizationRepository,
+  ProvisioningTokenRepository,
+  ScimUserRepository,
+  SessionPolicyRepository,
   SpaceRepository,
   SqliteBrowserAuthLifecycle,
   SqliteBrowserCredentialRevocations,
   SqliteOrganizationAccess,
   SqliteOrganizationSelection,
 } from '@wbs/store-sqlite';
+import { canonicalOidcEmail } from '@wbs/store-sqlite/canonical-oidc-email';
 import { DrizzleEventLogStore } from '@wbs/store-sqlite/event-log';
 import { backfillStepCodes } from '@wbs/store-sqlite/step-code-backfill';
 import { DiBag } from 'di-bag';
@@ -118,7 +123,9 @@ function browserComposition(
       // project and directory lists after activation until a session
       // binds an organization` in `boot.db.test.ts` receive 200 instead
       // of 403; watched 2026-09-27.
-      organizations: new SqliteOrganizationAccess(db, NO_BOUND_ORGANIZATION),
+      organizations: new SqliteOrganizationAccess(db, NO_BOUND_ORGANIZATION, () =>
+        services.clock.now(),
+      ),
     };
   const revocations = new SqliteBrowserCredentialRevocations(db, services.gate);
   const lifecycle =
@@ -141,6 +148,13 @@ function browserComposition(
     // organization cookie pair list projects after its logout committed
     // (`refuses the whole old token…`, 4 pass, 1 fail, 2026-10-11).
     revocations,
+    // The same rule evaluation resolution applies, read with membership.
+    (principal, organizationId) => organizations.admitTo(principal, organizationId),
+  );
+  const organizations: SqliteOrganizationAccess = new SqliteOrganizationAccess(
+    db,
+    selection.activeOrganizationOf,
+    () => services.clock.now(),
   );
   return {
     oidc,
@@ -155,7 +169,7 @@ function browserComposition(
     // Proof: keeping NO_BOUND_ORGANIZATION here refused the freshly selected
     // pair with 403 before any logout (`refuses the whole old token…`, 4 pass,
     // 1 fail, 2026-10-11).
-    organizations: new SqliteOrganizationAccess(db, selection.activeOrganizationOf),
+    organizations,
   };
 }
 
@@ -304,6 +318,18 @@ export async function bootBe01(
               projects: services.projects,
               memberships: new OrganizationRepository(db, services.gate),
               domains: new DomainClaimRepository(db, services.gate),
+              sessionPolicies: new SessionPolicyRepository(db, services.gate),
+              pendingMemberships: new ScimUserRepository(db, services.gate),
+              enterpriseConnections: new EnterpriseConnectionRepository(db, services.gate),
+              // Proof: omitting this binding made `serves SCIM provisioning
+              // from the shared database once activated` (boot.db.test.ts)
+              // answer a stored token 401 instead of 200; watched 2026-10-12.
+              provisioning: {
+                tokens: new ProvisioningTokenRepository(db, services.gate),
+                users: new ScimUserRepository(db, services.gate),
+                clock: services.clock,
+                canonicalUserName: canonicalOidcEmail,
+              },
               onboarding: new OnboardingRepository(db, services.gate),
               emailVerification: new EmailVerificationRepository(db, services.gate),
               invitations: new InvitationRepository(db, services.gate),
