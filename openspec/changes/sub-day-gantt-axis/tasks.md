@@ -44,7 +44,7 @@
 
 ## 4. Measurement
 
-- [ ] 4.1 Rerun the 020.07 harness at the 15 min rung: 500×5 without attempts through the
+- [x] 4.1 Rerun the 020.07 harness at the 15 min rung: 500×5 without attempts through the
       production panel; 2000×5 through a dedicated benchmark entry into the shipped renderer,
       with the production refusal separately verified. Record the entry, fixtures and p95
       interaction/mount beside the experiment's figures in `verify.md`; label the oversized

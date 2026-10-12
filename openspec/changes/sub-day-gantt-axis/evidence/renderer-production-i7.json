@@ -1,0 +1,188 @@
+{
+  "date": "2026-10-12T21:31:12.950Z",
+  "sha": "61ac15544dadd0b3845b0c3bcba067ff618ec454",
+  "artifact": {
+    "sha": "61ac15544dadd0b3845b0c3bcba067ff618ec454",
+    "mode": "production",
+    "production": true
+  },
+  "hardware": {
+    "platform": "linux",
+    "arch": "x64",
+    "cpu": "12th Gen Intel(R) Core(TM) i7-12800HX",
+    "logicalCpus": 24,
+    "memoryBytes": 33227816960
+  },
+  "browser": "153.0.8010.12",
+  "mode": "Vite production benchmark artifact; one warmup then five fresh mounts per fixture/viewport; two animation frames after each operation; nearest-rank p95 (max of five)",
+  "entry": "vite.benchmark.config.ts → benchmarks/subday-axis.html → subday-axis-benchmark.tsx → GanttPanel/GanttRenderer",
+  "counts": "marks = DOM rectangles; visibleMarks = rectangles intersecting panel viewport after pan; paintedMarks = visible-style SVG rectangles with nonzero local geometry, including offscreen rectangles; no virtualization",
+  "measurements": [
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "leaves": 500,
+      "renderer": false,
+      "attempts": false,
+      "count": 2500,
+      "entry": "production panel",
+      "mountMs": [
+        218.10000000149012, 202.59999999962747, 175, 186.30000000074506, 174.69999999925494
+      ],
+      "rungMs": [
+        155.89999999850988, 128, 136.40000000037253, 117.79999999888241, 128.09999999962747
+      ],
+      "panMs": [54.80000000074506, 37.79999999888241, 31.90000000037253, 37.09999999962747, 30.5],
+      "mountP95": 218.10000000149012,
+      "rungP95": 155.89999999850988,
+      "panP95": 54.80000000074506,
+      "counts": {
+        "elements": 11628,
+        "marks": 2500,
+        "visibleMarks": 42,
+        "paintedMarks": 2500
+      }
+    },
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "leaves": 2000,
+      "renderer": true,
+      "attempts": false,
+      "count": 10000,
+      "entry": "renderer-only",
+      "mountMs": [
+        660.7000000011176, 674.4000000003725, 631.3000000007451, 643.2999999988824,
+        1022.5999999996275
+      ],
+      "rungMs": [477.8999999985099, 458, 451.30000000074506, 472.80000000074506, 840.1000000014901],
+      "panMs": [116.59999999962747, 116.10000000149012, 121, 132, 162.59999999962747],
+      "mountP95": 1022.5999999996275,
+      "rungP95": 840.1000000014901,
+      "panP95": 162.59999999962747,
+      "counts": {
+        "elements": 45378,
+        "marks": 10000,
+        "visibleMarks": 42,
+        "paintedMarks": 10000
+      }
+    },
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "leaves": 400,
+      "renderer": false,
+      "attempts": true,
+      "count": 2400,
+      "entry": "production panel with 400 attempts",
+      "mountMs": [
+        184.59999999962747, 153.2999999988824, 138.90000000037253, 144.40000000037253,
+        142.7999999988824
+      ],
+      "rungMs": [121.29999999888241, 101.90000000037253, 101.5, 104.19999999925494, 104],
+      "panMs": [
+        31.59999999962747, 27.199999999254942, 30.09999999962747, 30.199999999254942,
+        32.19999999925494
+      ],
+      "mountP95": 184.59999999962747,
+      "rungP95": 121.29999999888241,
+      "panP95": 32.19999999925494,
+      "counts": {
+        "elements": 10578,
+        "marks": 2400,
+        "visibleMarks": 42,
+        "paintedMarks": 2400
+      }
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "leaves": 500,
+      "renderer": false,
+      "attempts": false,
+      "count": 2500,
+      "entry": "production panel",
+      "mountMs": [
+        165.40000000037253, 167.80000000074506, 154.30000000074506, 156.40000000037253,
+        171.09999999962747
+      ],
+      "rungMs": [
+        116.09999999962747, 117.30000000074506, 155, 109.59999999962747, 121.09999999962747
+      ],
+      "panMs": [
+        34.40000000037253, 39.09999999962747, 37.30000000074506, 40.79999999888241,
+        34.100000001490116
+      ],
+      "mountP95": 171.09999999962747,
+      "rungP95": 155,
+      "panP95": 40.79999999888241,
+      "counts": {
+        "elements": 11628,
+        "marks": 2500,
+        "visibleMarks": 28,
+        "paintedMarks": 2500
+      }
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "leaves": 2000,
+      "renderer": true,
+      "attempts": false,
+      "count": 10000,
+      "entry": "renderer-only",
+      "mountMs": [
+        590.4000000003725, 647.2999999988824, 674.2999999988824, 619.9000000003725,
+        801.3000000007451
+      ],
+      "rungMs": [460.5, 542.3000000007451, 442.09999999962747, 455.69999999925494, 460.5],
+      "panMs": [112, 125.59999999962747, 132, 111.80000000074506, 114.70000000111759],
+      "mountP95": 801.3000000007451,
+      "rungP95": 542.3000000007451,
+      "panP95": 132,
+      "counts": {
+        "elements": 45378,
+        "marks": 10000,
+        "visibleMarks": 28,
+        "paintedMarks": 10000
+      }
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "leaves": 400,
+      "renderer": false,
+      "attempts": true,
+      "count": 2400,
+      "entry": "production panel with 400 attempts",
+      "mountMs": [139.2999999988824, 144, 144.2999999988824, 140.7000000011176, 139.40000000037253],
+      "rungMs": [
+        97.79999999888241, 101.20000000111759, 104.20000000111759, 98.90000000037253, 100.5
+      ],
+      "panMs": [26.90000000037253, 27, 27.5, 32.69999999925494, 30.800000000745058],
+      "mountP95": 144.2999999988824,
+      "rungP95": 104.20000000111759,
+      "panP95": 32.69999999925494,
+      "counts": {
+        "elements": 10578,
+        "marks": 2400,
+        "visibleMarks": 28,
+        "paintedMarks": 2400
+      }
+    }
+  ],
+  "oversizedProductionRefusal": "Verified separately on desktop and phone: Days, three disabled sub-day options, 10000-mark notice",
+  "browserErrors": []
+}

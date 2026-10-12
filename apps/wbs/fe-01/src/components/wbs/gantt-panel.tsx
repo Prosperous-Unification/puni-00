@@ -3298,36 +3298,8 @@ interface OpenSurface {
   anchor: AnchorRect;
 }
 
-/**
- * The chart itself — every hook this panel has, and the drawing.
- *
- * Separate from {@link GanttPanel} for the cycle answer's sake alone; see
- * there.
- */
-function GanttChart({
-  now,
-  plan,
-  depLights,
-  startDate,
-  generation,
-  heightPx,
-  roomPx,
-  rungNotice,
-  dayPx: pickedDayPx,
-  onPickDayPx,
-  labelsShown,
-  onPickLabelsShown,
-  onPickRow,
-  onPointRow,
-  pointed,
-  registerSvgDownload,
-  markers,
-  onRenameMarker,
-  onRecolorMarker,
-  onDeleteMarker,
-  onCreateMarker,
-  newMarkerId,
-}: Omit<
+/** Resolved panel inputs shared by the policy wrapper and drawing body. */
+type GanttChartProps = Omit<
   GanttProps,
   | 'scheduleError'
   | 'now'
@@ -3354,19 +3326,80 @@ function GanttChart({
   onDeleteMarker: (markerId: string) => void;
   onCreateMarker: (marker: NewCalendarMarkerView) => void;
   newMarkerId: () => string;
-}) {
-  const count = markCount(plan);
-  // Proof: removing the count comparisons failed both 2501/3000 refusal and restored/filter fallback cases; changing Days to 56px failed the filter case (2026-10-12).
+};
+
+/** Applies the production offer policy before entering the shared drawing body. */
+function GanttChart(props: GanttChartProps) {
+  const { onPickDayPx } = props;
+  const count = markCount(props.plan);
+  // Proof: removing the count comparisons failed four 2501/3000 refusal and restored/filter fallback cases after renderer extraction (2026-10-13).
   const isSubDayUnavailable =
-    resolveAxisRung(pickedDayPx).cellsPerWorkday > 1 && count > SUB_DAY_MARK_LIMIT;
-  const dayPx = isSubDayUnavailable ? DAY_PX : pickedDayPx;
+    resolveAxisRung(props.dayPx).cellsPerWorkday > 1 && count > SUB_DAY_MARK_LIMIT;
+  const dayPx = isSubDayUnavailable ? DAY_PX : props.dayPx;
   const offerExplanation = `${String(count)} marks; moved to Days`;
   useEffect(() => {
-    if (isSubDayUnavailable) {
-      // Proof: dropping the reason argument failed the filter case when the caller adopted Days (2026-10-12).
-      onPickDayPx(DAY_PX, offerExplanation);
-    }
+    if (isSubDayUnavailable) onPickDayPx(DAY_PX, offerExplanation);
   }, [isSubDayUnavailable, offerExplanation, onPickDayPx]);
+  return (
+    <GanttRenderer
+      {...props}
+      dayPx={dayPx}
+      scaleTitle={
+        isSubDayUnavailable
+          ? offerExplanation
+          : (props.rungNotice ?? `One day is ${String(dayPx)}px wide`)
+      }
+      scaleOptions={AXIS_RUNGS.map((rung) => ({
+        ...rung,
+        // Proof: removing the count comparison enabled the 2501/3000 refusal cases after extraction (2026-10-13).
+        unavailable: rung.cellsPerWorkday > 1 && count > SUB_DAY_MARK_LIMIT,
+        refusal: `not offered at ${String(count)} marks`,
+      }))}
+      onPickDayPx={(asked) => {
+        // Proof: removing this comparison admitted an injected 224 pick at 2501 marks; restored-selection case failed after extraction (2026-10-13).
+        if (resolveAxisRung(asked).cellsPerWorkday === 1 || count <= SUB_DAY_MARK_LIMIT) {
+          props.onPickDayPx(asked);
+        }
+      }}
+    />
+  );
+}
+
+/** Shared production drawing body; the isolated benchmark supplies its own scale controls. */
+export function GanttRenderer({
+  now,
+  plan,
+  depLights,
+  startDate,
+  generation,
+  heightPx,
+  roomPx,
+  scaleTitle,
+  scaleOptions,
+  dayPx,
+  onPickDayPx,
+  labelsShown,
+  onPickLabelsShown,
+  onPickRow,
+  onPointRow,
+  pointed,
+  registerSvgDownload,
+  markers,
+  onRenameMarker,
+  onRecolorMarker,
+  onDeleteMarker,
+  onCreateMarker,
+  newMarkerId,
+}: GanttChartProps & {
+  scaleTitle: string;
+  scaleOptions: readonly {
+    id: string;
+    pxPerWorkday: DayPx;
+    label: string;
+    unavailable: boolean;
+    refusal: string;
+  }[];
+}) {
   const activeTypedId = useSyncExternalStore(
     depLights?.subscribe ?? (() => () => undefined),
     depLights?.activeTypedId ?? (() => null),
@@ -7161,11 +7194,7 @@ function GanttChart({
           // Proof: removing this label makes the normal/refusal-title role-name regression fail.
           aria-label="Day scale — how wide one day is drawn"
           data-gantt-day-scale
-          title={
-            isSubDayUnavailable
-              ? offerExplanation
-              : (rungNotice ?? `One day is ${String(dayPx)}px wide`)
-          }
+          title={scaleTitle}
           data-hint={`One day is ${String(dayPx)}px wide. Narrower rungs fit more of the plan on screen at once.`}
           // The chips' look without their element: `buttonVariants` is for
           // `<button>`, and a `<select>` put through it loses the platform
@@ -7180,18 +7209,13 @@ function GanttChart({
             // by construction: `value` off a DOM node is a string from the
             // page, and the same guard the storage boundary uses is the
             // one that keeps this a `DayPx` without an assertion.
-            // Proof: replacing the limit arm with true let an injected change pick 224 at 2501 marks; the restored-selection case failed on [28, 224] (2026-10-12).
-            if (
-              isDayPx(asked) &&
-              (resolveAxisRung(asked).cellsPerWorkday === 1 || count <= SUB_DAY_MARK_LIMIT)
-            ) {
+            if (isDayPx(asked)) {
               onPickDayPx(asked);
             }
           }}
         >
-          {AXIS_RUNGS.map((offered) => {
-            // Proof: removing the count comparison enabled all three rungs in the 2501/3000 refusal cases (2026-10-12).
-            const isUnavailable = offered.cellsPerWorkday > 1 && count > SUB_DAY_MARK_LIMIT;
+          {scaleOptions.map((offered) => {
+            const isUnavailable = offered.unavailable;
             return (
               <option
                 key={offered.id}
@@ -7201,7 +7225,7 @@ function GanttChart({
                 {...(isUnavailable ? { 'data-not-offered': true } : {})}
               >
                 {offered.label}
-                {isUnavailable ? ` — not offered at ${String(count)} marks` : ''}
+                {isUnavailable ? ` — ${offered.refusal}` : ''}
               </option>
             );
           })}

@@ -2,7 +2,7 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "outDir": "../../../dist/out-tsc",
-    "types": ["node"],
+    "types": ["node", "vite/client"],
     "paths": {
       "@/*": ["./src/*"],
       "@wbs/domain/step-node": ["../../../libs/wbs/domain/domain/src/step-node.ts"],

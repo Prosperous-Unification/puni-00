@@ -213,3 +213,114 @@ All mutations were restored in `finally`. The browser fixture's milestone has mo
 Real minutes-input browser acceptance, oversized renderer-only measurement, full frontend/e2e/build, CI secrets/migration lint, and the h2puni host gate remain OPEN. No merge or release readiness is claimed.
 
 The first two frontend lint invocations exited nonzero without an ESLint diagnostic in their redirected output. The verbose rerun exposed an unsorted test import; ESLint autofix sorted it. The final verbose `wbs-fe-01:lint:fast` rerun passed (`/tmp/subday-review-lint-final.log`). Changed-file formatting and `git diff --check` passed. No commit hook was bypassed.
+
+## D4 — same-renderer production measurement (2026-10-13)
+
+Measured source SHA `61ac15544dadd0b3845b0c3bcba067ff618ec454`: renderer seam
+`12bdb2655`, merged with corrected attempt dispatcher `e0c1ed53`; lint/provenance
+fix `b43561351` and driver browser types `61ac15544`. Raw samples and machine
+metadata: [renderer-production-i7.json](evidence/renderer-production-i7.json). This evidence
+supersedes the development-only measurement for task 4.1; earlier history stays above.
+
+`GanttChart` owns the unchanged production mark count, 2,500 limit, disabled options,
+move-to-Days notice and guarded selection. Its drawing body is the internal module export
+`GanttRenderer`; the benchmark entry imports that same body for 2000×5. No production
+prop, environment variable, URL switch, alternate limit, fake count or cloned drawing was
+introduced. The normal production build has only `index.html`; its emitted JavaScript has
+no `subdayBenchmark` entry.
+
+The separate Vite production artifact is built by `vite.benchmark.config.ts`, with
+`benchmarks/subday-axis.html` as its only entry and `dist/apps/wbs/subday-benchmark` as its
+output. Its build config stamps the Git source SHA; the browser supplies its actual
+`import.meta.env.MODE` and `PROD` values, and the harness rejects a stale SHA or any
+nonproduction artifact before timing. The normal app build configuration stays on its normal entry. Commands from
+`apps/wbs/fe-01`:
+
+```sh
+bunx vite build --config vite.benchmark.config.ts
+VITE_BE_URL=http://127.0.0.1:3100 VITE_GW_URL=ws://127.0.0.1:3200 bunx vite preview --config vite.benchmark.config.ts --host 127.0.0.1
+```
+
+From the worktree root, `bun apps/wbs/fe-01/e2e/subday-renderer-benchmark.ts` runs Chromium
+against that artifact. API proxy destinations are unused. The fixture's plan, rows,
+slices and pointed-row store keep their identities during rung changes; every fresh mount
+recreates them. The captured serial run began after the local build, test, lint and
+typecheck commands completed. Chromium 153.0.8010.12, Linux x64, Intel i7-12800HX,
+24 logical CPUs, 33,227,816,960 bytes RAM; no CPU throttling. The JSON records the exact date.
+
+Each fixture/viewport gets one unrecorded warmup and five fresh mounts. Mount includes
+fixture creation, synchronous React render and two animation frames. Fresh mount excludes the prior unmount. Rung timing changes
+1 h → 15 min (224 → 896 px/day) and waits two frames. Pan timing changes the real panel's `scrollLeft` by
+700 CSS px, verifies movement and waits two frames. P95 is nearest rank, the maximum of
+five raw samples; these figures are observations, never a CI timing threshold.
+
+500×5 runs through the production panel at exactly 2,500 forecast marks. 2000×5 runs
+through the same renderer at 10,000 forecast marks and is **renderer-only**. The third
+fixture runs the production panel with 400×5 forecasts plus one completed one-hour attempt
+per row (2,400 total), anchored at 09:00 UTC on the project start day. All measured renders
+assert the 896 px day and the exact number of forecast plus attempt paint rectangles.
+
+| Viewport | Entry                              | Marks | Mount p95 ms | Rung p95 ms | Actual pan p95 ms | DOM elements / viewport marks / paintable SVG marks |
+| -------- | ---------------------------------- | ----- | ------------ | ----------- | ----------------- | --------------------------------------------------- |
+| 1440×900 | production panel                   | 2500  | 218.1        | 155.9       | 54.8              | 11628 / 42 / 2500                                   |
+| 1440×900 | renderer-only                      | 10000 | 1022.6       | 840.1       | 162.6             | 45378 / 42 / 10000                                  |
+| 1440×900 | production panel with 400 attempts | 2400  | 184.6        | 121.3       | 32.2              | 10578 / 42 / 2400                                   |
+| 390×844  | production panel                   | 2500  | 171.1        | 155.0       | 40.8              | 11628 / 28 / 2500                                   |
+| 390×844  | renderer-only                      | 10000 | 801.3        | 542.3       | 132.0             | 45378 / 28 / 10000                                  |
+| 390×844  | production panel with 400 attempts | 2400  | 144.3        | 104.2       | 32.7              | 10578 / 28 / 2400                                   |
+
+The JSON field `visibleMarks` counts paint-rectangle bounds intersecting the panel after
+pan. Its `paintedMarks` counts SVG rectangles with visible style and nonzero local paint
+geometry, including offscreen rectangles; it does **not** claim those offscreen pixels
+were rasterized. DOM marks remain 2,500/10,000/2,400 with no virtualization. DOM element
+counts include controls, labels and pointer surfaces.
+
+The original 020.07 report recorded 2000×5 zoom/pan p95 166–202 ms and mount 308–340 ms,
+and 500×5 interaction p95 ≤67 ms. The new raw samples exceed those earlier mount/rung
+figures on this machine. The report's original browser/build/fixture details are not
+normalized to this production artifact, so these are historical comparisons, not a
+controlled regression claim. This capture precedes profiling or optimization; no limit increase is proposed. The 2,500 production guard stays in force.
+
+The same browser run separately mounts 2000×5 through `GanttPanel` on both viewports:
+Days is selected, all three sub-day options are disabled with `data-not-offered`, their
+words name 10,000 marks, and the title retains `10000 marks; moved to Days`. No browser
+errors were recorded.
+
+### Fresh checks and failure proofs
+
+| Check / injected fault                                                  | Command / production path                                                                                                                                                     | Observed output                                                                                                                                 |
+| ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Focused suites after merging corrected dispatcher                       | `bunx vitest run src/components/wbs/gantt-panel.test.tsx src/components/wbs/gantt-attempt-panel.test.tsx src/components/wbs/gantt-geometry.test.ts --maxWorkers=1` from fe-01 | 3 files, 537 tests passed; `/tmp/subday-final-tests.log`                                                                                        |
+| 2,500/2,501 and filter/restored paths after extraction                  | panel suite filtered to `refuses`, `offers`, `filter past the limit`, `restored sub-day`, `attempt and zone changes`                                                          | 21 passed; later included in the 537-test run                                                                                                   |
+| Remove offer/fallback/selection count comparisons in production wrapper | focused production panel suite                                                                                                                                                | Exit 1; 4 failed, 16 passed: 2,501/3,000 options enabled, filter/restored stayed at 224 instead of Days; `/tmp/subday-policy-removed-proof.log` |
+| Remove only production selection count guard                            | restored sub-day case                                                                                                                                                         | Exit 1; one failed: callback received `[28, 224]` instead of `[28]`; `/tmp/subday-selection-removed-proof.log`                                  |
+| Remove one fixture forecast before normal rendering                     | build faulty production benchmark, run browser harness                                                                                                                        | Exit 1; census expected 2,500, received 2,499; `/tmp/subday-missing-mark-proof.log`                                                             |
+| Force Days as fixture's initial rung                                    | build faulty production benchmark, run browser harness                                                                                                                        | Exit 1; scale assertion expected 896, received 28; `/tmp/subday-forced-days-proof.log`                                                          |
+| Inject unused `any` into benchmark build config                         | Corrected canonical `NX_DAEMON=false bunx nx run wbs-fe-01:lint:fast`                                                                                                         | Exit 1; two errors (unused variable and explicit any); `/tmp/subday-config-lint-proof.log`. Both lint target file lists include the config.     |
+| Stamp stale build SHA                                                   | Production benchmark build and driver                                                                                                                                         | Exit 1 before timing; `Benchmark artifact provenance mismatch`, SHA `stale-build`; `/tmp/subday-stale-provenance-proof.log`                     |
+| Build with `--mode development`                                         | Benchmark build and driver                                                                                                                                                    | Exit 1 before timing; mode `development` rejected; `/tmp/subday-mode-provenance-proof.log`                                                      |
+| Force browser PROD attestation false                                    | Production benchmark build and driver                                                                                                                                         | Exit 1 before timing; production false rejected; `/tmp/subday-production-provenance-proof.log`                                                  |
+| Restore all injected faults                                             | rebuild benchmark and run complete serial browser harness                                                                                                                     | Exit 0; six measurement rows and separate oversized production refusal on both viewports; `/tmp/subday-stamped-serial-measurement.log`          |
+| Normal production build and entry exclusion                             | `bunx vite build`; inspect emitted HTML and JS                                                                                                                                | Exit 0; only `index.html`, no `subdayBenchmark` identifier; `/tmp/subday-normal-build-final.log`                                                |
+| Format                                                                  | `bunx prettier --check` on changed source/config files                                                                                                                        | Exit 0                                                                                                                                          |
+| Lint                                                                    | `NX_DAEMON=false bunx nx run wbs-fe-01:lint:fast`                                                                                                                             | Executed target, exit 0; `/tmp/subday-lint-fast-final.log`                                                                                      |
+| Typecheck including modules                                             | `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck`                                                                                                                             | Both tasks executed, exit 0; `/tmp/subday-typecheck-provenance-final.log`                                                                       |
+| OpenSpec                                                                | `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                                                                                      | 184 items passed, none failed; `/tmp/subday-openspec-final.json`                                                                                |
+
+The provenance addition first failed typecheck because the e2e TypeScript project lacked
+Vite browser env types. Adding `vite/client` to that project fixed it; the complete module
+and application typecheck passed after restoration. The source-SHA stamping build also
+initially hit a sandbox `spawnSync git EPERM`; that failed build was discarded and the
+build rerun outside the restriction. A probe against the old unstamped artifact failed
+with missing provenance and was not counted as the deliberate stale-SHA proof.
+
+Initial sandboxed Nx graph/lint/typecheck commands returned exit 0 after daemon/plugin
+socket `EPERM` messages without printing executed targets. Those exits were rejected as
+verification evidence. The required targets were rerun outside that socket restriction
+and their actual command/success output was inspected. Initial explicit ESLint also
+reported the missing cached graph; the final Nx lint run generated the graph and ran the
+full target. Vite printed existing native-config and large-chunk warnings.
+
+Task 5.1 remains open: the full fe-01 suite, normal Gantt e2e shards and canonical h2puni
+host gate were not run in this local measurement slice. The focused browser harness
+covers task 4.1 and does not substitute for those checks. No change is merged or deployed.
