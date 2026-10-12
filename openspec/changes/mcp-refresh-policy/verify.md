@@ -2,11 +2,11 @@
 
 **Change**: `mcp-refresh-policy`
 **Verified at**: 2026-10-13
-**Scope**: First inert authority slice only; policy implementation remains incomplete.
+**Scope**: Inert authority boundary and controlled policy/provider compositions; production activation remains incomplete.
 
 ## Task completion
 
-Tasks 1.1–1.2 are implemented. Tasks 2.1–3.3 remain open: continuous binding and trusted-time transport, authoritative current policy reader, shared credential-rule admission, held-provider rechecks, end-to-end no-tool/successor proofs, and race proofs. Task 4.1 awaits the PM's exact-SHA host gate. This change is not ready to archive or activate.
+Tasks 1.1–1.2, 2.3, 3.1a and 3.1b are implemented and proved in controlled compositions: the inert authority boundary, typed policy reader with shared credential-rule admission, held-provider rechecks and rival-completion rechecks. Tasks 2.1, 2.2, parent 3.1, 3.1c, 3.2 and 3.3 remain open: production binding and trusted-time transport, production policy reader and issuance association, policy revision convergence and signing/publication fence, signed final-use delegation and mounted forced-refresh family semantics with their end-to-end and race proofs. Task 4.1 awaits the PM's exact-SHA host gate. This change is not ready to archive or activate.
 
 ## Failure proofs
 
