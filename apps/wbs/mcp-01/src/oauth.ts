@@ -20,11 +20,13 @@ import {
   oidcTokenVerifierFromEnv,
   type TokenVerifier,
 } from '@wbs/auth';
+import { credentialRuleRefusal } from '@wbs/core';
 import { compactVerify, decodeProtectedHeader, type JWTPayload, jwtVerify, SignJWT } from 'jose';
 
 import type { McpConfig } from './config';
 import type { McpOAuthHandler } from './http';
 import { type AuthorizationContext, PendingAuthorizations } from './pending-authorizations';
+import { matchesRefreshAuthority, type McpRefreshAuthorityReader } from './refresh-authority';
 import { type FamilyRecord, McpRefreshFamilyCorrupt, McpSessionStore } from './session-store';
 import { EdgeGate, SessionRefreshRefused } from './wbs-client';
 
@@ -97,6 +99,7 @@ interface Options {
   signingKeys?: { privateKey: KeyObject; publicKey: KeyObject; previousPublicKey?: KeyObject };
   accessTtlMs?: number;
   store?: McpSessionStore;
+  readRefreshAuthority?: McpRefreshAuthorityReader;
   verifyUpstream?: TokenVerifier['verify'];
   clientLimit?: number;
   clientSourceLimit?: number;
@@ -162,6 +165,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
   private readonly grantLimit: number;
   private readonly sessionLimit: number;
   private readonly routeEvidence: Options['routeEvidence'];
+  private readonly readRefreshAuthority: McpRefreshAuthorityReader | undefined;
   constructor(
     config: Pick<McpConfig, 'MCP_PUBLIC_URL'>,
     private readonly upstream: UpstreamClient,
@@ -200,6 +204,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     this.grantLimit = Math.max(1, options.grantLimit ?? 1_000);
     this.sessionLimit = Math.max(1, options.sessionLimit ?? 1_000);
     this.routeEvidence = options.routeEvidence;
+    this.readRefreshAuthority = options.readRefreshAuthority;
     this.pendingAuthorizations = new PendingAuthorizations({
       globalLimit: Math.max(1, options.transactionLimit ?? 1_000),
       now: this.now,
@@ -268,8 +273,11 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
       const current = await this.refreshUpstreamIfNeeded(family);
       return { upstreamToken: current.upstreamAccessToken, mcpSessionId: sessionId };
     } catch (cause) {
-      if (cause instanceof UpstreamRefreshRefused) throw cause;
-      throw new EdgeGate('The identity provider is temporarily unavailable. Retry this request.');
+      if (cause instanceof UpstreamRefreshUnavailable)
+        throw new EdgeGate('The identity provider is temporarily unavailable. Retry this request.');
+      // Proof: mapping unexpected reader defects to outages failed `trusted reader defect`
+      // on the automatic path, 2026-10-13; only modeled unavailability is an EdgeGate.
+      throw cause;
     }
   }
 
@@ -755,9 +763,13 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
       if (consumed.outcome !== 'ok') return oauthError('invalid_grant');
       return tokenResponse(token, successor, scope, boundedExpiresAt - now);
     } catch (cause) {
-      return cause instanceof UpstreamRefreshRefused || cause instanceof McpRefreshFamilyCorrupt
-        ? oauthError('invalid_grant')
-        : oauthError('temporarily_unavailable', undefined, 503);
+      if (cause instanceof UpstreamRefreshRefused || cause instanceof McpRefreshFamilyCorrupt)
+        return oauthError('invalid_grant');
+      if (cause instanceof UpstreamRefreshUnavailable)
+        return oauthError('temporarily_unavailable', undefined, 503);
+      // Proof: mapping unexpected reader defects to outages failed `trusted reader defect`
+      // on the token-endpoint path, 2026-10-13; unexpected trusted state must propagate.
+      throw cause;
     }
   }
 
@@ -783,14 +795,73 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
       .sign(this.privateKey);
   }
 
+  /** Checks current organization authority before any credential return or provider work. */
+  private async checkRefreshAuthority(family: FamilyRecord, expected = family): Promise<void> {
+    // Proof: 2026-10-13, bypassing this read failed 48 fresh-provider negatives
+    // across automatic, forced and grant paths (membership, policy, outage and substitutions).
+    const authority = readFamilyAuthority(family);
+    // Proof: omitting the expected-family comparison failed all three
+    // `rechecks family binding change after held provider` tests, 2026-10-13.
+    if (
+      expected.binding !== undefined &&
+      !matchesRefreshAuthority({ ...expected, binding: expected.binding }, family)
+    )
+      throw new UpstreamRefreshRefused('MCP organization refresh binding changed');
+    if (authority === 'legacy') return;
+    // Proof: 2026-10-13, without this guard all three `without authority` tests
+    // resolved successfully (grant answered 200); automatic used a still-fresh token.
+    if (
+      authority === 'unsupported' ||
+      family.binding === undefined ||
+      this.readRefreshAuthority === undefined
+    )
+      throw new UpstreamRefreshRefused('MCP organization refresh authority is not installed');
+    const admission = await this.readRefreshAuthority({
+      familyId: family.familyId,
+      clientId: family.clientId,
+      subject: family.subject,
+      scope: family.scope,
+      credentialEpoch: family.credentialEpoch,
+      binding: family.binding,
+    });
+    if (admission.outcome === 'unavailable')
+      throw new UpstreamRefreshUnavailable('MCP organization refresh authority is unavailable');
+    if (admission.outcome === 'denied')
+      throw new UpstreamRefreshRefused('MCP organization refresh authority refused');
+    if (!matchesRefreshAuthority(admission.authority, family))
+      throw new UpstreamRefreshRefused('MCP organization refresh authority changed');
+    const refusal = credentialRuleRefusal(
+      family.binding.organizationId,
+      admission.facts,
+      {
+        authentication: {
+          kind: 'upstream',
+          issuer: family.binding.issuer,
+          subject: family.subject,
+        },
+        delegated: true,
+        delegationLifecycle: admission.facts.lifecycle,
+      },
+      this.now(),
+    );
+    if (refusal !== null)
+      throw new UpstreamRefreshRefused(
+        `MCP organization credential rule refused: ${refusal.refusal}`,
+      );
+    const current = this.store.family(family.familyId);
+    // Proof: omitting this binding comparison failed all three `family change during reader`
+    // negatives, 2026-10-13: the awaited read otherwise admitted a different family identity.
+    if (current?.revokedAt !== null || !matchesRefreshAuthority(admission.authority, current))
+      throw new UpstreamRefreshRefused(
+        'MCP organization refresh family changed during authority read',
+      );
+  }
+
   private async refreshUpstreamIfNeeded(
     family: FamilyRecord,
     force = false,
   ): Promise<FamilyRecord> {
-    // Proof: 2026-10-13, without this guard all three `without authority` tests
-    // resolved successfully (grant answered 200); automatic used a still-fresh token.
-    if (readFamilyAuthority(family) !== 'legacy')
-      throw new UpstreamRefreshRefused('MCP organization refresh authority is not installed');
+    await this.checkRefreshAuthority(family);
     const now = this.now();
     if (
       !force &&
@@ -827,14 +898,28 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
         if (
           current.leaseOwner === null &&
           current.upstreamRefreshedAt !== family.upstreamRefreshedAt
-        )
+        ) {
+          // Proof: removing this read failed `rechecks authority after a rival lease
+          // publishes its provider replacement`, 2026-10-13: the waiter returned a denied token.
+          await this.checkRefreshAuthority(current, family);
           return current;
+        }
         if (
           current.leaseOwner === null ||
           (current.leaseUntil !== null && current.leaseUntil < this.now())
         )
           candidate = current;
         continue;
+      }
+      try {
+        // Proof: removing this read made `policy change at lease acquisition` contact
+        // the provider before refusing; the zero-provider assertion failed, 2026-10-13.
+        await this.checkRefreshAuthority(leased, family);
+      } catch (cause) {
+        // Proof: omitting release failed the lease assertion in `policy change at lease
+        // acquisition`, 2026-10-13, leaving a refused provider operation holding its lease.
+        this.store.releaseRefreshLease(family.familyId, owner);
+        throw cause;
       }
       let tokens: BrowserOidcTokenSet | undefined;
       let upstreamExpiresAt: number;
@@ -862,6 +947,20 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
         // Proof: on 2026-09-27, throwing a plain Error here failed `keeps a transient provider
         // refresh failure an edge-gate outcome of a tool-call refresh`.
         throw new UpstreamRefreshUnavailable('upstream refresh could not be completed', { cause });
+      }
+      try {
+        const current = this.store.family(family.familyId);
+        if (current?.revokedAt !== null)
+          throw new UpstreamRefreshUnavailable('MCP refresh family disappeared or was revoked');
+        // Proof: removing this read failed all 15 `after held provider` negatives,
+        // 2026-10-13: tightened, removed, changed or unavailable authority published access.
+        await this.checkRefreshAuthority(current, family);
+      } catch (cause) {
+        // Proof: omitting release failed all 15 held-provider lease assertions; omitting
+        // the rotated secret failed all 15 secret-preservation assertions, 2026-10-13.
+        // Preserve a provider-rotated secret for a retry, without publishing the refused access token.
+        this.store.releaseRefreshLease(family.familyId, owner, tokens.refreshToken);
+        throw cause;
       }
       if (
         !this.store.finishRefreshLease(
@@ -1309,12 +1408,12 @@ function oauthError(error: string, setCookie?: string, status = 400): Response {
  * Distinguishes pre-cutover families from durable organization authority. Only an
  * unbound epoch-0 family belongs to this release's legacy path. Bound families
  * need an authoritative membership and credential-rule reader before use; this
- * release deliberately installs none. A future epoch is never treated as legacy.
+ * release deliberately installs none. A future epoch is refused even with an injected reader.
  */
 function readFamilyAuthority(family: FamilyRecord): 'legacy' | 'organization' | 'unsupported' {
+  // Proof: 2026-10-13, removing this test let a bound epoch-1 read disclose a fresh
+  // token with an injected admitting reader (`corrupt nonzero-epoch bound family`).
+  if (family.credentialEpoch !== 0) return 'unsupported';
   if (family.binding !== undefined) return 'organization';
-  // Proof: 2026-10-13, replacing this epoch test with legacy admission made
-  // `refuses a corrupt nonzero-epoch family read before returning a fresh token`
-  // return the provider credential instead of SessionRefreshRefused.
-  return family.credentialEpoch === 0 ? 'legacy' : 'unsupported';
+  return 'legacy';
 }

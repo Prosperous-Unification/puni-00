@@ -10,6 +10,7 @@ import type { McpConfig } from './config';
 import { mcpFetchHandler, mcpHttpResponse } from './http';
 import { InMemoryMcpOAuth, mcpOAuthFromEnv, type OAuthRouteEvidence } from './oauth';
 import type { DerivedTool } from './openapi-tools';
+import type { McpRefreshAuthority, McpRefreshAuthorityReader } from './refresh-authority';
 import { createServer } from './server';
 import { McpSessionStore } from './session-store';
 import { EdgeGate, SessionRefreshRefused } from './wbs-client';
@@ -20,6 +21,13 @@ const CONFIG: McpConfig = {
   WBS_API_URL: 'https://dev.wbs.bulletpoints.club',
 };
 const CALLBACK = 'https://claude.ai/api/mcp/auth_callback';
+
+function substituteAuthority(authority: McpRefreshAuthority, field: string): McpRefreshAuthority {
+  if (field === 'credentialEpoch') return { ...authority, credentialEpoch: 1 };
+  if (field === 'organizationId' || field === 'userId' || field === 'issuer')
+    return { ...authority, binding: { ...authority.binding, [field]: 'substituted' } };
+  return { ...authority, [field]: 'substituted' };
+}
 
 function fixture(
   limits: {
@@ -32,6 +40,7 @@ function fixture(
     sessionLimit?: number;
     signingKeys?: { privateKey: KeyObject; publicKey: KeyObject; previousPublicKey?: KeyObject };
     store?: McpSessionStore;
+    readRefreshAuthority?: McpRefreshAuthorityReader;
     transactionLimit?: number;
     transactionLimitPerClient?: number;
     random?: () => string;
@@ -1265,28 +1274,496 @@ describe('InMemoryMcpOAuth', () => {
     });
   }
 
-  it('refuses a corrupt nonzero-epoch family read before returning a fresh token', async () => {
-    class UnsupportedStore extends McpSessionStore {
-      override familyForSession(...args: Parameters<McpSessionStore['familyForSession']>) {
-        const family = super.familyForSession(...args);
-        return family === null ? null : { ...family, credentialEpoch: 1 };
+  describe('trusted refresh authority composition', () => {
+    const now = 1_700_000_000_000;
+    const cases = [
+      ...[
+        'familyId',
+        'clientId',
+        'subject',
+        'scope',
+        'credentialEpoch',
+        'organizationId',
+        'userId',
+        'issuer',
+      ].map((field) => ({
+        name: `substituted ${field}`,
+        field,
+        admitted: false,
+        openedAt: now,
+        reauthenticatedAt: now,
+      })),
+      {
+        name: 'family change during reader',
+        storeChange: true,
+        admitted: false,
+        openedAt: now,
+        reauthenticatedAt: now,
+      },
+      {
+        name: 'trusted reader defect',
+        defect: true,
+        admitted: false,
+        openedAt: now,
+        reauthenticatedAt: now,
+      },
+      {
+        name: 'policy change at lease acquisition',
+        leaseChange: true,
+        admitted: false,
+        openedAt: now,
+        reauthenticatedAt: now,
+      },
+      { name: 'current member', admitted: true, openedAt: now, reauthenticatedAt: now },
+      {
+        name: 'membership loss',
+        admitted: false,
+        denied: true,
+        openedAt: now,
+        reauthenticatedAt: now,
+      },
+      {
+        name: 'authority outage',
+        admitted: false,
+        unavailable: true,
+        openedAt: now,
+        reauthenticatedAt: now,
+      },
+      {
+        name: 'connection mismatch',
+        admitted: false,
+        mismatch: true,
+        openedAt: now,
+        reauthenticatedAt: now,
+      },
+      { name: 'unknown openedAt', admitted: false, openedAt: null, reauthenticatedAt: now },
+      {
+        name: 'unknown reauthenticatedAt',
+        admitted: false,
+        openedAt: now,
+        reauthenticatedAt: null,
+      },
+      { name: 'openedAt equality', admitted: true, openedAt: now - 60_000, reauthenticatedAt: now },
+      { name: 'openedAt excess', admitted: false, openedAt: now - 60_001, reauthenticatedAt: now },
+      {
+        name: 'reauthenticatedAt equality',
+        admitted: true,
+        openedAt: now,
+        reauthenticatedAt: now - 30_000,
+      },
+      {
+        name: 'reauthenticatedAt excess',
+        admitted: false,
+        openedAt: now,
+        reauthenticatedAt: now - 30_001,
+      },
+    ];
+    for (const path of ['automatic', 'forced', 'grant'] as const) {
+      for (const scenario of cases) {
+        if ('leaseChange' in scenario && path !== 'forced') continue;
+        // Removing current authority evaluation discloses a fresh credential or issues a successor.
+        it(`checks ${scenario.name} on ${path} refresh with a fresh provider token`, async () => {
+          let changedDuringRead = false;
+          let leaseAcquired = false;
+          const readerDefect = new Error('trusted authority state is malformed');
+          class BoundStore extends McpSessionStore {
+            override acquireRefreshLease(
+              ...args: Parameters<McpSessionStore['acquireRefreshLease']>
+            ) {
+              const leased = super.acquireRefreshLease(...args);
+              if (leased !== null) leaseAcquired = true;
+              return leased;
+            }
+
+            override family(...args: Parameters<McpSessionStore['family']>) {
+              const family = super.family(...args);
+              return family?.binding !== undefined && changedDuringRead
+                ? { ...family, binding: { ...family.binding, userId: 'substituted' } }
+                : family;
+            }
+            override createFamily(...args: Parameters<McpSessionStore['createFamily']>): void {
+              const [family, ...credentials] = args;
+              super.createFamily(
+                {
+                  ...family,
+                  binding: {
+                    organizationId: 'org-a',
+                    userId: 'user-a',
+                    issuer: 'https://idp.example',
+                  },
+                },
+                ...credentials,
+              );
+            }
+          }
+          const store = new BoundStore(':memory:', [randomBytes(32)]);
+          let providerCalls = 0;
+          const { oauth } = fixture({
+            store,
+            readRefreshAuthority: async (authority) => {
+              await Promise.resolve();
+              if ('leaseChange' in scenario && leaseAcquired) return { outcome: 'denied' };
+              if ('defect' in scenario) throw readerDefect;
+              if ('denied' in scenario) return { outcome: 'denied' };
+              if ('unavailable' in scenario) return { outcome: 'unavailable' };
+              if ('storeChange' in scenario) changedDuringRead = true;
+              return {
+                outcome: 'admitted',
+                authority:
+                  'field' in scenario ? substituteAuthority(authority, scenario.field) : authority,
+                facts: {
+                  enforced: [
+                    {
+                      prefix: 'mismatch' in scenario ? 'samlp|other|' : 'person-',
+                      loginSlug: 'acme',
+                    },
+                  ],
+                  policy: { maxSessionSeconds: 60, reauthenticateAfterSeconds: 30 },
+                  lifecycle: {
+                    openedAt: scenario.openedAt,
+                    reauthenticatedAt: scenario.reauthenticatedAt,
+                  },
+                },
+              };
+            },
+            exchange: () =>
+              Promise.resolve({
+                accessToken: 'upstream-okta-token',
+                expiresIn: 3600,
+                refreshToken: 'provider-refresh',
+              }),
+            refresh: () => {
+              providerCalls += 1;
+              return Promise.resolve({ accessToken: 'upstream-okta-token', expiresIn: 3600 });
+            },
+          });
+          try {
+            const verifier = 'v'.repeat(43);
+            const code = await authorizationCode(oauth, verifier);
+            const issued = await tokenResponse(oauth, 'random-1', code, verifier);
+            const credentials = (await issued.json()) as {
+              access_token: string;
+              refresh_token: string;
+            };
+            const family = store.familyForRefreshToken(credentials.refresh_token);
+            if (family === null) throw new Error('issued family missing');
+            if (path === 'grant') {
+              const pending = oauth.response(
+                new Request('https://dev.wbs.bulletpoints.club/mcp/oauth/token', {
+                  method: 'POST',
+                  body: new URLSearchParams({
+                    client_id: 'random-1',
+                    grant_type: 'refresh_token',
+                    refresh_token: credentials.refresh_token,
+                  }),
+                }),
+              );
+              if ('defect' in scenario)
+                expect(await pending.catch((cause: unknown) => cause)).toBe(readerDefect);
+              else {
+                const response = await pending;
+                expect(response?.status).toBe(
+                  scenario.admitted ? 200 : 'unavailable' in scenario ? 503 : 400,
+                );
+                if (!scenario.admitted) {
+                  expect(await response?.json()).toEqual({
+                    error: 'unavailable' in scenario ? 'temporarily_unavailable' : 'invalid_grant',
+                  });
+                  expect(store.sessionCount(now)).toBe(1);
+                  expect(
+                    store.prepareRefresh(credentials.refresh_token, 'random-1', now).outcome,
+                  ).toBe('ok');
+                }
+              }
+            } else {
+              const claims = await oauth.verify(credentials.access_token);
+              const sessionId = claims['jti'];
+              if (typeof sessionId !== 'string') throw new Error('issued session missing');
+              const call =
+                path === 'automatic'
+                  ? oauth
+                      .callerSessionFor(credentials.access_token)
+                      .then((caller) => caller.upstreamToken)
+                  : oauth.refreshSession(sessionId);
+              if ('defect' in scenario)
+                expect(await call.catch((cause: unknown) => cause)).toBe(readerDefect);
+              else if (scenario.admitted) expect(await call).toBe('upstream-okta-token');
+              else
+                expect(await call.catch((cause: unknown) => cause)).toBeInstanceOf(
+                  'unavailable' in scenario ? EdgeGate : SessionRefreshRefused,
+                );
+            }
+            expect(providerCalls).toBe(scenario.admitted && path === 'forced' ? 1 : 0);
+            expect(store.family(family.familyId)?.revokedAt).toBeNull();
+            expect(store.family(family.familyId)?.leaseOwner).toBeNull();
+          } finally {
+            store.close();
+          }
+        });
       }
     }
-    const store = new UnsupportedStore(':memory:', [randomBytes(32)]);
-    const { oauth } = fixture({ store });
+  });
+
+  for (const path of ['automatic', 'forced', 'grant'] as const) {
+    for (const fault of [
+      'membership removal',
+      'policy tightening',
+      'binding change',
+      'family binding change',
+      'reader outage',
+    ] as const) {
+      it(`rechecks ${fault} after held provider on ${path} refresh`, async () => {
+        let changed = false;
+        class BoundStore extends McpSessionStore {
+          override family(...args: Parameters<McpSessionStore['family']>) {
+            const family = super.family(...args);
+            return family?.binding !== undefined && changed && fault === 'family binding change'
+              ? { ...family, binding: { ...family.binding, userId: 'user-b' } }
+              : family;
+          }
+          override createFamily(...args: Parameters<McpSessionStore['createFamily']>): void {
+            const [family, ...credentials] = args;
+            super.createFamily(
+              {
+                ...family,
+                binding: {
+                  organizationId: 'org-a',
+                  userId: 'user-a',
+                  issuer: 'https://idp.example',
+                },
+              },
+              ...credentials,
+            );
+          }
+        }
+        const store = new BoundStore(':memory:', [randomBytes(32)]);
+        const entered = Promise.withResolvers<undefined>();
+        const released = Promise.withResolvers<undefined>();
+        const { oauth } = fixture({
+          store,
+          readRefreshAuthority: async (authority) => {
+            await Promise.resolve();
+            if (changed && fault === 'membership removal') return { outcome: 'denied' };
+            if (changed && fault === 'reader outage') return { outcome: 'unavailable' };
+            return {
+              outcome: 'admitted',
+              authority:
+                changed && fault === 'binding change'
+                  ? { ...authority, binding: { ...authority.binding, userId: 'user-b' } }
+                  : authority,
+              facts: {
+                enforced: [],
+                policy:
+                  changed && fault === 'policy tightening'
+                    ? { maxSessionSeconds: 1, reauthenticateAfterSeconds: null }
+                    : null,
+                lifecycle: { openedAt: 1_699_999_998_000, reauthenticatedAt: null },
+              },
+            };
+          },
+          exchange: () =>
+            Promise.resolve({
+              accessToken: 'upstream-okta-token',
+              expiresIn: 60,
+              refreshToken: 'provider-original',
+            }),
+          refresh: async () => {
+            entered.resolve(undefined);
+            await released.promise;
+            return {
+              accessToken: 'upstream-okta-token',
+              expiresIn: 3600,
+              refreshToken: 'provider-rotated',
+            };
+          },
+        });
+        try {
+          const verifier = 'v'.repeat(43);
+          const code = await authorizationCode(oauth, verifier);
+          const issued = await tokenResponse(oauth, 'random-1', code, verifier);
+          const credentials = (await issued.json()) as {
+            access_token: string;
+            refresh_token: string;
+          };
+          const claims = await oauth.verify(credentials.access_token);
+          const sessionId = claims['jti'];
+          if (typeof sessionId !== 'string') throw new Error('issued session missing');
+          const family = store.familyForRefreshToken(credentials.refresh_token);
+          if (family === null) throw new Error('issued family missing');
+          const pending = (
+            path === 'grant'
+              ? oauth.response(
+                  new Request('https://dev.wbs.bulletpoints.club/mcp/oauth/token', {
+                    method: 'POST',
+                    body: new URLSearchParams({
+                      client_id: 'random-1',
+                      grant_type: 'refresh_token',
+                      refresh_token: credentials.refresh_token,
+                    }),
+                  }),
+                )
+              : path === 'automatic'
+                ? oauth.callerSessionFor(credentials.access_token)
+                : oauth.refreshSession(sessionId)
+          ).catch((cause: unknown) => cause);
+          await entered.promise;
+          changed = true;
+          released.resolve(undefined);
+          const completion = await pending;
+          if (path === 'grant') {
+            expect(completion).toBeInstanceOf(Response);
+            if (!(completion instanceof Response)) throw new Error('grant response missing');
+            expect(completion.status).toBe(fault === 'reader outage' ? 503 : 400);
+          } else
+            expect(completion).toBeInstanceOf(
+              fault === 'reader outage' ? EdgeGate : SessionRefreshRefused,
+            );
+          const current = store.family(family.familyId);
+          expect(current?.leaseOwner).toBeNull();
+          expect(current?.upstreamRefreshedAt).toBeNull();
+          expect(current?.upstreamRefreshToken).toBe('provider-rotated');
+          expect(current?.revokedAt).toBeNull();
+          expect(store.sessionCount(1_700_000_000_000)).toBe(1);
+          expect(
+            store.prepareRefresh(credentials.refresh_token, 'random-1', 1_700_000_000_000).outcome,
+          ).toBe('ok');
+        } finally {
+          released.resolve(undefined);
+          store.close();
+        }
+      });
+    }
+  }
+
+  it('rechecks authority after a rival lease publishes its provider replacement', async () => {
+    class BoundStore extends McpSessionStore {
+      override createFamily(...args: Parameters<McpSessionStore['createFamily']>): void {
+        const [family, ...credentials] = args;
+        super.createFamily(
+          {
+            ...family,
+            binding: { organizationId: 'org-a', userId: 'user-a', issuer: 'https://idp.example' },
+          },
+          ...credentials,
+        );
+      }
+    }
+    const store = new BoundStore(':memory:', [randomBytes(32)]);
+    const entered = Promise.withResolvers<undefined>();
+    const released = Promise.withResolvers<undefined>();
+    const rivalReading = Promise.withResolvers<undefined>();
+    let reads = 0;
+    let providerCalls = 0;
+    const { oauth } = fixture({
+      store,
+      readRefreshAuthority: async (authority) => {
+        await Promise.resolve();
+        reads += 1;
+        if (reads === 3) rivalReading.resolve(undefined);
+        const family = store.family(authority.familyId);
+        if (family === null) throw new Error('trusted authority family missing');
+        return family.upstreamRefreshedAt !== null
+          ? { outcome: 'denied' }
+          : {
+              outcome: 'admitted',
+              authority,
+              facts: { enforced: [], policy: null, lifecycle: null },
+            };
+      },
+      exchange: () =>
+        Promise.resolve({
+          accessToken: 'upstream-okta-token',
+          expiresIn: 60,
+          refreshToken: 'provider-original',
+        }),
+      refresh: async () => {
+        providerCalls += 1;
+        entered.resolve(undefined);
+        await released.promise;
+        return {
+          accessToken: 'upstream-okta-token',
+          expiresIn: 3600,
+          refreshToken: 'provider-rotated',
+        };
+      },
+    });
     try {
       const verifier = 'v'.repeat(43);
       const code = await authorizationCode(oauth, verifier);
       const issued = await tokenResponse(oauth, 'random-1', code, verifier);
-      const credentials = (await issued.json()) as { access_token: string };
-      const refusal = await oauth
+      const credentials = (await issued.json()) as { access_token: string; refresh_token: string };
+      const winner = oauth.callerSessionFor(credentials.access_token);
+      await entered.promise;
+      const rival = oauth
         .callerSessionFor(credentials.access_token)
         .catch((cause: unknown) => cause);
-      expect(refusal).toBeInstanceOf(SessionRefreshRefused);
+      await rivalReading.promise;
+      released.resolve(undefined);
+      expect((await winner).upstreamToken).toBe('upstream-okta-token');
+      expect(await rival).toBeInstanceOf(SessionRefreshRefused);
+      expect(providerCalls).toBe(1);
+      expect(store.sessionCount(1_700_000_000_000)).toBe(1);
+      expect(
+        store.prepareRefresh(credentials.refresh_token, 'random-1', 1_700_000_000_000).outcome,
+      ).toBe('ok');
     } finally {
+      released.resolve(undefined);
       store.close();
     }
   });
+
+  for (const bound of [false, true]) {
+    it(`refuses a corrupt nonzero-epoch ${bound ? 'bound' : 'unbound'} family read before returning a fresh token`, async () => {
+      class UnsupportedStore extends McpSessionStore {
+        override family(...args: Parameters<McpSessionStore['family']>) {
+          const family = super.family(...args);
+          return family === null
+            ? null
+            : {
+                ...family,
+                credentialEpoch: 1,
+                binding: bound
+                  ? { organizationId: 'org-a', userId: 'user-a', issuer: 'https://idp.example' }
+                  : undefined,
+              };
+        }
+        override familyForSession(...args: Parameters<McpSessionStore['familyForSession']>) {
+          const family = super.familyForSession(...args);
+          return family === null
+            ? null
+            : {
+                ...family,
+                credentialEpoch: 1,
+                binding: bound
+                  ? { organizationId: 'org-a', userId: 'user-a', issuer: 'https://idp.example' }
+                  : undefined,
+              };
+        }
+      }
+      const store = new UnsupportedStore(':memory:', [randomBytes(32)]);
+      const { oauth } = fixture({
+        store,
+        readRefreshAuthority: (authority) =>
+          Promise.resolve({
+            outcome: 'admitted',
+            authority,
+            facts: { enforced: [], policy: null, lifecycle: null },
+          }),
+      });
+      try {
+        const verifier = 'v'.repeat(43);
+        const code = await authorizationCode(oauth, verifier);
+        const issued = await tokenResponse(oauth, 'random-1', code, verifier);
+        const credentials = (await issued.json()) as { access_token: string };
+        const refusal = await oauth
+          .callerSessionFor(credentials.access_token)
+          .catch((cause: unknown) => cause);
+        expect(refusal).toBeInstanceOf(SessionRefreshRefused);
+      } finally {
+        store.close();
+      }
+    });
+  }
 
   // Proof: dropping the versioned lease CAS makes both callers invoke the provider.
   it('refreshes an expiring upstream token once across two concurrent callers', async () => {
