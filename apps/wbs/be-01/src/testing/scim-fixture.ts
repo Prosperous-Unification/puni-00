@@ -1,7 +1,7 @@
-import { SignJWT } from 'jose';
+import { generateKeyPair, SignJWT } from 'jose';
 
 import { DELEGATION_TOKEN_TYPE } from '../runtime/delegation';
-import type { OrganizationHarness } from './organization-harness';
+import { OrganizationHarness } from './organization-harness';
 
 /** One enterprise connection a test seeds on a verified claim of its domain. */
 export interface SeededConnection {
@@ -120,3 +120,68 @@ export async function sha256Hex(text: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
+
+/** A SCIM test world: a harness on a settable clock, and the delegation key it trusts. */
+export interface ScimWorld {
+  readonly h: OrganizationHarness;
+  readonly clock: { at: number };
+  readonly keys: CryptoKeyPair;
+}
+
+/**
+ * Two activated organizations with proven connections: org-a (`acme.test`,
+ * super-admin ada, admin sam) and org-b (`b.test`, super-admin bob).
+ */
+export async function openScimWorld(): Promise<ScimWorld> {
+  const clock = { at: 1_800_000_000_000 };
+  const keys = await generateKeyPair('RS256');
+  const h = OrganizationHarness.open({ delegationKey: keys.publicKey, now: () => clock.at });
+  for (const username of ['ada', 'sam', 'bob']) await h.register(username);
+  h.organization('org-a');
+  h.organization('org-b');
+  h.member('org-a', 'ada', 'super_admin');
+  h.member('org-a', 'sam', 'admin');
+  h.member('org-b', 'bob', 'super_admin');
+  h.bind('ada', 'org-a');
+  h.bind('sam', 'org-a');
+  h.bind('bob', 'org-b');
+  h.activate();
+  seedConnection(h, {
+    organizationId: 'org-a',
+    domain: 'acme.test',
+    auth0Connection: 'acme-saml',
+    loginSlug: 'acme',
+    provenBy: 'ada',
+  });
+  seedConnection(h, {
+    organizationId: 'org-b',
+    domain: 'b.test',
+    auth0Connection: 'b-saml',
+    loginSlug: 'bee',
+    provenBy: 'bob',
+  });
+  return { h, clock, keys };
+}
+
+/** Issues a provisioning token as `username` through the mounted route; its id and secret. */
+export async function issueToken(
+  h: OrganizationHarness,
+  username: string,
+): Promise<{ readonly id: string; readonly token: string }> {
+  const answer = await h.call(username, 'POST', '/api/organization/provisioning-tokens');
+  if (answer.status !== 201) throw new Error(`token issue refused: ${JSON.stringify(answer)}`);
+  return answer.body as { id: string; token: string };
+}
+
+/** A SCIM `User` creation body for `userName`. */
+export const scimUser = (userName: string, extra: Record<string, unknown> = {}) => ({
+  schemas: ['urn:ietf:params:scim:schemas:core:2.0:User'],
+  userName,
+  ...extra,
+});
+
+/** A SCIM PatchOp body of `replace` operations. */
+export const replace = (...operations: Record<string, unknown>[]) => ({
+  schemas: ['urn:ietf:params:scim:api:messages:2.0:PatchOp'],
+  Operations: operations.map((operation) => ({ op: 'replace', ...operation })),
+});

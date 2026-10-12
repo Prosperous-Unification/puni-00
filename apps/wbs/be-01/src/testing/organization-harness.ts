@@ -45,6 +45,7 @@ import {
   type SqliteSource,
   userBoundOrganizationOf,
 } from '@wbs/store-sqlite';
+import { canonicalOidcEmail } from '@wbs/store-sqlite/canonical-oidc-email';
 import type { Connection } from '@wbs/store-sqlite/db';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 
@@ -402,6 +403,7 @@ export class OrganizationHarness {
         tokens: new ProvisioningTokenRepository(db, gate),
         users: new ScimUserRepository(db, gate),
         clock: { now },
+        canonicalUserName: (raw) => canonicalOidcEmail(raw),
       },
       onboarding: new OnboardingRepository(db, OPEN),
       emailVerification: new EmailVerificationRepository(db, OPEN),

@@ -47,6 +47,8 @@ import { CapacityModeResource } from '@wbs/core/service/capacity-mode.resource';
 import type { CommittedFanoutDelivery } from '@wbs/core/service/committed-fanout';
 import { PersonLoad } from '@wbs/core/service/person-load.feature';
 import { ProjectRankResource } from '@wbs/core/service/project-rank.resource';
+import { ScimService } from '@wbs/core/service/scim.feature';
+import { ScimAdmission } from '@wbs/core/service/scim-admission';
 import { RollUpCache, SpaceResource } from '@wbs/core/service/space.resource';
 import { type CapacityMode, SUPPORTED_CAPACITY_MODES } from '@wbs/domain';
 import { createLogger, type Logger, type MetricsScrape, scrapeMetrics } from '@wbs/observability';
@@ -75,6 +77,7 @@ import { solutionRoutes } from './controller/solution.routes';
 import { stepRoutes } from './controller/step.routes';
 import { workItemRoutes } from './controller/work-item.routes';
 import { mountEndpoints } from './http/elysia/mount';
+import { scimEndpoints } from './http/elysia/scim';
 import { createUnexpectedFailureReporter } from './http/elysia/unexpected-failure';
 import type { BoundEndpoint } from './http/endpoint';
 import { identityResolver } from './http/identity';
@@ -531,6 +534,18 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
             return opts.migrationsApplied;
           },
         };
+  const provisioning = opts.provisioning ?? REFUSE_PROVISIONING;
+  // One admission per app, which is one per process in production: SCIM's
+  // per-token window is per process by design (design.md, "Admission").
+  const scim = new ScimService({
+    tokens: provisioning.tokens,
+    users: provisioning.users,
+    admission: new ScimAdmission(() => provisioning.clock.now()),
+    clock: provisioning.clock,
+    canonicalUserName: provisioning.canonicalUserName,
+    newId: () => crypto.randomUUID(),
+    origin: opts.appOrigin,
+  });
   const endpoints: readonly BoundEndpoint[] = mountedEndpoints(routedOptions, {
     logger,
     scrapeMetrics: opts.metricsScrape ?? (() => scrapeMetrics('be-01')),
@@ -559,5 +574,6 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
           reportUnexpectedFailure,
         }),
       )
+      .use(scimEndpoints(scim, reportUnexpectedFailure))
   );
 }

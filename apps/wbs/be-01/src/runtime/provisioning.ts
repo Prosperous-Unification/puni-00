@@ -10,6 +10,8 @@ export interface Provisioning {
   readonly tokens: ProvisioningTokens;
   readonly users: ScimUsers;
   readonly clock: Pick<Clock, 'now'>;
+  /** The canonical SCIM `userName`: the same form a sign-in's email takes. */
+  readonly canonicalUserName: (raw: string) => string | null;
 }
 
 const inactive = () => Promise.resolve({ kind: 'inactive' } as const);
@@ -37,6 +39,7 @@ export const REFUSE_PROVISIONING: Provisioning = {
     activate: () => Promise.resolve([]),
   },
   clock: { now: () => Date.now() },
+  canonicalUserName: unreachable,
 };
 
 /** No token authenticates, so no SCIM request reaches the Users store. */

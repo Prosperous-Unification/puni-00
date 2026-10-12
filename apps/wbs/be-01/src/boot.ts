@@ -11,12 +11,15 @@ import {
   OnboardingRepository,
   openSqliteSource,
   OrganizationRepository,
+  ProvisioningTokenRepository,
+  ScimUserRepository,
   SpaceRepository,
   SqliteBrowserAuthLifecycle,
   SqliteBrowserCredentialRevocations,
   SqliteOrganizationAccess,
   SqliteOrganizationSelection,
 } from '@wbs/store-sqlite';
+import { canonicalOidcEmail } from '@wbs/store-sqlite/canonical-oidc-email';
 import { DrizzleEventLogStore } from '@wbs/store-sqlite/event-log';
 import { backfillStepCodes } from '@wbs/store-sqlite/step-code-backfill';
 import { DiBag } from 'di-bag';
@@ -313,6 +316,15 @@ export async function bootBe01(
               projects: services.projects,
               memberships: new OrganizationRepository(db, services.gate),
               domains: new DomainClaimRepository(db, services.gate),
+              // Proof: omitting this binding made `serves SCIM provisioning
+              // from the shared database once activated` (boot.db.test.ts)
+              // answer a stored token 401 instead of 200; watched 2026-10-12.
+              provisioning: {
+                tokens: new ProvisioningTokenRepository(db, services.gate),
+                users: new ScimUserRepository(db, services.gate),
+                clock: services.clock,
+                canonicalUserName: canonicalOidcEmail,
+              },
               onboarding: new OnboardingRepository(db, services.gate),
               emailVerification: new EmailVerificationRepository(db, services.gate),
               invitations: new InvitationRepository(db, services.gate),
