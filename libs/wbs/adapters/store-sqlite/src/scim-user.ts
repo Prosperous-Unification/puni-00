@@ -56,6 +56,9 @@ function userIn(tx: Reader, organizationId: string, id: string): Row | undefined
   // Proof: dropping the organization predicate made `answers another
   // organization's user as absent, changing nothing` in
   // `enterprise-sso-stores.db.test.ts` deprovision B's user; watched 2026-10-12.
+  // The same fault made mounted `answers another organization’s user 404
+  // exactly as an absent one, changing nothing` (`scim-users.controller.db
+  // .test.ts`) answer the cross-organization PATCH 200; watched 2026-10-12.
   return tx
     .select()
     .from(organizationScimUser)
@@ -118,8 +121,17 @@ function endMembership(
   // Proof: skipping this guard made `refuses to deprovision the last
   // super-admin, changing nothing` in `enterprise-sso-stores.db.test.ts`
   // delete the membership; watched 2026-10-12.
+  // Dropping the `last-super-admin` return also made mounted `refuses to
+  // deprovision the last super-admin with 409 mutability, changing nothing`
+  // (`scim-deprovisioning.controller.db.test.ts`) answer 200 and deactivate
+  // the record; watched 2026-10-12.
   const guarded = guardFinalSuperAdmin(tx, organizationId, userId, null);
   if (guarded === 'last-super-admin') return 'last_super_admin';
+  // Proof: skipping this deletion made mounted `ends browser, gateway and MCP
+  // access to A at once, leaving B unchanged` and `ends a real
+  // selected-organization cookie’s browser and gateway access at once`
+  // (`scim-deprovisioning.controller.db.test.ts`) keep carol's A access;
+  // watched 2026-10-12.
   if (guarded === null)
     tx.delete(organizationMembership).where(membershipOf(organizationId, userId)).run();
   return 'ended';
@@ -203,6 +215,11 @@ export class ScimUserRepository implements ScimUsers {
   ): Promise<
     { readonly kind: 'updated'; readonly user: ScimUser } | { readonly kind: ScimRefusal }
   > {
+    // Proof: committing the membership deletion in its own transaction ahead
+    // of this one made mounted `rolls a deprovision back and answers 500 when
+    // its audit row cannot be written` (`scim-deprovisioning.controller.db
+    // .test.ts`) lose carol's org-a membership despite the 500; watched
+    // 2026-10-12.
     return this.write((tx): { kind: 'updated'; user: ScimUser } | { kind: ScimRefusal } => {
       requireActivated(tx);
       const stored = userIn(tx, organizationId, id);

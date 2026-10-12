@@ -329,7 +329,10 @@ type BareRefusalCode =
   | 'provisioning_active'
   | 'sso_connection_unproven'
   | 'enforcement_would_lock_out_actor'
-  | 'sso_connection_not_found';
+  | 'sso_connection_not_found'
+  // Provisioning tokens (`organization-scim`): two tokens already live
+  // (`sso_connection_unproven` above also refuses a token).
+  | 'token_limit';
 
 type SharedCommandCode =
   'not_found' | 'forbidden' | 'name_required' | 'taken' | 'in_use' | 'calendar_range';

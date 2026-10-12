@@ -221,7 +221,10 @@ export class ProvisioningTokenRepository implements ProvisioningTokens {
    * Proof: dropping the revocation predicate from `live` made `answers null
    * for a revoked, unknown or malformed token` in
    * `enterprise-sso-stores.db.test.ts` return the organization; watched
-   * 2026-10-12.
+   * 2026-10-12. The same fault made mounted `replays a revoked token on
+   * every verb with the unknown-token 401, changing nothing`
+   * (`scim-authentication.controller.db.test.ts`) answer the replay 200;
+   * watched 2026-10-12.
    */
   async authenticate(digest: string, at: number): Promise<AuthenticatedProvisioning | null> {
     await Promise.resolve();

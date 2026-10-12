@@ -34,6 +34,7 @@ import {
   openSqliteSource,
   OrganizationRepository,
   ProjectRankRepository,
+  ProvisioningTokenRepository,
   readOrganizationActivation,
   scheduleInputHash,
   ScimUserRepository,
@@ -46,6 +47,7 @@ import {
   type SqliteSource,
   userBoundOrganizationOf,
 } from '@wbs/store-sqlite';
+import { canonicalOidcEmail } from '@wbs/store-sqlite/canonical-oidc-email';
 import type { Connection } from '@wbs/store-sqlite/db';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 
@@ -126,7 +128,10 @@ export interface OrganizationHarnessOptions {
     readonly groupPrefix: string;
     readonly groupsClaim: string;
   };
-  /** The clock the credential rules read; a test fixes it to pin session-policy edges. */
+  /**
+   * The clock the credential rules and SCIM provisioning read; a test fixes it
+   * to pin session-policy edges, token lifetimes and SCIM admission.
+   */
   readonly now?: () => number;
 }
 
@@ -424,6 +429,12 @@ export class OrganizationHarness {
       sessionPolicies: new SessionPolicyRepository(db, gate),
       pendingMemberships: new ScimUserRepository(db, gate),
       enterpriseConnections: new EnterpriseConnectionRepository(db, gate),
+      provisioning: {
+        tokens: new ProvisioningTokenRepository(db, gate),
+        users: new ScimUserRepository(db, gate),
+        clock: { now },
+        canonicalUserName: (raw) => canonicalOidcEmail(raw),
+      },
       onboarding: new OnboardingRepository(db, OPEN),
       emailVerification: new EmailVerificationRepository(db, OPEN),
       invitations: new InvitationRepository(db, OPEN),

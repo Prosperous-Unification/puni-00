@@ -71,6 +71,7 @@ test('declares the public method list and the login method hint', () => {
     { name: 'email', required: false },
     { name: 'method', required: false },
     { name: 'organization', required: false },
+    { name: 'reauthenticate', required: false },
   ]);
 });
 

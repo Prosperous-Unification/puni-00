@@ -93,6 +93,13 @@ export const EXCLUDED_PATHS: readonly string[] = [
   // exclusion test expose its GET or POST tool (0/1 for each mutation).
   '/api/organization/memberships',
   '/api/organization/active',
+  // A provisioning token is a credential, so issuing one is a credential
+  // factory exactly as `/api/auth/*` is (`organization-scim`).
+  // Proof: removing either entry made `keeps provisioning-token
+  // administration out of the generated MCP tools` expose its tools (0/1 for
+  // each, watched 2026-10-12).
+  '/api/organization/provisioning-tokens',
+  '/api/organization/provisioning-tokens/*',
 ];
 
 /** What the MCP protocol accepts as a tool name; `operationId` must already fit. */

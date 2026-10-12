@@ -53,6 +53,17 @@ test('keeps browser organization selection out of the generated MCP tools', () =
   expect(names).not.toContain('postApiOrganizationActive');
 });
 
+test('keeps provisioning-token administration out of the generated MCP tools', () => {
+  const names = toolsFromDocument(readDocument()).map((tool) => tool.name);
+  for (const operation of [
+    'getApiOrganizationProvisioningTokens',
+    'postApiOrganizationProvisioningTokens',
+    'postApiOrganizationProvisioningTokensByIdRotate',
+    'deleteApiOrganizationProvisioningTokensById',
+  ])
+    expect(names).not.toContain(operation);
+});
+
 test('pins every generated MCP operation name independently of the registry', () => {
   // Proof: removing importProject from httpShapes failed with
   // `postApiProjectsImport` as the one expected-only operation.
