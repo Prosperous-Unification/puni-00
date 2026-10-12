@@ -182,10 +182,24 @@ describe('the shared test preload', () => {
     );
     expect(verdicts).toEqual({ first: '500', second: '500' });
     for (const { pidFile } of suites) {
-      expect(isAlive(Number(await Bun.file(pidFile).text()))).toBe(false);
+      // Termination is asynchronous: a loaded host (h2puni, load ~9) still showed the sleeper
+      // alive or a zombie a few milliseconds after the child exited, so wait a bounded grace.
+      // The sleeper would otherwise live for its whole sleep, far longer than the grace, so a
+      // preload that stops killing still fails here.
+      expect(await isGoneWithin(Number(await Bun.file(pidFile).text()), 2_000)).toBe(true);
     }
   }, 10_000);
 });
+
+/** Whether the process with this id disappears within `graceMs`, polling every 25 ms. */
+async function isGoneWithin(pid: number, graceMs: number): Promise<boolean> {
+  const deadline = performance.now() + graceMs;
+  while (isAlive(pid)) {
+    if (performance.now() >= deadline) return false;
+    await Bun.sleep(25);
+  }
+  return true;
+}
 
 /** Whether a process with this id still exists; signal 0 probes without delivering anything. */
 function isAlive(pid: number): boolean {
