@@ -92,6 +92,10 @@ export default defineConfig(({ command, mode }) => ({
         __dirname,
         '../../../libs/wbs/domain/domain/src/step-node.ts',
       ),
+      '@wbs/domain/step-reference': resolve(
+        __dirname,
+        '../../../libs/wbs/domain/domain/src/step-reference.ts',
+      ),
       // **The module, not the barrel.** `libs/wbs/domain/domain`'s index re-exports
       // `estimate.ts` as well, and the validators around it pull arktype into
       // whatever imports it — which is why every wire type in `src/lib/wbs-api.ts`

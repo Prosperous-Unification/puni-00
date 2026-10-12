@@ -27,8 +27,8 @@ function resolve(reference: string) {
 }
 
 describe('formatStepReference', () => {
-  it('spells a node as its work item number, a dot and its step code', () => {
-    expect(formatStepReference('020.2', 'review')).toBe('020.2.review');
+  it('spells the step ordinal before its immutable code', () => {
+    expect(formatStepReference('020.2', 'review', 3, 4)).toBe('020.2.s3-review');
   });
 });
 
@@ -66,11 +66,11 @@ describe('parseStepReference', () => {
 });
 
 describe('resolveStepReference', () => {
-  it('resolves a canonical reference to its step node', () => {
+  it('resolves a legacy code-only reference to its step node', () => {
     expect(resolve('010.dev')).toEqual({
       ok: true,
       ref: { workItemId: 'w-010', stepId: 's-dev' },
-      reference: '010.dev',
+      reference: '010.s1-dev',
     });
   });
 
@@ -78,15 +78,15 @@ describe('resolveStepReference', () => {
     expect(resolve('020.2.review')).toEqual({
       ok: true,
       ref: { workItemId: 'w-020-2', stepId: 's-review' },
-      reference: '020.2.review',
+      reference: '020.2.s3-review',
     });
   });
 
-  it('accepts the ordinal alias when position and code agree, and answers the canonical spelling', () => {
+  it('accepts an ordinal reference when position and code agree, and answers canonical spelling', () => {
     expect(resolve('010.s2-qa')).toEqual({
       ok: true,
       ref: { workItemId: 'w-010', stepId: 's-qa' },
-      reference: '010.qa',
+      reference: '010.s2-qa',
     });
   });
 

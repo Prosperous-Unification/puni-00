@@ -29,17 +29,25 @@ export type StepReferenceRefusal =
   | 'unknown_code'
   | 'alias_mismatch';
 
-const TAIL = /^(?:s([1-9][0-9]*)-)?([a-z][a-z0-9-]*)$/;
+const TAIL = /^(?:s(0*[1-9][0-9]*)-)?([a-z][a-z0-9-]*)$/;
 /** A work item number: dot-separated digit groups, as `deriveNumbers` writes them. */
 const NUMBER = /^[0-9]+(?:\.[0-9]+)*$/;
 
 /**
- * The canonical step reference: work item number, a dot, step code — `010.dev`,
- * `020.2.review`. Changes when the work item is renumbered, which is why it is
- * never an identity; see {@link StepNodeRef}.
+ * The canonical step reference: work item number, then the displayed step
+ * ordinal before its immutable code — `010.s1-dev`, `020.2.s02-review`.
+ *
+ * The ordinal is padded to the decimal width of the project's step count, so
+ * plain string sorting keeps the displayed step order within one work item.
+ * Reordering or repadding changes this spelling, never {@link StepNodeRef}.
  */
-export function formatStepReference(number: string, code: string): string {
-  return `${number}.${code}`;
+export function formatStepReference(
+  number: string,
+  code: string,
+  ordinal: number,
+  stepCount: number,
+): string {
+  return `${number}.s${String(ordinal).padStart(String(stepCount).length, '0')}-${code}`;
 }
 
 /**
@@ -50,9 +58,10 @@ export function formatStepReference(number: string, code: string): string {
  * frozen number has, and the code must be a whole step code — at most 32
  * characters and outside the reserved namespace.
  *
- * Also reads the input-only alias `<number>.s<ordinal>-<code>`, whose ordinal is
- * the step's 1-based displayed position. A tail that is itself reserved (`s2`)
- * is neither a code nor an alias.
+ * Also reads the legacy code-only form `<number>.<code>` and unpadded
+ * ordinal forms. The ordinal is the step's 1-based displayed position and may
+ * have leading zeroes. A tail that is itself reserved (`s2`) is neither a
+ * code nor a complete ordinal reference.
  *
  * @returns `null` when the text is not a step reference at all.
  */
@@ -85,7 +94,7 @@ export function parseStepReference(text: string): ParsedStepReference | null {
  * step has no code to spell, so no reference resolves to it; its nodes stay
  * addressable by step node ID.
  *
- * @returns the node and its canonical spelling — never the alias.
+ * @returns the node and its canonical ordinal-first spelling.
  */
 export function resolveStepReference(
   reference: string,
@@ -116,7 +125,12 @@ export function resolveStepReference(
   return {
     ok: true,
     ref: { workItemId: workItem.id, stepId: step.id },
-    reference: formatStepReference(parsed.number, parsed.code),
+    reference: formatStepReference(
+      parsed.number,
+      parsed.code,
+      ordered.indexOf(step) + 1,
+      ordered.length,
+    ),
   };
 }
 

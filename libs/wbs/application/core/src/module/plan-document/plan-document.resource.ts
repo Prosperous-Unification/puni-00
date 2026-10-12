@@ -279,11 +279,11 @@ function spellStepNodes(tree: {
     // beside their IDs` received the parent's nodes too (2026-09-27).
     parentIds.has(workItemId)
       ? []
-      : ordered.map(({ id: stepId, code }) => ({
+      : ordered.map(({ id: stepId, code }, stepAt) => ({
           id: formatStepNodeId({ workItemId, stepId }),
           workItemId,
           stepId,
-          reference: formatStepReference(number, code),
+          reference: formatStepReference(number, code, stepAt + 1, ordered.length),
         })),
   );
 }
