@@ -462,3 +462,8 @@ export function usePlanSchedule({
   const spanOf = useCallback((row: TreeRow) => spanOfRow(row, showSchedule), [showSchedule]);
   return { hasSchedule, showSchedule, spanOf };
 }
+
+/** Counts the marks a sub-day rung would draw from visible leaves and project steps. */
+export function markCount(plan: GanttPlan): number {
+  return plan.rows.filter((row) => row.leaf).length * plan.steps.length;
+}

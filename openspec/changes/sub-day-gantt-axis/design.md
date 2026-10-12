@@ -9,14 +9,14 @@ No ADR: every choice here is reversible presentation.
 
 `DAY_SCALES` becomes `AXIS_RUNGS`, one record per rung: `{ id, pxPerWorkday, cellsPerWorkday,
 label }`. Day rungs keep their pixel values and labels (`28`/`12`/`4` px per day; `Days`,
-`Weeks`, `Months`), so `DayPx` callers and every pixel assertion stand. Sub-day rungs are
+`Weeks`, `Months`), so `DayPx` callers retain a numeric width API (expanded for sub-day widths), and every day pixel assertion stands. `DAY_SCALES` remains a compatibility list derived from `AXIS_RUNGS`. Sub-day rungs are
 `{ '4h', 56, 2, '4 h' }`, `{ '1h', 224, 8, '1 h' }`, `{ '15m', 896, 32, '15 min' }` — 28 px
 per cell, as the day rung has, so the cell grid reads the same at every rung. The control
 is the existing rung control with six positions; the title carries the exact width.
 
 ## D2 — Geometry
 
-`layOutGantt` takes the rung. A slice's drawn width is `effort workdays × pxPerWorkday`; at a
+`layOutGantt` takes the rung. A slice's drawn width is its scheduled elapsed span (`drawnSpan × pxPerWorkday`), not its effort: parallel capacity may shorten its duration; at a
 sub-day rung a calendar day is drawn as its 480 working minutes (one day cell = one workday
 cell), weekends greyed as today, so before the instant axis nothing changes for a workday-unit plan but
 the width. Sub-day cells are labelled by project-zone clock time from the
@@ -44,6 +44,13 @@ says so in the control's title.
 
 ## D4 — Measurement, not a gate
 
-The 020.07 harness is rerun on the shipped component at the 15-min rung for the 500×5 and
-2000×5 fixtures and the p95 figures are recorded in `verify.md` beside the experiment's.
-Raising the limit later needs a new recorded measurement; nothing pins wall-clock in CI.
+The 020.07 harness is rerun against the shipped renderer at the 15-min rung. The 500×5
+fixture has no attempts and exercises the production panel at its 2,500-mark limit. The
+2000×5 fixture has 10,000 marks, so the production control must refuse that rung; measure
+its rendering cost through a dedicated benchmark entry into the same renderer. Do not add
+a production prop, URL switch or alternate limit that bypasses the offer rule. Record the
+benchmark entry and fixture in `verify.md`, label its p95 mount/interaction figures as
+renderer-only, and record the production refusal separately. Compare both fixtures with
+the experiment's figures. Once attempt marks exist, also measure an attempt-inclusive
+fixture within 2,500 total marks. Raising the limit later needs a new recorded measurement;
+nothing pins wall-clock in CI.

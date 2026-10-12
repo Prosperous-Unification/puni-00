@@ -32,6 +32,13 @@ import type {
 } from '@/lib/wbs-api';
 
 import type { DepLights } from './dep-light-store';
+import {
+  AXIS_RUNGS,
+  buildClockCells,
+  type DayPx,
+  resolveAxisRung,
+  SUB_DAY_MARK_LIMIT,
+} from './gantt-axis';
 import { useGanttDetail } from './gantt-detail';
 import {
   BAR_INSET,
@@ -61,7 +68,7 @@ import { type AnchorRect, HoverCard } from './hover-card';
 import { initialsOf } from './initials';
 import { InlineMarkdown } from './inline-markdown';
 import { markerRulesAreTooDense } from './marker-rule-density';
-import { chartTypedDependencies } from './plan-chart-input';
+import { chartTypedDependencies, markCount } from './plan-chart-input';
 import type { PointedRows } from './pointed-row-store';
 import { priorityBandStyleOf } from './priority-band-style';
 import { recordGanttScrollCommit } from './scroll-performance';
@@ -69,6 +76,7 @@ import { shortIsoDate } from './short-date';
 import { hierarchyIndentFor, PLAN_TERMINAL_ALLOWANCE } from './table-frame';
 import { nameWords, numberWords, rowWords } from './work-item-words';
 
+export { AXIS_RUNGS, type DayPx, SUB_DAY_MARK_LIMIT } from './gantt-axis';
 export { rowWords } from './work-item-words';
 
 /**
@@ -105,24 +113,7 @@ export { rowWords } from './work-item-words';
  * edge. Said rather than rounded off — what the gate pins is the measured
  * day-count at each rung, not the word "quarter".
  */
-export const DAY_SCALES = [28, 12, 4] as const;
-
-/** One of {@link DAY_SCALES} — the only widths a chart is ever drawn at. */
-export type DayPx = (typeof DAY_SCALES)[number];
-
-/**
- * What each rung is called on the control.
- *
- * The vocabulary every scheduling tool uses for its zoom, and it names the unit
- * a reader is *reading in* rather than the unit the axis is printed in — the
- * axis is days at every rung. The exact width is in the control's own title,
- * where a number belongs.
- */
-export const DAY_SCALE_NAMES: Record<DayPx, string> = {
-  28: 'Days',
-  12: 'Weeks',
-  4: 'Months',
-};
+export const DAY_SCALES = AXIS_RUNGS.map((rung) => rung.pxPerWorkday);
 
 /**
  * How many marker chips one day cell may show before the rest collapse.
@@ -143,6 +134,9 @@ export const MARKER_BAND_MAX_PER_CELL: Record<DayPx, number> = {
   28: 3,
   12: 2,
   4: 1,
+  56: 3,
+  224: 3,
+  896: 3,
 };
 
 /**
@@ -2578,6 +2572,7 @@ function buildStandaloneGanttSvg(input: StandaloneGanttSvgInput): SVGSVGElement 
   const chipClips = document.createElementNS(SVG_NS, 'defs');
   root.appendChild(chipClips);
 
+  const rung = resolveAxisRung(dayPx);
   for (const day of axis) {
     const cellX = gutterPx + CHART_PAD_PX + day.offset * dayPx;
     if (day.weekend) {
@@ -2589,13 +2584,30 @@ function buildStandaloneGanttSvg(input: StandaloneGanttSvgInput): SVGSVGElement 
     // compressed plan is a picture somebody looks at, and 91 two-digit numbers
     // in 366px is a grey smear there for exactly the reason it is one on screen.
     root.appendChild(
-      svgText(cellX + dayPx / 2, ROW_PX / 2 + 3, axisNumberShown(day, dayPx), {
-        fontSize: 9,
-        fontWeight: day.heavy ? '600' : undefined,
-        fill: day.heavy ? theme.foreground : theme.mutedForeground,
-        anchor: 'middle',
-      }),
+      svgText(
+        cellX + dayPx / 2,
+        rung.cellsPerWorkday === 1 ? ROW_PX / 2 + 3 : 10,
+        axisNumberShown(day, dayPx),
+        {
+          fontSize: 9,
+          fontWeight: day.heavy ? '600' : undefined,
+          fill: day.heavy ? theme.foreground : theme.mutedForeground,
+          anchor: 'middle',
+        },
+      ),
     );
+    // Proof: replacing this condition with false failed all three exported clock-cell cases (2026-10-12).
+    if (rung.cellsPerWorkday > 1) {
+      for (const [index, cell] of buildClockCells(rung).entries()) {
+        const word = svgText(cellX + (index + 0.5) * cell.widthPx, 24, cell.shown, {
+          fontSize: 9,
+          fill: theme.mutedForeground,
+          anchor: 'middle',
+        });
+        word.setAttribute('data-axis-minute', String(cell.minute));
+        root.appendChild(word);
+      }
+    }
     // The chips standing on this day, in the same two calls and the same
     // coordinate space as the weekend band and the day number above — the
     // live band's `left: offset * dayPx`, its `maxWidth: dayPx` and its
@@ -2903,6 +2915,8 @@ export const GanttPanel = memo(
     before.heightPx === after.heightPx &&
     before.roomPx === after.roomPx &&
     before.dayPx === after.dayPx &&
+    // Proof: omitting this comparison left the refusal title stale in the same-width notice case (2026-10-12).
+    before.rungNotice === after.rungNotice &&
     before.labelsShown === after.labelsShown &&
     before.pointed === after.pointed &&
     before.markers === after.markers &&
@@ -2923,6 +2937,7 @@ function GanttPanelContent({
   // Resolved **here** and passed on explicitly, so {@link GanttChart} below
   // takes both as required: optional at the panel's boundary, decided once, and
   // never defaulted a second time somewhere that could disagree.
+  rungNotice = null,
   dayPx = DAY_PX,
   onPickDayPx = () => undefined,
   labelsShown = true,
@@ -2970,6 +2985,7 @@ function GanttPanelContent({
       generation={generation}
       heightPx={heightPx}
       roomPx={roomPx}
+      rungNotice={rungNotice}
       dayPx={dayPx}
       onPickDayPx={onPickDayPx}
       labelsShown={labelsShown}
@@ -3046,6 +3062,8 @@ interface GanttProps {
    * so by passing a rung, which is also how it reads.
    */
   dayPx?: DayPx;
+  /** Explains a refused or unavailable rung; the layout owner clears it on picks, reset and project swap. */
+  rungNotice?: string | null;
   /**
    * Says which rung the reader picked. The caller decides what remembering it
    * means — this panel draws what it is handed and stores nothing.
@@ -3055,7 +3073,7 @@ interface GanttProps {
    * passes — is real and narrow: it bites only a case that goes looking for
    * `[data-gantt-day-scale]`, and such a case is one that meant to pass a spy.
    */
-  onPickDayPx?: (dayPx: DayPx) => void;
+  onPickDayPx?: (dayPx: DayPx, notice?: string) => void;
   /**
    * Whether the row-name column is drawn beside the chart.
    *
@@ -3256,7 +3274,8 @@ function GanttChart({
   generation,
   heightPx,
   roomPx,
-  dayPx,
+  rungNotice,
+  dayPx: pickedDayPx,
   onPickDayPx,
   labelsShown,
   onPickLabelsShown,
@@ -3285,7 +3304,7 @@ function GanttChart({
   | 'newMarkerId'
 > & {
   dayPx: DayPx;
-  onPickDayPx: (dayPx: DayPx) => void;
+  onPickDayPx: (dayPx: DayPx, notice?: string) => void;
   labelsShown: boolean;
   onPickLabelsShown: (labelsShown: boolean) => void;
   registerSvgDownload: (download: (() => void) | null) => void;
@@ -3296,6 +3315,18 @@ function GanttChart({
   onCreateMarker: (marker: NewCalendarMarkerView) => void;
   newMarkerId: () => string;
 }) {
+  const count = markCount(plan);
+  // Proof: removing the count comparisons failed both 2501/3000 refusal and restored/filter fallback cases; changing Days to 56px failed the filter case (2026-10-12).
+  const isSubDayUnavailable =
+    resolveAxisRung(pickedDayPx).cellsPerWorkday > 1 && count > SUB_DAY_MARK_LIMIT;
+  const dayPx = isSubDayUnavailable ? DAY_PX : pickedDayPx;
+  const offerExplanation = `${String(count)} marks; moved to Days`;
+  useEffect(() => {
+    if (isSubDayUnavailable) {
+      // Proof: dropping the reason argument failed the filter case when the caller adopted Days (2026-10-12).
+      onPickDayPx(DAY_PX, offerExplanation);
+    }
+  }, [isSubDayUnavailable, offerExplanation, onPickDayPx]);
   const activeTypedId = useSyncExternalStore(
     depLights?.subscribe ?? (() => () => undefined),
     depLights?.activeTypedId ?? (() => null),
@@ -3794,7 +3825,8 @@ function GanttChart({
 
   // Memoized against the one read it is a pure layout of, so a pointed-row
   // render of this shell re-draws no geometry (`pointed-row-render-cost`).
-  const chart = useMemo(() => layOutGantt(plan), [plan]);
+  const rung = resolveAxisRung(dayPx);
+  const chart = useMemo(() => layOutGantt(plan, rung), [plan, rung]);
 
   /**
    * The two per-gesture facts the marks' **handlers** read, mirrored so the
@@ -4205,7 +4237,7 @@ function GanttChart({
   // {@link DAY_PX} across, so this is what {@link CHART_PAD_PX} is worth in
   // them. See there for why the canvas is wider than the horizon.
   const pad = CHART_PAD_PX / dayPx;
-  const chartWidth = days * dayPx + 2 * CHART_PAD_PX;
+  const chartWidth = days * chart.pxPerWorkday + 2 * CHART_PAD_PX;
   const rowIdAt = useCallback(
     (rowIndex: number): string | undefined => chart.labels[rowIndex]?.id,
     [chart],
@@ -4416,6 +4448,7 @@ function GanttChart({
                 no calendar to have a Saturday on.
               */}
         {axis
+          // Proof: excluding sub-day rungs here failed `weekends stay greyed at a sub-day rung` on the absent Saturday band (2026-10-12).
           .filter((day) => day.weekend)
           .map((day) => (
             <rect
@@ -4498,21 +4531,23 @@ function GanttChart({
           </rect>
         )}
 
-        {axis.map((day) => (
-          <line
-            key={day.offset}
-            x1={day.offset}
-            y1={0}
-            x2={day.offset}
-            y2={rowCount}
-            data-gantt-gridline={day.offset}
-            // The week boundary heavier: a Monday on a calendar, and every
-            // fifth workday on an axis that holds no weekends to count
-            // from. See {@link WEEK_DAYS} and {@link calendarAxis}.
-            className={day.heavy ? 'stroke-border' : 'stroke-border/40'}
-            vectorEffect="non-scaling-stroke"
-          />
-        ))}
+        {axis.flatMap((day) =>
+          Array.from({ length: rung.cellsPerWorkday }, (_, cell) => (
+            <line
+              key={`${String(day.offset)}-${String(cell)}`}
+              x1={day.offset + cell / rung.cellsPerWorkday}
+              y1={0}
+              x2={day.offset + cell / rung.cellsPerWorkday}
+              y2={rowCount}
+              data-gantt-gridline={day.offset + cell / rung.cellsPerWorkday}
+              // The week boundary heavier: a Monday on a calendar, and every
+              // fifth workday on an axis that holds no weekends to count
+              // from. See {@link WEEK_DAYS} and {@link calendarAxis}.
+              className={day.heavy && cell === 0 ? 'stroke-border' : 'stroke-border/40'}
+              vectorEffect="non-scaling-stroke"
+            />
+          )),
+        )}
 
         {/*
                 The leading edge of today, over the gridlines and under every
@@ -5372,6 +5407,7 @@ function GanttChart({
     ),
     [
       axis,
+      rung,
       cancelOpening,
       chart,
       dayPx,
@@ -5953,7 +5989,25 @@ function GanttChart({
                     .join(' ')}
                   style={{ width: dayPx }}
                 >
-                  {axisNumberShown(day, dayPx)}
+                  {rung.cellsPerWorkday === 1 ? (
+                    axisNumberShown(day, dayPx)
+                  ) : (
+                    <>
+                      <span className="block leading-3">{day.shown}</span>
+                      <span className="flex leading-4">
+                        {buildClockCells(rung).map((cell) => (
+                          <span
+                            key={cell.minute}
+                            data-axis-minute={cell.minute}
+                            title={cell.clock}
+                            style={{ width: cell.widthPx }}
+                          >
+                            {cell.shown}
+                          </span>
+                        ))}
+                      </span>
+                    </>
+                  )}
                 </span>
               ))}
               {/*
@@ -6111,7 +6165,7 @@ function GanttChart({
                 // fractional the last day is.
                 viewBox={`${String(-pad)} 0 ${String(placed.horizon + 2 * pad)} ${String(rowCount)}`}
                 preserveAspectRatio="none"
-                width={placed.horizon * dayPx + 2 * CHART_PAD_PX}
+                width={placed.horizon * chart.pxPerWorkday + 2 * CHART_PAD_PX}
                 height={rowCount * ROW_PX}
                 style={{ display: 'block' }}
                 // What ends the chart's pointing: leaving the chart. The row
@@ -6792,8 +6846,14 @@ function GanttChart({
         name is the month caption above it would be no name at all.
       */}
         <select
-          data-gantt-day-scale
+          // Proof: removing this label makes the normal/refusal-title role-name regression fail.
           aria-label="Day scale — how wide one day is drawn"
+          data-gantt-day-scale
+          title={
+            isSubDayUnavailable
+              ? offerExplanation
+              : (rungNotice ?? `One day is ${String(dayPx)}px wide`)
+          }
           data-hint={`One day is ${String(dayPx)}px wide. Narrower rungs fit more of the plan on screen at once.`}
           // The chips' look without their element: `buttonVariants` is for
           // `<button>`, and a `<select>` put through it loses the platform
@@ -6808,14 +6868,31 @@ function GanttChart({
             // by construction: `value` off a DOM node is a string from the
             // page, and the same guard the storage boundary uses is the
             // one that keeps this a `DayPx` without an assertion.
-            if (isDayPx(asked)) onPickDayPx(asked);
+            // Proof: replacing the limit arm with true let an injected change pick 224 at 2501 marks; the restored-selection case failed on [28, 224] (2026-10-12).
+            if (
+              isDayPx(asked) &&
+              (resolveAxisRung(asked).cellsPerWorkday === 1 || count <= SUB_DAY_MARK_LIMIT)
+            ) {
+              onPickDayPx(asked);
+            }
           }}
         >
-          {DAY_SCALES.map((rung) => (
-            <option key={rung} value={rung}>
-              {DAY_SCALE_NAMES[rung]}
-            </option>
-          ))}
+          {AXIS_RUNGS.map((offered) => {
+            // Proof: removing the count comparison enabled all three rungs in the 2501/3000 refusal cases (2026-10-12).
+            const isUnavailable = offered.cellsPerWorkday > 1 && count > SUB_DAY_MARK_LIMIT;
+            return (
+              <option
+                key={offered.id}
+                value={offered.pxPerWorkday}
+                title={`One day is ${String(offered.pxPerWorkday)}px wide`}
+                disabled={isUnavailable}
+                {...(isUnavailable ? { 'data-not-offered': true } : {})}
+              >
+                {offered.label}
+                {isUnavailable ? ` — not offered at ${String(count)} marks` : ''}
+              </option>
+            );
+          })}
         </select>
         {/*
         The whole capability M4 owes: a standalone `.svg` of the chart

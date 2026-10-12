@@ -33,6 +33,8 @@ export interface Recalled<T> {
  * replaced: it holds no store to go stale.
  */
 export interface RuntimeRemembered<T> {
+  /** Classifies the stored claim so a caller can explain a refused preference. */
+  claim(): Recalled<Claim<T>>;
   /**
    * The stored value, dropping a key whose contents are no longer a `T` — or
    * `null` where none is stored. Not persisted, and nothing read or dropped,
@@ -85,6 +87,13 @@ export function remembered<T>(
     return state.status === 'live' ? state.services.preferences.json(key, isValid) : null;
   };
   return {
+    claim: () => {
+      const store = storeNow();
+      // Proof: replacing the null arm with false made the no-live-runtime classification case throw reading null.claim (2026-10-12).
+      return store === null
+        ? { value: { status: 'absent' }, persists: false }
+        : { value: store.claim(), persists: true };
+    },
     readAndDrop: () => {
       const store = storeNow();
       // Proof: on 2026-09-24, answering `persists: true` here failed
