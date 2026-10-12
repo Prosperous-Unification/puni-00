@@ -39,6 +39,8 @@ export interface RuledCredential {
   readonly authentication?: CredentialAuthentication;
   /** Whether the credential is a delegation (MCP, gateway or direct context). */
   readonly delegated: boolean;
+  /** Independently trusted grant lifecycle; token issuance and refresh never establish it. */
+  readonly delegationLifecycle?: CredentialRuleFacts['lifecycle'];
 }
 
 /**
@@ -53,9 +55,9 @@ export interface RuledCredential {
  *   elapsed time is greater than the bound times 1000; equality admits. A
  *   password session's times are both its issue time (also when a direct
  *   context is being issued from it); an OIDC browser credential's are its
- *   lifecycle's; an upstream delegation has none until it carries its grant's
- *   authentication time, and a direct context carries no facts at all, so
- *   both are refused. An unknown time is refused, never defaulted.
+ *   lifecycle's; an upstream delegation uses only explicitly trusted grant
+ *   lifecycle evidence, and a direct context carries no facts at all. Missing
+ *   or unknown evidence is refused, never replaced with token issuance time.
  *
  * Proof, each watched 2026-10-12 in `credential-rules.test.ts`: skipping the
  * prefix test (admitting any member) made `refuse a social identity in an
@@ -64,7 +66,9 @@ export interface RuledCredential {
  * (`organization-credential-rules.controller.db.test.ts`) select A;
  * treating a null `opened_at` as `now` made `refuses an unknown time` admit;
  * comparing either bound with `>=` made `admits the exact bound and refuses
- * one millisecond more` refuse the exact bound.
+ * one millisecond more` refuse the exact bound. In MCP production paths on
+ * 2026-10-13, defaulting unknown times to now failed six `unknown` negatives;
+ * changing either > to >= failed six `equality` cases with trusted delegation evidence.
  */
 export function credentialRuleRefusal(
   organizationId: string,
@@ -94,7 +98,7 @@ export function credentialRuleRefusal(
       : authentication.kind === 'first_party'
         ? { openedAt: authentication.issuedAt, reauthenticatedAt: authentication.issuedAt }
         : credential.delegated
-          ? null
+          ? (credential.delegationLifecycle ?? null)
           : facts.lifecycle;
   const refuse = (reason: 'max_session' | 'reauthenticate_after'): CredentialRuleRefusal => ({
     refusal: 'reauthentication_required',
