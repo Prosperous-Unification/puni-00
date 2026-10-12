@@ -17,6 +17,7 @@ export const PROJECT_COMMAND_ROUTES = [
   'setOptimizationSettings',
   'retryOptimization',
   'setStartDate',
+  'setTimezone',
   'setTeamCapacity',
   'setPriorityBands',
   'addStep',
@@ -34,11 +35,16 @@ export const PROJECT_COMMAND_ROUTES = [
 
 /**
  * The routes a plan command sends about one work item, or one directory entry a
- * picker creates on the way to attaching it — none of them names the project.
+ * picker creates on the way to attaching it, or the server list a settings
+ * control picks from — none of them names the project.
  */
 export const WORK_ITEM_COMMAND_ROUTES = [
   'patchWorkItem',
   'setStatus',
+  'startAttempt',
+  'endAttempt',
+  'removeAttempt',
+  'listTimezones',
   'assignPerson',
   'moveWorkItem',
   'duplicateWorkItem',

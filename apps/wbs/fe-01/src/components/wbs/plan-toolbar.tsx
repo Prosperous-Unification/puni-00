@@ -991,6 +991,17 @@ export function PlanToolbar({
           onChanged: () => refreshOrMarkStale('tree'),
           onRefused: recoverAmbiguousSettingsChange,
         }}
+        timezone={{
+          // Off the chart read, for the weights' reason: the zone the attempt
+          // times on screen were printed in.
+          timezone: chartRead.timezone,
+          // The commands' own member, so its identity holds across renders and
+          // the panel asks for the list once per mount.
+          listTimezones: commands.listTimezones,
+          setTimezone: (timezone) => commands.setTimezone(timezone),
+          onChanged: () => refreshOrMarkStale('tree'),
+          onRefused: recoverAmbiguousSettingsChange,
+        }}
         {...(chartRead.optimization === undefined
           ? {}
           : {

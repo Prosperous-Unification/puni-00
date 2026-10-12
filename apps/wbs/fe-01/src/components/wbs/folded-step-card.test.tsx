@@ -1,5 +1,5 @@
-import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { fireEvent, render, screen, within } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { AttemptView } from '@/lib/wbs-api';
 
@@ -13,6 +13,7 @@ const UNADDRESSED = {
   onPointerArrives: () => undefined,
   pushToast: () => undefined,
   node: null,
+  attemptActions: null,
 };
 
 describe('folded step estimate detail', () => {
@@ -137,6 +138,9 @@ const ended = (
   note: null,
 });
 
+/** The fields of a node reading these cases leave alone. */
+const NAMED = { executorNames: new Map<number, string | null>(), timezone: 'UTC' };
+
 function nodeCard(node: FoldedStepCardProps['node']) {
   render(
     <FoldedStepCard
@@ -166,6 +170,7 @@ describe('folded step card node reading (step-node-readings D4)', () => {
       reading: 'waiting',
       attempts: [ended(1, 'failed'), ended(2, 'failed'), ended(3, 'cancelled', 'p-ada', 'PR-42')],
       executorName: 'Ada Lovelace',
+      ...NAMED,
     });
     expect(screen.getByText('Waiting')).toBeInTheDocument();
     expect(screen.getByText('3 attempts, last cancelled')).toBeInTheDocument();
@@ -176,7 +181,12 @@ describe('folded step card node reading (step-node-readings D4)', () => {
   });
 
   it('says one attempt in the singular', () => {
-    nodeCard({ reading: 'unknown', attempts: [ended(1, 'failed')], executorName: 'Ada Lovelace' });
+    nodeCard({
+      reading: 'unknown',
+      attempts: [ended(1, 'failed')],
+      executorName: 'Ada Lovelace',
+      ...NAMED,
+    });
     expect(screen.getByText('Unknown')).toBeInTheDocument();
     expect(screen.getByText('1 attempt, last failed')).toBeInTheDocument();
     expect(screen.getByText('By Ada Lovelace')).toBeInTheDocument();
@@ -190,6 +200,7 @@ describe('folded step card node reading (step-node-readings D4)', () => {
         { ...ended(2, 'failed', null, 'run-7'), endedAt: null, outcome: null },
       ],
       executorName: null,
+      ...NAMED,
     });
     expect(screen.getByText('In progress')).toBeInTheDocument();
     expect(screen.getByText('2 attempts, one running')).toBeInTheDocument();
@@ -197,8 +208,182 @@ describe('folded step card node reading (step-node-readings D4)', () => {
   });
 
   it('omits the attempt lines for a node nobody has attempted', () => {
-    const card = nodeCard({ reading: 'done', attempts: [], executorName: null });
+    const card = nodeCard({ reading: 'done', attempts: [], executorName: null, ...NAMED });
     expect(screen.getByText('Done')).toBeInTheDocument();
     expect(card.textContent).not.toMatch(/attempt/);
+  });
+});
+
+describe('folded step card attempts (step-node-attempts D7)', () => {
+  const at = (iso: string): number => Date.parse(iso);
+  const KYIV_ATTEMPTS: AttemptView[] = [
+    {
+      attemptNumber: 1,
+      startedAt: at('2026-10-11T08:00:00Z'),
+      endedAt: at('2026-10-11T08:40:00Z'),
+      outcome: 'failed',
+      executorPersonId: 'p-kat',
+      reference: null,
+      note: null,
+    },
+    {
+      attemptNumber: 2,
+      startedAt: at('2026-10-11T20:00:00Z'),
+      endedAt: at('2026-10-11T23:30:00Z'),
+      outcome: 'succeeded',
+      executorPersonId: 'p-kat',
+      reference: 'PR #12',
+      note: null,
+    },
+  ];
+
+  function attemptCard(
+    node: Partial<NonNullable<FoldedStepCardProps['node']>>,
+    actions: FoldedStepCardProps['attemptActions'] = {
+      start: vi.fn(),
+      end: vi.fn(),
+      remove: vi.fn(),
+    },
+  ) {
+    render(
+      <FoldedStepCard
+        stepName="Dev"
+        number="010"
+        id="dev-card"
+        points={[{ point: 'realistic', days: '' }]}
+        final=""
+        allowancePercent={0}
+        rule={{
+          method: 'pert',
+          pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
+          rounding: 'ceil',
+        }}
+        doing={null}
+        problem={null}
+        projectId="project"
+        stepNode={{ id: 'sn1', workItemId: 'w1', stepId: 'step-dev', reference: '010.dev' }}
+        onExitActions={() => undefined}
+        onPointerArrives={() => undefined}
+        pushToast={() => undefined}
+        node={{
+          reading: 'in_progress',
+          attempts: KYIV_ATTEMPTS,
+          executorName: 'Kat',
+          executorNames: new Map([
+            [1, 'Kat'],
+            [2, 'Kat'],
+          ]),
+          timezone: 'Europe/Kyiv',
+          ...node,
+        }}
+        attemptActions={actions}
+      />,
+    );
+    return actions;
+  }
+
+  it('lists attempts newest first with number, outcome, zoned instants, executor and reference', () => {
+    attemptCard({});
+    const list = screen.getByRole('list', { name: 'Attempts at 010.dev' });
+    const lines = within(list)
+      .getAllByRole('listitem')
+      .map((each) => each.textContent);
+    // 23:30Z is 02:30 the next day in Kyiv: the card's day is 12 Oct for
+    // every reader, whatever their browser's zone
+    // (`attempt-words.zoned.test.ts` reads it under Pacific/Auckland).
+    expect(lines).toEqual([
+      '●#2 succeeded · 11 Oct 23:00 – 12 Oct 02:30 · Kat · PR #12Remove',
+      '●#1 failed · 11 Oct 11:00–11:40 · KatRemove',
+    ]);
+  });
+
+  it('offers Start attempt when none runs, and sends it', () => {
+    const actions = attemptCard({});
+    expect(screen.queryByRole('button', { name: /End attempt/ })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Start attempt' }));
+    expect(actions?.start).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers End only while an attempt runs', () => {
+    const actions = attemptCard({
+      attempts: [
+        ...KYIV_ATTEMPTS,
+        {
+          attemptNumber: 3,
+          startedAt: at('2026-10-12T07:00:00Z'),
+          endedAt: null,
+          outcome: null,
+          executorPersonId: null,
+          reference: null,
+          note: null,
+        },
+      ],
+    });
+    expect(screen.queryByRole('button', { name: 'Start attempt' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'End attempt 3…' }));
+    expect(actions?.end).toHaveBeenCalledTimes(1);
+  });
+
+  it('removes one attempt by its number', () => {
+    const actions = attemptCard({});
+    fireEvent.click(screen.getByRole('button', { name: 'Remove attempt 1 of 010.dev' }));
+    expect(actions?.remove).toHaveBeenCalledWith(1);
+  });
+
+  it('says a done node must be reopened instead of offering a start', () => {
+    attemptCard({ reading: 'done' });
+    expect(screen.queryByRole('button', { name: 'Start attempt' })).toBeNull();
+    expect(
+      screen.getByText('Done — reopen the step to start another attempt.'),
+    ).toBeInTheDocument();
+  });
+
+  it('leaves the list and its actions out without the project zone', () => {
+    attemptCard({ timezone: null });
+    expect(screen.queryByRole('list', { name: 'Attempts at 010.dev' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Start attempt' })).toBeNull();
+    // The summary lines still say what the attempts came to.
+    expect(screen.getByText('2 attempts, last succeeded')).toBeInTheDocument();
+  });
+
+  it('walks from the copy actions into the attempt actions with Tab', () => {
+    const exits = vi.fn();
+    render(
+      <FoldedStepCard
+        stepName="Dev"
+        number="010"
+        id="dev-card"
+        points={[{ point: 'realistic', days: '' }]}
+        final=""
+        allowancePercent={0}
+        rule={{
+          method: 'pert',
+          pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
+          rounding: 'ceil',
+        }}
+        doing={null}
+        problem={null}
+        projectId="project"
+        stepNode={{ id: 'sn1', workItemId: 'w1', stepId: 'step-dev', reference: '010.dev' }}
+        onExitActions={exits}
+        onPointerArrives={() => undefined}
+        pushToast={() => undefined}
+        node={{
+          reading: 'unknown',
+          attempts: [],
+          executorName: null,
+          executorNames: new Map(),
+          timezone: 'UTC',
+        }}
+        attemptActions={{ start: vi.fn(), end: vi.fn(), remove: vi.fn() }}
+      />,
+    );
+    const link = screen.getByRole('button', { name: 'Copy link' });
+    link.focus();
+    fireEvent.keyDown(link, { key: 'Tab' });
+    const start = screen.getByRole('button', { name: 'Start attempt' });
+    expect(start).toHaveFocus();
+    fireEvent.keyDown(start, { key: 'Tab' });
+    expect(exits).toHaveBeenCalledTimes(1);
   });
 });

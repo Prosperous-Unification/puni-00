@@ -1065,6 +1065,6 @@ describe('the project’s settings behind one control', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Project settings' });
     expect(
       [...dialog.querySelectorAll('[role="tab"]')].map((each) => each.textContent.trim()),
-    ).toEqual(['Teams', 'Priorities', 'Steps', 'Estimating', 'Optimization']);
+    ).toEqual(['Teams', 'Priorities', 'Steps', 'Estimating', 'Optimization', 'Timezone']);
   });
 });

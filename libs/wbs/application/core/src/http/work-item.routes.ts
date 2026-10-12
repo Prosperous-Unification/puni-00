@@ -448,6 +448,10 @@ export function workItemRoutes(
             ...tree,
             ...(await workItems.undoState(params.id, principal.id)),
             ...(await readStepAddresses(params.id, tree, digest)),
+            // Proof: left out, `carries UTC by default and the patched zone
+            // after a PATCH` (`step-node-attempt.controller.db.test.ts`) read
+            // `undefined`; watched 2026-10-12.
+            timezone: await workItems.timezoneOf(params.id),
           },
         };
       },

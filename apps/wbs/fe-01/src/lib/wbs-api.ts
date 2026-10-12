@@ -32,6 +32,7 @@ import {
   type PlanDocument,
   type PlanDocumentRequest,
   readProject as readProjectShape,
+  readTimezones as readTimezonesShape,
   recordProjectOpen,
   redoProject as redoProjectShape,
   removeCalendarMarker as removeCalendarMarkerShape,
@@ -579,13 +580,16 @@ export type NodeReadingView =
   | 'waiting'
   | 'unknown';
 
+/** How an attempt ended, mirroring `ATTEMPT_OUTCOMES` in `@wbs/domain`. */
+export type AttemptOutcomeView = 'succeeded' | 'failed' | 'cancelled';
+
 /** One attempt at a step node: instants in epoch milliseconds, UTC. */
 export interface AttemptView {
   attemptNumber: number;
   startedAt: number;
   /** Null while it runs, together with {@link outcome}. */
   endedAt: number | null;
-  outcome: 'succeeded' | 'failed' | 'cancelled' | null;
+  outcome: AttemptOutcomeView | null;
   executorPersonId: string | null;
   reference: string | null;
   note: string | null;
@@ -1576,6 +1580,14 @@ export interface ProjectApi {
   /** Puts the plan on a calendar, or `null` to take it off again. */
   setStartDate(projectId: string, startDate: string | null): Promise<void>;
   /**
+   * Sets the IANA zone every day derived from an instant is read in
+   * (`step-node-attempts` D3). Throws `invalid_timezone` for a zone this be-01
+   * does not accept — which {@link listTimezones} never offers.
+   */
+  setTimezone(projectId: string, timezone: string): Promise<void>;
+  /** The zones this be-01 accepts as a project timezone, `UTC` included, in its order. */
+  listTimezones(): Promise<string[]>;
+  /**
    * The calendar markers on this project, in be-01's order.
    *
    * Its own read and not a member of {@link PlanRead}: a marker moves nothing
@@ -1669,6 +1681,27 @@ export interface ProjectApi {
    * one undo.
    */
   setStatus(id: string, status: SettableStatus, on: IsoDate, factStart?: IsoDate): Promise<void>;
+  /**
+   * Starts the next attempt at one step node, numbered its highest plus one,
+   * now by be-01's clock. Refused `node_done`, `attempt_running`. One journal
+   * entry, one undo (`step-node-attempts` D2).
+   */
+  startAttempt(id: string, stepId: string, executorPersonId?: string): Promise<void>;
+  /**
+   * Ends the node's running attempt now with `outcome`, and `reference` when
+   * one was typed. Refused `no_running_attempt`. One undo puts it back running.
+   */
+  endAttempt(
+    id: string,
+    stepId: string,
+    outcome: AttemptOutcomeView,
+    reference?: string,
+  ): Promise<void>;
+  /**
+   * Removes one attempt by its number, as a correction; the number is never
+   * reused, and one undo restores the row verbatim. Refused `unknown_attempt`.
+   */
+  removeAttempt(id: string, stepId: string, attemptNumber: number): Promise<void>;
   patchWorkItem(
     id: string,
     patch: {
@@ -1925,6 +1958,7 @@ const WBS_SHAPES = [
   listWorkItemTypesShape,
   patchProjectShape,
   readProjectShape,
+  readTimezonesShape,
   recordProjectOpen,
   redoProjectShape,
   removeCalendarMarkerShape,
@@ -2690,6 +2724,20 @@ export function httpProjectApi(token: string): ProjectApi {
         }),
       );
     },
+    async setTimezone(projectId, timezone) {
+      jsonBody(
+        patchProjectShape,
+        await client.patchApiProjectsById({
+          params: { id: projectId },
+          body: { timezone },
+          headers: auth(token),
+        }),
+      );
+    },
+    async listTimezones() {
+      return jsonBody(readTimezonesShape, await client.getApiTimezones({ headers: auth(token) }))
+        .timezones;
+    },
     async listCalendarMarkers(projectId) {
       return jsonBody(
         listCalendarMarkersShape,
@@ -2867,6 +2915,26 @@ export function httpProjectApi(token: string): ProjectApi {
         on,
         ...(factStart === undefined ? {} : { factStart }),
       });
+    },
+    async startAttempt(id, stepId, executorPersonId) {
+      await onRow(id, {
+        kind: 'startAttempt',
+        workItemId: id,
+        stepId,
+        ...(executorPersonId === undefined ? {} : { executorPersonId }),
+      });
+    },
+    async endAttempt(id, stepId, outcome, reference) {
+      await onRow(id, {
+        kind: 'endAttempt',
+        workItemId: id,
+        stepId,
+        outcome,
+        ...(reference === undefined ? {} : { reference }),
+      });
+    },
+    async removeAttempt(id, stepId, attemptNumber) {
+      await onRow(id, { kind: 'removeAttempt', workItemId: id, stepId, attemptNumber });
     },
     async moveWorkItem(id, parentId, afterId) {
       await onRow(id, { kind: 'moveWorkItem', workItemId: id, parentId, afterId });

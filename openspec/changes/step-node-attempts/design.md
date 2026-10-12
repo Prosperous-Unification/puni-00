@@ -162,9 +162,23 @@ never reads the column.
 
 ## D7 — fe-01
 
-The step cell card lists the node's attempts newest first (`#3 failed · 14:02–14:41 · Kat ·
-PR #12`), instants in the project zone, with `Start attempt` and, while one runs, `End
-attempt` offering the three outcomes and a reference box; both go through the batch. The
-project settings' project section shows the timezone as a searchable select over the list `GET /api/timezones`
-returns. The glyph and the reading word belong to
-`step-node-readings`.
+The step cell card lists the node's attempts newest first (`#3 failed · 12 Oct 14:02–14:41 ·
+Kat · PR #12`; across midnight `11 Oct 16:30 – 12 Oct 02:10`; running `… – now`), instants in
+the project zone, with `Start attempt`, `End attempt N…` while one runs, and `Remove` on each
+line; all three go through the batch, so the plan's Undo takes each back verbatim, and a
+removal says so in a toast. A done node says "reopen the step" instead of offering a start.
+
+- **End is a dialog of the table's, not a form in the card.** The card is a hover surface that
+  closes when the pointer leaves it; a reference half-typed into it is a draft lost. The dialog
+  (three outcomes, a reference box, End held back until an outcome is chosen) is held by node
+  and re-reads its attempt off the current tree, so a peer's end closes it.
+- **The zone rides the tree read** (`timezone?` beside `stepNodes`, optional for an older
+  be-01 mid-swap), so a card never needs a second request. Without it the card leaves the list
+  and the actions out rather than print instants in the browser's zone.
+- **A phone** shows the same section behind an `Attempts (n)` disclosure under the step's
+  `o·r·p` line, with 44px buttons.
+- **Settings** gains a `Timezone` section (last, so the first section and its remembered key
+  are unchanged): a searchable box (`<datalist>`) over the list `GET /api/timezones` returns,
+  saved by `Save timezone`; a zone not on the list is refused without a round trip.
+
+The glyph and the reading word belong to `step-node-readings`.

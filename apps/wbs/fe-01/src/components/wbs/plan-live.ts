@@ -101,6 +101,15 @@ export interface PlanLiveValues {
    * the days come from; every other status sends the reader's day, which be-01
    * reads only for those two.
    */
+  /**
+   * Starts the next attempt at one leaf's step node, now (`step-node-attempts`
+   * D7). One journalled act: the plan's Undo removes it again.
+   */
+  startAttempt: (rowId: string, stepId: string) => void;
+  /** Opens the dialog that ends the node's running attempt with an outcome and a reference. */
+  openEndAttempt: (rowId: string, stepId: string) => void;
+  /** Removes one attempt by its number; the plan's Undo puts it back verbatim. */
+  removeAttempt: (rowId: string, stepId: string, attemptNumber: number) => void;
   setStatus: (
     id: string,
     status: SettableStatus,

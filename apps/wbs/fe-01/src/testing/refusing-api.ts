@@ -27,6 +27,7 @@ import {
   patchProject,
   preflightRequest,
   readProject,
+  readTimezones,
   recordProjectOpen,
   redoProject,
   removeCalendarMarker,
@@ -186,6 +187,8 @@ const PROJECT_API_OPERATIONS = {
   setOptimizationSettings: 'patchApiProjectsById',
   retryOptimization: 'postApiProjectsByIdOptimizationRetry',
   setStartDate: 'patchApiProjectsById',
+  setTimezone: 'patchApiProjectsById',
+  listTimezones: 'getApiTimezones',
   listCalendarMarkers: 'getApiProjectsByIdCalendar-markers',
   createCalendarMarker: 'postApiProjectsByIdCalendar-markers',
   renameCalendarMarker: 'patchApiProjectsByIdCalendar-markersByMarkerId',
@@ -201,6 +204,9 @@ const PROJECT_API_OPERATIONS = {
   createWorkItem: 'postApiProjectsByIdCommands',
   patchWorkItem: 'postApiProjectsByIdCommands',
   setStatus: 'postApiProjectsByIdCommands',
+  startAttempt: 'postApiProjectsByIdCommands',
+  endAttempt: 'postApiProjectsByIdCommands',
+  removeAttempt: 'postApiProjectsByIdCommands',
   listTeams: 'getApiTeams',
   listTags: 'getApiTags',
   listServices: 'getApiServices',
@@ -671,6 +677,29 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
       throughProjectPatch(projectId, { startDate }, (normalizedProjectId, patch) =>
         setStartDateAnswer(normalizedProjectId, patch.startDate),
       );
+  }
+
+  const setTimezoneAnswer = answers.setTimezone;
+  if (setTimezoneAnswer !== undefined) {
+    checked.setTimezone = (projectId, timezone) =>
+      throughProjectPatch(projectId, { timezone }, (normalizedProjectId, patch) =>
+        setTimezoneAnswer(normalizedProjectId, patch.timezone),
+      );
+  }
+
+  const listTimezonesAnswer = answers.listTimezones;
+  if (listTimezonesAnswer !== undefined) {
+    checked.listTimezones = async () => {
+      const client = clientFromShapes([readTimezones], async () => ({
+        kind: 'json',
+        status: 200,
+        body: { timezones: await listTimezonesAnswer() },
+      }));
+      const reply = await client.getApiTimezones({});
+      if (reply.kind === 'failure') boundaryFailure(reply.failure);
+      if (reply.kind === 'refusal') throw new Error(reply.body.error);
+      return reply.body.timezones;
+    };
   }
 
   const stepsAnswer = answers.steps;
@@ -1233,6 +1262,56 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
         // answer wants the day as a string.
         (_normalizedProjectId, normalized) =>
           setStatusAnswer(normalized.workItemId, status, on, factStart),
+        () => VOID_COMMAND_RESULT,
+      );
+  }
+
+  const startAttemptAnswer = answers.startAttempt;
+  if (startAttemptAnswer !== undefined) {
+    checked.startAttempt = (workItemId, stepId, executorPersonId) =>
+      throughProjectCommand(
+        FAKE_PROJECT_ID,
+        {
+          kind: 'startAttempt',
+          workItemId,
+          stepId,
+          ...(executorPersonId === undefined ? {} : { executorPersonId }),
+        },
+        () =>
+          executorPersonId === undefined
+            ? startAttemptAnswer(workItemId, stepId)
+            : startAttemptAnswer(workItemId, stepId, executorPersonId),
+        () => VOID_COMMAND_RESULT,
+      );
+  }
+
+  const endAttemptAnswer = answers.endAttempt;
+  if (endAttemptAnswer !== undefined) {
+    checked.endAttempt = (workItemId, stepId, outcome, reference) =>
+      throughProjectCommand(
+        FAKE_PROJECT_ID,
+        {
+          kind: 'endAttempt',
+          workItemId,
+          stepId,
+          outcome,
+          ...(reference === undefined ? {} : { reference }),
+        },
+        () =>
+          reference === undefined
+            ? endAttemptAnswer(workItemId, stepId, outcome)
+            : endAttemptAnswer(workItemId, stepId, outcome, reference),
+        () => VOID_COMMAND_RESULT,
+      );
+  }
+
+  const removeAttemptAnswer = answers.removeAttempt;
+  if (removeAttemptAnswer !== undefined) {
+    checked.removeAttempt = (workItemId, stepId, attemptNumber) =>
+      throughProjectCommand(
+        FAKE_PROJECT_ID,
+        { kind: 'removeAttempt', workItemId, stepId, attemptNumber },
+        () => removeAttemptAnswer(workItemId, stepId, attemptNumber),
         () => VOID_COMMAND_RESULT,
       );
   }
