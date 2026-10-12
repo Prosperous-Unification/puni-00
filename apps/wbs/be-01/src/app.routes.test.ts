@@ -195,6 +195,10 @@ const REQUEST_BODIES: Readonly<Record<string, unknown>> = {
   postApiSpacesByIdProjectsByProjectIdMove: {},
   postApiOrganizationProjectsByIdRank: {},
   patchApiOrganization: { sharedPeople: true },
+  'putApiOrganizationSession-policy': {
+    maxSessionSeconds: 28_800,
+    reauthenticateAfterSeconds: null,
+  },
   'patchApiSaved-plansById': { name: 'Renamed snapshot' },
   postInternalForward: { message: { kind: 'route-probe' }, trace_id: 'route-probe' },
   postInternalResume: { resume_points: { subscription: -1 }, trace_id: 'route-probe' },
@@ -244,6 +248,7 @@ const SIGNED_IN_OPERATIONS = [
   'getApiOrganizationMembers',
   'getApiOrganizationMemberships',
   'getApiOrganizationProject-rank',
+  'getApiOrganizationSession-policy',
   'getApiPeople',
   'getApiPeopleByPersonIdLoad',
   'getApiPeopleLoad',
@@ -311,6 +316,7 @@ const WRITE_SCOPE_OPERATIONS = [
   'postApiSpaces',
   'postApiSpacesByIdProjects',
   'postApiSpacesByIdProjectsByProjectIdMove',
+  'putApiOrganizationSession-policy',
 ] as const;
 const INTERNAL_OPERATIONS = ['postInternalForward'] as const;
 const GATEWAY_OPERATIONS = ['postInternalGatewayProjectAccess'] as const;
@@ -371,6 +377,7 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'postApiSpaces',
   'postApiSpacesByIdProjects',
   'postApiSpacesByIdProjectsByProjectIdMove',
+  'putApiOrganizationSession-policy',
 ] as const;
 const NO_ORIGIN_OPERATIONS = [
   'postInternalGatewayProjectBrowserAccess',
@@ -388,6 +395,7 @@ const NO_ORIGIN_OPERATIONS = [
   'getApiOrganizationJoinRequests',
   'getApiOrganizationMembers',
   'getApiOrganizationProject-rank',
+  'getApiOrganizationSession-policy',
   'getApiPeople',
   'getApiPeopleByPersonIdLoad',
   'getApiPeopleLoad',

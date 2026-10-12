@@ -16,6 +16,7 @@ import type {
   ProjectRankStore,
   ReplayOrchestrator,
   SavedPlanService,
+  SessionPolicies,
   SpaceStore,
 } from '@wbs/core';
 import type { Scope, UnitOfWork } from '@wbs/core';
@@ -29,6 +30,7 @@ import { onboardingRoutes } from '@wbs/core/http/onboarding.routes';
 import { organizationRoutes } from '@wbs/core/http/organization.routes';
 import { personLoadRoutes } from '@wbs/core/http/person-load.routes';
 import { projectRankRoutes } from '@wbs/core/http/project-rank.routes';
+import { sessionPolicyRoutes } from '@wbs/core/http/session-policy.routes';
 import { spaceRoutes } from '@wbs/core/http/space.routes';
 import type { LoginThrottle } from '@wbs/core/module/authentication/login-throttle';
 import type { CalendarMarkerService } from '@wbs/core/module/calendar-marker/calendar-marker.resource';
@@ -90,6 +92,12 @@ import {
 } from './runtime/organization-selection';
 import type { WritingServices } from './services';
 
+/** The session policy store of a composition that wires none: every route answers as inactive. */
+const INACTIVE_SESSION_POLICIES: SessionPolicies = {
+  read: () => Promise.resolve('inactive'),
+  set: () => Promise.resolve('inactive'),
+};
+
 export interface AppOptions {
   clock: Pick<Clock, 'now'>;
   /** Trusted browser origin, resolved from operator configuration before boot. */
@@ -130,6 +138,12 @@ export interface AppOptions {
   memberships: MembershipAdministration;
   /** Checked policy and transactional challenge storage; omission is a composition error. */
   domains: DomainChallenges;
+  /**
+   * Session policy administration (`organization-session-policy`). Absent,
+   * the routes answer as before activation; production and the organization
+   * harness wire the SQLite store.
+   */
+  sessionPolicies?: SessionPolicies;
   /** Signed-in onboarding boundary; absence cannot masquerade as an HTTP 404. */
   onboarding: Onboarding;
   /** Required durable challenge boundary; absence is a boot configuration error. */
@@ -388,6 +402,11 @@ export function mountedEndpoints(
     ...organizationRoutes(opts.organizations, opts.memberships, opts.clock),
     ...organizationSelectionRoutes(opts.organizationSelection ?? REFUSE_ORGANIZATION_SELECTION),
     ...domainRoutes(opts.organizations, opts.domains, opts.clock),
+    ...sessionPolicyRoutes(
+      opts.organizations,
+      opts.sessionPolicies ?? INACTIVE_SESSION_POLICIES,
+      opts.clock,
+    ),
     ...onboardingRoutes(opts.onboarding, opts.clock),
     ...emailVerificationRoutes(opts.emailVerification, opts.emailDelivery, opts.clock, nodeDigest),
     ...invitationRoutes(

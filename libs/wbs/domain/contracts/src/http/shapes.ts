@@ -84,6 +84,7 @@ import {
   renameSavedPlan,
   savePlan,
 } from './saved-plan-shapes';
+import { readSessionPolicy, setSessionPolicy } from './session-policy-shapes';
 import { smokeEcho } from './smoke-shapes';
 import { readSolution } from './solution-shapes';
 import {
@@ -139,6 +140,8 @@ export const httpShapes = [
   createDomainChallenge,
   verifyDomainClaim,
   rotateDomainProof,
+  readSessionPolicy,
+  setSessionPolicy,
   listInvitations,
   createInvitation,
   revokeInvitation,
