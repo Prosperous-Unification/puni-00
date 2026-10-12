@@ -1188,6 +1188,106 @@ describe('InMemoryMcpOAuth', () => {
     expect(oauth.verify(refreshedBody.access_token)).rejects.toThrow(/not an upstream token/);
   });
 
+  for (const path of ['automatic', 'forced', 'grant'] as const) {
+    it(`refuses organization-bound ${path} refresh without authority before provider contact`, async () => {
+      class BoundStore extends McpSessionStore {
+        override createFamily(...args: Parameters<McpSessionStore['createFamily']>): void {
+          const [family, ...credentials] = args;
+          super.createFamily(
+            {
+              ...family,
+              binding: { organizationId: 'org-a', userId: 'user-a', issuer: 'https://idp.example' },
+            },
+            ...credentials,
+          );
+        }
+      }
+      const store = new BoundStore(':memory:', [randomBytes(32)]);
+      let providerCalls = 0;
+      const { oauth } = fixture({
+        store,
+        exchange: () =>
+          Promise.resolve({
+            accessToken: 'upstream-okta-token',
+            expiresIn: 3600,
+            refreshToken: 'provider-refresh',
+          }),
+        refresh: () => {
+          providerCalls += 1;
+          return Promise.resolve({ accessToken: 'upstream-okta-token', expiresIn: 3600 });
+        },
+      });
+      try {
+        const verifier = 'v'.repeat(43);
+        const code = await authorizationCode(oauth, verifier);
+        const issued = await tokenResponse(oauth, 'random-1', code, verifier);
+        const credentials = (await issued.json()) as {
+          access_token: string;
+          refresh_token: string;
+        };
+        const family = store.familyForRefreshToken(credentials.refresh_token);
+        if (family === null) throw new Error('issued refresh has no durable family');
+        expect(family.binding?.organizationId).toBe('org-a');
+        if (path === 'automatic') {
+          const refusal = await oauth
+            .callerSessionFor(credentials.access_token)
+            .catch((cause: unknown) => cause);
+          expect(refusal).toBeInstanceOf(SessionRefreshRefused);
+        } else if (path === 'forced') {
+          const claims = await oauth.verify(credentials.access_token);
+          const sessionId = claims['jti'];
+          if (typeof sessionId !== 'string') throw new Error('issued access has no session');
+          const refusal = await oauth.refreshSession(sessionId).catch((cause: unknown) => cause);
+          expect(refusal).toBeInstanceOf(SessionRefreshRefused);
+        } else {
+          const refused = await oauth.response(
+            new Request('https://dev.wbs.bulletpoints.club/mcp/oauth/token', {
+              method: 'POST',
+              body: new URLSearchParams({
+                client_id: 'random-1',
+                grant_type: 'refresh_token',
+                refresh_token: credentials.refresh_token,
+              }),
+            }),
+          );
+          expect(refused?.status).toBe(400);
+          expect(await refused?.json()).toEqual({ error: 'invalid_grant' });
+          expect(store.sessionCount(1_700_000_000_000)).toBe(1);
+          expect(
+            store.prepareRefresh(credentials.refresh_token, 'random-1', 1_700_000_000_000).outcome,
+          ).toBe('ok');
+        }
+        expect(providerCalls).toBe(0);
+        expect(store.family(family.familyId)?.upstreamAccessToken).toBe('upstream-okta-token');
+      } finally {
+        store.close();
+      }
+    });
+  }
+
+  it('refuses a corrupt nonzero-epoch family read before returning a fresh token', async () => {
+    class UnsupportedStore extends McpSessionStore {
+      override familyForSession(...args: Parameters<McpSessionStore['familyForSession']>) {
+        const family = super.familyForSession(...args);
+        return family === null ? null : { ...family, credentialEpoch: 1 };
+      }
+    }
+    const store = new UnsupportedStore(':memory:', [randomBytes(32)]);
+    const { oauth } = fixture({ store });
+    try {
+      const verifier = 'v'.repeat(43);
+      const code = await authorizationCode(oauth, verifier);
+      const issued = await tokenResponse(oauth, 'random-1', code, verifier);
+      const credentials = (await issued.json()) as { access_token: string };
+      const refusal = await oauth
+        .callerSessionFor(credentials.access_token)
+        .catch((cause: unknown) => cause);
+      expect(refusal).toBeInstanceOf(SessionRefreshRefused);
+    } finally {
+      store.close();
+    }
+  });
+
   // Proof: dropping the versioned lease CAS makes both callers invoke the provider.
   it('refreshes an expiring upstream token once across two concurrent callers', async () => {
     let providerCalls = 0;
