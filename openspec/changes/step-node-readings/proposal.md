@@ -19,7 +19,7 @@ those is derivable; nothing shows it yet.
   where the word is shared, plus `◇` waiting and `∅` skipped; the cell card names the reading
   with the attempt count, last outcome and latest executor and reference. The Status column
   keeps the row fold. A component test asserts every reading has its own glyph.
-- The work-item read carries `readings` per step node.
+- The work-item read carries `nodeReadings` per step node.
 
 ## Non-Goals
 

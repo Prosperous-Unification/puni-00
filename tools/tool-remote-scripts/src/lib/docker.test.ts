@@ -19,6 +19,7 @@ import {
   assertOidcEnvAllowed,
   assertTierEnvAllowed,
   assertTierEnvComplete,
+  attemptOutcomesCommand,
   AUTH_METHOD_IDS,
   capacityModesCommand,
   composeUpArgs,
@@ -42,6 +43,7 @@ import {
   SHARED_ENV_PATH,
   SOLVER_SUPERVISOR_CONTAINER_DIRECTORY,
   SOLVER_SUPERVISOR_HOST_DIRECTORY,
+  storedAttemptOutcomesCommand,
   storedCapacityModesCommand,
   storedHoldsCommand,
   storedReadinessesCommand,
@@ -229,6 +231,119 @@ describe('readiness kind commands', () => {
       db.run("INSERT INTO work_item (id, readiness) VALUES ('a', 'ready'), ('b', NULL)");
       expect(await read()).toEqual([{ kind: 'ready', count: 1 }]);
       db.close();
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('attempt outcome commands', () => {
+  it('executes the present attempt outcomes CLI', async () => {
+    const directory = scratchSync('wbs-outcomes-present-');
+    try {
+      mkdirSync(join(directory, 'src'));
+      writeFileSync(
+        join(directory, 'src/attempt-outcomes-cli.ts'),
+        'console.log(JSON.stringify(["succeeded", "failed", "cancelled"]));\n',
+      );
+      const command = attemptOutcomesCommand('be-01-green');
+      expect(command.slice(0, 4)).toEqual(['exec', 'be-01-green', 'sh', '-c']);
+      const probe = Bun.spawn(command.slice(2), { cwd: directory, stdout: 'pipe' });
+      expect(await probe.exited).toBe(0);
+      expect(JSON.parse(await new Response(probe.stdout).text())).toEqual([
+        'succeeded',
+        'failed',
+        'cancelled',
+      ]);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('treats an absent attempt outcomes CLI as reading no outcomes', async () => {
+    const directory = scratchSync('wbs-outcomes-absent-');
+    try {
+      mkdirSync(join(directory, 'src'));
+      const probe = Bun.spawn(attemptOutcomesCommand('be-01-green').slice(2), {
+        cwd: directory,
+        stdout: 'pipe',
+      });
+      expect(await probe.exited).toBe(0);
+      expect(JSON.parse(await new Response(probe.stdout).text())).toEqual([]);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('does not treat a missing source directory as an older release', async () => {
+    const directory = scratchSync('wbs-outcomes-unavailable-');
+    try {
+      const probe = Bun.spawn(attemptOutcomesCommand('be-01-green').slice(2), { cwd: directory });
+      expect(await probe.exited).toBe(74);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects a nonregular attempt outcomes CLI path', async () => {
+    const directory = scratchSync('wbs-outcomes-nonregular-');
+    try {
+      mkdirSync(join(directory, 'src/attempt-outcomes-cli.ts'), { recursive: true });
+      const probe = Bun.spawn(attemptOutcomesCommand('be-01-green').slice(2), { cwd: directory });
+      expect(await probe.exited).toBe(73);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('reads stored outcomes from SQLite, empty before the table exists, running attempts left out', async () => {
+    const directory = scratchSync('wbs-stored-outcomes-');
+    try {
+      const path = join(directory, 'wbs.db');
+      const db = new Database(path);
+      const command = storedAttemptOutcomesCommand('be-01-green');
+      expect(command.slice(0, 4)).toEqual(['exec', 'be-01-green', 'bun', '-e']);
+      const readOutcomes = async () => {
+        const probe = Bun.spawn(command.slice(2), {
+          env: { ...process.env, DB_PATH: path },
+          stdout: 'pipe',
+          stderr: 'pipe',
+        });
+        const output = await new Response(probe.stdout).text();
+        expect(await probe.exited).toBe(0);
+        const parsed: unknown = JSON.parse(output);
+        return parsed;
+      };
+      expect(await readOutcomes()).toEqual([]);
+      db.run('CREATE TABLE step_node_attempt (attempt_number integer, outcome text)');
+      expect(await readOutcomes()).toEqual([]);
+      db.run(
+        "INSERT INTO step_node_attempt VALUES (1, 'failed'), (2, 'failed'), (3, 'succeeded'), (4, NULL)",
+      );
+      expect(await readOutcomes()).toEqual([
+        { outcome: 'failed', count: 2 },
+        { outcome: 'succeeded', count: 1 },
+      ]);
+      db.close();
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects a missing database file and an unset DB_PATH', async () => {
+    const directory = scratchSync('wbs-stored-outcomes-missing-');
+    try {
+      const missing = Bun.spawn(storedAttemptOutcomesCommand('be-01-green').slice(2), {
+        env: { ...process.env, DB_PATH: join(directory, 'missing.db') },
+        stderr: 'pipe',
+      });
+      expect(await missing.exited).not.toBe(0);
+      const { DB_PATH: _dbPath, ...environment } = process.env;
+      const unset = Bun.spawn(storedAttemptOutcomesCommand('be-01-green').slice(2), {
+        env: environment,
+        stderr: 'pipe',
+      });
+      expect(await unset.exited).not.toBe(0);
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }

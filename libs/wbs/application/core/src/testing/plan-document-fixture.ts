@@ -17,6 +17,7 @@ export function planDocumentFixture(): PlanDocumentImport {
       optimizationEnabled: false,
       scheduleEngine: 'fast',
       scheduleObjective: 'pri',
+      timezone: 'UTC',
     },
     capacity: [{ teamId: 'team-1', size: 2 }],
     priorityBands: [
@@ -50,6 +51,7 @@ export function planDocumentFixture(): PlanDocumentImport {
         factEnd: null,
         readiness: null,
         hold: null,
+        attempts: [],
         priority: 2,
         serviceTeamId: 'team-1',
         serviceId: 'service-1',

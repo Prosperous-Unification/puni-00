@@ -49,6 +49,7 @@ import {
 } from '@wbs/store-sqlite';
 import { canonicalOidcEmail } from '@wbs/store-sqlite/canonical-oidc-email';
 import type { Connection } from '@wbs/store-sqlite/db';
+import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 
 import { buildApp } from '../app';
@@ -393,6 +394,7 @@ export class OrganizationHarness {
         actuals: new ActualRepository(db, OPEN),
         measures: new StepMeasureRepository(db, OPEN),
         progress: new StepProgressRepository(db, OPEN),
+        attempts: new StepNodeAttemptRepository(db, OPEN),
         dependencies: new DependencyRepository(db, OPEN),
         typedDependencies: new TypedDependencyRepository(db, OPEN),
         directory: directoryStore,

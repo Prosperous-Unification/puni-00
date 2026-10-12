@@ -16,6 +16,7 @@ import { type TrioProblem } from './estimate-draft';
 import { type ServiceLabel, type ServiceTeamLabel, type TagLabel } from './gantt-geometry';
 import { type CardAssignee } from './plan-cards';
 import { type PrintedDay } from './short-date';
+import type { StepNodeReadings } from './step-reading';
 import { type TreeRow } from './wbs-rows';
 
 /** Immutable values rendered by one structurally folded estimate step. */
@@ -27,6 +28,8 @@ export interface FoldedEstimateReadings {
   doing: CardAssignee | null;
   mentionOptions: PickerOption[];
   mentioning: boolean;
+  /** The node's reading for its corner glyph and card; null on a parent or an older read. */
+  node: StepNodeReadings | null;
 }
 
 /** Immutable values rendered by one structurally unfolded estimate step. */
@@ -36,6 +39,8 @@ export interface UnfoldedEstimateReadings {
   doing: CardAssignee | null;
   estimateValues: Record<'optimistic' | 'realistic' | 'pessimistic', string>;
   trioProblem: TrioProblem | null;
+  /** The node's reading for its corner glyph; null on a parent or an older read. */
+  node: StepNodeReadings | null;
 }
 
 /** One step's render values, narrowed by the column family's structural layout. */

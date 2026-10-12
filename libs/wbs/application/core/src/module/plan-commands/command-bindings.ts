@@ -336,6 +336,51 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
       );
       return { ...context.plain(), kind: command.kind };
     },
+    startAttempt: async (command, context) => {
+      context.value(
+        await workItems.startAttempt(
+          context.required(command.workItemId, command.workItemRef),
+          context.actorId,
+          command.stepId,
+          {
+            ...(command.at === undefined ? {} : { at: command.at }),
+            ...(command.executorPersonId === undefined
+              ? {}
+              : { executorPersonId: command.executorPersonId }),
+            ...(command.reference === undefined ? {} : { reference: command.reference }),
+            ...(command.note === undefined ? {} : { note: command.note }),
+          },
+        ),
+      );
+      return { ...context.plain(), kind: command.kind };
+    },
+    endAttempt: async (command, context) => {
+      context.value(
+        await workItems.endAttempt(
+          context.required(command.workItemId, command.workItemRef),
+          context.actorId,
+          command.stepId,
+          {
+            outcome: command.outcome,
+            ...(command.at === undefined ? {} : { at: command.at }),
+            ...(command.reference === undefined ? {} : { reference: command.reference }),
+            ...(command.note === undefined ? {} : { note: command.note }),
+          },
+        ),
+      );
+      return { ...context.plain(), kind: command.kind };
+    },
+    removeAttempt: async (command, context) => {
+      context.value(
+        await workItems.removeAttempt(
+          context.required(command.workItemId, command.workItemRef),
+          context.actorId,
+          command.stepId,
+          command.attemptNumber,
+        ),
+      );
+      return { ...context.plain(), kind: command.kind };
+    },
     setStatus: async (command, context) => {
       context.value(
         await workItems.setStatus(

@@ -6,8 +6,9 @@
 step node by pair or step node ID, accepted on HTTP, the batch endpoint and the derived MCP
 tools, journalled with verbatim inverses, and refused at their command index with the codes
 `wbs-domain` names, rolling the batch back. The registry's kind count SHALL move by exactly
-three. Their history sentences SHALL read `started attempt 2 of 010.dev`, `ended attempt 2 of
-010.dev failed` and `removed attempt 2 of 010.dev`.
+three. Their history sentences SHALL name the node by its canonical step reference and read
+`started attempt 2 of 010.s1-dev`, `ended attempt 2 of 010.s1-dev failed` and `removed attempt
+2 of 010.s1-dev`.
 
 #### Scenario: the kind count moves by three
 

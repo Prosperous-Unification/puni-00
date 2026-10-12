@@ -13,6 +13,7 @@ import { StepService } from '@wbs/core/module/step/step.resource';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
 import { systemTimers } from '@wbs/runtime-portable';
 import { PushClient } from '@wbs/runtime-portable';
+import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
@@ -302,6 +303,7 @@ describe('StepService.remove', () => {
         actuals: 0,
         progress: 0,
         measures: 0,
+        attempts: 0,
         assignments: 1,
         assumedAssignees: [{ workItemId: 'strip', assumedNow: null, assumedAfter: ada.id }],
       },
@@ -346,6 +348,7 @@ describe('StepService.remove', () => {
         actuals: 0,
         progress: 0,
         measures: 2,
+        attempts: 0,
         assignments: 0,
         assumedAssignees: [],
       },
@@ -531,6 +534,7 @@ describe('a step removed between the check and the write', () => {
       actuals: new ActualRepository(db, OPEN),
       measures: new StepMeasureRepository(db, OPEN),
       progress: new StepProgressRepository(db, OPEN),
+      attempts: new StepNodeAttemptRepository(db, OPEN),
       directory: vanishingToo,
       capacity: inMemoryCapacity(),
       priorityBands: inMemoryPriorityBands(),
@@ -577,6 +581,7 @@ describe('a step removed between the check and the write', () => {
       actuals,
       measures,
       progress: progressStore,
+      attempts: new StepNodeAttemptRepository(db, OPEN),
       directory,
       capacity: inMemoryCapacity(),
       priorityBands: inMemoryPriorityBands(),

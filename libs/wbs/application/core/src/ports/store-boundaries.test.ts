@@ -73,6 +73,7 @@ describe('store ports', () => {
         scheduleObjective: 'pri',
         optimizationEnabled: false,
         solutionRef: null,
+        timezone: 'UTC',
       },
       steps: [],
       workItems: [],

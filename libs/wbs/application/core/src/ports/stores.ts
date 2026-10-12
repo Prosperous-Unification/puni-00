@@ -15,6 +15,7 @@ import type { ProjectRankStore, SharedPeopleStore } from './project-rank-store';
 import type { ProjectStore } from './project-store';
 import type { SavedPlanCaptureStore } from './saved-plan-capture-store';
 import type { SavedPlanStore } from './saved-plan-store';
+import type { StepNodeAttemptStore } from './step-node-attempt-store';
 import type { StepStore } from './step-store';
 import type { SubtreeStore } from './subtree-store';
 import type { TypedDependencyStore } from './typed-dependency-store';
@@ -43,6 +44,8 @@ export interface PlanTransactionalStores {
   actuals: ActualStore;
   measures: MeasureStore;
   progress: StepProgressStore;
+  /** The attempts at step nodes; moved with the other step facts at the hand-down. */
+  attempts: StepNodeAttemptStore;
   dependencies: DependencyStore;
   typedDependencies: TypedDependencyStore;
   subtrees: SubtreeStore;

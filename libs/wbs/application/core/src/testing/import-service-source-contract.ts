@@ -235,11 +235,13 @@ async function exportDocument(
   ]);
   if (project === null) throw new Error(`imported project disappeared: ${projectId}`);
   if (tree === null || 'kind' in tree) throw new Error(`imported project cannot be exported`);
+  const timezone = await source.stores.projects.timezoneOf(projectId);
+  if (timezone === null) throw new Error(`imported project has no timezone: ${projectId}`);
   const exported = await new PlanDocumentService({
     directory: source.stores.directory,
     markers: graph.calendarMarkers,
     clock,
-  }).export(project, tree, LEGACY_ACCESS);
+  }).export({ ...project, timezone }, tree, LEGACY_ACCESS);
   if (!exported.ok) throw new Error(`imported project export refused: ${exported.error}`);
   return exported.value;
 }
@@ -396,6 +398,9 @@ function heldSolutionUnitOfWork(
           setStepAllowance: (projectId, stepId, percent, stamp) =>
             stored.setStepAllowance(projectId, stepId, percent, stamp),
           stepAllowanceRevisions: (projectId) => stored.stepAllowanceRevisions(projectId),
+          timezoneOf: (projectId) => stored.timezoneOf(projectId),
+          setTimezone: (projectId, timezone, stamp) =>
+            stored.setTimezone(projectId, timezone, stamp),
         };
         return act({ stores: { ...scope.stores, projects } });
       });
@@ -1190,7 +1195,7 @@ export function importServiceSourceContract(
           if (!imported.ok) throw new Error(`import refused at ${imported.path}`);
           const exported = await exportDocument(source, imported.projectId);
 
-          expect(exported.document.version).toBe(6);
+          expect(exported.document.version).toBe(7);
           expect(exported.typedDependencies).toEqual([]);
           expect(exported.steps.map(({ name, code }) => [name, code])).toEqual([
             ['Discover', codes[0]],
@@ -1246,7 +1251,7 @@ export function importServiceSourceContract(
           verifyStep === undefined
         )
           throw new Error('round-trip relationship references disappeared');
-        expect(exported.document.version).toBe(6);
+        expect(exported.document.version).toBe(7);
         expect(
           exported.typedDependencies.map(({ predecessor, successor, type }) => ({
             predecessor,

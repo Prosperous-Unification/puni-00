@@ -42,6 +42,7 @@ export function planInputRowsOf(reads: PlanInputReads): PlanInputRows {
       pertWeightOptimistic: reads.project.pertWeights.optimistic,
       pertWeightRealistic: reads.project.pertWeights.realistic,
       pertWeightPessimistic: reads.project.pertWeights.pessimistic,
+      timezone: reads.project.timezone,
     },
     workItems: reads.workItems.map((row) => ({
       id: row.id,

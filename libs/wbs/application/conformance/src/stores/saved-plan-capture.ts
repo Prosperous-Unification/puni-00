@@ -372,8 +372,10 @@ async function readSeededPlanInput(
     stores.directory.listExternalSystems(),
   ]);
   if (project === null) throw new Error(`capture seed project ${projectId} is absent`);
+  const timezone = await stores.projects.timezoneOf(projectId);
+  if (timezone === null) throw new Error(`capture seed project ${projectId} has no timezone`);
   return {
-    project,
+    project: { ...project, timezone },
     steps,
     workItems,
     estimates,

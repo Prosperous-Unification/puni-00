@@ -64,6 +64,8 @@ export interface MemoryProjectTables {
   readonly allowanceRevisions: Map<string, number>;
   /** Which organization owns each project, as `project_organization` holds it. */
   readonly owning: Map<string, string>;
+  /** Each project's zone that is not the column default `UTC`. */
+  readonly timezones: Map<string, string>;
 }
 
 export function memoryProjectTables(): MemoryProjectTables {
@@ -73,6 +75,7 @@ export function memoryProjectTables(): MemoryProjectTables {
     opened: new Map(),
     allowanceRevisions: new Map(),
     owning: new Map(),
+    timezones: new Map(),
   };
 }
 
@@ -80,7 +83,7 @@ export function inMemoryProjects(
   owners: UserStore = inMemoryUsers(),
   tables: MemoryProjectTables = memoryProjectTables(),
 ): ProjectStore {
-  const { projects, steps, opened, allowanceRevisions, owning } = tables;
+  const { projects, steps, opened, allowanceRevisions, owning, timezones } = tables;
   /** One moment per `userId::projectId`, exactly as the primary key holds it. */
   /**
    * Every stamp this store was handed, in call order, so a service test can
@@ -227,6 +230,17 @@ export function inMemoryProjects(
       const revision = (allowanceRevisions.get(stepId) ?? 0) + 1;
       allowanceRevisions.set(stepId, revision);
       return Promise.resolve({ ok: true, step: structuredClone(found), previousPercent, revision });
+    },
+    timezoneOf(projectId) {
+      if (!projects.has(projectId)) return Promise.resolve(null);
+      return Promise.resolve(timezones.get(projectId) ?? 'UTC');
+    },
+    setTimezone(projectId, timezone, _stamp) {
+      const existing = projects.get(projectId);
+      if (existing === undefined) return Promise.resolve(false);
+      timezones.set(projectId, timezone);
+      projects.set(projectId, { ...existing, revision: existing.revision + 1 });
+      return Promise.resolve(true);
     },
     stepAllowanceRevisions(projectId) {
       return Promise.resolve(

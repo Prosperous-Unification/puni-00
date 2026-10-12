@@ -109,6 +109,8 @@ export interface StepInUse {
    * sentence is a face change and belongs to a chunk that gates `fe-01`.
    */
   measures: number;
+  /** Attempts at this step's nodes — {@link StepUsageRows.attempts}. */
+  attempts: number;
   /** Explicit assignments on this step. The assumed ones are in `assumedAssignees`. */
   assignments: number;
   /**
@@ -147,6 +149,7 @@ function inUseFrom(usage: StepUsageRows, stepId: string): StepInUse {
     actuals: usage.actuals,
     progress: usage.progress,
     measures: usage.measures,
+    attempts: usage.attempts,
     assignments: usage.assignments.filter((each) => each.stepId === stepId).length,
     assumedAssignees: assumedAssigneeFlips(usage.assignments, stepId),
   };

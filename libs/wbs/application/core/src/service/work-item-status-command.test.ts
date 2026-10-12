@@ -4,6 +4,7 @@ import { projectRow } from '@wbs/store-memory/project-fixture';
 import { beforeEach, describe, expect, it } from 'bun:test';
 
 import type { Project, ProjectStore, StepProgressStore } from '../index';
+import { clockOf } from '../ports/clock';
 import type { AvailableWorkItemService as WorkItemService } from '../testing/available-work-item-service';
 import { inMemoryServices } from '../testing/harness';
 
@@ -531,5 +532,134 @@ describe('an on-hold leaf takes no part in the schedule', () => {
     expect((await scheduleOf('Branch')).schedule?.earliestFinish).toBe(3);
     await set(strip, 'on_hold');
     expect(await scheduleOf('Branch')).toMatchObject({ schedule: null, dates: null });
+  });
+});
+
+describe('the attempt is the better witness (step-node-attempts D4)', () => {
+  /** A fresh plan whose clock stamps `at`, in `zone`, holding one leaf `Strip`. */
+  async function clockedLeaf(at: number, zone = 'UTC') {
+    const plan = inMemoryServices({
+      clock: clockOf({ now: () => at, newId: () => crypto.randomUUID() }),
+    });
+    const project: Project = projectRow({ id: crypto.randomUUID(), ownerId: OWNER });
+    await plan.stores.projects.create(
+      project,
+      [
+        {
+          id: DEV,
+          projectId: project.id,
+          name: 'Dev',
+          position: 10,
+          code: 'dev',
+          allowancePercent: 0,
+        },
+        {
+          id: QA,
+          projectId: project.id,
+          name: 'QA',
+          position: 20,
+          code: 'qa',
+          allowancePercent: 0,
+        },
+      ],
+      { at: 1, by: OWNER },
+    );
+    if (zone !== 'UTC')
+      await plan.stores.projects.setTimezone(project.id, zone, { at: 1, by: OWNER });
+    const created = await plan.service.create(project.id, OWNER, {
+      parentId: null,
+      afterId: null,
+      name: 'Strip',
+    });
+    if (!created.ok) throw new Error(`create failed: ${created.reason}`);
+    const leaf = created.value.id;
+    const attempt = async (
+      stepId: string,
+      attemptNumber: number,
+      startedAt: number,
+      endedAt: number | null,
+    ) => {
+      await plan.stores.attempts.restore(
+        {
+          workItemId: leaf,
+          stepId,
+          attemptNumber,
+          startedAt,
+          ...(endedAt === null
+            ? { endedAt: null, outcome: null }
+            : { endedAt, outcome: 'succeeded' as const }),
+          executorPersonId: null,
+          reference: null,
+          note: null,
+        },
+        { at: 1, by: OWNER },
+      );
+    };
+    const facts = async () => {
+      const tree = await plan.service.tree(project.id);
+      const row = tree?.workItems.find((each) => each.id === leaf);
+      if (row === undefined) throw new Error('leaf vanished');
+      return { factStart: row.factStart, factEnd: row.factEnd };
+    };
+    return { plan, leaf, attempt, facts };
+  }
+
+  it("done fills the fact end from the last attempt's end day in the project zone", async () => {
+    const { plan, leaf, attempt, facts } = await clockedLeaf(
+      Date.UTC(2026, 9, 11, 9, 0),
+      'Europe/Kyiv',
+    );
+    await attempt(DEV, 1, Date.UTC(2026, 9, 8, 8, 0), Date.UTC(2026, 9, 8, 12, 0));
+    // 22:30Z on the 9th is the 10th in Kyiv, and later than attempt 1's end.
+    await attempt(QA, 1, Date.UTC(2026, 9, 9, 9, 0), Date.UTC(2026, 9, 9, 22, 30));
+    expect((await plan.service.setStatus(leaf, OWNER, 'done')).ok).toBe(true);
+    expect(await facts()).toEqual({ factStart: '2026-10-08', factEnd: '2026-10-10' });
+  });
+
+  it("in_progress fills the fact start from the first attempt's start day", async () => {
+    const { plan, leaf, attempt, facts } = await clockedLeaf(Date.UTC(2026, 9, 11, 9, 0));
+    await attempt(QA, 1, Date.UTC(2026, 9, 7, 8, 0), null);
+    await attempt(DEV, 1, Date.UTC(2026, 9, 5, 23, 59), Date.UTC(2026, 9, 6, 1, 0));
+    expect((await plan.service.setStatus(leaf, OWNER, 'in_progress')).ok).toBe(true);
+    expect(await facts()).toEqual({ factStart: '2026-10-05', factEnd: null });
+  });
+
+  it('no attempt fills the day of the act, byte-identical to today', async () => {
+    const { plan, leaf, facts } = await clockedLeaf(Date.UTC(2026, 8, 12, 23, 30));
+    expect((await plan.service.setStatus(leaf, OWNER, 'done')).ok).toBe(true);
+    // The fill a UTC project always wrote; the fact start stays empty as before.
+    expect(await facts()).toEqual({ factStart: null, factEnd: '2026-09-12' });
+  });
+
+  it('a typed day is never overwritten, and an explicit on and factStart win', async () => {
+    const { plan, leaf, attempt, facts } = await clockedLeaf(Date.UTC(2026, 9, 11, 9, 0));
+    await attempt(DEV, 1, Date.UTC(2026, 9, 9, 8, 0), Date.UTC(2026, 9, 10, 2, 0));
+    expect(
+      (await plan.service.patch(leaf, OWNER, { factStart: '2026-10-01', factEnd: '2026-10-02' }))
+        .ok,
+    ).toBe(true);
+    expect((await plan.service.setStatus(leaf, OWNER, 'done')).ok).toBe(true);
+    expect(await facts()).toEqual({ factStart: '2026-10-01', factEnd: '2026-10-02' });
+
+    const other = await clockedLeaf(Date.UTC(2026, 9, 11, 9, 0));
+    await other.attempt(DEV, 1, Date.UTC(2026, 9, 9, 8, 0), Date.UTC(2026, 9, 10, 2, 0));
+    expect(
+      (await other.plan.service.setStatus(other.leaf, OWNER, 'done', '2026-10-11', '2026-10-03'))
+        .ok,
+    ).toBe(true);
+    expect(await other.facts()).toEqual({ factStart: '2026-10-03', factEnd: '2026-10-11' });
+  });
+
+  it('Kyiv at 23:30Z fills the next day', async () => {
+    const { plan, leaf, facts } = await clockedLeaf(Date.UTC(2026, 8, 12, 23, 30), 'Europe/Kyiv');
+    expect((await plan.service.setStatus(leaf, OWNER, 'done')).ok).toBe(true);
+    expect(await facts()).toEqual({ factStart: null, factEnd: '2026-09-13' });
+  });
+
+  it('the attempt is the better witness: a UTC Dev attempt across midnight', async () => {
+    const { plan, leaf, attempt, facts } = await clockedLeaf(Date.UTC(2026, 9, 11, 12, 0));
+    await attempt(DEV, 1, Date.UTC(2026, 9, 9, 8, 0), Date.UTC(2026, 9, 10, 2, 0));
+    expect((await plan.service.setStatus(leaf, OWNER, 'done')).ok).toBe(true);
+    expect(await facts()).toEqual({ factStart: '2026-10-09', factEnd: '2026-10-10' });
   });
 });

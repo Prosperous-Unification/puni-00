@@ -123,13 +123,43 @@ const PROJECT = {
   scheduleObjective: 'pri',
 };
 
+/** The first leaf's Dev attempts as a version-7 export writes them: by step code. */
+const ATTEMPTS = {
+  dev: [
+    {
+      number: 1,
+      startedAt: '2026-10-01T09:00:00.000Z',
+      endedAt: '2026-10-01T17:00:00.000Z',
+      outcome: 'failed',
+      executor: 'Ada Lovelace',
+      reference: 'PR-41',
+      note: null,
+    },
+    {
+      number: 2,
+      startedAt: '2026-10-02T09:00:00.000Z',
+      endedAt: null,
+      outcome: null,
+      executor: null,
+      reference: null,
+      note: 'retrying',
+    },
+  ],
+};
+
+/**
+ * A version-7 export (`step-node-attempts` D5): the project's timezone in its
+ * settings, and the first leaf's attempts keyed by step code, so a download
+ * proves they survive the response contract.
+ */
 const PLAN_DOCUMENT = (ids: string[] = ['w1']): Record<string, unknown> => {
-  const tree = JSON.parse(TREE('p1', ids)) as Record<string, unknown>;
+  const tree = JSON.parse(TREE('p1', ids)) as { workItems: Record<string, unknown>[] };
   return {
     ...tree,
+    workItems: tree.workItems.map((row, at) => (at === 0 ? { ...row, attempts: ATTEMPTS } : row)),
     project: PROJECT,
     stepNodes: [],
-    document: { format: 'wbs-plan', version: 6, exportedAt: '2026-09-14T08:30:00.000Z' },
+    document: { format: 'wbs-plan', version: 7, exportedAt: '2026-09-14T08:30:00.000Z' },
     typedDependencies: [],
     settings: {
       name: PROJECT.name,
@@ -143,6 +173,7 @@ const PLAN_DOCUMENT = (ids: string[] = ['w1']): Record<string, unknown> => {
       optimizationEnabled: PROJECT.optimizationEnabled,
       scheduleEngine: PROJECT.scheduleEngine,
       scheduleObjective: PROJECT.scheduleObjective,
+      timezone: 'Europe/Kyiv',
     },
     capacity: [],
     calendarMarkers: [],
@@ -158,6 +189,12 @@ const importDocument = async (): Promise<PlanDocumentRequest> => {
     exportedAt: '2026-09-14T08:30:00.000Z',
   };
   delete legacyDocument['typedDependencies'];
+  // A version-3 file has neither the zone nor attempts version 7 added.
+  const settings = legacyDocument['settings'] as Record<string, unknown>;
+  delete settings['timezone'];
+  legacyDocument['workItems'] = (legacyDocument['workItems'] as Record<string, unknown>[]).map(
+    ({ attempts: _attempts, ...row }) => row,
+  );
   const preflight = await preflightRequest(importProject, { body: legacyDocument });
   if (preflight.kind === 'failure') throw new Error('the import fixture is not a valid request');
   return preflight.input.body;
@@ -187,7 +224,7 @@ describe('plan JSON transfer', () => {
     expect(new Headers(call?.[1]?.headers).get('x-wbs-token')).toBe('token');
   });
 
-  it('downloads a version-6 JSON representation containing a typed dependency', async () => {
+  it('downloads a version-7 JSON representation containing a typed dependency and attempts', async () => {
     const document = PLAN_DOCUMENT(['first', 'second']);
     document['typedDependencies'] = [
       {

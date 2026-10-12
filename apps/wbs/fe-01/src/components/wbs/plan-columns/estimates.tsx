@@ -21,6 +21,7 @@ import {
   type FoldedEstimateReadings,
   type PlanRenderRow,
 } from '../plan-render-rows';
+import { READING_CORNER_PX, StepReadingCorner } from '../step-reading';
 import { column } from './column';
 
 function estimateReading(row: PlanRenderRow, stepId: string): EstimateReadings {
@@ -223,6 +224,13 @@ export function createEstimatesColumns({
           // carry it; a parent's rolled-up figure has no box and no
           // keyboard route, which is its own entry in `design.md`.
           const cardId = `folded-${row.original.id}-${step.id}`;
+          const readingId = `reading-${row.original.id}-${step.id}`;
+          // The reading's words first, then the card: both describe the box.
+          const describers = [
+            ...(reading.node === null ? [] : [readingId]),
+            ...(carded ? [cardId] : []),
+          ];
+          const describedBy = describers.length === 0 ? undefined : describers.join(' ');
           return (
             <span
               data-final={step.id}
@@ -277,8 +285,19 @@ export function createEstimatesColumns({
                 minWidth: 0,
                 fontWeight: 600,
                 color: problem === null ? undefined : 'var(--destructive)',
+                // Room for the corner glyph, so it never sits over a figure,
+                // kept on every step cell — a parent's too, which draws no
+                // glyph — so a parent's figure stands in its leaves' slot.
+                // Proof: kept on leaves alone and CI's `stands a parent’s figure
+                // in the same slot as its leaves’` (e2e/layout.spec.ts) failed on
+                // `Expected: 894.765625, Received: 904.765625`, 10px apart; seen
+                // on PR #355, 2026-10-12.
+                paddingRight: READING_CORNER_PX,
               }}
             >
+              {reading.node !== null && (
+                <StepReadingCorner id={readingId} reading={reading.node.reading} />
+              )}
               {shorthand ? (
                 <CellInput
                   aria-label={`${step.name} estimate for ${row.original.number}`}
@@ -411,7 +430,7 @@ export function createEstimatesColumns({
                   // sensible edit to make *inside* `4`, and a caret dropped
                   // into it turns `2/3/8` into `2/3/84`. What the selection
                   // replaces is remembered first — see `enterFoldedCell`.
-                  aria-describedby={carded ? cardId : undefined}
+                  aria-describedby={describedBy}
                   onFocus={(e) => {
                     setTyping(true);
                     live.current.enterFoldedCell(e.currentTarget);
@@ -766,6 +785,7 @@ export function createEstimatesColumns({
                   rule={rule}
                   doing={doing}
                   problem={problem}
+                  node={reading.node}
                 />
               )}
             </span>

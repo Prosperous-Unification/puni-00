@@ -389,3 +389,37 @@ shared organizations refuse. Modes and ranks restore atomically:
 ```sh
 docker exec be-01-<colour> bun run src/shared-people-rollback-cli.ts restore /data/shared-people-<date>.json
 ```
+
+## Step node attempt rollback
+
+**Code rollback with ended attempts.** The `be` swap's `stored-vocabularies` step compares the
+attempt outcomes the incoming binary reads (`attempt-outcomes-cli.ts`) with the outcomes stored in
+`step_node_attempt`, before migration and again after stopping the outgoing colour. An older image
+without that CLI reads none, so any ended attempt refuses it, the error listing each outcome and
+its count; a database with no attempts, or only running ones, passes. Redeploy a release that
+reads them, or save and remove the attempts with the commands below and rerun the deploy.
+
+Rolling back past the attempts migration, `20261012120000_add_step_node_attempts`, refuses while
+any attempt row exists; the refusal reads `CHECK constraint failed: step node attempts exist: …`
+and leaves the table and its ledger row in place. `<baseline>` is the migration below it. The project timezone is dropped without a
+guard: it is a planner's setting, lost as readiness is. Run the commands inside the incoming
+container with the same `DB_PATH`, after writers have stopped. `save` refuses on a database the
+attempts migration never reached. The save file (format version 2) holds every attempt and every
+node's issued-number mark (`step_node_attempt_issued`), which `down.sql` drops without a guard;
+the CLI prints both counts, e.g. `step node attempts saved: 3, marks: 2`.
+
+```sh
+docker exec be-01-<colour> bun run src/step-node-attempt-rollback-cli.ts save /data/step-node-attempts-<date>.json
+docker exec be-01-<colour> bun run src/step-node-attempt-rollback-cli.ts remove /data/step-node-attempts-<date>.json
+docker exec be-01-<colour> bun run src/migrate-down-cli.ts --to=<baseline>
+```
+
+`remove` refuses unless the saved attempts and marks equal both tables column for column, then
+deletes both. After a later forward migration or redeploy, restore them, numbers and marks
+included, so no node issues a removed number again; restore refuses the whole set if a saved
+attempt's work item is gone or has become a parent, a saved mark's work item is gone, or a saved
+step is gone, and it refuses a version-1 file:
+
+```sh
+docker exec be-01-<colour> bun run src/step-node-attempt-rollback-cli.ts restore /data/step-node-attempts-<date>.json
+```

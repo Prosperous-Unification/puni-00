@@ -82,6 +82,25 @@ export const SOLVER_FAILURE_REASONS = [
 export type SolverFailureReason = (typeof SOLVER_FAILURE_REASONS)[number];
 
 /**
+ * How an **attempt** ended (`CONTEXT.md`): absent while it runs, so there is no
+ * `running` here — a null outcome beside a null end is running, and the
+ * migration's two `CHECK`s make any other pairing unstorable
+ * (`openspec/changes/step-node-attempts/design.md` D1). The list the
+ * migration's `CHECK (outcome IN (…))` enumerates and the one the swap compares
+ * stored outcomes against.
+ */
+export const ATTEMPT_OUTCOMES = ['succeeded', 'failed', 'cancelled'] as const;
+
+export type AttemptOutcome = (typeof ATTEMPT_OUTCOMES)[number];
+
+/** Whether a stored or posted value is one of the three attempt outcomes. */
+export function isAttemptOutcome(value: unknown): value is AttemptOutcome {
+  // Proof: reduced to `typeof value === 'string'` and `admits exactly the three
+  // attempt outcomes` failed on `running`; watched 2026-10-12.
+  return typeof value === 'string' && (ATTEMPT_OUTCOMES as readonly string[]).includes(value);
+}
+
+/**
  * The four organization roles, strongest first. The role matrix in
  * `organization-ownership-and-access/specs/organization-access` is what each
  * may do; `super_admin` is organization-scoped and never platform-wide.

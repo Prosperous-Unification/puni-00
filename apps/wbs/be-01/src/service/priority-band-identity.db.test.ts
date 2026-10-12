@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { CREATOR_ADMISSION } from '@wbs/core';
 import { DEFAULT_PRIORITY_BANDS, type PriorityBand, suggestStepCode } from '@wbs/domain';
+import { inMemoryAttempts } from '@wbs/store-memory/attempt-fixture';
 import { inMemoryTypedDependencies } from '@wbs/store-memory/typed-dependency-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
@@ -303,6 +304,7 @@ describe('a priority ladder moves no date', () => {
       actuals,
       measures,
       progress,
+      attempts: inMemoryAttempts(workItems),
       dependencies,
       typedDependencies: inMemoryTypedDependencies(),
       directory,
@@ -529,6 +531,7 @@ describe('a priority ladder moves no date', () => {
           factEnd,
           readiness,
           hold,
+          nodeReadings,
           ...row
         }) => {
           // Lifted by `add-work-item-statuses` and asserted null for the fact
@@ -608,6 +611,12 @@ describe('a priority ladder moves no date', () => {
           // read path that invented either.
           expect(serviceId).toBeNull();
           expect(startNoEarlierThanReason).toBeNull();
+          // Lifted by `step-node-readings` and asserted for `progress`' reason:
+          // the oracle predates node readings, and with nothing said, held or
+          // attempted every leaf node reads `unknown`; a parent carries none.
+          expect(
+            nodeReadings === undefined ? 'parent' : [...new Set(Object.values(nodeReadings))],
+          ).toEqual(row.rolledUp ? 'parent' : ['unknown']);
           return row;
         },
       ),
@@ -728,6 +737,7 @@ describe('a priority ladder moves no date', () => {
       actuals,
       measures,
       progress,
+      attempts: inMemoryAttempts(workItems),
       dependencies,
       typedDependencies: inMemoryTypedDependencies(),
       directory,

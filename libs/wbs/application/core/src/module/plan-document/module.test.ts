@@ -93,12 +93,16 @@ describe('the Plan document module', () => {
     const { project, tree, requirements } = await seeded();
     const { planDocuments } = installPlanDocument(requirements);
 
-    const exported = await planDocuments.export(project, tree, LEGACY_ACCESS);
+    const exported = await planDocuments.export(
+      { ...project, timezone: 'UTC' },
+      tree,
+      LEGACY_ACCESS,
+    );
 
     if (!exported.ok) throw new Error('export refused');
     expect(exported.value.document).toEqual({
       format: 'wbs-plan',
-      version: 6,
+      version: 7,
       exportedAt: '2026-09-24T09:00:00.000Z',
     });
     expect(exported.value.calendarMarkers).toEqual([

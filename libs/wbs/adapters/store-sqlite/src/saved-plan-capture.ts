@@ -163,13 +163,16 @@ export async function readPlanInputIn(
       ? await projects.findInOrganization(projectId, access.scope.organizationId)
       : await projects.findById(projectId);
   if (project === null) return null;
+  const timezone = await projects.timezoneOf(projectId);
+  // The project row was just read on this snapshot, so its zone cannot be missing.
+  if (timezone === null) throw new Error(`project "${projectId}" has no timezone`);
   if (access?.kind === 'scoped') {
     const crossing = await projects.findCrossReferences(projectId, access.scope.organizationId);
     // Proof: dropping this check made the crossing-assignee negative accept foreign person assignment.
     if (crossing.length > 0)
       throw new Error(`project "${projectId}" holds references outside its organization`);
   }
-  await captureRead.afterFirstRead({ projectId, project });
+  await captureRead.afterFirstRead({ projectId, project: { ...project, timezone } });
   const workItems = await new WorkItemRepository(db, OPEN).listByProject(projectId);
   const estimates = await new EstimateRepository(db, OPEN).listByProject(projectId);
   const actuals = await new ActualRepository(db, OPEN).listByProject(projectId);
@@ -211,7 +214,7 @@ export async function readPlanInputIn(
       ? await directory.listInOrganization('externalSystems', access.scope.organizationId)
       : await directory.listExternalSystems();
   return {
-    project,
+    project: { ...project, timezone },
     steps,
     workItems,
     estimates,

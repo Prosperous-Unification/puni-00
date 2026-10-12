@@ -1,6 +1,7 @@
 import { allowanceOf, chargedDays, type EstimateRule, type StepAllowances } from './estimate';
 import type { ParentedRow } from './is-within';
 import { agree, type ProgressStatus, statusOf, UNKNOWN } from './progress';
+import type { StepNodeRef } from './step-node';
 import type { StoredActual, StoredEstimate, StoredMeasure, StoredProgress } from './step-values';
 import type { MeasureMetric } from './stored-vocabularies';
 
@@ -207,28 +208,30 @@ export function rollUpMeasures(
   return foldByStep(rows, ownOf, (a, b) => a + b);
 }
 
-/** The pair every figure and every statement in this tool is keyed by. */
-interface Keyed {
-  workItemId: string;
-  stepId: string;
-}
-
 /**
  * Which steps have work on each work item: the ones with an estimate, the ones
- * with a recorded day, and the ones somebody has already spoken about.
+ * with a recorded day, the ones somebody has already spoken about, and the
+ * ones holding an attempt, running or ended.
  *
  * The candidate set {@link rollUpProgress} folds over, and the reason it is
- * built from all three lists rather than from the statements alone is argued
+ * built from all four lists rather than from the statements alone is argued
  * there: a step with an estimate and no statement is a step that has **not
  * started**, and a fold that cannot see it reports finished items that are not.
+ * An attempt is the same evidence (`step-node-readings` D2): a QA whose one
+ * attempt failed and who has said nothing keeps its leaf off `done`.
+ *
+ * Proof: `attempts` left out of the union and `an ended failed attempt keeps a
+ * silent QA in the fold` failed on `Expected: "in_progress", Received: "done"`
+ * — a finished leaf over a failed QA; watched 2026-10-12.
  */
 export function workedStepsOf(
-  estimates: readonly Keyed[],
-  actuals: readonly Keyed[],
-  stated: readonly Keyed[],
+  estimates: readonly StepNodeRef[],
+  actuals: readonly StepNodeRef[],
+  stated: readonly StepNodeRef[],
+  attempts: readonly StepNodeRef[],
 ): Map<string, Set<string>> {
   const worked = new Map<string, Set<string>>();
-  for (const each of [...estimates, ...actuals, ...stated]) {
+  for (const each of [...estimates, ...actuals, ...stated, ...attempts]) {
     const steps = worked.get(each.workItemId) ?? new Set<string>();
     steps.add(each.stepId);
     worked.set(each.workItemId, steps);
@@ -266,12 +269,28 @@ export function rollUpProgress(
   rows: readonly ParentedRow[],
   stated: readonly StoredProgress[],
   worked: ReadonlyMap<string, ReadonlySet<string>>,
+  /**
+   * The nodes holding a **running** attempt. Each reads `in_progress` here
+   * unless the node has a statement, which always wins: the attempt is
+   * evidence that work runs, the statement somebody's word about it
+   * (`step-node-readings` D2). Empty, the fold is the one before attempts.
+   */
+  running: readonly StepNodeRef[],
 ): Map<string, Map<string, ProgressStatus>> {
   const ownOf = new Map<string, Map<string, ProgressStatus>>();
   for (const [workItemId, stepIds] of worked) {
     const byStep = new Map<string, ProgressStatus>();
     for (const stepId of stepIds) byStep.set(stepId, UNKNOWN);
     ownOf.set(workItemId, byStep);
+  }
+  // Before the statements, so a stated node keeps its statement.
+  // Proof: this loop removed and `a running attempt reads in progress in the
+  // fold` failed on `Expected: "in_progress", Received: "unknown"`, `a running
+  // attempt starts the leaf` on the same; watched 2026-10-12.
+  for (const attempt of running) {
+    const byStep = ownOf.get(attempt.workItemId) ?? new Map<string, ProgressStatus>();
+    byStep.set(attempt.stepId, 'in_progress');
+    ownOf.set(attempt.workItemId, byStep);
   }
   for (const said of stated) {
     // Every stated row's own work item is in `worked` by construction — the

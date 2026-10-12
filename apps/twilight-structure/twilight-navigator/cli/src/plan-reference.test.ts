@@ -19,7 +19,7 @@ import {
  * fixed clock and sequential ids, 2026-10-11): two default steps, a parent with two leaves,
  * one top-level leaf, an FS typed dependency and a legacy dependency.
  */
-const FIXTURE = join(import.meta.dir, 'fixtures', 'plan-export.v6.json');
+const FIXTURE = join(import.meta.dir, 'fixtures', 'plan-export.v7.json');
 const FIXTURE_BYTES = readFileSync(FIXTURE);
 const PLANNING_COMMIT = '1'.repeat(40);
 const SOURCE_BASE = '2'.repeat(40);
@@ -141,31 +141,31 @@ describe('twin plan-reference', () => {
     ).toEqual(firstBytes);
   });
 
-  test('refuses a version-5 document before writing', async () => {
+  test('refuses a version-6 document before writing', async () => {
     const path = writeExport((document) => {
       document['document'] = {
         format: 'wbs-plan',
-        version: 5,
+        version: 6,
         exportedAt: '2026-10-11T09:00:00.000Z',
       };
     });
     expectRefusal(
       await planReference({ '--export': path }),
-      /has version 5; twin reads version 6 only/,
+      /has version 6; twin reads version 7 only/,
     );
   });
 
-  test('refuses a version-7 document before writing', async () => {
+  test('refuses a version-8 document before writing', async () => {
     const path = writeExport((document) => {
       document['document'] = {
         format: 'wbs-plan',
-        version: 7,
+        version: 8,
         exportedAt: '2026-10-11T09:00:00.000Z',
       };
     });
     expectRefusal(
       await planReference({ '--export': path }),
-      /has version 7; twin reads version 6 only/,
+      /has version 8; twin reads version 7 only/,
     );
   });
 

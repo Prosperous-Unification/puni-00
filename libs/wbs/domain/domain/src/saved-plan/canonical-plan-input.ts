@@ -42,7 +42,7 @@ import type { TypedDependency } from '../typed-dependency';
  */
 export interface CanonicalPlanInput {
   /** Bumped whenever this field list changes; the body carries it. */
-  readonly schemaVersion: 4;
+  readonly schemaVersion: 5;
   readonly project: CanonicalProject;
   /** Sorted by `id`. */
   readonly workItems: readonly CanonicalWorkItem[];
@@ -99,6 +99,12 @@ export interface CanonicalProject {
   readonly pertWeightOptimistic: number;
   readonly pertWeightRealistic: number;
   readonly pertWeightPessimistic: number;
+  /**
+   * The IANA zone the project reads instants as days in (`step-node-attempts`
+   * D5): a setting, compared under `settings`, read by no engine. Version 5;
+   * an earlier body upgrades as `UTC`, the zone every project had before.
+   */
+  readonly timezone: string;
 }
 
 export interface CanonicalWorkItem {
@@ -347,7 +353,7 @@ export interface PlanInputRows {
 }
 
 /** The one version this module writes. Stored bodies carry it; readers check it. */
-export const CANONICAL_PLAN_INPUT_SCHEMA_VERSION = 4 as const;
+export const CANONICAL_PLAN_INPUT_SCHEMA_VERSION = 5 as const;
 
 const byString =
   <T>(...keys: readonly ((row: T) => string)[]) =>
@@ -405,6 +411,7 @@ export function canonicalisePlanInput(values: PlanInputRows): CanonicalPlanInput
       pertWeightOptimistic: values.project.pertWeightOptimistic,
       pertWeightRealistic: values.project.pertWeightRealistic,
       pertWeightPessimistic: values.project.pertWeightPessimistic,
+      timezone: values.project.timezone,
     },
     workItems: sorted(
       values.workItems,

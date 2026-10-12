@@ -305,11 +305,13 @@ describe('the columns', () => {
       'Dev pessimistic',
       'Dev final (PERT)',
       'Dev by',
+      'Dev attempts',
       'QA optimistic',
       'QA realistic',
       'QA pessimistic',
       'QA final (PERT)',
       'QA by',
+      'QA attempts',
       'Total days (PERT)',
       'Depends on',
       'Priority',
@@ -756,6 +758,22 @@ describe('the columns', () => {
     const cells = csvDataRow(csv);
     expect(cells[columnAt(csv, 'Dev by')]).toBe('ada');
     expect(cells[columnAt(csv, 'QA by')]).toBe('ada (assumed — the only assignee does every step)');
+  });
+
+  it('counts each leaf’s attempts per step, blank where a node holds none', () => {
+    const attempt = { attemptNumber: 1, startedAt: 0, endedAt: null, outcome: null };
+    const rows = [
+      row({
+        id: 'a',
+        number: '010',
+        attempts: { 'step-dev': [attempt, { ...attempt, attemptNumber: 2 }] },
+      }),
+      row({ id: 'b', number: '020' }),
+    ];
+    const csv = planToCsv(plan({ rows }));
+    expect(csvDataRow(csv, 0)[columnAt(csv, 'Dev attempts')]).toBe('2');
+    expect(csvDataRow(csv, 0)[columnAt(csv, 'QA attempts')]).toBe('');
+    expect(csvDataRow(csv, 1)[columnAt(csv, 'Dev attempts')]).toBe('');
   });
 
   it('names an assignee nobody knows rather than printing an id', () => {

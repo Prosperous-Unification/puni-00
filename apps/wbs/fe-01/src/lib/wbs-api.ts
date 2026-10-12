@@ -547,6 +547,54 @@ export interface WorkItemView {
    * branch. Both are true, and the table labels them so.
    */
   schedule: ScheduleView | null;
+  /**
+   * A leaf's attempts by step id, ascending number (`step-node-attempts` D4).
+   * Absent with {@link spans} and {@link span} when the row holds none, and
+   * from an older be-01 mid-swap.
+   */
+  attempts?: Record<string, AttemptView[] | undefined>;
+  /** Each attempted node's span: first start to last end, `end` null while one runs. */
+  spans?: Record<string, SpanView | undefined>;
+  /** The same fold over every node of the row. */
+  span?: SpanView;
+  /**
+   * A leaf's node readings by step id (`step-node-readings` D3). Absent on a
+   * parent and from an older be-01 mid-swap.
+   */
+  nodeReadings?: Record<string, NodeReadingView | undefined>;
+}
+
+/**
+ * What a step node reads as, mirroring `NodeReading` in `@wbs/domain`'s
+ * `node-reading.ts` for {@link DEFAULT_PERT_WEIGHTS_VIEW}'s reason. `skipped`
+ * is in the union before be-01 produces it.
+ */
+export type NodeReadingView =
+  | 'skipped'
+  | 'done'
+  | 'on_hold'
+  | 'blocked'
+  | 'in_progress'
+  | 'blocked_by_proxy'
+  | 'waiting'
+  | 'unknown';
+
+/** One attempt at a step node: instants in epoch milliseconds, UTC. */
+export interface AttemptView {
+  attemptNumber: number;
+  startedAt: number;
+  /** Null while it runs, together with {@link outcome}. */
+  endedAt: number | null;
+  outcome: 'succeeded' | 'failed' | 'cancelled' | null;
+  executorPersonId: string | null;
+  reference: string | null;
+  note: string | null;
+}
+
+/** When some attempts ran; `end` is null while any still runs. */
+export interface SpanView {
+  start: number;
+  end: number | null;
 }
 
 export interface StepView {

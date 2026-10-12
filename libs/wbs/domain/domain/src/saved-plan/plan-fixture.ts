@@ -31,6 +31,7 @@ export const planFixtureRows: PlanInputRows = {
     pertWeightOptimistic: 1,
     pertWeightRealistic: 4,
     pertWeightPessimistic: 1,
+    timezone: 'UTC',
   },
   workItems: [
     {

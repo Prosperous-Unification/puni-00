@@ -174,4 +174,19 @@ export interface ProjectStore {
    * value would overwrite it.
    */
   stepAllowanceRevisions(projectId: string): Promise<ReadonlyMap<string, number>>;
+  /**
+   * The IANA zone the project reads instants as days in (`step-node-attempts`
+   * design D3), or null when there is no such project.
+   *
+   * Not a field of {@link Project} yet: the read and the PATCH that publish it
+   * arrive with the timezone route.
+   *
+   * @throws on a stored value `isTimezone` refuses: the column is trusted state.
+   */
+  timezoneOf(projectId: string): Promise<string | null>;
+  /**
+   * Stores the zone and moves the project's revision, answering false when
+   * there is no such project. The caller validated the zone at its boundary.
+   */
+  setTimezone(projectId: string, timezone: string, stamp: WriteStamp): Promise<boolean>;
 }

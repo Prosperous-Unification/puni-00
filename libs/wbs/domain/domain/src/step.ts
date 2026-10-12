@@ -12,6 +12,8 @@ export interface StepHoldings {
   actuals: number;
   progress: number;
   measures: number;
+  /** Attempts run at this step's nodes: history, never pruned (ADR 0045). */
+  attempts: number;
   assignments: number;
 }
 
@@ -41,6 +43,7 @@ export function stepIsInUse(held: StepHoldings): boolean {
     held.actuals > 0 ||
     held.progress > 0 ||
     held.measures > 0 ||
+    held.attempts > 0 ||
     held.assignments > 0
   );
 }

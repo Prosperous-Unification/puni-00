@@ -38,7 +38,9 @@ export const PlanReferenceRecord = type({
   schemaVersion: SchemaVersion,
   kind: "'plan-reference'",
   planRef: PlanRef,
-  planDocumentVersion: '6',
+  // 7 joined with WBS's plan document v7 (`step-node-attempts`, 2026-10-12); 6 stays readable so
+  // records Navigator wrote before keep decoding.
+  planDocumentVersion: '6 | 7',
   exportDigest: Sha256,
   tasksDigest: Sha256,
   taskCount: 'number.integer>=0',

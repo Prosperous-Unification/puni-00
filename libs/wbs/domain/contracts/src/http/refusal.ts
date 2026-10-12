@@ -27,6 +27,10 @@ export type ParserRefusalCode =
   | 'invalid_actual'
   | 'invalid_measure'
   | 'invalid_progress'
+  /** An `endAttempt` outcome outside `ATTEMPT_OUTCOMES`. */
+  | 'invalid_outcome'
+  /** An attempt's `at` that is not a whole epoch millisecond from 0. */
+  | 'at_must_be_an_instant'
   | 'invalid_status'
   | 'invalid_estimate'
   | 'conflicting_step_address'
@@ -52,8 +56,8 @@ export type ParserRefusalCode =
   | 'bands_must_start_in_increasing_order'
   | 'band_default_must_be_inside_its_own_band'
   | `${'parentId' | 'afterId' | 'personId' | 'serviceTeamId'}_must_be_id_or_null`
-  | `${'name' | 'notes' | 'kind' | 'startNoEarlierThanReason' | 'stepId' | 'metric'}_must_be_text`
-  | `${'workItemId' | 'workItemRef' | 'ref' | 'parentRef' | 'afterRef' | 'personRef' | 'predecessorId' | 'predecessorRef' | 'teamId' | 'teamRef' | 'personId' | 'tagId' | 'tagRef' | 'typeId' | 'typeRef' | 'serviceId' | 'serviceRef'}_must_be_an_id`
+  | `${'name' | 'notes' | 'kind' | 'startNoEarlierThanReason' | 'stepId' | 'metric' | 'reference' | 'note'}_must_be_text`
+  | `${'workItemId' | 'workItemRef' | 'ref' | 'parentRef' | 'afterRef' | 'personRef' | 'predecessorId' | 'predecessorRef' | 'teamId' | 'teamRef' | 'personId' | 'tagId' | 'tagRef' | 'typeId' | 'typeRef' | 'serviceId' | 'serviceRef' | 'executorPersonId'}_must_be_an_id`
   | `${'teamIds' | 'teamRefs' | 'tagIds' | 'tagRefs' | 'serviceIds' | 'serviceRefs' | 'typeIds' | 'typeRefs'}_must_be_a_list_of_ids`
   | `${'teamIds' | 'teamRefs' | 'serviceIds' | 'serviceRefs' | 'typeIds' | 'typeRefs'}_must_be_at_most_10`
   | `${'tagIds' | 'tagRefs'}_must_be_at_most_50`
@@ -67,7 +71,7 @@ export type ParserRefusalCode =
   | 'deadline_must_be_a_date'
   | 'on_must_be_a_date'
   | `${'factStart' | 'factEnd'}_must_be_a_date`
-  | `${'priority' | 'maxParallel' | 'size'}_must_be_a_whole_number_from_1`
+  | `${'priority' | 'maxParallel' | 'size' | 'attemptNumber'}_must_be_a_whole_number_from_1`
   | `${'maxParallel' | 'size'}_must_be_at_most_1000`
   | 'cascade_must_be_true_or_false'
   | 'startNoEarlierThanReason_must_be_at_most_200_characters'
@@ -137,6 +141,18 @@ export type CommandRefusalCode =
   | 'cannot_hold_done'
   /** `setStatus` `in_progress` or `done` in a project with no steps. */
   | 'no_steps'
+  /** `startAttempt` on a node whose statement is `done` (`step-node-attempts` D2). */
+  | 'node_done'
+  /** `startAttempt` on a node with a running attempt. */
+  | 'attempt_running'
+  /** An attempt's `at` after the write stamp. */
+  | 'attempt_in_future'
+  /** `endAttempt` on a node with no running attempt. */
+  | 'no_running_attempt'
+  /** `endAttempt` whose `at` precedes the running attempt's start. */
+  | 'attempt_ends_before_start'
+  /** `removeAttempt` naming a number the node does not hold. */
+  | 'unknown_attempt'
   | 'invalid_kind'
   | 'nothing_to_change'
   | 'taken'
@@ -181,6 +197,8 @@ export interface StepInUse {
   actuals: number;
   progress: number;
   measures: number;
+  /** Optional on the wire: an outgoing be-01 mid-swap counts no attempts. */
+  attempts?: number;
   assignments: number;
   assumedAssignees: {
     workItemId: string;
@@ -321,6 +339,9 @@ type BareRefusalCode =
   // Capacity mode (`share-people-across-projects` 8.1): a mode this release
   // does not list in `SUPPORTED_CAPACITY_MODES`.
   | 'capacity_mode_unsupported'
+  // A project PATCH naming a zone the server runtime does not support
+  // (`step-node-attempts` D3).
+  | 'invalid_timezone'
   // Enterprise SSO (`organization-sso`): connection administration refusals,
   // a domain release a connection still names, and an unknown login slug.
   | 'domain_not_verified'

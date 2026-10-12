@@ -14,6 +14,7 @@ import type {
 } from '@wbs/core';
 
 import { inMemoryActuals, type MemoryActualTable, memoryActualTable } from './actual-fixture';
+import { inMemoryAttempts, type MemoryAttemptTable, memoryAttemptTable } from './attempt-fixture';
 import { inMemoryUsers, type MemoryUserTable, memoryUserTable } from './auth-fixture';
 import {
   inMemoryCalendarMarkers,
@@ -90,6 +91,7 @@ interface MemoryTables {
   readonly actuals: MemoryActualTable;
   readonly measures: MemoryMeasureTable;
   readonly progress: MemoryProgressTable;
+  readonly attempts: MemoryAttemptTable;
   readonly capacity: MemoryCapacityTable;
   readonly priorityBands: MemoryPriorityBandTable;
   readonly calendarMarkers: MemoryCalendarMarkerTable;
@@ -110,6 +112,7 @@ function emptyTables(): MemoryTables {
     actuals: memoryActualTable(),
     measures: memoryMeasureTable(),
     progress: memoryProgressTable(),
+    attempts: memoryAttemptTable(),
     capacity: memoryCapacityTable(),
     priorityBands: memoryPriorityBandTable(),
     calendarMarkers: memoryCalendarMarkerTable(),
@@ -180,6 +183,7 @@ export class MemoryState {
     // Proof: with this line removed, `undoes an allowance edit committed in an
     // earlier unit of work` failed: the undo answered ok: false (2026-09-27).
     replaceMap(this.tables.projects.allowanceRevisions, next.tables.projects.allowanceRevisions);
+    replaceMap(this.tables.projects.timezones, next.tables.projects.timezones);
     replaceMap(this.tables.directory.teams, next.tables.directory.teams);
     replaceMap(this.tables.directory.tags, next.tables.directory.tags);
     replaceMap(this.tables.directory.services, next.tables.directory.services);
@@ -204,6 +208,8 @@ export class MemoryState {
     replaceArray(this.tables.actuals.rows, next.tables.actuals.rows);
     replaceArray(this.tables.measures.rows, next.tables.measures.rows);
     replaceArray(this.tables.progress.rows, next.tables.progress.rows);
+    replaceArray(this.tables.attempts.rows, next.tables.attempts.rows);
+    replaceArray(this.tables.attempts.issued, next.tables.attempts.issued);
     replaceMap(this.tables.capacity.held, next.tables.capacity.held);
     replaceMap(this.tables.priorityBands.held, next.tables.priorityBands.held);
     replaceMap(this.tables.calendarMarkers.held, next.tables.calendarMarkers.held);
@@ -249,6 +255,7 @@ function bindStores(
   const actuals = inMemoryActuals(workItems, state.tables.actuals, steps);
   const measures = inMemoryMeasures(workItems, state.tables.measures, steps);
   const progress = inMemoryProgress(workItems, state.tables.progress, steps);
+  const attempts = inMemoryAttempts(workItems, state.tables.attempts, steps, progress);
   const rowsOnlyWorkItems = workItems;
   workItems = {
     ...rowsOnlyWorkItems,
@@ -268,6 +275,8 @@ function bindStores(
       removeSatelliteRows(state.tables.actuals.rows);
       removeSatelliteRows(state.tables.progress.rows);
       removeSatelliteRows(state.tables.measures.rows);
+      removeSatelliteRows(state.tables.attempts.rows);
+      removeSatelliteRows(state.tables.attempts.issued);
     },
   };
   const stores: TransactionalStores = {
@@ -280,6 +289,7 @@ function bindStores(
     actuals,
     measures,
     progress,
+    attempts,
     dependencies,
     typedDependencies,
     capacity: inMemoryCapacity({}, state.tables.capacity),
@@ -400,6 +410,11 @@ function coordinatedStores(
     actuals: coordinatedStore(stores.actuals, ['set', 'remove', 'moveAll'], coordinator),
     measures: coordinatedStore(stores.measures, ['set', 'remove', 'moveAll'], coordinator),
     progress: coordinatedStore(stores.progress, ['set', 'remove', 'moveAll'], coordinator),
+    attempts: coordinatedStore(
+      stores.attempts,
+      ['start', 'end', 'remove', 'restore', 'raiseIssued', 'moveAll'],
+      coordinator,
+    ),
     dependencies: coordinatedStore(
       stores.dependencies,
       ['add', 'remove', 'removeAllFor'],
@@ -895,7 +910,9 @@ async function capturePlanInput(
 ): Promise<PlanInputReads | null> {
   const project = await stores.projects.findById(projectId);
   if (project === null) return null;
-  await captureRead.afterFirstRead({ projectId, project });
+  const timezone = await stores.projects.timezoneOf(projectId);
+  if (timezone === null) throw new Error(`project "${projectId}" has no timezone`);
+  await captureRead.afterFirstRead({ projectId, project: { ...project, timezone } });
   const [
     steps,
     workItems,
@@ -934,7 +951,7 @@ async function capturePlanInput(
     stores.directory.listExternalSystems(),
   ]);
   return structuredClone({
-    project,
+    project: { ...project, timezone },
     steps,
     workItems,
     estimates,

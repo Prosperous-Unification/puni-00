@@ -1,6 +1,7 @@
 import type { TransactionalStores } from '@wbs/core';
 
 import { inMemoryActuals } from './actual-fixture';
+import { inMemoryAttempts } from './attempt-fixture';
 import { inMemoryUsers } from './auth-fixture';
 import { inMemoryCalendarMarkers } from './calendar-marker-fixture';
 import { inMemoryCapacity } from './capacity-fixture';
@@ -39,6 +40,7 @@ export function inMemoryStores(): TransactionalStores {
   const actuals = inMemoryActuals(workItems, undefined, steps);
   const measures = inMemoryMeasures(workItems, undefined, steps);
   const progress = inMemoryProgress(workItems, undefined, steps);
+  const attempts = inMemoryAttempts(workItems, undefined, steps, progress);
   const dependencies = inMemoryDependencies([], undefined, workItems);
   return {
     users,
@@ -49,6 +51,7 @@ export function inMemoryStores(): TransactionalStores {
     actuals,
     measures,
     progress,
+    attempts,
     dependencies,
     typedDependencies: inMemoryTypedDependencies(),
     capacity: inMemoryCapacity(),

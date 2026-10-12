@@ -266,10 +266,12 @@ function projectBookings(reads: PlanInputReads, planned: Schedule) {
 }
 
 /** Follows shared-person edges only toward higher ranks; undated projects stop the closure. */
-export function selectInfluencers<T extends Pick<PlanInputReads, 'project' | 'assignments'>>(
-  plans: readonly T[],
-  projectId: string,
-): readonly T[] {
+export function selectInfluencers<
+  T extends {
+    readonly project: Pick<PlanInputReads['project'], 'id' | 'startDate'>;
+    readonly assignments: PlanInputReads['assignments'];
+  },
+>(plans: readonly T[], projectId: string): readonly T[] {
   const targetIndex = plans.findIndex((each) => each.project.id === projectId);
   const target = plans.at(targetIndex);
   if (targetIndex < 0 || target === undefined) return [];

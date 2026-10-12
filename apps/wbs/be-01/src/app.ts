@@ -80,6 +80,7 @@ import { savedPlanRoutes } from './controller/saved-plan.routes';
 import { smokeRoutes } from './controller/smoke.routes';
 import { solutionRoutes } from './controller/solution.routes';
 import { stepRoutes } from './controller/step.routes';
+import { timezoneRoutes } from './controller/timezone.routes';
 import { workItemRoutes } from './controller/work-item.routes';
 import { mountEndpoints } from './http/elysia/mount';
 import { scimEndpoints } from './http/elysia/scim';
@@ -478,6 +479,9 @@ export function mountedEndpoints(
       opts.writes,
     ),
     ...directoryRoutes(opts.directory, opts.organizations),
+    // Proof: omitting this spread made `serves the zones the PATCH accepts`
+    // in `timezones.controller.db.test.ts` answer 404; watched 2026-10-12.
+    ...timezoneRoutes(),
     // One per mounted app, so its memo lives as long as the process serving it.
     ...personLoadRoutes(
       new PersonLoad({

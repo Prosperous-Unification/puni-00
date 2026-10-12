@@ -3,6 +3,8 @@ import {
   allowanceOf,
   type AllowancePercent,
   assumedAssignee,
+  type Attempt,
+  type AttemptOutcome,
   byTreeOrder,
   CalendarRangeError,
   canDepend,
@@ -21,17 +23,20 @@ import {
   findTypedEndpointDefect,
   firstWorkdayOf,
   formatStepNodeId,
+  formatStepReference,
   formatTypedDependencyKey,
   haveSameSliceOrder,
   type Hold,
   type IsoDate,
-  isoDateOfInstant,
+  isoDateOfInstantIn,
   isWithin,
   isWritableRelationshipType,
   lastWorkdayOf,
   MEASURE_METRICS,
   type MeasureMetric,
   nextWorkday,
+  type NodeReading,
+  orderSteps,
   ORDINARY_BAND_RANK,
   parentIndexOf,
   type PertWeights,
@@ -55,6 +60,8 @@ import {
   sliceKey,
   SOLVER_OBJECTIVES,
   type SolverObjectiveName,
+  type Span,
+  spanOfAttempts,
   type StepAllowances,
   type StepNodeCycle,
   type StepPolicy,
@@ -106,6 +113,11 @@ import type {
   LivePlanRead,
   PlanDocumentReads,
 } from '../../ports/shared-people-values';
+import type {
+  RunningStoredAttempt,
+  StepNodeAttemptStore,
+  StoredAttempt,
+} from '../../ports/step-node-attempt-store';
 import type { Step } from '../../ports/step-store';
 import type { SubtreeStore } from '../../ports/subtree-store';
 import type {
@@ -134,7 +146,8 @@ import {
   subjectOf,
   touchedBy,
 } from '../../service/compensating';
-import { DependencyGraphGuard } from '../../service/dependency-graph';
+import { DependencyGraphGuard, resolveDependencyGraph } from '../../service/dependency-graph';
+import { nodeReadingsOf } from '../../service/node-readings';
 import type { NumberedWorkItem } from '../../service/numbered-work-item';
 import { workItemStatusesOf } from '../../service/work-item-statuses';
 
@@ -573,6 +586,82 @@ function assignmentFieldsOf(assignees: Record<string, string>): {
 }
 
 /**
+ * What a leaf's attempts witness about when its work ran, as days in the
+ * project's zone: the day its first attempt started, and the day its last
+ * ended attempt ended, or none while no attempt has ended
+ * (`step-node-attempts` D4, the fills `setStatus` writes).
+ */
+function attemptWitness(
+  held: readonly StoredAttempt[],
+  zone: string,
+): ReadonlyMap<string, { startedOn: IsoDate; endedOn: IsoDate | undefined }> {
+  const spans = new Map<string, { start: number; end: number | undefined }>();
+  for (const attempt of held) {
+    const span = spans.get(attempt.workItemId);
+    const end =
+      attempt.endedAt === null
+        ? span?.end
+        : Math.max(attempt.endedAt, span?.end ?? Number.NEGATIVE_INFINITY);
+    spans.set(attempt.workItemId, {
+      start: Math.min(attempt.startedAt, span?.start ?? Number.POSITIVE_INFINITY),
+      end,
+    });
+  }
+  return new Map(
+    [...spans].map(([workItemId, { start, end }]) => [
+      workItemId,
+      {
+        startedOn: isoDateOfInstantIn(zone, start),
+        endedOn: end === undefined ? undefined : isoDateOfInstantIn(zone, end),
+      },
+    ]),
+  );
+}
+
+/**
+ * A row's attempts by step id, each list in ascending number, with the
+ * {@link Span} of each node and of the row (`step-node-attempts` D4). Empty
+ * when the row holds none, so the read carries no key at all: no attempts, no
+ * span. Steps are walked in project order, so two reads of an unchanged plan
+ * answer the same key order.
+ */
+function attemptFieldsOf(
+  held: readonly StoredAttempt[],
+  steps: readonly Step[],
+): Pick<NumberedWorkItem, 'attempts' | 'spans' | 'span'> {
+  if (held.length === 0) return {};
+  const attempts: Record<string, Attempt[]> = {};
+  const spans: Record<string, Span> = {};
+  for (const step of steps) {
+    const atStep = held
+      .filter((attempt) => attempt.stepId === step.id)
+      .sort((left, right) => left.attemptNumber - right.attemptNumber)
+      .map(({ workItemId: _workItemId, stepId: _stepId, ...attempt }) => attempt);
+    const span = spanOfAttempts(atStep);
+    if (span === undefined) continue;
+    attempts[step.id] = atStep;
+    spans[step.id] = span;
+  }
+  const answered = Object.values(attempts).flat();
+  // A step removal deletes its attempts in the same transaction, so an attempt
+  // at a step this list lacks is trusted state that moved underneath the read,
+  // never a history to answer with a hole in it.
+  if (answered.length !== held.length) {
+    throw new Error(`${String(held.length - answered.length)} attempts held at no project step`);
+  }
+  const span = spanOfAttempts(answered);
+  if (span === undefined) throw new Error('attempts were held but none was answered');
+  return { attempts, spans, span };
+}
+
+/** A leaf's `nodeReadings` field, or no key for a parent, which holds no step nodes. */
+function readingFieldsOf(
+  nodeReadings: Record<string, NodeReading> | undefined,
+): Pick<NumberedWorkItem, 'nodeReadings'> {
+  return nodeReadings === undefined ? {} : { nodeReadings };
+}
+
+/**
  * One row's span as calendar days, or null when it cannot have one.
  *
  * Null in two cases, both of them honest: the project is not on a calendar, or
@@ -816,7 +905,19 @@ export type WorkItemRefusal =
   /** `setStatus` `on_hold` or `blocked` on a row reading done. */
   | 'cannot_hold_done'
   /** `setStatus` `in_progress` or `done` in a project with no steps to speak for. */
-  | 'no_steps';
+  | 'no_steps'
+  /** `startAttempt` on a node stated `done`: reopen it first (`step-node-attempts` D2). */
+  | 'node_done'
+  /** `startAttempt` while the node's attempt runs: at most one runs per node. */
+  | 'attempt_running'
+  /** An attempt's `at` after the act's own write stamp. */
+  | 'attempt_in_future'
+  /** `endAttempt` on a node with nothing running. */
+  | 'no_running_attempt'
+  /** `endAttempt` at an instant before the running attempt began. */
+  | 'attempt_ends_before_start'
+  /** `removeAttempt` naming a number the node does not hold. */
+  | 'unknown_attempt';
 
 export type WorkItemOutcome<T> =
   | { ok: true; value: T }
@@ -952,6 +1053,12 @@ export interface WorkItemServiceOptions {
    * this ships and therefore an invisible mistake for a week.
    */
   progress: StepProgressStore;
+  /**
+   * The attempts at step nodes, required for {@link progress}'s reason: a
+   * service built without one would leave a leaf's attempts behind on the
+   * parent at the hand-down, invisible to every reader.
+   */
+  attempts: StepNodeAttemptStore;
   directory: DirectoryStore;
   /**
    * How many of each team this project may have at work at once — C1's `slotsOf`
@@ -1659,14 +1766,25 @@ export class WorkItemService {
     | { kind: 'not_found' }
     | AccessRefused
     | EngineUnavailable
-    | { kind: 'shared'; project: Project; tree: PlanTree; document: PlanDocumentReads }
+    | {
+        kind: 'shared';
+        project: Project & { timezone: string };
+        tree: PlanTree;
+        document: PlanDocumentReads;
+      }
   > {
     if (this.opts.livePlans === undefined) return { kind: 'isolated' };
     const captured = await this.opts.livePlans.readExport(projectId, access);
     if (captured.kind !== 'shared') return captured;
     const tree = projectSharedTree(captured);
     if ('kind' in tree) return tree;
-    return { kind: 'shared', project: captured.project, tree, document: captured.document };
+    return {
+      kind: 'shared',
+      // The zone from the same observation as the rows: the capture's own.
+      project: { ...captured.project, timezone: captured.chain.reads.project.timezone },
+      tree,
+      document: captured.document,
+    };
   }
 
   /**
@@ -2202,6 +2320,8 @@ export class WorkItemService {
         authored,
         assigned,
         assignedPeople,
+        // Read for the payload alone, like the actuals above: no engine sees it.
+        attempts: await this.opts.attempts.listByProject(projectId),
         seq,
         steps,
         slotsOf,
@@ -2373,6 +2493,21 @@ export class WorkItemService {
         : (await this.opts.measures.listByProject(projectId)).filter(
             (each) => each.workItemId === gainsFirstChild,
           );
+    // The attempts go down with the statements, numbers kept. Read before the
+    // move for the undo: the child's delete would cascade them away, so the
+    // undo writes these back onto the parent verbatim.
+    const attemptedHandedDown =
+      gainsFirstChild === null
+        ? []
+        : [...(await this.opts.attempts.listOfWorkItem(gainsFirstChild)).values()].flat();
+    // And the parent's attempt-number marks, which `moveAll` copies to the
+    // child (A42). Read for the redo: undoing this create deletes the child and
+    // its marks with it, and a number removed while it was the parent's highest
+    // shows in no attempt the redo writes back.
+    const issuedHandedDown =
+      gainsFirstChild === null
+        ? []
+        : await this.opts.attempts.listIssued(projectId, [gainsFirstChild]);
     const assignedHandedDown =
       gainsFirstChild === null ? [] : await this.opts.directory.assignmentsFor(gainsFirstChild);
     const stepNodeMapping =
@@ -2420,6 +2555,9 @@ export class WorkItemService {
       await this.opts.actuals.moveAll(gainsFirstChild, workItem.id, stamp);
       await this.opts.progress.moveAll(gainsFirstChild, workItem.id, stamp);
       await this.opts.measures.moveAll(gainsFirstChild, workItem.id, stamp);
+      // Proof: skipped, `hands a leaf’s attempts down to its first child,
+      // numbers kept` read none on the child; watched 2026-10-12.
+      await this.opts.attempts.moveAll(gainsFirstChild, workItem.id, stamp);
       // Proof: skipping these writes failed `hands a first child every Dev fact and Ann`
       // at `Expected: <Ann id>, Received: undefined` for child.assignees[Dev]; watched 2026-09-27.
       for (const assignment of assignedHandedDown) {
@@ -2453,6 +2591,11 @@ export class WorkItemService {
       actuals: recordedHandedDown.map((each) => ({ ...each, workItemId: workItem.id })),
       progress: statedHandedDown.map((each) => ({ ...each, workItemId: workItem.id })),
       measures: measuredHandedDown.map((each) => ({ ...each, workItemId: workItem.id })),
+      attempts: attemptedHandedDown.map((each) => ({ ...each, workItemId: workItem.id })),
+      // Proof: left out, `skips a number removed before the first child, across
+      // the create's undo and redo` in `step-node-attempt.controller.db.test.ts`
+      // read the child's numbers `[1, 2]` where `[1, 3]` was owed; watched 2026-10-12.
+      issuedAttemptNumbers: issuedHandedDown.map((each) => ({ ...each, workItemId: workItem.id })),
       assignments: assignedHandedDown.map((assignment) => ({
         ...assignment,
         workItemId: workItem.id,
@@ -2482,6 +2625,11 @@ export class WorkItemService {
         stepId: each.stepId,
         metric: each.metric,
       })),
+      removedAttempts: attemptedHandedDown.map(({ workItemId, stepId, attemptNumber }) => ({
+        workItemId,
+        stepId,
+        attemptNumber,
+      })),
     };
     const inverse: CompensatingCommand = {
       do: 'delete_subtree',
@@ -2504,6 +2652,12 @@ export class WorkItemService {
       // Undoing this create makes the parent a leaf again, and a leaf reports
       // what it holds — in every unit, not the one the scheduler reads.
       setMeasures: measuredHandedDown,
+      // And the attempts, verbatim with their numbers: the child's delete
+      // cascades its copies, so without these an undo loses the history.
+      // Proof: left out, `gives a leaf's attempts back when its first child's
+      // create is undone` in `work-item.resource.test.ts` read `[]` on the
+      // parent (`- Expected - 24 / + Received + 1`); watched 2026-10-12.
+      setAttempts: attemptedHandedDown,
     };
     // The subtree commands remain readable by older binaries. Assignment changes
     // are ordinary journal steps, so their owners also enter undo/redo revisions.
@@ -3223,11 +3377,19 @@ export class WorkItemService {
     // and in every metric at once: one read feeds three folds, which is what
     // `listByProject` takes no metric for.
     const storedMeasures = await this.opts.measures.listByProject(workItem.projectId);
+    // Read before anything is deleted, for the same cascade:
+    // `step_node_attempt.work_item_id` cascades, and an undo must put the
+    // branch back with the history of every attempt at it.
+    const storedAttempts = await this.opts.attempts.listByProject(workItem.projectId);
     const allEdges = await this.opts.dependencies.listByProject(workItem.projectId);
     const authored = await this.opts.typedDependencies.listByProject(workItem.projectId);
     const survivor = workItem.parentId;
     const doomed = children.length === 0 || strategy === 'cascade' ? subtreeOf(rows, id) : [id];
     const inside = new Set(doomed);
+    // Read before anything is deleted, for the attempts' cascade: the marks go
+    // with their work items, and an undo that wrote back only the attempts
+    // would let a number removed while it was a node's highest be issued again.
+    const storedIssued = await this.opts.attempts.listIssued(workItem.projectId, doomed);
     if (
       survivor !== null &&
       (children.length === 0 || strategy === 'cascade') &&
@@ -3313,10 +3475,15 @@ export class WorkItemService {
           recordedHandedUp.push({ workItemId: parentId, stepId, days, recordedAt: latest });
         }
         const statedInside = storedProgress.filter((each) => inside.has(each.workItemId));
+        // Statements only, attempts left out on purpose: the hand-up writes
+        // statements, and an attempt is not one (ADR 0045). A branch's
+        // attempts go with it, so a running attempt must not come back as a
+        // statement nobody made.
         const branchStates = rollUpProgress(
           rows,
           storedProgress,
-          workedStepsOf(storedEstimates, storedActuals, storedProgress),
+          workedStepsOf(storedEstimates, storedActuals, storedProgress, []),
+          [],
         ).get(id);
         for (const [stepId, state] of branchStates ?? []) {
           if (state === UNKNOWN) continue;
@@ -3447,6 +3614,12 @@ export class WorkItemService {
               // returns the branch with its days and none of its tokens — the plan
               // looks whole and the record of what the work cost to run is gone.
               measures: storedMeasures.filter((each) => inside.has(each.workItemId)),
+              // Every attempt at the branch's nodes, verbatim with its number.
+              attempts: storedAttempts.filter((each) => inside.has(each.workItemId)),
+              // Proof: left out, `puts a deleted leaf back still skipping its removed
+              // highest number` in `step-node-attempt.controller.db.test.ts` numbered
+              // `[1, 2]` where `[1, 3]` was owed; watched 2026-10-12.
+              issuedAttemptNumbers: storedIssued,
               assignments: doomedAssignments,
               internalDependencies: cut.filter(
                 (edge) => inside.has(edge.predecessorId) && inside.has(edge.successorId),
@@ -3568,6 +3741,10 @@ export class WorkItemService {
           // leaf becomes representable. Written from the same source as the three
           // beside it rather than hard-coded, so it stays true if that changes.
           measures: storedMeasures.filter((each) => each.workItemId === id),
+          // The promoted row's own attempts: none on a row with children, read
+          // from the same source for the figures' reason.
+          attempts: storedAttempts.filter((each) => each.workItemId === id),
+          issuedAttemptNumbers: storedIssued.filter((each) => each.workItemId === id),
           assignments: deletedAssignments,
           internalDependencies: [],
           externalDependencies: cut,
@@ -4284,6 +4461,212 @@ export class WorkItemService {
   }
 
   /**
+   * Starts the next attempt at one step node (`step-node-attempts` D2): number
+   * the node's highest plus one, assigned by the store inside the write.
+   *
+   * Refused in order: `rolled_up` on a parent and `unknown_step`, as
+   * {@link setProgress}; `node_done` when the node's statement is `done` (it
+   * must be reopened first); `attempt_running` while one runs, which the
+   * store's unique partial index also refuses; `attempt_in_future` when `at` is
+   * after this act's own write stamp — the server's clock, never the client's;
+   * `unknown_person` for an executor the directory does not hold. `at` absent
+   * is the stamp.
+   *
+   * Writes no statement: an attempt is history, and the progress a reader sees
+   * stays whatever was said. One journal entry, whose inverse removes the
+   * attempt by its number and whose forward writes it back verbatim.
+   */
+  async startAttempt(
+    id: string,
+    actorId: string,
+    stepId: string,
+    start: {
+      at?: number;
+      executorPersonId?: string;
+      reference?: string;
+      note?: string;
+    },
+  ): Promise<WorkItemOutcome<{ attemptNumber: number }>> {
+    const context = await this.contextFor(id, actorId);
+    if (!context.ok) return context;
+    const { rows, workItem } = context.value;
+    if (rows.some((row) => row.parentId === id)) return { ok: false, reason: 'rolled_up' };
+    if (!(await this.holdsStep(workItem.projectId, stepId)))
+      return { ok: false, reason: 'unknown_step' };
+    // The fast path only: the store reads the node's state again inside the
+    // start's `BEGIN IMMEDIATE`, which is the refusal another process cannot
+    // slip past. Proof, watched 2026-10-12: this refusal removed, `refuses
+    // node_done, attempt_running and attempt_in_future at their command index`
+    // in `step-node-attempt.controller.db.test.ts` still refused on the store's
+    // read; with that removed as well the batch answered 200 (`- "error":
+    // "node_done"` / `+ "results": [...]`).
+    if ((await this.storedProgress(workItem.projectId, id, stepId)) === 'done')
+      return { ok: false, reason: 'node_done' };
+    // Proof: this refusal removed, the same case still passed on the store's
+    // own `attempt_running` — the partial index's face, as D1 intends; with
+    // the store's refusal also removed it answered 500, the index refusing
+    // the row (never 200); watched 2026-10-12.
+    if ((await this.runningAttempt(id, stepId)) !== null)
+      return { ok: false, reason: 'attempt_running' };
+    const stamp = this.clock.stampFor(actorId);
+    const startedAt = start.at ?? stamp.at;
+    // Proof: compared to `Date.now()` instead of the stamp, `takes the write
+    // stamp as the start and refuses an at after it, never the client clock`
+    // in `work-item.resource.test.ts` started the attempt (`- Expected - 2 /
+    // + Received + 4`); removed, the mounted future case answered 200 where
+    // 422 was owed; watched 2026-10-12.
+    if (startedAt > stamp.at) return { ok: false, reason: 'attempt_in_future' };
+    const executorPersonId = start.executorPersonId ?? null;
+    if (executorPersonId !== null && !(await this.holdsPerson(executorPersonId)))
+      return { ok: false, reason: 'unknown_person' };
+    const started = await this.opts.attempts.start(
+      {
+        workItemId: id,
+        stepId,
+        startedAt,
+        executorPersonId,
+        reference: start.reference ?? null,
+        note: start.note ?? null,
+      },
+      stamp,
+    );
+    if (!started.ok) return { ok: false, reason: started.reason };
+    const { attempt } = started;
+    await this.announceTree(workItem.projectId);
+    await this.record(
+      workItem.projectId,
+      stamp,
+      'start_attempt',
+      `started attempt ${String(attempt.attemptNumber)} of ${await this.nodeLabel(rows, workItem, stepId)}`,
+      {
+        forward: { do: 'restore_attempt', attempt },
+        inverse: {
+          do: 'remove_attempt',
+          workItemId: id,
+          stepId,
+          attemptNumber: attempt.attemptNumber,
+        },
+        touched: [id],
+        before: rows,
+      },
+    );
+    return { ok: true, value: { attemptNumber: attempt.attemptNumber } };
+  }
+
+  /**
+   * Ends the node's running attempt with an outcome (`step-node-attempts` D2).
+   *
+   * Refused in order: `rolled_up`, `unknown_step`; `no_running_attempt`;
+   * `attempt_in_future` when `at` is after the write stamp;
+   * `attempt_ends_before_start` when `at` precedes the running attempt's start —
+   * checked here because the database's order `CHECK` would otherwise throw. A
+   * reference or note given replaces the stored one; absent keeps it.
+   *
+   * One journal entry whose inverse writes the running row back **verbatim** —
+   * a patch of the prior values, never a delete — so one undo leaves the
+   * attempt running with no outcome, as it was.
+   */
+  async endAttempt(
+    id: string,
+    actorId: string,
+    stepId: string,
+    end: { outcome: AttemptOutcome; at?: number; reference?: string; note?: string },
+  ): Promise<WorkItemOutcome<null>> {
+    const context = await this.contextFor(id, actorId);
+    if (!context.ok) return context;
+    const { rows, workItem } = context.value;
+    if (rows.some((row) => row.parentId === id)) return { ok: false, reason: 'rolled_up' };
+    if (!(await this.holdsStep(workItem.projectId, stepId)))
+      return { ok: false, reason: 'unknown_step' };
+    const running = await this.runningAttempt(id, stepId);
+    // Proof: this refusal removed made `refuses no_running_attempt and
+    // attempt_ends_before_start` in `step-node-attempt.controller.db.test.ts`
+    // answer 500 (`null is not an object (evaluating 'running.startedAt')`)
+    // where 409 was owed; watched 2026-10-12.
+    if (running === null) return { ok: false, reason: 'no_running_attempt' };
+    const stamp = this.clock.stampFor(actorId);
+    const endedAt = end.at ?? stamp.at;
+    if (endedAt > stamp.at) return { ok: false, reason: 'attempt_in_future' };
+    // Proof: this refusal removed made the same case answer 500, `CHECK
+    // constraint failed: step_node_attempt_order`, where 422 was owed;
+    // watched 2026-10-12.
+    if (endedAt < running.startedAt) return { ok: false, reason: 'attempt_ends_before_start' };
+    const ended = await this.opts.attempts.end(
+      {
+        workItemId: id,
+        stepId,
+        endedAt,
+        outcome: end.outcome,
+        ...(end.reference === undefined ? {} : { reference: end.reference }),
+        ...(end.note === undefined ? {} : { note: end.note }),
+      },
+      stamp,
+    );
+    if (!ended.ok) return { ok: false, reason: ended.reason };
+    await this.announceTree(workItem.projectId);
+    await this.record(
+      workItem.projectId,
+      stamp,
+      'end_attempt',
+      `ended attempt ${String(ended.attempt.attemptNumber)} of ${await this.nodeLabel(rows, workItem, stepId)} ${end.outcome}`,
+      {
+        forward: { do: 'restore_attempt', attempt: ended.attempt },
+        // Proof: written as a `remove_attempt` (a delete), `one undo per
+        // command restores the row verbatim` in `work-item.resource.test.ts`
+        // read `[]` where the running attempt was owed (`- Expected - 13 /
+        // + Received + 1`); watched 2026-10-12.
+        inverse: { do: 'restore_attempt', attempt: ended.prior },
+        touched: [id],
+        before: rows,
+      },
+    );
+    return { ok: true, value: null };
+  }
+
+  /**
+   * Takes one attempt off a node by its number, as a correction
+   * (`step-node-attempts` D2); `unknown_attempt` when the node holds no such
+   * number. A later start takes the highest remaining plus one, so a removed
+   * number below the highest is never reused.
+   *
+   * One journal entry whose inverse writes the row back verbatim, number and
+   * all.
+   */
+  async removeAttempt(
+    id: string,
+    actorId: string,
+    stepId: string,
+    attemptNumber: number,
+  ): Promise<WorkItemOutcome<null>> {
+    const context = await this.contextFor(id, actorId);
+    if (!context.ok) return context;
+    const { rows, workItem } = context.value;
+    if (rows.some((row) => row.parentId === id)) return { ok: false, reason: 'rolled_up' };
+    if (!(await this.holdsStep(workItem.projectId, stepId)))
+      return { ok: false, reason: 'unknown_step' };
+    const stamp = this.clock.stampFor(actorId);
+    const removed = await this.opts.attempts.remove(id, stepId, attemptNumber, stamp);
+    // Proof: answered `ok` instead, `refuses unknown_attempt` in
+    // `step-node-attempt.controller.db.test.ts` answered 200 where 404 was
+    // owed; watched 2026-10-12.
+    if (removed === null) return { ok: false, reason: 'unknown_attempt' };
+    await this.announceTree(workItem.projectId);
+    await this.record(
+      workItem.projectId,
+      stamp,
+      'remove_attempt',
+      `removed attempt ${String(attemptNumber)} of ${await this.nodeLabel(rows, workItem, stepId)}`,
+      {
+        forward: { do: 'remove_attempt', workItemId: id, stepId, attemptNumber },
+        inverse: { do: 'restore_attempt', attempt: removed },
+        touched: [id],
+        before: rows,
+      },
+    );
+    return { ok: true, value: null };
+  }
+
+  /**
    * Sets the row's **status** as one act — the row-level mark ADR 0024 gives a
    * face to — by writing the statements the status is folded from, never a
    * status of its own.
@@ -4293,8 +4676,15 @@ export class WorkItemService {
    * work item the act speaks for — the leaves and, for a parent, the parent
    * itself — takes `on` as its fact end when it holds none, and `factStart`,
    * when given, as its fact start when it holds none; a typed day is never
-   * overwritten. `on` absent, the day is the UTC day of this act's own stamp
-   * ({@link isoDateOfInstant}): one clock read, never a second `now()`.
+   * overwritten. `on` absent, a leaf holding an ended attempt takes the day
+   * its last attempt ended, and every other row the day of this act's own
+   * stamp; `factStart` absent, `done` and `in_progress` give a leaf holding
+   * any attempt the day its first attempt started (`step-node-attempts` D4).
+   * Every such day is read in the project's timezone
+   * ({@link isoDateOfInstantIn}), so a `UTC` project with no attempts fills
+   * exactly what it always did: one clock read, never a second `now()`.
+   *
+   * @throws when the project has no stored timezone: trusted state.
    *
    * `unknown` takes every statement off every leaf in scope and, off every
    * in-scope work item that **read done** before the act — the leaves and the
@@ -4357,12 +4747,23 @@ export class WorkItemService {
     if (!context.ok) return context;
     const { rows, workItem } = context.value;
     const stamp = this.clock.stampFor(actorId);
-    const day = on ?? isoDateOfInstant(stamp.at);
+    const zone = await this.opts.projects.timezoneOf(workItem.projectId);
+    // `contextFor` has just read the project, so a missing zone is a store
+    // that lost its row, never a project to read in some default zone.
+    if (zone === null) throw new Error(`project ${workItem.projectId} has no timezone`);
+    // Proof: `zone` replaced by 'UTC' here made `Kyiv at 23:30Z fills the
+    // next day` read `factEnd: "2026-09-12"` for `"2026-09-13"`; watched
+    // 2026-10-12.
+    const day = on ?? isoDateOfInstantIn(zone, stamp.at);
     const hasChildren = new Set(rows.map((row) => row.parentId));
     const order = treeOrder(rows);
     const leaves = subtreeOf(rows, id)
       .filter((each) => !hasChildren.has(each))
       .sort((left, right) => (order.get(left) ?? 0) - (order.get(right) ?? 0));
+    const witness = attemptWitness(
+      await this.opts.attempts.listByWorkItems(workItem.projectId, leaves),
+      zone,
+    );
     const projectSteps = await this.opts.projects.stepsOf(workItem.projectId);
     // Proof: this refusal removed made `refuses in progress and done with
     // no_steps` fail on `Expected: {ok: false, reason: "no_steps"}, Received:
@@ -4382,6 +4783,7 @@ export class WorkItemService {
     };
     // What each row read before this act: the read's own progress fold, never
     // a stored flag, so the cell and this method agree about "was done".
+    const attempted = await this.opts.attempts.listByProject(workItem.projectId);
     const wasDone = rollUpWorkItemStatuses(
       rows,
       rollUpProgress(
@@ -4391,7 +4793,9 @@ export class WorkItemService {
           await this.opts.estimates.listByProject(workItem.projectId),
           await this.opts.actuals.listByProject(workItem.projectId),
           stated,
+          attempted,
         ),
+        attempted.filter((attempt) => attempt.endedAt === null),
       ),
     );
     const readsDone = (rowId: string) => wasDone.get(rowId) === 'done';
@@ -4460,7 +4864,9 @@ export class WorkItemService {
       if (silent !== undefined) setStep(leafId, silent.id, 'in_progress');
       patchRow(leafId, {
         hold: null,
-        ...(rowOf(leafId).factStart === null ? { factStart: factStart ?? day } : {}),
+        ...(rowOf(leafId).factStart === null
+          ? { factStart: factStart ?? witness.get(leafId)?.startedOn ?? day }
+          : {}),
       });
     };
 
@@ -4471,11 +4877,20 @@ export class WorkItemService {
       }
       for (const spokenFor of new Set([...leaves, id])) {
         const row = rowOf(spokenFor);
+        // A leaf's attempts are the better witness than the day of the mark:
+        // the work ended when its last attempt did, and began with its first.
+        // Proof: the witness skipped (`attempted` read as undefined) made
+        // `done fills the fact end from the last attempt's end day in the
+        // project zone` read the act's day — `factEnd: "2026-10-11"` for
+        // `"2026-10-10"` and `factStart: null` for `"2026-10-08"`; watched
+        // 2026-10-12.
+        const attempted = witness.get(spokenFor);
+        const startedOn = factStart ?? attempted?.startedOn;
         // The two fills, each only where the row holds nothing: a typed day is
         // the planner's record and is never overwritten by a mark.
         patchRow(spokenFor, {
-          ...(row.factEnd === null ? { factEnd: day } : {}),
-          ...(factStart !== undefined && row.factStart === null ? { factStart } : {}),
+          ...(row.factEnd === null ? { factEnd: on ?? attempted?.endedOn ?? day } : {}),
+          ...(startedOn !== undefined && row.factStart === null ? { factStart: startedOn } : {}),
         });
       }
     } else if (status === 'unknown') {
@@ -5326,6 +5741,19 @@ export class WorkItemService {
           }
         }
         return { ok: true, detail: null };
+      case 'restore_attempt':
+        return this.applyRestoreAttempt(projectId, command.attempt, stamp);
+      case 'remove_attempt': {
+        const removed = await this.opts.attempts.remove(
+          command.workItemId,
+          command.stepId,
+          command.attemptNumber,
+          stamp,
+        );
+        return removed === null
+          ? { ok: false, detail: 'that attempt is no longer there.' }
+          : { ok: true, detail: null };
+      }
       case 'add_dependency': {
         const rows = await this.opts.workItems.listByProject(projectId);
         const existing = await this.opts.dependencies.listByProject(projectId);
@@ -5557,6 +5985,8 @@ export class WorkItemService {
     // with a surviving descendant-step relationship return 500 instead of 409.
     if (invalid !== undefined)
       return { ok: false, detail: `relationship ${invalid.id} no longer fits this tree.` };
+    const attemptsRefused = await this.attemptsRefusal(projectId, command.setAttempts ?? []);
+    if (attemptsRefused !== null) return attemptsRefused;
     await this.opts.dependencies.removeAllFor(command.remove, stamp);
     await this.opts.typedDependencies.removeAllFor(command.remove, stamp);
     await this.opts.workItems.remove(command.remove, command.reparented, stamp);
@@ -5573,7 +6003,59 @@ export class WorkItemService {
     // re-applied delete that handed up the days and not the tokens would leave
     // the surviving parent reporting a fortnight of work that cost nothing.
     for (const each of command.setMeasures) await this.opts.measures.set(each, stamp);
+    // And the attempts, verbatim with their numbers, onto the leaf they came
+    // from: the undo of a first-child create, whose child's delete above has
+    // already cascaded the child's copies away.
+    for (const each of command.setAttempts ?? []) await this.opts.attempts.restore(each, stamp);
     return { ok: true, detail: null };
+  }
+
+  /**
+   * Writes one attempt back verbatim, refusing as stale rather than letting a
+   * foreign key or the running index answer 500: the step removed since, the
+   * executor removed from the directory since, or another attempt running on
+   * the node now.
+   */
+  private async applyRestoreAttempt(
+    projectId: string,
+    attempt: StoredAttempt,
+    stamp: WriteStamp,
+  ): Promise<ApplyOutcome> {
+    const refused = await this.attemptsRefusal(projectId, [attempt]);
+    if (refused !== null) return refused;
+    const running = await this.runningAttempt(attempt.workItemId, attempt.stepId);
+    if (
+      attempt.endedAt === null &&
+      running !== null &&
+      running.attemptNumber !== attempt.attemptNumber
+    ) {
+      return { ok: false, detail: 'another attempt is running at that step now.' };
+    }
+    await this.opts.attempts.restore(attempt, stamp);
+    return { ok: true, detail: null };
+  }
+
+  /**
+   * Why these attempts cannot be written back, asked before any write of the
+   * replay that carries them: a step removed since, or an executor the
+   * directory no longer holds. Null when nothing stands in the way.
+   */
+  private async attemptsRefusal(
+    projectId: string,
+    attempts: readonly StoredAttempt[],
+  ): Promise<ApplyOutcome | null> {
+    for (const attempt of attempts) {
+      if (!(await this.holdsStep(projectId, attempt.stepId))) {
+        return { ok: false, detail: 'that step is no longer in this project.' };
+      }
+      if (
+        attempt.executorPersonId !== null &&
+        !(await this.holdsPerson(attempt.executorPersonId))
+      ) {
+        return { ok: false, detail: 'that person is no longer in the directory.' };
+      }
+    }
+    return null;
   }
 
   private async applyRestore(
@@ -5630,6 +6112,8 @@ export class WorkItemService {
       .sort((a, b) => a.position - b.position)
       .at(-1);
     const placed = placeAfter(projected, wasAfter?.id ?? null);
+    const attemptsRefused = await this.attemptsRefusal(projectId, command.attempts ?? []);
+    if (attemptsRefused !== null) return attemptsRefused;
 
     await this.opts.subtrees.insertSubtree(
       {
@@ -5658,6 +6142,26 @@ export class WorkItemService {
       },
       stamp,
     );
+    // The attempts after the rows they hang off: off the surviving parent
+    // first (the redo of a first-child create), then onto the restored rows,
+    // verbatim with their numbers.
+    for (const key of command.removedAttempts ?? []) {
+      await this.opts.attempts.remove(key.workItemId, key.stepId, key.attemptNumber, stamp);
+    }
+    for (const each of command.attempts ?? []) await this.opts.attempts.restore(each, stamp);
+    // Then the marks, for numbers the attempts no longer show (A42). A mark on a
+    // row outside the branch is a journal this process did not write; one on a
+    // step removed since went with the step, as its node did.
+    const marks = command.issuedAttemptNumbers ?? [];
+    if (marks.length > 0) {
+      const restoredIds = new Set(command.rows.map((row) => row.id));
+      const stray = marks.find((mark) => !restoredIds.has(mark.workItemId));
+      if (stray !== undefined) {
+        throw new Error(`a restore carries a mark for ${stray.workItemId}, outside its branch`);
+      }
+      const held = new Set((await this.opts.projects.stepsOf(projectId)).map((each) => each.id));
+      await this.opts.attempts.raiseIssued(marks.filter((mark) => held.has(mark.stepId)));
+    }
 
     // The edges that leave the branch, one at a time and through the same
     // guard an ordinary request goes through. This is the one part of a
@@ -5954,6 +6458,53 @@ export class WorkItemService {
     return found?.state ?? null;
   }
 
+  /** The node's running attempt, or null when none runs. */
+  private async runningAttempt(
+    workItemId: string,
+    stepId: string,
+  ): Promise<RunningStoredAttempt | null> {
+    const held = (await this.opts.attempts.listOfWorkItem(workItemId)).get(stepId) ?? [];
+    const running = held.find((attempt) => attempt.endedAt === null);
+    return running === undefined ? null : { ...running, endedAt: null, outcome: null };
+  }
+
+  /**
+   * Whether the directory holds this person. Asked before an attempt names an
+   * executor, for {@link holdsStep}'s reason: `executor_person_id` is a
+   * foreign key, and an out-of-date picker must answer `unknown_person`, not 500.
+   */
+  private async holdsPerson(personId: string): Promise<boolean> {
+    return (await this.opts.directory.listPeople()).some((person) => person.id === personId);
+  }
+
+  /**
+   * The step node as a history sentence names it: its reference (`010.dev`),
+   * or the step's name on the quoted work item when the step has no code.
+   *
+   * The number is the one derived at the write, so a later renumbering leaves
+   * the sentence naming the node as it was then — the spec's wording
+   * (`plan-command-registry`), at {@link quoteName}'s known cost.
+   *
+   * @throws when the step or the work item's number is missing: both were
+   * checked by the caller in the same request.
+   */
+  private async nodeLabel(
+    rows: readonly WorkItem[],
+    workItem: WorkItem,
+    stepId: string,
+  ): Promise<string> {
+    const ordered = orderSteps(await this.opts.projects.stepsOf(workItem.projectId));
+    const stepAt = ordered.findIndex((each) => each.id === stepId);
+    if (stepAt === -1) throw new Error(`step ${stepId} left the project mid-write`);
+    const step = ordered[stepAt];
+    if (step.code === null) return `${step.name} of ${quoteName(workItem.name)}`;
+    const number = deriveNumbers(rows).get(workItem.id);
+    if (number === undefined) throw new Error(`no effective number for work item ${workItem.id}`);
+    // The canonical reference `readStepAddresses` writes: the displayed ordinal
+    // padded to the project's step count, then the code.
+    return formatStepReference(number, step.code, stepAt + 1, ordered.length);
+  }
+
   private async announceTree(projectId: string): Promise<void> {
     if (this.collector !== null) {
       this.collector.dirty = true;
@@ -6041,6 +6592,8 @@ interface TreeReads {
   authored: readonly TypedDependency[];
   assigned: readonly Assignment[];
   assignedPeople: { id: string; name: string }[];
+  /** Every attempt in the project, read beside the statements and handed to no engine. */
+  attempts: readonly StoredAttempt[];
   seq: number;
   steps: Step[];
   slotsOf: ReadonlyMap<string, number>;
@@ -6084,6 +6637,10 @@ function projectSharedTree(
       assignedPeople: reads.people
         .filter((person) => people.has(person.id))
         .map(({ id, name }) => ({ id, name })),
+      // Proof: `[]` here made `reads attempts ascending and derived spans per
+      // node and leaf (shared)` read no attempts (`received value must be a
+      // non-null object`) while the isolated case passed; watched 2026-10-12.
+      attempts: captured.attempts,
       slotsOf: reads.capacity,
       priorityBands: [...reads.priorityBands],
       elsewhereHolders: chain.kind === 'scheduled' ? chain.holders : [],
@@ -6108,6 +6665,7 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
     authored,
     assigned,
     assignedPeople,
+    attempts,
     seq,
     steps,
     slotsOf,
@@ -6131,7 +6689,16 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
   // and QA holds an estimate nobody has spoken about is **in progress**, not
   // finished — and the only way the fold can know QA exists on that row is for
   // the estimate to put it here. See `rollUpProgress`.
-  const statedTotals = rollUpProgress(rows, stated, workedStepsOf(stored, recorded, stated));
+  //
+  // A node holding any attempt is in that set too, and a running attempt on a
+  // node nobody has spoken about reads `in_progress` (`step-node-readings` D2).
+  const running = attempts.filter((attempt) => attempt.endedAt === null);
+  const statedTotals = rollUpProgress(
+    rows,
+    stated,
+    workedStepsOf(stored, recorded, stated, attempts),
+    running,
+  );
   // The row's own reading, folded over its **children** rather than over its
   // rolled-up steps — see `rollUpWorkItemStatuses` for why the two differ and which
   // one is true.
@@ -6144,6 +6711,24 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
   const itemStatuses = workItemStatusesOf(rows, rollUpWorkItemStatuses(rows, statedTotals), {
     edges: edges.filter((edge) => rowIds.has(edge.predecessorId) && rowIds.has(edge.successorId)),
     typed: authored,
+  });
+  // Every leaf node's reading over the resolved step-node graph, its
+  // predecessors the workflow and authored edges into it; legacy joins are
+  // left out of the resolution because the reading never reads them
+  // (`step-node-readings` D1, D3).
+  const readingsOf = nodeReadingsOf({
+    graph: resolveDependencyGraph({
+      rows,
+      steps,
+      estimates: stored,
+      legacy: [],
+      typed: authored,
+      reach: project.depReach,
+    }),
+    holdOf: new Map(rows.map((row) => [row.id, row.hold] as const)),
+    statusOf: itemStatuses,
+    stated,
+    running,
   });
   // The write path refuses an edge that would close a cycle, but two clients
   // drawing conflicting edges at the same instant are each checked against the
@@ -6339,6 +6924,10 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
   // `rows.some(...)` **inside** the map over `rows` — O(rows × edges × rows),
   // on the read every write and every socket frame performs.
   const idsOnThisPlan = new Set(rows.map((row) => row.id));
+  const attemptsOf = new Map<string, StoredAttempt[]>();
+  for (const attempt of attempts) {
+    attemptsOf.set(attempt.workItemId, [...(attemptsOf.get(attempt.workItemId) ?? []), attempt]);
+  }
   const workItems = rows
     .map((row) => ({
       ...row,
@@ -6394,6 +6983,9 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
       // otherwise be reported as a dependency on a number nobody can see.
       dependsOn: (waitingFor.get(row.id) ?? []).filter((id) => idsOnThisPlan.has(id)),
       ...assignmentFieldsOf(assigneesOf.get(row.id) ?? {}),
+      ...attemptFieldsOf(attemptsOf.get(row.id) ?? [], steps),
+      // A leaf's node readings by step id; a parent has no nodes and no key.
+      ...readingFieldsOf(readingsOf.get(row.id)),
       // A row the hold reduction took out has no schedule and no dates: it
       // takes no part in the plan, and a placeholder span would draw it.
       // Proof: the placeholder kept here made `lets a successor start at day

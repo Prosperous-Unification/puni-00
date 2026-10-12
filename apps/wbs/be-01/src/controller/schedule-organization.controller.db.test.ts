@@ -125,6 +125,8 @@ function crossings(): Record<string, string> {
     actual_step: `INSERT INTO actual (work_item_id, step_id, days, recorded_at) VALUES ('w2-a', '${foreignStep}', 1, 1)`,
     step_progress_step: `INSERT INTO step_progress (work_item_id, step_id, state, stated_at) VALUES ('w2-a', '${foreignStep}', 'done', 1)`,
     step_measure_step: `INSERT INTO step_measure (work_item_id, step_id, metric, value, recorded_at) VALUES ('w2-a', '${foreignStep}', 'hours_actual', 1, 1)`,
+    step_node_attempt_step: `INSERT INTO step_node_attempt (work_item_id, step_id, attempt_number, started_at) VALUES ('w2-a', '${foreignStep}', 1, 1)`,
+    step_node_attempt_person: `INSERT INTO step_node_attempt (work_item_id, step_id, attempt_number, started_at, executor_person_id) VALUES ('w2-a', '${ownStep}', 1, 1, 'pe-b')`,
     assignment_step: `INSERT INTO assignment (work_item_id, step_id, person_id) VALUES ('w-a', '${foreignStep}', 'pe-a')`,
     assignment_person: `INSERT INTO assignment (work_item_id, step_id, person_id) VALUES ('w-a', '${ownStep}', 'pe-b')`,
     work_item_tag: "INSERT INTO work_item_tag (work_item_id, tag_id) VALUES ('w-a', 'tg-b')",

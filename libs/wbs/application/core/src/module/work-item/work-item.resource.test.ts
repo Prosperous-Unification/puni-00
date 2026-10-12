@@ -10,9 +10,11 @@ import type {
   DirectoryStore,
   Project,
   ProjectStore,
+  StepNodeAttemptStore,
   WorkItemStore,
   WriteStamp,
 } from '../../index';
+import { clockOf } from '../../ports/clock';
 import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import { AvailableWorkItemService as WorkItemService } from '../../testing/available-work-item-service';
 import { type RecordingBroadcaster } from '../../testing/broadcast-fixture';
@@ -46,10 +48,12 @@ let directory: DirectoryStore;
  */
 let capacity: CapacityStore;
 let broadcast: RecordingBroadcaster;
+let attempts: StepNodeAttemptStore;
+let progress: WorkItemServiceOptions['progress'];
 
 beforeEach(async () => {
   const harness = inMemoryServices();
-  ({ projects, dependencies, directory, workItems, capacity } = harness.stores);
+  ({ projects, dependencies, directory, workItems, capacity, attempts, progress } = harness.stores);
   broadcast = harness.broadcast;
   // Kept whole: three cases below build a second service from these options with
   // one store swapped for a broken one, which is how they drive a failure the
@@ -260,6 +264,28 @@ describe('creating work items', () => {
   it('accepts an empty name', async () => {
     await add('');
     expect(await numbered()).toEqual({ '010': '' });
+  });
+
+  /**
+   * Proof: the attempts' `moveAll` skipped at the hand-down and this case read
+   * the leaf's Dev attempts still on the parent (`Expected: [1, 2]`, `Received:
+   * undefined` for the child); watched 2026-10-12.
+   */
+  it('hands a leaf’s attempts down to its first child, numbers kept', async () => {
+    const leaf = await add('Strip');
+    const node = { workItemId: leaf, stepId, executorPersonId: null, reference: null, note: null };
+    await attempts.start({ ...node, startedAt: 100 }, WROTE);
+    await attempts.end({ workItemId: leaf, stepId, endedAt: 110, outcome: 'failed' }, WROTE);
+    await attempts.start({ ...node, startedAt: 120 }, WROTE);
+
+    const child = await add('Back boxes', leaf);
+
+    const numbersOn = async (workItemId: string) =>
+      (await attempts.listOfWorkItem(workItemId))
+        .get(stepId)
+        ?.map(({ attemptNumber }) => attemptNumber);
+    expect(await numbersOn(child)).toEqual([1, 2]);
+    expect(await numbersOn(leaf)).toBeUndefined();
   });
 
   it('refuses a stranger on a restricted project', async () => {
@@ -2377,5 +2403,155 @@ describe('assignment projections isolate memory projects', () => {
     expect((await service.tree(other.id))?.assignedPeople).toEqual([
       { id: 'grace', name: 'grace' },
     ]);
+  });
+});
+
+describe('attempts at step nodes (step-node-attempts D2)', () => {
+  /** `2026-10-11T14:02:00Z`: the act every write of {@link atTheAct} stamps. */
+  const ACT = Date.UTC(2026, 9, 11, 14, 2);
+  /** A service whose every write stamps {@link ACT}, hours behind the machine's clock. */
+  const atTheAct = () =>
+    new WorkItemService({
+      ...serviceOptions,
+      clock: clockOf({ now: () => ACT, newId: () => crypto.randomUUID() }),
+    });
+  const onDev = async (workItemId: string) =>
+    (await attempts.listOfWorkItem(workItemId)).get(stepId) ?? [];
+
+  it('takes the write stamp as the start and refuses an at after it, never the client clock', async () => {
+    const leaf = await add('Strip');
+    const acting = atTheAct();
+
+    // A minute after the act and still hours before the machine's own now: only
+    // a check against the stamp refuses it.
+    expect(await acting.startAttempt(leaf, OWNER, stepId, { at: ACT + 60_000 })).toEqual({
+      ok: false,
+      reason: 'attempt_in_future',
+    });
+    expect(await acting.startAttempt(leaf, OWNER, stepId, {})).toEqual({
+      ok: true,
+      value: { attemptNumber: 1 },
+    });
+
+    expect(await onDev(leaf)).toMatchObject([{ attemptNumber: 1, startedAt: ACT, endedAt: null }]);
+  });
+
+  it('numbers past every number issued, so a removed number is never reused', async () => {
+    // A42 (D1, D2): removing attempt 1 of {1, 2} leaves 2 issued, and the
+    // next start is 3, never 1.
+    const leaf = await add('Strip');
+    for (const outcome of ['failed', 'succeeded'] as const) {
+      await service.startAttempt(leaf, OWNER, stepId, {});
+      await service.endAttempt(leaf, OWNER, stepId, { outcome });
+    }
+    expect(await service.removeAttempt(leaf, OWNER, stepId, 1)).toEqual({ ok: true, value: null });
+
+    expect(await service.startAttempt(leaf, OWNER, stepId, {})).toEqual({
+      ok: true,
+      value: { attemptNumber: 3 },
+    });
+    expect((await onDev(leaf)).map(({ attemptNumber }) => attemptNumber)).toEqual([2, 3]);
+  });
+
+  it('numbers past a removed highest attempt: remove 2 of {1, 2}, the next is 3', async () => {
+    const leaf = await add('Strip');
+    for (const outcome of ['failed', 'succeeded'] as const) {
+      await service.startAttempt(leaf, OWNER, stepId, {});
+      await service.endAttempt(leaf, OWNER, stepId, { outcome });
+    }
+    await service.removeAttempt(leaf, OWNER, stepId, 2);
+
+    expect(await service.startAttempt(leaf, OWNER, stepId, {})).toEqual({
+      ok: true,
+      value: { attemptNumber: 3 },
+    });
+  });
+
+  it('refuses an end before its running start, and stores the reference and note given', async () => {
+    const leaf = await add('Strip');
+    const acting = atTheAct();
+    await acting.startAttempt(leaf, OWNER, stepId, { at: ACT - 1000, reference: 'PR #11' });
+
+    expect(
+      await acting.endAttempt(leaf, OWNER, stepId, { outcome: 'failed', at: ACT - 2000 }),
+    ).toEqual({ ok: false, reason: 'attempt_ends_before_start' });
+    expect(
+      await acting.endAttempt(leaf, OWNER, stepId, {
+        outcome: 'failed',
+        reference: 'PR #12',
+        note: 'flaky',
+      }),
+    ).toEqual({ ok: true, value: null });
+
+    expect(await onDev(leaf)).toMatchObject([
+      { attemptNumber: 1, endedAt: ACT, outcome: 'failed', reference: 'PR #12', note: 'flaky' },
+    ]);
+  });
+
+  /**
+   * Proof: the `endAttempt` inverse written as `remove_attempt` (a delete) made
+   * the end's undo here read `[]` where the running attempt was owed
+   * (`- Expected - 13 / + Received + 1`); watched 2026-10-12.
+   */
+  it('one undo per command restores the row verbatim', async () => {
+    const leaf = await add('Strip');
+    await service.startAttempt(leaf, OWNER, stepId, { reference: 'PR #11', note: 'first go' });
+    const running = await onDev(leaf);
+    await service.endAttempt(leaf, OWNER, stepId, { outcome: 'failed', reference: 'PR #12' });
+
+    const undoneEnd = await service.undo(projectId, OWNER);
+    expect(undoneEnd.ok ? undoneEnd.value.done : undoneEnd).toBe(
+      'ended attempt 1 of 010.s1-dev failed',
+    );
+    expect(await onDev(leaf)).toEqual(running);
+
+    await service.endAttempt(leaf, OWNER, stepId, { outcome: 'succeeded' });
+    const ended = await onDev(leaf);
+    await service.removeAttempt(leaf, OWNER, stepId, 1);
+    const undoneRemove = await service.undo(projectId, OWNER);
+    expect(undoneRemove.ok ? undoneRemove.value.done : undoneRemove).toBe(
+      'removed attempt 1 of 010.s1-dev',
+    );
+    expect(await onDev(leaf)).toEqual(ended);
+
+    await service.startAttempt(leaf, OWNER, stepId, {});
+    const undoneStart = await service.undo(projectId, OWNER);
+    expect(undoneStart.ok ? undoneStart.value.done : undoneStart).toBe(
+      'started attempt 2 of 010.s1-dev',
+    );
+    expect(await onDev(leaf)).toEqual(ended);
+  });
+
+  it('writes no statement, and setStatus done leaves a running attempt running', async () => {
+    const leaf = await add('Strip');
+    await service.startAttempt(leaf, OWNER, stepId, {});
+    await service.endAttempt(leaf, OWNER, stepId, { outcome: 'succeeded' });
+    expect(await progress.listByProject(projectId)).toEqual([]);
+
+    await service.startAttempt(leaf, OWNER, stepId, {});
+    expect(await service.setStatus(leaf, OWNER, 'done')).toMatchObject({ ok: true });
+
+    expect((await onDev(leaf)).at(-1)).toMatchObject({ attemptNumber: 2, endedAt: null });
+  });
+
+  /**
+   * Proof: `setAttempts` left out of the create's inverse made this case read
+   * `[]` on the parent after the undo (`- Expected - 24 / + Received + 1`);
+   * watched 2026-10-12.
+   */
+  it("gives a leaf's attempts back when its first child's create is undone", async () => {
+    const leaf = await add('Strip');
+    await service.startAttempt(leaf, OWNER, stepId, { reference: 'PR #1' });
+    await service.endAttempt(leaf, OWNER, stepId, { outcome: 'failed' });
+    await service.startAttempt(leaf, OWNER, stepId, {});
+    const held = await onDev(leaf);
+    const child = await add('Back boxes', leaf);
+
+    expect(await service.undo(projectId, OWNER)).toMatchObject({ ok: true });
+    expect(await onDev(leaf)).toEqual(held);
+
+    expect(await service.redo(projectId, OWNER)).toMatchObject({ ok: true });
+    expect(await onDev(child)).toEqual(held.map((each) => ({ ...each, workItemId: child })));
+    expect(await onDev(leaf)).toEqual([]);
   });
 });

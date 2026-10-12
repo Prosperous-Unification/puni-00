@@ -1,4 +1,13 @@
-import type { Days, IsoDate, Scheduled, StepState, WorkItemStatus } from '@wbs/domain';
+import type {
+  Attempt,
+  Days,
+  IsoDate,
+  NodeReading,
+  Scheduled,
+  Span,
+  StepState,
+  WorkItemStatus,
+} from '@wbs/domain';
 
 import type { LabelledWorkItem } from '../ports/work-item-store';
 
@@ -140,4 +149,20 @@ export interface NumberedWorkItem extends LabelledWorkItem {
    */
   assignees: Record<string, string>;
   doesEveryStep: string | null;
+  /**
+   * A leaf's attempts by step id, each list in ascending number
+   * (`step-node-attempts` D4). Absent, with {@link spans} and {@link span},
+   * when the row holds none: no attempts, no span.
+   */
+  attempts?: Record<string, Attempt[]>;
+  /** Each attempted node's {@link Span}, derived on every read and never stored. */
+  spans?: Record<string, Span>;
+  /** The same fold over every node of the row: its first start to its last end. */
+  span?: Span;
+  /**
+   * A leaf's node readings by step id (`step-node-readings` D3), derived on
+   * every read and never stored. Absent on a parent, which holds no step
+   * nodes; empty on a leaf of a stepless project.
+   */
+  nodeReadings?: Record<string, NodeReading>;
 }
