@@ -11,12 +11,25 @@ import {
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { AppHeader } from '@/components/chrome/app-header';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { CONTROL_HEIGHT, SELECT_CLASS } from '@/components/ui/control';
 import { STATUS_GLYPH, STATUS_LABEL } from '@/components/wbs/status-cell';
 import { browserClient, failureMessage, unreachable } from '@/lib/http';
 
 import { InProgressList, type InProgressState, readInProgress } from './in-progress-list';
 import { singleFlight } from './single-flight';
 import { spaceRefusal } from './space-access';
+import {
+  ALERT_CLASS,
+  FIELD_CLASS,
+  FIELD_LABEL_CLASS,
+  FORM_CLASS,
+  LINK_CLASS,
+  MAIN_CLASS,
+  NOTE_CLASS,
+  STATUS_CLASS,
+} from './space-chrome';
 import { type SpaceGanttInput, spaceGanttLanesOf } from './space-gantt';
 import { useSpacesPolling } from './use-spaces-polling';
 
@@ -48,6 +61,23 @@ type View =
 type FocusTarget = { kind: 'control'; label: string } | { kind: 'heading' };
 /** One row's roll-up as the table shows it while chunks arrive. */
 type RollUpState = { kind: 'loading' } | { kind: 'failed' } | RollUp;
+
+/** A Projects cell: room around its figures, and the row's middle for a 44px handle. */
+const CELL_CLASS = 'px-3 py-2 align-middle first:pl-6 last:pr-6';
+
+/** A Projects column heading, quieter than the figures under it. */
+const HEAD_CELL_CLASS = `${CELL_CLASS} text-xs font-medium whitespace-nowrap`;
+
+/**
+ * The Project column, held at the left while a phone scrolls the figures
+ * under it, with a hairline marking where the scrolled columns slide beneath.
+ * A shadow rather than a border: under `border-collapse` a sticky cell's
+ * border stays where the column was.
+ */
+const PINNED_CELL_CLASS = 'bg-card sticky left-0 z-10 max-sm:shadow-[inset_-1px_0_0_var(--border)]';
+
+/** An arrow handle: square, a fingertip on a phone and the chrome's 36px from `sm`. */
+const ARROW_CLASS = `${CONTROL_HEIGHT} w-11 px-0 sm:w-9`;
 
 /** How many roll-ups one request asks for, so rows fill in as chunks land (design memo §8). */
 export const ROLL_UP_CHUNK = 20;
@@ -248,154 +278,218 @@ export function SpacePage({
   return (
     <>
       <AppHeader nav={nav} account={account} />
-      <main className="bg-background text-foreground mx-auto w-full max-w-5xl p-8 font-sans">
-        <p className="mb-2">
-          <Link to="/spaces">All spaces</Link>
-        </p>
-        <h1 ref={heading} tabIndex={-1} className="mb-6 text-2xl font-semibold">
-          {title}
-        </h1>
-        {view.kind === 'loading' && <p>Loading space…</p>}
-        {(view.kind === 'failure' || view.kind === 'refused') && <p role="alert">{view.message}</p>}
-        {view.kind === 'ready' && view.read.rows.length === 0 && (
-          <p>No projects in this space yet.</p>
-        )}
-        {view.kind === 'ready' && view.read.rows.length > 0 && (
-          <div className="overflow-x-auto">
-            <table aria-label="Projects" className="w-full text-left">
-              <thead>
-                <tr>
-                  <th scope="col">Project</th>
-                  <th scope="col">Status</th>
-                  <th scope="col">Start</th>
-                  <th scope="col">End</th>
-                  <th scope="col">Days</th>
-                  <th scope="col">Done</th>
-                  {view.read.writable && <th scope="col">Arrange</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {view.read.rows.map((row, index) => (
-                  <ProjectRow
-                    key={row.project.id}
-                    row={row}
-                    rollUp={rollUps[row.project.id] ?? { kind: 'loading' }}
-                    handles={
-                      view.read.writable
-                        ? {
-                            sending,
-                            // Up: after the row two above, or first.
-                            onUp:
-                              index === 0
-                                ? null
-                                : () => {
-                                    focusAfterWrite.current = {
-                                      kind: 'control',
-                                      label: `Move ${row.project.name} up`,
-                                    };
-                                    const anchor = view.read.rows[index - 2]?.project.id ?? null;
-                                    void write(
-                                      () =>
-                                        client.postApiSpacesByIdProjectsByProjectIdMove({
-                                          params: { id: spaceId, projectId: row.project.id },
-                                          body: { afterProjectId: anchor },
-                                        }),
-                                      `Moved ${row.project.name} up.`,
-                                    );
-                                  },
-                            onDown:
-                              index === view.read.rows.length - 1
-                                ? null
-                                : () => {
-                                    focusAfterWrite.current = {
-                                      kind: 'control',
-                                      label: `Move ${row.project.name} down`,
-                                    };
-                                    const anchor = view.read.rows[index + 1]?.project.id ?? null;
-                                    void write(
-                                      () =>
-                                        client.postApiSpacesByIdProjectsByProjectIdMove({
-                                          params: { id: spaceId, projectId: row.project.id },
-                                          body: { afterProjectId: anchor },
-                                        }),
-                                      `Moved ${row.project.name} down.`,
-                                    );
-                                  },
-                            onRemove: () => {
-                              // The row is gone after the re-read: the heading.
-                              focusAfterWrite.current = { kind: 'heading' };
-                              void write(
-                                () =>
-                                  client.deleteApiSpacesByIdProjectsByProjectId({
-                                    params: { id: spaceId, projectId: row.project.id },
-                                  }),
-                                `Removed ${row.project.name} from this space. The project is unchanged.`,
-                              );
-                            },
-                          }
-                        : null
-                    }
-                  />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        {view.kind === 'ready' && view.read.rows.length > 0 && (
-          <SpaceGantt rows={view.read.rows} rollUps={rollUps} />
-        )}
-        {view.kind === 'ready' && (
-          <InProgressList
-            state={inProgress}
-            projectNames={new Map(view.read.rows.map(({ project }) => [project.id, project.name]))}
-          />
-        )}
-        {view.kind === 'ready' && view.read.writable && candidatesProblem !== null && (
-          <p role="alert" className="mt-6">
-            {candidatesProblem}
+      <main className={MAIN_CLASS}>
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-6 sm:p-8">
+          <p className={STATUS_CLASS}>
+            <Link to="/spaces" className={LINK_CLASS}>
+              All spaces
+            </Link>
           </p>
-        )}
-        {view.kind === 'ready' && view.read.writable && candidates.length > 0 && (
-          <form
-            className="mt-6 flex items-center gap-2"
-            onSubmit={(event) => {
-              event.preventDefault();
-              const project = candidates.find(({ id }) => id === chosen);
-              if (project === undefined) return;
-              const last = view.read.rows.at(-1)?.project.id ?? null;
-              setChosen('');
-              void write(
-                () =>
-                  client.postApiSpacesByIdProjects({
-                    params: { id: spaceId },
-                    body: { projectId: project.id, afterProjectId: last },
-                  }),
-                `Added ${project.name}.`,
-              );
-            }}
+          <h1
+            ref={heading}
+            tabIndex={-1}
+            className="text-2xl font-semibold [overflow-wrap:anywhere]"
           >
-            <label htmlFor="add-project">Add a project</label>
-            <select
-              id="add-project"
-              className="border p-2"
-              value={chosen}
-              onChange={(event) => {
-                setChosen(event.target.value);
-              }}
-            >
-              <option value="">Choose a project</option>
-              {candidates.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.name}
-                </option>
-              ))}
-            </select>
-            <button type="submit" disabled={sending || chosen === ''}>
-              Add
-            </button>
-          </form>
-        )}
-        {message !== '' && <p role="status">{message}</p>}
+            {title}
+          </h1>
+          {view.kind === 'loading' && <p className={STATUS_CLASS}>Loading space…</p>}
+          {(view.kind === 'failure' || view.kind === 'refused') && (
+            <p role="alert" className={view.kind === 'failure' ? ALERT_CLASS : STATUS_CLASS}>
+              {view.message}
+            </p>
+          )}
+          {view.kind === 'ready' && (
+            <Card className="border-border">
+              <CardContent className="flex flex-col gap-4">
+                {view.read.rows.length === 0 && (
+                  <p className={NOTE_CLASS}>No projects in this space yet.</p>
+                )}
+                {view.read.rows.length > 0 && (
+                  <div className="border-border -mx-6 -mt-6 overflow-x-auto border-b last:-mb-6 last:border-b-0">
+                    <table
+                      aria-label="Projects"
+                      className="w-full border-collapse text-left text-sm"
+                    >
+                      <thead className="text-muted-foreground">
+                        <tr className="border-border border-b">
+                          <th scope="col" className={`${HEAD_CELL_CLASS} ${PINNED_CELL_CLASS}`}>
+                            Project
+                          </th>
+                          <th scope="col" className={HEAD_CELL_CLASS}>
+                            Status
+                          </th>
+                          <th scope="col" className={HEAD_CELL_CLASS}>
+                            Start
+                          </th>
+                          <th scope="col" className={HEAD_CELL_CLASS}>
+                            End
+                          </th>
+                          <th scope="col" className={`${HEAD_CELL_CLASS} text-right`}>
+                            Days
+                          </th>
+                          <th scope="col" className={`${HEAD_CELL_CLASS} text-right`}>
+                            Done
+                          </th>
+                          {view.read.writable && (
+                            <th scope="col" className={HEAD_CELL_CLASS}>
+                              Arrange
+                            </th>
+                          )}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-border divide-y">
+                        {view.read.rows.map((row, index) => (
+                          <ProjectRow
+                            key={row.project.id}
+                            row={row}
+                            rollUp={rollUps[row.project.id] ?? { kind: 'loading' }}
+                            handles={
+                              view.read.writable
+                                ? {
+                                    sending,
+                                    // Up: after the row two above, or first.
+                                    onUp:
+                                      index === 0
+                                        ? null
+                                        : () => {
+                                            focusAfterWrite.current = {
+                                              kind: 'control',
+                                              label: `Move ${row.project.name} up`,
+                                            };
+                                            const anchor =
+                                              view.read.rows[index - 2]?.project.id ?? null;
+                                            void write(
+                                              () =>
+                                                client.postApiSpacesByIdProjectsByProjectIdMove({
+                                                  params: {
+                                                    id: spaceId,
+                                                    projectId: row.project.id,
+                                                  },
+                                                  body: { afterProjectId: anchor },
+                                                }),
+                                              `Moved ${row.project.name} up.`,
+                                            );
+                                          },
+                                    onDown:
+                                      index === view.read.rows.length - 1
+                                        ? null
+                                        : () => {
+                                            focusAfterWrite.current = {
+                                              kind: 'control',
+                                              label: `Move ${row.project.name} down`,
+                                            };
+                                            const anchor =
+                                              view.read.rows[index + 1]?.project.id ?? null;
+                                            void write(
+                                              () =>
+                                                client.postApiSpacesByIdProjectsByProjectIdMove({
+                                                  params: {
+                                                    id: spaceId,
+                                                    projectId: row.project.id,
+                                                  },
+                                                  body: { afterProjectId: anchor },
+                                                }),
+                                              `Moved ${row.project.name} down.`,
+                                            );
+                                          },
+                                    onRemove: () => {
+                                      // The row is gone after the re-read: the heading.
+                                      focusAfterWrite.current = { kind: 'heading' };
+                                      void write(
+                                        () =>
+                                          client.deleteApiSpacesByIdProjectsByProjectId({
+                                            params: { id: spaceId, projectId: row.project.id },
+                                          }),
+                                        `Removed ${row.project.name} from this space. The project is unchanged.`,
+                                      );
+                                    },
+                                  }
+                                : null
+                            }
+                          />
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                {view.read.writable && candidatesProblem !== null && (
+                  <p role="alert" className={ALERT_CLASS}>
+                    {candidatesProblem}
+                  </p>
+                )}
+                {view.read.writable && candidates.length > 0 && (
+                  <form
+                    className={FORM_CLASS}
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      const project = candidates.find(({ id }) => id === chosen);
+                      if (project === undefined) return;
+                      const last = view.read.rows.at(-1)?.project.id ?? null;
+                      setChosen('');
+                      void write(
+                        () =>
+                          client.postApiSpacesByIdProjects({
+                            params: { id: spaceId },
+                            body: { projectId: project.id, afterProjectId: last },
+                          }),
+                        `Added ${project.name}.`,
+                      );
+                    }}
+                  >
+                    <span className={FIELD_CLASS}>
+                      <label htmlFor="add-project" className={FIELD_LABEL_CLASS}>
+                        Add a project
+                      </label>
+                      <select
+                        id="add-project"
+                        className={`${SELECT_CLASS} w-full min-w-0`}
+                        value={chosen}
+                        onChange={(event) => {
+                          setChosen(event.target.value);
+                        }}
+                      >
+                        <option value="">Choose a project</option>
+                        {candidates.map((project) => (
+                          <option key={project.id} value={project.id}>
+                            {project.name}
+                          </option>
+                        ))}
+                      </select>
+                    </span>
+                    <Button
+                      type="submit"
+                      className={CONTROL_HEIGHT}
+                      disabled={sending || chosen === ''}
+                    >
+                      Add
+                    </Button>
+                  </form>
+                )}
+                {message !== '' && (
+                  <p role="status" className={STATUS_CLASS}>
+                    {message}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
+          {view.kind !== 'ready' && message !== '' && (
+            <p role="status" className={STATUS_CLASS}>
+              {message}
+            </p>
+          )}
+          {view.kind === 'ready' && view.read.rows.length > 0 && (
+            <SpaceGantt rows={view.read.rows} rollUps={rollUps} />
+          )}
+          {view.kind === 'ready' && (
+            <InProgressList
+              state={inProgress}
+              projectNames={
+                new Map(view.read.rows.map(({ project }) => [project.id, project.name]))
+              }
+            />
+          )}
+        </div>
       </main>
     </>
   );
@@ -421,42 +515,55 @@ function ProjectRow({
   const { project } = row;
   return (
     <tr>
-      <th scope="row">
-        <a href={`/?project=${encodeURIComponent(project.id)}`}>{project.name}</a>
-        {project.restricted && (
-          <span className="text-muted-foreground ml-2 text-sm" title="Restricted">
-            (restricted)
-          </span>
-        )}
+      <th
+        scope="row"
+        className={`${CELL_CLASS} ${PINNED_CELL_CLASS} min-w-36 font-normal sm:min-w-48`}
+      >
+        <span className="flex flex-wrap items-baseline gap-x-2">
+          <a href={`/?project=${encodeURIComponent(project.id)}`} className={LINK_CLASS}>
+            {project.name}
+          </a>
+          {project.restricted && (
+            <span className="text-muted-foreground text-sm" title="Restricted">
+              (restricted)
+            </span>
+          )}
+        </span>
       </th>
       <RollUpCells rollUp={rollUp} />
       {handles !== null && (
-        <td>
+        <td className={CELL_CLASS}>
           <div className="flex gap-1">
-            <button
+            <Button
               type="button"
+              variant="outline"
+              className={ARROW_CLASS}
               disabled={handles.sending || handles.onUp === null}
               aria-label={`Move ${project.name} up`}
               onClick={() => handles.onUp?.()}
             >
               ↑
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="outline"
+              className={ARROW_CLASS}
               disabled={handles.sending || handles.onDown === null}
               aria-label={`Move ${project.name} down`}
               onClick={() => handles.onDown?.()}
             >
               ↓
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="outline"
+              className={`text-destructive hover:text-destructive ${CONTROL_HEIGHT}`}
               disabled={handles.sending}
               aria-label={`Remove ${project.name} from this space`}
               onClick={handles.onRemove}
             >
               Remove
-            </button>
+            </Button>
           </div>
         </td>
       )}
@@ -468,22 +575,38 @@ function ProjectRow({
 function RollUpCells({ rollUp }: { rollUp: RollUpState }): React.JSX.Element {
   switch (rollUp.kind) {
     case 'loading':
-      return <td colSpan={5}>Loading…</td>;
+      return (
+        <td colSpan={5} className={`${CELL_CLASS} text-muted-foreground`}>
+          Loading…
+        </td>
+      );
     case 'failed':
-      return <td colSpan={5}>Could not load this project’s figures.</td>;
+      return (
+        <td colSpan={5} className={`${CELL_CLASS} text-destructive`}>
+          Could not load this project’s figures.
+        </td>
+      );
     case 'unavailable':
-      return <td colSpan={5}>Schedule unavailable</td>;
+      return (
+        <td colSpan={5} className={`${CELL_CLASS} text-muted-foreground`}>
+          Schedule unavailable
+        </td>
+      );
     case 'rolled_up':
       return (
         <>
-          <td>
+          <td className={`${CELL_CLASS} whitespace-nowrap`}>
             <span aria-hidden="true">{STATUS_GLYPH[rollUp.status]}</span>{' '}
             {STATUS_LABEL[rollUp.status]}
           </td>
-          <td>{rollUp.dates?.startsOn ?? '—'}</td>
-          <td>{rollUp.dates?.endsOn ?? '—'}</td>
-          <td>{rollUp.finalTotal}</td>
-          <td>
+          <td className={`${CELL_CLASS} whitespace-nowrap tabular-nums`}>
+            {rollUp.dates?.startsOn ?? '—'}
+          </td>
+          <td className={`${CELL_CLASS} whitespace-nowrap tabular-nums`}>
+            {rollUp.dates?.endsOn ?? '—'}
+          </td>
+          <td className={`${CELL_CLASS} text-right tabular-nums`}>{rollUp.finalTotal}</td>
+          <td className={`${CELL_CLASS} text-right whitespace-nowrap tabular-nums`}>
             {rollUp.counts.byStatus.done}/{rollUp.counts.leaves}
           </td>
         </>
@@ -530,32 +653,36 @@ function SpaceGantt({
     })),
   );
   return (
-    <section aria-labelledby="space-gantt-heading" className="mt-8">
-      <h2 id="space-gantt-heading" className="mb-2 text-xl font-semibold">
-        Timeline
-      </h2>
-      <ul aria-label="Project timeline" className="flex flex-col gap-1">
-        {lanes.map((lane) => (
-          <li key={lane.projectId} className="flex items-center gap-2">
-            <span className="w-40 shrink-0 truncate">{lane.name}</span>
-            <span className="bg-muted relative min-h-4 min-w-0 flex-1">
-              {lane.kind === 'bar' ? (
-                <span
-                  role="img"
-                  aria-label={lane.label}
-                  data-space-gantt-bar
-                  className="bg-primary absolute inset-y-0"
-                  style={{ left: `${String(lane.left)}%`, width: `${String(lane.width)}%` }}
-                />
-              ) : (
-                <span className="text-muted-foreground block px-2 text-xs break-words">
-                  {lane.label}
+    <section aria-labelledby="space-gantt-heading">
+      <Card className="border-border">
+        <CardHeader>
+          <CardTitle id="space-gantt-heading">Timeline</CardTitle>
+        </CardHeader>
+        <CardContent className="pt-4">
+          <ul aria-label="Project timeline" className="m-0 flex list-none flex-col gap-2 p-0">
+            {lanes.map((lane) => (
+              <li key={lane.projectId} className="flex items-center gap-3 text-sm">
+                <span className="w-28 shrink-0 truncate sm:w-48">{lane.name}</span>
+                <span className="bg-muted relative min-h-5 min-w-0 flex-1 rounded-sm">
+                  {lane.kind === 'bar' ? (
+                    <span
+                      role="img"
+                      aria-label={lane.label}
+                      data-space-gantt-bar
+                      className="bg-primary absolute inset-y-0 rounded-sm"
+                      style={{ left: `${String(lane.left)}%`, width: `${String(lane.width)}%` }}
+                    />
+                  ) : (
+                    <span className="text-muted-foreground block px-2 py-0.5 text-xs break-words">
+                      {lane.label}
+                    </span>
+                  )}
                 </span>
-              )}
-            </span>
-          </li>
-        ))}
-      </ul>
+              </li>
+            ))}
+          </ul>
+        </CardContent>
+      </Card>
     </section>
   );
 }

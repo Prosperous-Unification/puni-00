@@ -352,3 +352,33 @@ describe('a space', () => {
     });
   });
 });
+
+describe('a space, drawn', () => {
+  it("draws every control with the chrome's rounded box, and each panel as a card", async () => {
+    stubServer({
+      'GET /api/spaces/s': [() => answer(200, read(['p1', 'p2'], true))],
+      'GET /api/spaces/s/in-progress': [
+        () => answer(200, { items: [], truncated: false, unavailable: [] }),
+      ],
+      'GET /api/spaces/s/roll-ups': [() => answer(200, { rollUps: { p1: rolledUp(11) } })],
+      'GET /api/projects': [() => answer(200, { projects: [project('p4', 'Fourth')] })],
+    });
+    routed(<SpacePage spaceId="s" nav={null} account={null} />);
+    await screen.findByLabelText('Add a project');
+    const controls = [...document.querySelectorAll('main button, main input, main select')];
+    expect(controls.length).toBeGreaterThan(6);
+    const unstyled = controls
+      .filter((control) => !control.classList.contains('rounded-md'))
+      .map((control) => control.getAttribute('aria-label') ?? control.textContent);
+    // Proof: 2026-10-12, restoring `ProjectRow`'s bare `<button>`s failed this
+    // listing `Move p1 up`, `Move p1 down`, `Remove p1 from this space` and p2's.
+    expect(unstyled).toEqual([]);
+    const table = screen.getByRole('table', { name: 'Projects' });
+    expect(table.closest('.rounded-lg.border')).not.toBeNull();
+    for (const name of ['Timeline', 'In progress now']) {
+      expect(
+        screen.getByRole('region', { name }).querySelector('.rounded-lg.border'),
+      ).not.toBeNull();
+    }
+  });
+});

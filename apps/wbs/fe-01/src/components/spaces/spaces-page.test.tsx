@@ -104,3 +104,28 @@ describe('the spaces page', () => {
     expect(screen.getByRole('link', { name: 'All projects' })).toBeDefined();
   });
 });
+
+describe('the spaces page, drawn', () => {
+  it("draws every control with the chrome's rounded box, inside a card", async () => {
+    stubServer({
+      'GET /api/spaces': [
+        () =>
+          answer(200, { spaces: [space('s1', 'Launch', 2), space('s2', 'Q3')], writable: true }),
+      ],
+    });
+    routed(<SpacesPage nav={null} account={null} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Rename Launch' }));
+    await screen.findByLabelText('New name for Launch');
+    const controls = [...document.querySelectorAll('main button, main input, main select')];
+    expect(controls.length).toBeGreaterThan(4);
+    const unstyled = controls
+      .filter((control) => !control.classList.contains('rounded-md'))
+      .map((control) => control.getAttribute('aria-label') ?? (control.id || control.textContent));
+    // Proof: 2026-10-12, restoring the bare Rename and Delete `<button>`s failed
+    // this listing `Rename Q3` and `Delete Q3`.
+    expect(unstyled).toEqual([]);
+    expect(
+      screen.getByRole('list', { name: 'Spaces' }).closest('.rounded-lg.border'),
+    ).not.toBeNull();
+  });
+});
