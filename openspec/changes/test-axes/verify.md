@@ -2297,3 +2297,26 @@ New and changed checks, each watched failing with the fault in place and restore
 Checks: `bunx nx run-many -t typecheck lint:fast -p twilight-burokrat --skip-nx-cache` passed;
 `bunx prettier --check` on every changed file passed; `tools/tool-devsync/src/workspace-targets.test.ts`
 passed 22/22. Not run: the `lint` target (whole-repository wiki lint) and the h2puni gate.
+
+### Follow-up: CI silent stop and peak memory — 2026-10-12
+
+CI run 38199478694 (`gate tool wiki`) stopped after `synchronous current work cannot commit after
+whole-tick deadline` with no Bun summary. The next case, `transaction crossing monotonic deadline
+rolls back every subject write`, holds a writer 600 ms past a 500 ms tick with a 200 ms cleanup
+budget; a stall over 100 ms after the hold reaches the tick's `process.exit(124)` inside the test
+runner. Raising the hold to 720 ms reproduced it locally: exit 124, output ending at the same line.
+The case now gives cleanup 5 s; the 720 ms hold passes and a 300 ms hold (inside the deadline)
+fails its rolled-back assertions.
+
+Peak RSS of the serial target (`/usr/bin/time -v`, maximum over the process tree):
+
+| Tree                                                                                                                                                                         | Peak RSS                                |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| base `c8285f9a3` (CLI spawned per case)                                                                                                                                      | 2,606,084 KB                            |
+| branch before the fix (in-process, lazy GC)                                                                                                                                  | 5,586,416 KB                            |
+| branch at `563835ec2`, the CI command `nx run-many -t test typecheck build -p twilight-burokrat --parallel=2` under `systemd-run --scope -p MemoryMax=6G -p MemorySwapMax=0` | 2,284,600 KB, exit 0, 2330 pass, 0 fail |
+
+The growth was lazy collection, not retention: `relationships.test.ts` alone peaked at 3,894,420
+KB and at 1,190,804 KB with a full collection after each command, in the same time. `invokeCli`
+now forces that collection; `trusted-policy` went from 1,835,400 to 982,648 KB and `rules` from
+1,733,880 to 1,003,940 KB.
