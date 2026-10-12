@@ -61,7 +61,11 @@ const attemptPlan = (): GanttPlan =>
     slices: [sliceAt('slice', '010', 0, 0.5)],
     personNames: new Map([['alice', 'Alice']]),
   });
-const draw = (plan: GanttPlan, startDate: string | null = MONDAY_START, dayPx: 28 | 896 = 896) => (
+const draw = (
+  plan: GanttPlan,
+  startDate: string | null = MONDAY_START,
+  dayPx: 28 | 224 | 896 = 896,
+) => (
   <GanttPanel
     plan={plan}
     startDate={startDate}
@@ -422,6 +426,14 @@ describe('attempt marks in the panel', () => {
         );
       }
     }
+  });
+  it('dismisses attempt facts after a same-generation rung placement change', () => {
+    const plan = attemptPlan();
+    const { rerender } = render(draw(plan));
+    fireEvent.focus(document.querySelector('[data-attempt="cancelled"] [data-attempt-hit]')!);
+    expect(screen.getByText('Reference: run/2')).toBeInTheDocument();
+    rerender(draw(plan, MONDAY_START, 224));
+    expect(screen.queryByText('Reference: run/2')).not.toBeInTheDocument();
   });
   it('dismisses attempt facts when keyboard focus leaves the mark', () => {
     render(draw(attemptPlan()));

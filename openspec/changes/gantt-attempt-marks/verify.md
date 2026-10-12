@@ -248,3 +248,42 @@ proof, not real-stack estimate-input/attempt acceptance or a performance measure
 Initial corrected attempt suite: 19 passed. Nx frontend typecheck passed (6.3s) and
 `lint:fast` passed (11.5s). Combined checks and chooser focus transfer will be repeated after
 merging the axis review checkpoint. Browser/performance/full-host-gate acceptance remains open.
+
+### Axis correction merge and final attempt confirmation
+
+Normally merged exact axis head `40ad022b7a9a33417cce73738e300d814e48af73` as
+`0d0749d88122244b670cc2e838e81dcb89d517e3`. Resolved React imports by keeping both `useId`
+and `useLayoutEffect`; resolved chooser content by retaining attempt choices inside the axis
+focus wrapper and using the corrected forecast labels. Both verification histories survive.
+The placement effect also clears attempt facts. A first conflict-resolution script selected
+an import conflict as the chooser boundary; normal format/lint hooks rejected the malformed
+file. The file was rebuilt from the three merge inputs and normal hooks then passed.
+
+Additional observed negatives:
+
+- Removing only `setOpenAttempt(null)` from placement invalidation failed the same-generation
+  rung placement regression with stale `Reference: run/2` (`/tmp/attempt-placement-mutation.log`).
+- Breaking only the attempt chooser selector failed Chromium focus transfer: the chooser
+  vanished before its choice could retain focus (`/tmp/attempt-chooser-mutation.log`).
+
+The first chooser browser run used different forecast/attempt dates, so it correctly found
+no collision. The isolated fixture now aligns them on 2026-08-03 and retains 07:00 clamped
+attempt starts. The final driver verifies actual nonzero paint on all four outcomes,
+focus → Tab-away dismissal, and focused attempt → chooser button → explicit attempt card,
+with no browser errors. Final outputs: `/tmp/attempt-focus-browser.log`,
+`/tmp/attempt-p2-final-tests.log`, `/tmp/attempt-p2-final-typecheck.log`,
+`/tmp/attempt-p2-final-lint.log`, and `/tmp/attempt-p2-zoned.log`.
+
+| Final focused check                                                       | Observed result                                                                          |
+| ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| UTC geometry, plan input, forecast panel, attempt panel and detail suites | 557 passed, 5 files, 28.43s                                                              |
+| Los Angeles attempt zoned card suite                                      | 1 passed, 728ms                                                                          |
+| Nx frontend typecheck                                                     | Passed, 6.8s                                                                             |
+| Nx frontend lint:fast                                                     | Passed, 16.5s                                                                            |
+| OpenSpec validate all                                                     | 184 valid, 0 invalid                                                                     |
+| Chromium attempt focus driver                                             | Tiny outcome paint, Tab-away dismissal and chooser focus transfer passed; no page errors |
+| git diff --check                                                          | Exit 0                                                                                   |
+
+The isolated Vite server on 4347 was stopped. Real-stack browser acceptance, browser
+translation mutation, attempt-inclusive performance and the full integration host gate remain
+open; tasks 2.2, 2.3 and 3 are unchanged pending estimate-units integration and review.

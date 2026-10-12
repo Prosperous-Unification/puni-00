@@ -3990,6 +3990,7 @@ function GanttChart({
     cancelOpening();
     setCollision(null);
     setOpen(null);
+    // Proof: omitting this clear retains run/2 after the same-generation rung placement test (2026-10-13).
     setOpenAttempt(null);
   }, [placed, dayPx, cancelOpening]);
   /**
@@ -6478,6 +6479,7 @@ function GanttChart({
                       if (!gesture.current.collisionOpen) dismiss();
                     }}
                     onLeaveFocus={(relatedTarget) => {
+                      // Proof: a nonmatching chooser selector removes the list during Chromium focus transfer (gantt-attempt-focus, 2026-10-13).
                       if (
                         relatedTarget instanceof Element &&
                         relatedTarget.closest('[data-gantt-collision-list]') !== null
