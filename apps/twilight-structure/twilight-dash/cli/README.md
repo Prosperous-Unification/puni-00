@@ -16,7 +16,16 @@ not enroll a node. Fleet owns the plan format, digest, eligibility checks and
 execution admission; see [fleet identities and ownership](../../../../docs/infra/fleet.md)
 and [`runPlan`](../../../../tools/tool-fleet/src/cli.ts).
 
-Dash also owns the activation controller's observation store
+Dash also runs the activation controller ([`src/activation`](src/activation/controller.ts)), its
+second authority: a separate process with its own store and service account, sharing no table or
+lock with the admission authority
+([ADR 0051](../../../../docs/adr/0051-the-activation-controller-runs-in-dash-as-a-second-authority.md)).
+Its observation service polls GitHub for ready candidates on a timer, and the review invoker's
+runtime ([`src/review/invoker.ts`](src/review/invoker.ts)) spawns review harnesses and writes their
+invocation journals. Both reach Twilight Burokrat only through `@twilight-burokrat/judge`;
+Burokrat keeps `validate-review-provenance` and the `prepare-activation` check runners.
+
+Dash owns the activation controller's observation store
 (`<stateDirectory>/activation.sqlite`, `user_version` 10; see
 [`observation-commands.ts`](src/activation/observation-commands.ts)). Both store commands take the
 protected observation service configuration and nothing else.
@@ -25,7 +34,8 @@ refuses `exists` when one is present. `migrate-observation <service.json>` steps
 to v10 and prints `migrated` with both versions. It refuses `absent`, `current` and
 `unsupported-version`. Either command refuses `unreadable` with the filesystem or SQLite code, and
 a refused command creates no file. The [fixtures](fixtures/activation/README.md) pin the v10
-schema and a store written by the pre-relocation Burokrat code.
+schema and a store written by the pre-relocation Burokrat code, and vendor that code's source so
+`rollback.db.test.ts` proves it still opens a store Dash wrote.
 
 From the repository root, supply a desired fleet, its complete observation, an
 exact observed unenrolled node and cluster, and the SHA-256 values of the reviewed

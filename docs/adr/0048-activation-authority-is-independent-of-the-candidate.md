@@ -24,3 +24,5 @@ certification.
 External identity, journal verification, durable storage and publisher authority are bootstrap
 prerequisites. After bootstrap, normal candidate admission has no human approval or artifact
 handling step; failure remains visible and cannot trigger a protection bypass.
+
+Where the controller runs and which store it owns: [ADR 0051](0051-the-activation-controller-runs-in-dash-as-a-second-authority.md).

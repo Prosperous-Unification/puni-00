@@ -2041,7 +2041,9 @@ moves with its owner. No CLI contract changed.
 
 Update 2026-10-12: the invoker's ten reads moved to Twilight Dash, which now injects a wall
 clock into `FileJournalLock`, `FileInvocationJournal` and `ProcessReviewInvoker`; see
-`openspec/changes/dash-activation-relocation/verify.md` (S2).
+`openspec/changes/dash-activation-relocation/verify.md` (S2). The same slice moved the AST
+detector the test applies to `tools/test/clock-reads/detector.ts`; in Burokrat only the two
+activation CLIs' check runs remain listed.
 
 `src/no-ambient-clock.test.ts` parses every non-test source in the package with the TypeScript
 compiler and counts clock references. A reference is any of the following:

@@ -42,10 +42,12 @@ export async function runFleetPlan(argv: readonly string[]): Promise<void> {
 }
 
 /**
- * Dispatches enrollment planning through the fixed fleet planner, the four authority commands
- * (`bootstrap-authority`, `inspect-authority`, `recover-publication`, `submit-admission`) through the runtime
- * authority, and the two observation store commands (`bootstrap-observation`,
- * `migrate-observation`); every other command refuses before any effect.
+ * Dispatches Dash's eight commands: `plan-enrollment` through the fixed fleet planner; the four
+ * authority commands (`bootstrap-authority`, `inspect-authority`, `recover-publication`,
+ * `submit-admission`) through the runtime admission authority; the two observation store commands
+ * (`bootstrap-observation`, `migrate-observation`) through the activation controller's store; and
+ * `render-observation-units` through the observation unit renderer. Every other command refuses
+ * before any effect.
  */
 export async function runDash(argv: readonly string[], deps: DashDependencies): Promise<void> {
   // A JavaScript caller can omit what the type requires; refuse rather than reach for a default.
