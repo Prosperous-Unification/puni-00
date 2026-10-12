@@ -901,7 +901,10 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // path they are reported under, none unclassified (2026-10-11).
     // Proof: one injected legacy source occurrence changed this count/digest
     // and failed the named corpus test; restoring it passed again.
-    digest: '1cb67b803aef7223bd0d73c2fd7664d5d12a6d767db398f657c77fc55178adbf',
+    // Proof: leaving `1cb67b80…` here after the activation controller moved from Burokrat's
+    // `activation-controller/` to `twilight-dash/cli/src/activation/` failed on the observed
+    // digest below at the same 322 occurrences and categories (2026-10-12).
+    digest: '8801695df3fcf499d8babe6cd30af96ca44a48c08a25ce05b72c6a3ed0239eef',
     occurrences: 322,
     unclassified: [],
   });
