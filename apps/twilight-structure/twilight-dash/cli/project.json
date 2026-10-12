@@ -29,6 +29,26 @@
       "options": {
         "command": "bunx tsc --build --force apps/twilight-structure/twilight-dash/cli/tsconfig.json"
       }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "dependsOn": [],
+      "inputs": [
+        "{projectRoot}/src/**/*",
+        "{workspaceRoot}/apps/twilight-structure/twilight-burokrat/cli/src/**/*",
+        "{workspaceRoot}/libs/shared/domain/validation/src/**/*",
+        "{workspaceRoot}/package.json",
+        "{workspaceRoot}/bun.lock",
+        "{workspaceRoot}/.bun-version"
+      ],
+      "outputs": [
+        "{workspaceRoot}/dist/apps/twilight-structure/twilight-dash/cli/observation-service.mjs"
+      ],
+      "options": {
+        "command": "bun src/packaging/build.ts",
+        "cwd": "apps/twilight-structure/twilight-dash/cli"
+      }
     }
   }
 }
