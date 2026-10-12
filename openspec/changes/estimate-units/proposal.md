@@ -25,16 +25,19 @@ spelling today.
 
 Executor kind, working window, agent calendar, instant axis (`agent-calendar-instant-axis`);
 points, tokens, sizes (`measures-vocabulary-and-size-templates`); sub-day rungs
-(`sub-day-gantt-axis`); any scheduler contract, solver wire or Python change; a project-level
-unit or minutes-per-day setting; a unit on the estimate row.
+(`sub-day-gantt-axis`); solver wire schema, solver quantum or Python changes; scheduler
+algorithm changes; a project-level unit or minutes-per-day setting; a unit on the estimate row.
 
 ## Constraints
 
 The column is additive with a default that is a fact (`workdays` is the only unit that ever
 existed); blue and green share SQLite mid-swap. `MAX_ESTIMATE_MINUTES = MAX_ESTIMATE_DAYS ×
 480` keeps the solver's 32-bit axis; the solver quantum (a 48th of a workday, 10 minutes)
-applies only at the CP-SAT boundary. Versions and the migration stamp are allocated at packet time (`design.md`). Golden
-corpora, request hashes and identity oracles stay byte-identical for workday-only plans.
+applies only at the CP-SAT boundary. Allocations in `design.md` are document 8, canonical
+input 6, scheduler contract 16 and migration `20261012130000_add_step_estimate_unit` (final
+collision check open). Old workday arithmetic and schedule outputs stay unchanged. Contract
+tag/cache identities may change at 16, and canonical input 6 adds the versioned estimateUnit
+field, so request hashes and canonical identities may change; solver schema/quantum stay fixed.
 
 ## Capabilities
 
