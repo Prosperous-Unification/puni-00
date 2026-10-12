@@ -41,8 +41,25 @@ const REQUIREMENTS_ROLE = 'requirements file';
 const PlanDocumentHeader = type({
   document: { format: "'wbs-plan'", version: 'number.integer' },
 });
-/** WBS's own export contract, with every key it does not declare refused. */
-const StrictPlanDocument = planDocument.onDeepUndeclaredKey('reject');
+/**
+ * Navigator's v7 wire contract: steps predate estimate units and always carry workdays.
+ * WBS's current document schema supplies the unchanged fields; the versioned header and
+ * step and work-item shapes stay pinned here until Navigator supports native minute estimates.
+ */
+const StrictPlanDocument = planDocument
+  .omit('document', 'steps', 'workItems')
+  .and({
+    document: {
+      format: "'wbs-plan'",
+      version: '7',
+      exportedAt: 'string',
+    },
+    steps: planDocument.get('steps', 0).exclude('undefined').omit('estimateUnit').array(),
+    workItems: planDocument.get('workItems', 0).exclude('undefined').omit('charged').array(),
+  })
+  // Proof: removing deep rejection made the root unknown-key case and all six v7
+  // estimateUnit/charged refusal cases exit 0 instead of 1 (plan-reference.test.ts, 2026-10-13).
+  .onDeepUndeclaredKey('reject');
 
 function sha256Hex(bytes: Uint8Array): string {
   return createHash('sha256').update(bytes).digest('hex');
@@ -71,7 +88,12 @@ function decodePlanExport(bytes: Uint8Array, path: string): PlanDocument {
     );
   }
   try {
-    return parseOrThrow(StrictPlanDocument, parsed);
+    const document = parseOrThrow(StrictPlanDocument, parsed);
+    return {
+      ...document,
+      document: { ...document.document, version: 8 },
+      steps: document.steps.map((step) => ({ ...step, estimateUnit: 'workdays' })),
+    };
   } catch (failure) {
     throw new Error(`${EXPORT_ROLE} is malformed: ${path}`, { cause: failure });
   }

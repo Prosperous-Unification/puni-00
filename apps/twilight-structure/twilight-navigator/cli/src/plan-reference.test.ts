@@ -104,6 +104,7 @@ describe('twin plan-reference', () => {
     expect(record.tasksDigest).toBe(digestOf(tasks));
     expect(record.createdAt).toBe('2026-10-11T09:00:00.000Z');
     expect(record.taskCount).toBe(3);
+    expect(record.planDocumentVersion).toBe(7);
     expect(tasks.steps.map(({ code }) => code)).toEqual(['dev', 'qa']);
     expect(tasks.tasks.map(({ number, name, ancestors }) => [number, name, ancestors])).toEqual([
       ['010.1', 'Record kinds', ['Navigator CLI']],
@@ -176,9 +177,32 @@ describe('twin plan-reference', () => {
     expect(run.stderr).toBe(`output directory is missing: ${absent}`);
   });
 
-  test('refuses an export carrying a key the version-6 contract does not declare', async () => {
+  test('refuses an export carrying a key the version-7 contract does not declare', async () => {
     const path = writeExport((document) => {
       document['navigatorNote'] = 'extra';
+    });
+    expectRefusal(await planReference({ '--export': path }), /plan export is malformed/);
+  });
+
+  test.each(['workdays', 'minutes', 'hours'])(
+    'refuses a version-7 step carrying estimateUnit %s before writing',
+    async (estimateUnit) => {
+      const path = writeExport((document) => {
+        const steps = document['steps'] as Record<string, unknown>[];
+        steps[0]['estimateUnit'] = estimateUnit;
+      });
+      expectRefusal(await planReference({ '--export': path }), /plan export is malformed/);
+    },
+  );
+
+  test.each([
+    { unit: 'workdays', days: 2 },
+    { unit: 'minutes', minutes: 120 },
+    { unit: 'hours', hours: 2 },
+  ])('refuses a version-7 work item carrying charged %j before writing', async (charge) => {
+    const path = writeExport((document) => {
+      const workItems = document['workItems'] as Record<string, unknown>[];
+      workItems[1]['charged'] = { '00000000-0000-4000-8000-000000000002': charge };
     });
     expectRefusal(await planReference({ '--export': path }), /plan export is malformed/);
   });
