@@ -2,7 +2,7 @@ import { cpSync, lstatSync, mkdirSync, readdirSync, readFileSync, writeFileSync 
 import { dirname, join } from 'node:path';
 
 import { hashBytes } from '../evidence/content-manifest';
-import { RelocationRefusal } from './relocation-activation';
+import { RelocationRefusal } from './relocation-refusal';
 
 /**
  * Resolves one installed package directory, refusing anything that is not a real directory.

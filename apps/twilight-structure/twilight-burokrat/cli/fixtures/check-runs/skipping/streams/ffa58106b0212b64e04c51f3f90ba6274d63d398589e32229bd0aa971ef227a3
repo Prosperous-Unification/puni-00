@@ -1,0 +1,10 @@
+[0m
+skip.test.ts:
+[0m[32m✓[0m[0m[1m runs[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[33m»[2m[0m[2m is skipped[0m
+
+[0m[32m 1 pass[0m
+ [0m[33m1 skip[0m
+[0m[2m 0 fail[0m
+ 1 expect() calls
+Ran 2 tests across 1 file. [0m[2m[[1m8.00ms[0m[2m][0m

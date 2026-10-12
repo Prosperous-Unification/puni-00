@@ -14,12 +14,13 @@ import { join } from 'node:path';
 import { afterAll, describe, expect, test } from 'bun:test';
 
 import { verifyActivation } from './activation';
+import { type LedgerOptions, writeCandidateCheckRuns } from './check-run-fixtures';
 import {
   assertPinnedRuntime,
-  type CheckRun,
   deriveToolIdentity,
   planRelocationActivation,
   planRelocationChecks,
+  type RecordedCheck,
   type RelocationSources,
   resolveSkipProbe,
 } from './relocation-activation';
@@ -114,7 +115,7 @@ function sources(overrides: Parameters<typeof relocationSources>[2] = {}): Reloc
   return relocationSources(fixture, base, overrides);
 }
 
-function checkRun(exitCode = 0): CheckRun {
+function checkRun(exitCode = 0): RecordedCheck {
   return {
     checkId: 'check.fixture.module',
     command: ['bunx', 'nx', 'run', 'fixture:check', '--skip-nx-cache'],
@@ -155,9 +156,13 @@ interface CommandFixture {
   base: BaseActivation;
   destination: string;
   reviewPath: string;
+  /** What the check-run ledger written for each preparation records; every check passes by default. */
+  checkRuns: LedgerOptions;
 }
 
-function commandFixture(options: { fixture?: RelocationFixture } = {}): CommandFixture {
+function commandFixture(
+  options: { fixture?: RelocationFixture; checkRuns?: LedgerOptions } = {},
+): CommandFixture {
   const fixture = options.fixture ?? createRelocationCandidate();
   const base = prepareBaseActivation(fixture);
   const destination = join(fixture.workspace, 'relocation-root');
@@ -172,7 +177,32 @@ function commandFixture(options: { fixture?: RelocationFixture } = {}): CommandF
       ),
     )}\n`,
   );
-  return { fixture, base, destination, reviewPath };
+  return { fixture, base, destination, reviewPath, checkRuns: options.checkRuns ?? {} };
+}
+
+let ledgerCount = 0;
+
+/**
+ * Writes the ledger Twilight Dash would have written for `sha`, standing in for
+ * `twilight-dash run-activation-checks`; the judge's tests supply what was measured. A revision the
+ * repository does not carry gets a directory that holds nothing, because the command refuses
+ * that revision before it reads check runs.
+ */
+function checkRunsFor(prepared: CommandFixture, sha: string, policyPath: string): string {
+  ledgerCount += 1;
+  const directory = join(prepared.fixture.workspace, `check-runs-${String(ledgerCount)}`);
+  const known = Bun.spawnSync(
+    ['git', '-C', prepared.fixture.repository, 'cat-file', '-e', `${sha}^{commit}`],
+    { stderr: 'pipe', stdout: 'pipe' },
+  );
+  if (known.exitCode === 0) {
+    writeCandidateCheckRuns(
+      directory,
+      { repository: prepared.fixture.repository, revision: sha, policyPath },
+      prepared.checkRuns,
+    );
+  }
+  return directory;
 }
 
 function runPreparation(
@@ -181,6 +211,8 @@ function runPreparation(
   sha = prepared.fixture.candidateRevision,
   entry = 'src/new/cli.ts',
 ): CommandInvocation {
+  const policyAt = overrides.indexOf('--candidate-policy');
+  const policyPath = policyAt < 0 ? 'docs/wiki-policy/policy.json' : overrides[policyAt + 1];
   return runCommand(
     withOverrides(
       [
@@ -204,6 +236,8 @@ function runPreparation(
         'fixture.lane',
         '--cwd-identity',
         'fixture.repository',
+        '--check-runs',
+        checkRunsFor(prepared, sha, policyPath),
       ],
       overrides,
     ),
@@ -347,6 +381,8 @@ describe('relocation activation prepared from a candidate SHA', () => {
       'fixture.lane',
       '--cwd-identity',
       'fixture.repository',
+      '--check-runs',
+      join(prepared.fixture.workspace, 'unknown-check-runs'),
     ]);
 
     expect(invocation.exitCode, invocation.output).toBe(1);
@@ -665,13 +701,16 @@ describe('relocation activation prepared from a candidate SHA', () => {
   });
 
   test('refuses a failed check instead of recording it', () => {
-    const prepared = commandFixture({ fixture: createRelocationCandidate({ failingCheck: true }) });
+    const prepared = commandFixture({
+      fixture: createRelocationCandidate({ failingCheck: true }),
+      checkRuns: { outcomes: { 'check.fixture.module': { exitCode: 1, stderr: 'exit 3\n' } } },
+    });
     const invocation = runPreparation(prepared);
 
     expect(invocation.exitCode, invocation.output).toBe(1);
     // Proof: forcing the R16 refusal false recorded the failing Nx target as `status: passed`,
     // and the command prepared, certified and tarred the whole activation; this negative expected
-    // exit 1 and received 0.
+    // exit 1 and received 0. Since 2026-10-12 the failure is the exit status Dash recorded.
     expect(invocation.output).toContain('check failed: check.fixture.module exit 1; stdout ');
     expect(existsSync(archivePath(prepared.fixture))).toBe(false);
 
@@ -868,6 +907,9 @@ describe('relocation activation prepared from a candidate SHA', () => {
   test('measures the skips a bun test check reports instead of claiming none', () => {
     const prepared = commandFixture({
       fixture: createRelocationCandidate({ skippingCheck: true }),
+      checkRuns: {
+        outcomes: { 'check.fixture.module': { probe: { stdout: ' 1 pass\n 1 skip\n 0 fail\n' } } },
+      },
     });
 
     const invocation = runPreparation(prepared);
@@ -882,6 +924,30 @@ describe('relocation activation prepared from a candidate SHA', () => {
       'check skipped work: check.fixture.module (bun test: 1 skip); stdout ',
     );
     expect(existsSync(archivePath(prepared.fixture))).toBe(false);
+  }, 300_000);
+
+  test('refuses check runs that are absent or were recorded for another revision', () => {
+    const prepared = commandFixture({ fixture: sharedRelocation().fixture });
+    const { fixture } = prepared;
+    const absent = runPreparation(prepared, [
+      '--check-runs',
+      join(fixture.workspace, 'never-written-check-runs'),
+    ]);
+    expect(absent.exitCode, absent.output).toBe(1);
+    expect(absent.output).toContain('check runs refused (absent): ');
+    const baseRuns = join(fixture.workspace, 'base-revision-check-runs');
+    writeCandidateCheckRuns(baseRuns, {
+      repository: fixture.repository,
+      revision: fixture.baseRevision,
+      policyPath: 'docs/wiki-policy/policy.json',
+    });
+    const other = runPreparation(prepared, ['--check-runs', baseRuns]);
+    expect(other.exitCode, other.output).toBe(1);
+    // Proof (2026-10-12): disabling the candidate comparison in `readCheckRuns` let the base
+    // revision's runs stand for the candidate: this command prepared, certified and tarred the
+    // activation (`Expected: 1, Received: 0`).
+    expect(other.output).toContain('check runs refused (mismatched-candidate): ');
+    expect(existsSync(archivePath(fixture))).toBe(false);
   }, 300_000);
 
   test('refuses a reviewed snapshot that is not a committed selection', () => {
@@ -1035,6 +1101,8 @@ describe('relocation activation prepared from a candidate SHA', () => {
       'fixture.lane',
       '--cwd-identity',
       'fixture.repository',
+      '--check-runs',
+      join(prepared.fixture.workspace, 'selected-check-runs'),
     ]);
     // Proof: forcing this refusal false prepared a second version into a root that already
     // carried `selected.json`, silently repointing it; this negative observed

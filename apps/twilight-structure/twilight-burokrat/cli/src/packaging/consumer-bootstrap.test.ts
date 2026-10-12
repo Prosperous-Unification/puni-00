@@ -16,6 +16,7 @@ import { dirname, join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { parse as parseYaml } from 'yaml';
 
+import { goldenCheckRuns } from '../policy/check-run-fixtures';
 import {
   auditReview,
   candidateIdentityAt,
@@ -219,7 +220,11 @@ function checkOutBase(runner: Runner, lock: string | undefined, consumer: object
   return directory;
 }
 
-function preparationArguments(fixture: RelocationFixture, out: string): string[] {
+function preparationArguments(
+  fixture: RelocationFixture,
+  out: string,
+  checkRuns: string = goldenCheckRuns.passing,
+): string[] {
   const strata = join(out, 'audit-strata.json');
   write(
     strata,
@@ -263,6 +268,8 @@ function preparationArguments(fixture: RelocationFixture, out: string): string[]
     'lane.consumer-bootstrap',
     '--cwd-identity',
     'cwd.consumer-bootstrap',
+    '--check-runs',
+    checkRuns,
   ];
 }
 
@@ -361,7 +368,8 @@ beforeAll(async () => {
   });
   const bootstrap = await runWorkflowStep(runner, 'Bootstrap trusted package', {}, {});
   expect(bootstrap.exitCode, bootstrap.stderr).toBe(0);
-  fixture = createRelocationCandidate({ materializeModules: true });
+  // Reproducible, so the golden ledger Dash wrote for this exact revision binds it.
+  fixture = createRelocationCandidate({ materializeModules: true, reproducible: true });
   const out = scratch('twilight-burokrat-consumer-activation-');
   const prepared = await run(
     [

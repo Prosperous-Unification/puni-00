@@ -1418,6 +1418,16 @@ The authority that coordinates independent review, certification and publication
 activation for an exact candidate and its admission context.
 _Avoid_: self-certifier, approval bot
 
+**Check run**:
+One activation check Twilight Dash ran against a committed candidate, recorded with the instants it
+stamped, the exit status and the digests of its output. A preparer judges check runs and never
+repeats them.
+_Avoid_: check receipt (that is the admission record a preparer derives from a check run), test run
+
+**Check-run ledger**:
+The ordered, digest-chained check runs of one preparation, sealed by the digest of the last run.
+_Avoid_: check log, receipts file
+
 **Radical Modularity**:
 The approach to scaling model-assisted work by making responsibility boundaries
 explicit and their granularity adjustable, with quality, time and cost measured.

@@ -173,7 +173,22 @@ at the old paths. Landing a move takes two steps: activate from the candidate he
    is operator-run and lives outside this repository; the command never writes a review record and
    refuses one that does not bind the candidate (`candidateIdentity`, `sourceBase`, the reviewed
    subject, generation and both completed phases). Any commit after the review invalidates it.
-   Then, from a clean checkout at that SHA with its lockfile-pinned modules installed:
+   Then, from a clean checkout at that SHA with its lockfile-pinned modules installed, run the
+   three bootstrap checks with Twilight Dash. It records each check's instants, exit status and
+   output digests in a check-run ledger
+   ([ADR 0052](adr/0052-dash-runs-activation-checks-and-burokrat-judges-their-receipts.md)):
+
+   ```sh
+   bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts run-activation-checks \
+     --candidate-repository <clean checkout whose HEAD is the SHA> \
+     --candidate-sha <40-hex candidate SHA> \
+     --candidate-policy docs/wiki-policy/bootstrap-policy.json \
+     --check-runs <new ledger directory, outside the candidate>
+   ```
+
+   It refuses a checkout that is not clean at the SHA, and a ledger directory that exists or sits
+   inside the candidate. A failing check is recorded, not refused, and the preparer below refuses
+   it. Then prepare:
 
    ```sh
    bun apps/twilight-structure/twilight-burokrat/cli/src/policy/prepare-relocation-activation-cli.ts \
@@ -184,14 +199,20 @@ at the old paths. Landing a move takes two steps: activate from the candidate he
      --destination <new archive root, outside the candidate> \
      --work <retention directory, outside the candidate> \
      --resource-lane <lane the checks ran in> \
-     --cwd-identity <identity of that working directory>
+     --cwd-identity <identity of that working directory> \
+     --check-runs <the ledger directory run-activation-checks wrote>
    ```
 
    Every flag above is required. `--resource-lane` and `--cwd-identity` have no default on purpose:
    they are the operator attestation the check receipts carry, and a tool that invented them would
    attest on the operator's behalf. `--candidate-policy`, `--candidate-launcher` and
-   `--validator-entry` default to this repository's layout. The command runs the three bootstrap
-   checks, regenerates policy, mapping, launcher, snapshotter, validator, evidence, authority,
+   `--validator-entry` default to this repository's layout. The command runs no check and reads no
+   clock. It judges the ledger against the checks the candidate policy selects, refusing it by name
+   (`check runs refused (<reason>)`) when it is absent, unreadable or malformed, when its digest
+   chain or seal no longer covers its runs, when it names a recorder other than Dash's
+   `run-activation-checks`, or when it ran another revision or tree. It also refuses a ledger that
+   misses, reorders or alters a planned check or its skip probe, whose instants run backwards or
+   overlap, or whose stream bytes are absent or edited. It then regenerates policy, mapping, launcher, snapshotter, validator, evidence, authority,
    receipt and both bindings, assembles the archive root, proves the archive certifies its own
    candidate by running the produced launcher to `certified: true`, and prints the release and
    variable commands.
@@ -260,7 +281,8 @@ integrity of `twilight-burokrat@0.1.0` exists only after publication. In order:
 3. **Activation.** From that `main` commit, bootstrap with a local, uncommitted
    `"admission": "installed-package"` into a fresh scratch directory and run its
    `consumer/node_modules/twilight-burokrat/dist/bin.mjs prepare-activation` with real review and
-   check evidence (never fixture attestations). Publish the archive and set the three variables. Its
+   check evidence (never fixture attestations): the `--check-runs` ledger comes from
+   `twilight-dash run-activation-checks` on that commit, never from `fixtures/check-runs/`. Publish the archive and set the three variables. Its
    launcher is the toolkit's, so the archive route keeps working with it.
 4. **Flip.** Commit `"admission": "installed-package"` and merge. That pull request is still judged
    by the base's `archive-launcher`; later pull requests take the package route.

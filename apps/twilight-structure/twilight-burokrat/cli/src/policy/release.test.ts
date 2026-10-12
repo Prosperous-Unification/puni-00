@@ -14,6 +14,7 @@ import { afterAll, describe, expect, test } from 'bun:test';
 
 import { hashBytes } from '../evidence/content-manifest';
 import { verifyActivation } from './activation';
+import { writeCandidateCheckRuns } from './check-run-fixtures';
 import { prepareToolkitActivation } from './prepare-activation-cli';
 import { planToolkit, toolkitRoles } from './release';
 import { releaseToolkit } from './release-cli';
@@ -35,6 +36,23 @@ import {
 } from './trusted-modules';
 
 const workspace = resolve(import.meta.dir, '..', '..', '..', '..', '..', '..');
+
+/**
+ * Stands in for `twilight-dash run-activation-checks`: the ledger Dash would write for the
+ * fixture's candidate with every check passing, so the preparer has measured runs to judge.
+ */
+function passingCheckRuns(
+  fixture: { repository: string; candidateRevision: string },
+  out: string,
+): string {
+  const directory = join(out, 'check-runs');
+  writeCandidateCheckRuns(directory, {
+    repository: fixture.repository,
+    revision: fixture.candidateRevision,
+    policyPath: 'docs/wiki-policy/policy.json',
+  });
+  return directory;
+}
 const scratchPaths: string[] = [];
 
 function scratch(prefix: string): string {
@@ -562,6 +580,8 @@ describe('consumer activation from a toolkit', () => {
       'lane.consumer-fixture',
       '--cwd-identity',
       'cwd.consumer-fixture',
+      '--check-runs',
+      passingCheckRuns(fixture, out),
     ]);
 
     expect(lines[0]).toBe(`toolkit activation: ${fixture.candidateRevision}`);
@@ -676,6 +696,8 @@ describe('consumer activation from a toolkit', () => {
         'lane.consumer-fixture',
         '--cwd-identity',
         'cwd.consumer-fixture',
+        '--check-runs',
+        passingCheckRuns(fixture, out),
       ],
       {
         // A neutral cwd and an environment with nothing but `PATH` and `HOME`: no workspace root,
@@ -749,6 +771,8 @@ describe('consumer activation from a toolkit', () => {
         'lane.consumer-fixture',
         '--cwd-identity',
         'cwd.consumer-fixture',
+        '--check-runs',
+        passingCheckRuns(fixture, out),
       ]),
     ).toThrow('audit strata name no stratum for review: review.fixture.module');
   }, 300_000);
@@ -780,6 +804,8 @@ describe('consumer activation from a toolkit', () => {
       'lane.consumer-fixture',
       '--cwd-identity',
       'cwd.consumer-fixture',
+      '--check-runs',
+      join(out, 'check-runs'),
     ];
 
     const altered = await realToolkit();
@@ -887,6 +913,8 @@ describe('consumer activation from a toolkit', () => {
         'lane.consumer-fixture',
         '--cwd-identity',
         'cwd.consumer-fixture',
+        '--check-runs',
+        join(uncoveredOut, 'check-runs'),
       ]),
     ).toThrow('module membership selects no candidate input: module.fixture.module');
   }, 300_000);
@@ -943,6 +971,8 @@ describe('consumer activation from a toolkit', () => {
         'lane.consumer-fixture',
         '--cwd-identity',
         'cwd.consumer-fixture',
+        '--check-runs',
+        passingCheckRuns(fixture, out),
       ]),
     ).toThrow('review');
   }, 300_000);
@@ -981,6 +1011,8 @@ describe('consumer activation from a toolkit', () => {
         'lane.consumer-fixture',
         '--cwd-identity',
         'cwd.consumer-fixture',
+        '--check-runs',
+        join(out, 'check-runs'),
       ]),
     ).toThrow('toolkit role differs from toolkit.json: launcher.sh');
   });
