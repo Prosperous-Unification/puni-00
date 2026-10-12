@@ -77,20 +77,18 @@ act as the trusted gate. Twilight Dash holds the secrets and performs the effect
 
 ### Clock reads
 
-Twilight Burokrat takes the instant it evaluates from its caller: `inspect-manual` requires
-`--now`, and Twilight Dash supplies it. The activation controller, the observation service and the
-review invoker moved to Twilight Dash in October 2026 with their clock reads (WBS a81d93a0); among
-Dash's production modules only `src/clock.ts` reads a clock. The reads still in the Burokrat
-package measure checks the process itself runs:
+Twilight Burokrat reads no clock. It takes the instant it evaluates from its caller:
+`inspect-manual` requires `--now`, and Twilight Dash supplies it. The activation controller, the
+observation service and the review invoker moved to Twilight Dash in October 2026 with their clock
+reads (WBS a81d93a0). Dash also measures the activation checks: `twilight-dash
+run-activation-checks` records each check's instants in a CheckRun ledger, and both
+`prepare-*-activation` commands judge those recorded instants (WBS ba5d3298,
+[ADR 0052](../adr/0052-dash-runs-activation-checks-and-burokrat-judges-their-receipts.md)). Among
+Dash's production modules only `src/clock.ts` reads a clock.
 
-| Site                                          | What it measures                              | Moves with                  |
-| --------------------------------------------- | --------------------------------------------- | --------------------------- |
-| `policy/prepare-activation-cli.ts`            | start and end of each candidate check it runs | a CheckRun receipt protocol |
-| `policy/prepare-relocation-activation-cli.ts` | start and end of each candidate check it runs | a CheckRun receipt protocol |
-
-`no-ambient-clock.test.ts` in the Burokrat package fails on a reference to the JavaScript or Bun
-clock APIs outside these files, or on more references in them than they hold today. The shared
-detector it applies, `tools/test/clock-reads/detector.ts`, lists in its JSDoc what it cannot see.
+`no-ambient-clock.test.ts` in the Burokrat package fails on any reference to the JavaScript or Bun
+clock APIs in its sources; it has no list of exceptions. The shared detector it applies,
+`tools/test/clock-reads/detector.ts`, lists in its JSDoc what it cannot see.
 
 ## How the tools depend on each other
 
@@ -132,7 +130,8 @@ match the candidate.
 
 | Existing thing                                                                                | Owner after the rename                                                                                                                                                             |
 | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| The wiki ledger, policy, activation selection, verification and review provenance             | Twilight Burokrat, unchanged, including the `prepare-activation` check runners and `validate-review-provenance`                                                                    |
+| The wiki ledger, policy, activation selection, verification and review provenance             | Twilight Burokrat, including both `prepare-*-activation` commands and `validate-review-provenance`                                                                                 |
+| The `prepare-activation` check runners inside the Burokrat package                            | Twilight Dash (`twilight-dash/cli/src/check-runs`, `run-activation-checks`), moved 2026-10; Burokrat judges the CheckRun ledger it writes                                          |
 | The activation controller, observation service and review invoker inside the Burokrat package | Twilight Dash (`twilight-dash/cli/src/{activation,review}`), moved 2026-10 as a second authority; the invocation journal records stay in Burokrat's `review/invocation-journal.ts` |
 | The lease authority inside the Burokrat package                                               | Twilight Dash (`twilight-dash/cli/src/authority`), moved 2026-10; the admission verdict stays in Burokrat's `admission-judge`                                                      |
 | Glossaries, ADR rules, OpenSpec schemas and artifact templates                                | Twilight Burokrat                                                                                                                                                                  |

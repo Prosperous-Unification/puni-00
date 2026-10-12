@@ -116,7 +116,19 @@ vendored TypeScript under `trusted-node-modules/`; `toolkit.json` carries a sing
 `trustedNodeModulesIdentity` over that whole closure instead, and the preparer checks it — along
 with every role digest and the Bun version — before it copies anything.
 
-From a clean checkout at the reviewed commit, with the toolkit extracted and verified:
+From a clean checkout at the reviewed commit, first run its declared checks with Twilight Dash,
+which records each check's instants, exit status and output digests in a check-run ledger. Dash is
+not yet published, so run it from a checkout of its source at `<dash>`:
+
+```sh
+bun <dash>/apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts run-activation-checks \
+  --candidate-repository <clean checkout whose HEAD is the SHA> \
+  --candidate-sha <40-hex candidate SHA> \
+  --candidate-policy <repo-relative path to policy.json> \
+  --check-runs <new directory, outside the checkout>
+```
+
+Then, with the toolkit extracted and verified:
 
 ```sh
 bun <toolkit>/prepare-activation.mjs \
@@ -130,14 +142,18 @@ bun <toolkit>/prepare-activation.mjs \
   --destination <new archive root, outside the checkout> \
   --work <retention directory, outside the checkout> \
   --resource-lane <lane the checks ran in> \
-  --cwd-identity <identity of that working directory>
+  --cwd-identity <identity of that working directory> \
+  --check-runs <the directory run-activation-checks wrote>
 ```
 
 Every flag is required. `--resource-lane` and `--cwd-identity` have no default on purpose: they are
 the operator attestation the check receipts carry, and a tool that invented them would be attesting
 on your behalf.
 
-The command runs your declared checks, derives the per-commit roles, digest-checks every toolkit
+The command runs no check. It judges the ledger against the checks your committed policy
+selects and refuses, by name, a ledger that is absent, malformed, edited after Dash sealed it,
+recorded by anything but Dash, for another commit, missing or reordering a check, or with
+instants that run backwards or overlap. It then derives the per-commit roles, digest-checks every toolkit
 role against `toolkit.json`, assembles the archive root, and proves it by running the toolkit's own
 launcher to `certified: true` before writing the tar. It then prints the tar path, its SHA-256 and
 the three `gh variable set` commands.
