@@ -397,3 +397,28 @@ libs/wbs/application/core/tsconfig.json apps/wbs/be-01/tsconfig.json`: exit 0.
 
 Full host gate, full repository suites, build, and OpenSpec validation are not run
 by this worker; the PM will run the exact-SHA host gate after this fix is pushed.
+
+### PR #380 historical migration suite correction — 2026-10-13
+
+Base: `74ce3c8bf3a0070b7af73198d75cdcebae385f14`. The old host gate's five
+SQLite failures reproduce on this head: the historical step-code column comparison
+kept `estimate_unit` after rollback, the SSO rollback list omitted its migration,
+activation reapplication expected attempts as newest, and two WorkingPlan journal
+comparisons omitted `estimateUnits: {}`. Expectations now include the additive
+migration and immutable bindings while retaining exact migration order, schema
+roundtrip, step identity, journal revisions and undo assertions. Step-code coverage
+also asserts the unit column's nullability/default and its reapplied workday value.
+No production behavior or safety checks changed.
+
+- Red: focused four-file run, 53 pass / 5 fail (activation checked separately:
+  29 pass / 1 fail; other three files: 24 pass / 4 fail).
+- Mutation: removing `DROP COLUMN estimate_unit` from its real down migration
+  makes the step-code rollback assertion fail, 4 pass / 1 fail. Restored afterwards;
+  adjacent Proof comment records the observed fault.
+- Green: focused migration/activation/WorkingPlan suite, 111 pass / 0 fail across
+  13 files, 310 assertions. `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx
+run-many -t lint:fast,typecheck -p wbs-store-sqlite`: both targets pass, no cache
+  hits. Changed-file Prettier and `git diff --check`: pass.
+
+Full host gate, full SQLite suite, repository build and OpenSpec validation were
+not run by this worker; the PM owns the final exact-SHA host gate.
