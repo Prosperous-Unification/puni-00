@@ -2,6 +2,7 @@ import {
   bootstrapObservationCommand,
   migrateObservationCommand,
 } from './activation/observation-commands';
+import { renderObservationUnitsCommand } from './activation/units/bundle';
 import {
   bootstrapAuthorityCommand,
   inspectAuthorityCommand,
@@ -85,6 +86,10 @@ export async function runDash(argv: readonly string[], deps: DashDependencies): 
   }
   if (command === 'migrate-observation') {
     await migrateObservationCommand(argumentsAfterCommand, commandDependencies);
+    return;
+  }
+  if (command === 'render-observation-units') {
+    renderObservationUnitsCommand(argumentsAfterCommand, (text) => deps.stdout.write(text));
     return;
   }
   if (command !== 'plan-enrollment') {

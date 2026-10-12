@@ -4,9 +4,17 @@ import { join } from 'node:path';
 
 import { expect, test } from 'bun:test';
 
+import { runDash } from '../../cli';
+import {
+  OBSERVATION_SERVICE_UNIT,
+  OBSERVATION_TIMER_UNIT,
+  renderObservationBundle,
+} from './bundle';
 import { type ObservationUnitInput, renderObservationUnits } from './render';
 
 const root = import.meta.dir;
+/** The installed Dash entrypoint, so the subprocess tests cross the real dispatcher. */
+const renderCommand = ['bun', join(root, '../../entrypoint.ts'), 'render-observation-units'];
 
 function layout(): ObservationUnitInput {
   return {
@@ -18,7 +26,7 @@ function layout(): ObservationUnitInput {
     stateDirectory: '/var/lib/tool-wiki-observation',
     bunPath: '/opt/tool-wiki-observation/v1/bun',
     bunIdentity: 'a'.repeat(64),
-    launcherPath: '/opt/tool-wiki-observation/v1/observation-service-cli.js',
+    launcherPath: '/opt/tool-wiki-observation/v1/observation-service.mjs',
     launcherIdentity: 'b'.repeat(64),
     bunConfigPath: '/etc/tool-wiki-observation/bunfig.toml',
     bunConfigIdentity: 'c'.repeat(64),
@@ -66,7 +74,8 @@ test('timer artifact cannot grant execution authority', () => {
   expect(existsSync(path)).toBe(true);
   const timer = readFileSync(path, 'utf8');
   expect(timer).toContain('Persistent=true');
-  expect(timer).toContain('Unit=');
+  // Proof: restoring the pre-rename `Unit=tool-wiki-observation.service` failed this line (2026-10-12).
+  expect(timer).toContain(`\nUnit=${OBSERVATION_SERVICE_UNIT}\n`);
   expect(timer).not.toContain('ExecStart');
   expect(timer).not.toContain('EnvironmentFile');
   expect(timer).not.toContain('Credential');
@@ -87,19 +96,18 @@ test('renderer binds exact non-root account runtime trust and finite service exi
   expect(rendered.service).toContain(
     'ExecStartPre=/usr/bin/sha256sum --check /etc/tool-wiki-observation/runtime.sha256',
   );
-  expect(rendered.service).toContain(
-    'ExecStart=/usr/bin/env -i PATH=/usr/bin:/bin HOME=/nonexistent TMPDIR=/tmp',
-  );
-  expect(rendered.service).toContain(
-    '--no-env-file --config=/etc/tool-wiki-observation/bunfig.toml',
-  );
-  expect(rendered.service).toContain(
-    '/opt/tool-wiki-observation/v1/observation-service-cli.js /etc/tool-wiki-observation/service.json',
-  );
+  // Proof: swapping `@LAUNCHER_PATH@ @SERVICE_CONFIG_PATH@` in the service template failed
+  // this exact ExecStart equality (2026-10-12).
+  expect(rendered.service.split('\n').filter((line) => line.startsWith('ExecStart='))).toEqual([
+    'ExecStart=/usr/bin/env -i PATH=/usr/bin:/bin HOME=/nonexistent TMPDIR=/tmp ' +
+      '/opt/tool-wiki-observation/v1/bun --no-env-file ' +
+      '--config=/etc/tool-wiki-observation/bunfig.toml ' +
+      '/opt/tool-wiki-observation/v1/observation-service.mjs /etc/tool-wiki-observation/service.json',
+  ]);
   expect(rendered.service).not.toContain('EnvironmentFile');
   expect(rendered.service).not.toContain('@');
   expect(rendered.runtimePins).toBe(
-    `${'a'.repeat(64)}  /opt/tool-wiki-observation/v1/bun\n${'b'.repeat(64)}  /opt/tool-wiki-observation/v1/observation-service-cli.js\n${'c'.repeat(64)}  /etc/tool-wiki-observation/bunfig.toml\n${'d'.repeat(64)}  /etc/tool-wiki-observation/service.json\n${'e'.repeat(64)}  /etc/tool-wiki-observation/bootstrap.json\n`,
+    `${'a'.repeat(64)}  /opt/tool-wiki-observation/v1/bun\n${'b'.repeat(64)}  /opt/tool-wiki-observation/v1/observation-service.mjs\n${'c'.repeat(64)}  /etc/tool-wiki-observation/bunfig.toml\n${'d'.repeat(64)}  /etc/tool-wiki-observation/service.json\n${'e'.repeat(64)}  /etc/tool-wiki-observation/bootstrap.json\n`,
   );
 });
 
@@ -158,45 +166,110 @@ test('admin renderer writes an uninstalled bundle into a fresh directory only', 
     const inputPath = join(scratch, 'layout.json');
     const outputDirectory = join(scratch, 'rendered');
     writeFileSync(inputPath, JSON.stringify(layout()));
-    const first = Bun.spawn(['bun', join(root, 'render-cli.ts'), inputPath, outputDirectory], {
+    const first = Bun.spawn([...renderCommand, inputPath, outputDirectory], {
       stdout: 'pipe',
       stderr: 'pipe',
     });
     expect(await first.exited).toBe(0);
-    expect(readFileSync(join(outputDirectory, 'tool-wiki-observation.service'), 'utf8')).toContain(
-      'Type=oneshot',
-    );
+    expect(
+      readFileSync(join(outputDirectory, 'twilight-dash-observation.service'), 'utf8'),
+    ).toContain('Type=oneshot');
     const preexistingDirectory = join(scratch, 'preexisting');
     mkdirSync(preexistingDirectory);
-    const preexisting = Bun.spawn(
-      ['bun', join(root, 'render-cli.ts'), inputPath, preexistingDirectory],
-      {
-        stdout: 'pipe',
-        stderr: 'pipe',
-      },
-    );
+    const preexisting = Bun.spawn([...renderCommand, inputPath, preexistingDirectory], {
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
     expect(await preexisting.exited).not.toBe(0);
-    expect(existsSync(join(preexistingDirectory, 'tool-wiki-observation.service'))).toBe(false);
+    expect(existsSync(join(preexistingDirectory, 'twilight-dash-observation.service'))).toBe(false);
     const aliasDirectory = join(scratch, 'alias');
     mkdirSync(aliasDirectory);
     const aliasedOutput = `${aliasDirectory}/../aliased-render`;
-    const aliased = Bun.spawn(['bun', join(root, 'render-cli.ts'), inputPath, aliasedOutput], {
+    const aliased = Bun.spawn([...renderCommand, inputPath, aliasedOutput], {
       stdout: 'pipe',
       stderr: 'pipe',
     });
     expect(await aliased.exited).not.toBe(0);
     expect(existsSync(join(scratch, 'aliased-render'))).toBe(false);
-    expect(readFileSync(join(outputDirectory, 'tool-wiki-observation.timer'), 'utf8')).toContain(
-      'Persistent=true',
-    );
-    const second = Bun.spawn(['bun', join(root, 'render-cli.ts'), inputPath, outputDirectory], {
+    expect(
+      readFileSync(join(outputDirectory, 'twilight-dash-observation.timer'), 'utf8'),
+    ).toContain('Persistent=true');
+    const second = Bun.spawn([...renderCommand, inputPath, outputDirectory], {
       stdout: 'pipe',
       stderr: 'pipe',
     });
     expect(await second.exited).not.toBe(0);
-    expect(readFileSync(join(outputDirectory, 'tool-wiki-observation.service'), 'utf8')).toContain(
-      'Type=oneshot',
+    expect(
+      readFileSync(join(outputDirectory, 'twilight-dash-observation.service'), 'utf8'),
+    ).toContain('Type=oneshot');
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
+});
+
+test('rendered units pass systemd-analyze verify', () => {
+  // An absent verifier fails rather than skips: a skipped syntax check reads as a passed one.
+  // Proof: running this file with PATH holding only `bun` failed here with "systemd-analyze is
+  // required" (2026-10-12).
+  const verifier = Bun.which('systemd-analyze');
+  if (verifier === null) {
+    throw new Error('systemd-analyze is required to verify the observation units; install systemd');
+  }
+  const scratch = mkdtempSync(join(tmpdir(), 'observation-verify-test-'));
+  try {
+    const inputPath = join(scratch, 'layout.json');
+    const outputDirectory = join(scratch, 'rendered');
+    writeFileSync(inputPath, JSON.stringify(layout()));
+    renderObservationBundle(inputPath, outputDirectory);
+    const verified = Bun.spawnSync(
+      [
+        verifier,
+        'verify',
+        join(outputDirectory, OBSERVATION_SERVICE_UNIT),
+        join(outputDirectory, OBSERVATION_TIMER_UNIT),
+      ],
+      { stderr: 'pipe', stdout: 'pipe' },
     );
+    // `verify` exits 0 on an unknown key and only warns, so its silence is part of the contract.
+    // Proof: `Restart=no` renamed `Restartt=no` in the service template failed the empty-output
+    // assertion with "Unknown key name 'Restartt'" while the exit stayed 0 (2026-10-12).
+    expect(verified.stdout.toString('utf8') + verified.stderr.toString('utf8')).toBe('');
+    expect(verified.exitCode).toBe(0);
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
+});
+
+test('render-observation-units refuses a malformed grammar before any effect', async () => {
+  const scratch = mkdtempSync(join(tmpdir(), 'observation-grammar-test-'));
+  try {
+    const inputPath = join(scratch, 'layout.json');
+    const outputDirectory = join(scratch, 'rendered');
+    writeFileSync(inputPath, JSON.stringify(layout()));
+    const written: string[] = [];
+    const deps = {
+      planEnrollment: () => Promise.reject(new Error('planner must not run')),
+      clock: { read: () => 0 },
+      monotonic: { now: () => 0 },
+      stdout: { write: (text: string) => written.push(text) },
+    };
+    for (const argv of [
+      [],
+      [inputPath],
+      [inputPath, outputDirectory, 'extra'],
+      ['--layout', outputDirectory],
+      [inputPath, ''],
+    ]) {
+      const refusal = await runDash(['render-observation-units', ...argv], deps).then(
+        () => 'resolved',
+        (cause: unknown) => String(cause),
+      );
+      expect(refusal, JSON.stringify(argv)).toBe(
+        'Error: Usage: render-observation-units <layout.json> <new-dir>',
+      );
+      expect(existsSync(outputDirectory), JSON.stringify(argv)).toBe(false);
+    }
+    expect(written).toEqual([]);
   } finally {
     rmSync(scratch, { recursive: true, force: true });
   }
