@@ -2487,7 +2487,7 @@ describe('attempts at step nodes (step-node-attempts D2)', () => {
 
     const undoneEnd = await service.undo(projectId, OWNER);
     expect(undoneEnd.ok ? undoneEnd.value.done : undoneEnd).toBe(
-      'ended attempt 1 of 010.dev failed',
+      'ended attempt 1 of 010.s1-dev failed',
     );
     expect(await onDev(leaf)).toEqual(running);
 
@@ -2496,14 +2496,14 @@ describe('attempts at step nodes (step-node-attempts D2)', () => {
     await service.removeAttempt(leaf, OWNER, stepId, 1);
     const undoneRemove = await service.undo(projectId, OWNER);
     expect(undoneRemove.ok ? undoneRemove.value.done : undoneRemove).toBe(
-      'removed attempt 1 of 010.dev',
+      'removed attempt 1 of 010.s1-dev',
     );
     expect(await onDev(leaf)).toEqual(ended);
 
     await service.startAttempt(leaf, OWNER, stepId, {});
     const undoneStart = await service.undo(projectId, OWNER);
     expect(undoneStart.ok ? undoneStart.value.done : undoneStart).toBe(
-      'started attempt 2 of 010.dev',
+      'started attempt 2 of 010.s1-dev',
     );
     expect(await onDev(leaf)).toEqual(ended);
   });

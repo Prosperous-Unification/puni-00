@@ -36,6 +36,7 @@ import {
   type MeasureMetric,
   nextWorkday,
   type NodeReading,
+  orderSteps,
   ORDINARY_BAND_RANK,
   parentIndexOf,
   type PertWeights,
@@ -6455,14 +6456,16 @@ export class WorkItemService {
     workItem: WorkItem,
     stepId: string,
   ): Promise<string> {
-    const step = (await this.opts.projects.stepsOf(workItem.projectId)).find(
-      (each) => each.id === stepId,
-    );
-    if (step === undefined) throw new Error(`step ${stepId} left the project mid-write`);
+    const ordered = orderSteps(await this.opts.projects.stepsOf(workItem.projectId));
+    const stepAt = ordered.findIndex((each) => each.id === stepId);
+    if (stepAt === -1) throw new Error(`step ${stepId} left the project mid-write`);
+    const step = ordered[stepAt];
     if (step.code === null) return `${step.name} of ${quoteName(workItem.name)}`;
     const number = deriveNumbers(rows).get(workItem.id);
     if (number === undefined) throw new Error(`no effective number for work item ${workItem.id}`);
-    return formatStepReference(number, step.code);
+    // The canonical reference `readStepAddresses` writes: the displayed ordinal
+    // padded to the project's step count, then the code.
+    return formatStepReference(number, step.code, stepAt + 1, ordered.length);
   }
 
   private async announceTree(projectId: string): Promise<void> {

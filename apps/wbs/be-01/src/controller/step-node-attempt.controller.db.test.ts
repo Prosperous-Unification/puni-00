@@ -182,7 +182,7 @@ describe('the attempt commands', () => {
 
     expect(await h.call('ada', 'POST', `/api/projects/${project}/undo`)).toMatchObject({
       status: 200,
-      body: { done: 'started attempt 1 of 010.dev' },
+      body: { done: 'started attempt 1 of 010.s1-dev' },
     });
     expect(stored(dev)).toEqual([]);
   });
