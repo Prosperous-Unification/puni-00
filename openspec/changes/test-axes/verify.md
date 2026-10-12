@@ -2418,3 +2418,73 @@ The complete affected shard 3 command `CI=1 E2E_PORT_SHIFT=3900 bunx playwright 
 After every injected fault was removed, the two original hover tests passed again, 2/2 in 13.0s (`/tmp/round13-final-focused.log`). `bunx tsc -p apps/wbs/fe-01/tsconfig.json --noEmit`, changed-file Prettier and `git diff --check` passed. Direct changed-file ESLint exited 0 but explicitly skipped `@nx/enforce-module-boundaries` because no cached ProjectGraph was available; that rule remains for the coordinator's canonical gate. No standalone `openspec` executable was available on this local PATH, so standalone OpenSpec validation was not run. The coordinator owns `bin/h2puni-gate.sh <integrated-sha>` and its OpenSpec validation after integration.
 
 The dedicated fourth-shard command `CI=1 E2E_PORT_SHIFT=4400 bunx playwright test --config apps/wbs/fe-01/playwright.config.ts --shard=4/4 --output=/tmp/round13-shard4-owned-results --reporter=line` exited 0: 76 passed, 39 skipped in 5.0m (`/tmp/round13-pixel-shard4-owned.log`). Those 39 suite-declared skips were not executed. All seven formerly failing Steps cases passed in this complete shard. Full pixel shards 1/4 and 2/4 were not rerun locally; the changed folded-budget case and the changed visible-pair case from those shards were run separately as recorded above.
+
+### Task 2.2a.3 bounded committed source inventory — 2026-10-13
+
+Added `inspect-spec-sources <repository> <committed-sha>` after allocating `TEST-AXES-054`–`056`
+through the production scenario allocator. It shares `rules/spec-sources.ts`'s immutable active
+blob reader and `rules/spec-parser.ts`'s Markdown parser with the production selector. The new
+observation includes the committed revision, complete candidate identity, sorted input path/byte
+digests, canonical requirements, all operations, scenarios, explicit rename endpoints and raw
+fragment identities. The digest binds the complete payload, including `certifies:false`.
+Raw rename pair identity preserves indentation and line endings separately from semantic
+endpoint identity. No source classification, synchronization or archive was performed. Tasks
+2.2 and 2.2a, source holds and certification remain open.
+
+Initial RED: `bun test apps/twilight-structure/twilight-burokrat/cli/src/evidence/spec-sources.test.ts`
+failed all eight initial cases because the command was absent (`/tmp/spec-inventory-red.log`).
+GREEN plus shared selector regression: the focused inventory and specifications files passed
+97 tests, zero failures, 1282 assertions (`/tmp/spec-inventory-regression.log`). Thirteen inventory
+cases cover every group together, conflicting renames, selector refusal, committed versus staged
+bytes, archive exclusion, raw fragments, canonical enumeration, full-payload digest and separate
+missing/unreadable dependency faults, malformed source/rename/UTF-8, absent inventory,
+nonregular blobs, staged-reader injection, symbolic revision and CLI arity.
+
+Each production mutation below was applied alone, watched fail and restored. Adjacent `Proof:`
+comments identify the injected fault and observed test; logs are
+`/tmp/spec-inventory-fault-<fault>.log`.
+
+| Fault                                                        | Observed failing scenario assertion                          |
+| ------------------------------------------------------------ | ------------------------------------------------------------ |
+| `full-sha` guard removed                                     | `TEST-AXES-056` symbolic revision lost named refusal         |
+| `committed-kind` guard removed                               | `TEST-AXES-056` staged-reader fault lost named refusal       |
+| `empty-inventory` guard removed                              | `TEST-AXES-056` absent inventory exited zero                 |
+| `input-order` source sort removed                            | `TEST-AXES-055` reversed reader changed complete observation |
+| `payload-digest` hashed revision alone                       | `TEST-AXES-055` independent full-payload digest differed     |
+| `certifies` promoted to true                                 | `TEST-AXES-055` exact noncertifying marker differed          |
+| `revision` and `candidate` independently replaced with zeros | `TEST-AXES-055` exact identities differed                    |
+| `committed-bytes` reader replaced with staged selection      | `TEST-AXES-055` committed observation refused                |
+| `regular-blob` guard removed                                 | `TEST-AXES-056` committed symlink source lost refusal        |
+| `utf8` decoding made nonfatal                                | `TEST-AXES-056` invalid bytes lost named UTF-8 refusal       |
+| `archive-exclusion` regex broadened to archive paths         | `TEST-AXES-055` malformed archived source was parsed         |
+| `selected-reader` substituted valid fixed bytes              | Both `TEST-AXES-056` missing/unreadable faults were bypassed |
+| `raw-rename-fragment` hashed semantic endpoints              | `TEST-AXES-055` CRLF/indentation raw digest differed         |
+| `arity` guard removed                                        | `TEST-AXES-056` extra argument exited zero                   |
+
+Whole-tree diagnostic on committed `54328f32a40ba86ba39c9a30e0f593e4c6fdd0f3` exited zero and
+reported 274 active source inputs, 96 canonical requirements and 994 overlay operations,
+`certifies:false`, candidate identity
+`6b5fe91448dc7bf3fd9bf10188aebf0d966fa66cece28bbda4bfd640dd41afa7`, and observation digest
+`5fd429dd90591e6e01776a0247ece720f875e629c91562c6a80d50942215dbde`
+(`/tmp/spec-inventory-base-observation.json`). Running the production selector on those same
+shared committed inputs exited one with `competing overlay operation: wbs-domain: A leaf's
+status folds its progress, hold, readiness and predecessors`
+(`/tmp/spec-inventory-base-selector.log`). Inventory visibility supplies no accepted predecessor
+classification and does not weaken that refusal.
+
+The first install attempt hit the sandbox's read-only temporary/cache directory; rerunning
+`BUN_TMPDIR=/tmp bun install --frozen-lockfile --cache-dir /tmp/puni-inventory-bun-cache`
+exited zero. Focused Nx typecheck passed. The initial source lint found two import order errors;
+autofix corrected them before final validation. Standalone `openspec` is absent on local PATH,
+so its validation was not run locally. The coordinator owns the canonical h2puni gate and
+OpenSpec validation after integration; no raw full Nx gate, deployment or merge to the release
+branch was performed.
+
+After restoring every fault and correcting imports, the same focused files again passed 97/97
+with 1282 assertions (`/tmp/spec-inventory-tests-final.log`).
+`NX_DAEMON=false bunx nx run twilight-burokrat:lint:fast --skip-nx-cache` and
+`NX_DAEMON=false bunx nx run twilight-burokrat:typecheck --skip-nx-cache` both exited zero
+(`/tmp/spec-inventory-lint-final.log`, `/tmp/spec-inventory-typecheck-final.log`). Nx reported
+its sandbox socket denial and ran plugins in the main process; both targets completed.
+Changed-file Prettier and `git diff --check` passed. Full Burokrat test/build, whole-repository
+lint, CI and the canonical h2puni gate were not run locally.
