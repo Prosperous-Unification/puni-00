@@ -91,7 +91,8 @@
       `schedule.test.ts` "a 240-minute slice lasts half a workday and its successor starts at
       0.5"; `build-solver-request.test.ts` "a 480-minute slice and a one-day slice send equal
       durationUnits"; `live-plan-identity.test.ts`, `fast-golden-corpus.test.ts`,
-      `solver-quantum-golden-corpus.test.ts` and the request-hash tests unchanged and green.
+      `solver-quantum-golden-corpus.test.ts` and request-hash tests green, allowing contract 16 /
+      canonical input 6 identity expectations while preserving old workday arithmetic and schedules.
 - [x] 5.2 Green: `rollUpCharged` in native units and `rollUpFinals` on the workday axis; `charged` on the work-item read
       (`work-item-response.ts`); the schedule input adapter in `work-item.resource.ts`. Add
       one minute-step case to each golden corpus through the corpus writer; the corpus lint
@@ -107,7 +108,7 @@
 
 ## 6. Plan document and saved plans
 
-- [x] 6.1 Red: `plan-document.resource.test.ts` (round trip keeps unit and minutes; version 6
+- [x] 6.1 Red: `plan-document.resource.test.ts` (round trip keeps unit and minutes; version 7
       imports as `workdays`; missing unit, unknown unit and fractional minute each
       `invalid_body` at the field); `saved-plan/normalise-plan-input.test.ts` (previous-schema
       body upgrades with `workdays` and schedules identically; malformed body refused);

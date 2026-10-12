@@ -297,3 +297,13 @@ actual document 8, canonical 6, retained ADR 0042, and the fixed implementation 
 implementation versions changed. Store-sqlite typecheck, affected ESLint, migration lint,
 Prettier and OpenSpec validation (18/18) passed. Task 8/full browser/host gate and the final
 migration collision check remain open; this correction does not authorize release.
+
+## Astra proposal consistency correction (2026-10-13)
+
+The proposal now excludes scheduler algorithm, solver schema/quantum and Python changes,
+while permitting approved contract 16 tag/cache identities and canonical input 6 unit fields
+and hashes. It promises unchanged old workday arithmetic/schedule outputs. Allocation text
+names document 8/canonical 6/contract 16 and the implemented migration with its final collision
+check still open. Directly stale task text now permits the identity expectations and names
+legacy document 7. No runtime edits. Changed-document Prettier and OpenSpec validation pass;
+task 8/full browser/host gate/migration integration collision remain open.
