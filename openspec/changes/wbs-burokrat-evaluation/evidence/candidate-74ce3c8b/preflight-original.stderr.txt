@@ -1,0 +1,1 @@
+rule F1 needs policy.plainTypeScriptPaths, which the rule policy omits

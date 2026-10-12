@@ -1,0 +1,1 @@
+Evidence identities, policy byte digests, global refusals, counts and current per-rule parity checked.
