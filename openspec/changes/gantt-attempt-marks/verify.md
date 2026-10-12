@@ -116,3 +116,15 @@ Final slice-1 checks before checkpoint: `NX_DAEMON=false NX_ISOLATE_PLUGINS=fals
 run wbs-fe-01:lint:fast` passed (9.2s); the same invocation for `typecheck` passed (5.5s,
 module checks and root build). The final four focused UTC suites passed 523 tests in 44.74s.
 `git diff --check` exited 0.
+
+Prerequisite follow-ups were normally merged after the green checkpoint: #371
+`13977965d267576a9cb838f119a64f5d7d2dfede` and #373
+`87976f796965985e13a67810561573b07b7cdfc8`. Both merges were conflict-free and preserve
+both verification histories. The merged branch again passed the same 523 focused tests
+(45.63s), Nx `lint:fast`, Nx `typecheck`, and all 184 OpenSpec validation items. A final
+mechanical naming pass gives new helpers verb-object names and names the anchor's retirement
+packet in its own JSDoc. Read-only architecture review found no blocking geometry/input
+issue and confirmed the mutation logs; its prerequisite-wording correction is applied above.
+
+After the mechanical naming pass, geometry/input suites passed all 220 tests (4.24s),
+changed-file ESLint exited 0, and Nx `typecheck` passed again.

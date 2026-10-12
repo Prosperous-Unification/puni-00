@@ -12,12 +12,12 @@ import type {
 } from '@/lib/wbs-api';
 
 import {
-  attemptAvailability,
-  eligibleAttemptNodes,
   elsewhereHolderKey,
   type GanttAttemptNode,
   GanttDataError,
   type GanttPlan,
+  resolveAttemptAvailability,
+  selectAttemptNodes,
   type ServiceTeamLabel,
   startFloorByRow,
   type TagLabel,
@@ -230,7 +230,7 @@ export function usePlanChartInput({
       timezone: chartRead.timezone,
       rows: structuralRows.map((row) => ({
         id: row.source.id,
-        attemptNodes: chartAttemptNodes(row.source, chartRead.stepNodes),
+        attemptNodes: readAttemptNodes(row.source, chartRead.stepNodes),
         // The Number column's own number, not a second derivation of it: the
         // chart's labels read `010 - Strip` because that is how the plan is
         // spoken about.
@@ -473,12 +473,12 @@ export function usePlanSchedule({
 /** Counts forecast marks plus eligible attempts when both calendar inputs are available. */
 export function markCount(plan: GanttPlan): number {
   const forecastCount = plan.rows.filter((row) => row.leaf).length * plan.steps.length;
-  if (attemptAvailability(plan.startDate ?? null, plan.timezone).state === 'unavailable')
+  if (resolveAttemptAvailability(plan.startDate ?? null, plan.timezone).state === 'unavailable')
     return forecastCount;
   // Proof: dropping attempts from the sum failed `attempts make 2500 forecast marks exceed the sub-day offer limit` (2026-10-12).
   return (
     forecastCount +
-    eligibleAttemptNodes(plan).reduce((count, { node }) => count + node.attempts.length, 0)
+    selectAttemptNodes(plan).reduce((count, { node }) => count + node.attempts.length, 0)
   );
 }
 
@@ -486,7 +486,7 @@ export function markCount(plan: GanttPlan): number {
  * Carries the node identity from the same delivered read as its attempts.
  * @throws GanttDataError when an attempted node has lost its materialized identity.
  */
-export function chartAttemptNodes(
+export function readAttemptNodes(
   row: Pick<TreeRow, 'id' | 'attempts'>,
   stepNodes: PlanRead['stepNodes'],
 ): GanttAttemptNode[] {

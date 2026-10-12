@@ -6,7 +6,6 @@ import type { PlanRead } from '@/lib/wbs-api';
 import { planOf, rowAt, sliceAt } from './gantt-fixtures';
 import { GanttDataError, layOutGantt } from './gantt-geometry';
 import {
-  chartAttemptNodes,
   chartTypedDependencies,
   elsewhereHoldersOf,
   factEndStopOf,
@@ -14,6 +13,7 @@ import {
   isHeld,
   markCount,
   notBeforeOffsetOf,
+  readAttemptNodes,
 } from './plan-chart-input';
 import { chartReadOf } from './use-plan-read';
 
@@ -254,8 +254,8 @@ it('carries attempted node identity and rejects missing trusted references', () 
   ];
   const row = { id: 'a', attempts: { dev: attempts } };
   expect(
-    chartAttemptNodes(row, [{ id: 'sn', workItemId: 'a', stepId: 'dev', reference: '010.dev' }]),
+    readAttemptNodes(row, [{ id: 'sn', workItemId: 'a', stepId: 'dev', reference: '010.dev' }]),
   ).toEqual([{ id: 'sn', stepId: 'dev', reference: '010.dev', attempts }]);
-  expect(() => chartAttemptNodes(row, [])).toThrow(GanttDataError);
-  expect(chartAttemptNodes({ id: 'a' }, undefined)).toEqual([]);
+  expect(() => readAttemptNodes(row, [])).toThrow(GanttDataError);
+  expect(readAttemptNodes({ id: 'a' }, undefined)).toEqual([]);
 });

@@ -3330,7 +3330,7 @@ export type AttemptAvailability =
  * Validates supplied calendar facts and models legacy absences without inventing defaults.
  * @throws GanttDataError for an unsupported supplied zone; calendar errors for invalid dates.
  */
-export function attemptAvailability(
+export function resolveAttemptAvailability(
   startDate: string | null,
   timezone: string | null | undefined,
 ): Exclude<AttemptAvailability, { state: 'day' }> {
@@ -3357,7 +3357,7 @@ export function attemptAvailability(
  * The same visible scheduled nodes feed count and projection. Missing slices exclude a node;
  * a hidden row is a modeled absence, independent of whether it still exists in the full tree.
  */
-export function eligibleAttemptNodes(
+export function selectAttemptNodes(
   plan: GanttPlan,
 ): { node: GanttAttemptNode; slice: GanttSlice; rowIndex: number }[] {
   const slices = new Map<string, Map<string, GanttSlice>>();
@@ -3418,7 +3418,7 @@ export function projectAttemptMarks(
 ): AttemptProjection {
   if (rung.cellsPerWorkday === 1)
     return { availability: { state: 'day' }, marks: [], forecast, rangeStart: 0 };
-  const availability = attemptAvailability(startDate, plan.timezone);
+  const availability = resolveAttemptAvailability(startDate, plan.timezone);
   if (availability.state === 'unavailable')
     return { availability, marks: [], forecast, rangeStart: 0 };
   const origin = addWorkdays(availability.startDate, 0);
@@ -3455,7 +3455,7 @@ export function projectAttemptMarks(
     Math.min(STAGE_ONE_DAY_START_MINUTE + 480, Math.max(STAGE_ONE_DAY_START_MINUTE, minute));
   let rangeStart = 0;
   let rangeEnd = forecast.horizon;
-  const marks = eligibleAttemptNodes(plan).flatMap(({ node, slice, rowIndex }) =>
+  const marks = selectAttemptNodes(plan).flatMap(({ node, slice, rowIndex }) =>
     node.attempts.map((attempt) => {
       // Proof: Date.now() instead of now failed `a running mark ends at the given now` (2026-10-12).
       const endInstant = attempt.endedAt ?? now;
