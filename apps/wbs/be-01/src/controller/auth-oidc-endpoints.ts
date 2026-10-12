@@ -26,7 +26,12 @@ import {
   startAuth0Link,
   startOidcLogin,
 } from '@wbs/contracts';
-import type { EnterpriseConnections, EnterpriseRoute, ReauthenticationRoute } from '@wbs/core';
+import type {
+  EnterpriseConnections,
+  EnterpriseRoute,
+  ReauthenticationRoute,
+  ScimUsers,
+} from '@wbs/core';
 import type { LoginThrottle } from '@wbs/core/module/authentication/login-throttle';
 import type { AuthService } from '@wbs/core/service/auth.service';
 import { BrowserLifecycleRefusedError, canonicalOidcEmail } from '@wbs/store-sqlite';
@@ -496,6 +501,7 @@ export function authOidcEndpoints(
     EnterpriseConnections,
     'routeBySlug' | 'routeByDomain' | 'reauthenticationRoute' | 'linkThroughConnection'
   >,
+  pendingMemberships: Pick<ScimUsers, 'activate'>,
   browserSession?: BrowserSessionAuthority,
 ) {
   const now = options.now ?? Date.now;
@@ -506,6 +512,28 @@ export function authOidcEndpoints(
     now,
   );
   const links = new InMemoryOidcLinkStore(now);
+  /**
+   * Activates the pending membership the authenticating pair completes
+   * (`organization-scim` "SCIM Users subset with pending membership"): the
+   * pair must carry a proven connection's prefix and its connection-attested
+   * email match a pending record, whatever `email_verified` says. The store
+   * decides both inside its own transaction.
+   *
+   * Proof: removing this call from the login callback made `activates a
+   * pending membership at the first SSO sign-in, even unverified` in
+   * `pending-membership.controller.db.test.ts` find no membership; watched
+   * 2026-10-12.
+   */
+  const activatePending = (
+    userId: string,
+    identity: { issuer: string; subject: string; email: string | null },
+  ) =>
+    pendingMemberships.activate(
+      userId,
+      { issuer: identity.issuer, subject: identity.subject },
+      canonicalOidcEmail(identity.email),
+      { stamp: { at: now(), by: userId }, actor: userId, auditIds: () => randomUUID() },
+    );
   const linkRedirectUri = new URL('/api/auth/link/auth0/callback', options.redirectUri).href;
   return [
     bind(listAuthMethods, () =>
@@ -763,6 +791,9 @@ export function authOidcEndpoints(
             body: EMPTY,
             headers: [...clearsFor(settled), ['location', '/?auth_error=account_exists']],
           };
+        // A pending SCIM membership this sign-in completes, before the session
+        // exists, so the first organization list already shows it.
+        await activatePending(account.id, identity);
         // Proof: without this retirement, a mounted native predecessor still
         // had no B1 row after OIDC callback issued replacement cookies (0/1).
         if (browserSession !== undefined)
@@ -1182,6 +1213,8 @@ export function authOidcEndpoints(
           );
           switch (routed.kind) {
             case 'linked':
+              await activatePending(user.id, identity);
+              return linkOutcome('linked');
             case 'inactive':
             case 'sso_prefix_mismatch':
             case 'sso_connection_taken':
@@ -1199,6 +1232,7 @@ export function authOidcEndpoints(
         if (linked.kind === 'identity_collision' || linked.kind === 'email_collision')
           return linkOutcome('collision');
         if (linked.kind !== 'linked') return linkOutcome('refused');
+        await activatePending(user.id, identity);
         return linkOutcome('linked');
       },
       { prevalidate: linkCallbackAdmission, classifyRequestFailure: linkCallbackFailure },

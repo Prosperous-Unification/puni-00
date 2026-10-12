@@ -81,7 +81,9 @@ function fixture(methods: OidcRouteOptions['methods'] = []) {
     createdAt: 1,
   });
   const app = mountEndpoints(
-    authOidcEndpoints(auth, options, testLoginThrottle(), refusingEnterpriseConnections),
+    authOidcEndpoints(auth, options, testLoginThrottle(), refusingEnterpriseConnections, {
+      activate: () => Promise.resolve([]),
+    }),
     {
       appOrigin: origin,
       reportUnexpectedFailure: () => undefined,

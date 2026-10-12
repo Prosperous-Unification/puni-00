@@ -81,7 +81,7 @@
 
   Fault: drop the organization predicate from the id lookup, and observe the cross-organization PATCH test fail. Restore and add `Proof:`.
 
-- [ ] 4.4 Activate pending memberships in the login callback and the link callback, using the prefix and the connection-attested email.
+- [x] 4.4 Activate pending memberships in the login callback and the link callback, using the prefix and the connection-attested email.
 
   Red: SSO sign-in activates even with `email_verified` false; a `google-oauth2` sign-in with the same email does not; an existing member binds without a role change; `account_exists` followed by a link activates.
 
@@ -97,7 +97,7 @@
 
 ## 5. Session policy and audit completion
 
-- [ ] 5.1 Add the policy routes for super-admins with validation, plus the lifecycle `opened_at` and `reauthenticated_at` writes, all in ms. `reauthenticated_at` comes from a verified `auth_time` under `max_age`, or else the narrow same-pair callback-time fallback; never from a link callback or from `prompt=login` alone. Refresh preserves `opened_at`.
+- [x] 5.1 Add the policy routes for super-admins with validation, plus the lifecycle `opened_at` and `reauthenticated_at` writes, all in ms. `reauthenticated_at` comes from a verified `auth_time` under `max_age`, or else the narrow same-pair callback-time fallback; never from a link callback or from `prompt=login` alone. Refresh preserves `opened_at`.
 
   Red: the `organization-session-policy` setting scenarios; refresh keeping `opened_at`.
 

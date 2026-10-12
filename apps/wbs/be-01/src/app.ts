@@ -17,6 +17,7 @@ import type {
   ProjectRankStore,
   ReplayOrchestrator,
   SavedPlanService,
+  ScimUsers,
   SessionPolicies,
   SpaceStore,
 } from '@wbs/core';
@@ -94,6 +95,11 @@ import {
 } from './runtime/organization-selection';
 import type { WritingServices } from './services';
 
+/** A composition without SCIM: no record can be pending, so no sign-in activates one. */
+const NO_PENDING_MEMBERSHIPS: Pick<ScimUsers, 'activate'> = {
+  activate: () => Promise.resolve([]),
+};
+
 /** The session policy store of a composition that wires none: every route answers as inactive. */
 const INACTIVE_SESSION_POLICIES: SessionPolicies = {
   read: () => Promise.resolve('inactive'),
@@ -146,6 +152,12 @@ export interface AppOptions {
    * harness wire the SQLite store.
    */
   sessionPolicies?: SessionPolicies;
+  /**
+   * Activates SCIM pending memberships at an SSO sign-in or link
+   * (`organization-scim`). Absent, the composition holds no SCIM records, so
+   * nothing is pending; production and the organization harness wire the store.
+   */
+  pendingMemberships?: Pick<ScimUsers, 'activate'>;
   /**
    * Enterprise connection records (`organization-sso`): administration,
    * login routing and proof by routed link. Required like `domains`.
@@ -407,6 +419,7 @@ export function mountedEndpoints(
           opts.oidc,
           passwordThrottle,
           opts.enterpriseConnections,
+          opts.pendingMemberships ?? NO_PENDING_MEMBERSHIPS,
           opts.browserSession,
         )),
     // Proof: omitting this binding made “binds each shared HTTP shape once”

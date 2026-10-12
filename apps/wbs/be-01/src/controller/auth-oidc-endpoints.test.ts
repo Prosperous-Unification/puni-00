@@ -54,6 +54,7 @@ test('direct OIDC login binds the exact transaction to the provider and emits an
     },
     testLoginThrottle(),
     refusingEnterpriseConnections,
+    { activate: () => Promise.reject(new Error('no callback runs here')) },
   );
   const reply = await start.handle({
     params: {},
