@@ -16,6 +16,7 @@ import { join, resolve } from 'node:path';
 import { afterAll, describe, expect, test } from 'bun:test';
 
 import { hashBytes } from '../evidence/content-manifest';
+import { goldenCheckRuns } from '../policy/check-run-fixtures';
 import {
   auditReview,
   candidateIdentityAt,
@@ -140,6 +141,7 @@ function git(repository: string, argv: string[]): string {
 function preparationArguments(
   fixture: ReturnType<typeof createRelocationCandidate>,
   out: string,
+  checkRuns: string = goldenCheckRuns.passing,
 ): string[] {
   const strata = join(out, 'audit-strata.json');
   write(
@@ -188,6 +190,8 @@ function preparationArguments(
     'lane.package-install',
     '--cwd-identity',
     'cwd.package-install',
+    '--check-runs',
+    checkRuns,
   ];
 }
 
@@ -265,7 +269,8 @@ describe('packed Twilight Burokrat installation', () => {
 
   test('prepares certified admission and the old activation refuses a newer commit', () => {
     const { consumer, executable } = installTarball(packedTarball);
-    const fixture = createRelocationCandidate({ materializeModules: true });
+    // Reproducible, so the golden ledger Dash wrote for this exact revision binds it.
+    const fixture = createRelocationCandidate({ materializeModules: true, reproducible: true });
     const out = scratch('twilight-burokrat-activation-');
     const prepared = invoke(executable, preparationArguments(fixture, out), consumer);
     const output = `${prepared.stdout.toString()}${prepared.stderr.toString()}`;
@@ -439,9 +444,18 @@ describe('packed Twilight Burokrat installation', () => {
 
   test('installed preparation refuses a candidate target that reports skipped tests', () => {
     const { consumer, executable } = installTarball(packedTarball);
-    const fixture = createRelocationCandidate({ materializeModules: true, skippingCheck: true });
+    const fixture = createRelocationCandidate({
+      materializeModules: true,
+      reproducible: true,
+      skippingCheck: true,
+    });
     const out = scratch('twilight-burokrat-skipping-check-');
-    const refused = invoke(executable, preparationArguments(fixture, out), consumer);
+    // The skip probe Dash ran for this revision reported `1 skip`; the installed judge refuses it.
+    const refused = invoke(
+      executable,
+      preparationArguments(fixture, out, goldenCheckRuns.skipping),
+      consumer,
+    );
     expect(refused.exitCode).not.toBe(0);
     expect(refused.stderr.toString()).toContain('check skipped work: check.fixture.module');
   }, 120_000);

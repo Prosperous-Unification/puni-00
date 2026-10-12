@@ -71,6 +71,13 @@ const RUNTIME_SURFACE = [
   'reconcileJournalEntry',
   'reconcileReviewedInformed',
   'verifyExhaustivePlanFromSource',
+  // What Dash's activation check runner writes and its tests judge (WBS ba5d3298).
+  'CheckRunLedger',
+  'CheckRunRefusal',
+  'checkRunDigest',
+  'checkRunLayout',
+  'planCandidateCheckRuns',
+  'readCheckRuns',
 ].sort();
 
 /**

@@ -197,7 +197,8 @@ export interface CheckPlan {
   readonly candidateIdentity: string;
 }
 
-export interface CheckRun {
+/** A check as the judge reads it back from Dash's check-run ledger (`policy/check-runs.ts`). */
+export interface RecordedCheck {
   readonly checkId: string;
   readonly command: string[];
   readonly startedAt: string;
@@ -707,7 +708,7 @@ function skipChannelOf(expectedConfiguration: unknown): SkipChannel {
  * @throws nothing; a command with no skip channel returns `[]`, which is a claim about the
  * command's contract, not a measurement — docs/findings/checks-that-cannot-fail.md.
  */
-export function observedSkips(run: CheckRun, channel: SkipChannel): string[] {
+export function observedSkips(run: RecordedCheck, channel: SkipChannel): string[] {
   if (channel === 'none') return [];
   // Proof: measuring the concatenated evidence streams counted the Nx-forwarded summary and the
   // probe's own as `bun test: 1 skip, bun test: 1 skip` (2026-09-18).
@@ -819,9 +820,24 @@ export function planRelocationChecks(sources: RelocationSources): CheckPlan {
   // R14 compares the candidate's mapping with its own policy and tree, so it runs in both modes.
   assertMappingOwnership(candidateMapping, candidate.view, sources.candidate.tree);
   if (base !== undefined) assertValidatorEntry(candidate.view, base.validatorEntry);
+  return planCandidateChecks(sources.candidate);
+}
+
+/**
+ * The commands a candidate's policy and declarations select, and the identity of its tree: the
+ * one derivation both Twilight Dash (to run the checks) and both preparers (to judge what Dash
+ * recorded) use. Unlike {@link planRelocationChecks} it compares nothing with a base.
+ * @throws {@link RelocationRefusal} `R15`.
+ */
+export function planCandidateChecks(candidate: {
+  readonly policyBytes: Uint8Array;
+  readonly declarations: readonly CandidateFile[];
+  readonly tree: CandidateSnapshot;
+}): CheckPlan {
+  const policy = policyOf(candidate.policyBytes, 'candidate trusted policy JSON');
   return {
-    checks: deriveCheckCommands(candidate.view, sources.candidate.declarations),
-    candidateIdentity: candidateIdentityOf(sources.candidate.tree),
+    checks: deriveCheckCommands(policy.view, candidate.declarations),
+    candidateIdentity: candidateIdentityOf(candidate.tree),
   };
 }
 
@@ -931,7 +947,7 @@ export function assertReviewBinds(
 }
 
 function receiptOf(
-  run: CheckRun,
+  run: RecordedCheck,
   channel: SkipChannel,
   sha12: string,
   identity: string,
@@ -1024,7 +1040,7 @@ function bindingRecord(
  */
 export function planRelocationActivation(
   sources: RelocationSources,
-  runs: readonly CheckRun[],
+  runs: readonly RecordedCheck[],
   reviewInput: unknown,
   attestation: RelocationAttestation,
 ): RelocationPlan {

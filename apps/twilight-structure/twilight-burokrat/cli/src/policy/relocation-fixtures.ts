@@ -1,4 +1,5 @@
 import {
+  chmodSync,
   cpSync,
   existsSync,
   mkdirSync,
@@ -46,8 +47,28 @@ export function disposeRelocationFixtures(): void {
   for (const path of scratchPaths.splice(0)) rmSync(path, { force: true, recursive: true });
 }
 
-function gitBytes(repository: string, argv: string[]): Uint8Array {
+/**
+ * Pins every input Git hashes into a commit besides the tree: author, committer, both dates and
+ * the configuration (no signing, no hooks), so the same files always make the same revision.
+ */
+const reproducibleGit: Readonly<Record<string, string>> = {
+  GIT_AUTHOR_NAME: 'Relocation Fixture',
+  GIT_AUTHOR_EMAIL: 'relocation@example.test',
+  GIT_AUTHOR_DATE: '2026-10-12T00:00:00Z',
+  GIT_COMMITTER_NAME: 'Relocation Fixture',
+  GIT_COMMITTER_EMAIL: 'relocation@example.test',
+  GIT_COMMITTER_DATE: '2026-10-12T00:00:00Z',
+  GIT_CONFIG_GLOBAL: '/dev/null',
+  GIT_CONFIG_NOSYSTEM: '1',
+};
+
+function gitBytes(
+  repository: string,
+  argv: string[],
+  env?: Readonly<Record<string, string>>,
+): Uint8Array {
   const invocation = Bun.spawnSync(['git', '-C', repository, ...argv], {
+    ...(env === undefined ? {} : { env: { ...process.env, ...env } }),
     stderr: 'pipe',
     stdout: 'pipe',
   });
@@ -57,8 +78,8 @@ function gitBytes(repository: string, argv: string[]): Uint8Array {
   return invocation.stdout;
 }
 
-function git(repository: string, argv: string[]): string {
-  return new TextDecoder().decode(gitBytes(repository, argv)).trim();
+function git(repository: string, argv: string[], env?: Readonly<Record<string, string>>): string {
+  return new TextDecoder().decode(gitBytes(repository, argv, env)).trim();
 }
 
 /** The exact committed bytes of one candidate file, as the command itself reads them. */
@@ -341,15 +362,23 @@ export function createRelocationCandidate(
     /** Install an independent candidate dependency tree instead of linking the source checkout. */
     materializeModules?: boolean;
     minimumMode?: 'observe' | 'enforce';
+    /**
+     * Make the same revisions on every run: pinned commit identities and dates, and fixed
+     * placeholders instead of the validator, snapshotter and launcher copied from this workspace.
+     * Only `.bun-version` still comes from the workspace. Toolkit mode never rebuilds the
+     * candidate's validator, so the golden check-run candidate (`fixtures/check-runs/`) uses it.
+     */
+    reproducible?: boolean;
   } = {},
 ): RelocationFixture {
   const parent = mkdtempSync(join(tmpdir(), 'tool-wiki-relocation-'));
   scratchPaths.push(parent);
   const repository = join(parent, 'candidate');
   mkdirSync(repository, { recursive: true });
-  git(repository, ['init', '--initial-branch=main']);
-  git(repository, ['config', 'user.email', 'relocation@example.test']);
-  git(repository, ['config', 'user.name', 'Relocation Fixture']);
+  const env = options.reproducible === true ? reproducibleGit : undefined;
+  git(repository, ['init', '--initial-branch=main'], env);
+  git(repository, ['config', 'user.email', 'relocation@example.test'], env);
+  git(repository, ['config', 'user.name', 'Relocation Fixture'], env);
   write(join(repository, '.gitignore'), 'node_modules\n.nx\n');
   write(
     join(repository, '.bun-version'),
@@ -369,21 +398,28 @@ export function createRelocationCandidate(
     symlinkSync(join(workspaceRoot, 'node_modules'), join(repository, 'node_modules'), 'dir');
   }
   write(join(repository, 'nx.json'), `${JSON.stringify({ targetDefaults: {} })}\n`);
-  cpSync(
-    join(workspaceRoot, 'bin', 'tool-wiki-lint.sh'),
-    join(repository, 'bin/tool-wiki-lint.sh'),
-  );
-  cpSync(
-    join(
-      workspaceRoot,
-      'apps/twilight-structure/twilight-burokrat/cli/src/policy/snapshot-validator.ts',
-    ),
-    join(repository, 'src/old/policy/snapshot-validator.ts'),
-  );
-  buildValidatorInto(
-    join(workspaceRoot, 'apps/twilight-structure/twilight-burokrat/cli/src/cli.ts'),
-    join(repository, 'src/old/cli.ts'),
-  );
+  if (options.reproducible === true) {
+    write(join(repository, 'bin/tool-wiki-lint.sh'), '#!/usr/bin/env bash\nexit 70\n');
+    chmodSync(join(repository, 'bin/tool-wiki-lint.sh'), 0o755);
+    write(join(repository, 'src/old/policy/snapshot-validator.ts'), 'export {};\n');
+    write(join(repository, 'src/old/cli.ts'), 'export {};\n');
+  } else {
+    cpSync(
+      join(workspaceRoot, 'bin', 'tool-wiki-lint.sh'),
+      join(repository, 'bin/tool-wiki-lint.sh'),
+    );
+    cpSync(
+      join(
+        workspaceRoot,
+        'apps/twilight-structure/twilight-burokrat/cli/src/policy/snapshot-validator.ts',
+      ),
+      join(repository, 'src/old/policy/snapshot-validator.ts'),
+    );
+    buildValidatorInto(
+      join(workspaceRoot, 'apps/twilight-structure/twilight-burokrat/cli/src/cli.ts'),
+      join(repository, 'src/old/cli.ts'),
+    );
+  }
   write(
     join(repository, 'src/old/project.json'),
     `${JSON.stringify({
@@ -419,9 +455,9 @@ export function createRelocationCandidate(
   );
   write(join(repository, 'docs/wiki-policy/policy.json'), '{}\n');
   write(join(repository, 'docs/wiki-policy/modules.json'), '{}\n');
-  git(repository, ['add', '--all']);
-  git(repository, ['commit', '--quiet', '--message', 'reviewed source revision']);
-  const reviewedRevision = git(repository, ['rev-parse', 'HEAD']);
+  git(repository, ['add', '--all'], env);
+  git(repository, ['commit', '--quiet', '--message', 'reviewed source revision'], env);
+  const reviewedRevision = git(repository, ['rev-parse', 'HEAD'], env);
   const partial = { repository, reviewedRevision };
   write(
     join(repository, 'docs/wiki-policy/policy.json'),
@@ -431,10 +467,10 @@ export function createRelocationCandidate(
     join(repository, 'docs/wiki-policy/modules.json'),
     serializeCanonical(fixtureMapping(reviewedRevision, 'src/old', 'relocation-fixture-v1')),
   );
-  git(repository, ['add', '--all']);
-  git(repository, ['commit', '--quiet', '--message', 'base activation policy']);
-  const baseRevision = git(repository, ['rev-parse', 'HEAD']);
-  git(repository, ['mv', 'src/old', 'src/new']);
+  git(repository, ['add', '--all'], env);
+  git(repository, ['commit', '--quiet', '--message', 'base activation policy'], env);
+  const baseRevision = git(repository, ['rev-parse', 'HEAD'], env);
+  git(repository, ['mv', 'src/old', 'src/new'], env);
   const candidateTarget: FixtureTarget =
     options.failingCheck === true ? 'fail' : options.skippingCheck === true ? 'skip' : 'check';
   if (candidateTarget !== 'check') {
@@ -451,14 +487,14 @@ export function createRelocationCandidate(
     join(repository, 'docs/wiki-policy/modules.json'),
     serializeCanonical(fixtureMapping(reviewedRevision, 'src/new', 'relocation-fixture-v2')),
   );
-  git(repository, ['add', '--all']);
-  git(repository, ['commit', '--quiet', '--message', 'relocate the fixture boundary']);
+  git(repository, ['add', '--all'], env);
+  git(repository, ['commit', '--quiet', '--message', 'relocate the fixture boundary'], env);
   return {
     repository,
     workspace: parent,
     reviewedRevision,
     baseRevision,
-    candidateRevision: git(repository, ['rev-parse', 'HEAD']),
+    candidateRevision: git(repository, ['rev-parse', 'HEAD'], env),
   };
 }
 

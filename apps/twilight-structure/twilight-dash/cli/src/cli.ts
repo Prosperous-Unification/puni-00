@@ -9,6 +9,7 @@ import {
   recoverPublicationCommand,
 } from './authority/authority-commands';
 import { submitAdmission } from './authority/submit-admission';
+import { runActivationChecksCommand, spawnCheck } from './check-runs/run-activation-checks';
 import type { Monotonic, WallClock } from './clock';
 
 const enrollmentFlags = [
@@ -42,12 +43,13 @@ export async function runFleetPlan(argv: readonly string[]): Promise<void> {
 }
 
 /**
- * Dispatches Dash's eight commands: `plan-enrollment` through the fixed fleet planner; the four
+ * Dispatches Dash's nine commands: `plan-enrollment` through the fixed fleet planner; the four
  * authority commands (`bootstrap-authority`, `inspect-authority`, `recover-publication`,
  * `submit-admission`) through the runtime admission authority; the two observation store commands
- * (`bootstrap-observation`, `migrate-observation`) through the activation controller's store; and
- * `render-observation-units` through the observation unit renderer. Every other command refuses
- * before any effect.
+ * (`bootstrap-observation`, `migrate-observation`) through the activation controller's store;
+ * `render-observation-units` through the observation unit renderer; and `run-activation-checks`
+ * through the stateless check runner, which spawns each check with {@link spawnCheck}. Every other
+ * command refuses before any effect.
  */
 export async function runDash(argv: readonly string[], deps: DashDependencies): Promise<void> {
   // A JavaScript caller can omit what the type requires; refuse rather than reach for a default.
@@ -88,6 +90,15 @@ export async function runDash(argv: readonly string[], deps: DashDependencies): 
   }
   if (command === 'migrate-observation') {
     await migrateObservationCommand(argumentsAfterCommand, commandDependencies);
+    return;
+  }
+  // The check runner parses its whole grammar before it reads the candidate or spawns anything.
+  if (command === 'run-activation-checks') {
+    runActivationChecksCommand(argumentsAfterCommand, {
+      clock: deps.clock,
+      execute: spawnCheck,
+      write: (text) => deps.stdout.write(text),
+    });
     return;
   }
   if (command === 'render-observation-units') {

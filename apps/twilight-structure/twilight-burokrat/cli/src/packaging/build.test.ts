@@ -293,6 +293,8 @@ describe('buildPackage', () => {
         'package-test',
         '--cwd-identity',
         'package-test',
+        '--check-runs',
+        join(externalRoot, 'check-runs'),
       ],
       externalRoot,
     );

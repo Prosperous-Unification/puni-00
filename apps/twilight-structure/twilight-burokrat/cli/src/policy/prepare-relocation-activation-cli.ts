@@ -1,4 +1,3 @@
-import { Buffer } from 'node:buffer';
 import { chmodSync, existsSync, mkdirSync, readFileSync, realpathSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
@@ -9,17 +8,17 @@ import { hashBytes } from '../evidence/content-manifest';
 import { readCandidate } from '../inventory/read-candidate';
 import { extractNxRelationships } from '../relationships/nx';
 import { prepareActivation, selectActivation, verifyActivation } from './activation';
+import { dashCheckRunAuthority } from './check-run-authority';
+import { planCheckRuns, readCheckRuns, retainCheckRuns } from './check-runs';
 import {
   assertPinnedRuntime,
   type CandidateFile,
-  type CheckRun,
   deriveToolIdentity,
   planRelocationActivation,
   planRelocationChecks,
   readRelocationPolicy,
   RelocationRefusal,
   type RelocationSources,
-  resolveSkipProbe,
 } from './relocation-activation';
 import {
   buildValidatorBundle,
@@ -40,6 +39,7 @@ const flags = [
   'validator-entry',
   'resource-lane',
   'cwd-identity',
+  'check-runs',
 ] as const;
 type Flag = (typeof flags)[number];
 
@@ -137,7 +137,8 @@ function assertCommittedCandidate(repository: string, sha: string): void {
     .filter((line) => line.length > 0);
   // Proof: forcing this refusal false ran the candidate's checks against edited working files
   // while the receipts claimed the committed manifest, and the command prepared, certified and
-  // tarred the activation; the R3 negative expected exit 1 and received 0.
+  // tarred the activation; the R3 negative expected exit 1 and received 0. (Observed while this
+  // command still ran the checks; Dash's `run-activation-checks` now refuses the same checkout.)
   if (porcelain.length > 0) {
     const paths = porcelain
       .slice(0, 3)
@@ -148,8 +149,8 @@ function assertCommittedCandidate(repository: string, sha: string): void {
 }
 
 /**
- * Keeps this command's own writes out of the tree it is about to measure: the rebuilt validator
- * lands in `--work` before the checks spawn, so a `--work` inside the candidate would make every
+ * Keeps this command's own writes out of the tree it certifies: the rebuilt validator lands in
+ * `--work` before the self-check runs, so a `--work` inside the candidate would make every
  * receipt describe a tree that is no longer the committed one.
  * @throws {@link RelocationRefusal} `R3`, the refusal a dirtied candidate would earn anyway.
  */
@@ -167,78 +168,14 @@ function assertOutsideCandidate(repository: string, path: string, flag: string):
   const offset = relative(repository, existing);
   const escapes = offset === '..' || offset.startsWith(`..${sep}`);
   // Proof: forcing this refusal false wrote the rebuilt validator and every JSON role into the
-  // candidate tree and ran the checks against it; the refusal only arrived afterwards, from
+  // candidate tree and (while this command still ran them) the checks against it; the refusal
+  // only arrived afterwards, from
   // `prepareActivation`'s own role-source guard — the negative observed `activation authority
   // source must be outside the candidate repository`.
   if (offset === '' || (!escapes && !isAbsolute(offset))) {
     throw new RelocationRefusal('R3', `${flag} must be outside the candidate repository: ${path}`);
   }
   return resolved;
-}
-
-/**
- * Runs one candidate check and measures its start and end on the host clock. Running checks is
- * Twilight Dash's work still inside the Burokrat package (docs/twilight-structure/names.md,
- * "Clock reads"); a judge reads the recorded instants, never the clock.
- */
-function runCheck(
-  repository: string,
-  check: {
-    checkId: string;
-    command: string[];
-    skipProbe?: { command: string[]; cwd: string; env: Readonly<Record<string, string>> };
-  },
-  work: string,
-): CheckRun {
-  const startedAt = new Date().toISOString();
-  // Proof: without explicit streaming, the skip negative observed empty captured streams and
-  // prepared a complete activation for an Nx target whose Bun test summary reported one skip.
-  const invocation = Bun.spawnSync(check.command, {
-    cwd: repository,
-    env: {
-      ...process.env,
-      NX_DAEMON: 'false',
-      NX_ISOLATE_PLUGINS: 'false',
-      NX_NO_CLOUD: 'true',
-    },
-    stderr: 'pipe',
-    stdout: 'pipe',
-  });
-  const skipProbe =
-    invocation.exitCode === 0 && check.skipProbe !== undefined
-      ? Bun.spawnSync(check.skipProbe.command, {
-          // Proof: forcing this to the repository root made the production relocation run its
-          // relative preload from the wrong directory, so the check receipt measured another
-          // invocation context than the reviewed Nx target.
-          cwd: resolve(repository, check.skipProbe.cwd),
-          env: {
-            ...process.env,
-            ...check.skipProbe.env,
-            NX_DAEMON: 'false',
-            NX_ISOLATE_PLUGINS: 'false',
-            NX_NO_CLOUD: 'true',
-          },
-          stderr: 'pipe',
-          stdout: 'pipe',
-        })
-      : undefined;
-  const endedAt = new Date().toISOString();
-  const stdout = Buffer.concat([invocation.stdout, skipProbe?.stdout ?? new Uint8Array()]);
-  const stderr = Buffer.concat([invocation.stderr, skipProbe?.stderr ?? new Uint8Array()]);
-  const stdoutPath = writeBytes(join(work, 'checks', `${check.checkId}.stdout`), stdout);
-  const stderrPath = writeBytes(join(work, 'checks', `${check.checkId}.stderr`), stderr);
-  return {
-    checkId: check.checkId,
-    command: check.command,
-    startedAt,
-    endedAt,
-    exitCode: skipProbe?.exitCode ?? invocation.exitCode,
-    stdout,
-    stderr,
-    measured: skipProbe ?? invocation,
-    stdoutPath,
-    stderrPath,
-  };
 }
 
 interface BaseActivation {
@@ -366,15 +303,18 @@ function archive(
 
 /**
  * Prepares one Tool Wiki trusted activation from a candidate commit whose policy relocates
- * boundaries: it runs the candidate's own checks, derives every per-candidate role by hash,
- * records the operator's review record as the attestation it is, and proves the result by
- * running the produced launcher to `certified: true` before it writes the archive.
+ * boundaries: it judges the check runs Twilight Dash recorded for the candidate (`--check-runs`,
+ * written by `twilight-dash run-activation-checks`; this command runs no check and reads no
+ * clock), derives every per-candidate role by hash, records the operator's review record as the
+ * attestation it is, and proves the result by running the produced launcher to `certified: true`
+ * before it writes the archive.
  *
  * A refusal before `prepareActivation` leaves only `--work`; a refusal at or after it (`R20`, a
  * failed `tar`) leaves the version directory and `selected.json` under `--destination`. That
  * destination is then poisoned on purpose: re-running against it refuses, so an operator picks a
  * fresh destination rather than publishing a root whose selection was never certified.
- * @throws {@link RelocationRefusal} `R1`-`R21`.
+ * @throws {@link RelocationRefusal} `R1`-`R21`, and `CheckRunRefusal` (`check-runs.ts`) for check runs that
+ * do not prove the planned checks on this candidate.
  */
 export async function prepareRelocationActivation(argv: readonly string[]): Promise<string[]> {
   const options = readArguments(argv);
@@ -433,14 +373,19 @@ export async function prepareRelocationActivation(argv: readonly string[]): Prom
       validatorIdentity: hashBytes(validatorBytes),
     },
   };
-  // Resolved before the checks run: a missing or linked runtime package refuses in a second
-  // rather than after the candidate's whole test target.
+  // Resolved before the check runs are judged, so a missing or linked runtime package refuses
+  // first, as it did when this command still ran the checks itself.
   const modulesRoot = join(repository, 'node_modules');
   const trustedModules = trustedModuleNames(modulesRoot);
   const checks = planRelocationChecks(sources);
   const projects = extractNxRelationships(repository).relationships.projects;
-  const runs = checks.checks.map((check) =>
-    runCheck(repository, { ...check, skipProbe: resolveSkipProbe(check, projects) }, work),
+  const runs = retainCheckRuns(
+    readCheckRuns(
+      resolve(options['check-runs']),
+      planCheckRuns(sha, checks, projects),
+      dashCheckRunAuthority,
+    ),
+    work,
   );
   const plan = planRelocationActivation(
     sources,

@@ -42,6 +42,11 @@ infra/platform/flux/install.yaml
 # format scan exited 1 and listed these saved bundle/policy JSON files.
 openspec/changes/test-axes/evidence/performance-*/*.json
 
+# The golden check-run ledgers are the exact bytes Twilight Dash wrote; their SHA-256 is pinned in
+# `check-run-golden.test.ts`, and reformatting one would break that pin and the chain it carries.
+# Proof (2026-10-12): without this rule `prettier --check` on the ledger exited 1.
+apps/twilight-structure/twilight-burokrat/cli/fixtures/check-runs/*/
+
 # Prettier 3.9.6 never settles on these four: a hard-wrapped **bold** paragraph
 # inside a checklist item is indented one level deeper on every pass, without
 # limit (measured 2026-09-06: twelve passes, still moving; the fourth joined
