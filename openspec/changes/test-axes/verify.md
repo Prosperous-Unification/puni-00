@@ -2096,8 +2096,10 @@ exit status`), every fake `git` on `PATH` or other child environment, the candid
   preload fault in `test-sources`.
 - Manual cases copy one prebuilt candidate repository per `baseLamp` variant instead of building
   one each; commit IDs survive the copy.
-- The target runs its files on three Bun workers (`--parallel=3`); the relationship facts that pin
-  `check.wiki-cli.test` name the new command.
+- The target still runs its files serially. Three Bun workers (`--parallel=3`) finished locally in
+  547 s, but on the CI runner, beside Nx's typecheck and build, 128 tests timed out (2215 pass,
+  128 fail, 2826 s) with Git children killed at their budgets, so the change was reverted
+  (`310d79fd6`). Workers need a measurement on the gate host first.
 - Child-start bounds that also measured a loaded Bun start were widened: the two FIFO service cases
   (2 s to 20 s) and the three entered-marker waits in `observation-tick.db.test.ts` (2 s to 20 s).
   The waits after the marker keep their 2-second bounds.
@@ -2142,11 +2144,16 @@ load. Rows are files at or above 5 s in either run.
 Both side-by-side runs failed `observation-tick.db.test.ts` on a 2-second child-start wait (base 2
 cases, branch 1); that is the bound widened above. The base-alone run passed every file.
 
-The whole target after the change, `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT NX_DAEMON=false
-bunx nx run twilight-burokrat:test --skip-nx-cache`: exit 0, `2343 pass, 0 fail`, `Ran 2343
-tests across 81 files. [547.42s]`, wall 549 s at load 4 to 11. `pilot-policy.test.ts` alone is
-about 500 s of that, so it is the floor until its lints get cheaper. The h2puni gate was not run
-by this lane.
+The whole target after the change, serial, `bun test` with the target's flags from the project
+directory: `Ran 2329 tests across 81 files. [976.45s]`, `2329 pass, 0 fail`, at load 2 to 4. An
+earlier serial run through Nx took 1184.50 s and failed one test, `selected check closes remaining
+owned descriptors after a leaf descriptor was closed` (`/proc/self/fd` count `Expected: 21,
+Received: 20`): that test counts process-wide descriptors, so a descriptor another file's async
+work closed mid-test fails it. It passed in the second run and in a subset run twice. On CI the
+tool-wiki gate's test target went from `Ran 2325 tests across 80 files. [2364.42s]` (integration-7
+run 38187173535) to `Ran 2329 tests across 81 files. [1159.81s]`, `2329 pass, 0 fail` (run
+38194371198). `pilot-policy.test.ts` (about 500 s) is now nearly half the target; see the
+decision in the lane record. The h2puni gate was not run by this lane.
 
 ### Proofs re-run
 
@@ -2283,7 +2290,6 @@ New and changed checks, each watched failing with the fault in place and restore
 | `invokeCli` overlap guard removed                                     | `invokeCli refuses an overlapping call` failed: the promise resolved                                                                                                                            |
 | `invokeCli` restores `process.exitCode` to Bun's initial `undefined`  | `Expected: 0`, `Received: 1`; with that bug every in-process refusal left the whole `bun test` run at exit 1 though all tests passed (`specifications.test.ts` at `6d1e9e803`: 84 pass, exit 1) |
 | `invokeCli` restores a bound copy of `write`                          | identity assertion `Received: false`                                                                                                                                                            |
-| `relationships*.json` left at the old target command                  | `pins exact pre-index tuples and passes observe lint` failed with `fact check.wiki-cli.test authority-selector mismatch`                                                                        |
 | `O_NONBLOCK` removed from the service's protected open                | both FIFO cases `Received: "timeout"` at 20 s                                                                                                                                                   |
 | the bootstrap read through `readFileSync` instead of the bounded open | bootstrap FIFO case `Received: "timeout"` at 20 s                                                                                                                                               |
 | the CLI fixture held before `runObservationCli`                       | SIGINT case `tick test watchdog expired` at 20,063 ms                                                                                                                                           |
