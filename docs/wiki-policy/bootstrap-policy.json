@@ -178,6 +178,10 @@
           },
           {
             "kind": "suffix",
+            "value": ".ndjson"
+          },
+          {
+            "kind": "suffix",
             "value": ".config.ts"
           },
           {
