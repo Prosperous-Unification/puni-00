@@ -1086,7 +1086,13 @@ test('transaction crossing monotonic deadline rolls back every subject write', a
     const outcome = await runObservationTick({
       state,
       signal: new AbortController().signal,
-      cleanupMs: 200,
+      // The writer crosses only the whole-tick deadline. Past the cleanup deadline the tick
+      // calls process.exit(124), which here is the test runner: at 200 ms a 120 ms stall after the
+      // held writer (a GC pause on a loaded runner) ended the whole suite silently with exit 124
+      // in CI run 38199478694 and locally with the hold raised to 720 ms (2026-10-12).
+      // Proof: at 5 s the 720 ms hold passes, and a 300 ms hold, inside the deadline, fails the
+      // rolled-back assertions (2026-10-12).
+      cleanupMs: 5_000,
       reader: {
         listOpenPullRequests: () => Promise.resolve({ pulls: [source.pull], nextPage: null }),
         getPullRequest: () => Promise.resolve(source.pull),
