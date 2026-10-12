@@ -20,7 +20,9 @@ proves its writer reproduces both ledgers from their parts.
 | `skipping/check-runs.json` | `d2b030865c97214daaf1348b5070d608c002b7f22a50cc1e47e917adba622941` |
 
 `streams/` holds each run's stdout and stderr, named by SHA-256. They are Nx and `bun test` output
-with carriage returns, colour escapes and measured durations, kept as written.
+with carriage returns, colour escapes and measured durations, kept as written. The repository's
+`.gitattributes` marks every file under the ledger directories `-text`, so a checkout with
+`core.autocrlf` cannot change the bytes the digests pin.
 
 `src/policy/check-run-golden.test.ts` pins every digest. When the reproducible candidate's
 revision or tree identity moves, it fails and names this file. That happens when the fixture

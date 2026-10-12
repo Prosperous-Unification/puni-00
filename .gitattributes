@@ -1,0 +1,5 @@
+# Golden check-run ledgers and streams are the exact bytes Twilight Dash wrote, carriage returns
+# included, and their SHA-256 is pinned, so no checkout may convert their line endings.
+# Proof (2026-10-12): a clone with core.autocrlf=true and no such rule rewrote three LF-only stream
+# files to other digests (6043908c… became 8a1725a8…).
+apps/twilight-structure/twilight-burokrat/cli/fixtures/check-runs/*/** -text

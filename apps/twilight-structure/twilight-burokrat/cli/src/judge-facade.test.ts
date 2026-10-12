@@ -141,6 +141,15 @@ test('exports exactly the judge surface and nothing that takes a store', async (
   expect(Object.keys(await import('./judge-facade')).sort()).toEqual(RUNTIME_SURFACE);
   const modules = reachableModules(join(SOURCE_ROOT, 'judge-facade.ts'));
   expect(modules.length).toBeGreaterThan(5);
+  // The check-run judge reaches only the check derivation: `relocation-activation.ts` pulls
+  // `trust.ts` and its mdast readers into the facade's input closure, which Dash's
+  // `packaging/reproducible.test.ts` copies into two roots (tree shaking keeps them out of the
+  // launcher bytes, not out of that closure). Proof (2026-10-12): importing check-runs.ts's
+  // derivation from `./relocation-activation` again failed here with `Expected to not contain:
+  // "policy/trust.ts"`; restoring `./check-plan` passed.
+  const reached = modules.map((path) => relative(SOURCE_ROOT, path));
+  expect(reached).not.toContain('policy/trust.ts');
+  expect(reached).not.toContain('policy/relocation-activation.ts');
   const violations = modules.flatMap((path) => {
     const source = stripComments(readFileSync(path, 'utf8'));
     const module = relative(SOURCE_ROOT, path);
