@@ -21,12 +21,12 @@ Relationship extraction SHALL materialize a physical node_modules directory and 
 
 #### Scenario: Candidate supplies modules
 
-- **WHEN** the candidate snapshot contains node_modules
+- **WHEN** the candidate snapshot contains a node_modules path segment at any depth, including a symlink alias
 - **THEN** extraction refuses before compiler consumption
 
 ### Requirement: Compiler reads remain within the admitted closure
 
-Configuration parsing, compilation and manual relationship resolution MUST use one guarded filesystem view. Loaded declarations MUST resolve within the frozen candidate or copied runtime closure, except for the bundled compiler's explicitly identified standard library declarations. Trusted unreadability and escaping symlinks MUST throw.
+Configuration parsing, compilation and manual relationship resolution MUST use one guarded filesystem view. Loaded declarations MUST resolve within the frozen candidate or copied runtime closure. Sources classified as external by TypeScript MUST resolve canonically inside the physical copied node_modules directory, except for the bundled compiler's explicitly identified standard library declarations. Trusted unreadability and escaping symlinks MUST throw.
 
 #### Scenario: Outside compiler input
 

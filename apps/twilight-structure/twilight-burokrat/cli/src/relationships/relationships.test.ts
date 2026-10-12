@@ -1409,7 +1409,7 @@ test('reads static Nx configuration without executing candidate plugins', async 
   ]);
 });
 
-test('reads static Nx configuration without executing a candidate-local wrapper', async () => {
+test('refuses candidate-local Nx modules before executing their wrapper', async () => {
   const repository = createRepository();
   const sentinel = join(repository, '..', `${basename(repository)}.local-nx-executed`);
   pathsToRemove.push(sentinel);
@@ -1433,11 +1433,10 @@ test('reads static Nx configuration without executing a candidate-local wrapper'
   // Proof: executing the candidate-local wrapper from the production extractor wrote this sentinel
   // and failed the assertion before static extraction could report the declared projects.
   expect(existsSync(sentinel)).toBe(false);
-  expect(report(invocation).nx.projects.map(({ name }) => name)).toEqual([
-    'consumer',
-    'minimal',
-    'provider',
-  ]);
+  expect(invocation.exitCode).toBe(1);
+  expect(output(invocation)).toContain(
+    'relationship candidate may not supply trusted runtime modules',
+  );
 });
 
 test('uses trusted Nx when candidate root package metadata claims its package name', async () => {
@@ -1905,3 +1904,58 @@ test('refuses an outside declaration named directly by compiler configuration', 
   );
   expect(invocation.exitCode, output(invocation)).toBe(1);
 });
+
+for (const alias of [false, true]) {
+  test(`refuses candidate nested modules with symlink alias ${String(alias)}`, async () => {
+    const repository = createRepository();
+    const packageRoot = alias ? 'src/dependencies' : 'src/node_modules';
+    write(
+      repository,
+      `${packageRoot}/hidden/package.json`,
+      JSON.stringify({
+        name: 'hidden',
+        version: '1.0.0',
+        types: 'index.d.ts',
+      }),
+    );
+    write(
+      repository,
+      `${packageRoot}/hidden/index.d.ts`,
+      'export interface Hidden { value: string }\n',
+    );
+    if (alias) symlinkSync('dependencies', join(repository, 'src/node_modules'));
+    write(
+      repository,
+      'src/main.ts',
+      "import type { Hidden } from 'hidden';\nexport type Public = Hidden;\n",
+    );
+    write(
+      repository,
+      'nested-config.json',
+      JSON.stringify({
+        compilerOptions: {
+          strict: true,
+          types: [],
+          target: 'ES2022',
+          module: 'ESNext',
+          moduleResolution: 'Bundler',
+        },
+        files: ['src/main.ts'],
+      }),
+    );
+    const request = writeRequestInput(repository, {
+      schemaVersion: 1,
+      typescript: { configPaths: ['nested-config.json'], publicEntrypoints: ['src/main.ts'] },
+    });
+    const invocation = await invoke(
+      repository,
+      commitAll(repository, 'candidate nested module'),
+      request,
+    );
+    expect(invocation.exitCode, output(invocation)).toBe(1);
+    if (!alias)
+      expect(output(invocation)).toContain(
+        'relationship candidate may not supply trusted runtime modules',
+      );
+  });
+}

@@ -77,3 +77,20 @@ Survey policy, observation modes and zero adoption are unchanged. This diagnosti
 Packages are copied completely when requested, including nested dependencies. An observed exact repository extraction materialized approximately 191 MiB of requested modules instead of the development installation's 1.6 GiB. Large individual packages still cost a full package copy. No persistent cache or shared mutable hardlinks are introduced.
 
 Full host gate, full repository format/test/lint/typecheck/build, CI, merge, archive and deployment are intentionally not run: this task requests focused verification and a stacked draft PR. Delta specs remain pending archive sync. Draft publication remains pending review.
+
+## Review correction: nested candidate modules
+
+Astra's review of `e01a9f9d8a3b268781435312805f5a08d7834bdd` identified a candidate nested-module bypass. New production CLI fixtures supply `src/node_modules/hidden/index.d.ts` directly or via `src/node_modules -> dependencies`. Before correction both expected exit 1 and received 0, with `external:hidden` and empty reverse edges.
+
+The materializer now rejects the node_modules segment at every candidate path depth, including symlink entries. Loaded sources classified as external by TypeScript must resolve canonically under the physical copied workspace/node_modules root. Generic containment for nonexternal candidate sources and the standard-library exception remain in force. The prior candidate-local Nx wrapper test now expects early module refusal while retaining its no-execution sentinel.
+
+| Boundary                   | Injected fault                                                        | Observed production oracle                                                                                                                                            |
+| -------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Nested candidate paths     | Restore root-only materializer predicate                              | Direct nested-module test loses the early `relationship candidate may not supply trusted runtime modules` refusal and fails against the later external-source guard.  |
+| External canonical closure | Restore root-only predicate, then remove external loaded-source guard | Alias fixture first refuses with the loaded-source guard active; removing it admits `external:hidden` and incorrectly exits 0, failing the expected-exit-1 assertion. |
+
+Both guards restored: nested direct, symlink alias and candidate-local Nx tests passed (`3 pass, 0 fail, 24 expect() calls`). No survey policy, adoption mode or certification change. Draft publication remains pending exact-head review.
+
+Correction checks: fresh scoped Nx source lint passed in 17.0 seconds; scoped Nx typecheck passed in 1.3 seconds; all 186 OpenSpec items validated with zero failures; changed-file Prettier and git diff checks passed. Nx again reported its plugin socket was unavailable and ran plugins in the main process. Full gate and publication remain intentionally unrun.
+
+Final correction focused suite (the same three explicit source files and trusted-modules environment listed above): `66 pass, 0 fail, 1113 expect() calls`, 103.11 seconds, exit 0.

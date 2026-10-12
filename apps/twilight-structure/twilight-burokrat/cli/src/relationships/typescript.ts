@@ -174,6 +174,17 @@ function parseProject(workspace: string, configPath: string, system: TrustedSyst
   // outside config-listed declaration. Removing it then made that production CLI exit 0.
   for (const sourceFile of program.getSourceFiles()) {
     const canonical = system.realpath(sourceFile.fileName);
+    // Proof: bypassing nested-module materialization rejection still refused the symlink-alias
+    // CLI fixture here. Removing this guard then admitted external:hidden and exited 0.
+    if (
+      !program.isSourceFileDefaultLibrary(sourceFile) &&
+      program.isSourceFileFromExternalLibrary(sourceFile) &&
+      workspacePath(resolve(workspace, 'node_modules'), canonical) === undefined
+    ) {
+      throw new Error(
+        `compiler external declaration outside trusted copied closure: ${sourceFile.fileName}`,
+      );
+    }
     if (
       workspacePath(workspace, canonical) === undefined &&
       !program.isSourceFileDefaultLibrary(sourceFile)

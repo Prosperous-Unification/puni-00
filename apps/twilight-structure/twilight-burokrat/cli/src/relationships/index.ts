@@ -70,11 +70,9 @@ function materializeCandidate(
     );
   }
   const candidateRoot = realpathSync(repository);
-  if (
-    candidate.entries.some(
-      (entry) => entry.path === 'node_modules' || entry.path.startsWith('node_modules/'),
-    )
-  ) {
+  // Proof: restoring the root-only predicate admitted src/node_modules and its symlink alias;
+  // `refuses candidate nested modules` originally received CLI exit 0 instead of 1.
+  if (candidate.entries.some((entry) => entry.path.split('/').includes('node_modules'))) {
     throw new Error('relationship candidate may not supply trusted runtime modules');
   }
   const installedModules = trustedModules(candidateRoot);

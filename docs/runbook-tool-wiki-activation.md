@@ -125,7 +125,10 @@ candidate. Relationship extraction copies requested complete packages into a phy
 `node_modules`, preserving scoped and nested topology. Compiler configuration, compilation and
 relationship resolution share one filesystem boundary: an absent trusted dependency cannot resolve
 through the runtime directory's ancestors. Unreadable packages and escaping trusted symlinks refuse;
-only the bundled compiler's standard library declarations have an explicit outside-path exception.
+candidate `node_modules` path segments at any depth, including symlink aliases, refuse before
+materialization. TypeScript-classified external declarations must resolve inside the physical copied
+directory; only the bundled compiler's standard library declarations have an explicit outside-path
+exception.
 A consumer repository therefore needs the three variables and this workflow, never a
 checkout of the wiki's source. Nx relationships are read statically from
 `nx.json` and `project.json`; candidate plugins and inferred plugin targets are never executed or
