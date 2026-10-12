@@ -36,7 +36,10 @@ moves; `verify.md` records the count (expected 0).
 
 ## D3 — Wire
 
-The work-item read adds `readings: { [stepId]: NodeReading }` for leaves. `skipped` is in the
+The work-item read adds `nodeReadings?: { [stepId]: NodeReading }` for leaves (absent on a
+parent and from an older be-01 mid-swap). Named `nodeReadings`, not `readings`, because fe-01's
+render rows already carry a `readings` field of per-render values that a wire `readings` would
+collide with (slice 2, 2026-10-12). `skipped` is in the
 contract's union now so a later reader cannot meet a word its `Record` cannot name; the
 mounted test asserts no `skipped` is produced while participation is null.
 

@@ -2,6 +2,7 @@ import type {
   Attempt,
   Days,
   IsoDate,
+  NodeReading,
   Scheduled,
   Span,
   StepState,
@@ -158,4 +159,10 @@ export interface NumberedWorkItem extends LabelledWorkItem {
   spans?: Record<string, Span>;
   /** The same fold over every node of the row: its first start to its last end. */
   span?: Span;
+  /**
+   * A leaf's node readings by step id (`step-node-readings` D3), derived on
+   * every read and never stored. Absent on a parent, which holds no step
+   * nodes; empty on a leaf of a stepless project.
+   */
+  nodeReadings?: Record<string, NodeReading>;
 }

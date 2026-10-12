@@ -292,6 +292,137 @@ describe('the work-item read', () => {
   }
 });
 
+describe('node readings on the work-item read', () => {
+  type Readings = Record<string, string>;
+
+  /** Every row's readings by name; a parent carries none. */
+  async function readingsByName(): Promise<Map<string, Readings | undefined>> {
+    const read = await h.call('ada', 'GET', `/api/projects/${project}/work-items`);
+    if (read.status !== 200) throw new Error(`read refused: ${JSON.stringify(read)}`);
+    const rows = (read.body as { workItems: { name: string; nodeReadings?: Readings }[] })
+      .workItems;
+    return new Map(rows.map((row) => [row.name, row.nodeReadings] as const));
+  }
+
+  async function run(commands: unknown[]): Promise<string[]> {
+    const answered = await batch(commands);
+    if (answered.status !== 200) throw new Error(`refused: ${JSON.stringify(answered)}`);
+    return ((answered.body as { results?: { id?: string }[] }).results ?? []).flatMap((each) =>
+      each.id === undefined ? [] : [each.id],
+    );
+  }
+
+  async function leaf(name: string): Promise<string> {
+    const id = (await run([{ kind: 'createWorkItem', parentId: null, afterId: strip, name }])).at(
+      0,
+    );
+    if (id === undefined) throw new Error(`no leaf ${name}`);
+    return id;
+  }
+
+  /**
+   * The spec's "QA waits on a finished Dev" through the workflow edge, and an
+   * authored node-scoped edge into a first node, read through both live-plan
+   * paths. `Paint`'s Dev has no predecessor node at all and stays unknown.
+   *
+   * Proof: predecessors taken from step order instead of the graph (the
+   * previous step's node in the same leaf) and both cases failed on
+   * `Plaster`'s Dev, `- "waiting"` / `+ "unknown"` — the authored edge unseen;
+   * watched 2026-10-12.
+   */
+  for (const mode of ['isolated', 'shared'] as const) {
+    it(`reads readings per node from the resolved step graph (${mode})`, async () => {
+      if (mode === 'shared') {
+        h.close();
+        h = OrganizationHarness.openComposedWith({
+          supportedCapacityModes: ['isolated', 'shared'],
+        });
+        await populate();
+        h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
+      }
+      const plaster = await leaf('Plaster');
+      await leaf('Paint');
+      await run([
+        { kind: 'setProgress', workItemId: strip, stepId: dev, state: 'done' },
+        {
+          kind: 'addTypedDependency',
+          predecessor: { scope: 'node', workItemId: strip, stepId: dev },
+          successor: { scope: 'node', workItemId: plaster, stepId: dev },
+          type: 'FS',
+        },
+      ]);
+
+      const readings = await readingsByName();
+      expect(readings.get('Strip')).toMatchObject({ [dev]: 'done', [qa]: 'waiting' });
+      expect(readings.get('Plaster')).toMatchObject({ [dev]: 'waiting', [qa]: 'unknown' });
+      expect(readings.get('Paint')).toMatchObject({ [dev]: 'unknown', [qa]: 'unknown' });
+    });
+  }
+
+  it('a running attempt reads in progress, and waiting once it ends failed', async () => {
+    await run([{ kind: 'setProgress', workItemId: strip, stepId: dev, state: 'done' }]);
+    await run([{ kind: 'startAttempt', workItemId: strip, stepId: qa }]);
+
+    expect((await readingsByName()).get('Strip')).toMatchObject({ [qa]: 'in_progress' });
+
+    await run([{ kind: 'endAttempt', workItemId: strip, stepId: qa, outcome: 'failed' }]);
+    expect((await readingsByName()).get('Strip')).toMatchObject({ [qa]: 'waiting' });
+  });
+
+  it("the row's hold shows on its nodes, and in progress once it is cleared", async () => {
+    await run([{ kind: 'setProgress', workItemId: strip, stepId: dev, state: 'in_progress' }]);
+    await run([{ kind: 'setStatus', workItemId: strip, status: 'on_hold' }]);
+
+    expect((await readingsByName()).get('Strip')).toMatchObject({ [dev]: 'on_hold' });
+
+    await run([{ kind: 'setStatus', workItemId: strip, status: 'in_progress' }]);
+    expect((await readingsByName()).get('Strip')).toMatchObject({ [dev]: 'in_progress' });
+  });
+
+  it('a first node is unknown', async () => {
+    expect((await readingsByName()).get('Strip')).toEqual({ [dev]: 'unknown', [qa]: 'unknown' });
+  });
+
+  /**
+   * The spec's "skipped is not produced yet", over a plan where every other
+   * reading is present, so the absence is not an accident of a small plan.
+   */
+  it('no node reads skipped', async () => {
+    const held = await leaf('Held');
+    const blocked = await leaf('Blocked');
+    const proxied = await leaf('Proxied');
+    const running = await leaf('Running');
+    await leaf('Untouched');
+    await run([
+      { kind: 'setProgress', workItemId: strip, stepId: dev, state: 'done' },
+      { kind: 'setStatus', workItemId: held, status: 'on_hold' },
+      { kind: 'setStatus', workItemId: blocked, status: 'blocked' },
+      {
+        kind: 'addTypedDependency',
+        predecessor: { scope: 'whole', workItemId: blocked },
+        successor: { scope: 'whole', workItemId: proxied },
+        type: 'FS',
+      },
+      { kind: 'startAttempt', workItemId: running, stepId: dev },
+    ]);
+
+    const readings = await readingsByName();
+    const every = new Set([...readings.values()].flatMap((each) => Object.values(each ?? {})));
+    expect([...every].sort()).toEqual(
+      [
+        'blocked',
+        'blocked_by_proxy',
+        'done',
+        'in_progress',
+        'on_hold',
+        'unknown',
+        'waiting',
+      ].sort(),
+    );
+    expect(every.has('skipped')).toBe(false);
+  });
+});
+
 describe('the plan document carries the zone and the attempts (version 7)', () => {
   interface DocumentRow {
     name: string;

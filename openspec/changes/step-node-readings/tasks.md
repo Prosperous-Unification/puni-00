@@ -18,19 +18,22 @@
 
 ## 2. The fold's attempt extension and the wire
 
-- [ ] 2.1 Red: `roll-up.test.ts` "a node with an attempt holds work", "a running attempt reads
+- [x] 2.1 Red: `roll-up.test.ts` "a node with an attempt holds work", "a running attempt reads
       in progress in the fold", "an ended failed attempt keeps a silent QA in the fold";
       `work-item.resource.test.ts` mounted "reads readings per node from the resolved step
       graph" (QA waits on a done Dev through a workflow edge; an authored edge counts too),
       "no node reads skipped"; the contract union in `work-item-response.ts`.
-- [ ] 2.2 Green: `workedStepsOf(…, attempts)`; `rollUpProgress` reading running attempts;
-      `readings` on the read computed from `resolveStepNodeGraph`.
-- [ ] 2.3 Negatives: attempts left out of `workedStepsOf` → "an ended failed attempt keeps a
+      Mounted cases live in `apps/wbs/be-01/src/controller/step-node-attempt.controller.db.test.ts`
+      ("node readings on the work-item read"), where mounting exists.
+- [x] 2.2 Green: `workedStepsOf(…, attempts)`; `rollUpProgress` reading running attempts;
+      `nodeReadings` on the read computed from `resolveStepNodeGraph`.
+- [x] 2.3 Negatives: attempts left out of `workedStepsOf` → "an ended failed attempt keeps a
       silent QA in the fold" reads `done`; predecessors taken from step order instead of the
       graph → the authored-edge case.
-- [ ] 2.4 Dev-store report: run the fold before and after on a copy of wbs-dev's database and
+- [x] 2.4 Dev-store report: run the fold before and after on a copy of wbs-dev's database and
       record the count of leaves whose status moves in `verify.md` (expected 0: no attempts
-      exist yet).
+      exist yet). Done by property instead (`roll-up.property.test.ts`): the lane may not
+      touch hosts; see `verify.md`.
 
 ## 3. fe-01
 

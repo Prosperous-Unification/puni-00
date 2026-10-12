@@ -7,6 +7,7 @@ import {
   indexTree,
   resolveStepNodeGraph,
   type StepNodeCycle,
+  type StepNodeGraph,
   type StepPolicy,
   type TypedDependency,
 } from '@wbs/domain';
@@ -53,6 +54,20 @@ export interface DependencyGraphState {
  * whether a slice is estimated.
  */
 export function findDependencyGraphCycle(state: DependencyGraphState): StepNodeCycle | null {
+  return findStepNodeCycle(resolveDependencyGraph(state));
+}
+
+/**
+ * The combined step-node graph of `state` — every leaf's nodes in step order,
+ * its workflow chain, the legacy joins and the authored edges — resolved once
+ * by {@link resolveStepNodeGraph} over {@link slicesOf}'s slicing, so the
+ * cycle guard and the plan read's node readings ask one graph.
+ *
+ * @throws for a leaf with no slice, a work item a typed dependency names that
+ * the tree does not hold, or an endpoint `resolveStepNodeGraph` refuses: each
+ * is stored state the write boundary refuses.
+ */
+export function resolveDependencyGraph(state: DependencyGraphState): StepNodeGraph {
   const index = indexTree(state.rows);
   const hasChildren = new Set(
     state.rows.flatMap((row) => (row.parentId === null ? [] : [row.parentId])),
@@ -80,7 +95,7 @@ export function findDependencyGraphCycle(state: DependencyGraphState): StepNodeC
     if (group === undefined) byLeaf.set(slice.workItemId, [slice]);
     else group.push(slice);
   }
-  const graph = resolveStepNodeGraph(
+  return resolveStepNodeGraph(
     index.leafIds,
     (leafId) => {
       const found = byLeaf.get(leafId);
@@ -98,7 +113,6 @@ export function findDependencyGraphCycle(state: DependencyGraphState): StepNodeC
       },
     },
   );
-  return findStepNodeCycle(graph);
 }
 
 /** What a proposed change replaces in the stored state before the graph is asked. */

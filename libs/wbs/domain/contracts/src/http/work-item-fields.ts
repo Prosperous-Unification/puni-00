@@ -39,6 +39,7 @@ export const WORK_ITEM_FIELD_GROUPS = {
     'attempts',
     'spans',
     'span',
+    'nodeReadings',
   ],
   constraints: [
     'position',

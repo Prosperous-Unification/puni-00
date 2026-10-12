@@ -337,6 +337,7 @@ describe('every plan schedules identically across the migration', () => {
             factEnd,
             readiness,
             hold,
+            nodeReadings,
             ...row
           }) => {
             // Lifted by `add-work-item-statuses` and asserted null for the fact
@@ -436,6 +437,12 @@ describe('every plan schedules identically across the migration', () => {
             // bare lift would hide a read path that invented either.
             expect(serviceId).toBeNull();
             expect(startNoEarlierThanReason).toBeNull();
+            // Lifted by `step-node-readings` and asserted for `progress`' reason:
+            // the oracle predates node readings, and with nothing said, held or
+            // attempted every leaf node reads `unknown`; a parent carries none.
+            expect(
+              nodeReadings === undefined ? 'parent' : [...new Set(Object.values(nodeReadings))],
+            ).toEqual(row.rolledUp ? 'parent' : ['unknown']);
             // The third of the same kind, and the newest: `work-item-deadline`
             // slice 6 made `work_item.deadline` readable, so every row now
             // carries a key the pinned document predates. `null` on all sixteen

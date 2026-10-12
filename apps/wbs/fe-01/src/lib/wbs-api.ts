@@ -557,7 +557,27 @@ export interface WorkItemView {
   spans?: Record<string, SpanView | undefined>;
   /** The same fold over every node of the row. */
   span?: SpanView;
+  /**
+   * A leaf's node readings by step id (`step-node-readings` D3). Absent on a
+   * parent and from an older be-01 mid-swap.
+   */
+  nodeReadings?: Record<string, NodeReadingView | undefined>;
 }
+
+/**
+ * What a step node reads as, mirroring `NodeReading` in `@wbs/domain`'s
+ * `node-reading.ts` for {@link DEFAULT_PERT_WEIGHTS_VIEW}'s reason. `skipped`
+ * is in the union before be-01 produces it.
+ */
+export type NodeReadingView =
+  | 'skipped'
+  | 'done'
+  | 'on_hold'
+  | 'blocked'
+  | 'in_progress'
+  | 'blocked_by_proxy'
+  | 'waiting'
+  | 'unknown';
 
 /** One attempt at a step node: instants in epoch milliseconds, UTC. */
 export interface AttemptView {

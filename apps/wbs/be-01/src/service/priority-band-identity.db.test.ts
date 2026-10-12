@@ -531,6 +531,7 @@ describe('a priority ladder moves no date', () => {
           factEnd,
           readiness,
           hold,
+          nodeReadings,
           ...row
         }) => {
           // Lifted by `add-work-item-statuses` and asserted null for the fact
@@ -610,6 +611,12 @@ describe('a priority ladder moves no date', () => {
           // read path that invented either.
           expect(serviceId).toBeNull();
           expect(startNoEarlierThanReason).toBeNull();
+          // Lifted by `step-node-readings` and asserted for `progress`' reason:
+          // the oracle predates node readings, and with nothing said, held or
+          // attempted every leaf node reads `unknown`; a parent carries none.
+          expect(
+            nodeReadings === undefined ? 'parent' : [...new Set(Object.values(nodeReadings))],
+          ).toEqual(row.rolledUp ? 'parent' : ['unknown']);
           return row;
         },
       ),

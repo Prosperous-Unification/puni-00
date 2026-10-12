@@ -35,6 +35,7 @@ import {
   MEASURE_METRICS,
   type MeasureMetric,
   nextWorkday,
+  type NodeReading,
   ORDINARY_BAND_RANK,
   parentIndexOf,
   type PertWeights,
@@ -144,7 +145,8 @@ import {
   subjectOf,
   touchedBy,
 } from '../../service/compensating';
-import { DependencyGraphGuard } from '../../service/dependency-graph';
+import { DependencyGraphGuard, resolveDependencyGraph } from '../../service/dependency-graph';
+import { nodeReadingsOf } from '../../service/node-readings';
 import type { NumberedWorkItem } from '../../service/numbered-work-item';
 import { workItemStatusesOf } from '../../service/work-item-statuses';
 
@@ -649,6 +651,13 @@ function attemptFieldsOf(
   const span = spanOfAttempts(answered);
   if (span === undefined) throw new Error('attempts were held but none was answered');
   return { attempts, spans, span };
+}
+
+/** A leaf's `nodeReadings` field, or no key for a parent, which holds no step nodes. */
+function readingFieldsOf(
+  nodeReadings: Record<string, NodeReading> | undefined,
+): Pick<NumberedWorkItem, 'nodeReadings'> {
+  return nodeReadings === undefined ? {} : { nodeReadings };
 }
 
 /**
@@ -3449,10 +3458,15 @@ export class WorkItemService {
           recordedHandedUp.push({ workItemId: parentId, stepId, days, recordedAt: latest });
         }
         const statedInside = storedProgress.filter((each) => inside.has(each.workItemId));
+        // Statements only, attempts left out on purpose: the hand-up writes
+        // statements, and an attempt is not one (ADR 0045). A branch's
+        // attempts go with it, so a running attempt must not come back as a
+        // statement nobody made.
         const branchStates = rollUpProgress(
           rows,
           storedProgress,
-          workedStepsOf(storedEstimates, storedActuals, storedProgress),
+          workedStepsOf(storedEstimates, storedActuals, storedProgress, []),
+          [],
         ).get(id);
         for (const [stepId, state] of branchStates ?? []) {
           if (state === UNKNOWN) continue;
@@ -4744,6 +4758,7 @@ export class WorkItemService {
     };
     // What each row read before this act: the read's own progress fold, never
     // a stored flag, so the cell and this method agree about "was done".
+    const attempted = await this.opts.attempts.listByProject(workItem.projectId);
     const wasDone = rollUpWorkItemStatuses(
       rows,
       rollUpProgress(
@@ -4753,7 +4768,9 @@ export class WorkItemService {
           await this.opts.estimates.listByProject(workItem.projectId),
           await this.opts.actuals.listByProject(workItem.projectId),
           stated,
+          attempted,
         ),
+        attempted.filter((attempt) => attempt.endedAt === null),
       ),
     );
     const readsDone = (rowId: string) => wasDone.get(rowId) === 'done';
@@ -6632,7 +6649,16 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
   // and QA holds an estimate nobody has spoken about is **in progress**, not
   // finished — and the only way the fold can know QA exists on that row is for
   // the estimate to put it here. See `rollUpProgress`.
-  const statedTotals = rollUpProgress(rows, stated, workedStepsOf(stored, recorded, stated));
+  //
+  // A node holding any attempt is in that set too, and a running attempt on a
+  // node nobody has spoken about reads `in_progress` (`step-node-readings` D2).
+  const running = attempts.filter((attempt) => attempt.endedAt === null);
+  const statedTotals = rollUpProgress(
+    rows,
+    stated,
+    workedStepsOf(stored, recorded, stated, attempts),
+    running,
+  );
   // The row's own reading, folded over its **children** rather than over its
   // rolled-up steps — see `rollUpWorkItemStatuses` for why the two differ and which
   // one is true.
@@ -6645,6 +6671,24 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
   const itemStatuses = workItemStatusesOf(rows, rollUpWorkItemStatuses(rows, statedTotals), {
     edges: edges.filter((edge) => rowIds.has(edge.predecessorId) && rowIds.has(edge.successorId)),
     typed: authored,
+  });
+  // Every leaf node's reading over the resolved step-node graph, its
+  // predecessors the workflow and authored edges into it; legacy joins are
+  // left out of the resolution because the reading never reads them
+  // (`step-node-readings` D1, D3).
+  const readingsOf = nodeReadingsOf({
+    graph: resolveDependencyGraph({
+      rows,
+      steps,
+      estimates: stored,
+      legacy: [],
+      typed: authored,
+      reach: project.depReach,
+    }),
+    holdOf: new Map(rows.map((row) => [row.id, row.hold] as const)),
+    statusOf: itemStatuses,
+    stated,
+    running,
   });
   // The write path refuses an edge that would close a cycle, but two clients
   // drawing conflicting edges at the same instant are each checked against the
@@ -6900,6 +6944,8 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
       dependsOn: (waitingFor.get(row.id) ?? []).filter((id) => idsOnThisPlan.has(id)),
       ...assignmentFieldsOf(assigneesOf.get(row.id) ?? {}),
       ...attemptFieldsOf(attemptsOf.get(row.id) ?? [], steps),
+      // A leaf's node readings by step id; a parent has no nodes and no key.
+      ...readingFieldsOf(readingsOf.get(row.id)),
       // A row the hold reduction took out has no schedule and no dates: it
       // takes no part in the plan, and a placeholder span would draw it.
       // Proof: the placeholder kept here made `lets a successor start at day

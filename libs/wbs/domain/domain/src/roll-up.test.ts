@@ -11,6 +11,7 @@ import {
   rollUpWorkItemStatuses,
   workedStepsOf,
 } from './roll-up';
+import type { StepNodeRef } from './step-node';
 import type { StoredActual, StoredEstimate, StoredMeasure, StoredProgress } from './step-values';
 import type { MeasureMetric } from './stored-vocabularies';
 
@@ -303,16 +304,28 @@ const said = (
   statedAt: 1,
 });
 
-/** The fold and the reading in one call, as `tree()` runs them. */
+/**
+ * The fold and the reading in one call, as `tree()` runs them: every attempt
+ * held, and the running ones among them.
+ */
 function fold(
   rows: readonly ParentedRow[],
   estimates: readonly StoredEstimate[],
   actuals: readonly StoredActual[],
   stated: readonly StoredProgress[],
+  attempts: readonly StepNodeRef[] = [],
+  running: readonly StepNodeRef[] = [],
 ) {
-  const byStep = rollUpProgress(rows, stated, workedStepsOf(estimates, actuals, stated));
+  const byStep = rollUpProgress(
+    rows,
+    stated,
+    workedStepsOf(estimates, actuals, stated, attempts),
+    running,
+  );
   return { byStep, states: rollUpWorkItemStatuses(rows, byStep) };
 }
+
+const node = (workItemId: string, stepId: string): StepNodeRef => ({ workItemId, stepId });
 
 describe('rollUpProgress', () => {
   it('gives a leaf its own state, and fills in the steps that have work and no statement', () => {
@@ -405,6 +418,49 @@ describe('rollUpProgress', () => {
 
     expect(byStep.get('parent')?.get('dev')).toBe('done');
     expect(states.get('parent')).toBe('in_progress');
+  });
+
+  it('a node with an attempt holds work', () => {
+    const worked = workedStepsOf([], [], [], [node('a', 'qa')]);
+
+    expect([...(worked.get('a') ?? [])]).toEqual(['qa']);
+  });
+
+  it('a running attempt reads in progress in the fold', () => {
+    const rows = [item('a', null)];
+    const qa = node('a', 'qa');
+
+    const { byStep, states } = fold(rows, [], [], [said('a', 'dev', 'done')], [qa], [qa]);
+
+    expect(byStep.get('a')?.get('qa')).toBe('in_progress');
+    expect(states.get('a')).toBe('in_progress');
+  });
+
+  it('a running attempt never outranks a statement', () => {
+    const rows = [item('a', null)];
+    const dev = node('a', 'dev');
+
+    const { byStep } = fold(rows, [], [], [said('a', 'dev', 'done')], [dev], [dev]);
+
+    expect(byStep.get('a')?.get('dev')).toBe('done');
+  });
+
+  it('a running attempt starts the leaf', () => {
+    const rows = [item('a', null)];
+    const dev = node('a', 'dev');
+
+    const { states } = fold(rows, [], [], [], [dev], [dev]);
+
+    expect(states.get('a')).toBe('in_progress');
+  });
+
+  it('an ended failed attempt keeps a silent QA in the fold', () => {
+    const rows = [item('a', null)];
+
+    const { byStep, states } = fold(rows, [], [], [said('a', 'dev', 'done')], [node('a', 'qa')]);
+
+    expect(states.get('a')).toBe('in_progress');
+    expect(byStep.get('a')?.get('qa')).toBe('unknown');
   });
 
   it('ignores a statement naming a work item that is not in the rows', () => {
