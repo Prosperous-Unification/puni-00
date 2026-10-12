@@ -91,3 +91,28 @@ could not fail.
 
 - `bin/h2puni-gate.sh <sha>` (host gate): the orchestrator runs it on the integrated head.
 - The unreadable-input proofs need a non-root runner; under uid 0 the test throws.
+
+## WBS v8 schema drift repair, 2026-10-13
+
+Observed in `.worktrees/round14-twilight-fixture`, based on
+`a61ce440dcbe0880559bc6d97e584e055cf7e23d` on the local workstation (uid 1000).
+The unchanged Navigator suite reproduced the canonical gate failure: 18 pass,
+13 fail. Navigator's version pin and fixture remained v7, while WBS's imported
+`planDocument` required v8 and each step's `estimateUnit`.
+
+The decoder now derives the v7 wire shape before deep validation: version 7,
+steps without `estimateUnit`, and work items without `charged`. Only after
+validation does it normalize the internal document to v8 with workday steps.
+The reference still names version 7 and hashes the original export bytes.
+The README and current delta spec now describe the existing v7 pin.
+
+| Command / injected fault                                                                                                                       | Observed result                                                                                                           |
+| ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `bun test --preload ../../../../tools/test/scratch/preload.ts src --timeout=30000` (Navigator CLI directory)                                   | Original: 18 pass, 13 fail. Repaired: 37 pass, 0 fail, including six new v7 field refusal cases.                          |
+| Remove `.onDeepUndeclaredKey('reject')`; run the same preload with `src/plan-reference.test.ts --test-name-pattern carrying --timeout=30000`   | Exit 1: all seven root/step/charge unknown-field cases failed with exit 0 instead of expected exit 1. Restored the check. |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t test lint typecheck -p twilight-navigator --skip-nx-cache --output-style=static` | Exit 0 on the final adapter: all three targets passed uncached; 37 tests passed, 0 failed.                                |
+| `BUN_TMPDIR=/tmp bunx @fission-ai/openspec@1.12.0 validate twilight-navigator-plan-reference --strict --json`                                  | Exit 0, 1/1 passed.                                                                                                       |
+
+Dependencies were provided by a symlink to the existing root `node_modules`;
+a fresh frozen install and the canonical h2puni gate remain release integration
+checks. No full workspace gate was run on this workstation.

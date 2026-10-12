@@ -429,7 +429,7 @@ describe('a command batch', () => {
 
   it('takes back the steps an undo already applied when a later step cannot', async () => {
     // A journal entry as the runner writes one, whose inverse renames X and
-    // then sets an estimate for a step nobody has: the preconditions hold, so
+    // then assigns a person to a step nobody has: the preconditions hold, so
     // the first step is applied before the second is refused — and the rename
     // must be gone again, or an undo has left a plan nobody asked for. The
     // entry is appended by hand because every natural way of making a later
@@ -439,6 +439,8 @@ describe('a command batch', () => {
     // 'Undone' to be 'X'`; the per-step refusal dropped from `apply`'s batch
     // arm, on `expected true to be false` — the undo reported done. Watched,
     // 2026-08-29.
+    // Proof: skipping the per-step refusal in production apply made this absent-step
+    // assignment fixture report true instead of false on 2026-10-13.
     const refs = applied(
       await run([{ kind: 'createWorkItem', ref: 'x', parentId: null, afterId: null, name: 'X' }]),
     );
@@ -448,10 +450,10 @@ describe('a command batch', () => {
     if (row === null) throw new Error('x is not stored');
     const rename = { do: 'patch' as const, workItemId: x, patch: { name: 'Undone' } };
     const impossible = {
-      do: 'set_estimate' as const,
+      do: 'assign' as const,
       workItemId: x,
       stepId: 'no-such-step',
-      days: DAYS,
+      personId: 'no-such-person',
     };
     const at = Date.now();
     await journalStore.append(

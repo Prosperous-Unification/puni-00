@@ -983,7 +983,7 @@ describe('after activation', () => {
 /** Replaces the inverse of `own`'s newest journal entry, as a pre-activation entry could hold. */
 function plantInverse(inverse: unknown): void {
   h.sqlite.run(
-    'UPDATE command_journal SET inverse = ? WHERE id = (SELECT id FROM command_journal WHERE project_id = ? ORDER BY seq DESC LIMIT 1)',
+    "UPDATE command_journal SET inverse = ?, preconditions = json_remove(preconditions, '$.estimateUnits') WHERE id = (SELECT id FROM command_journal WHERE project_id = ? ORDER BY seq DESC LIMIT 1)",
     [JSON.stringify(inverse), own],
   );
 }

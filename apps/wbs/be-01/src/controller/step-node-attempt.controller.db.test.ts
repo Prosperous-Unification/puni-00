@@ -546,7 +546,7 @@ describe('node readings on the work-item read', () => {
   });
 });
 
-describe('the plan document carries the zone and the attempts (version 7)', () => {
+describe('the plan document carries the zone and the attempts', () => {
   interface DocumentRow {
     name: string;
     attempts?: Record<string, Record<string, unknown>[]>;
@@ -601,7 +601,7 @@ describe('the plan document carries the zone and the attempts (version 7)', () =
 
   it('round-trips a Kyiv project whose 010.dev holds attempts 1 failed and 2 running', async () => {
     const document = await attemptedExport();
-    expect(document.document.version).toBe(7);
+    expect(document.document.version).toBe(8);
     expect(document.settings.timezone).toBe('Europe/Kyiv');
     const row = document.workItems.find((each) => each.name === 'Strip');
     expect(row?.spans).toBeUndefined();
