@@ -1,10 +1,10 @@
 import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 
 import { afterAll, expect, test } from 'bun:test';
 
-import { buildLauncher, launcherBuildConfig, workspaceRoot } from './build';
+import { buildLauncher, launcherBuildConfig, normaliseLauncher, workspaceRoot } from './build';
 
 const roots: string[] = [];
 
@@ -37,10 +37,16 @@ async function copyBuildInputs(): Promise<string> {
     const source = input.includes('/node_modules/') ? packageDirectory(input) : input;
     if (copied.has(source)) continue;
     copied.add(source);
-    cpSync(source, join(root, relative(workspaceRoot, source)), { recursive: true });
+    cpSync(source, join(root, relative(workspaceRoot, source)), {
+      recursive: true,
+      verbatimSymlinks: true,
+    });
   }
   for (const path of ['package.json', 'tsconfig.base.json', 'node_modules/typescript']) {
-    cpSync(join(workspaceRoot, path), join(root, path), { recursive: true });
+    cpSync(join(workspaceRoot, path), join(root, path), {
+      recursive: true,
+      verbatimSymlinks: true,
+    });
   }
   for (const input of inputs.filter((path) => !path.includes('/node_modules/'))) {
     for (
@@ -78,3 +84,20 @@ test('two checkouts at different paths build byte-identical launchers', async ()
   }
   expect(identities[0]).toBe(identities[1]);
 }, 180_000);
+
+test('normaliseLauncher refuses home, cache and checkout paths', () => {
+  const root = mkdtempSync(join(tmpdir(), 'dash-launcher-paths-'));
+  roots.push(root);
+  expect(normaliseLauncher(`var d = "${root}/node_modules/x";`, root)).toBe(
+    'var d = "node_modules/x";',
+  );
+  for (const leaked of [
+    `${homedir()}/.bun/install/cache/x`,
+    `${homedir()}/wd/other-checkout/node_modules/x`,
+    root,
+  ]) {
+    expect(() => normaliseLauncher(`var d = "${leaked}";`, root), leaked).toThrow(
+      'launcher still names a build-host path',
+    );
+  }
+});
