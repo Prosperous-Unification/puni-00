@@ -279,6 +279,7 @@ describe('20260905090000_add_calendar_marker', () => {
           n !== 'browser_auth_lifecycle' &&
           n !== 'shared_people_audit' &&
           n !== 'step_node_attempt' &&
+          n !== 'step_node_attempt_issued' &&
           n !== 'browser_credential_revocations' &&
           n !== 'email_challenge' &&
           n !== 'typed_dependency' &&

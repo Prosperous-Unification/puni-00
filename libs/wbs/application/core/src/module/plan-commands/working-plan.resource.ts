@@ -395,6 +395,15 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
       await scope.stores.attempts.restore(attempt, stamp);
       await refreshRows([attempt.workItemId]);
     },
+    listIssued: (requestedProjectId, ids) => {
+      assertProject(requestedProjectId);
+      return scope.stores.attempts.listIssued(requestedProjectId, ids);
+    },
+    // A mark moves no revision, so there is no row to refresh.
+    raiseIssued: (marks) => {
+      assertOpen();
+      return scope.stores.attempts.raiseIssued(marks);
+    },
     moveAll: async (fromWorkItemId, toWorkItemId, stamp) => {
       assertOpen();
       await scope.stores.attempts.moveAll(fromWorkItemId, toWorkItemId, stamp);

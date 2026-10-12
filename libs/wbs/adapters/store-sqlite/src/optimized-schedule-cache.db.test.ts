@@ -393,6 +393,7 @@ describe('the optimizer migration', () => {
             name !== 'browser_auth_lifecycle' &&
             name !== 'shared_people_audit' &&
             name !== 'step_node_attempt' &&
+            name !== 'step_node_attempt_issued' &&
             name !== 'browser_credential_revocations' &&
             name !== 'email_challenge' &&
             !ADDED_TABLES.includes(name as never) &&

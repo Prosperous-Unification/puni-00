@@ -1322,9 +1322,12 @@ describe('migration deploy entrypoints', () => {
     const readAttempts = () => {
       const sqlite = openDatabase(dbPath);
       try {
-        return sqlite
-          .query('SELECT * FROM step_node_attempt ORDER BY step_id, attempt_number')
-          .all();
+        return {
+          rows: sqlite
+            .query('SELECT * FROM step_node_attempt ORDER BY step_id, attempt_number')
+            .all(),
+          marks: sqlite.query('SELECT * FROM step_node_attempt_issued ORDER BY step_id').all(),
+        };
       } finally {
         sqlite.close();
       }
@@ -1347,22 +1350,30 @@ describe('migration deploy entrypoints', () => {
       sqlite.run(
         `INSERT INTO step_node_attempt (work_item_id,step_id,attempt_number,started_at,ended_at,outcome,executor_person_id,reference,note,created_at,updated_at,created_by) VALUES ${rows.join(',')}`,
       );
+      // QA's attempt 2 was removed while it was the highest: only its mark says so.
+      sqlite.run(
+        "INSERT INTO step_node_attempt_issued (work_item_id,step_id,issued) VALUES ('a','dev',3),('a','qa',2)",
+      );
     } finally {
       sqlite.close();
     }
     const stored = readAttempts();
-    expect(stored).toHaveLength(3);
+    expect(stored.rows).toHaveLength(3);
+    expect(stored.marks).toEqual([
+      { work_item_id: 'a', step_id: 'dev', issued: 3 },
+      { work_item_id: 'a', step_id: 'qa', issued: 2 },
+    ]);
     const refused = await runCli('migrate-down-cli.ts', dbPath, `--to=${baseline}`);
     expect(refused.exitCode).not.toBe(0);
     expect(refused.stderr).toContain('step-node-attempt-rollback-cli.ts');
     expect(await runCli('step-node-attempt-rollback-cli.ts', dbPath, 'save', savedPath)).toEqual({
       exitCode: 0,
-      stdout: 'step node attempts saved: 3\n',
+      stdout: 'step node attempts saved: 3, marks: 2\n',
       stderr: '',
     });
     expect(await runCli('step-node-attempt-rollback-cli.ts', dbPath, 'remove', savedPath)).toEqual({
       exitCode: 0,
-      stdout: 'step node attempts removed: 3\n',
+      stdout: 'step node attempts removed: 3, marks: 2\n',
       stderr: '',
     });
     const down = await runCli('migrate-down-cli.ts', dbPath, `--to=${baseline}`);
@@ -1373,8 +1384,47 @@ describe('migration deploy entrypoints', () => {
       stdout: 'migrations applied\n',
       stderr: '',
     });
+    // The file is checked before any write: a version-1 save carries no marks,
+    // and a mark below 1 is not one the table could hold.
+    // Proof, watched 2026-10-12: the `version !== 2` check removed, the first
+    // restore exited 0; the `issued < 1` check removed, the second failed only
+    // inside the transaction on `step_node_attempt_issued_number`, without the
+    // named refusal.
+    const saved = (await Bun.file(savedPath).json()) as { rows: unknown[]; marks: unknown[] };
+    const versionOne = join(root, 'version-one.json');
+    await Bun.write(
+      versionOne,
+      JSON.stringify({ format: 'step-node-attempt-save', version: 1, rows: saved.rows }),
+    );
+    const refusedOne = await runCli(
+      'step-node-attempt-rollback-cli.ts',
+      dbPath,
+      'restore',
+      versionOne,
+    );
+    expect(refusedOne.exitCode).not.toBe(0);
+    expect(refusedOne.stderr).toContain('invalid step node attempt save format or version');
+    const zeroMark = join(root, 'zero-mark.json');
+    await Bun.write(
+      zeroMark,
+      JSON.stringify({
+        format: 'step-node-attempt-save',
+        version: 2,
+        rows: saved.rows,
+        marks: [{ work_item_id: 'a', step_id: 'qa', issued: 0 }],
+      }),
+    );
+    const refusedZero = await runCli(
+      'step-node-attempt-rollback-cli.ts',
+      dbPath,
+      'restore',
+      zeroMark,
+    );
+    expect(refusedZero.exitCode).not.toBe(0);
+    expect(refusedZero.stderr).toContain('issued must be at least 1');
+    expect(readAttempts()).toEqual({ rows: [], marks: [] });
     expect(await runCli('step-node-attempt-rollback-cli.ts', dbPath, 'restore', savedPath)).toEqual(
-      { exitCode: 0, stdout: 'step node attempts restored: 3\n', stderr: '' },
+      { exitCode: 0, stdout: 'step node attempts restored: 3, marks: 2\n', stderr: '' },
     );
     expect(readAttempts()).toEqual(stored);
   }, 60_000);

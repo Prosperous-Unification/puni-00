@@ -40,7 +40,7 @@ export function inMemoryStores(): TransactionalStores {
   const actuals = inMemoryActuals(workItems, undefined, steps);
   const measures = inMemoryMeasures(workItems, undefined, steps);
   const progress = inMemoryProgress(workItems, undefined, steps);
-  const attempts = inMemoryAttempts(workItems, undefined, steps);
+  const attempts = inMemoryAttempts(workItems, undefined, steps, progress);
   const dependencies = inMemoryDependencies([], undefined, workItems);
   return {
     users,

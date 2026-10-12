@@ -1206,6 +1206,36 @@ export const stepNodeAttempt = sqliteTable(
 
 export type StepNodeAttemptRow = typeof stepNodeAttempt.$inferSelect;
 
+/**
+ * The highest attempt number a step node has issued (A42, ADR 0045): the floor
+ * `StepNodeAttemptRepository.start` numbers above, with the rows' own maximum,
+ * so a number freed by a removal is never claimed again. A table of its own
+ * because a node's attempt rows can all be removed, and a mark on them would go
+ * with the last one. Raised by every start and restore, never lowered.
+ *
+ * Both references cascade, unlike {@link stepNodeAttempt}'s `step_id`: the mark
+ * is no history a removal must count or refuse over, only a number, and
+ * neither colour's plain delete of a work item or a step may meet a constraint
+ * it cannot see. Created by `20261012120000_add_step_node_attempts`.
+ */
+export const stepNodeAttemptIssued = sqliteTable(
+  'step_node_attempt_issued',
+  {
+    workItemId: text('work_item_id')
+      .notNull()
+      .references(() => workItem.id, { onDelete: 'cascade' }),
+    stepId: text('step_id')
+      .notNull()
+      .references(() => step.id, { onDelete: 'cascade' }),
+    issued: integer('issued').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.workItemId, t.stepId] }),
+    index('step_node_attempt_issued_by_step').on(t.stepId),
+    check('step_node_attempt_issued_number', sql`${t.issued} >= 1`),
+  ],
+);
+
 export type StepProgressRow = typeof stepProgress.$inferSelect;
 
 /**

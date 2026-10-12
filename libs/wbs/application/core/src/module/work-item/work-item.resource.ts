@@ -2500,6 +2500,14 @@ export class WorkItemService {
       gainsFirstChild === null
         ? []
         : [...(await this.opts.attempts.listOfWorkItem(gainsFirstChild)).values()].flat();
+    // And the parent's attempt-number marks, which `moveAll` copies to the
+    // child (A42). Read for the redo: undoing this create deletes the child and
+    // its marks with it, and a number removed while it was the parent's highest
+    // shows in no attempt the redo writes back.
+    const issuedHandedDown =
+      gainsFirstChild === null
+        ? []
+        : await this.opts.attempts.listIssued(projectId, [gainsFirstChild]);
     const assignedHandedDown =
       gainsFirstChild === null ? [] : await this.opts.directory.assignmentsFor(gainsFirstChild);
     const stepNodeMapping =
@@ -2584,6 +2592,10 @@ export class WorkItemService {
       progress: statedHandedDown.map((each) => ({ ...each, workItemId: workItem.id })),
       measures: measuredHandedDown.map((each) => ({ ...each, workItemId: workItem.id })),
       attempts: attemptedHandedDown.map((each) => ({ ...each, workItemId: workItem.id })),
+      // Proof: left out, `skips a number removed before the first child, across
+      // the create's undo and redo` in `step-node-attempt.controller.db.test.ts`
+      // read the child's numbers `[1, 2]` where `[1, 3]` was owed; watched 2026-10-12.
+      issuedAttemptNumbers: issuedHandedDown.map((each) => ({ ...each, workItemId: workItem.id })),
       assignments: assignedHandedDown.map((assignment) => ({
         ...assignment,
         workItemId: workItem.id,
@@ -3374,6 +3386,10 @@ export class WorkItemService {
     const survivor = workItem.parentId;
     const doomed = children.length === 0 || strategy === 'cascade' ? subtreeOf(rows, id) : [id];
     const inside = new Set(doomed);
+    // Read before anything is deleted, for the attempts' cascade: the marks go
+    // with their work items, and an undo that wrote back only the attempts
+    // would let a number removed while it was a node's highest be issued again.
+    const storedIssued = await this.opts.attempts.listIssued(workItem.projectId, doomed);
     if (
       survivor !== null &&
       (children.length === 0 || strategy === 'cascade') &&
@@ -3600,6 +3616,10 @@ export class WorkItemService {
               measures: storedMeasures.filter((each) => inside.has(each.workItemId)),
               // Every attempt at the branch's nodes, verbatim with its number.
               attempts: storedAttempts.filter((each) => inside.has(each.workItemId)),
+              // Proof: left out, `puts a deleted leaf back still skipping its removed
+              // highest number` in `step-node-attempt.controller.db.test.ts` numbered
+              // `[1, 2]` where `[1, 3]` was owed; watched 2026-10-12.
+              issuedAttemptNumbers: storedIssued,
               assignments: doomedAssignments,
               internalDependencies: cut.filter(
                 (edge) => inside.has(edge.predecessorId) && inside.has(edge.successorId),
@@ -3724,6 +3744,7 @@ export class WorkItemService {
           // The promoted row's own attempts: none on a row with children, read
           // from the same source for the figures' reason.
           attempts: storedAttempts.filter((each) => each.workItemId === id),
+          issuedAttemptNumbers: storedIssued.filter((each) => each.workItemId === id),
           assignments: deletedAssignments,
           internalDependencies: [],
           externalDependencies: cut,
@@ -4472,10 +4493,13 @@ export class WorkItemService {
     if (rows.some((row) => row.parentId === id)) return { ok: false, reason: 'rolled_up' };
     if (!(await this.holdsStep(workItem.projectId, stepId)))
       return { ok: false, reason: 'unknown_step' };
-    // Proof: this refusal removed made `refuses node_done, attempt_running and
-    // attempt_in_future at their command index` in
-    // `step-node-attempt.controller.db.test.ts` answer 200 for the done node
-    // (`- "status": 409 / + "status": 200`); watched 2026-10-12.
+    // The fast path only: the store reads the node's state again inside the
+    // start's `BEGIN IMMEDIATE`, which is the refusal another process cannot
+    // slip past. Proof, watched 2026-10-12: this refusal removed, `refuses
+    // node_done, attempt_running and attempt_in_future at their command index`
+    // in `step-node-attempt.controller.db.test.ts` still refused on the store's
+    // read; with that removed as well the batch answered 200 (`- "error":
+    // "node_done"` / `+ "results": [...]`).
     if ((await this.storedProgress(workItem.projectId, id, stepId)) === 'done')
       return { ok: false, reason: 'node_done' };
     // Proof: this refusal removed, the same case still passed on the store's
@@ -6125,6 +6149,19 @@ export class WorkItemService {
       await this.opts.attempts.remove(key.workItemId, key.stepId, key.attemptNumber, stamp);
     }
     for (const each of command.attempts ?? []) await this.opts.attempts.restore(each, stamp);
+    // Then the marks, for numbers the attempts no longer show (A42). A mark on a
+    // row outside the branch is a journal this process did not write; one on a
+    // step removed since went with the step, as its node did.
+    const marks = command.issuedAttemptNumbers ?? [];
+    if (marks.length > 0) {
+      const restoredIds = new Set(command.rows.map((row) => row.id));
+      const stray = marks.find((mark) => !restoredIds.has(mark.workItemId));
+      if (stray !== undefined) {
+        throw new Error(`a restore carries a mark for ${stray.workItemId}, outside its branch`);
+      }
+      const held = new Set((await this.opts.projects.stepsOf(projectId)).map((each) => each.id));
+      await this.opts.attempts.raiseIssued(marks.filter((mark) => held.has(mark.stepId)));
+    }
 
     // The edges that leave the branch, one at a time and through the same
     // guard an ordinary request goes through. This is the one part of a

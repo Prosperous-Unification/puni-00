@@ -7,6 +7,11 @@
 -- The CHECK's name is the message the operator reads, so it carries the
 -- procedure.
 --
+-- `step_node_attempt_issued` is dropped without a guard of its own: once the
+-- attempt guard has passed, its marks hold nothing but the numbers attempts
+-- removed earlier had, no history. `save` keeps them beside the attempts, and
+-- `restore` writes them back, so a node still never reissues a number.
+--
 -- `project.timezone` is dropped without a guard, as readiness is: it is a
 -- planner's setting, nothing is scheduled from it, and a later forward run
 -- reads every project as `UTC` again.
@@ -20,6 +25,8 @@ CREATE TEMP TABLE step_node_attempt_rollback_guard (
 );--> statement-breakpoint
 INSERT INTO step_node_attempt_rollback_guard SELECT count(*) FROM step_node_attempt;--> statement-breakpoint
 DROP TABLE step_node_attempt_rollback_guard;--> statement-breakpoint
+DROP INDEX `step_node_attempt_issued_by_step`;--> statement-breakpoint
+DROP TABLE `step_node_attempt_issued`;--> statement-breakpoint
 DROP INDEX `step_node_attempt_running`;--> statement-breakpoint
 DROP INDEX `step_node_attempt_by_step`;--> statement-breakpoint
 DROP TABLE `step_node_attempt`;--> statement-breakpoint

@@ -26,15 +26,17 @@ try {
   if (command === 'save') {
     const saved = saveStepNodeAttempts(connection.db);
     await Bun.write(file, JSON.stringify(saved));
-    console.log(`step node attempts saved: ${String(saved.rows.length)}`);
+    console.log(
+      `step node attempts saved: ${String(saved.rows.length)}, marks: ${String(saved.marks.length)}`,
+    );
   } else {
     const saved: unknown = await Bun.file(file).json();
-    const count =
+    const counts =
       command === 'remove'
         ? removeSavedStepNodeAttempts(connection.db, saved)
         : restoreStepNodeAttempts(connection.db, saved);
     console.log(
-      `step node attempts ${command === 'remove' ? 'removed' : 'restored'}: ${String(count)}`,
+      `step node attempts ${command === 'remove' ? 'removed' : 'restored'}: ${String(counts.rows)}, marks: ${String(counts.marks)}`,
     );
   }
 } finally {

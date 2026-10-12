@@ -105,7 +105,12 @@ export const CASE_MANIFEST = {
     'progress.moveAll:ownership',
     'progress.set:unknown_step',
   ],
-  attempts: ['attempts.start:number-and-running', 'attempts.moveAll:ownership'],
+  attempts: [
+    'attempts.start:number-and-running',
+    'attempts.start:never-reuses',
+    'attempts.moveAll:ownership',
+    'attempts.moveAll:issued',
+  ],
   dependencies: [
     'dependencies.listByWorkItems:incident-scope',
     'dependencies.add:idempotent-pair',

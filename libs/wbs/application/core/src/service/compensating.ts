@@ -6,7 +6,7 @@ import type { Assignment } from '../ports/directory-store';
 import type { StoredEstimate } from '../ports/estimate-store';
 import type { MeasureKey, StoredMeasure } from '../ports/measure-store';
 import type { ProgressKey, StoredProgress } from '../ports/progress-store';
-import type { StoredAttempt } from '../ports/step-node-attempt-store';
+import type { IssuedAttemptNumber, StoredAttempt } from '../ports/step-node-attempt-store';
 import type { EstimateKey } from '../ports/subtree-store';
 import type { StoredTypedDependency } from '../ports/typed-dependency-store';
 import type { FrozenNumber, Reparented, WorkItem, WorkItemPatch } from '../ports/work-item-store';
@@ -258,6 +258,17 @@ export interface RestoreSubtree {
    * written before attempts existed.
    */
   attempts?: StoredAttempt[];
+  /**
+   * The restored rows' attempt-number marks (A42), raised after the attempts:
+   * the delete's cascade took them, and a number removed while it was the
+   * highest shows in no attempt above. Each names a restored row; one on a
+   * step removed since is dropped with that step. Not in
+   * {@link referencesOf}: the rows are the branch's own and the steps are
+   * checked against the project when it is applied. Absent from journals
+   * written before marks existed, whose restores raise each node to its
+   * attempts' highest number only.
+   */
+  issuedAttemptNumbers?: IssuedAttemptNumber[];
   assignments: Assignment[];
   /** New journals carry the parent-to-child node IDs; old journals omit them because older creates recorded no mapping. */
   stepNodeMapping?: { from: string; to: string }[];

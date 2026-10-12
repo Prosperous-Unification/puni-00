@@ -219,6 +219,109 @@ describe('the attempt commands', () => {
   });
 });
 
+/** The attempt numbers A42 holds: a number once issued at a node is never issued again. */
+describe('attempt numbers are never reused', () => {
+  const numbersAt = (workItemId: string) =>
+    h.sqlite
+      .query<{ attempt_number: number }, [string, string]>(
+        `SELECT attempt_number FROM step_node_attempt WHERE work_item_id = ? AND step_id = ?
+          ORDER BY attempt_number`,
+      )
+      .all(workItemId, dev)
+      .map((row) => row.attempt_number);
+
+  const twoEnded = async () => {
+    for (const outcome of ['failed', 'succeeded']) {
+      await batch([{ kind: 'startAttempt', workItemId: strip, stepId: dev }]);
+      await batch([{ kind: 'endAttempt', workItemId: strip, stepId: dev, outcome }]);
+    }
+  };
+
+  const removeSecond = async () => {
+    const removed = await batch([
+      { kind: 'removeAttempt', workItemId: strip, stepId: dev, attemptNumber: 2 },
+    ]);
+    expect(removed.status).toBe(200);
+  };
+
+  const call = (route: 'undo' | 'redo') =>
+    h.call('ada', 'POST', `/api/projects/${project}/${route}`);
+
+  it('numbers count up and never reuse: remove 2 of {1, 2}, the next start is 3', async () => {
+    await twoEnded();
+    await removeSecond();
+
+    expect((await batch([{ kind: 'startAttempt', workItemId: strip, stepId: dev }])).status).toBe(
+      200,
+    );
+    expect(numbersAt(strip)).toEqual([1, 3]);
+  });
+
+  it('puts a removed attempt back under its own number on undo, renumbering nothing', async () => {
+    await twoEnded();
+    const held = stored(dev);
+    await removeSecond();
+
+    expect(await call('undo')).toMatchObject({
+      status: 200,
+      body: { done: 'removed attempt 2 of 010.s1-dev' },
+    });
+    expect(stored(dev)).toEqual(held);
+    await batch([{ kind: 'startAttempt', workItemId: strip, stepId: dev }]);
+    expect(numbersAt(strip)).toEqual([1, 2, 3]);
+  });
+
+  it('leaves an undone start’s number issued: the next start takes the one after it', async () => {
+    await twoEnded();
+    await batch([{ kind: 'startAttempt', workItemId: strip, stepId: dev }]);
+    expect((await call('undo')).status).toBe(200);
+    expect(numbersAt(strip)).toEqual([1, 2]);
+
+    await batch([{ kind: 'startAttempt', workItemId: strip, stepId: dev }]);
+    expect(numbersAt(strip)).toEqual([1, 2, 4]);
+  });
+
+  it('skips a number removed before the first child, across the create’s undo and redo', async () => {
+    await twoEnded();
+    await removeSecond();
+    const created = await batch([
+      { kind: 'createWorkItem', parentId: strip, afterId: null, name: 'Back boxes' },
+    ]);
+    const child = (created.body as { results?: { id?: string }[] }).results?.[0]?.id;
+    if (child === undefined) throw new Error(`no child: ${JSON.stringify(created)}`);
+    expect(numbersAt(child)).toEqual([1]);
+
+    expect((await call('undo')).status).toBe(200);
+    expect(numbersAt(strip)).toEqual([1]);
+    expect((await call('redo')).status).toBe(200);
+    expect(numbersAt(child)).toEqual([1]);
+
+    await batch([{ kind: 'startAttempt', workItemId: child, stepId: dev }]);
+    expect(numbersAt(child)).toEqual([1, 3]);
+  });
+
+  it('gives the parent back its numbers when the first child’s create is undone', async () => {
+    await twoEnded();
+    await removeSecond();
+    await batch([{ kind: 'createWorkItem', parentId: strip, afterId: null, name: 'Back boxes' }]);
+    expect((await call('undo')).status).toBe(200);
+
+    await batch([{ kind: 'startAttempt', workItemId: strip, stepId: dev }]);
+    expect(numbersAt(strip)).toEqual([1, 3]);
+  });
+
+  it('puts a deleted leaf back still skipping its removed highest number', async () => {
+    await twoEnded();
+    await removeSecond();
+    await batch([{ kind: 'deleteWorkItem', workItemId: strip }]);
+    expect((await call('undo')).status).toBe(200);
+    expect(numbersAt(strip)).toEqual([1]);
+
+    await batch([{ kind: 'startAttempt', workItemId: strip, stepId: dev }]);
+    expect(numbersAt(strip)).toEqual([1, 3]);
+  });
+});
+
 describe('the work-item read', () => {
   interface ReadRow {
     name: string;
@@ -514,7 +617,7 @@ describe('the plan document carries the zone and the attempts (version 7)', () =
     const tree = await h.call('ada', 'GET', `/api/projects/${copy}/work-items`);
     const body = tree.body as {
       steps: { id: string; code: string }[];
-      workItems: (DocumentRow & { attempts?: Record<string, unknown[]> })[];
+      workItems: (DocumentRow & { id: string; attempts?: Record<string, unknown[]> })[];
     };
     const copiedDev = body.steps.find((step) => step.code === 'dev')?.id ?? '';
     const copied = body.workItems.find((each) => each.name === 'Strip');
@@ -530,6 +633,15 @@ describe('the plan document carries the zone and the attempts (version 7)', () =
       },
       { attemptNumber: 2, startedAt: retried, endedAt: null, outcome: null },
     ]);
+    // The document carries no removed numbers, so the copy's mark is its
+    // highest imported number (A42).
+    expect(
+      h.sqlite
+        .query<{ issued: number }, [string, string]>(
+          'SELECT issued FROM step_node_attempt_issued WHERE work_item_id = ? AND step_id = ?',
+        )
+        .all(copied?.id ?? '', copiedDev),
+    ).toEqual([{ issued: 2 }]);
   });
 
   it('imports a version-6 document as UTC with no attempts', async () => {

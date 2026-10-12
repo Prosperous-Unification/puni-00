@@ -775,6 +775,7 @@ describe('20260927120000_add_organization_records', () => {
           name !== 'browser_auth_lifecycle' &&
           name !== 'shared_people_audit' &&
           name !== 'step_node_attempt' &&
+          name !== 'step_node_attempt_issued' &&
           name !== 'browser_credential_revocations' &&
           name !== 'email_challenge' &&
           name !== 'typed_dependency' &&

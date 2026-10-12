@@ -1,6 +1,8 @@
 import type {
+  IssuedAttemptNumber,
   RunningStoredAttempt,
   StepNodeAttemptStore,
+  StepProgressStore,
   StepStore,
   StoredAttempt,
   WorkItemStore,
@@ -8,15 +10,28 @@ import type {
 
 /**
  * A StepNodeAttemptStore backed by an array, holding the invariants the SQLite
- * table's checks and partial index hold: numbers from the node's highest plus
- * one, at most one running attempt per node.
+ * table's checks and partial index hold: numbers one past the higher of the
+ * node's mark and its highest row (A42), at most one running attempt per node,
+ * and, given `progress`, no start on a node stated `done`.
  */
 export function inMemoryAttempts(
   workItems: WorkItemStore,
   table: MemoryAttemptTable = memoryAttemptTable(),
   steps?: StepStore,
+  progress?: Pick<StepProgressStore, 'listByWorkItems'>,
 ): StepNodeAttemptStore {
-  const { rows } = table;
+  const { rows, issued } = table;
+  const markOf = (workItemId: string, stepId: string) =>
+    issued.find((mark) => mark.workItemId === workItemId && mark.stepId === stepId);
+  /** `raiseMarks` in the SQLite adapter: the higher number wins, never the lower. */
+  const raise = (marks: readonly IssuedAttemptNumber[]) => {
+    for (const mark of marks) {
+      const held = markOf(mark.workItemId, mark.stepId);
+      const next = { workItemId: mark.workItemId, stepId: mark.stepId, issued: mark.issued };
+      if (held === undefined) issued.push(next);
+      else if (held.issued < mark.issued) issued.splice(issued.indexOf(held), 1, next);
+    }
+  };
   const onNode = (workItemId: string, stepId: string) =>
     rows.filter((row) => row.workItemId === workItemId && row.stepId === stepId);
   const ordered = async (projectId: string, kept: StoredAttempt[]) => {
@@ -70,19 +85,31 @@ export function inMemoryAttempts(
       }
       return Promise.resolve(bySteps);
     },
-    start(start, _stamp) {
+    async start(start, _stamp) {
+      const projectId = (await workItems.findById(start.workItemId))?.projectId;
+      if (progress !== undefined && projectId !== undefined) {
+        const stated = await progress.listByWorkItems(projectId, [start.workItemId]);
+        if (stated.some((each) => each.stepId === start.stepId && each.state === 'done')) {
+          return { ok: false, reason: 'node_done' as const };
+        }
+      }
       const held = onNode(start.workItemId, start.stepId);
       if (held.some((row) => row.endedAt === null)) {
-        return Promise.resolve({ ok: false, reason: 'attempt_running' as const });
+        return { ok: false, reason: 'attempt_running' as const };
       }
       const attempt: RunningStoredAttempt = {
         ...start,
-        attemptNumber: Math.max(0, ...held.map((row) => row.attemptNumber)) + 1,
+        attemptNumber:
+          Math.max(
+            markOf(start.workItemId, start.stepId)?.issued ?? 0,
+            ...held.map((row) => row.attemptNumber),
+          ) + 1,
         endedAt: null,
         outcome: null,
       };
       rows.push(structuredClone(attempt));
-      return Promise.resolve({ ok: true, attempt });
+      raise([{ ...start, issued: attempt.attemptNumber }]);
+      return { ok: true, attempt };
     },
     end(end, _stamp) {
       const prior = onNode(end.workItemId, end.stepId).find(
@@ -112,9 +139,31 @@ export function inMemoryAttempts(
     },
     restore(attempt, _stamp) {
       replaceRow(attempt);
+      raise([{ ...attempt, issued: attempt.attemptNumber }]);
+      return Promise.resolve();
+    },
+    async listIssued(projectId, wanted) {
+      const ids = await projectOf(projectId);
+      const asked = new Set(wanted);
+      return issued
+        .filter((mark) => ids.has(mark.workItemId) && asked.has(mark.workItemId))
+        .map((mark) => ({ ...mark }))
+        .sort(
+          (left, right) =>
+            left.workItemId.localeCompare(right.workItemId) ||
+            left.stepId.localeCompare(right.stepId),
+        );
+    },
+    raiseIssued(marks) {
+      raise(marks);
       return Promise.resolve();
     },
     moveAll(fromWorkItemId, toWorkItemId, _stamp) {
+      raise(
+        issued
+          .filter((mark) => mark.workItemId === fromWorkItemId)
+          .map((mark) => ({ ...mark, workItemId: toWorkItemId })),
+      );
       const moved = rows.map((row) =>
         row.workItemId === fromWorkItemId ? { ...row, workItemId: toWorkItemId } : row,
       );
@@ -126,8 +175,10 @@ export function inMemoryAttempts(
 
 export interface MemoryAttemptTable {
   readonly rows: StoredAttempt[];
+  /** The nodes' marks, cascading with their work item as the rows do. */
+  readonly issued: IssuedAttemptNumber[];
 }
 
 export function memoryAttemptTable(): MemoryAttemptTable {
-  return { rows: [] };
+  return { rows: [], issued: [] };
 }

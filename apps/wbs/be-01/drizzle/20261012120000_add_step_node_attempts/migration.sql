@@ -46,4 +46,25 @@ CREATE INDEX `step_node_attempt_by_step` ON `step_node_attempt` (`step_id`);
 --> statement-breakpoint
 CREATE UNIQUE INDEX `step_node_attempt_running` ON `step_node_attempt` (`work_item_id`, `step_id`) WHERE `ended_at` IS NULL;
 --> statement-breakpoint
+-- The highest number each node has issued (A42): `start` takes one past the
+-- greater of this and the node's highest row, and writes it back, so a number
+-- freed by a removal is never claimed again. It cannot be a column on
+-- `step_node_attempt`, whose rows can all be removed. Both references cascade:
+-- the mark is no history of its own, only the floor under the next number, and
+-- neither colour's plain `DELETE FROM work_item` or `DELETE FROM step` may meet
+-- a constraint it cannot see.
+--
+-- Proof, observed 2026-10-12 in `step-node-attempt.db.test.ts`: `start` reading
+-- the rows' maximum alone made `numbers past a removed highest attempt` start
+-- `"attemptNumber": 2` where 3 was owed.
+CREATE TABLE `step_node_attempt_issued` (
+	`work_item_id` text NOT NULL REFERENCES `work_item`(`id`) ON DELETE CASCADE,
+	`step_id` text NOT NULL REFERENCES `step`(`id`) ON DELETE CASCADE,
+	`issued` integer NOT NULL,
+	PRIMARY KEY (`work_item_id`, `step_id`),
+	CONSTRAINT `step_node_attempt_issued_number` CHECK (`issued` >= 1)
+);
+--> statement-breakpoint
+CREATE INDEX `step_node_attempt_issued_by_step` ON `step_node_attempt_issued` (`step_id`);
+--> statement-breakpoint
 ALTER TABLE `project` ADD `timezone` text DEFAULT 'UTC' NOT NULL;

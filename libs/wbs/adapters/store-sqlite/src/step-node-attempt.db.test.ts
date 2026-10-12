@@ -228,6 +228,110 @@ describe('StepNodeAttemptRepository', () => {
     expect(revisionOf('c')).toBe(1);
   });
 
+  const numbersOn = async (workItemId: string) =>
+    (await attempts.listByProject('p'))
+      .filter((each) => each.workItemId === workItemId)
+      .map(({ attemptNumber }) => attemptNumber);
+
+  const startEnded = async (workItemId: string, startedAt: number) => {
+    await start(workItemId, 'dev', startedAt);
+    await attempts.end(
+      { workItemId, stepId: 'dev', endedAt: startedAt + 1, outcome: 'failed' },
+      wrote,
+    );
+  };
+
+  /**
+   * The spec's "numbers count up and never reuse" (A42): the removed number
+   * was the highest, so only the stored high-water mark knows it was issued.
+   *
+   * Proof, watched 2026-10-12: with `start` reading `max(attempt_number)` over
+   * the rows alone (the `step_node_attempt_issued` read dropped) this case
+   * started `"attemptNumber": 2` where 3 was owed.
+   */
+  it('numbers past a removed highest attempt: remove 2 of {1, 2}, the next is 3', async () => {
+    await startEnded('a', 100);
+    await startEnded('a', 110);
+    await attempts.remove('a', 'dev', 2, wrote);
+
+    expect(await start('a', 'dev', 120)).toMatchObject({ ok: true, attempt: { attemptNumber: 3 } });
+    expect(await numbersOn('a')).toEqual([1, 3]);
+  });
+
+  it('numbers past a removed lower attempt: remove 1 of {1, 2}, the next is 3', async () => {
+    await startEnded('a', 100);
+    await startEnded('a', 110);
+    await attempts.remove('a', 'dev', 1, wrote);
+
+    expect(await start('a', 'dev', 120)).toMatchObject({ ok: true, attempt: { attemptNumber: 3 } });
+  });
+
+  it('restores a removed attempt under its own number, renumbering nothing', async () => {
+    await startEnded('a', 100);
+    await startEnded('a', 110);
+    const removed = await attempts.remove('a', 'dev', 2, wrote);
+    if (removed === null) throw new Error('nothing removed');
+    await attempts.restore(removed, wrote);
+
+    expect(await numbersOn('a')).toEqual([1, 2]);
+    expect(await start('a', 'dev', 120)).toMatchObject({ ok: true, attempt: { attemptNumber: 3 } });
+  });
+
+  it('raises the mark with a restored number above it and never lowers it', async () => {
+    await startEnded('a', 100);
+    const first = (await attempts.listByProject('p')).at(0);
+    if (first === undefined) throw new Error('nothing started');
+    await attempts.restore({ ...first, attemptNumber: 5 }, wrote);
+    await attempts.raiseIssued([{ workItemId: 'a', stepId: 'dev', issued: 2 }]);
+    expect(await attempts.listIssued('p', ['a', 'b'])).toEqual([
+      { workItemId: 'a', stepId: 'dev', issued: 5 },
+    ]);
+
+    await attempts.raiseIssued([{ workItemId: 'b', stepId: 'a-qa', issued: 4 }]);
+    expect(await start('b', 'a-qa', 120)).toMatchObject({
+      ok: true,
+      attempt: { attemptNumber: 5 },
+    });
+  });
+
+  it('copies the mark to a first child, past a highest removed before the child arrived', async () => {
+    await startEnded('a', 100);
+    await startEnded('a', 110);
+    await attempts.remove('a', 'dev', 2, wrote);
+    // Only a mark is left at the QA node: its one attempt was removed.
+    await start('a', 'a-qa', 120);
+    await attempts.remove('a', 'a-qa', 1, wrote);
+    withDatabase((sqlite) => {
+      sqlite.run(
+        "INSERT INTO work_item (id, project_id, parent_id, position, name, revision) VALUES ('c','p','a',1,'C',0)",
+      );
+    });
+    await attempts.moveAll('a', 'c', wrote);
+
+    expect(await attempts.listIssued('p', ['a', 'c'])).toEqual([
+      { workItemId: 'a', stepId: 'a-qa', issued: 1 },
+      { workItemId: 'a', stepId: 'dev', issued: 2 },
+      { workItemId: 'c', stepId: 'a-qa', issued: 1 },
+      { workItemId: 'c', stepId: 'dev', issued: 2 },
+    ]);
+    expect(await start('c', 'dev', 130)).toMatchObject({ ok: true, attempt: { attemptNumber: 3 } });
+    expect(await start('c', 'a-qa', 130)).toMatchObject({
+      ok: true,
+      attempt: { attemptNumber: 2 },
+    });
+  });
+
+  it('cascades the mark with its work item and its step', async () => {
+    await start('a', 'dev', 100);
+    await start('b', 'a-qa', 100);
+    withDatabase((sqlite) => {
+      sqlite.run("DELETE FROM work_item WHERE id = 'a'");
+      sqlite.run("DELETE FROM step_node_attempt WHERE step_id = 'a-qa'");
+      sqlite.run("DELETE FROM step WHERE id = 'a-qa'");
+      expect(sqlite.query('SELECT * FROM step_node_attempt_issued').all()).toEqual([]);
+    });
+  });
+
   /**
    * Proof, watched 2026-10-12: with `step_node_attempt_running` dropped from
    * `migration.sql` this case read `["started", "started"]` (two running rows,
@@ -283,5 +387,68 @@ describe('StepNodeAttemptRepository', () => {
         sqlite.query('SELECT attempt_number, ended_at FROM step_node_attempt ORDER BY 1').all(),
       ),
     ).toEqual([{ attempt_number: 1, ended_at: null }]);
+  });
+
+  it('refuses node_done for a node stated done, writing nothing', async () => {
+    withDatabase((sqlite) => {
+      sqlite.run(
+        "INSERT INTO step_progress (work_item_id, step_id, state, stated_at) VALUES ('a','dev','done',1)",
+      );
+    });
+    expect(await start('a', 'dev', 100)).toEqual({ ok: false, reason: 'node_done' });
+    expect(await numbersOn('a')).toEqual([]);
+    expect(await attempts.listIssued('p', ['a'])).toEqual([]);
+  });
+
+  /**
+   * The blue/green overlap a service-side check cannot see: another process
+   * states the node done while this start waits at `BEGIN IMMEDIATE`, after
+   * any read the caller made before the store. The node's state is read inside
+   * the start's own transaction, so the start refuses.
+   *
+   * Proof, watched 2026-10-12: with the in-transaction `step_progress` read
+   * removed from `start`, this case read `started` and stored attempt 1 under
+   * the done node.
+   */
+  it('refuses a start that waited while another process stated the node done', async () => {
+    const barrier = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT * 2);
+    const state = new Int32Array(barrier);
+    const starter = new Worker(new URL('./step-node-attempt-race.worker.ts', import.meta.url));
+    try {
+      const outcome = new Promise<string>((resolve, reject) => {
+        starter.onmessage = (message: MessageEvent<string>) => {
+          resolve(message.data);
+        };
+        starter.onerror = reject;
+      });
+      starter.postMessage({ path, barrier, startedAt: 100 });
+      const deadline = Date.now() + 5_000;
+      while (Atomics.load(state, 0) < 1 && Date.now() < deadline) {
+        await Bun.sleep(5);
+      }
+      expect(Atomics.load(state, 0)).toBe(1);
+      const stater = openDatabase(path);
+      try {
+        stater.run('BEGIN IMMEDIATE');
+        Atomics.store(state, 1, 1);
+        Atomics.notify(state, 1, 1);
+        // The starter reaches its `BEGIN IMMEDIATE` and waits behind this lock.
+        await Bun.sleep(300);
+        stater.run(
+          "INSERT INTO step_progress (work_item_id, step_id, state, stated_at) VALUES ('a','dev','done',1)",
+        );
+        stater.run('COMMIT');
+      } finally {
+        stater.close();
+      }
+      expect(await outcome).toBe('node_done');
+    } finally {
+      Atomics.store(state, 1, 1);
+      Atomics.notify(state, 1, 1);
+      starter.terminate();
+    }
+    expect(
+      withDatabase((sqlite) => sqlite.query('SELECT attempt_number FROM step_node_attempt').all()),
+    ).toEqual([]);
   });
 });

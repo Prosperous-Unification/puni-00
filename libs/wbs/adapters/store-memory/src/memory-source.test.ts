@@ -148,10 +148,7 @@ async function expectDetachedReads(stores: TransactionalStores): Promise<void> {
     },
     stamp,
   );
-  await stores.progress.set(
-    { workItemId: 'wi-1', stepId: 'step-memory', state: 'done', statedAt: 2 },
-    stamp,
-  );
+  // Started before the node is stated done: a done node refuses a start.
   await stores.attempts.start(
     {
       workItemId: 'wi-1',
@@ -161,6 +158,10 @@ async function expectDetachedReads(stores: TransactionalStores): Promise<void> {
       reference: 'stored reference',
       note: null,
     },
+    stamp,
+  );
+  await stores.progress.set(
+    { workItemId: 'wi-1', stepId: 'step-memory', state: 'done', statedAt: 2 },
     stamp,
   );
   const recorded = await stores.eventLog.recordEvent(
@@ -749,4 +750,31 @@ describe('the staged memory source', () => {
     });
     await fixture.source.close();
   });
+});
+
+/**
+ * The memory twin of SQLite's in-transaction `node_done` read.
+ *
+ * Proof, watched 2026-10-12: with the `progress` reader left out of
+ * `inMemoryAttempts`, this case started attempt 1 under the done node.
+ */
+it('refuses an attempt start at a node stated done', async () => {
+  const { stores } = openMemorySource();
+  await stores.workItems.insert(workItemRow({ id: 'wi-1', projectId: 'p1' }), [], stamp);
+  await stores.steps.add(
+    { id: 'step-memory', projectId: 'p1', name: 'Stored step', allowancePercent: 0 },
+    stamp,
+  );
+  await stores.progress.set(
+    { workItemId: 'wi-1', stepId: 'step-memory', state: 'done', statedAt: 2 },
+    stamp,
+  );
+  const node = { workItemId: 'wi-1', stepId: 'step-memory' };
+  expect(
+    await stores.attempts.start(
+      { ...node, startedAt: 2, executorPersonId: null, reference: null, note: null },
+      stamp,
+    ),
+  ).toEqual({ ok: false, reason: 'node_done' });
+  expect(await stores.attempts.listByProject('p1')).toEqual([]);
 });

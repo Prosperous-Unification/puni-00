@@ -2436,9 +2436,9 @@ describe('attempts at step nodes (step-node-attempts D2)', () => {
     expect(await onDev(leaf)).toMatchObject([{ attemptNumber: 1, startedAt: ACT, endedAt: null }]);
   });
 
-  it('numbers from the highest plus one, so a removed number is never reused', async () => {
-    // The design's `max + 1` (D2): removing attempt 1 of {1, 2} leaves 2 the
-    // highest, and the next start is 3, never 1.
+  it('numbers past every number issued, so a removed number is never reused', async () => {
+    // A42 (D1, D2): removing attempt 1 of {1, 2} leaves 2 issued, and the
+    // next start is 3, never 1.
     const leaf = await add('Strip');
     for (const outcome of ['failed', 'succeeded'] as const) {
       await service.startAttempt(leaf, OWNER, stepId, {});
@@ -2451,6 +2451,20 @@ describe('attempts at step nodes (step-node-attempts D2)', () => {
       value: { attemptNumber: 3 },
     });
     expect((await onDev(leaf)).map(({ attemptNumber }) => attemptNumber)).toEqual([2, 3]);
+  });
+
+  it('numbers past a removed highest attempt: remove 2 of {1, 2}, the next is 3', async () => {
+    const leaf = await add('Strip');
+    for (const outcome of ['failed', 'succeeded'] as const) {
+      await service.startAttempt(leaf, OWNER, stepId, {});
+      await service.endAttempt(leaf, OWNER, stepId, { outcome });
+    }
+    await service.removeAttempt(leaf, OWNER, stepId, 2);
+
+    expect(await service.startAttempt(leaf, OWNER, stepId, {})).toEqual({
+      ok: true,
+      value: { attemptNumber: 3 },
+    });
   });
 
   it('refuses an end before its running start, and stores the reference and note given', async () => {

@@ -209,6 +209,7 @@ export class MemoryState {
     replaceArray(this.tables.measures.rows, next.tables.measures.rows);
     replaceArray(this.tables.progress.rows, next.tables.progress.rows);
     replaceArray(this.tables.attempts.rows, next.tables.attempts.rows);
+    replaceArray(this.tables.attempts.issued, next.tables.attempts.issued);
     replaceMap(this.tables.capacity.held, next.tables.capacity.held);
     replaceMap(this.tables.priorityBands.held, next.tables.priorityBands.held);
     replaceMap(this.tables.calendarMarkers.held, next.tables.calendarMarkers.held);
@@ -254,7 +255,7 @@ function bindStores(
   const actuals = inMemoryActuals(workItems, state.tables.actuals, steps);
   const measures = inMemoryMeasures(workItems, state.tables.measures, steps);
   const progress = inMemoryProgress(workItems, state.tables.progress, steps);
-  const attempts = inMemoryAttempts(workItems, state.tables.attempts, steps);
+  const attempts = inMemoryAttempts(workItems, state.tables.attempts, steps, progress);
   const rowsOnlyWorkItems = workItems;
   workItems = {
     ...rowsOnlyWorkItems,
@@ -275,6 +276,7 @@ function bindStores(
       removeSatelliteRows(state.tables.progress.rows);
       removeSatelliteRows(state.tables.measures.rows);
       removeSatelliteRows(state.tables.attempts.rows);
+      removeSatelliteRows(state.tables.attempts.issued);
     },
   };
   const stores: TransactionalStores = {
@@ -410,7 +412,7 @@ function coordinatedStores(
     progress: coordinatedStore(stores.progress, ['set', 'remove', 'moveAll'], coordinator),
     attempts: coordinatedStore(
       stores.attempts,
-      ['start', 'end', 'remove', 'restore', 'moveAll'],
+      ['start', 'end', 'remove', 'restore', 'raiseIssued', 'moveAll'],
       coordinator,
     ),
     dependencies: coordinatedStore(

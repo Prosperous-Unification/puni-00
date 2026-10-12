@@ -3,21 +3,23 @@ import type {
   AttemptEnded,
   AttemptStart,
   AttemptStarted,
+  IssuedAttemptNumber,
   RunningStoredAttempt,
   StepNodeAttemptStore,
   StoredAttempt,
   WriteStamp,
 } from '@wbs/core';
 import { attemptOf, isAttemptOutcome } from '@wbs/domain';
-import { and, eq, inArray, isNull, max, type SQL } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, max, type SQL, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
 import { rowsChanged } from './changes';
 import { messagesOf } from './constraint';
+import type { Drizzle } from './db';
 import type { Gate } from './gate';
 import { bumpWorkItems } from './revision';
-import { step, stepNodeAttempt, workItem } from './schema';
+import { step, stepNodeAttempt, stepNodeAttemptIssued, stepProgress, workItem } from './schema';
 
 /** The columns every read takes, the audit columns left off. */
 const ATTEMPT_COLUMNS = {
@@ -83,6 +85,25 @@ function isRunningAttemptViolation(err: unknown): boolean {
   );
 }
 
+/** A write transaction or the database itself, as `RevisionWriter` is. */
+type Writer = Pick<Drizzle, 'insert'>;
+
+/**
+ * Raises each node's mark to the number given when it is higher. `excluded`
+ * is SQLite's name for the row the insert proposed.
+ */
+function raiseMarks(writer: Writer, marks: readonly IssuedAttemptNumber[]): void {
+  if (marks.length === 0) return;
+  writer
+    .insert(stepNodeAttemptIssued)
+    .values(marks.map(({ workItemId, stepId, issued }) => ({ workItemId, stepId, issued })))
+    .onConflictDoUpdate({
+      target: [stepNodeAttemptIssued.workItemId, stepNodeAttemptIssued.stepId],
+      set: { issued: sql`max(${stepNodeAttemptIssued.issued}, excluded.issued)` },
+    })
+    .run();
+}
+
 /**
  * The attempts at step nodes — see {@link StepNodeAttemptStore} and
  * `stepNodeAttempt` in `schema.ts`.
@@ -141,24 +162,43 @@ export class StepNodeAttemptRepository implements StepNodeAttemptStore {
   }
 
   /**
-   * Reads the node's highest number and inserts the next one in one
+   * Reads the node's mark and highest row and inserts the next number in one
    * transaction, `IMMEDIATE` when it is the outermost, so a second writer
    * waits at `BEGIN` and then reads the first one's row (inside a unit of work
    * the outer `BEGIN IMMEDIATE` already holds the lock). A node already
    * running refuses at `step_node_attempt_running`, answered `attempt_running`.
+   * A node stated `done` refuses as `node_done`, read inside the same
+   * transaction: the service's own check runs before it, and in a blue/green
+   * overlap the other colour can state the node done in between.
    *
    * Proof, watched 2026-10-12 in `lets one of two concurrent starts win and
    * tells the other attempt_running`: the `max + 1` read moved before the
    * transaction is masked by the partial index (the case still passed); with
    * the index also dropped the loser threw its primary-key violation on a
    * reused number 1, where the read inside the transaction numbers it 2.
+   *
+   * Proof, watched 2026-10-12: the mark's read dropped (the rows' maximum
+   * alone) made `numbers past a removed highest attempt: remove 2 of {1, 2},
+   * the next is 3` start `"attemptNumber": 2` where 3 was owed. The
+   * `step_progress` read removed made `refuses a start that waited while
+   * another process stated the node done` read `started`.
    */
   async start(start: AttemptStart, stamp: WriteStamp): Promise<AttemptStarted> {
     return await this.gate.enter(async () => {
       await Promise.resolve();
       try {
-        const attempt = this.db.transaction(
-          (tx) => {
+        return this.db.transaction(
+          (tx): AttemptStarted => {
+            const node = and(
+              eq(stepProgress.workItemId, start.workItemId),
+              eq(stepProgress.stepId, start.stepId),
+            );
+            const stated = tx
+              .select({ state: stepProgress.state })
+              .from(stepProgress)
+              .where(node)
+              .get();
+            if (stated?.state === 'done') return { ok: false, reason: 'node_done' };
             const highest = tx
               .select({ number: max(stepNodeAttempt.attemptNumber) })
               .from(stepNodeAttempt)
@@ -169,21 +209,32 @@ export class StepNodeAttemptRepository implements StepNodeAttemptStore {
                 ),
               )
               .get();
+            const mark = tx
+              .select({ issued: stepNodeAttemptIssued.issued })
+              .from(stepNodeAttemptIssued)
+              .where(
+                and(
+                  eq(stepNodeAttemptIssued.workItemId, start.workItemId),
+                  eq(stepNodeAttemptIssued.stepId, start.stepId),
+                ),
+              )
+              .get();
+            const attemptNumber = Math.max(highest?.number ?? 0, mark?.issued ?? 0) + 1;
             const row = {
               ...start,
-              attemptNumber: (highest?.number ?? 0) + 1,
+              attemptNumber,
               endedAt: null,
               outcome: null,
             };
             tx.insert(stepNodeAttempt)
               .values({ ...row, ...auditOnCreate(stamp) })
               .run();
+            raiseMarks(tx, [{ ...start, issued: attemptNumber }]);
             bumpWorkItems(tx, [start.workItemId], stamp);
-            return runningAttemptOf(row);
+            return { ok: true, attempt: runningAttemptOf(row) };
           },
           { behavior: 'immediate' },
         );
-        return { ok: true, attempt };
       } catch (refused) {
         if (isRunningAttemptViolation(refused)) return { ok: false, reason: 'attempt_running' };
         throw refused;
@@ -258,6 +309,10 @@ export class StepNodeAttemptRepository implements StepNodeAttemptStore {
     });
   }
 
+  /**
+   * Proof, watched 2026-10-12: the mark's raise dropped here made `raises the
+   * mark with a restored number above it and never lowers it` fail.
+   */
   async restore(attempt: StoredAttempt, stamp: WriteStamp): Promise<void> {
     const facts = {
       startedAt: attempt.startedAt,
@@ -287,8 +342,34 @@ export class StepNodeAttemptRepository implements StepNodeAttemptStore {
             set: { ...facts, ...auditOnUpdate(stamp) },
           })
           .run();
+        raiseMarks(tx, [{ ...attempt, issued: attempt.attemptNumber }]);
         bumpWorkItems(tx, [attempt.workItemId], stamp);
       });
+    });
+  }
+
+  async listIssued(projectId: string, ids: readonly string[]): Promise<IssuedAttemptNumber[]> {
+    await Promise.resolve();
+    if (ids.length === 0) return [];
+    return this.db
+      .select({
+        workItemId: stepNodeAttemptIssued.workItemId,
+        stepId: stepNodeAttemptIssued.stepId,
+        issued: stepNodeAttemptIssued.issued,
+      })
+      .from(stepNodeAttemptIssued)
+      .innerJoin(workItem, eq(stepNodeAttemptIssued.workItemId, workItem.id))
+      .where(
+        and(eq(workItem.projectId, projectId), inArray(stepNodeAttemptIssued.workItemId, [...ids])),
+      )
+      .orderBy(asc(stepNodeAttemptIssued.workItemId), asc(stepNodeAttemptIssued.stepId))
+      .all();
+  }
+
+  async raiseIssued(marks: readonly IssuedAttemptNumber[]): Promise<void> {
+    await this.gate.enter(async () => {
+      await Promise.resolve();
+      raiseMarks(this.db, marks);
     });
   }
 
@@ -296,11 +377,24 @@ export class StepNodeAttemptRepository implements StepNodeAttemptStore {
    * Conditional, exactly as `StepProgressRepository.moveAll` is and for its
    * measured reason: almost every hand-down moves no attempt, and an
    * unconditional bump would stale every reader's precondition on both rows.
+   * The marks are copied first and move no revision: no reader sees one.
+   *
+   * Proof, watched 2026-10-12: the copy emptied made `copies the mark to a
+   * first child, past a highest removed before the child arrived` fail.
    */
   async moveAll(fromWorkItemId: string, toWorkItemId: string, stamp: WriteStamp): Promise<void> {
     await this.gate.enter(async () => {
       await Promise.resolve();
       this.db.transaction((tx) => {
+        raiseMarks(
+          tx,
+          tx
+            .select({ stepId: stepNodeAttemptIssued.stepId, issued: stepNodeAttemptIssued.issued })
+            .from(stepNodeAttemptIssued)
+            .where(eq(stepNodeAttemptIssued.workItemId, fromWorkItemId))
+            .all()
+            .map((mark) => ({ ...mark, workItemId: toWorkItemId })),
+        );
         tx.update(stepNodeAttempt)
           .set({ workItemId: toWorkItemId, ...auditOnUpdate(stamp) })
           .where(eq(stepNodeAttempt.workItemId, fromWorkItemId))

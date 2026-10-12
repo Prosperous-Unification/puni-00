@@ -33,10 +33,25 @@ export interface AttemptEnd {
   readonly note?: string | null;
 }
 
-/** A start, or the node's running attempt refusing it (the unique partial index's face). */
+/**
+ * The highest number a step node has issued (A42, ADR 0045): the floor its
+ * next start numbers above. Outlives every attempt it counted, so a removed
+ * number is never claimed again.
+ */
+export interface IssuedAttemptNumber {
+  readonly workItemId: string;
+  readonly stepId: string;
+  readonly issued: number;
+}
+
+/**
+ * A start, or its refusal: the node's running attempt (the unique partial
+ * index's face), or the node stated `done`, read inside the start's own write
+ * transaction so another process stating it done meanwhile is seen.
+ */
 export type AttemptStarted =
   | { readonly ok: true; readonly attempt: RunningStoredAttempt }
-  | { readonly ok: false; readonly reason: 'attempt_running' };
+  | { readonly ok: false; readonly reason: 'attempt_running' | 'node_done' };
 
 /** An end with the row as it was before, which is the undo's whole inverse. */
 export type AttemptEnded =
@@ -67,8 +82,10 @@ export interface StepNodeAttemptStore {
   /** One work item's attempts keyed by step id, each list in ascending number. */
   listOfWorkItem(workItemId: string): Promise<ReadonlyMap<string, readonly StoredAttempt[]>>;
   /**
-   * Starts the node's next attempt, numbered its highest plus one, read inside
-   * the write transaction so two concurrent starts cannot take one number.
+   * Starts the node's next attempt, numbered one past the higher of its
+   * {@link IssuedAttemptNumber} and its highest row, both read inside the write
+   * transaction so two concurrent starts cannot take one number, and writes
+   * that number back as the node's mark (A42).
    *
    * @throws the driver's error for a work item, step or executor that does not
    * exist: the command layer resolves all three before it writes.
@@ -76,7 +93,12 @@ export interface StepNodeAttemptStore {
   start(start: AttemptStart, stamp: WriteStamp): Promise<AttemptStarted>;
   /** Ends the node's running attempt; the database's check refuses an end before the start. */
   end(end: AttemptEnd, stamp: WriteStamp): Promise<AttemptEnded>;
-  /** Takes one attempt off by its number, answering the row it took or null when none was there. */
+  /**
+   * Takes one attempt off by its number, answering the row it took or null
+   * when none was there. The node's mark stays: the number remains issued,
+   * which is also why the undo of a start, a removal, leaves the next start
+   * one past it.
+   */
   remove(
     workItemId: string,
     stepId: string,
@@ -86,13 +108,33 @@ export interface StepNodeAttemptStore {
   /**
    * Writes one attempt back verbatim under its own number, inserting it or
    * overwriting the row holding that number: the inverse of {@link remove} and
-   * of {@link end}.
+   * of {@link end}, and the redo of a start. Raises the node's mark to the
+   * number when it is higher, never lowers it.
    */
   restore(attempt: StoredAttempt, stamp: WriteStamp): Promise<void>;
+  /**
+   * The marks of the requested work items of the project, by work item then
+   * step id; an id outside it reads nothing. Read before a delete for its undo:
+   * the marks cascade with their work item.
+   */
+  listIssued(projectId: string, ids: readonly string[]): Promise<IssuedAttemptNumber[]>;
+  /**
+   * Raises each node's mark to the one given when it is higher, never lowering
+   * it: how the restore of a deleted branch puts back numbers its attempts no
+   * longer show. Moves no revision, as no reader sees a mark.
+   *
+   * @throws the driver's error for a work item or step that does not exist.
+   */
+  raiseIssued(marks: readonly IssuedAttemptNumber[]): Promise<void>;
   /**
    * Moves every attempt from one work item to another, numbers kept, for
    * `StepProgressStore.moveAll`'s reason: a leaf that gains its first child
    * stops being a node anyone reads, and its history goes to the child.
+   *
+   * Copies the marks rather than moving them, so a highest attempt removed
+   * before the child arrived is still skipped at the child, and the parent
+   * keeps its own: the undo of the create writes the attempts back onto the
+   * parent, which then still knows every number it issued.
    */
   moveAll(fromWorkItemId: string, toWorkItemId: string, stamp: WriteStamp): Promise<void>;
 }
