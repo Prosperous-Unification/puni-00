@@ -3516,3 +3516,25 @@ export function projectAttemptMarks(
     },
   };
 }
+
+/** Paint and pointer bounds in chart units; scheduled endpoints remain in {@link PlacedBar}. */
+export function placeBarSurface(
+  x: number,
+  width: number,
+  rung: AxisRung,
+): {
+  x: number;
+  width: number;
+  tick: boolean;
+  hitX: number;
+  hitWidth: number;
+} {
+  const tick = rung.cellsPerWorkday > 1 && width > 0 && width * rung.pxPerWorkday < 4;
+  // Proof: replacing this floor by width failed the production panel's two-minute
+  // tick case at 3.733px instead of 4px (subday2-proof-floor, 2026-10-12).
+  const paintedWidth = tick ? 4 / rung.pxPerWorkday : width;
+  // Proof: removing the 18px floor failed the same panel case at 4px instead
+  // of 18px (subday2-proof-hit, 2026-10-12).
+  const hitWidth = Math.max(paintedWidth, 18 / rung.pxPerWorkday);
+  return { x, width: paintedWidth, tick, hitX: x + (paintedWidth - hitWidth) / 2, hitWidth };
+}
