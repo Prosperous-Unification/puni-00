@@ -221,3 +221,30 @@ panel-boundary evidence, **not** minutes-input or attempt fixture acceptance. It
 `/tmp/attempt-browser-hit.log`; the separate axis verification history contains the observed
 browser negative. The attempt fixture's pointer aims within the actual overlap, and its
 chooser locator is scoped to the chooser card; the fixture remains unrun.
+
+## Astra attempt review corrections — 2026-10-13
+
+Both P2 findings reproduced before the fixes: the tiny/clamped actual-paint assertion
+observed width zero, and focus followed by blur left `Reference: run/2` visible (2 failed,
+17 skipped; `/tmp/attempt-p2-red.log`). Tiny marks now paint a centered 4px stripe with
+the original outcome fill. Four-pixel hatch/dot tiles ensure even a clamped stripe intersects
+the pattern; running marks retain the open right edge. Keyboard blur dismisses attempt facts
+unless focus transfers into the shared collision chooser.
+
+R5 negatives against production, with `data-attempt` unchanged:
+
+- Replacing only tiny fill with gray failed `keeps visible outcome paint on every tiny
+clamped tick`: expected a pattern URL, received `#334155`
+  (`/tmp/attempt-paint-mutation.log`). The first mutation command had an incorrect relative
+  source path, changed nothing and ran a passing test; it is not counted as proof.
+- Removing the blur callback failed real Chromium Tab-away: expected zero tooltips,
+  received one (`/tmp/attempt-focus-mutation.log`). Source restored after each mutation.
+
+The isolated fixture `benchmarks/attempt-marks.html` mounts the shipped panel with all four
+clamped two-minute outcomes and a fixed clock. `bun apps/wbs/fe-01/e2e/gantt-attempt-focus.ts`
+on Chromium 153.0.8010.12 verified nonzero 4px paint, resolved hatch/dot colors, green solid
+fills, and keyboard focus → Tab-away dismissal with no page errors. This is focused regression
+proof, not real-stack estimate-input/attempt acceptance or a performance measurement.
+Initial corrected attempt suite: 19 passed. Nx frontend typecheck passed (6.3s) and
+`lint:fast` passed (11.5s). Combined checks and chooser focus transfer will be repeated after
+merging the axis review checkpoint. Browser/performance/full-host-gate acceptance remains open.

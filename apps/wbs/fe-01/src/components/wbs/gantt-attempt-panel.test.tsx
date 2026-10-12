@@ -368,4 +368,67 @@ describe('attempt marks in the panel', () => {
     expect(document.querySelectorAll('[data-attempt]')).toHaveLength(1);
     expect(document.querySelector('[data-attempt="succeeded"]')).not.toBeNull();
   });
+  it('keeps visible outcome paint on every tiny clamped tick', () => {
+    const plan = attemptPlan();
+    const startedAt = Date.parse('2026-08-03T04:00:00Z');
+    const endedAt = startedAt + 2 * 60000;
+    const histories = ['failed', 'cancelled', 'succeeded', null].map((outcome, index) => ({
+      ...attempts[0],
+      attemptNumber: index + 1,
+      startedAt,
+      endedAt: outcome === null ? null : endedAt,
+      outcome,
+    }));
+    plan.rows = [
+      {
+        ...plan.rows[0],
+        attemptNodes: [{ ...plan.rows[0].attemptNodes![0], attempts: histories as AttemptView[] }],
+      },
+    ];
+    render(
+      <GanttPanel
+        plan={plan}
+        startDate={MONDAY_START}
+        now={endedAt}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        dayPx={896}
+        pointed={pointedAtRow(null)}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+      />,
+    );
+    for (const outcome of ['failed', 'cancelled', 'succeeded', 'running']) {
+      const mark = document.querySelector(`[data-attempt="${outcome}"]`)!;
+      expect(mark).toHaveAttribute('data-clamped');
+      expect(mark).toHaveAttribute('data-attempt-tick');
+      const paint = mark.querySelector('[data-attempt-paint]')!;
+      expect(Number(paint.getAttribute('width')) * 896).toBeCloseTo(4);
+      expect(Number(paint.getAttribute('height'))).toBeGreaterThan(0);
+      const fill = paint.getAttribute('fill')!;
+      if (outcome === 'failed' || outcome === 'cancelled') {
+        expect(fill).toMatch(/^url\(#.+\)$/);
+        const pattern = document.getElementById(fill.slice(5, -1))!;
+        if (outcome === 'failed') {
+          expect(pattern.querySelector('path')).toHaveAttribute('stroke', '#991b1b');
+          expect(pattern.querySelector('ellipse')).toBeNull();
+        } else expect(pattern.querySelector('ellipse')).toHaveAttribute('fill', '#92400e');
+      } else expect(fill).toBe('#166534');
+      if (outcome === 'running') {
+        expect(paint).toHaveAttribute('stroke', 'none');
+        expect(mark.querySelector('[data-attempt-open-edge]')?.getAttribute('d')).toMatch(
+          /^M .+ H .+ V .+ H .+$/,
+        );
+      }
+    }
+  });
+  it('dismisses attempt facts when keyboard focus leaves the mark', () => {
+    render(draw(attemptPlan()));
+    const hit = document.querySelector('[data-attempt="cancelled"] [data-attempt-hit]')!;
+    fireEvent.focus(hit);
+    expect(screen.getByText('Reference: run/2')).toBeInTheDocument();
+    fireEvent.blur(hit, { relatedTarget: document.querySelector('[data-gantt-day-scale]') });
+    expect(screen.queryByText('Reference: run/2')).not.toBeInTheDocument();
+  });
 });

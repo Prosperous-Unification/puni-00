@@ -6436,6 +6436,14 @@ function GanttChart({
                     onDismiss={() => {
                       if (!gesture.current.collisionOpen) dismiss();
                     }}
+                    onLeaveFocus={(relatedTarget) => {
+                      if (
+                        relatedTarget instanceof Element &&
+                        relatedTarget.closest('[data-gantt-collision-list]') !== null
+                      )
+                        return;
+                      dismiss();
+                    }}
                   />
                 ))}
               </svg>

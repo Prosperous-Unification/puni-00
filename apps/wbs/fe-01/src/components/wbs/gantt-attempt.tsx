@@ -58,11 +58,11 @@ export function AttemptPatterns({
       <pattern
         id={`${prefix}-failed`}
         patternUnits="userSpaceOnUse"
-        width={6 / dayPx}
-        height={6 / rowPx}
+        width={4 / dayPx}
+        height={4 / rowPx}
       >
         <path
-          d={`M 0 ${String(6 / rowPx)} L ${String(6 / dayPx)} 0`}
+          d={`M 0 ${String(4 / rowPx)} L ${String(4 / dayPx)} 0`}
           stroke="#991b1b"
           strokeWidth={1}
           vectorEffect="non-scaling-stroke"
@@ -71,10 +71,10 @@ export function AttemptPatterns({
       <pattern
         id={`${prefix}-cancelled`}
         patternUnits="userSpaceOnUse"
-        width={6 / dayPx}
-        height={6 / rowPx}
+        width={4 / dayPx}
+        height={4 / rowPx}
       >
-        <ellipse cx={3 / dayPx} cy={3 / rowPx} rx={1 / dayPx} ry={1 / rowPx} fill="#92400e" />
+        <ellipse cx={2 / dayPx} cy={2 / rowPx} rx={1 / dayPx} ry={1 / rowPx} fill="#92400e" />
       </pattern>
     </defs>
   );
@@ -82,7 +82,9 @@ export function AttemptPatterns({
 
 /**
  * One start-day mark above its forecast. Tiny attempts paint a tick while keeping an
- * 18px centered hit surface; running outlines deliberately omit their right edge.
+ * 18px centered hit surface. A 4px stripe centered on a tick carries the same outcome
+ * fill as a longer mark; 4px pattern tiles keep even clamped stripes visibly patterned.
+ * Running outlines deliberately omit their right edge.
  */
 export function AttemptMark({
   mark,
@@ -92,6 +94,7 @@ export function AttemptMark({
   onShow,
   registerHit,
   onDismiss,
+  onLeaveFocus,
 }: {
   mark: GanttAttemptMark;
   prefix: string;
@@ -104,16 +107,19 @@ export function AttemptMark({
   ) => void;
   registerHit: (hit: SVGRectElement | null) => void;
   onDismiss: () => void;
+  onLeaveFocus: (relatedTarget: EventTarget | null) => void;
 }) {
   const outcome = mark.attempt.outcome ?? 'running';
   const y = mark.rowIndex + 0.22;
   const height = 0.28;
-  const width = mark.tick ? 0 : mark.width;
+  // Proof: restoring width zero or substituting a gray fill fails the tiny clamped actual-paint test with outcome attributes unchanged (2026-10-13).
+  const width = mark.tick ? 4 / dayPx : mark.width;
+  const x = mark.tick ? mark.x - width / 2 : mark.x;
   // Proof: swapping only hatch/dot URL mappings failed the actual-paint panel assertion with outcome attributes intact (2026-10-12).
   const fill =
     outcome === 'failed' || outcome === 'cancelled' ? `url(#${prefix}-${outcome})` : '#166534';
   const hitWidth = mark.hitWidthPx / dayPx;
-  const right = mark.x + width;
+  const right = x + width;
   return (
     <g
       data-attempt={outcome}
@@ -123,7 +129,7 @@ export function AttemptMark({
     >
       <rect
         data-attempt-paint
-        x={mark.x}
+        x={x}
         y={y}
         width={width}
         height={height}
@@ -133,19 +139,10 @@ export function AttemptMark({
         vectorEffect="non-scaling-stroke"
         pointerEvents="none"
       />
-      {mark.tick && (
-        <path
-          d={`M ${String(mark.x)} ${String(y)} V ${String(y + height)}`}
-          stroke="#334155"
-          strokeWidth={2}
-          vectorEffect="non-scaling-stroke"
-          pointerEvents="none"
-        />
-      )}
       {mark.running && (
         <path
           data-attempt-open-edge
-          d={`M ${String(right)} ${String(y)} H ${String(mark.x)} V ${String(y + height)} H ${String(right)}`}
+          d={`M ${String(right)} ${String(y)} H ${String(x)} V ${String(y + height)} H ${String(right)}`}
           fill="none"
           stroke="#166534"
           strokeWidth={2}
@@ -158,7 +155,7 @@ export function AttemptMark({
         data-attempt-hit
         data-gantt-mark={identifyAttemptMark(mark)}
         // Proof: omitting translated mark.x failed the translated header/forecast/hit panel case (2026-10-12).
-        x={mark.x + width / 2 - hitWidth / 2}
+        x={x + width / 2 - hitWidth / 2}
         y={y + height / 2 - 9 / rowPx}
         width={hitWidth}
         // Proof: the original 0.28-row hit height failed the two-minute panel surface case at 7.84px (2026-10-12).
@@ -171,6 +168,10 @@ export function AttemptMark({
         aria-label={`Attempt ${String(mark.attempt.attemptNumber)} — ${outcome}`}
         onFocus={(focus) => {
           onShow(mark, focus.currentTarget);
+        }}
+        // Proof: removing blur dismissal leaves run/4 visible after real Chromium Tab-away (2026-10-13).
+        onBlur={(focus) => {
+          onLeaveFocus(focus.relatedTarget);
         }}
         onClick={(click) => {
           onShow(mark, click.currentTarget);
