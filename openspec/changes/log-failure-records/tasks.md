@@ -9,6 +9,7 @@
 - [x] 2.3 Kibana Job: `kibana/objects` imports the data view, two Lens panels and the 7-day dashboard — k3d: three occurrences of one fingerprint and one of another render as two rows, count 3; negatives: truncated NDJSON, an unknown object type with and without the verdict check, Kibana unavailable with a lowered bound and with none; `tool-fleet` negatives for a generated ConfigMap outside the locked graph and a generator that disables the content hash
 - [x] 2.4 Docs: field table, Job, retention and privacy in `docs/infra/platform.md`
 - [ ] 2.5 Real-pipeline acceptance on the production platform, gated on WBS 070.07 and 070.08
+- [x] 2.7 Alert on dropped log records: `PuniLogRecordsDropped` over `send_failed` and `enqueue_failed`, the `_total` suffix removed from the collector rules, and the "Log loss" runbook — test: `bun tools/tool-fleet/src/platform-alerts.ts` (promtool); k3d: a 60 s black hole fires the alert in Alertmanager, a 60 s refusal does not; negatives: `increase` alone (promtool and k3d after a collector restart), the `increase` branch without its inner `> 0`, `_total` restored on the ingest rule
 - [ ] 2.6 Make a 60 s Elasticsearch outage lossless when the exporter's connection hangs: the first k3d drill lost 49 of 900 lines to a timeout the exporter does not retry (decision pending; see verify.md)
 
 ## References
