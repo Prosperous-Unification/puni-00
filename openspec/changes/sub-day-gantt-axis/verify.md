@@ -148,3 +148,26 @@ introduced by integration; previous mutation observations were preserved and not
 Browser/e2e, performance, full frontend suite, full host gate, CI secrets and migration
 lint remain unrun for this integration checkpoint. Final merge requires the host gate
 and CI on the final published SHA.
+
+## Slice 2 checkpoint — 2026-10-12
+
+The architecture review resolved the narrow-mark rule: positive-span forecast bars at sub-day rungs receive the 4px paint floor; day-rung paint and zero-duration line ticks stay intact. Centered pointer rectangles are at least 18px in both dimensions at every rung. The shared collision model is `selectMarksAtPointer` in `gantt-detail.ts`; the existing `GanttChart` owns the list and card. Two minutes at 896px/workday is **3.733px** before the floor (the original task's 1.87px example describes one minute).
+
+- Initial geometry/model RED: 14 failed because the new functions were absent (`/tmp/subday2-red.log`). Production-panel RED: 3 failed on missing tick/hit surfaces (`/tmp/subday2-panel-red.log`).
+- Initial focused GREEN: 17 passed, 464 skipped (`/tmp/subday2-green.log`). Shared-helper renamed GREEN: 14 passed, 186 skipped (`/tmp/subday2-helper-green.log`).
+- Full changed suites: 481 passed in three files (`/tmp/subday2-regression-final.log`). The preceding run had 480 passed and one touch-release failure: wrapping marks changed `currentTarget` to a group. Measuring the authored pointer target preserves the original tap-release behavior; the focused touch/tick rerun passed four cases (`/tmp/subday2-touch-green.log`).
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-fe-01:typecheck` passed both targets (`/tmp/subday2-types-final.log`).
+- Frozen install passed after the sandbox refused its temporary directory. One initial test-writing command used repository paths from the frontend directory and made no edits; one root-level Vitest invocation failed alias resolution. Correct invocations above used the frontend cwd. An extension-glob formatting attempt named nonexistent variants; subsequent formatting named real files. The first helper commit was refused by import-sort lint; imports were sorted and the normal commit hooks then passed. No hook was bypassed.
+
+| Production fault                          | Observing test                                                                 | Observed                                                 |
+| ----------------------------------------- | ------------------------------------------------------------------------------ | -------------------------------------------------------- |
+| Remove the positive tick floor            | panel: paints a two-minute tick at 4px                                         | 1 failed: 3.733px rather than 4px                        |
+| Remove the 18px hit floor                 | same panel test                                                                | 1 failed: 4px pointer width rather than 18px             |
+| Bypass the collision list                 | panel: two overlapping surfaces open a list and the chosen line opens its card | 1 failed: direct card instead of the first choice button |
+| Floor zero-duration marks                 | geometry: preserves the zero-day milestone at each rung                        | 3 failed, 3 passed                                       |
+| Floor day-rung bars                       | geometry: positive mark under 4px at each rung                                 | 3 failed, 3 passed                                       |
+| Change the strict floor boundary to <=4px | geometry: exactly 4px bar is untagged                                          | 1 failed                                                 |
+
+Each fault was applied individually to production code, run through the real suite and restored in `finally`; logs are `/tmp/subday2-proof-{floor,hit,collision,zero,day,boundary}.log`. Adjacent `Proof:` comments name these observations.
+
+This is an implementation checkpoint. The two-minute browser scenario, export-specific narrow-mark assertion, full frontend/e2e runs, measurement task 4 and host gate task 5 remain unverified; slice 2 task checkboxes remain open until their full evidence exists.

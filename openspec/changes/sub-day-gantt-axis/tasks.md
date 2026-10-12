@@ -23,13 +23,12 @@
 ## 2. Ticks, pointer surfaces and the collision list
 
 - [ ] 2.1 Red: `gantt-geometry.test.ts` "a mark under 4 px is a 4 px tick with data-tick",
-      "every mark's hit rect is at least 18 px"; `gantt-detail.test.tsx` "the card carries the
+      "every mark's hit rect is at least 18 px"; `gantt-panel.test.tsx` "the card carries the
       exact span of a tick", "two overlapping surfaces open a list and the chosen line opens
       its card", "one surface opens the card directly"; `e2e/gantt.spec.ts` "a two-minute slice
       is a tick in a browser".
-- [ ] 2.2 Green: tick paint, hit rects above the row line, the collision list in
-      `gantt-detail.ts` and its component.
-- [ ] 2.3 Negatives: the 4 px floor removed → the tick case (width `1.87`); the list bypassed
+- [ ] 2.2 Green: positive-span sub-day tick paint (day widths and zero-duration line ticks preserved), centered 18px hit rects above the row line, the collision model in `gantt-detail.ts` and rendered list in `GanttChart`.
+- [ ] 2.3 Negatives: the 4 px floor removed → the two-minute tick case (width `3.733` at 15 min); the list bypassed
       for the nearest mark → "two overlapping surfaces…" opens the wrong card.
 
 ## 3. Offer rule

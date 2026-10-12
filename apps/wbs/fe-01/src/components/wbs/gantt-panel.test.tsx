@@ -10319,3 +10319,90 @@ itDom('clears a rung notice at the same day width and keeps the scale accessible
   rerender(draw(null));
   expect(screen.getByRole('combobox', { name }).getAttribute('title')).toBe('One day is 28px wide');
 });
+
+describe('sub-day forecast pointer surfaces', () => {
+  const drawTicks = (second: boolean) =>
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [rowAt('one', 0, 1)],
+          steps: [
+            { id: 'dev', name: 'Dev' },
+            { id: 'qa', name: 'QA' },
+          ],
+          slices: [
+            sliceAt('first', 'one', 0, 2 / 480),
+            ...(second
+              ? [sliceAt('second', 'one', 6 / 896, 6 / 896 + 2 / 480, { stepId: 'qa' })]
+              : []),
+          ],
+        })}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        dayPx={896}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointed={pointedAtRow(null)}
+      />,
+    );
+  const restOnSurface = (sliceId: string, clientX: number) => {
+    const surfaces = [...document.querySelectorAll<SVGRectElement>('[data-gantt-hit]')];
+    for (const [index, surface] of surfaces.entries()) {
+      vi.spyOn(surface, 'getBoundingClientRect').mockReturnValue({
+        left: index * 6,
+        right: index * 6 + 18,
+        top: 0,
+        bottom: 20,
+        width: 18,
+        height: 20,
+        x: index * 6,
+        y: 0,
+        toJSON: () => ({}),
+      });
+    }
+    const surface = document.querySelector(`[data-gantt-hit="${sliceId}"]`);
+    if (surface === null) throw new Error('Missing forecast pointer surface');
+    const pointer = new MouseEvent('pointerover', { bubbles: true, clientX, clientY: 10 });
+    Object.defineProperty(pointer, 'pointerType', { value: 'mouse' });
+    fireEvent(surface, pointer);
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+  };
+  itDom('paints a two-minute tick at 4 px and gives it an 18 px pointer surface', () => {
+    drawTicks(false);
+    const bar = document.querySelector('[data-gantt-bar="first"]');
+    expect(bar?.getAttribute('data-tick')).toBe('true');
+    expect(Number(bar?.getAttribute('width')) * 896).toBeCloseTo(4);
+    const hit = document.querySelector('[data-gantt-hit="first"]');
+    expect(Number(hit?.getAttribute('width')) * 896).toBeCloseTo(18);
+    expect(Number(hit?.getAttribute('height')) * ROW_PX).toBeGreaterThanOrEqual(18);
+  });
+  itDom('one surface opens the card directly with the exact span of a tick', () => {
+    vi.useFakeTimers();
+    try {
+      drawTicks(false);
+      restOnSurface('first', 2);
+      expect(screen.getByRole('tooltip').textContent).toContain('2 min');
+      expect(screen.queryByRole('button', { name: 'one · Dev · 2 min' })).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  itDom('two overlapping surfaces open a list and the chosen line opens its card', () => {
+    vi.useFakeTimers();
+    try {
+      drawTicks(true);
+      restOnSurface('second', 12);
+      expect(screen.getByRole('button', { name: 'one · Dev · 2 min' })).toBeTruthy();
+      fireEvent.click(screen.getByRole('button', { name: 'one · QA · 2 min' }));
+      expect(screen.getByRole('tooltip').textContent).toContain('QA · Unassigned');
+      expect(screen.getByRole('tooltip').textContent).toContain('2 min');
+      expect(screen.queryByRole('button', { name: 'one · Dev · 2 min' })).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

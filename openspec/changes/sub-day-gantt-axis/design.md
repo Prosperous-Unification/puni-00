@@ -9,7 +9,7 @@ No ADR: every choice here is reversible presentation.
 
 `DAY_SCALES` becomes `AXIS_RUNGS`, one record per rung: `{ id, pxPerWorkday, cellsPerWorkday,
 label }`. Day rungs keep their pixel values and labels (`28`/`12`/`4` px per day; `Days`,
-`Weeks`, `Months`), so `DayPx` callers retain a numeric width API (expanded for sub-day widths), and every day pixel assertion stands. `DAY_SCALES` remains a compatibility list derived from `AXIS_RUNGS`. Sub-day rungs are
+`Weeks`, `Months`), so `DayPx` callers retain a numeric width API (expanded for sub-day widths), and every day paint and label assertion stands. Pointer surfaces and collision selection apply at all rungs. `DAY_SCALES` remains a compatibility list derived from `AXIS_RUNGS`. Sub-day rungs are
 `{ '4h', 56, 2, '4 h' }`, `{ '1h', 224, 8, '1 h' }`, `{ '15m', 896, 32, '15 min' }` — 28 px
 per cell, as the day rung has, so the cell grid reads the same at every rung. The control
 is the existing rung control with six positions; the title carries the exact width.
@@ -25,12 +25,8 @@ anchor `STAGE_ONE_DAY_START_MINUTE` (09:00; `gantt-attempt-marks` D-constant, re
 every quarter at `15 min` with the hour printed once per hour; the day header keeps the date.
 The remembered rung in `remembered-layout.ts` stores the rung `id`; a stored day-rung pixel value
 from before this change reads as its rung by value, and an unknown stored value is a rendered
-reset to `Days`, not a guess. A bar whose width is under 4 px is painted 4 px wide with `data-tick`; the hover
-card carries the exact span. Every mark has a pointer surface of at least 18 CSS px, centred
-on the mark, drawn as an invisible hit rect above the row line (the row line keeps pointing
-the row). When two or more pointer surfaces contain the pointer, hover opens a **collision
-list** — one line per mark, `number · step · span` — and the card opens for the line chosen;
-with one surface the card opens directly as today.
+reset to `Days`, not a guess. At a sub-day rung a positive-span forecast bar whose width is under 4 px is painted 4 px wide with `data-tick`; the hover card carries its exact scheduled span. Day-rung paint remains true width. A true zero-duration milestone keeps its zero-width rectangle and existing line tick at every rung. Every forecast mark has a pointer surface of at least 18 CSS px in both dimensions, centred on the painted mark, drawn as an invisible hit rect above the row line (the row line keeps pointing the row). When two or more pointer surfaces contain the pointer, hover opens a **collision
+list** — one line per mark, `number · step · span` — and the card opens for the line chosen. `gantt-detail.ts` owns the shared `selectMarksAtPointer` model; `GanttChart` owns the rendered list and existing card. With one surface the card opens directly as today.
 
 ## D3 — Offer rule
 
