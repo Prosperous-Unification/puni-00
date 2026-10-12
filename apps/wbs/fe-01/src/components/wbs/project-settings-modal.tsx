@@ -21,6 +21,7 @@ import { OptimizationSettingsPanel, type OptimizationSettingsProps } from './opt
 import { PrioritiesPanel, type PrioritiesPanelProps } from './priorities-panel';
 import { StepsPanel, type StepsPanelProps } from './steps-panel';
 import { TeamsPanel, type TeamsPanelProps } from './teams-panel';
+import { TimezonePanel, type TimezonePanelProps } from './timezone-panel';
 import { SettingsIcon } from './toolbar-icons';
 
 /**
@@ -28,7 +29,8 @@ import { SettingsIcon } from './toolbar-icons';
  * list shows them — the order the three toolbar buttons stood in until
  * `project-config-modal` folded them into this one surface.
  */
-export type SettingsSection = 'teams' | 'priorities' | 'steps' | 'estimating' | 'optimization';
+export type SettingsSection =
+  'teams' | 'priorities' | 'steps' | 'estimating' | 'optimization' | 'timezone';
 
 const SECTIONS: readonly { id: SettingsSection; label: string }[] = [
   { id: 'teams', label: 'Teams' },
@@ -36,6 +38,7 @@ const SECTIONS: readonly { id: SettingsSection; label: string }[] = [
   { id: 'steps', label: 'Steps' },
   { id: 'estimating', label: 'Estimating' },
   { id: 'optimization', label: 'Optimization' },
+  { id: 'timezone', label: 'Timezone' },
 ];
 
 const FIRST_SECTION: SettingsSection = 'teams';
@@ -144,6 +147,12 @@ export interface ProjectSettingsModalProps {
   estimating: SectionOwn<EstimatingPanelProps>;
   /** Absent only before the first plan read or when this backend has no optimizer. */
   optimization?: SectionOwn<OptimizationSettingsProps>;
+  /**
+   * The zone every instant on the plan is read in (`step-node-attempts` D3) —
+   * a project-wide statement about how the plan reads, for `estimating`'s
+   * reason.
+   */
+  timezone: SectionOwn<TimezonePanelProps>;
 }
 
 /**
@@ -198,6 +207,7 @@ export function ProjectSettingsModal({
   steps,
   estimating,
   optimization,
+  timezone,
 }: ProjectSettingsModalProps) {
   const [open, setOpen] = useState(false);
   const [shown, setShown] = useState<SettingsSection>(FIRST_SECTION);
@@ -248,6 +258,7 @@ export function ProjectSettingsModal({
       steps: reporterFor('steps'),
       estimating: reporterFor('estimating'),
       optimization: reporterFor('optimization'),
+      timezone: reporterFor('timezone'),
     }),
     [reporterFor],
   );
@@ -510,6 +521,14 @@ export function ProjectSettingsModal({
                   onDirtyChange={reporters.optimization}
                 />
               )}
+            </div>
+            <div
+              role="tabpanel"
+              id={panelId('timezone')}
+              aria-labelledby={tabId('timezone')}
+              hidden={shown !== 'timezone'}
+            >
+              <TimezonePanel {...timezone} onDirtyChange={reporters.timezone} />
             </div>
           </div>
         </div>

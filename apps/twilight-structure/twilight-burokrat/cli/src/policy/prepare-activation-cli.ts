@@ -1,4 +1,3 @@
-import { Buffer } from 'node:buffer';
 import { chmodSync, existsSync, mkdirSync, readFileSync, realpathSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
@@ -10,18 +9,18 @@ import { readCandidate } from '../inventory/read-candidate';
 import { extractNxRelationships } from '../relationships/nx';
 import { AuditStratum } from '../review/audit';
 import { prepareActivation, selectActivation } from './activation';
+import { dashCheckRunAuthority } from './check-run-authority';
+import { planCheckRuns, readCheckRuns, retainCheckRuns } from './check-runs';
 import { toolkitRoles } from './release';
 import {
   assertPinnedRuntime,
   type CandidateFile,
-  type CheckRun,
   deriveToolIdentity,
   planRelocationActivation,
   planRelocationChecks,
   readRelocationPolicy,
   RelocationRefusal,
   type RelocationSources,
-  resolveSkipProbe,
 } from './relocation-activation';
 import { copyTrustedModules, hashTrustedModules, writeBytes } from './trusted-modules';
 
@@ -37,13 +36,15 @@ const flags = [
   'work',
   'resource-lane',
   'cwd-identity',
+  'check-runs',
 ] as const;
 type Flag = (typeof flags)[number];
 
 /**
  * A package executable may supply only its own installed toolkit directory. A consumer's layout is
  * its own: the policy and mapping paths, review record and audit strata remain operator input, and
- * a tool that guessed any of them would be attesting on the operator's behalf.
+ * a tool that guessed any of them would be attesting on the operator's behalf. `--check-runs` is
+ * the directory `twilight-dash run-activation-checks` wrote for this candidate.
  */
 function readArguments(argv: readonly string[], defaultToolkit?: string): Record<Flag, string> {
   const selected = new Map<string, string>();
@@ -237,69 +238,6 @@ export function readToolkit(directory: string): Toolkit {
   };
 }
 
-/**
- * Runs one candidate check and measures its start and end on the host clock. Running checks is
- * Twilight Dash's work still inside the Burokrat package (docs/twilight-structure/names.md,
- * "Clock reads"); a judge reads the recorded instants, never the clock.
- */
-function runCheck(
-  repository: string,
-  check: {
-    checkId: string;
-    command: string[];
-    skipProbe?: { command: string[]; cwd: string; env: Readonly<Record<string, string>> };
-  },
-  work: string,
-): CheckRun {
-  const startedAt = new Date().toISOString();
-  // Proof: inheriting a neutral environment unchanged made the standalone package test fail
-  // with Nx plugin workers exiting before their sandbox-denied sockets could connect.
-  const invocation = Bun.spawnSync(check.command, {
-    cwd: repository,
-    env: {
-      ...process.env,
-      NX_DAEMON: 'false',
-      NX_ISOLATE_PLUGINS: 'false',
-      NX_NO_CLOUD: 'true',
-    },
-    stderr: 'pipe',
-    stdout: 'pipe',
-  });
-  const skipProbe =
-    invocation.exitCode === 0 && check.skipProbe !== undefined
-      ? Bun.spawnSync(check.skipProbe.command, {
-          // Proof: forcing this to the repository root made the installed preparation run a
-          // relative preload from the wrong directory; the production negative reported a failed
-          // check instead of detecting the skipped candidate test.
-          cwd: resolve(repository, check.skipProbe.cwd),
-          env: {
-            ...process.env,
-            ...check.skipProbe.env,
-            NX_DAEMON: 'false',
-            NX_ISOLATE_PLUGINS: 'false',
-            NX_NO_CLOUD: 'true',
-          },
-          stderr: 'pipe',
-          stdout: 'pipe',
-        })
-      : undefined;
-  const endedAt = new Date().toISOString();
-  const stdout = Buffer.concat([invocation.stdout, skipProbe?.stdout ?? new Uint8Array()]);
-  const stderr = Buffer.concat([invocation.stderr, skipProbe?.stderr ?? new Uint8Array()]);
-  return {
-    checkId: check.checkId,
-    command: check.command,
-    startedAt,
-    endedAt,
-    exitCode: skipProbe?.exitCode ?? invocation.exitCode,
-    stdout,
-    stderr,
-    measured: skipProbe ?? invocation,
-    stdoutPath: writeBytes(join(work, 'checks', `${check.checkId}.stdout`), stdout),
-    stderrPath: writeBytes(join(work, 'checks', `${check.checkId}.stderr`), stderr),
-  };
-}
-
 function selfCheck(destination: string, repository: string, sha: string): string {
   // The runtime override is scrubbed, not set: a consumer's `trusted-wiki.yml` sets only the
   // activation root and lets the launcher default the closure to `<root>/trusted-node-modules`, so
@@ -374,12 +312,15 @@ function archive(
  * Prepares a consumer repository's FIRST Tool Wiki activation from a released toolkit and the
  * consumer's own commit. The toolkit supplies launcher, snapshotter, validator and the TypeScript
  * runtime closure; this commit supplies policy, mapping and declarations; the operator supplies
- * the review record and the audit strata. Everything else is derived and then proved by running
- * the toolkit's own launcher to `certified: true` before any archive is written.
+ * the review record and the audit strata; Twilight Dash supplies the check runs it measured
+ * (`--check-runs`), which this command judges and never repeats, so it reads no clock. Everything
+ * else is derived and then proved by running the toolkit's own launcher to `certified: true`
+ * before any archive is written.
  *
  * A release certifies nothing for a consumer — see
  * `docs/adr/0026-a-wiki-release-is-a-toolkit-not-a-certification.md`.
- * @throws {@link RelocationRefusal} `R1`-`R3`, `R10`, `R14`-`R17` and `R19`-`R21`.
+ * @throws {@link RelocationRefusal} `R1`-`R3`, `R10`, `R14`-`R17` and `R19`-`R21`, and
+ * `CheckRunRefusal` (`check-runs.ts`) for check runs that do not prove the planned checks on this candidate.
  */
 export function prepareToolkitActivation(
   argv: readonly string[],
@@ -442,8 +383,13 @@ export function prepareToolkitActivation(
   };
   const checks = planRelocationChecks(sources);
   const projects = extractNxRelationships(repository).relationships.projects;
-  const runs = checks.checks.map((check) =>
-    runCheck(repository, { ...check, skipProbe: resolveSkipProbe(check, projects) }, work),
+  const runs = retainCheckRuns(
+    readCheckRuns(
+      resolve(options['check-runs']),
+      planCheckRuns(sha, checks, projects),
+      dashCheckRunAuthority,
+    ),
+    work,
   );
   const plan = planRelocationActivation(
     sources,

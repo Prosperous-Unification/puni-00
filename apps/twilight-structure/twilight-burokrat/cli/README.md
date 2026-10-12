@@ -11,8 +11,11 @@ writer. The activation controller, its observation service and the review invoke
 to Dash as well
 ([ADR 0051](../../../../docs/adr/0051-the-activation-controller-runs-in-dash-as-a-second-authority.md)).
 Burokrat keeps the invocation journal records with `validate-review-provenance`
-([`review/invocation-journal.ts`](src/review/invocation-journal.ts)) and the `prepare-activation`
-check runners. The index covers source, tests, fixtures, and project
+([`review/invocation-journal.ts`](src/review/invocation-journal.ts)). Twilight Dash runs the
+activation checks (`twilight-dash run-activation-checks`); both preparers judge the CheckRun
+ledger it writes ([`policy/check-runs.ts`](src/policy/check-runs.ts),
+[ADR 0052](../../../../docs/adr/0052-dash-runs-activation-checks-and-burokrat-judges-their-receipts.md)),
+so the package reads no clock. The index covers source, tests, fixtures, and project
 configuration as one initial enforced tooling boundary. It does not claim exhaustive repository
 coverage; the six historical pilot modules remain named review debt outside this boundary.
 

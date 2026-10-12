@@ -19,6 +19,15 @@ export interface StepNodeReadings {
    * got — {@link usePlanAssignments}'s word for an assignee it cannot name.
    */
   executorName: string | null;
+  /** Each attempt's executor by the same rule, by attempt number. */
+  executorNames: ReadonlyMap<number, string | null>;
+  /**
+   * The project's IANA zone the attempts are printed in
+   * (`step-node-attempts` D3). `null` from a be-01 whose tree read predates
+   * the zone: the card then leaves its attempt list and actions out rather
+   * than print instants in a zone nobody chose ({@link AttemptsSection}).
+   */
+  timezone: string | null;
 }
 
 /**
@@ -48,15 +57,21 @@ export function stepNodeReadingsOf(
   row: TreeRow,
   stepId: string,
   peopleById: ReadonlyMap<string, PersonView>,
+  timezone: string | null,
 ): StepNodeReadings | null {
   const reading = nodeReadingOf(row, stepId);
   if (reading === null) return null;
   const attempts = row.attempts?.[stepId] ?? [];
-  const executor = attempts.at(-1)?.executorPersonId ?? null;
+  const nameOf = (executor: string | null): string | null =>
+    executor === null ? null : (peopleById.get(executor)?.name ?? '(unknown)');
   return {
     reading,
     attempts,
-    executorName: executor === null ? null : (peopleById.get(executor)?.name ?? '(unknown)'),
+    executorName: nameOf(attempts.at(-1)?.executorPersonId ?? null),
+    executorNames: new Map(
+      attempts.map((attempt) => [attempt.attemptNumber, nameOf(attempt.executorPersonId)]),
+    ),
+    timezone,
   };
 }
 

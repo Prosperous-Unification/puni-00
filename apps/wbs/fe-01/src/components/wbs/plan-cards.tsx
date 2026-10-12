@@ -20,6 +20,7 @@ import type {
 } from '@/lib/wbs-api';
 
 import { ActionsMenu, type MenuAction } from './actions-menu';
+import { type AttemptActions, AttemptsSection } from './attempts-section';
 import { CellInput } from './cell-input';
 import type { CellRef } from './cell-navigation';
 import { DEADLINE_EFFECT_HINT } from './column-hints';
@@ -41,7 +42,7 @@ import { priorityBandStyleOf } from './priority-band-style';
 import { ReferenceSetSheet } from './reference-set-field';
 import { type PrintedDay, shortIsoDate } from './short-date';
 import { statusActions } from './status-cell';
-import { nodeReadingOf, StepReadingInline } from './step-reading';
+import { nodeReadingOf, type StepNodeReadings, StepReadingInline } from './step-reading';
 import { cardIndentFor } from './table-frame';
 import { dependencyWords, endpointText, TypedDependencyEditor } from './typed-dependency-editor';
 import type { TreeRow } from './wbs-rows';
@@ -158,6 +159,15 @@ export interface PlanCardsProps {
   /** What the `@` list in one box is offering, or nothing while it is closed. */
   mentionOptions: (row: TreeRow, stepId: string) => PickerOption[];
   assigneeOn: (row: TreeRow, stepId: string) => CardAssignee | null;
+  /**
+   * A leaf node's reading and attempts, for its step line's `Attempts`
+   * details (`step-node-attempts` D7): `null` on a parent and from an older
+   * read. Absent, as a suite drawing the cards for something else leaves it,
+   * the cards show no attempts at all.
+   */
+  attemptsOn?: (row: TreeRow, stepId: string) => StepNodeReadings | null;
+  /** What the `Attempts` details can do, the step card's own actions. */
+  attemptActionsOn?: (row: TreeRow, stepId: string) => { label: string; actions: AttemptActions };
   /**
    * The work items this one waits for, in the order it holds them.
    *
@@ -2593,6 +2603,8 @@ export function PlanCards({
   leaveEstimate,
   mentionOptions,
   assigneeOn,
+  attemptsOn,
+  attemptActionsOn,
   waitsFor,
   typedWaitsFor,
   dependencyRows,
@@ -2762,6 +2774,11 @@ export function PlanCards({
               // The node's reading, a leaf's only: the line already names the
               // step, so the corner glyph the table draws goes in line here.
               const reading = nodeReadingOf(row, step.id);
+              const attemptedNode = attemptsOn?.(row, step.id) ?? null;
+              const attempted =
+                attemptedNode === null || attemptActionsOn === undefined
+                  ? null
+                  : { node: attemptedNode, ...attemptActionsOn(row, step.id) };
               return (
                 <Fragment key={step.id}>
                   <div
@@ -2918,6 +2935,27 @@ export function PlanCards({
                       <div data-step-final={step.id}>Final {trio.final} days</div>
                     )}
                   </details>
+                  {/*
+                    The node's attempts, the step card's own list and actions
+                    behind a tap, since a phone has no hover to open that card.
+                    The count remains visible without the project's zone;
+                    {@link AttemptsSection} leaves the timed lines and actions out.
+                  */}
+                  {attempted !== null && (
+                    <details data-step-attempts={step.id} className="-mt-1 ml-20 text-sm">
+                      <summary className="text-muted-foreground w-fit cursor-pointer py-1 text-xs select-none">
+                        Attempts
+                        {attempted.node.attempts.length > 0 &&
+                          ` (${String(attempted.node.attempts.length)})`}
+                      </summary>
+                      <AttemptsSection
+                        node={attempted.node}
+                        label={attempted.label}
+                        actions={attempted.actions}
+                        tapSized
+                      />
+                    </details>
+                  )}
                 </Fragment>
               );
             })}

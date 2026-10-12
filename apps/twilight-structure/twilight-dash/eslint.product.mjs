@@ -1,7 +1,8 @@
 /**
  * Dash's in-process edges: `cli.ts` reaches the fleet planner facade, and `cli.ts` plus the
- * runtime authority under `authority/`, the activation controller under `activation/` and the
- * review invoker under `review/` reach Burokrat's judges through the exact
+ * runtime authority under `authority/`, the activation controller under `activation/`, the
+ * activation check runner under `check-runs/` and the review invoker under `review/` reach
+ * Burokrat's judges through the exact
  * `@twilight-burokrat/judge` alias. Every other cross-product, app-to-app and app-to-infrastructure
  * dependency retains the workspace fences. Tests may additionally reach the shared scratch helper
  * and the shared clock-read detector.
@@ -77,12 +78,15 @@ export default ({
     {
       files: [
         'apps/twilight-structure/twilight-dash/cli/src/activation/**/*.ts',
+        'apps/twilight-structure/twilight-dash/cli/src/check-runs/**/*.ts',
         'apps/twilight-structure/twilight-dash/cli/src/review/**/*.ts',
       ],
       // Proof: omitting this override made uncached `twilight-dash:lint` fail on the activation
       // and review modules' `@twilight-burokrat/judge` imports; widening it to
       // `^@twilight-burokrat/` failed `Dash activation reaches only the judge alias` at the exact
       // allow-list assertion.
+      // Proof (2026-10-12): dropping only the `check-runs/**` entry made eslint fail
+      // `run-activation-checks.ts` with `Imports of apps are forbidden` on its judge import.
       rules: boundary(['^@twilight-burokrat/judge$']),
     },
     {

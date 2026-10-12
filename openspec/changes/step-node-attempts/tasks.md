@@ -97,13 +97,21 @@
 
 ## 6. fe-01
 
-- [ ] 6.1 Red: `folded-step-card.test.tsx` (attempts newest first with number, outcome, zoned
+- [x] 6.1 Red: `folded-step-card.test.tsx` (attempts newest first with number, outcome, zoned
       instants, executor, reference; `Start attempt` sends the batch; `End attempt` offers three
       outcomes and a reference; a refusal is worded); `project-settings-modal.test.tsx` (timezone
       select over the list `GET /api/timezones` returned, `UTC` default, saved through PATCH); `e2e/hover-cards.spec.ts`
       the attempts list in a browser.
-- [ ] 6.2 Green: the card section and actions; the settings control; `wbs-api.ts` types.
-- [ ] 6.3 Negatives: the card formatting instants in the browser zone → the zoned-instants
+- [x] 6.2 Green: the card section and actions; the settings control; `wbs-api.ts` types.
+      Landed (2026-10-12, lane `step-node-attempts-ui`): `attempts-section.tsx`,
+      `end-attempt-dialog.tsx`, `use-attempt-actions.ts`, `attempt-words.ts`,
+      `timezone-panel.tsx`, the phone card's `Attempts` disclosure, `Remove` with the plan's
+      Undo, and `timezone` on the tree read (contracts, core route); tests in
+      `folded-step-card.test.tsx`, `attempt-actions.test.tsx`, `end-attempt-dialog.test.tsx`,
+      `use-attempt-actions.test.ts`, `attempt-words(.zoned).test.ts`,
+      `project-settings-modal.test.tsx`, be-01 `step-node-attempt.controller.db.test.ts`, and
+      `e2e/attempts.spec.ts` in place of `e2e/hover-cards.spec.ts`.
+- [x] 6.3 Negatives: the card formatting instants in the browser zone → the zoned-instants
       test under `TZ=America/Los_Angeles`; `End attempt` offered with none running → the card
       test.
 

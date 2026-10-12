@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -77,6 +77,8 @@ function mounted(
   const removeStep = vi.fn(() => Promise.resolve({ ok: true }));
   const onChanged = vi.fn(() => Promise.resolve());
   const setArithmetic = vi.fn(() => Promise.resolve());
+  const setTimezone = vi.fn<(timezone: string) => Promise<void>>(() => Promise.resolve());
+  const listTimezones = vi.fn(() => Promise.resolve(['America/New_York', 'Europe/Kyiv', 'UTC']));
   const props: ProjectSettingsModalProps = {
     projectId: PROJECT,
     trigger: 'glyph',
@@ -121,6 +123,7 @@ function mounted(
       setSettings: () => Promise.resolve(),
       onChanged,
     },
+    timezone: { timezone: 'UTC', listTimezones, setTimezone, onChanged },
     ...overrides,
   };
   // A test that owns its own slot renders its own provider inside the file's;
@@ -134,7 +137,17 @@ function mounted(
       </ApplicationServicesProvider>
     ),
   );
-  return { setCapacity, setBands, addStep, renameStep, removeStep, setArithmetic, onChanged };
+  return {
+    setCapacity,
+    setBands,
+    addStep,
+    renameStep,
+    removeStep,
+    setArithmetic,
+    setTimezone,
+    listTimezones,
+    onChanged,
+  };
 }
 
 const trigger = (): HTMLElement => screen.getByRole('button', { name: 'Project settings' });
@@ -184,7 +197,7 @@ describe('one modal for the project’s five settings', () => {
     const list = screen.getByRole('tablist');
     expect(
       [...list.querySelectorAll('[role="tab"]')].map((each) => each.textContent.trim()),
-    ).toEqual(['Teams', 'Priorities', 'Steps', 'Estimating', 'Optimization']);
+    ).toEqual(['Teams', 'Priorities', 'Steps', 'Estimating', 'Optimization', 'Timezone']);
     // The first section is showing, and it is the teams'.
     expect(tab('Teams')).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tabpanel', { name: 'Teams' })).toBeVisible();
@@ -214,10 +227,12 @@ describe('one modal for the project’s five settings', () => {
     fireEvent.keyDown(tab('Estimating'), { key: 'ArrowRight' });
     expect(tab('Optimization')).toHaveAttribute('aria-selected', 'true');
     fireEvent.keyDown(tab('Optimization'), { key: 'ArrowRight' });
+    expect(tab('Timezone')).toHaveAttribute('aria-selected', 'true');
+    fireEvent.keyDown(tab('Timezone'), { key: 'ArrowRight' });
     expect(tab('Teams')).toHaveAttribute('aria-selected', 'true');
     fireEvent.keyDown(tab('Teams'), { key: 'End' });
-    expect(tab('Optimization')).toHaveAttribute('aria-selected', 'true');
-    fireEvent.keyDown(tab('Optimization'), { key: 'Home' });
+    expect(tab('Timezone')).toHaveAttribute('aria-selected', 'true');
+    fireEvent.keyDown(tab('Timezone'), { key: 'Home' });
     expect(tab('Teams')).toHaveAttribute('aria-selected', 'true');
   });
 
@@ -603,5 +618,92 @@ describe('the control that opens it', () => {
   itDom('carries its label on the phone’s sheet', () => {
     mounted({ trigger: 'labelled' });
     expect(trigger().textContent).toContain('Project settings');
+  });
+});
+
+describe('the project timezone (step-node-attempts D3)', () => {
+  itDom('offers the server’s zones, UTC by default, and saves one through the patch', async () => {
+    const { setTimezone, listTimezones, onChanged } = mounted();
+    open();
+    fireEvent.click(tab('Timezone'));
+    const box = screen.getByRole('combobox', { name: 'Timezone' });
+    expect(box).toHaveValue('UTC');
+    await waitFor(() => {
+      expect(box).toBeEnabled();
+    });
+    expect(listTimezones).toHaveBeenCalledTimes(1);
+    expect(
+      [...document.querySelectorAll('#project-timezone-zones option')].map((each) =>
+        each.getAttribute('value'),
+      ),
+    ).toEqual(['America/New_York', 'Europe/Kyiv', 'UTC']);
+    fireEvent.change(box, { target: { value: 'Europe/Kyiv' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save timezone' }));
+    await waitFor(() => {
+      expect(setTimezone).toHaveBeenCalledWith('Europe/Kyiv');
+    });
+    await waitFor(() => {
+      expect(onChanged).toHaveBeenCalled();
+    });
+  });
+
+  itDom('refuses a zone that is not on the server’s list without sending it', async () => {
+    const { setTimezone } = mounted();
+    open();
+    fireEvent.click(tab('Timezone'));
+    const box = screen.getByRole('combobox', { name: 'Timezone' });
+    await waitFor(() => {
+      expect(box).toBeEnabled();
+    });
+    fireEvent.change(box, { target: { value: 'Kyiv' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save timezone' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'That is not a zone this server knows.',
+    );
+    expect(setTimezone).not.toHaveBeenCalled();
+  });
+
+  itDom('says when the zones could not be read, and reads them again on request', async () => {
+    const listTimezones = vi
+      .fn<() => Promise<string[]>>()
+      .mockRejectedValueOnce(new Error('http_503'))
+      .mockResolvedValue(['UTC']);
+    mounted({
+      timezone: {
+        timezone: 'UTC',
+        listTimezones,
+        setTimezone: () => Promise.resolve(),
+        onChanged: () => Promise.resolve(),
+      },
+    });
+    open();
+    fireEvent.click(tab('Timezone'));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'The list of zones could not be read (http_503).',
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    await waitFor(() => {
+      expect(screen.getByRole('combobox', { name: 'Timezone' })).toBeEnabled();
+    });
+    expect(listTimezones).toHaveBeenCalledTimes(2);
+  });
+
+  itDom('says an older server keeps no zone, and offers nothing to change', () => {
+    mounted({
+      timezone: {
+        timezone: null,
+        listTimezones: () => Promise.resolve(['UTC']),
+        setTimezone: () => Promise.resolve(),
+        onChanged: () => Promise.resolve(),
+      },
+    });
+    open();
+    fireEvent.click(tab('Timezone'));
+    expect(
+      screen.getByText(
+        'This server does not keep a timezone for the project yet, so attempt times are not shown.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Timezone' })).toBeNull();
   });
 });

@@ -171,6 +171,7 @@ describe('the effective production and test boundaries', () => {
       'apps/twilight-structure/twilight-dash/cli/src/activation/controller.ts',
       'apps/twilight-structure/twilight-dash/cli/src/activation/testing/observation-close-process.ts',
       'apps/twilight-structure/twilight-dash/cli/src/activation/units/render.ts',
+      'apps/twilight-structure/twilight-dash/cli/src/check-runs/run-activation-checks.ts',
       'apps/twilight-structure/twilight-dash/cli/src/review/invoker.ts',
     ]) {
       const options = boundaryOf(await lint.calculateConfigForFile(path))[1];

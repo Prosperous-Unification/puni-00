@@ -1,7 +1,7 @@
 # Twilight Dash
 
 Dash owns the runtime admission authority ([`src/authority`](src/authority/authority-store.ts))
-and exposes eight local commands. `bootstrap-authority <repository>` is the only command that
+and exposes nine local commands. `bootstrap-authority <repository>` is the only command that
 creates an authority; every other command refuses an absent one. `inspect-authority <repository>
 [--session <id>]` prints the authority state, read-only. `recover-publication <repository> --integration-id
 <id>` finishes an interrupted publication from its durable record. `submit-admission <repository>
@@ -10,7 +10,10 @@ prints its submission report; it judges the packet through Twilight Burokrat's
 [admission judge](../../twilight-burokrat/cli/src/judge-facade.ts). `render-observation-units
 <layout.json> <new-dir>` renders the uninstalled `twilight-dash-observation.{service,timer}` units
 and their `runtime.sha256` into a new directory; see the
-[observation service runbook](src/activation/units/README.md). `plan-enrollment`
+[observation service runbook](src/activation/units/README.md). `run-activation-checks
+--candidate-repository <checkout> --candidate-sha <sha> --candidate-policy <path> --check-runs
+<new-dir>` runs a candidate's activation checks and writes the CheckRun ledger both Burokrat
+preparers take as `--check-runs` (see the next paragraph but one). `plan-enrollment`
 delegates enrollment planning to the existing fleet CLI. Creating a plan authorizes no apply and does
 not enroll a node. Fleet owns the plan format, digest, eligibility checks and
 execution admission; see [fleet identities and ownership](../../../../docs/infra/fleet.md)
@@ -23,7 +26,17 @@ lock with the admission authority
 Its observation service polls GitHub for ready candidates on a timer, and the review invoker's
 runtime ([`src/review/invoker.ts`](src/review/invoker.ts)) spawns review harnesses and writes their
 invocation journals. Both reach Twilight Burokrat only through `@twilight-burokrat/judge`;
-Burokrat keeps `validate-review-provenance` and the `prepare-activation` check runners.
+Burokrat keeps `validate-review-provenance`.
+
+Dash measures activation checks; Burokrat judges what it measured
+([ADR 0052](../../../../docs/adr/0052-dash-runs-activation-checks-and-burokrat-judges-their-receipts.md)).
+`run-activation-checks` ([`src/check-runs`](src/check-runs/run-activation-checks.ts)) plans the
+candidate's checks through the judge, refuses a checkout that is not the clean committed candidate
+and a ledger directory that exists or sits inside it, runs each check and its `bun test` skip probe
+after a pass, and stamps both instants from its injected wall clock. It writes
+`check-runs.json`, a digest-chained ledger of `CheckRun` records, beside `streams/<sha256>`. It
+holds no store, lock or token, and shares only `src/clock.ts` with the two authorities. A failing
+check is recorded, never refused; the preparer refuses it.
 
 Dash owns the activation controller's observation store
 (`<stateDirectory>/activation.sqlite`, `user_version` 10; see

@@ -24,7 +24,7 @@ repository and the feature exclusively owns the resource.
 
 ## What it does not own
 
-The guards. Which three words a theme may be, and which five sections a settings modal has, are
+The guards. Which three words a theme may be, and which six sections a settings modal has, are
 those callers' own domain rules and stay with them. Per-entry sanitising is theirs too: the width
 store drops entries for columns a reader no longer has, and must not write the sanitised set back.
 

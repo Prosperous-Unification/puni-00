@@ -102,18 +102,48 @@ SHALL be stored, and both SHALL be on the work-item read beside the attempts.
 - **WHEN** the plan is read
 - **THEN** no span is reported for the leaf or its nodes
 
-### Requirement: The step cell card lists attempts and offers start and end
+### Requirement: The step cell card lists attempts and offers start, end and remove
 
 A leaf's step cell card SHALL list the node's attempts newest first with number, outcome,
 start and end in the project zone, executor and reference, and SHALL offer `Start attempt`
-and, while one runs, `End attempt` with the three outcomes and a reference box, each sent
-through the command batch. A refusal SHALL be worded in a toast.
+and, while one runs, `End attempt` with the three outcomes and a reference box, and a remove
+on each attempt, each sent through the command batch so that one Undo takes it back
+verbatim. A node stated done SHALL say it must be reopened instead of offering a start. The
+tree read SHALL carry the project's `timezone`; a read without it SHALL show neither the
+list nor the actions. A refusal SHALL be worded in a toast. A phone's card SHALL offer the
+same list and actions behind an `Attempts` disclosure on the step's line.
 
 #### Scenario: ending from the card
 
 - **GIVEN** a node with attempt 2 running
 - **WHEN** the reader ends it `succeeded` with reference `PR #12`
 - **THEN** the card lists `#2 succeeded · … · PR #12` and offers `Start attempt` again
+
+#### Scenario: a removal is undone verbatim
+
+- **GIVEN** a node with attempts 1, 2 and 3
+- **WHEN** the reader removes attempt 2 and then presses Undo once
+- **THEN** the card lists attempt 2 again with its own number, instants, outcome and
+  reference
+
+#### Scenario: an older read shows no attempt times
+
+- **GIVEN** a tree read with attempts and no `timezone`
+- **WHEN** the card opens
+- **THEN** it says how many attempts there were and lists none of their times
+
+### Requirement: Settings offers the project timezone from the server's list
+
+Project settings SHALL have a Timezone section whose box searches the zones `GET
+/api/timezones` returned, shows the saved zone, refuses a zone not on that list without
+sending it, saves through the project PATCH and re-reads the plan. A failed list read SHALL
+be said with a way to read it again.
+
+#### Scenario: a zone is chosen and saved
+
+- **GIVEN** a `UTC` project and the server's list including `Europe/Kyiv`
+- **WHEN** the reader picks `Europe/Kyiv` and saves
+- **THEN** the project is patched with `timezone: 'Europe/Kyiv'` and the plan is read again
 
 ## MODIFIED Requirements
 

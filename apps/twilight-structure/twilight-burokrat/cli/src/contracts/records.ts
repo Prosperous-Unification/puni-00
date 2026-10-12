@@ -755,6 +755,57 @@ export const CheckReceipt = type({
   });
 export type CheckReceipt = typeof CheckReceipt.infer;
 
+/** One process a check run started: its argv, exit status and the digests of both streams. */
+const CheckRunInvocation = type({
+  command: 'string[]',
+  exitCode: 'number.integer',
+  stdout: Sha256,
+  stderr: Sha256,
+}).onUndeclaredKey('reject');
+
+const CheckRunSkipProbe = type({
+  command: 'string[]',
+  cwd: 'string>=1',
+  env: type({ '[string]': 'string' }),
+  exitCode: 'number.integer',
+  stdout: Sha256,
+  stderr: Sha256,
+}).onUndeclaredKey('reject');
+
+/**
+ * One activation check Twilight Dash ran against a committed candidate, as Dash recorded it: the
+ * check's own invocation, the direct `bun test` skip probe it ran after a passing check (or
+ * `null`), the wall-clock instants around both, and its place in the ledger's digest chain.
+ * `previous` is the canonical-JSON SHA-256 of the run before it, `null` for the first. Stream
+ * bytes live beside the ledger, named by their digest. `authority` names who measured; the chain
+ * makes later edits evident but is not a signature. The schema is structural only: instant order,
+ * chain links and candidate binding are judgments (`policy/check-runs.ts`), each with its own
+ * typed refusal.
+ */
+export const CheckRun = type({
+  schemaVersion: SchemaVersion,
+  recordKind: "'check-run'",
+  sequence: NonNegativeInteger,
+  previous: Sha256.or('null'),
+  authority: type({ product: 'string>=1', command: 'string>=1' }).onUndeclaredKey('reject'),
+  candidate: type({ revision: GitObjectId, identity: Sha256 }).onUndeclaredKey('reject'),
+  checkId: OpaqueId,
+  startedAt: IsoInstant,
+  endedAt: IsoInstant,
+  check: CheckRunInvocation,
+  skipProbe: CheckRunSkipProbe.or('null'),
+}).onUndeclaredKey('reject');
+export type CheckRun = typeof CheckRun.infer;
+
+/** Every check run of one preparation in the order Dash ran them; `head` seals the last one. */
+export const CheckRunLedger = type({
+  schemaVersion: SchemaVersion,
+  recordKind: "'check-run-ledger'",
+  runs: CheckRun.array(),
+  head: Sha256.or('null'),
+}).onUndeclaredKey('reject');
+export type CheckRunLedger = typeof CheckRunLedger.infer;
+
 export const ReviewReceipt = type({
   schemaVersion: SchemaVersion,
   receiptKind: "'review'",

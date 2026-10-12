@@ -145,6 +145,13 @@ export interface ChartRead {
   /** The optimizer state returned with the schedule, when the runtime is wired. */
   optimization?: PlanOptimizationView;
   /**
+   * The project's IANA zone, which every instant on the plan is printed in
+   * (`step-node-attempts` D3). `null` before a read lands and from a be-01
+   * whose tree read predates the zone: the attempt list and the timezone
+   * control are left out rather than shown in a zone nobody chose.
+   */
+  timezone: string | null;
+  /**
    * Which read this is: the coordinator's installed tree generation, and 0 before any has
    * landed.
    *
@@ -171,6 +178,7 @@ export function chartReadOf(read: PlanRead, generation: number): ChartRead {
     pertWeights: read.pertWeights,
     estimateRounding: read.estimateRounding,
     ...(read.optimization === undefined ? {} : { optimization: read.optimization }),
+    timezone: read.timezone ?? null,
     generation,
   };
 }
@@ -194,6 +202,7 @@ export const NO_CHART_READ: ChartRead = {
   // computed with them either way.
   pertWeights: DEFAULT_PERT_WEIGHTS_VIEW,
   estimateRounding: 'ceil',
+  timezone: null,
   generation: 0,
 };
 

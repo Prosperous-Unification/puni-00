@@ -58,6 +58,8 @@ export {
   validatePacketAgainstBase,
 } from './admission-judge/packet-judgment';
 export {
+  type CheckRun,
+  CheckRunLedger,
   ClassificationPolicy,
   ContentClass,
   EvidenceRecordKind,
@@ -81,6 +83,18 @@ export {
   readCandidate,
   resolveCandidateRoot,
 } from './inventory/read-candidate';
+export {
+  type CheckRunAuthority,
+  checkRunDigest,
+  checkRunLayout,
+  type CheckRunPlan,
+  CheckRunRefusal,
+  type CheckRunRefusalReason,
+  type JudgedCheckRun,
+  planCandidateCheckRuns,
+  type PlannedCheckRun,
+  readCheckRuns,
+} from './policy/check-runs';
 export { extractRelationships } from './relationships';
 export { AuditFinding } from './review/audit';
 export {

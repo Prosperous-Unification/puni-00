@@ -1,0 +1,5 @@
+# The ledgers and streams are pinned by SHA-256. Keep their bytes on every checkout.
+# Proof: a core.autocrlf=true clone without these rules rewrote three LF-only streams
+# (6043908c… became 8a1725a8…); with them, all six stream and both ledger digests held.
+passing/** -text
+skipping/** -text

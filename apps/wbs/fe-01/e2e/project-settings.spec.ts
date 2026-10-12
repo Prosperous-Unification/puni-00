@@ -203,20 +203,22 @@ test.describe('the project settings control, in a browser', () => {
     );
   });
 
-  test('opens on its control, offers five sections, and closes back onto it', async ({ page }) => {
+  test('opens on its control, offers six sections, and closes back onto it', async ({ page }) => {
     await freshProject(page);
     const control = page.getByRole('button', { name: 'Project settings' });
     await control.click();
     const dialog = page.getByRole('dialog', { name: 'Project settings' });
     await expect(dialog).toBeVisible();
     // Five since `dual-optimized-scheduler`: `Optimization` follows
-    // `Estimating` as the final project-level scheduling section.
+    // `Estimating` as the final project-level scheduling section. Six since
+    // `step-node-attempts` D7: `Timezone` last, so the first section holds.
     await expect(dialog.getByRole('tab')).toHaveText([
       'Teams',
       'Priorities',
       'Steps',
       'Estimating',
       'Optimization',
+      'Timezone',
     ]);
 
     // The arrow keys walk the list and select as they go — a real keydown on a

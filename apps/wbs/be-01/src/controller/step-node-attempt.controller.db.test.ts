@@ -71,6 +71,26 @@ function stored(stepId: string) {
     .all(strip, stepId);
 }
 
+describe('the project timezone on the tree read', () => {
+  /**
+   * The zone a step card formats attempt instants in arrives with the plan it
+   * draws (`step-node-attempts` D7), so a card never reads a second request.
+   */
+  it('carries UTC by default and the patched zone after a PATCH', async () => {
+    const zoneOfTree = async (): Promise<unknown> => {
+      const read = await h.call('ada', 'GET', `/api/projects/${project}/work-items`);
+      if (read.status !== 200) throw new Error(`read refused: ${JSON.stringify(read)}`);
+      return (read.body as { timezone?: unknown }).timezone;
+    };
+    expect(await zoneOfTree()).toBe('UTC');
+    const patched = await h.call('ada', 'PATCH', `/api/projects/${project}`, {
+      timezone: 'Europe/Kyiv',
+    });
+    expect(patched.status).toBe(200);
+    expect(await zoneOfTree()).toBe('Europe/Kyiv');
+  });
+});
+
 describe('the attempt commands', () => {
   /**
    * Proof, watched 2026-10-12: the service's `node_done` refusal removed made

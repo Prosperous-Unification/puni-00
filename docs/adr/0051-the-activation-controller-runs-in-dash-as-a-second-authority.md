@@ -27,7 +27,9 @@ pre-relocation source.
 
 The `prepare-activation` check runners stay in Burokrat. The packed suite runs them from the
 installed `bin.mjs`, so a released binary must prepare the archive, and moving them needs a
-receipt protocol for recorded check instants first. The observation launcher is a second
+receipt protocol for recorded check instants first. (Superseded for the runners by
+[ADR 0052](0052-dash-runs-activation-checks-and-burokrat-judges-their-receipts.md): Dash now runs
+them and both preparers judge the receipts.) The observation launcher is a second
 composition root that `twilight-dash:build` bundles, not a `runDash` command, because systemd pins
 one launcher file and an `env -i` argv. Details:
 [design](../../openspec/changes/dash-activation-relocation/design.md).
