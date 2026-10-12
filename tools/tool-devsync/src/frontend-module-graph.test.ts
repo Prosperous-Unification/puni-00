@@ -141,6 +141,9 @@ describe('frontend module graph', () => {
   // as the one received extra importer; on the dispatch base the undeclared
   // `components/people/people-load-summary.tsx` failed directory-management the same way.
   // Answering empty compiler options failed all nine modules: `@/…` stopped resolving.
+  // Proof (2026-10-12): omitting `components/wbs/use-attempt-actions.ts` from plan-commands'
+  // declared consumers failed `plan-commands is imported only by its declared consumers` with
+  // that production type importer as the one received extra path (9 pass, 1 fail).
   test.each(modules)('%s is imported only by its declared consumers', async (name) => {
     expect({ module: name, importers: importers.get(name) }).toEqual({
       module: name,
