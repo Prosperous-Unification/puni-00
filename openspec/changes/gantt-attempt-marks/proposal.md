@@ -9,13 +9,16 @@ where the timing is legible: on the chart.
 
 - At the sub-day rungs a step node with attempts draws one **attempt mark** per attempt over
   its planned slice, on the same row: `succeeded` solid, `failed` hatched, `cancelled`
-  dotted, running open-ended to now. The planned slice stays underneath as the forecast.
+  dotted, running open-ended to now. The planned slice stays underneath as the forecast, including on completed rows.
 - Marks follow the sub-day rules: under 4 px a tick, a pointer surface of at least 18 px, a
   collision list, exact instants in the card. They count toward the 2,500-mark offer rule.
 - At the day rungs nothing changes: a done leaf draws its done bar.
+- Missing project start or timezone visibly disables the attempt overlay. At sub-day rungs
+  the displayed calendar range includes eligible attempts before and after the forecast.
 - Before the instant axis, instants map to the axis by their project-zone day and minute of day
   from the anchor `STAGE_ONE_DAY_START_MINUTE` (09:00); the part of a mark outside 09:00–17:00 is
-  clamped to the day's edge with `data-clamped`, and the card carries the true instants.
+  clamped to the start day's window with `data-clamped`, including overnight attempts; the
+  card carries the true instants.
 
 ## Non-Goals
 
@@ -50,4 +53,4 @@ none: presentation (`020.10-answers.md` Q11).
 ## Impact
 
 fe-01 only: `gantt-geometry.ts` (marks, clamp), `gantt-panel.tsx` (paint styles),
-`gantt-detail.ts` (card), `plan-chart-input.ts` (mark count), the Gantt e2e shards.
+`gantt-panel.tsx` or its extracted card component (card), `plan-chart-input.ts` (attempt inputs and mark count), the Gantt e2e shards.
