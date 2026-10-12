@@ -41,6 +41,7 @@ import {
   DAY_PX,
   DAY_SCALES,
   type DayPx,
+  describeForecastSpan,
   FALLBACK_GANTT_THEME,
   GANTT_CEILING_PX,
   GANTT_MIN_PX,
@@ -5089,7 +5090,27 @@ describe('one surface at a time, and it goes when its facts do', () => {
 
   /** A pointer resting on a mark, which is what the delay is measured from. */
   const restOn = (sliceId: string): void => {
-    fireEvent(markFor(sliceId), pointerEvent('mouse', 'pointerover'));
+    document.querySelectorAll<SVGRectElement>('[data-gantt-hit]').forEach((surface, index) => {
+      vi.spyOn(surface, 'getBoundingClientRect').mockReturnValue({
+        x: index * 100,
+        y: 0,
+        left: index * 100,
+        right: index * 100 + 18,
+        top: 0,
+        bottom: 18,
+        width: 18,
+        height: 18,
+        toJSON: () => ({}),
+      });
+    });
+    const hit = document.querySelector<SVGRectElement>(`[data-gantt-hit="${sliceId}"]`);
+    if (hit === null) throw new Error('Hover fixture has no hit surface');
+    const event = pointerEvent('mouse', 'pointerover');
+    Object.defineProperties(event, {
+      clientX: { value: hit.getBoundingClientRect().left + 9 },
+      clientY: { value: 9 },
+    });
+    fireEvent(markFor(sliceId), event);
   };
 
   itDom('opens nothing for a pointer that crosses the chart', () => {
@@ -10303,33 +10324,40 @@ itDom('clears a rung notice at the same day width and keeps the scale accessible
 });
 
 describe('sub-day forecast pointer surfaces', () => {
-  const drawTicks = (second: boolean) =>
-    render(
-      <GanttPanel
-        plan={planOf({
-          rows: [rowAt('one', 0, 1)],
-          steps: [
-            { id: 'dev', name: 'Dev' },
-            { id: 'qa', name: 'QA' },
-          ],
-          slices: [
-            sliceAt('first', 'one', 0, 2 / 480),
-            ...(second
-              ? [sliceAt('second', 'one', 6 / 896, 6 / 896 + 2 / 480, { stepId: 'qa' })]
-              : []),
-          ],
-        })}
-        startDate={MONDAY_START}
-        scheduleError={null}
-        generation={0}
-        heightPx={null}
-        dayPx={896}
-        onPickRow={() => undefined}
-        onPointRow={() => undefined}
-        pointed={pointedAtRow(null)}
-      />,
-    );
-  const restOnSurface = (sliceId: string, clientX: number, eventName = 'pointerover') => {
+  const tickPanel = (second: boolean, parts: Partial<GanttPlan> = {}, dayPx: DayPx = 896) => (
+    <GanttPanel
+      plan={planOf({
+        rows: [rowAt('one', 0, 1)],
+        steps: [
+          { id: 'dev', name: 'Dev' },
+          { id: 'qa', name: 'QA' },
+        ],
+        slices: [
+          sliceAt('first', 'one', 0, 2 / 480),
+          ...(second
+            ? [sliceAt('second', 'one', 6 / 896, 6 / 896 + 2 / 480, { stepId: 'qa' })]
+            : []),
+        ],
+        ...parts,
+      })}
+      startDate={MONDAY_START}
+      scheduleError={null}
+      generation={0}
+      heightPx={null}
+      dayPx={dayPx}
+      onPickRow={() => undefined}
+      onPointRow={() => undefined}
+      pointed={pointedAtRow(null)}
+    />
+  );
+  const drawTicks = (second: boolean, parts: Partial<GanttPlan> = {}) =>
+    render(tickPanel(second, parts));
+  const restOnSurface = (
+    sliceId: string,
+    clientX: number,
+    eventName = 'pointerover',
+    advance = true,
+  ) => {
     const surfaces = [...document.querySelectorAll<SVGRectElement>('[data-gantt-hit]')];
     for (const [index, surface] of surfaces.entries()) {
       vi.spyOn(surface, 'getBoundingClientRect').mockReturnValue({
@@ -10349,9 +10377,10 @@ describe('sub-day forecast pointer surfaces', () => {
     const pointer = new MouseEvent(eventName, { bubbles: true, clientX, clientY: 10 });
     Object.defineProperty(pointer, 'pointerType', { value: 'mouse' });
     fireEvent(surface, pointer);
-    act(() => {
-      vi.advanceTimersByTime(1000);
-    });
+    if (advance)
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
   };
   itDom('paints a two-minute tick at 4 px and gives it an 18 px pointer surface', () => {
     drawTicks(false);
@@ -10433,4 +10462,110 @@ describe('sub-day forecast pointer surfaces', () => {
       vi.useRealTimers();
     }
   });
+
+  itDom('lets the zero-duration decorative tick pass pointers to its hit surface', () => {
+    drawTicks(false, { slices: [sliceAt('first', 'one', 0, 0)] });
+    expect(
+      document.querySelector('[data-gantt-tick="first"]')?.getAttribute('pointer-events'),
+    ).toBe('none');
+  });
+  itDom.each(['filter', 'collapse', 'rung'] as const)(
+    'invalidates an open collision on a same-generation %s change',
+    (change) => {
+      vi.useFakeTimers();
+      try {
+        const drawn = drawTicks(true);
+        restOnSurface('second', 12);
+        drawn.rerender(
+          tickPanel(
+            change === 'rung',
+            change === 'filter'
+              ? { rows: [], slices: [] }
+              : change === 'collapse'
+                ? { rows: [rowAt('parent', 0, 1)], slices: [] }
+                : {},
+            change === 'rung' ? 28 : 896,
+          ),
+        );
+        expect(screen.queryByRole('tooltip')).toBeNull();
+      } finally {
+        vi.useRealTimers();
+      }
+    },
+  );
+  itDom('cancels pending hover when placement changes at the same generation', () => {
+    vi.useFakeTimers();
+    try {
+      const drawn = drawTicks(true);
+      restOnSurface('second', 12, 'pointerover', false);
+      drawn.rerender(tickPanel(true, {}, 28));
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(screen.queryByRole('tooltip')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  itDom('opens the current sole containing mark rather than the captured event mark', () => {
+    vi.useFakeTimers();
+    try {
+      drawTicks(true);
+      restOnSurface('second', 2);
+      expect(screen.getByRole('tooltip').textContent).toContain('Dev · Unassigned');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  itDom('closes when delayed hit testing finds no containing surface', () => {
+    vi.useFakeTimers();
+    try {
+      drawTicks(true);
+      restOnSurface('second', 30);
+      expect(screen.queryByRole('tooltip')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  itDom('names an unestimated collision as not estimated instead of zero minutes', () => {
+    vi.useFakeTimers();
+    try {
+      drawTicks(true, {
+        slices: [
+          sliceAt('first', 'one', 0, 0, { estimated: false }),
+          sliceAt('second', 'one', 0, 2 / 480, { stepId: 'qa' }),
+        ],
+      });
+      restOnSurface('second', 12);
+      expect(screen.getByRole('button', { name: 'one · Dev · not estimated' })).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  itDom('keeps the chooser while a focused forecast transfers focus to its choice', () => {
+    vi.useFakeTimers();
+    try {
+      drawTicks(true);
+      const bar = document.querySelector('[data-gantt-bar="first"]');
+      if (bar === null) throw new Error('Missing forecast bar');
+      fireEvent.focus(bar);
+      restOnSurface('second', 12);
+      const choice = screen.getByRole('button', { name: 'one · QA · 2 min' });
+      fireEvent.blur(bar, { relatedTarget: choice });
+      fireEvent.click(choice);
+      expect(screen.getByRole('tooltip').textContent).toContain('QA · Unassigned');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+it('describes a done collision by its actual span instead of the summed forecast', () => {
+  const chart = layOutGantt(
+    planOf({
+      rows: [rowAt('done', 5, 10, { status: 'done', factEndStop: 8 })],
+      slices: [sliceAt('done-dev', 'done', 5, 10)],
+    }),
+  );
+  expect(describeForecastSpan(chart.bars[0])).toBe('Done — 3 days actual span');
 });

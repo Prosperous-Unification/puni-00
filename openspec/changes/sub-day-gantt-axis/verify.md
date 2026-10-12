@@ -187,3 +187,29 @@ Initial fixture attempts lacked the required application provider, then compared
 Real minutes-input Gantt e2e acceptance, the full frontend/e2e suite, renderer-only 2000×5 measurement, packaged measurement and host gate remain OPEN. No merge or release readiness is claimed.
 
 Final focused checkpoint: the three changed suites passed **485 tests** (`/tmp/subday2-final-regression.log`); frontend module+app typecheck passed (`/tmp/subday2-final-types.log`). OpenSpec validation passed **184** artifacts (`/tmp/subday2-spec.log`). Task 2.2 implementation and 2.3 mutation proofs are complete; 2.1 retains its real minutes-input browser acceptance and remains open, alongside tasks 4.1 and 5.1.
+
+## Review corrections — 2026-10-13
+
+The four P2 findings are corrected: zero-duration decorative lines pass pointer events to their hit rectangles; placement/rung changes cancel pending hover and close stale cards/choosers; delayed hit testing opens the current sole mark or closes on no hits; collision labels preserve unknown estimates and completed work's actual span; forecast blur retains the chooser when focus transfers into a choice. The chooser content exposes `data-gantt-collision-list` for the stacked attempt implementation's matching blur contract.
+
+- Focused RED: eight panel cases failed against the published implementation (`/tmp/subday-review-red.log`); the done actual-span regression failed before the label helper existed (`/tmp/subday-review-done-red.log`). Initial implementation rerun exposed a missing React hook import, corrected before GREEN.
+- Three changed suites: **495 passed** (`TZ=UTC bunx vitest run src/components/wbs/gantt-panel.test.tsx src/components/wbs/gantt-geometry.test.ts src/components/wbs/gantt-detail.test.tsx --no-file-parallelism --maxWorkers=1`, frontend cwd; `/tmp/subday-review-regression-final.log`). The original hover simulator omitted client coordinates and surface bounds; it now supplies browser-like bounds instead of relying on the removed captured-mark fallback.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-fe-01:typecheck`: module and app targets passed (`/tmp/subday-review-types.log`). An initial mistyped `fe-01:typecheck` invocation produced only sandbox socket warnings and is not accepted as evidence.
+- `bunx @fission-ai/openspec@1.12.0 validate --all --json`: **184 passed, 0 failed** (`/tmp/subday-review-spec.log`).
+- Chromium driver: real Tab navigation focuses the first forecast, mouse enters the overlap, and clicking the second chooser button opens its card. A separate zero-duration fixture checks `elementFromPoint` at the exact visible line center returns the authored hit rectangle and hovering opens its card. Both passed, with no browser errors (`/tmp/subday-review-browser-final.log`); retained evidence is `evidence/panel-review-browser.json`.
+
+| Injected production fault                        | Observed failure                                              | Log suffix under `/tmp/subday-review-` |
+| ------------------------------------------------ | ------------------------------------------------------------- | -------------------------------------- |
+| Remove placement invalidation                    | same-generation filter/rung and pending hover: 3 failed       | `proof-placement.log`                  |
+| Remove placement invalidation for collapsed plan | same-generation collapse: 1 failed                            | `proof-collapse.log`                   |
+| Restore captured event mark fallback             | sole-current-mark and zero-hit: 2 failed                      | `proof-membership.log`                 |
+| Remove unknown estimate label arm                | unknown chooser: 1 failed                                     | `proof-unknown.log`                    |
+| Remove done actual-span label arm                | done label: 1 failed                                          | `proof-done.log`                       |
+| Remove focus-transfer guard                      | real focused forecast → chooser click leaves no selected card | `proof-browser-blur.log`               |
+| Remove decorative tick pointer transparency      | real exact-center hit returns no hit id instead of `mark-0-0` | `proof-browser-zero.log`               |
+
+All mutations were restored in `finally`. The browser fixture's milestone has modeled no-estimate card wording; the assertion verifies the actual card rather than inventing a zero-minute estimate. The first run incorrectly expected that invented wording, then was corrected. Latest development-mode performance samples remain coarse fixture measurements; they do not complete performance acceptance.
+
+Real minutes-input browser acceptance, oversized renderer-only measurement, full frontend/e2e/build, CI secrets/migration lint, and the h2puni host gate remain OPEN. No merge or release readiness is claimed.
+
+The first two frontend lint invocations exited nonzero without an ESLint diagnostic in their redirected output. The verbose rerun exposed an unsorted test import; ESLint autofix sorted it. The final verbose `wbs-fe-01:lint:fast` rerun passed (`/tmp/subday-review-lint-final.log`). Changed-file formatting and `git diff --check` passed. No commit hook was bypassed.
