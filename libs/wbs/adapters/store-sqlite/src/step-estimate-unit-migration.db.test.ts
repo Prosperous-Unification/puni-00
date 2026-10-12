@@ -115,3 +115,61 @@ it('refuses rollback over minute-bound undo and redo history after clearing and 
     sqlite.close();
   }
 });
+
+it.each([
+  'null',
+  '[]',
+  '123',
+  'true',
+  '"scalar"',
+  '{broken',
+  '{"estimateUnits":null}',
+  '{"estimateUnits":[]}',
+])(
+  'refuses direct down over damaged journal preconditions %s without changing stored state',
+  (preconditions) => {
+    const sqlite = seed();
+    try {
+      sqlite.run("INSERT INTO work_item (id,project_id,position,name) VALUES ('w','p',1,'Work')");
+      sqlite.run(
+        "INSERT INTO estimate (work_item_id,step_id,optimistic,realistic,pessimistic) VALUES ('w','s',240,240,240)",
+      );
+      sqlite.run(
+        "INSERT INTO command_journal (id,project_id,user_id,seq,kind,payload,inverse,preconditions,undone,created_at) VALUES ('j','p','u',1,'clear_estimate','{}','{}',?,0,1)",
+        [preconditions],
+      );
+      const read = () => ({
+        columns: sqlite.query('PRAGMA table_info(step)').all(),
+        steps: sqlite.query('SELECT * FROM step').all(),
+        estimates: sqlite.query('SELECT * FROM estimate').all(),
+        journal: sqlite.query('SELECT * FROM command_journal').all(),
+        migrations: sqlite.query('SELECT * FROM __drizzle_migrations').all(),
+      });
+      const before = read();
+      expect(() => rollbackTo(path, FOLDER, '20261012120000_add_step_node_attempts')).toThrow();
+      expect(read()).toEqual(before);
+    } finally {
+      sqlite.close();
+    }
+  },
+);
+
+it('allows a legacy object journal without a unit map through direct down', () => {
+  const sqlite = seed();
+  try {
+    sqlite.run(
+      `INSERT INTO command_journal (id,project_id,user_id,seq,kind,payload,inverse,preconditions,undone,created_at) VALUES ('j','p','u',1,'rename','{}','{}','{"expected":{},"from":{}}',0,1)`,
+    );
+    const history = sqlite.query('SELECT * FROM command_journal').all();
+    rollbackTo(path, FOLDER, '20261012120000_add_step_node_attempts');
+    expect(
+      sqlite
+        .query<{ name: string }, []>('PRAGMA table_info(step)')
+        .all()
+        .map((column) => column.name),
+    ).not.toContain('estimate_unit');
+    expect(sqlite.query('SELECT * FROM command_journal').all()).toEqual(history);
+  } finally {
+    sqlite.close();
+  }
+});

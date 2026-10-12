@@ -74,9 +74,11 @@ export function saveEstimateUnits(db: Reader): SavedEstimateUnits {
 
 /** Old images ignore journal bindings, so recovery refuses retained minute history intact. */
 function assertWorkdayJournal(db: Reader): void {
+  // Proof: removing the root-object arm let CLI remove accept null/array/scalar preconditions and change units/rows; migration-cli.db.test.ts failed (2026-10-13).
   const entries = db.all<{
     count: number;
   }>(sql`SELECT count(*) AS count FROM command_journal j WHERE CASE
+    WHEN json_type(j.preconditions) IS NOT 'object' THEN 1
     WHEN json_type(j.preconditions, '$.estimateUnits') IS NULL THEN 0
     WHEN json_type(j.preconditions, '$.estimateUnits') != 'object' THEN 1
     ELSE EXISTS (SELECT 1 FROM json_each(j.preconditions, '$.estimateUnits') WHERE type != 'text' OR value != 'workdays') END`);

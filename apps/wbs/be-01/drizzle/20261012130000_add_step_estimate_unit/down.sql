@@ -5,7 +5,9 @@ CREATE TEMP TABLE estimate_journal_rollback_guard (
 );--> statement-breakpoint
 INSERT INTO estimate_journal_rollback_guard
 SELECT count(*) FROM command_journal j WHERE
+-- Proof: removing the root-object guard let null/array/scalar preconditions pass direct down; step-estimate-unit-migration.db.test.ts failed (2026-10-13).
 CASE
+  WHEN json_type(j.preconditions) IS NOT 'object' THEN 1
   WHEN json_type(j.preconditions, '$.estimateUnits') IS NULL THEN 0
   WHEN json_type(j.preconditions, '$.estimateUnits') != 'object' THEN 1
   ELSE EXISTS (SELECT 1 FROM json_each(j.preconditions, '$.estimateUnits') WHERE type != 'text' OR value != 'workdays')

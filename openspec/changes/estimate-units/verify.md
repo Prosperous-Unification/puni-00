@@ -9,12 +9,12 @@ this packet.
 
 ## Allocated numbers (filled at packet time)
 
-| What                                  | Value | Checked against | Date |
-| ------------------------------------- | ----- | --------------- | ---- |
-| Migration stamp                       | —     | —               | —    |
-| `PLAN_DOCUMENT_VERSION`               | —     | —               | —    |
-| `CANONICAL_PLAN_INPUT_SCHEMA_VERSION` | —     | —               | —    |
-| `SCHEDULER_CONTRACT_VERSION`          | —     | —               | —    |
+| What                                  | Value                                   | Checked against                                                    | Date       |
+| ------------------------------------- | --------------------------------------- | ------------------------------------------------------------------ | ---------- |
+| Migration stamp                       | `20261012130000_add_step_estimate_unit` | base `99f588257` / integration queue; final collision recheck open | 2026-10-12 |
+| `PLAN_DOCUMENT_VERSION`               | 8                                       | base `99f588257` document 7; mounted round trip                    | 2026-10-12 |
+| `CANONICAL_PLAN_INPUT_SCHEMA_VERSION` | 6                                       | base `99f588257` canonical 5; upgrade/capture tests                | 2026-10-12 |
+| `SCHEDULER_CONTRACT_VERSION`          | 16                                      | base 15; minute corpus-version lint                                | 2026-10-12 |
 
 ## Commands
 
@@ -272,3 +272,28 @@ readout. Adjacent Proof comments identify each observation. New formatter tests 
 with `8 h` instead of `1 d` at 480, then passed after adding the specified threshold.
 
 Final slice 7 check: 854 mounted tests passed after adding explicit 40/135/720 minute face agreement; folded card also pins 135 as 2 h 15 min. OpenSpec 1.12.0 validation passed all 18 items. Direct sandbox Bun invocation refused its cache temporary directory (EROFS); pinned bunx validation passed with escalation. Final host gate, full browser suite, migration-stamp check against integration main, and Astra review remain pending.
+
+## Astra P2 corrections — journal root shape and normative versions (2026-10-13)
+
+Direct down and CLI remove now require the trusted journal preconditions root to be an
+object before applying the legacy absent-unit-map policy. JSON null, arrays, numeric/boolean/
+string scalars, malformed JSON, and null/array maps refuse without changing the unit column,
+units, estimate rows or history. Direct down also asserts its migration ledger is unchanged.
+Valid legacy object preconditions without estimateUnits still pass direct down and CLI remove,
+with their history retained. No journal bindings are removed or relabeled.
+
+Initial red: direct-down suite had five failures (null/array/three scalar forms were accepted);
+CLI round trip failed when remove accepted null. After the guard, the complete focused
+migration/CLI suites passed 64 tests and 476 assertions. Removing only each new root-object
+arm reproduced red: direct down had five failures; CLI remove returned success and failed its
+nonzero assertion. Both faults were restored and the complete suites rerun: 64 passed,
+0 failed, 476 assertions (`/tmp/estimate-unit-review-root-restored.log`). Mutation logs:
+`/tmp/estimate-unit-review-root-down-proof.log` and `/tmp/estimate-unit-review-root-cli-proof.log`.
+
+The normative wbs-domain delta now preserves old workday arithmetic/schedule outputs and
+solver quantum/wire schema while explicitly permitting scheduler contract tag/cache identity
+16 and canonical input 6 with a versioned estimateUnit field. Allocation tables now record
+actual document 8, canonical 6, retained ADR 0042, and the fixed implementation base; no
+implementation versions changed. Store-sqlite typecheck, affected ESLint, migration lint,
+Prettier and OpenSpec validation (18/18) passed. Task 8/full browser/host gate and the final
+migration collision check remain open; this correction does not authorize release.

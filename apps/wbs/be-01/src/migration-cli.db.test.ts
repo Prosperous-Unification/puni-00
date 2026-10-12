@@ -1406,11 +1406,34 @@ describe('migration deploy entrypoints', () => {
     expect(journalRefusal.stderr).toContain('minute journal');
     expect(read()).toEqual(before);
     expect(withHistory.query('SELECT * FROM command_journal').all()).toEqual(journalBefore);
-    withHistory.run('DELETE FROM command_journal');
+    for (const preconditions of [
+      'null',
+      '[]',
+      '123',
+      'true',
+      '"scalar"',
+      '{broken',
+      '{"estimateUnits":null}',
+      '{"estimateUnits":[]}',
+    ]) {
+      withHistory.run('UPDATE command_journal SET preconditions = ?', [preconditions]);
+      const damagedHistory = withHistory.query('SELECT * FROM command_journal').all();
+      const columns = withHistory.query('PRAGMA table_info(step)').all();
+      const refused = await runCli('estimate-unit-rollback-cli.ts', dbPath, 'remove', savedPath);
+      expect(refused.exitCode).not.toBe(0);
+      expect(read()).toEqual(before);
+      expect(withHistory.query('SELECT * FROM command_journal').all()).toEqual(damagedHistory);
+      expect(withHistory.query('PRAGMA table_info(step)').all()).toEqual(columns);
+    }
+    withHistory.run('UPDATE command_journal SET preconditions = ?', ['{"expected":{},"from":{}}']);
+    const legacyHistory = withHistory.query('SELECT * FROM command_journal').all();
     withHistory.close();
     const remove = await runCli('estimate-unit-rollback-cli.ts', dbPath, 'remove', savedPath);
     expect(remove.stderr).toBe('');
     expect(remove.exitCode).toBe(0);
+    const afterRemove = openDatabase(dbPath);
+    expect(afterRemove.query('SELECT * FROM command_journal').all()).toEqual(legacyHistory);
+    afterRemove.close();
     expect(read()).toEqual({
       steps: [
         { id: 'dev', estimate_unit: 'workdays' },

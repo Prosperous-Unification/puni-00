@@ -4,20 +4,20 @@ Rationale for the unit on the step, the per-unit rounding and the placement cons
 [ADR 0042](../../../docs/adr/0042-an-estimate-unit-belongs-to-the-step-and-rounding-follows-it.md).
 This file is the shape. Interview: `puni-plan/batch-10/interviews/020.09-answers.md` Q1–Q3a.
 
-## Allocated numbers — allocated at packet time
+## Allocated numbers — implementation allocation
 
-Nothing here allocates a number. The packet that opens slice 3 (storage) and slice 6
-(documents) rechecks every row against `origin/main` and every branch in
-`puni-plan/batch-10/integration-queue.txt`, writes the values into this table and records the
-check in `verify.md`.
+The implementation used base `origin/main` `99f588257a0a7014ec9271224f7900ed588e6053`.
+Document and canonical versions below replace stale packet-time values. The migration stamp
+was checked against that base and the integration queue; it must be rechecked against the
+current integration/main before integration.
 
-| What                                  | Pinned on `origin/main` `a3b1526b` (2026-10-11)                                  | Pinning test                                                                                | This change                                                                                                            |
-| ------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `PLAN_DOCUMENT_VERSION`               | 6 (`plan-document-shapes.ts`)                                                    | `plan-document.resource.test.ts` "JSON export is a versioned plan document…" (`version: 6`) | next free, allocated at packet time                                                                                    |
-| `CANONICAL_PLAN_INPUT_SCHEMA_VERSION` | 4 (`canonical-plan-input.ts`)                                                    | `canonical-plan-input.test.ts`; `saved-plans/module.test.ts` (`schemaVersion` 4)            | next free, allocated at packet time                                                                                    |
-| `SCHEDULER_CONTRACT_VERSION`          | 15 (`contract-version.ts`; 14 in the interview was stale: `432eff1ab` bumped it) | `contract-version.test.ts` (`'15+'`), `wire-contract-version.test.ts`                       | 16; both new minute-step corpus cases triggered corpus-version lint at 15; old workday case schedules remain identical |
-| Migration stamp                       | newest `20261005110000_add_shared_people`                                        | every migration-enumerating `*.db.test.ts` in `store-sqlite`                                | `20261012130000_add_step_estimate_unit` (allocated 2026-10-12; main `99f588257`, queue latest 20261012120000)          |
-| ADR                                   | 0040 highest; 0041 also on `batch-10/070-12-restore-applied-migration-set`       | `adr-index.test.ts` (contiguous)                                                            | 0041; whichever of the two lands second renumbers                                                                      |
+| What                                  | Base at `99f588257`                            | Pinning test                                            | This change                                                                                                            |
+| ------------------------------------- | ---------------------------------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `PLAN_DOCUMENT_VERSION`               | 7 (`plan-document-shapes.ts`)                  | `plan-document.resource.test.ts` current export         | 8; earlier documents through 7 import as workdays                                                                      |
+| `CANONICAL_PLAN_INPUT_SCHEMA_VERSION` | 5 (`canonical-plan-input.ts`)                  | `canonical-plan-input.test.ts`; saved-plan reader tests | 6; upgrade 5 adds explicit workday units                                                                               |
+| `SCHEDULER_CONTRACT_VERSION`          | 15 (`contract-version.ts`)                     | corpus-version lint and `wire-contract-version.test.ts` | 16; minute corpus cases change the tag/cache identity, preserving old workday schedules and solver wire schema/quantum |
+| Migration stamp                       | newest `20261012120000_add_step_node_attempts` | migration apply/down suites                             | `20261012130000_add_step_estimate_unit`; final integration collision check remains open                                |
+| ADR                                   | ADR 0042 already accepted (highest ADR 0051)   | `adr-index.test.ts`                                     | Retain ADR 0042; no renumbering                                                                                        |
 
 ## D1 — Vocabulary in `@wbs/domain`
 

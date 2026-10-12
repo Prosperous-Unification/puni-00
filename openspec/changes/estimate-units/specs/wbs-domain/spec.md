@@ -55,8 +55,10 @@ workday, 10 minutes at 480) SHALL happen only where it does today, at the CP-SAT
 #### Scenario: a workday step is unchanged
 
 - **GIVEN** every Fast and solver golden corpus case
-- **WHEN** the schedules and canonical inputs are computed after this change
-- **THEN** both are byte-identical to the stored golden values
+- **WHEN** workday charges and schedules are computed after this change
+- **THEN** their arithmetic and schedule outputs match the stored golden values exactly
+- **AND** canonical input schema 6 adds explicit `estimateUnit: workdays` to each legacy step,
+  so canonical bytes and cache identities may change without changing those outputs
 
 ### Requirement: A minute-unit slice is placed on the workday axis through WORKDAY_MINUTES
 
@@ -64,8 +66,11 @@ Until the instant axis exists, a minute-unit slice SHALL enter the schedule inpu
 duration of `charged minutes / 480` workdays, exact, with `480` the domain constant
 `WORKDAY_MINUTES` and not a project setting. It SHALL take part in dependencies, person
 queues, pools, floors and deadlines exactly as a workday slice of that fraction does, and
-SHALL NOT run through a night or a weekend. The scheduler contract version and the solver
-wire SHALL NOT change for this placement. The Gantt bar card of a minute slice SHALL say
+SHALL NOT run through a night or a weekend. The scheduler contract identifier SHALL advance
+to 16 for the new minute corpus cases; the contract tag and cache identities may change.
+The solver wire schema and its existing quantum SHALL remain unchanged. Canonical input
+schema 6 SHALL carry the versioned step unit field; existing workday arithmetic and schedule
+outputs SHALL remain unchanged. The Gantt bar card of a minute slice SHALL say
 "placed on the working calendar".
 
 #### Scenario: four hours is half a day
