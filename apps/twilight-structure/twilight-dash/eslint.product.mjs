@@ -1,8 +1,10 @@
 /**
  * Dash's in-process edges: `cli.ts` reaches the fleet planner facade, and `cli.ts` plus the
- * runtime authority under `authority/` reach Burokrat's admission judge through the exact
+ * runtime authority under `authority/`, the activation controller under `activation/` and the
+ * review invoker under `review/` reach Burokrat's judges through the exact
  * `@twilight-burokrat/judge` alias. Every other cross-product, app-to-app and app-to-infrastructure
- * dependency retains the workspace fences. Tests may additionally reach the shared scratch helper.
+ * dependency retains the workspace fences. Tests may additionally reach the shared scratch helper
+ * and the shared clock-read detector.
  */
 export default ({
   browserAdapterConstraint,
@@ -73,11 +75,25 @@ export default ({
       rules: boundary(['^@twilight-burokrat/judge$']),
     },
     {
+      files: [
+        'apps/twilight-structure/twilight-dash/cli/src/activation/**/*.ts',
+        'apps/twilight-structure/twilight-dash/cli/src/review/**/*.ts',
+      ],
+      // Proof: omitting this override made uncached `twilight-dash:lint` fail on the activation
+      // and review modules' `@twilight-burokrat/judge` imports; widening it to
+      // `^@twilight-burokrat/` failed `Dash activation reaches only the judge alias` at the exact
+      // allow-list assertion.
+      rules: boundary(['^@twilight-burokrat/judge$']),
+    },
+    {
       files: ['apps/twilight-structure/twilight-dash/cli/src/**/*.test.ts'],
       // Proof: omitting this override made uncached Dash lint fail on the alias-surface test's
       // `@tools/fleet-plan` import and the fixture's `@tools/test-scratch` import (2026-10-11).
+      // Proof: omitting only `^@tools/test-clock-reads$` made uncached `twilight-dash:lint` fail
+      // on `no-ambient-clock.test.ts`'s detector import (2026-10-12).
       rules: boundary([
         '^@tools/fleet-plan$',
+        '^@tools/test-clock-reads$',
         '^@tools/test-scratch$',
         '^@twilight-burokrat/judge$',
       ]),

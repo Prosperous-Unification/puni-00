@@ -74,9 +74,17 @@ const ALLOWED_INFRA_TO_PRODUCT_EDGES = [
 // and refuse a sibling alias and a relative path into Burokrat.
 const ALLOWED_DASH_EDGES = [
   ['twilight-dash', 'tool-fleet'],
+  ['twilight-dash', 'tool-test-clock-reads'],
   ['twilight-dash', 'tool-test-scratch'],
   ['twilight-dash', 'twilight-burokrat'],
 ] as const;
+
+// Both suite apps' `no-ambient-clock.test.ts` apply the shared clock-read detector. Proof:
+// omitting the Burokrat pair made the real graph oracle report
+// `twilight-burokrat -> tool-test-clock-reads`, and omitting the Dash pair above reported
+// `twilight-dash -> tool-test-clock-reads` (2026-10-12). The product-local effective ESLint
+// tests pin `@tools/test-clock-reads` to each app's tests.
+const ALLOWED_BUROKRAT_EDGES = [['twilight-burokrat', 'tool-test-clock-reads']] as const;
 
 // Navigator exchanges records, not calls: it reads Burokrat's record contracts and WBS's plan
 // export and command batch contracts. Proof: omitting the Burokrat pair made the real graph
@@ -460,9 +468,11 @@ describe('productConstraints', () => {
           continue;
         }
         if (
-          [...ALLOWED_DASH_EDGES, ...ALLOWED_NAVIGATOR_RECORD_EDGES].some(
-            ([source, reached]) => project.name === source && target.name === reached,
-          )
+          [
+            ...ALLOWED_DASH_EDGES,
+            ...ALLOWED_BUROKRAT_EDGES,
+            ...ALLOWED_NAVIGATOR_RECORD_EDGES,
+          ].some(([source, reached]) => project.name === source && target.name === reached)
         ) {
           continue;
         }

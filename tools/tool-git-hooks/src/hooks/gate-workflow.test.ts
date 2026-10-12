@@ -24,9 +24,9 @@ type JobResult = 'success' | 'failure' | 'cancelled' | 'skipped';
 
 interface GateNeeds {
   modeResult: JobResult;
-  toolWiki: string;
+  twilight: string;
   workspaceResult: JobResult;
-  toolWikiResult: JobResult;
+  twilightResult: JobResult;
 }
 
 const workflowPath = join(
@@ -61,9 +61,9 @@ const reduceGate = (needs: GateNeeds): number => {
     env: {
       PATH: process.env['PATH'] ?? '',
       MODE_RESULT: needs.modeResult,
-      TOOL_WIKI: needs.toolWiki,
+      TWILIGHT: needs.twilight,
       WORKSPACE_RESULT: needs.workspaceResult,
-      TOOL_WIKI_RESULT: needs.toolWikiResult,
+      TWILIGHT_RESULT: needs.twilightResult,
     },
     stderr: 'pipe',
     stdout: 'pipe',
@@ -72,35 +72,35 @@ const reduceGate = (needs: GateNeeds): number => {
 
 const green: GateNeeds = {
   modeResult: 'success',
-  toolWiki: 'run',
+  twilight: 'run',
   workspaceResult: 'success',
-  toolWikiResult: 'success',
+  twilightResult: 'success',
 };
 
 const notSuccess = ['failure', 'cancelled', 'skipped'] as const;
 
 /**
  * `gate` is the one required check over three jobs. It must report on every shard, including
- * one that failed, was cancelled or never ran, and accept a skipped Tool Wiki shard only when
- * the scope job succeeded and said Tool Wiki is out of scope.
+ * one that failed, was cancelled or never ran, and accept a skipped Twilight shard only when
+ * the scope job succeeded and said the Twilight suite is out of scope.
  */
 describe('the CI gate check', () => {
   test('waits on every shard even when one fails', () => {
     const gate = readWorkflow().jobs?.['gate'];
 
-    expect(gate?.needs).toEqual(['gate_mode', 'gate_workspace', 'gate_tool_wiki']);
+    expect(gate?.needs).toEqual(['gate_mode', 'gate_workspace', 'gate_twilight']);
     expect(gate?.if).toBe('${{ always() }}');
     expect(requireStep().env).toEqual({
       MODE_RESULT: '${{ needs.gate_mode.result }}',
-      TOOL_WIKI: '${{ needs.gate_mode.outputs.tool_wiki }}',
+      TWILIGHT: '${{ needs.gate_mode.outputs.twilight }}',
       WORKSPACE_RESULT: '${{ needs.gate_workspace.result }}',
-      TOOL_WIKI_RESULT: '${{ needs.gate_tool_wiki.result }}',
+      TWILIGHT_RESULT: '${{ needs.gate_twilight.result }}',
     });
   });
 
   test('passes when every shard in scope succeeded', () => {
     expect(reduceGate(green)).toBe(0);
-    expect(reduceGate({ ...green, toolWiki: 'skip', toolWikiResult: 'skipped' })).toBe(0);
+    expect(reduceGate({ ...green, twilight: 'skip', twilightResult: 'skipped' })).toBe(0);
   });
 
   test('refuses a workspace shard that did not succeed', () => {
@@ -111,27 +111,28 @@ describe('the CI gate check', () => {
     }
   });
 
-  test('refuses a Tool Wiki shard that did not succeed while in scope', () => {
+  test('refuses a Twilight shard that did not succeed while in scope', () => {
     // Proof (2026-09-28): with the `run)` arm's test replaced by
-    // `test "$TOOL_WIKI_RESULT" != failure`, this failed on `cancelled` exiting 0 — 4 passed / 1 failed.
-    for (const toolWikiResult of notSuccess) {
-      expect(reduceGate({ ...green, toolWikiResult }), toolWikiResult).not.toBe(0);
+    // `test "$TOOL_WIKI_RESULT" != failure` (now `TWILIGHT_RESULT`), this failed on `cancelled`
+    // exiting 0 — 4 passed / 1 failed.
+    for (const twilightResult of notSuccess) {
+      expect(reduceGate({ ...green, twilightResult }), twilightResult).not.toBe(0);
     }
   });
 
   test('refuses a skip the scope job did not explain', () => {
-    // `gate_tool_wiki` is also skipped when `gate_mode` fails or is cancelled, so accepting a
+    // `gate_twilight` is also skipped when `gate_mode` fails or is cancelled, so accepting a
     // skip on its own would pass a gate that decided nothing.
     // Proof (2026-09-28): with `test "$MODE_RESULT" = success` deleted, the failed-scope case
     // exited 0; with the `*)` arm's `exit 1` deleted, the empty-verdict case exited 0.
     for (const modeResult of notSuccess) {
       expect(
-        reduceGate({ ...green, modeResult, toolWiki: 'skip', toolWikiResult: 'skipped' }),
+        reduceGate({ ...green, modeResult, twilight: 'skip', twilightResult: 'skipped' }),
         modeResult,
       ).not.toBe(0);
     }
-    expect(reduceGate({ ...green, toolWiki: '', toolWikiResult: 'skipped' })).not.toBe(0);
-    expect(reduceGate({ ...green, toolWiki: 'skip', toolWikiResult: 'success' })).not.toBe(0);
+    expect(reduceGate({ ...green, twilight: '', twilightResult: 'skipped' })).not.toBe(0);
+    expect(reduceGate({ ...green, twilight: 'skip', twilightResult: 'success' })).not.toBe(0);
   });
 });
 

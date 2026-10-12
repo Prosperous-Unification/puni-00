@@ -1,0 +1,489 @@
+# dash-activation-relocation verification
+
+Observed commands, results and R5 proofs per slice. Bun tests run under
+`env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`.
+
+## S0: split without behaviour change
+
+| Injected fault                                                        | Observed failure                                         |
+| --------------------------------------------------------------------- | -------------------------------------------------------- |
+| `export { ProcessReviewInvoker } from './review/invoker'` in facade   | surface equality `+ "ProcessReviewInvoker"`              |
+| `Date.now()` appended to `review/invocation-journal.ts`               | scan `review/invocation-journal.ts reads a clock`        |
+| `bun:sqlite` import in `review/invocation-journal.ts`                 | scan `review/invocation-journal.ts imports bun:sqlite`   |
+| `new Database(process.env.PARSER_PATH ?? ':memory:')` in declarations | scan `relationships/declarations.ts opens a SQLite file` |
+
+Each fault was restored and the test passed again.
+
+Correction (review F2, 2026-10-12): an earlier note here called the spy in `retained raw tuple
+mismatch refuses before the digest dependency is touched` vacuous. That note was wrong. The probe
+behind it put the injected `hashBytes` call into the first `byPath.get(path)` in
+`review-selection-objects.ts`, which is not the `read` port the test drives.
+
+The review re-ran the probe correctly: a `hashBytes(new Uint8Array())` call before the tuple check
+in `read` fails the test with `injected digest dependency reached`, both on main and at S5. The spy
+on the facade namespace intercepts.
+
+## S1: move, alias, fences and CI shard
+
+Observed 2026-10-12 on branch `batch-10/080-activation-relocation-s1` (head `9f48574b1`, then the
+environment fix `acaefb93a`).
+
+| Command                                      | Result                                                                                                     |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| full `twilight-burokrat:test` at `acaefb93a` | 1032 pass, 0 fail, 63 files, 1129.9 s                                                                      |
+| Dash suite at `9f48574b1`                    | 1523 pass, 1 fail (`common freeze core …`: missing `TOOL_WIKI_TRUSTED_NODE_MODULES`, fixed in `acaefb93a`) |
+| that file alone after `acaefb93a`            | 1 pass, 0 fail                                                                                             |
+| devsync and gate-workflow oracles            | 93 pass, 0 fail                                                                                            |
+| `gate-entrypoints` tests                     | 58 pass, 0 fail                                                                                            |
+
+Count change: Burokrat 2330 at S0 − 1299 moved + 1 new bundle test = 1032. Dash 1524 = 215
+before S1 + 1299 moved + 10 units tests.
+
+| Injected fault                                            | Observed failure                                                            |
+| --------------------------------------------------------- | --------------------------------------------------------------------------- |
+| the `activation/**` and `review/**` lint override removed | uncached `twilight-dash:lint`: 19 × `Imports of apps are forbidden`         |
+| the override widened to `^@twilight-burokrat/`            | boundaries oracle: `+ "^@twilight-burokrat/"`                               |
+| `ProcessReviewInvoker` re-imported into Burokrat `cli.ts` | bundle test: `validator.mjs` carries `ProcessReviewInvoker`                 |
+| CI excludes only `--exclude=twilight-burokrat`            | pins test: `Expected: 2`, `Received: 1`                                     |
+| `h2puni-gate-steps.sh` without `,twilight-dash`           | pins test: `Expected: 1`, `Received: 0`                                     |
+| the old `gate_mode` filter fed `["twilight-dash"]`        | gate-workflow test: `Expected: "twilight=run"`, `Received: "twilight=skip"` |
+
+Each fault was reverted; the head's results above are with every check in place.
+
+The tool-devsync handoff corpus (`repo-namespacing-handoff.test.ts`) was re-pinned twice: at S0
+(45 files, 322 lines, `1cb67b80…`) and at S1 (`8801695d…`).
+
+## S2: clocks
+
+Observed 2026-10-12 on branch `batch-10/080-activation-relocation-s2` (from S1 `9f48574b1`, then
+merged S1's `acaefb93a`).
+
+`src/clock.ts` holds Dash's only `Date.now` and `performance.now`. `Monotonic` is a required
+dependency of `runObservationTick` (and `ObservationCliConfig`), `ObservationFence`,
+`createGitHubPullRequestSource`, `ReviewRetrievalOptions`, `LocalReviewAcquisitionInput`,
+`OwnedReviewCandidateInput` and `runPinnedOfflineGh`. `WallClock` is a required argument of
+`FileJournalLock.acquire`, `FileInvocationJournal.create`/`open` and `ProcessReviewInvoker`.
+`runObservationService` takes `{ fetcher, clock: WallClock, monotonic }`. The two fixture child
+processes that call `runObservationTick` or `runObservationCli` from outside `testing/`
+(`observation-tick-process.ts`, `observation-cli-process.ts`) moved under `activation/testing/`,
+so the production scan does not see them as composers. The AST detector is now
+`tools/test/clock-reads/detector.ts` (project `tool-test-clock-reads`, alias
+`@tools/test-clock-reads`); its own test moved beside it and runs in `tool-test-clock-reads:test`.
+
+| Command                                                                                                                                                                | Result                                                                                                                           |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Dash suite at S1 head `9f48574b1` (without the S1 env fix)                                                                                                             | 1524 tests across 34 files; 1 fail (`common freeze core …`, the missing `TOOL_WIKI_TRUSTED_NODE_MODULES` that `acaefb93a` fixes) |
+| `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT TOOL_WIKI_TRUSTED_NODE_MODULES=… bun test --preload ../../../../tools/test/scratch/preload.ts src --timeout=60000` (Dash) | 1526 pass, 0 fail, 5451 `expect()` calls, 34 files                                                                               |
+| the same with `TMPDIR=/var/tmp`                                                                                                                                        | 1526 pass, 0 fail, 5455 `expect()` calls, 34 files                                                                               |
+| Burokrat `no-ambient-clock`, `judge-facade`, `packaging/bundle`, `cli` tests                                                                                           | 19 pass, 0 fail (20 before: the detector's own test moved out)                                                                   |
+| `bun test --timeout=10000` in `tools/test/clock-reads`                                                                                                                 | 1 pass                                                                                                                           |
+| `bun test tools/tool-devsync/src/{workspace-targets,eslint-boundaries,workspace-projects,adr-index}.test.ts`                                                           | 65 pass, 0 fail (one new case)                                                                                                   |
+
+Dash count change: `authority/no-ambient-clock.test.ts` (1 test) is replaced by
+`no-ambient-clock.test.ts` (2 tests: `only clock.ts reads the wall clock`, `only the two
+composition roots compose the clocks`), and `service refuses absent injected clocks before any
+provider call` is new: 1524 − 1 + 2 + 1 = 1526.
+
+Load-sensitive tests:
+
+- `terminal close crossing only the tick deadline preserves committed completion` and its sibling
+  `deadline crossing during terminal write records cancellation before COMMIT` drive
+  `activation/testing/scripted-monotonic.ts`. The whole-tick budget is 60 s, so the real deadline
+  timer cannot fire, and the scripted clock jumps past the tick deadline exactly where each test
+  places the crossing.
+- `protected registration FIFO refuses promptly without blocking the reader` keeps its child
+  process. `review-journal.ts` reads no clock: the bound is the `timeout` around a child whose
+  blocking `open(2)` on a FIFO would never return, which no injected clock can interrupt and which
+  cannot run in-process without hanging the test runner. The bound was widened from 2 s to 30 s,
+  so a loaded host's Bun start-up cannot fail it, and the `O_NONBLOCK` negative was re-observed
+  under the new bound.
+
+| Injected fault                                                         | Observed failure                                                                                                               | Restored |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | -------- |
+| (a) `performance.now()` appended to `activation/observation-tick.ts`   | `only clock.ts reads the wall clock`: `+ "activation/observation-tick.ts"`                                                     | pass     |
+| `Date.now()` appended to `authority/claims.ts`                         | same test: `+ "authority/claims.ts"`                                                                                           | pass     |
+| (b) `options.monotonic ?? monotonicClock()` in `runObservationService` | `only the two composition roots compose the clocks`: `+ "activation/observation-service.ts"`                                   | pass     |
+| (c) `scriptedMonotonic().advance` made a no-op                         | `deadline crossing during terminal write …`: `- "kind": "cancelled"`, `+ "kind": "complete"`, `+ "requestCount": 0`            | pass     |
+| (d) `monotonic` dropped from `runDash`'s required-dependency list      | `runDash refuses missing dependencies`: `error: Dash accepted incomplete dependencies`                                         | pass     |
+| (e) `Date.now()` appended to Burokrat `evidence/manual.ts`             | `the Burokrat package reads no clock outside the Dash-owned sites`: `{ line: 1058, path: "evidence/manual.ts", text: "Date" }` | pass     |
+| `O_NONBLOCK` dropped from the registration open                        | FIFO test: `Expected: 0`, `Received: 124` after 30 s                                                                           | pass     |
+| `'performance'` removed from the detector's clock globals              | detector test: `- 29` (the `performance.now()` sample line)                                                                    | pass     |
+| Burokrat `ALLOWED_BUROKRAT_EDGES` emptied                              | graph oracle: `+ "twilight-burokrat -> tool-test-clock-reads"`                                                                 | pass     |
+| Dash `['twilight-dash', 'tool-test-clock-reads']` removed              | graph oracle: `+ "twilight-dash -> tool-test-clock-reads"`                                                                     | pass     |
+| Burokrat test override widened to `^@tools/`                           | `lets Burokrat tests reach only the clock-read detector`: `- "^@tools/test-clock-reads$"`, `+ "^@tools/"`                      | pass     |
+| Burokrat product policy returns `[]`                                   | `bunx eslint …/twilight-burokrat/cli/src`: `4:1 error … @nx/enforce-module-boundaries`                                         | pass     |
+| `^@tools/test-clock-reads$` removed from the Dash test override        | uncached `twilight-dash:lint`: `4:1 error … @nx/enforce-module-boundaries`                                                     | pass     |
+
+`runObservationService` gained no clock check of its own: an omitted clock throws at its first
+read inside the tick, before any GET, which `service refuses absent injected clocks before any
+provider call` shows (exit 1 and zero fetches for each omission; exit 0 with fetches once both are
+present). An explicit check there could not be made to fail distinguishably, so none was added.
+
+## S3: observation store ownership
+
+Observed 2026-10-12 on branch `batch-10/080-activation-relocation-s3` (from S2 `025bcc28a`).
+
+`runDash` gains `bootstrap-observation <service.json>` and `migrate-observation <service.json>`
+(`activation/observation-commands.ts`). Each parses exactly one non-flag argument, then reads the
+protected service configuration through `readObservationStateConfig`, the same reader the
+observation service uses. The typed refusals (`ObservationStoreError.failure`) are decided before
+the observation lock is taken. `bootstrap-observation` is `initializeObservationState` (v9) then
+`migrateObservationRecoveryState` (v10), each under its own hold of `observation.lock`, so it
+creates exactly the store the service tests build. `migrate-observation` reads `user_version`
+through a read-only handle and runs the steps from that version: 8 runs `migrateObservationState`
+then `migrateObservationRecoveryState`; 9 runs the second only. It prints
+`{"path","status":"migrated","from","to":10}`.
+
+| Command                                                                                                                                                                | Result                                                                                          |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Dash suite before S3 (S2 head `025bcc28a`)                                                                                                                             | 1526 pass, 0 fail, 5451 `expect()` calls, 34 files                                              |
+| `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT TOOL_WIKI_TRUSTED_NODE_MODULES=… bun test --preload ../../../../tools/test/scratch/preload.ts src --timeout=60000` (Dash) | 1537 pass, 0 fail, 5518 `expect()` calls, 36 files                                              |
+| the same with `TMPDIR=/var/tmp`                                                                                                                                        | 1537 pass, 0 fail, 5522 `expect()` calls, 36 files                                              |
+| `bunx tsc --build --force apps/twilight-structure/twilight-dash/cli/tsconfig.json`                                                                                     | exit 0                                                                                          |
+| `bunx nx run twilight-dash:lint --skip-nx-cache`                                                                                                                       | `Successfully ran target lint for project twilight-dash`                                        |
+| `bun run tools/tool-git-hooks/src/hooks/migration-lint.ts $(git ls-files '*.sql')`                                                                                     | exit 0 (the dumps are `.sqlite-dump`, not `.sql`)                                               |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                                                                               | 183 items, 183 passed, 0 failed                                                                 |
+| `bun test tools/tool-devsync/src/{workspace-targets,eslint-boundaries,workspace-projects,adr-index}.test.ts`                                                           | 65 pass, 0 fail (a first run concurrent with the Dash suite saw 9 fail; rerun alone 65/0 twice) |
+
+Dash count change: `observation-commands.db.test.ts` adds 9 tests and `schema-golden.test.ts`
+adds 2, so 1526 + 11 = 1537 across 36 files.
+
+| Injected fault                                                                | Observed failure                                                                                                                                                                                      | Restored |
+| ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| `CHECK (sequence >= 1)` weakened to `>= 0` in `AttemptDefinition`             | golden equality: `- … CHECK (sequence >= 1) …`, `+ … CHECK (sequence >= 0) …`; the Burokrat-written store: `observation recovery table malformed: activation_observation_attempt`                     | pass     |
+| exact-definition comparison removed from `readRecovery` (renamed-column dump) | still refused before any attempt, later: `- "observation recovery table malformed: activation_observation_attempt"`, `+ "Validation failed: classification must be a string or null (was missing) …"` | pass     |
+| `current` check removed from `migrate-observation`                            | `Dash accepted migrate-observation and printed {"path":…,"status":"migrated","from":10,"to":10}`                                                                                                      | pass     |
+| absent pre-check removed from `migrate-observation`                           | canary: `Expected: "absent"`, `Received: "unreadable"` (the read-only open still created nothing)                                                                                                     | pass     |
+| absent pre-check and the read-only flag both removed                          | canary: `- []`, `+ ["activation.sqlite"]`                                                                                                                                                             | pass     |
+| read-only flag alone removed                                                  | 9 pass: masked by the absent pre-check; recorded, not claimed as a proof                                                                                                                              | —        |
+| `exists` pre-check removed from `bootstrap-observation`                       | `error: observation state already exists` (untyped) in the bootstrap and canary tests                                                                                                                 | pass     |
+| every `lstat` failure mapped to absence                                       | search-denied test: bootstrap reached the lock, `observation protected path malformed: …/state`                                                                                                       | pass     |
+| `version` check removed (version-7 store)                                     | `error: observation migration requires version 8` (untyped)                                                                                                                                           | pass     |
+| `activation_request` table check removed (foreign v9 file)                    | `error: observation state partial: activation_request` (untyped)                                                                                                                                      | pass     |
+| grammar loosened to `argv.length === 0`                                       | `Dash accepted bootstrap-observation and printed {…"status":"bootstrapped","version":10}`                                                                                                             | pass     |
+| `--` test dropped from the grammar                                            | `bootstrap-observation --force`: `Expected: "usage: …"`, `Received: "observation service configuration unavailable"`                                                                                  | pass     |
+
+Assumptions:
+
+1. `PRE_RELOCATION_SHA` is `802c26bd8`, the S0 head; the S0 merge commit does not exist yet.
+   Between main `21a6bd537` and `802c26bd8`, `observation-state.ts`, `controller.ts`,
+   `bootstrap.ts`, `github-reader.ts` and `github-source.ts` differ only in import lines
+   (`git diff 21a6bd537 802c26bd8 -- <those five>` filtered to non-import lines is empty).
+2. "`withObservationAttempt` continues the sequence" is read as `withRecoveryObservation`: at v10
+   that is the attempt path, while `withObservationAttempt` is the v9 path and refuses a v10 store
+   (`observation state schema unsupported`).
+3. `openActivationController` keeps creating an absent database. It is the creation primitive
+   `initializeObservationState` uses on its temporary path, and the controller tests open fresh
+   stores through it. Every observation entry point (`withObservationAttempt`,
+   `withRecoveryObservation`, both migrations) already refuses absence, which
+   `scheduled observation refuses absent state before provider work` proves. Making the
+   controller refuse would change no observation behaviour.
+4. The typed refusals are decided outside the lock, because the existing operations each take it
+   themselves and a second `flock` on a new descriptor in the same process reports busy. Every
+   operation keeps its own version fence inside the lock, so a racing writer gets the untyped
+   inner refusal, never a second store. A bootstrap interrupted between its two steps leaves a v9
+   store; `bootstrap-observation` then refuses `exists` and `migrate-observation` finishes it.
+5. `bootstrap-observation` requires the state directory to exist (it refuses with
+   `observation protected path absent`) and never creates it, as before. The spec states this.
+6. A store file SQLite cannot read (`SQLITE_NOTADB`, `SQLITE_CANTOPEN`) is `unreadable`; a
+   readable file without `activation_request` is `unsupported-version`.
+7. `busy` from either step throws `observation store busy …`; it is not one of the five typed
+   refusals and has no new test.
+
+### Fixture production
+
+The producer ran from a detached worktree of `802c26bd8` with the repository's `node_modules`
+symlinked in, under `/tmp/claude-1000/s3` (mode `0700`, because the store refuses a replaceable
+ancestor). Commands are in `fixtures/activation/README.md`. The producer, never committed:
+
+```ts
+// Scratch producer for DS/fixtures/activation; never committed. Run from the pre-relocation tree.
+import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+import { Database } from 'bun:sqlite';
+
+import { hashBytes, serializeCanonical } from '../judge-facade';
+import { GitHubReadFailure } from './github-reader';
+import {
+  initializeObservationState,
+  migrateObservationRecoveryState,
+  withRecoveryObservation,
+} from './observation-state';
+
+const output = process.env.GOLDEN_OUTPUT;
+if (output === undefined) throw new Error('GOLDEN_OUTPUT is required');
+const bootstrap = {
+  schemaVersion: 1,
+  authorityGeneration: 3,
+  reviewer: {
+    kind: 'external-audit-provider',
+    providerId: 'review.provider',
+    executorId: 'review.executor',
+    protocolIdentity: 'a'.repeat(64),
+    promptIdentity: 'b'.repeat(64),
+  },
+  journal: {
+    kind: 'authenticated-external-journal',
+    verifierId: 'journal.verifier',
+    issuerId: 'journal.issuer',
+    endpoint: 'https://journal.example.invalid/v1',
+  },
+  publisher: {
+    kind: 'immutable-external-store',
+    issuerId: 'publisher.issuer',
+    endpoint: 'https://store.example.invalid/activations',
+  },
+  admission: { requiredWorkflow: '.github/workflows/trusted-wiki.yml', protectedBranch: 'main' },
+};
+const binding = {
+  repositoryId: 8241,
+  owner: 'Prosperous-Unification',
+  name: 'puni-00',
+  targetRef: 'refs/heads/main',
+  policyIdentity: '3'.repeat(64),
+  mappingIdentity: '4'.repeat(64),
+  toolkitIdentity: '5'.repeat(64),
+  readDeadlineMs: 1000,
+};
+const policy = {
+  maxAttempts: 3,
+  wholeTickMs: 5000,
+  maxSubjects: 100,
+  initialDelayMs: 100,
+  maxDelayMs: 400,
+  fallbackDelayMs: 200,
+  recoveryProbeMs: 1000,
+  horizonMs: 5000,
+};
+
+function store(name: string) {
+  const stateDirectory = join(output, name);
+  mkdirSync(stateDirectory, { mode: 0o700 });
+  chmodSync(stateDirectory, 0o700);
+  const bootstrapPath = join(output, `${name}.bootstrap.json`);
+  const bytes = serializeCanonical(bootstrap);
+  writeFileSync(bootstrapPath, bytes, { mode: 0o600 });
+  let now = 1_000_000;
+  return {
+    advance: (to: number) => {
+      now = to;
+    },
+    config: {
+      stateDirectory,
+      bootstrapPath,
+      pin: {
+        identity: hashBytes(bytes),
+        journalIssuerId: 'journal.issuer',
+        publisherIssuerId: 'publisher.issuer',
+      },
+      binding,
+      policy,
+      clock: () => now,
+    },
+  };
+}
+
+const fresh = store('fresh');
+console.log(await initializeObservationState(fresh.config));
+console.log(await migrateObservationRecoveryState(fresh.config));
+
+const written = store('written');
+console.log(await initializeObservationState(written.config));
+console.log(await migrateObservationRecoveryState(written.config));
+written.advance(1_001_000);
+console.log(
+  JSON.stringify(
+    await withRecoveryObservation(written.config, () =>
+      Promise.resolve({ kind: 'complete' } as const),
+    ),
+  ),
+);
+written.advance(1_002_000);
+try {
+  await withRecoveryObservation(written.config, () =>
+    Promise.reject(new GitHubReadFailure('unavailable', 'fixture provider unavailable', 503)),
+  );
+  throw new Error('provider failure was not raised');
+} catch (cause) {
+  if (!(cause instanceof GitHubReadFailure)) throw cause;
+  console.log('provider-failure recorded');
+}
+const database = new Database(join(written.config.stateDirectory, 'activation.sqlite'), {
+  readonly: true,
+});
+const schedule = database.query('SELECT * FROM activation_observation_schedule').get();
+const recovery = database.query('SELECT * FROM activation_observation_recovery').get();
+const attempts = database
+  .query('SELECT * FROM activation_observation_attempt ORDER BY sequence')
+  .all();
+const version = database.query('PRAGMA user_version').get();
+database.close();
+writeFileSync(
+  join(output, 'burokrat-written-v10.state.json'),
+  `${JSON.stringify({ attempts, bootstrap, binding, policy, recovery, schedule, version }, null, 2)}\n`,
+);
+```
+
+Its run printed `initialized`, `migrated`, `initialized`, `migrated`,
+`{"kind":"owned","value":{"kind":"complete"},"terminalOutcome":"complete"}`,
+`provider-failure recorded`.
+
+| File                               | SHA-256                                                            |
+| ---------------------------------- | ------------------------------------------------------------------ |
+| `activation.v10.sqlite-dump`       | `6509e4c32161425553f90eb9af5877a044023283a70591cf6ebeee142506f9e7` |
+| `burokrat-written-v10.sqlite-dump` | `89cbd380b5d8e439aa6d9d4dbb3b78cff1144a120479dcef94e5f16a983b69b4` |
+| `burokrat-written-v10.state.json`  | `e9f96d35347d0dfa54e203948beaac9e561f9760150e423c93349d371717c2ef` |
+
+## S4: launcher bundle and units
+
+Observed 2026-10-12 on branch `batch-10/080-activation-relocation-s4` (from S2 `025bcc28a`).
+
+`src/packaging/build.ts` exports `launcherBuildConfig()` (Bun.build, target `bun`, format `esm`,
+entry `activation/observation-service-cli.ts`) and `buildLauncher(destination)`, which
+`twilight-dash:build` runs to write
+`dist/apps/twilight-structure/twilight-dash/cli/observation-service.mjs` (git-ignored by `dist/`)
+and print its SHA-256. The target is uncached and has no `dependsOn`, as Burokrat's `build` is
+uncached; its inputs name the three source roots the bundle reads. `render-cli.ts` became
+`units/bundle.ts` without its `import.meta.main` block, so `render-observation-units` in `runDash`
+is the only way to render (V5 names no other CLI). The rendered units are
+`twilight-dash-observation.{service,timer}`; the template file names and every other byte except
+the timer's `Unit=` are unchanged, and host directories, account and digests stay layout inputs.
+Before S4, `units.test.ts` never ran `systemd-analyze`; it now runs `systemd-analyze verify` on
+the rendered pair, requires exit 0 and empty output (an unknown key exits 0 with a warning), and
+throws when `Bun.which('systemd-analyze')` is null. This host has `/usr/bin/systemd-analyze`
+(systemd 255).
+
+| Command                                                                                                                     | Result                                                                                                                                                         |
+| --------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bunx nx run twilight-dash:build --skip-nx-cache`                                                                           | `c549751b4ade830bef29d6d680b676041bd78da6d7e2add0f0df1ea4d789140f  …/dist/apps/twilight-structure/twilight-dash/cli/observation-service.mjs`; target succeeded |
+| Dash suite at S2 head `025bcc28a`                                                                                           | 1526 pass, 0 fail, 5451 `expect()` calls, 34 files                                                                                                             |
+| Dash suite after S4                                                                                                         | 1533 pass, 0 fail, 5473 `expect()` calls, 35 files                                                                                                             |
+| the same with `TMPDIR=/var/tmp`                                                                                             | 1533 pass, 0 fail, 5477 `expect()` calls, 35 files (second run; see below)                                                                                     |
+| `bunx tsc --build --force apps/twilight-structure/twilight-dash/cli/tsconfig.json`                                          | exit 0                                                                                                                                                         |
+| `bunx nx run twilight-dash:lint --skip-nx-cache`                                                                            | `Successfully ran target lint for project twilight-dash`                                                                                                       |
+| `bun test tools/tool-devsync/src/{workspace-targets,eslint-boundaries,workspace-projects,adr-index,toolchain-pins}.test.ts` | 87 pass, 0 fail                                                                                                                                                |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                                    | 183 items, 183 passed, 0 failed                                                                                                                                |
+
+The first `TMPDIR=/var/tmp` run overlapped an uncached `twilight-dash:lint` and an OpenSpec
+validation on this host and failed 11 `enrollment-plan.test.ts` subprocess tests (for example
+`retains fleet refusal for digest through Dash`: `Expected … /lacks reviewed inventory/`,
+`Received: ""`, each child ending in about 240 ms with empty stderr). That file alone under
+`TMPDIR=/var/tmp` then passed 33/33, and the full rerun without concurrent load passed. S4 does not
+touch the enrollment path; the empty-stderr failure under load is recorded, not explained.
+
+Dash count change: `packaging/bundle.test.ts` adds 5 tests (marker scan, reported SHA-256, two
+malformed-argv runs of the built launcher, refused ambiguous build) and `units.test.ts` adds 2
+(`rendered units pass systemd-analyze verify`, `render-observation-units refuses a malformed
+grammar before any effect`): 1526 + 7 = 1533. Every moved test kept its name.
+
+The launcher is 7.4 MB because the judge facade's relationship analysis bundles the TypeScript
+compiler.
+
+Review F1 (2026-10-12) found that the launcher depended on the checkout path. Bun inlined
+TypeScript's CommonJS `__dirname`/`__filename` as absolute paths. It also wrote per-module comments
+with paths relative to the building process's working directory. Two builds of `b1c1112f2` at
+different paths therefore gave different SHA-256s.
+
+`build.ts` now fixes both causes:
+
+- whitespace minification drops the comments;
+- `normaliseLauncher` makes every occurrence of the checkout root workspace-relative, and throws if
+  the root survives.
+
+The new test `two checkouts at different paths build byte-identical launchers` copies every build
+input into two temporary roots and requires equal digests. It also requires that neither bundle
+names its own root, `/home/` or the workspace, and that no path comment remains. The marker test
+also asserts that a real-root build contains neither the workspace root nor `/home/`.
+
+| Injected fault                           | Observed failure                                                                 |
+| ---------------------------------------- | -------------------------------------------------------------------------------- |
+| root normalisation and its throw removed | `bundle.includes(root)`: `Expected: false`, `Received: true`                     |
+| whitespace minification removed          | `Received: "// ../../../../../../../../..node_modules/source-map/lib/base64.js"` |
+
+After the fix, `bunx nx run twilight-dash:build --skip-nx-cache` printed
+`16b4998f5491927f2f8b620f5ec08f2d90d79ee1298bcee17111df31e7d95a0f` (7,436,808 bytes).
+
+| Injected fault                                                                                           | Observed failure                                                                                                                                           | Restored |
+| -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| `import { openAuthority } from '../authority/authority-store'` plus an argv-guarded call in the launcher | `the observation launcher carries no admission authority or fleet planner`: `+ "authority_generation"`                                                     | pass     |
+| bare `import '../authority/authority-store'` in the launcher                                             | none: tree-shaken, no marker in the bundle (recorded in the test's `Proof:`)                                                                               | n/a      |
+| `built.outputs.length !== 1` dropped from `buildLauncher`                                                | `an unsuccessful or ambiguous launcher build refuses before writing`: `TypeError: undefined is not an object`                                              | pass     |
+| `@LAUNCHER_PATH@ @SERVICE_CONFIG_PATH@` swapped in the service template                                  | `renderer binds exact …`: exact `ExecStart=` equality, `- …observation-service.mjs /etc/…/service.json`, `+ …/service.json /opt/…/observation-service.mjs` | pass     |
+| `Restart=no` renamed `Restartt=no` in the service template                                               | `rendered units pass systemd-analyze verify`: `Unknown key name 'Restartt' in section 'Service', ignoring.` (exit stayed 0)                                | pass     |
+| PATH holding only `bun`                                                                                  | same test: `error: systemd-analyze is required to verify the observation units; install systemd`                                                           | pass     |
+| timer `Unit=` restored to `tool-wiki-observation.service`                                                | `timer artifact cannot grant execution authority`: `Expected to contain: "\nUnit=twilight-dash-observation.service\n"`                                     | pass     |
+| `argv.length !== 2` dropped from `renderObservationUnitsCommand`                                         | `render-observation-units refuses a malformed grammar …` at `[]`: `Received: "Error: observation unit rendering refused; …"`                               | pass     |
+| empty-or-`--` argument check dropped                                                                     | same test at `["--layout", …]`: the same received refusal                                                                                                  | pass     |
+| re-observed: `Restart=no` removed (template `Proof: restart`)                                            | `observation service template requires …` and `renderer binds exact …`: `Expected to contain: "Restart=no"`                                                | pass     |
+| re-observed: `ExecStart=/bin/true` added to the timer (template `Proof: timerexec`)                      | `timer artifact cannot grant execution authority`: `Expected to not contain: "ExecStart"`                                                                  | pass     |
+| re-observed: the root-account check in `render.ts` replaced by `false` (`Proof: account`)                | `renderer refuses root account unsafe layout …`: `Received function did not throw`                                                                         | pass     |
+
+## S5: rollback proof, ADR 0051 and documents
+
+Observed 2026-10-12 on branch `batch-10/080-activation-relocation-s5` (from the S2+S3+S4 merge
+`f7a81200f`).
+
+`fixtures/activation/pre-relocation-activation.tar` is the exact `git archive --format=tar` at
+`802c26bd8579f61134545ef4832d759c151bf9fa` of 33 paths: the runtime import closure of the old
+`activation-controller/observation-state.ts` and `controller.ts` (computed with
+`Bun.Transpiler.scanImports`, so type-only imports are elided as Bun elides them) plus
+`@shared/validation`. At that commit the controller imports `../judge-facade`, so the closure
+holds the facade and every judge module it re-exports, including `relationships/*`. It is
+696,320 bytes, under the 2 MB bound of A40, so nothing was narrowed. SHA-256
+`3c0ee3fecd16a45e47b97b190db3debce02b40d3bed8ad894848c424501a3c2d`; the command in the fixture
+README reproduced that digest. It is declared by exact path in `docs/wiki-policy/policy.json`,
+`bootstrap-policy.json` and `docs/code-organization/rule-policy.json`.
+
+`activation/rollback.db.test.ts` verifies the digest, extracts the archive into scratch and loads
+the old modules with only `arktype`, `typescript`, `yaml` and Bun built-ins from the workspace.
+Dash bootstraps a store through `runDash bootstrap-observation`, then writes one complete and one
+provider-failure attempt through its own `withRecoveryObservation`. The old
+`openActivationController` opens that v10 store, lists no requests and leaves every observation
+row and `user_version` unchanged. The old `withRecoveryObservation` then takes attempt 3 with
+outcome `complete`, keeping attempts 1 and 2 byte-equal.
+
+| Command                                                                                                                               | Result                                                                 |
+| ------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Dash suite before S5 (`f7a81200f`)                                                                                                    | 1544 pass, 0 fail, 5540 `expect()` calls, 37 files                     |
+| Dash suite after S5                                                                                                                   | 1546 pass, 0 fail, 5554 `expect()` calls, 38 files                     |
+| the same with `TMPDIR=/var/tmp`                                                                                                       | 1546 pass, 0 fail, 5558 `expect()` calls, 38 files                     |
+| Burokrat `src/policy/pilot-policy.test.ts` with the tar declared                                                                      | 23 pass, 0 fail                                                        |
+| `classify-candidate committed . HEAD` with `policy.json`'s `classificationPolicy`                                                     | exit 0; the tar classifies as `binary`, `application/x-tar`            |
+| the same with the parent's policy (no declaration)                                                                                    | exit 1, `undeclared binary content at …/pre-relocation-activation.tar` |
+| `bun test tools/tool-devsync/src/{workspace-targets,eslint-boundaries,workspace-projects,adr-index,repo-namespacing-handoff}.test.ts` | 80 pass, 0 fail                                                        |
+| `bun run tools/tool-git-hooks/src/hooks/migration-lint.ts $(git ls-files '*.sql')`                                                    | exit 0                                                                 |
+| `bunx tsc --build --force apps/twilight-structure/twilight-dash/cli/tsconfig.json`                                                    | exit 0                                                                 |
+| `bunx nx run twilight-dash:lint --skip-nx-cache`                                                                                      | `Successfully ran target lint for project twilight-dash`               |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                                              | 183 items, 183 passed, 0 failed                                        |
+| `bun …/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                                                                 | exit 0                                                                 |
+
+Dash count change: `rollback.db.test.ts` adds 2 tests, so 1544 + 2 = 1546 across 38 files.
+
+| Injected fault                                                                  | Observed failure                                                                                                               | Restored |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | -------- |
+| none: `health` flipped from `healthy` to `healthz` before the old recovery open | the old `withRecoveryObservation` refused `observation state corrupt` (its `PRAGMA quick_check`) before any attempt            | —        |
+| the flip line removed                                                           | the same old call returned an owned attempt; the case failed on `resolved without a refusal`                                   | pass     |
+| digest comparison disabled (`&& false`)                                         | the altered archive loaded; the archive case failed on `resolved without a refusal`                                            | pass     |
+| read guard removed                                                              | missing archive: `Expected to contain: "pre-relocation activation archive is unreadable"`, `Received: "ENOENT: …/missing.tar"` | pass     |
+| policy declaration absent (parent's `policy.json`)                              | `classify-candidate` exit 1, `undeclared binary content at …/pre-relocation-activation.tar`                                    | pass     |
+
+Findings and assumptions:
+
+1. The old `openActivationController` reads no observation row and runs no `quick_check`, so a
+   flipped observation status byte does not make it refuse; probed once (it opened the flipped
+   store and listed `[]`). The refusing old open is `withRecoveryObservation`, the path that
+   continues the attempt sequence. The test records this beside its `Proof:`.
+2. The packet's "old `withObservationAttempt`" is read as `withRecoveryObservation`, as in S3:
+   `withObservationAttempt` accepts only v9.
+3. A first run of the tool-devsync oracles failed `eslint-boundaries` cases (at least 7 shown) with empty rule
+   lists, and `repo-namespacing-handoff` refused the then-untracked ADR 0051 file. After the
+   commit, the rerun alone passed 80/0. The legacy-corpus digest did not change, so it was not
+   re-pinned.
+4. ADR 0051 is the next number on `origin/main` (which ends at 0050); a concurrent lane taking
+   0051 would need a renumber.
+5. ADR 0048 gained one pointer line and stays `proposed` (V6). Its subject, activation authority
+   independent of the candidate, is the controller's, so the pointer is correct.
+6. Whole-tree classification with `bootstrap-policy.json` and `rule-policy.json` still fails for
+   the pre-existing reasons the 080.19 lane recorded (`.agents/skills/.openspec-target` unmatched;
+   website favicons undeclared in `rule-policy`); neither names the new tar.

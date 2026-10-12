@@ -1,6 +1,8 @@
-import { readFile } from 'node:fs/promises';
+import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
+import { join } from 'node:path';
 
+import { scratchAsync } from '@tools/test-scratch';
 import { describe, expect, it } from 'bun:test';
 
 /**
@@ -217,7 +219,7 @@ interface CiJob {
  * present and `no-unnecessary-condition` then rejects the `?.` a missing job needs.
  */
 interface CiWorkflow {
-  jobs?: { gate_mode?: CiJob; gate_workspace?: CiJob; gate_tool_wiki?: CiJob };
+  jobs?: { gate_mode?: CiJob; gate_workspace?: CiJob; gate_twilight?: CiJob };
 }
 
 type GateJob = keyof NonNullable<CiWorkflow['jobs']>;
@@ -364,7 +366,7 @@ describe('the CI gate scope', () => {
     expect(mode).toContain(`printf 'base=%s\\n' "$PR_BASE_SHA" >> "$GITHUB_OUTPUT"`);
     expect(mode).toContain(
       `push | merge_group | workflow_dispatch) printf 'mode=full\\n' >> "$GITHUB_OUTPUT" ` +
-        `printf 'tool_wiki=run\\n' >> "$GITHUB_OUTPUT" ;;`,
+        `printf 'twilight=run\\n' >> "$GITHUB_OUTPUT" ;;`,
     );
   });
 
@@ -406,19 +408,44 @@ describe('the CI gate scope', () => {
         'bunx nx affected -t test lint typecheck build --base="$GATE_BASE" --head=HEAD',
     );
     expect(branches).toContain('else bunx nx run-many -t test lint typecheck build --parallel=2');
-    // Both branches run the workspace without Tool Wiki, whose targets `gate_tool_wiki` owns.
-    // Counting rather than containing, because one branch quietly losing its exclusion — Tool
-    // Wiki's 26-minute suite back on this runner — is what this is here to see.
-    expect(occurrences(script, '--exclude=twilight-burokrat')).toBe(2);
+    // Both branches run the workspace without the Twilight suite, whose targets the Twilight
+    // shard, `gate_twilight`, owns. Counting rather than containing, because one branch quietly
+    // losing its exclusion — Burokrat's 26-minute suite back on this runner, or Dash's targets
+    // left to a shard that no longer gates them on their own — is what this is here to see.
+    // Proof (2026-10-12): with `,twilight-dash` dropped from the `run-many` branch's exclusion
+    // this failed on `Expected: 2 · Received: 1`.
+    expect(occurrences(script, '--exclude=twilight-burokrat,twilight-dash')).toBe(2);
     expect(occurrences(script, 'twilight-burokrat')).toBe(2);
+    expect(occurrences(script, 'twilight-dash')).toBe(2);
   });
 
-  it('keeps Tool Wiki in the gate as its own shard, read as JSON rather than grepped', async () => {
+  it('runs the h2puni gate with the same Twilight split as CI', async () => {
+    // The host gate mirrors the two CI shards in one script: the workspace without the Twilight
+    // suite, then both Twilight projects' targets and their uncached lint.
+    // Proof (2026-10-12): with `,twilight-dash` dropped from bin/h2puni-gate-steps.sh's
+    // exclusion this failed on `Expected: 1 · Received: 0`.
+    const steps = oneLine(commandsOf(await read('bin/h2puni-gate-steps.sh')));
+
+    expect(
+      occurrences(
+        steps,
+        'bunx nx run-many -t test lint typecheck build --parallel=2 --skip-nx-cache \\ ' +
+          '--exclude=twilight-burokrat,twilight-dash',
+      ),
+    ).toBe(1);
+    expect(steps).toContain(
+      'bunx nx run-many -t test typecheck build -p twilight-burokrat,twilight-dash --parallel=2',
+    );
+    expect(steps).toContain('bunx nx run twilight-burokrat:lint:source --skip-nx-cache');
+    expect(steps).toContain('bunx nx run twilight-dash:lint --skip-nx-cache');
+  });
+
+  it('keeps the Twilight suite in the gate as its own shard, read as JSON rather than grepped', async () => {
     // Proof (2026-09-16): with the Tool Wiki branch of the then single gate step replaced by
     // `true`, this case failed on the missing branch — 2 failed / 14 passed. A pull request
     // touching Tool Wiki would have gated everything except Tool Wiki. Since 2026-09-28 that
-    // branch is `gate_tool_wiki`'s job-level `if`, and the `gate` check refuses the job's skip
-    // unless `gate_mode` said `skip` (`gate-workflow.test.ts`).
+    // branch is the shard's job-level `if` (`gate_twilight` since 2026-10-12), and the `gate`
+    // check refuses the job's skip unless `gate_mode` said `skip` (`gate-workflow.test.ts`).
     // Proof (2026-09-28): with that `if` reading `outputs.mode` instead, this failed on the job
     // condition; with the `lint:source` command deleted, on that command.
     // The `not.toContain('grep')` is the second fault this pins: measured on Nx 23.2.0,
@@ -428,30 +455,72 @@ describe('the CI gate scope', () => {
     // pull request while exiting 0.
     const workflow = await readCiWorkflow();
     const mode = commandsOf(gateStep(workflow, 'gate_mode', 'Gate mode').run ?? '');
-    const toolWiki = workflow.jobs?.gate_tool_wiki;
+    const twilight = workflow.jobs?.gate_twilight;
     const targets = commandsOf(
-      gateStep(workflow, 'gate_tool_wiki', 'Tool Wiki — test, typecheck, build, source lint').run ??
-        '',
+      gateStep(workflow, 'gate_twilight', 'Twilight — test, typecheck, build, lint').run ?? '',
     );
 
     expect(mode).toContain(
       'bunx nx show projects --affected --base="$PR_BASE_SHA" --head=HEAD --json',
     );
-    expect(mode).toContain(`jq -s -e '.[0] | index("twilight-burokrat") != null'`);
+    expect(mode).toContain(
+      `jq -s -e '.[0] | index("twilight-burokrat") != null or index("twilight-dash") != null'`,
+    );
     expect(mode).not.toContain('grep');
-    expect(mode).toContain(`printf 'tool_wiki=run\\n' >> "$GITHUB_OUTPUT"`);
-    expect(mode).toContain(`printf 'tool_wiki=skip\\n' >> "$GITHUB_OUTPUT"`);
-    expect(toolWiki?.needs).toBe('gate_mode');
-    expect(toolWiki?.if).toBe("${{ needs.gate_mode.outputs.tool_wiki == 'run' }}");
+    expect(mode).toContain(`printf 'twilight=run\\n' >> "$GITHUB_OUTPUT"`);
+    expect(mode).toContain(`printf 'twilight=skip\\n' >> "$GITHUB_OUTPUT"`);
+    expect(twilight?.needs).toBe('gate_mode');
+    expect(twilight?.if).toBe("${{ needs.gate_mode.outputs.twilight == 'run' }}");
     expect(targets).toContain(
-      'bunx nx run-many -t test typecheck build -p twilight-burokrat --parallel=2',
+      'bunx nx run-many -t test typecheck build -p twilight-burokrat,twilight-dash \\',
     );
     expect(targets).toContain(
       'bunx nx run twilight-burokrat:lint:source --skip-nx-cache --output-style=stream',
     );
+    expect(targets).toContain(
+      'bunx nx run twilight-dash:lint --skip-nx-cache --output-style=stream',
+    );
   });
 
-  it('refuses a jq failure instead of reading it as Tool Wiki being unaffected', async () => {
+  it('puts the Twilight shard in scope when either Twilight project is affected', async () => {
+    // The shipped `Gate mode` script, run in bash with a `bunx` stub standing in for
+    // `nx show projects --affected --json`, so the verdict under test is what the step writes
+    // to `$GITHUB_OUTPUT` rather than its text.
+    // Proof (2026-10-12): with the filter put back to `index("twilight-burokrat") != null`
+    // alone, the `["twilight-dash"]` case failed on `Expected: "twilight=run" · Received:
+    // "twilight=skip"`.
+    const script = gateStep(await readCiWorkflow(), 'gate_mode', 'Gate mode').run ?? '';
+    const directory = await scratchAsync('ci-gate-mode-');
+    const bin = join(directory, 'bin');
+    await mkdir(bin);
+    await writeFile(join(bin, 'bunx'), '#!/usr/bin/env bash\nprintf \'%s\\n\' "$STUB_AFFECTED"\n');
+    await chmod(join(bin, 'bunx'), 0o755);
+
+    const verdict = async (affected: string[]): Promise<string> => {
+      const output = join(directory, 'output');
+      await writeFile(output, '');
+      const run = Bun.spawnSync(['bash', '-c', script], {
+        env: {
+          PATH: `${bin}:${process.env['PATH'] ?? ''}`,
+          EVENT_NAME: 'pull_request',
+          PR_BASE_SHA: '0000000000000000000000000000000000000000',
+          GITHUB_OUTPUT: output,
+          STUB_AFFECTED: JSON.stringify(affected),
+        },
+        stderr: 'pipe',
+        stdout: 'pipe',
+      });
+      expect(run.exitCode, run.stderr.toString()).toBe(0);
+      const lines = (await readFile(output, 'utf8')).split('\n');
+      return lines.find((line) => line.startsWith('twilight=')) ?? '';
+    };
+
+    expect(await verdict(['twilight-dash'])).toBe('twilight=run');
+    expect(await verdict(['wbs-be-01', 'twilight-burokrat'])).toBe('twilight=run');
+    expect(await verdict(['wbs-be-01', 'tool-devsync'])).toBe('twilight=skip');
+  });
+
+  it('refuses a jq failure instead of reading it as the Twilight suite being unaffected', async () => {
     // `if jq -e … ; then run; else skip; fi` conflates two different answers. jq exits 1 for
     // `false` and 2 or more for an error — a parse failure on polluted stdout, a type error —
     // and the `else` swallowed both, so a broken read would have dropped Tool Wiki from the
@@ -486,17 +555,17 @@ describe('the CI gate scope', () => {
 
     // The shape is: assert the output IS an array, then branch on the explicit status.
     expect(mode).toContain(`jq -s -e 'length == 1 and (.[0] | type == "array")'`);
-    expect(mode).toContain('tool_wiki_status=0');
-    expect(mode).toContain('|| tool_wiki_status=$?');
-    expect(mode).toContain('exit "$tool_wiki_status"');
+    expect(mode).toContain('twilight_status=0');
+    expect(mode).toContain('|| twilight_status=$?');
+    expect(mode).toContain('exit "$twilight_status"');
     expect(mode.indexOf(`jq -s -e 'length == 1 and (.[0] | type == "array")'`)).toBeLessThan(
-      mode.indexOf(`jq -s -e '.[0] | index("twilight-burokrat") != null'`),
+      mode.indexOf(`jq -s -e '.[0] | index("twilight-burokrat") != null`),
     );
   });
 
   it('checks every gate job out at full depth, which --base cannot resolve without', async () => {
     const workflow = await readCiWorkflow();
-    for (const job of ['gate_mode', 'gate_workspace', 'gate_tool_wiki'] as const) {
+    for (const job of ['gate_mode', 'gate_workspace', 'gate_twilight'] as const) {
       const checkout = workflow.jobs?.[job]?.steps?.find(({ uses }) =>
         uses?.startsWith('actions/checkout@'),
       );

@@ -7,7 +7,12 @@ provenance, and the admission judge: packet codec and validation, integration-ca
 certification and attestation, exposed to Twilight Dash only through
 [`judge-facade.ts`](src/judge-facade.ts). The runtime lease authority that records claims and
 publishes is [Twilight Dash](../../twilight-dash/cli/README.md); Burokrat ships no authority
-writer. The index covers source, tests, fixtures, and project
+writer. The activation controller, its observation service and the review invoker's runtime moved
+to Dash as well
+([ADR 0051](../../../../docs/adr/0051-the-activation-controller-runs-in-dash-as-a-second-authority.md)).
+Burokrat keeps the invocation journal records with `validate-review-provenance`
+([`review/invocation-journal.ts`](src/review/invocation-journal.ts)) and the `prepare-activation`
+check runners. The index covers source, tests, fixtures, and project
 configuration as one initial enforced tooling boundary. It does not claim exhaustive repository
 coverage; the six historical pilot modules remain named review debt outside this boundary.
 

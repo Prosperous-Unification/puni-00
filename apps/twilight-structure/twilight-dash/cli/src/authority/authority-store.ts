@@ -16,6 +16,8 @@ import {
 } from '@twilight-burokrat/judge';
 import { Database } from 'bun:sqlite';
 
+import type { WallClock } from '../clock';
+
 /**
  * v4 added durable integration/recovery history; v5 renames the on-disk authority from
  * `.git/wbs-wiki` to `.git/module-wiki`, which is a schema change because the file the version
@@ -94,9 +96,7 @@ export interface AuthorityState {
  *
  * Wall clocks are not claimed monotonic across processes; persisted regressions are refused.
  */
-export interface AuthorityClock {
-  read(): number;
-}
+export type AuthorityClock = WallClock;
 
 /** Refuses an omitted clock distinctly from a malformed one; time is never defaulted. */
 function assertRequiredClock(clock: unknown): asserts clock is AuthorityClock {
@@ -580,7 +580,7 @@ const MAX_BUSY_DELAY_MS = 50;
 export interface AuthorityStoreOptions {
   readonly maxBusyAttempts?: number;
   readonly busyDelayMilliseconds?: number;
-  /** Required: `authority/clock.ts` supplies the wall clock; tests supply fixed clocks. */
+  /** Required: `clock.ts` supplies the wall clock; tests supply fixed clocks. */
   readonly clock: unknown;
 }
 

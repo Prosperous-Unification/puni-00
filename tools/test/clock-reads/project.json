@@ -1,0 +1,41 @@
+{
+  "name": "tool-test-clock-reads",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "tools/test/clock-reads",
+  "projectType": "library",
+  "tags": ["scope:infra", "type:scripts", "runtime:bun", "ring:adapter"],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx tsc --build --force tools/test/clock-reads/tsconfig.lib.json"
+      },
+      "outputs": ["{workspaceRoot}/dist/tools/test/clock-reads"]
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun test --timeout=10000",
+        "cwd": "tools/test/clock-reads"
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx eslint tools/test/clock-reads"
+      }
+    },
+    "lint:fast": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx eslint tools/test/clock-reads --cache --cache-location .nx/eslintcache-tool-test-clock-reads"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx tsc --build --force tools/test/clock-reads/tsconfig.json"
+      }
+    }
+  }
+}

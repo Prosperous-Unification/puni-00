@@ -15,10 +15,12 @@ afterAll(() => {
 });
 
 const FIXED_CLOCK = { read: () => 1_000 };
+const FIXED_MONOTONIC = { now: () => 0 };
 
 function dependencies(planEnrollment: DashDependencies['planEnrollment']): DashDependencies {
   return {
     clock: FIXED_CLOCK,
+    monotonic: FIXED_MONOTONIC,
     planEnrollment,
     stdout: {
       write: () => {
@@ -164,7 +166,9 @@ async function refusalOf(deps: DashDependencies): Promise<string> {
 test('runDash refuses missing dependencies', async () => {
   const planner = observePlanner();
   const complete = dependencies(planner.run);
-  for (const name of ['planEnrollment', 'clock', 'stdout'] as const) {
+  // Proof: dropping `monotonic` from runDash's required-dependency list failed this test with
+  // `error: Dash accepted incomplete dependencies` (2026-10-12).
+  for (const name of ['planEnrollment', 'clock', 'monotonic', 'stdout'] as const) {
     // The computed key widens to every dependency, so this models a JavaScript caller's omission.
     const partial = { ...complete, [name]: undefined };
     expect(await refusalOf(partial)).toBe(`Dash dependency is required: ${name}`);
@@ -188,6 +192,7 @@ function capturingDependencies(): { deps: DashDependencies; output: string[] } {
   return {
     deps: {
       clock: FIXED_CLOCK,
+      monotonic: FIXED_MONOTONIC,
       planEnrollment: () => Promise.reject(new Error('this case plans nothing')),
       stdout: { write: (text: string) => output.push(text) },
     },
