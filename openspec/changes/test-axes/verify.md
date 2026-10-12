@@ -2039,6 +2039,10 @@ receipt that starts before `registeredAt`. That comparison is between two record
 neither of them is a reading taken at judgment time. Each site is documented as Dash-owned and
 moves with its owner. No CLI contract changed.
 
+Update 2026-10-12: the invoker's ten reads moved to Twilight Dash, which now injects a wall
+clock into `FileJournalLock`, `FileInvocationJournal` and `ProcessReviewInvoker`; see
+`openspec/changes/dash-activation-relocation/verify.md` (S2).
+
 `src/no-ambient-clock.test.ts` parses every non-test source in the package with the TypeScript
 compiler and counts clock references. A reference is any of the following:
 

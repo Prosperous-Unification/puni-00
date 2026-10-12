@@ -30,6 +30,8 @@
       each measures an event the process performs (harness runs, check runs, lock waits, lease
       instants), which is Twilight Dash work, so none takes `--now`. Each is documented as
       Dash-owned in `docs/twilight-structure/names.md` ("Clock reads") and moves with its owner.
+      Update 2026-10-12: the `review/invoker.ts` reads moved to Twilight Dash and take an injected
+      wall clock; see `openspec/changes/dash-activation-relocation` (slice S2).
       `no-ambient-clock.test.ts` caps them at today's count and refuses any new clock reference.
 - [ ] 2.2 Deliver the scenario identifier allocator with predecessor support, then allocate the identifiers of one capability end to end, cite them in its existing tests and produce the first coverage table by hand; implements the identifier requirements — test: the join from the JUnit reports to that capability's scenarios; negative: remove one citation and watch the scenario show as uncovered (needs slice B3 of the rules design, which also imports and reserves the identifiers this change already wrote by hand)
 - [ ] 2.2a Reconcile the active whole-tree source lineage before closing 2.2: inventory each unresolved operation with capability, exact title, path, kind and digest; classify genuine new requirements, accepted unsynced predecessors and active dependencies; sync only reviewed canonical lineage, correct proven ADDED/MODIFIED mistakes, and resolve overlaps explicitly without a path-order winner or archived runtime input. Preserve source holds. Test: the production committed `SPEC-SCENARIOS` selector evaluates the full active tree; negative: an unresolved competing operation still refuses. Record each source correction and any remaining refusal in `verify.md`.

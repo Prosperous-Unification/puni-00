@@ -17,8 +17,8 @@ in verify.md.
 
 ## 3. Clocks (S2)
 
-- [ ] 3.1 `src/clock.ts` provides `wallClock()` and `monotonicClock()`. `Monotonic` is threaded through the controller's 28 sites and `WallClock` through the invoker's 10.
-- [ ] 3.2 The shared AST detector moves to `tools/test/clock-reads`. Dash scans every production module, and the two load-sensitive tests drive a scripted `Monotonic`.
+- [x] 3.1 `src/clock.ts` provides `wallClock()` and `monotonicClock()`. `Monotonic` is threaded through the controller's 28 sites and `WallClock` through the invoker's 10.
+- [x] 3.2 The shared AST detector moves to `tools/test/clock-reads`. Dash scans every production module, and the two load-sensitive tests drive a scripted `Monotonic`.
 
 ## 4. Observation store (S3)
 
