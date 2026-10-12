@@ -13,6 +13,8 @@ const RECORDS = '20261012090000_add_enterprise_sso_records';
 const TIMES = '20261012090100_add_browser_auth_times';
 const WIDENED = '20261012090200_widen_organization_audit';
 const BEFORE = '20261011200000_add_shared_people_audit';
+/** Stamped after the three, so a rollback to {@link BEFORE} takes it too. */
+const ATTEMPTS = '20261012120000_add_step_node_attempts';
 
 /**
  * The three enterprise SSO migrations (`organization-enterprise-sso` task 1.1):
@@ -83,7 +85,7 @@ describe('the enterprise SSO migrations', () => {
       "INSERT INTO organization_audit (id, organization_id, actor_id, action, subject_kind, subject_id, detail, created_at) VALUES ('r1', 'org-a', 'ada', 'restricted_project_recovery', 'project', 'p1', '{}', 1)",
     );
     const migrated = schema();
-    expect(rollbackTo(path, FOLDER, BEFORE)).toEqual([WIDENED, TIMES, RECORDS]);
+    expect(rollbackTo(path, FOLDER, BEFORE)).toEqual([ATTEMPTS, WIDENED, TIMES, RECORDS]);
     const previous = schema();
     expect(previous).not.toContainEqual(
       expect.objectContaining({ name: 'organization_scim_user' }),

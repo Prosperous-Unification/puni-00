@@ -143,6 +143,8 @@ export const PROJECT_CROSS_REFERENCE_KINDS = [
   'actual_step',
   'step_progress_step',
   'step_measure_step',
+  'step_node_attempt_step',
+  'step_node_attempt_person',
   'assignment_step',
   'assignment_person',
   'work_item_tag',

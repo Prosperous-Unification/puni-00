@@ -9,6 +9,7 @@ import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { StepService } from '@wbs/core/module/step/step.resource';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
 import { AuthService } from '@wbs/core/service/auth.service';
+import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 
@@ -178,6 +179,7 @@ beforeEach(async () => {
       actuals,
       measures,
       progress: progressStore,
+      attempts: new StepNodeAttemptRepository(db, OPEN),
       dependencies: new DependencyRepository(db, OPEN),
       typedDependencies: new TypedDependencyRepository(db, OPEN),
       directory,
@@ -610,6 +612,7 @@ describe('DELETE /api/projects/:id/steps/:stepId', () => {
         actuals: 0,
         progress: 0,
         measures: 0,
+        attempts: 0,
         assignments: 1,
         assumedAssignees: [{ workItemId: 'strip', assumedNow: ada.id, assumedAfter: null }],
       },

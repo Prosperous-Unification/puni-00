@@ -8,9 +8,15 @@
     "test": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "bun test --preload ../../../../tools/test/scratch/preload.ts src --timeout=30000",
+        "command": "TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/../../../../node_modules bun test --preload ../../../../tools/test/scratch/preload.ts src --timeout=60000",
         "cwd": "apps/twilight-structure/twilight-dash/cli"
-      }
+      },
+      "inputs": [
+        "default",
+        "^production",
+        "{workspaceRoot}/.github/workflows/trusted-wiki.yml",
+        "{workspaceRoot}/apps/twilight-structure/twilight-burokrat/cli/**/*"
+      ]
     },
     "lint": {
       "executor": "nx:run-commands",
@@ -22,6 +28,26 @@
       "executor": "nx:run-commands",
       "options": {
         "command": "bunx tsc --build --force apps/twilight-structure/twilight-dash/cli/tsconfig.json"
+      }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "dependsOn": [],
+      "inputs": [
+        "{projectRoot}/src/**/*",
+        "{workspaceRoot}/apps/twilight-structure/twilight-burokrat/cli/src/**/*",
+        "{workspaceRoot}/libs/shared/domain/validation/src/**/*",
+        "{workspaceRoot}/package.json",
+        "{workspaceRoot}/bun.lock",
+        "{workspaceRoot}/.bun-version"
+      ],
+      "outputs": [
+        "{workspaceRoot}/dist/apps/twilight-structure/twilight-dash/cli/observation-service.mjs"
+      ],
+      "options": {
+        "command": "bun src/packaging/build.ts",
+        "cwd": "apps/twilight-structure/twilight-dash/cli"
       }
     }
   }

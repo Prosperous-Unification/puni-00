@@ -281,6 +281,7 @@ const SIGNED_IN_OPERATIONS = [
   'getApiSpacesByIdRoll-ups',
   'getApiTags',
   'getApiTeams',
+  'getApiTimezones',
   'getApiWork-item-types',
   'postApiOrganizationActive',
 ] as const;
@@ -441,6 +442,7 @@ const NO_ORIGIN_OPERATIONS = [
   'getApiSpacesByIdRoll-ups',
   'getApiTags',
   'getApiTeams',
+  'getApiTimezones',
   'getApiWork-item-types',
   'getHealth',
   'getMetrics',

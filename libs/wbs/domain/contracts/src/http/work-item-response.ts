@@ -23,6 +23,22 @@ const typedEndpoint = type({
   // fields while allowing additive metadata` accept a numeric node ID; watched 2026-09-27.
   'stepNodeId?': 'string',
 });
+/**
+ * One attempt at a step node as the work-item read answers it
+ * (`step-node-attempts` D4): instants in epoch milliseconds, UTC; end and
+ * outcome both null while it runs.
+ */
+export const attemptShape = type({
+  attemptNumber: 'number',
+  startedAt: 'number',
+  endedAt: 'number | null',
+  outcome: "'succeeded' | 'failed' | 'cancelled' | null",
+  executorPersonId: 'string | null',
+  reference: 'string | null',
+  note: 'string | null',
+});
+/** First start to last end of some attempts, the end null while one runs. */
+export const spanShape = type({ start: 'number', end: 'number | null' });
 export const numberedWorkItem = type({
   id: 'string',
   projectId: 'string',
@@ -68,6 +84,23 @@ export const numberedWorkItem = type({
   dates: type({ startsOn: 'string', endsOn: 'string' }).or('null'),
   assignees: type({ '[string]': 'string' }),
   doesEveryStep: 'string | null',
+  // A leaf's attempts by step id, ascending number, and the spans derived from
+  // them per node and for the leaf; each absent when there are none. Optional
+  // because an older be-01 answers neither during a blue/green swap.
+  'attempts?': type({ '[string]': attemptShape.array() }),
+  'spans?': type({ '[string]': spanShape }),
+  'span?': spanShape,
+  // A leaf's node readings by step id (`step-node-readings` D3); absent on a
+  // parent and from an older be-01 mid-swap. `skipped` is in the union before
+  // anything produces it, so a later reader never meets a word it cannot name.
+  // Proof: the union loosened to `'string'`, and fe-01's `renders the
+  // query-failure state for an unknown reading word` failed on a null
+  // `[data-stale-tree]` banner while the Dev cell drew a blank corner glyph
+  // with `Reading: undefined`; watched 2026-10-12.
+  'nodeReadings?': type({
+    '[string]':
+      "'skipped' | 'done' | 'on_hold' | 'blocked' | 'in_progress' | 'blocked_by_proxy' | 'waiting' | 'unknown'",
+  }),
 });
 export const workItemSlice = scheduled.and({
   id: 'string',

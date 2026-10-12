@@ -6,6 +6,9 @@ import type { Days, PlanRead } from '@/lib/wbs-api';
 import type { Point } from './estimate-draft';
 import { HoverCard } from './hover-card';
 import type { CardAssignee } from './plan-cards';
+import { NODE_READING_GLYPH, NODE_READING_LABEL } from './status-cell';
+import { NODE_READING_TOKEN } from './status-palette';
+import { attemptsLine, lastAttemptLine, type StepNodeReadings } from './step-reading';
 import type { Toast } from './toasts';
 
 /**
@@ -66,6 +69,11 @@ export interface FoldedStepCardProps {
    * `title` that used to carry it fought the card on hover.
    */
   problem: string | null;
+  /**
+   * The node's reading and attempts, said first (`step-node-readings` D4);
+   * null on a parent and from an older be-01.
+   */
+  node: StepNodeReadings | null;
 }
 
 /**
@@ -109,8 +117,11 @@ export function FoldedStepCard({
   rule,
   doing,
   problem,
+  node,
 }: FoldedStepCardProps) {
   const estimated = points.some((each) => each.days.trim() !== '');
+  const attempted = node === null ? null : attemptsLine(node.attempts);
+  const lastAttempt = node === null ? null : lastAttemptLine(node);
   // Proof: rendering 010.s1-dev instead of the canonical reference made
   // `names a coded leaf step in its open detail` fail: expected `010.dev · Dev`,
   // received `Dev for 010010.s1-dev · DevCopy referenceCopy link...`.
@@ -155,6 +166,24 @@ export function FoldedStepCard({
     // Placed diagonally — past this cell and past this row — like every other
     // card a plan cell opens. {@link sidewaysPlacement} picks the side.
     <HoverCard id={id} takesPointer={stepNode !== null} onPointerArrives={onPointerArrives}>
+      {/*
+        The reading first, in words beside its corner glyph: the glyph is
+        what the cell shows, and this is where a reader learns it. Then what
+        the attempts came to, and who made the latest and under what
+        reference — the lines a reader asking "why is this waiting?" wants.
+      */}
+      {node !== null && (
+        <>
+          <div style={{ fontWeight: 600, color: NODE_READING_TOKEN[node.reading] ?? undefined }}>
+            <span aria-hidden="true" style={{ marginRight: 4 }}>
+              {NODE_READING_GLYPH[node.reading]}
+            </span>
+            <span>{NODE_READING_LABEL[node.reading]}</span>
+          </div>
+          {attempted !== null && <div>{attempted}</div>}
+          {lastAttempt !== null && <div>{lastAttempt}</div>}
+        </>
+      )}
       <div style={{ fontWeight: 600 }}>
         {stepName} for {number}
       </div>

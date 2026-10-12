@@ -62,6 +62,7 @@ export * from './space';
 export * from './sqlite-unit-of-work';
 export * from './step';
 export * from './step-measure';
+export * from './step-node-attempt';
 export * from './step-progress';
 export * from './step-reference';
 export * from './typed-dependency';

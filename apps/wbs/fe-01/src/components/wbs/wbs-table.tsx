@@ -46,6 +46,7 @@ import { PLAN_TABLE_FEATURES, type PlanTableFeatures } from './plan-columns/colu
 import { createPlanColumns } from './plan-columns/columns';
 import { planFileName } from './plan-export';
 import { usePlanExportActions, usePlanOnScreenExport } from './plan-export-actions';
+import { indexById } from './plan-indexes';
 import { usePlanInteractionScope } from './plan-interaction-scope';
 import type { PlanLiveValues } from './plan-live';
 import { showDay } from './plan-number-format';
@@ -57,6 +58,7 @@ import { PlanToolbarSheet } from './plan-toolbar-sheet';
 import { createPointedRows, type PointedRows } from './pointed-row-store';
 import { rememberGanttDayPx, rememberGanttLabels } from './remembered-layout';
 import { statusOffersOf, type StatusRow } from './status-offers';
+import { stepNodeReadingsOf } from './step-reading';
 import {
   CELL,
   FLEXIBLE_CAP,
@@ -1419,6 +1421,7 @@ export function WbsTable({
    * The chart is handed the unmemoised `spanOf`: it lays out in a `useMemo` of
    * its own and may render on a commit this map was not rebuilt for.
    */
+  const peopleById = useMemo(() => indexById(people), [people]);
   const { rowsWithReadings, spanByRow } = useMemo(() => {
     const assigneeEntries = people.map((person) => ({
       id: person.id,
@@ -1464,6 +1467,7 @@ export function WbsTable({
         if (hiddenColumnIds.includes(step.id)) continue;
         const doing = assigneeOn(row, step.id);
         const anyAssignee = anyAssigneeOn(step.id);
+        const node = stepNodeReadingsOf(row, step.id, peopleById);
         if (unfoldedSteps.includes(step.id)) {
           estimateReadings.set(step.id, {
             layout: 'unfolded',
@@ -1475,6 +1479,7 @@ export function WbsTable({
               pessimistic: estimateValue(row, step.id, 'pessimistic'),
             },
             trioProblem: trioProblemFor(row, step.id),
+            node,
           });
           continue;
         }
@@ -1486,6 +1491,7 @@ export function WbsTable({
           doing,
           mentionOptions: mentionOptions(row, step.id),
           mentioning: mention?.rowId === row.id && mention.stepId === step.id,
+          node,
         });
       }
       const span = spanOf(row);
@@ -1565,6 +1571,7 @@ export function WbsTable({
     nonOwnerNoteOf,
     openMenuRowId,
     people,
+    peopleById,
     priorityBands,
     services,
     spanOf,

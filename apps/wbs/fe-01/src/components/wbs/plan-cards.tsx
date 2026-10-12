@@ -41,6 +41,7 @@ import { priorityBandStyleOf } from './priority-band-style';
 import { ReferenceSetSheet } from './reference-set-field';
 import { type PrintedDay, shortIsoDate } from './short-date';
 import { statusActions } from './status-cell';
+import { nodeReadingOf, StepReadingInline } from './step-reading';
 import { cardIndentFor } from './table-frame';
 import { dependencyWords, endpointText, TypedDependencyEditor } from './typed-dependency-editor';
 import type { TreeRow } from './wbs-rows';
@@ -2758,6 +2759,9 @@ export function PlanCards({
               // this is the same read of the same two fields, not a second
               // opinion about them.
               const finalSaysMore = trio.final !== showTrio(row.estimates[step.id]);
+              // The node's reading, a leaf's only: the line already names the
+              // step, so the corner glyph the table draws goes in line here.
+              const reading = nodeReadingOf(row, step.id);
               return (
                 <Fragment key={step.id}>
                   <div
@@ -2844,6 +2848,7 @@ export function PlanCards({
                         commit={(typed, baseline) => commitEstimate(row, step.id, typed, baseline)}
                       />
                     )}
+                    {reading !== null && <StepReadingInline reading={reading} />}
                     {finalSaysMore && (
                       <span
                         data-card-final={step.id}

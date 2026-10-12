@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page, test } from '@playwright/test';
 
 import { createProject } from './create-project';
+import { seedStepReadings } from './step-readings-seed';
 
 /**
  * `work-item-status-and-facts` and `status-at-a-glance` in a browser: choosing
@@ -439,6 +440,10 @@ test.describe('status colours on table surfaces, in a browser (add-work-item-sta
       '--status-on-hold',
       '--status-blocked',
       '--status-done',
+      // The two node readings no status shares (`step-node-readings` D4): the
+      // corner glyph is text on these same surfaces.
+      '--reading-waiting',
+      '--reading-skipped',
     ];
     const measure = async (surface: string, rowIndex: number): Promise<void> => {
       // Cell backgrounds fade for 100ms when a row changes state.
@@ -530,5 +535,84 @@ test.describe('status colours on table surfaces, in a browser (add-work-item-sta
         expect(measured, `${token} glyph on ${surface}`).toBeGreaterThanOrEqual(4.5);
       }
     }
+  });
+});
+
+test.describe('node readings in the step cells, in a browser (step-node-readings D4)', () => {
+  test('draws a waiting QA glyph in its step cell corner, clear of the figure and initials', async ({
+    page,
+  }) => {
+    await seedStepReadings(page);
+    const box = page.getByLabel('QA estimate for 010');
+    const cell = box.locator('xpath=ancestor::*[@data-final][1]');
+    const corner = cell.locator('[data-node-reading]');
+    await expect(corner).toHaveAttribute('data-node-reading', 'waiting');
+    await expect(corner.locator('[aria-hidden="true"]')).toHaveText('◇');
+    await expect(box).toHaveAccessibleDescription(/^Reading: Waiting/);
+    // The token resolved, not a fallback: the glyph is ready's hue.
+    const painted = await corner.evaluate((mark) => {
+      const probe = document.createElement('span');
+      probe.style.color = 'var(--reading-waiting)';
+      mark.parentElement?.append(probe);
+      const expected = getComputedStyle(probe).color;
+      probe.remove();
+      return { drawn: getComputedStyle(mark).color, expected };
+    });
+    expect(painted.drawn).toBe(painted.expected);
+    // Dev reads done beside it, and the row's Status keeps the fold.
+    await expect(
+      page
+        .getByLabel('Dev estimate for 010')
+        .locator('xpath=ancestor::*[@data-final][1]')
+        .locator('[data-node-reading]'),
+    ).toHaveAttribute('data-node-reading', 'done');
+
+    const glyph = await boxOf(corner.locator('[aria-hidden="true"]'), 'the waiting glyph');
+    const td = await boxOf(cell.locator('xpath=ancestor::td[1]'), 'the QA cell');
+    expect(glyph.right, 'the glyph stays inside its cell').toBeLessThanOrEqual(td.right);
+    for (const [name, mark] of [
+      ['the QA figure', cell.locator('[data-folded-final]')],
+      ['the assignee initials', cell.locator('[data-folded-assignee]')],
+    ] as const) {
+      if ((await mark.count()) === 0) continue;
+      const drawn = await boxOf(mark, name);
+      expect(glyph.left, `the glyph clears ${name}`).toBeGreaterThanOrEqual(drawn.right);
+    }
+  });
+
+  // The captures the readings are reviewed by eye from (UI acceptance): CI
+  // keeps `test-results`, so these land in the pixels artifacts.
+  test('shows the readings and the waiting card in light, dark and at 390px', async ({
+    page,
+  }, testInfo) => {
+    await seedStepReadings(page);
+    const qa = page.getByLabel('QA estimate for 010');
+    await expect(
+      qa.locator('xpath=ancestor::*[@data-final][1]').locator('[data-node-reading]'),
+    ).toHaveAttribute('data-node-reading', 'waiting');
+    await page.screenshot({ path: testInfo.outputPath('readings-table-light.png') });
+
+    await qa.locator('..').hover();
+    const card = page.locator('[role="tooltip"]').first();
+    await expect(card).toContainText('Waiting');
+    await expect(card).toContainText('3 attempts, last cancelled');
+    await page.screenshot({ path: testInfo.outputPath('readings-card-waiting-qa.png') });
+    await page.mouse.move(0, 0);
+
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.screenshot({ path: testInfo.outputPath('readings-table-dark.png') });
+    await page.emulateMedia({ colorScheme: 'light' });
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    // The phone's card lists the steps one per line; QA's line on 010 carries
+    // the waiting reading the table drew in the cell's corner.
+    const qaLine = page
+      .getByLabel('QA estimate for 010')
+      .locator('xpath=ancestor::*[@data-step][1]')
+      .locator('[data-card-reading]');
+    await expect(qaLine).toHaveAttribute('data-card-reading', 'waiting');
+    await expect(qaLine.locator('[aria-hidden="true"]')).toHaveText('◇');
+    await expect(qaLine.locator('.sr-only')).toHaveText('Reading: Waiting');
+    await page.screenshot({ path: testInfo.outputPath('readings-table-390.png'), fullPage: true });
   });
 });

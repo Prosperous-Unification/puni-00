@@ -3,6 +3,7 @@
 export type * from './assignment';
 export * from './assumed-assignee';
 export * from './assumed-duration';
+export * from './attempt';
 // One press of `Arrange by schedule`: every sibling group put in the order its
 // bars start. Here because it is a question about a plan's shape answered from
 // a `Schedule` this package already produces, and because be-01 and any later
@@ -56,6 +57,7 @@ export * from './marker-color';
 // module rather than a member of the colour one: the composer imports both and
 // they share nothing but the object they describe.
 export * from './marker-name';
+export * from './node-reading';
 export * from './not-before';
 export * from './on-time';
 // A person's bookings across projects on one workday axis: overlaps and weekly load.

@@ -32,6 +32,7 @@ const reads = {
     scheduleObjective: 'pri',
     optimizationEnabled: false,
     solutionRef: { slug: 'shed', url: 'https://shed' },
+    timezone: 'UTC',
     revision: 12,
     createdAt: 1_756_000_000,
   },
@@ -231,6 +232,33 @@ describe('planInputRowsOf', () => {
       { id: 'B', readiness: 'ready', hold: null },
     ]);
   });
+  it('schedules a Kyiv capture exactly as the same capture in UTC: no engine reads the zone', () => {
+    const first = reads.workItems.at(0);
+    if (first === undefined) throw new Error('fixture has no work item');
+    const utc: PlanInputReads = {
+      ...reads,
+      project: { ...reads.project, startDate: null },
+      steps: reads.steps.map((step) => ({ ...step, allowancePercent: 0 })),
+      workItems: [{ ...first, id: 'A', priority: null, teamIds: [], serviceIds: [] }],
+      estimates: [
+        { workItemId: 'A', stepId: 's1', optimistic: 2, realistic: 2, pessimistic: 2 },
+        { workItemId: 'A', stepId: 's2', optimistic: 1, realistic: 1, pessimistic: 1 },
+      ],
+      actuals: [],
+      progress: [],
+      measures: [],
+      dependencies: [],
+      assignments: [],
+      typedDependencies: [],
+      capacity: new Map(),
+    };
+    const kyiv: PlanInputReads = { ...utc, project: { ...utc.project, timezone: 'Europe/Kyiv' } };
+    expect(scheduleInputOfCaptured(kyiv)).toEqual(scheduleInputOfCaptured(utc));
+    expect(schedulePlanInput(kyiv)).toEqual(schedulePlanInput(utc));
+    expect(schedulePlanInput(kyiv).slices.size).toBeGreaterThan(0);
+    expect(planInputRowsOf(kyiv).project.timezone).toBe('Europe/Kyiv');
+  });
+
   it('carries the project settings the dates come from, and its solution ref split in two', () => {
     expect(planInputRowsOf(reads).project).toEqual({
       id: 'p1',
@@ -246,6 +274,7 @@ describe('planInputRowsOf', () => {
       pertWeightOptimistic: 1,
       pertWeightRealistic: 4,
       pertWeightPessimistic: 1,
+      timezone: 'UTC',
     });
   });
 

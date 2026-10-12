@@ -64,8 +64,8 @@ existing store with `exists`, and two concurrent bootstraps SHALL yield one crea
 ### Requirement: The authority clock is a required dependency
 
 Store construction and `runDash` SHALL require a clock; no authority module SHALL default to the
-wall clock. Only `authority/clock.ts` SHALL read the wall clock, composed once in Dash's
-entrypoint.
+wall clock. Only `src/clock.ts` SHALL read the wall clock; the authority's clock is composed once
+in Dash's entrypoint.
 
 #### Scenario: Missing clock
 

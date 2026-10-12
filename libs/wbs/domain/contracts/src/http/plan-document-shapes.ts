@@ -2,21 +2,23 @@ import { type } from 'arktype';
 
 import { project } from './project-response';
 import { requestSchema, responseSchema } from './schema-shape';
-import { workItemTree } from './work-item-response';
+import { numberedWorkItem, workItemTree } from './work-item-response';
 
 /**
  * The plan document version this release writes.
  *
- * `6` carries each leaf's readiness and hold (`add-work-item-statuses`); `5`
+ * `7` carries the project's timezone and each leaf's attempts by step code
+ * (`step-node-attempts` D5); `6` each leaf's readiness and hold
+ * (`add-work-item-statuses`); `5`
  * extends typed dependencies to SS/FF; `4` added FS separately from
  * legacy `dependsOn`; `3` added step codes and `2` step allowances. The
  * classifier converts earlier versions explicitly.
  */
-export const PLAN_DOCUMENT_VERSION = 6;
+export const PLAN_DOCUMENT_VERSION = 7;
 
 const planHeader = type({
   format: "'wbs-plan'",
-  version: '6',
+  version: '7',
   exportedAt: 'string',
 });
 
@@ -38,6 +40,8 @@ const planSettings = type({
   optimizationEnabled: 'boolean',
   scheduleEngine: "'fast' | 'optimized'",
   scheduleObjective: "'pri' | 'time'",
+  /** The IANA zone the project reads instants as days in; `UTC` before version 7. */
+  timezone: 'string',
 });
 
 const named = type({ id: 'string', name: 'string' });
@@ -94,7 +98,37 @@ export const documentV4TypedDependencyRequest = requestSchema(
  * `sn1.<work item>.<step>` — for a reader of the file. It is derived, so import
  * drops it and the new project's nodes follow its own IDs.
  */
-export const planDocument = workItemTree.omit('typedDependencies').and({
+/**
+ * One attempt as the document writes it (`step-node-attempts` D5): instants as
+ * ISO-8601 UTC strings for a reader of the file, the executor by the name the
+ * file's directory gives that person, end and outcome null while it runs.
+ */
+export const documentAttempt = type({
+  number: 'number',
+  startedAt: 'string',
+  endedAt: 'string | null',
+  // Proof: widened to 'string | null', the unknown-outcome case of `refuses an
+  // unknown zone, an unknown outcome, …` (`step-node-attempt.controller.db`)
+  // answered 500 (`CHECK constraint failed: step_node_attempt_outcome`)
+  // instead of 400; watched 2026-10-12.
+  outcome: "'succeeded' | 'failed' | 'cancelled' | null",
+  executor: 'string | null',
+  reference: 'string | null',
+  note: 'string | null',
+});
+export type DocumentAttempt = (typeof documentAttempt)['infer'];
+
+/**
+ * A work item as the document writes it: the read's row without its derived
+ * spans, and with its attempts keyed by step code rather than step id —
+ * present only on a leaf that holds any.
+ */
+const documentWorkItem = numberedWorkItem
+  .omit('attempts', 'spans', 'span')
+  .and({ 'attempts?': type({ '[string]': documentAttempt.array() }) });
+
+export const planDocument = workItemTree.omit('typedDependencies', 'workItems').and({
+  workItems: documentWorkItem.array(),
   typedDependencies: documentTypedDependency.array(),
   steps: type({ code: 'string' }).array(),
   stepNodes: type({
@@ -141,6 +175,9 @@ const authoredWorkItem = type({
   // 6 must state both — see `classifyPlanDocument`.
   'readiness?': 'unknown',
   'hold?': 'unknown',
+  // Opaque until the version is read: version 7 keys a leaf's attempts by
+  // step code, and earlier versions carry none — see `classifyPlanDocument`.
+  'attempts?': 'unknown',
   // Proof: loosening this to unknown made the mounted document boundary accept
   // "high" at workItems[3].priority with 204 instead of 400 invalid_body.
   priority: 'number | null',
@@ -167,7 +204,9 @@ const authoredWorkItem = type({
  */
 const writablePlanDocument = type({
   document: type({ format: "'wbs-plan'", version: 'number.integer', exportedAt: 'string' }),
-  settings: planSettings,
+  // The zone stays opaque until the version is read: version 7 must name a
+  // supported zone, and earlier versions read as `UTC`.
+  settings: planSettings.omit('timezone').and({ 'timezone?': 'unknown' }),
   capacity: type({ teamId: 'string', size: 'number' }).array(),
   priorityBands: type({ startsAt: 'number', defaultValue: 'number', label: 'string' }).array(),
   calendarMarkers: authoredMarker.array(),
@@ -203,16 +242,38 @@ export type PlanDocumentRequest = (typeof writablePlanDocument)['infer'];
  */
 export type PlanDocumentImport = Omit<
   PlanDocumentRequest,
-  'steps' | 'typedDependencies' | 'workItems'
+  'settings' | 'steps' | 'typedDependencies' | 'workItems'
 > & {
+  /** The zone as version 7 names it, `UTC` for an earlier version. */
+  settings: Omit<PlanDocumentRequest['settings'], 'timezone'> & { timezone: string };
   typedDependencies: DocumentTypedDependency[];
-  /** Readiness and hold as the file states them from version 6, null before. */
-  workItems: (Omit<PlanDocumentRequest['workItems'][number], 'readiness' | 'hold'> & {
+  /**
+   * Readiness and hold as the file states them from version 6, null before;
+   * the attempts version 7 gives a leaf, none before.
+   */
+  workItems: (Omit<PlanDocumentRequest['workItems'][number], 'readiness' | 'hold' | 'attempts'> & {
     readiness: 'draft' | 'ready' | null;
     hold: 'on_hold' | 'blocked' | null;
+    attempts: ImportedAttempt[];
   })[];
   steps: (Omit<PlanDocumentRequest['steps'][number], 'allowancePercent' | 'code'> & {
     allowancePercent: number;
     code: string | null;
   })[];
 };
+
+/**
+ * One attempt a version-7 file gives a leaf, once checked: at the file's step
+ * id the code named, instants in epoch milliseconds, the executor still by
+ * the directory name the file gave (`prepareImport` resolves it).
+ */
+export interface ImportedAttempt {
+  stepId: string;
+  attemptNumber: number;
+  startedAt: number;
+  endedAt: number | null;
+  outcome: 'succeeded' | 'failed' | 'cancelled' | null;
+  executor: string | null;
+  reference: string | null;
+  note: string | null;
+}

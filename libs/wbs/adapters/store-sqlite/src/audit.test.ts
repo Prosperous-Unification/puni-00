@@ -132,6 +132,9 @@ const EXEMPT = new Set([
   // Proof: 2026-09-28, injecting auditColumns() into emailChallenge made
   // `exempts only tables that carry no audit columns` fail for this entry.
   'emailChallenge',
+  // A node's attempt-number mark (A42): a counter raised by every start and
+  // restore, not an authored row. The attempts beside it carry the audit.
+  'stepNodeAttemptIssued',
 ]);
 
 /**

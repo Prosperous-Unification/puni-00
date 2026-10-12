@@ -31,6 +31,7 @@ import {
   type PriorityBand,
   priorityBandRankOf,
 } from '@wbs/domain';
+import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, spyOn } from 'bun:test';
 
@@ -136,6 +137,7 @@ beforeEach(async () => {
     actuals: new ActualRepository(db, OPEN),
     measures: new StepMeasureRepository(db, OPEN),
     progress: new StepProgressRepository(db, OPEN),
+    attempts: new StepNodeAttemptRepository(db, OPEN),
     directory: directoryStore,
     capacity: capacityStore,
     priorityBands: bandStore,

@@ -329,6 +329,9 @@ describe('toolsFromDocument, on the generated document', () => {
       'clearActual',
       'setProgress',
       'clearProgress',
+      'startAttempt',
+      'endAttempt',
+      'removeAttempt',
       'setStatus',
       'setMeasure',
       'clearMeasure',
@@ -410,6 +413,22 @@ describe('toolsFromDocument, on the generated document', () => {
     // arm declaring the same code; with both arms removed from work-item-shapes.ts
     // it failed here on the missing code. Watched 2026-09-27.
     expect(JSON.stringify(responses?.['400'])).toContain('work_item_takes_one_type');
+  });
+
+  it('derives the timezone list read and the attempt commands by step node ID', () => {
+    // `step-node-attempts` D3: Settings and a model read the zones the server accepts.
+    const timezones = byName(tools, 'getApiTimezones');
+    expect([timezones.method, timezones.path]).toEqual(['get', '/api/timezones']);
+    const commands = byName(tools, 'postApiProjectsByIdCommands');
+    const list = commands.inputSchema.properties['commands'] as {
+      items: {
+        anyOf: { properties: { kind: { const: string }; stepNodeId?: { type: string } } }[];
+      };
+    };
+    for (const kind of ['startAttempt', 'endAttempt', 'removeAttempt']) {
+      const arm = list.items.anyOf.find((variant) => variant.properties.kind.const === kind);
+      expect([kind, arm?.properties.stepNodeId?.type]).toEqual([kind, 'string']);
+    }
   });
 
   it('derives a path-parameter-only read the way the document declares it', () => {

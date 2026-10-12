@@ -16,6 +16,7 @@ import { planEventRegistrations } from './stores/plan-events';
 import { type OpenCase, storeCase } from './stores/store-case';
 import { typedDependencyRegistrations } from './stores/typed-dependencies';
 export { DEPENDENCY_SURVIVOR_IDS } from './stores/dependencies';
+import { attemptRegistrations } from './stores/attempts';
 import { progressRegistrations } from './stores/progress';
 export { PROGRESS_SENTINEL_STEP_ID } from './stores/progress';
 import { historyBatchRegistrations, type OpenHistoryBatchCase } from './stores/history-batch';
@@ -46,6 +47,7 @@ export interface ExistingStoreOpeners {
   readonly actuals: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['actuals']>>;
   readonly measures: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['measures']>>;
   readonly progress: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['progress']>>;
+  readonly attempts: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['attempts']>>;
   readonly typedDependencies: (
     caseId: CaseId,
   ) => Promise<CaseFixture<TransactionalStores['typedDependencies']>>;
@@ -141,6 +143,7 @@ export function existingStoreRegistrations(
     ...actualRegistrations(openers.actuals),
     ...measureRegistrations(openers.measures),
     ...progressRegistrations(openers.progress),
+    ...attemptRegistrations(openers.attempts),
     ...dependencyRegistrations(openers.dependencies),
     ...typedDependencyRegistrations(openers.typedDependencies),
     ...directoryRegistrations(openers.directory),

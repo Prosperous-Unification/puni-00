@@ -1,17 +1,41 @@
 # Twilight Dash
 
 Dash owns the runtime admission authority ([`src/authority`](src/authority/authority-store.ts))
-and exposes five local commands. `bootstrap-authority <repository>` is the only command that
+and exposes eight local commands. `bootstrap-authority <repository>` is the only command that
 creates an authority; every other command refuses an absent one. `inspect-authority <repository>
 [--session <id>]` prints the authority state, read-only. `recover-publication <repository> --integration-id
 <id>` finishes an interrupted publication from its durable record. `submit-admission <repository>
 <packet-json> <staged|committed> <revision-or-base>` freezes a bound packet's candidate and
 prints its submission report; it judges the packet through Twilight Burokrat's
-[admission judge](../../twilight-burokrat/cli/src/judge-facade.ts). `plan-enrollment`
+[admission judge](../../twilight-burokrat/cli/src/judge-facade.ts). `render-observation-units
+<layout.json> <new-dir>` renders the uninstalled `twilight-dash-observation.{service,timer}` units
+and their `runtime.sha256` into a new directory; see the
+[observation service runbook](src/activation/units/README.md). `plan-enrollment`
 delegates enrollment planning to the existing fleet CLI. Creating a plan authorizes no apply and does
 not enroll a node. Fleet owns the plan format, digest, eligibility checks and
 execution admission; see [fleet identities and ownership](../../../../docs/infra/fleet.md)
 and [`runPlan`](../../../../tools/tool-fleet/src/cli.ts).
+
+Dash also runs the activation controller ([`src/activation`](src/activation/controller.ts)), its
+second authority: a separate process with its own store and service account, sharing no table or
+lock with the admission authority
+([ADR 0051](../../../../docs/adr/0051-the-activation-controller-runs-in-dash-as-a-second-authority.md)).
+Its observation service polls GitHub for ready candidates on a timer, and the review invoker's
+runtime ([`src/review/invoker.ts`](src/review/invoker.ts)) spawns review harnesses and writes their
+invocation journals. Both reach Twilight Burokrat only through `@twilight-burokrat/judge`;
+Burokrat keeps `validate-review-provenance` and the `prepare-activation` check runners.
+
+Dash owns the activation controller's observation store
+(`<stateDirectory>/activation.sqlite`, `user_version` 10; see
+[`observation-commands.ts`](src/activation/observation-commands.ts)). Both store commands take the
+protected observation service configuration and nothing else.
+`bootstrap-observation <service.json>` creates the v10 store in the existing state directory and
+refuses `exists` when one is present. `migrate-observation <service.json>` steps a v8 or v9 store
+to v10 and prints `migrated` with both versions. It refuses `absent`, `current` and
+`unsupported-version`. Either command refuses `unreadable` with the filesystem or SQLite code, and
+a refused command creates no file. The [fixtures](fixtures/activation/README.md) pin the v10
+schema and a store written by the pre-relocation Burokrat code, and vendor that code's source so
+`rollback.db.test.ts` proves it still opens a store Dash wrote.
 
 From the repository root, supply a desired fleet, its complete observation, an
 exact observed unenrolled node and cluster, and the SHA-256 values of the reviewed
@@ -47,11 +71,14 @@ apply, discovery, build, deploy, operation-selection or executable-selection opt
 This local facade does not relocate lease authority.
 
 The declared [Nx project](project.json) runs its real dispatcher and entrypoint
-tests with the ordinary acceptance targets. It has no `build` target: the CLI runs
-from source, and nothing consumes a bundle.
+tests with the ordinary acceptance targets. The CLI runs from source. `build`
+bundles only the observation launcher, a second composition root that the
+observation service unit pins, into
+`dist/apps/twilight-structure/twilight-dash/cli/observation-service.mjs` and prints
+its SHA-256 ([build.ts](src/packaging/build.ts)).
 
 ```sh
-bunx nx run-many -t test lint typecheck -p twilight-dash --skip-nx-cache
+bunx nx run-many -t test lint typecheck build -p twilight-dash --skip-nx-cache
 ```
 
 `twilight-dash:test` needs a non-root runner. The unreadable-input and

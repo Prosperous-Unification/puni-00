@@ -26,6 +26,7 @@ import {
   assertOidcEnvAllowed,
   assertTierEnvAllowed,
   assertTierEnvComplete,
+  attemptOutcomesCommand,
   backupDbCommand,
   backupSnapshotPath,
   capacityModesCommand,
@@ -52,6 +53,7 @@ import {
   revokeAliasCommands,
   ROOT,
   SHARED_ENV_PATH,
+  storedAttemptOutcomesCommand,
   storedCapacityModesCommand,
   storedHoldsCommand,
   storedReadinessesCommand,
@@ -580,7 +582,7 @@ const PRODUCTION_SWAP_IO: SwapExecutionIo = { sh, readPhase, writePhase, writeAt
  */
 interface StoredVocabulary {
   name: string;
-  key: 'type' | 'kind' | 'mode';
+  key: 'type' | 'kind' | 'mode' | 'outcome';
   supportedCommand: (container: string) => string[];
   storedCommand: (container: string) => string[];
   recoveryCli: string;
@@ -636,6 +638,21 @@ const CAPACITY_MODES_VOCABULARY: StoredVocabulary = {
   runbookAnchor: 'shared-people-rollback',
 };
 
+/**
+ * Attempt outcomes (`step-node-attempts`). A release that cannot read
+ * `step_node_attempt.outcome` reads an ended attempt as nothing, so a stored
+ * outcome it does not name refuses the swap; running attempts store none and
+ * pass, and a release without the outcomes CLI passes over no attempts.
+ */
+const ATTEMPT_OUTCOMES_VOCABULARY: StoredVocabulary = {
+  name: 'attempt outcomes',
+  key: 'outcome',
+  supportedCommand: attemptOutcomesCommand,
+  storedCommand: storedAttemptOutcomesCommand,
+  recoveryCli: 'step-node-attempt-rollback-cli.ts',
+  runbookAnchor: 'step-node-attempt-rollback',
+};
+
 // Proof: `HOLD_KINDS_VOCABULARY` left out of this list made four cases fail,
 // among them `refuses an image that reads no holds while holds are stored, and
 // stops green` and `refuses a hold written after the first check once blue
@@ -649,6 +666,12 @@ const STORED_VOCABULARIES: readonly StoredVocabulary[] = [
   READINESS_VOCABULARY,
   // Proof: omitting this entry fails shared-mode refusal before migration and after outgoing stop.
   CAPACITY_MODES_VOCABULARY,
+  // Proof: omitting this entry made the three outcome swap cases fail —
+  // `refuses an image that reads no outcomes while attempts are stored, and
+  // stops green` and `refuses an outcome written after the first check once
+  // blue stops` went on to migrate and commit, and `passes an image without the
+  // outcomes CLI over no attempts` never read the stored outcomes; watched 2026-10-12.
+  ATTEMPT_OUTCOMES_VOCABULARY,
 ];
 
 /** Parses the incoming release's supported values at the Docker output boundary. */

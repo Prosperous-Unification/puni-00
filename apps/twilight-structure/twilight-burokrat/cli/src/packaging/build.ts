@@ -85,6 +85,11 @@ async function buildToolkit(repository: string, destination: string): Promise<Ui
   return packageManifestBytes(sourceRevision, hashBytes(toolkit.descriptor));
 }
 
+/** The one Bun build of `bin.ts` that becomes the package's `dist/bin.mjs`. */
+export function executableBuildConfig(): Bun.BuildConfig {
+  return { entrypoints: [join(import.meta.dir, '../bin.ts')], target: 'bun', format: 'esm' };
+}
+
 /**
  * Build the standalone Twilight Burokrat executable into a package root.
  *
@@ -95,11 +100,7 @@ export async function buildPackage(
   destination: string,
   build: (config: Bun.BuildConfig) => Promise<Bun.BuildOutput> = Bun.build,
 ): Promise<void> {
-  const built = await build({
-    entrypoints: [join(import.meta.dir, '../bin.ts')],
-    target: 'bun',
-    format: 'esm',
-  });
+  const built = await build(executableBuildConfig());
   // Proof: injecting a successful build with no output made the focused production-path test
   // fail with `Expected promise to reject` when this refusal was removed.
   if (!built.success || built.outputs.length !== 1) {

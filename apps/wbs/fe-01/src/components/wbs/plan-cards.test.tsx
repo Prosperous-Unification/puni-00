@@ -30,6 +30,7 @@ vi.mock('./table-frame', async (importOriginal) => {
 
 import type {
   Days,
+  NodeReadingView,
   PersonView,
   ProjectApi,
   ScheduleView,
@@ -2109,6 +2110,76 @@ describe('what a card says about the schedule', () => {
     expect(floorOnCard()?.textContent).toBe(
       'Held by its start-no-earlier-than date — waiting on client sign-off',
     );
+  });
+});
+
+/**
+ * The node reading on a phone (`step-node-readings` D4): the card already lists
+ * a leaf's steps one per line, so each line carries the glyph the table draws
+ * in the step cell's corner, in its token, with the same words for assistive
+ * tech. A parent's lines read nothing — it has no nodes of its own.
+ */
+describe('a step’s node reading, on a card', () => {
+  /** The reading drawn on one step's line of one card, or null. */
+  const readingOnCard = (stepId: string, number: string) => {
+    const card = screen.getByLabelText(`Name of ${number}`).closest('article');
+    const line = card?.querySelector(`[data-step="${stepId}"]`);
+    if (line === null || line === undefined) throw new Error(`No ${stepId} line on ${number}`);
+    const reading = line.querySelector<HTMLElement>('[data-card-reading]');
+    if (reading === null) return null;
+    return {
+      word: reading.getAttribute('data-card-reading'),
+      glyph: reading.querySelector('[aria-hidden="true"]')?.textContent,
+      said: reading.querySelector('.sr-only')?.textContent,
+      colour: reading.style.color,
+    };
+  };
+
+  itDom('puts each leaf step’s reading on its line, and nothing on a parent’s', async () => {
+    const api = dependencyApi();
+    const parent = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: null,
+      name: 'Parent',
+    });
+    const leaf = await api.createWorkItem('p1', {
+      parentId: parent.id,
+      afterId: null,
+      name: 'Leaf',
+    });
+    const readTree = api.tree.bind(api);
+    api.tree = async (projectId) => {
+      const plan = await readTree(projectId);
+      return {
+        ...plan,
+        workItems: plan.workItems.map((item) =>
+          item.id === leaf.id
+            ? {
+                ...item,
+                nodeReadings: {
+                  [DEV.id]: 'in_progress' as NodeReadingView,
+                  [QA.id]: 'waiting' as NodeReadingView,
+                },
+              }
+            : item,
+        ),
+      };
+    };
+    widthIs(PHONE, PHONE_TALL);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await screen.findByLabelText('Name of 010.1');
+
+    expect([readingOnCard(DEV.id, '010.1'), readingOnCard(QA.id, '010.1')]).toEqual([
+      {
+        word: 'in_progress',
+        glyph: '◐',
+        said: 'Reading: In progress',
+        colour: 'var(--status-in-progress)',
+      },
+      { word: 'waiting', glyph: '◇', said: 'Reading: Waiting', colour: 'var(--reading-waiting)' },
+    ]);
+    expect(readingOnCard(DEV.id, '010')).toBeNull();
+    expect(readingOnCard(QA.id, '010')).toBeNull();
   });
 });
 

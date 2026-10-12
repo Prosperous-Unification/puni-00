@@ -107,6 +107,7 @@ export function inMemorySteps(
         actuals: 0,
         progress: 0,
         measures: 0,
+        attempts: 0,
         assignments: [],
       });
     },
@@ -127,6 +128,7 @@ export function inMemorySteps(
           actuals: 0,
           progress: 0,
           measures: 0,
+          attempts: 0,
           assignments: 0,
           workItemIds: [],
         },

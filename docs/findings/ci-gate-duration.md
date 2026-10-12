@@ -39,8 +39,9 @@ The gate is now split into four jobs. `ci.yml` is the source of truth; the jobs 
 
 - `gate_mode` decides the scope once for both shards.
 - `gate_workspace` runs the workspace Nx run and every other gate step.
-- `gate_tool_wiki` runs Tool Wiki's targets, its source lint and the packed suite. It runs only
-  when `gate_mode` puts Tool Wiki in scope.
+- `gate_twilight` (the Twilight shard, named `gate_tool_wiki` until 2026-10-12) runs Twilight
+  Burokrat's targets, its source lint and the packed suite, and Twilight Dash's targets and lint.
+  It runs only when `gate_mode` puts either project in scope.
 - `gate` is the single required check. It uses `if: always()` and reduces the other three the
   same way `pixels` reduces its browser shards.
 
@@ -52,6 +53,11 @@ only ruleset covers release tags.
 Proofs: `tools/tool-git-hooks/src/hooks/gate-workflow.test.ts` runs the production `gate`
 script with each shard result, and its `Proof:` comments record the faults that were watched
 failing.
+
+On 2026-10-12 the shard was renamed from `gate_tool_wiki` to `gate_twilight` and now also runs
+`twilight-dash`, which receives the activation controller (WBS a81d93a0). The workspace shard
+and `bin/h2puni-gate-steps.sh` exclude both projects. The measurements below predate that
+change and still name the shard Tool Wiki.
 
 ## Measurements after the split
 

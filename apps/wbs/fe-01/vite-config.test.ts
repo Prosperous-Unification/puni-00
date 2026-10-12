@@ -289,6 +289,7 @@ describe('the app and the run resolve the same modules', () => {
       '@wbs/domain/priority-band': resolve(APP_ROOT, domain, 'priority-band.ts'),
       '@wbs/domain/dependency-reach': resolve(APP_ROOT, domain, 'dependency-reach.ts'),
       '@wbs/domain/external-system': resolve(APP_ROOT, domain, 'external-system.ts'),
+      '@wbs/domain/node-reading': resolve(APP_ROOT, domain, 'node-reading.ts'),
     };
     // Proof: with both maps resolving their legacy `../../libs/*` targets,
     // this failed with every shared alias under `apps/libs/*` instead of

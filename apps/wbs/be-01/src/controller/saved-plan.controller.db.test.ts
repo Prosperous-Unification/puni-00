@@ -653,7 +653,7 @@ describe('the saved-plan routes', () => {
       version: 9999,
       // Named rather than matched loosely: the answer has to say what this
       // build *does* know, or an operator cannot tell how far behind it is.
-      supported: [1, 2, 3, 4],
+      supported: [1, 2, 3, 4, 5],
     });
 
     const read = await as(tokens['ada'], `/api/saved-plans/${id}`);
@@ -1006,7 +1006,7 @@ function fixture() {
   const projects = testProjectService();
   const announcements = recordingBroadcaster();
   const projectRead = spyOn(projects, 'readWithin').mockResolvedValue({
-    project: projectRow({ id: 'p' }),
+    project: { ...projectRow({ id: 'p' }), timezone: 'UTC' },
     steps: [],
   });
   const save = spyOn(plans, 'save').mockResolvedValue({ outcome: 'saved', record });

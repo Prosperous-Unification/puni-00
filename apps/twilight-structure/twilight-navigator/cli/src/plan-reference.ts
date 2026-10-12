@@ -29,10 +29,11 @@ type PlanReferenceFlag = (typeof PLAN_REFERENCE_FLAGS)[number];
 
 /**
  * The one WBS plan document version Navigator reads, pinned here rather than imported so a WBS
- * bump is refused until Navigator, the `planDocumentVersion: 6` literal in Burokrat's
- * `PlanReferenceRecord`, and the v6 fixture move together.
+ * bump is refused until Navigator, the `planDocumentVersion` literal in Burokrat's
+ * `PlanReferenceRecord`, and the fixture move together. Moved to 7 with `step-node-attempts`
+ * (settings.timezone, leaf attempts), 2026-10-12.
  */
-const NAVIGATOR_PLAN_DOCUMENT_VERSION = 6;
+const NAVIGATOR_PLAN_DOCUMENT_VERSION = 7;
 
 const EXPORT_ROLE = 'plan export';
 const REQUIREMENTS_ROLE = 'requirements file';
@@ -40,7 +41,7 @@ const REQUIREMENTS_ROLE = 'requirements file';
 const PlanDocumentHeader = type({
   document: { format: "'wbs-plan'", version: 'number.integer' },
 });
-/** WBS's own v6 export contract, with every key it does not declare refused. */
+/** WBS's own export contract, with every key it does not declare refused. */
 const StrictPlanDocument = planDocument.onDeepUndeclaredKey('reject');
 
 function sha256Hex(bytes: Uint8Array): string {
@@ -51,7 +52,7 @@ function sha256Hex(bytes: Uint8Array): string {
  * Reads and validates one WBS plan export.
  *
  * @throws when the document is not a WBS plan, is not version {@link NAVIGATOR_PLAN_DOCUMENT_VERSION},
- * or fails the version-6 contract with any undeclared key.
+ * or fails the export contract with any undeclared key.
  */
 function decodePlanExport(bytes: Uint8Array, path: string): PlanDocument {
   const parsed = parseRequiredJson(bytes, EXPORT_ROLE, path);
@@ -61,7 +62,9 @@ function decodePlanExport(bytes: Uint8Array, path: string): PlanDocument {
   }
   // Proof: removing this check failed `refuses a version-5 document before writing`. Comparing
   // to WBS's imported PLAN_DOCUMENT_VERSION, bumped to 7 in libs/wbs, failed `refuses a version-7
-  // document before writing` (received `plan export is malformed`) (2026-10-11).
+  // document before writing` (received `plan export is malformed`) (2026-10-11). With the pin at 7
+  // (2026-10-12) the same pair is `refuses a version-6 document` and `refuses a version-8 document`;
+  // the unbumped pin failed every case reading the v7 fixture on `plan export is malformed` (CI, PR #355).
   if (header.document.version !== NAVIGATOR_PLAN_DOCUMENT_VERSION) {
     throw new Error(
       `${EXPORT_ROLE} ${path} has version ${String(header.document.version)}; twin reads version ${String(NAVIGATOR_PLAN_DOCUMENT_VERSION)} only`,

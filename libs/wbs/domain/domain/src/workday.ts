@@ -480,16 +480,79 @@ export function deadlineOffsetOf(projectStart: IsoDate, deadline: IsoDate): Dead
 }
 
 /**
- * The calendar day an instant falls on, in UTC.
+ * Whether a value is a zone this runtime can read instants in: one of
+ * `Intl.supportedValuesOf('timeZone')`, or the literal `UTC` that list may leave
+ * out. Validated once at the boundary that stores a **project timezone**; the
+ * list is the runtime's, so `GET /api/timezones` serves the same one and a
+ * select built from it cannot offer a zone this refuses.
+ */
+export function isTimezone(value: unknown): value is string {
+  // Proof: reduced to `typeof value === 'string'` and `isTimezone admits UTC and
+  // Europe/Kyiv and refuses Kyiv` failed on `Kyiv`; watched 2026-10-12.
+  return typeof value === 'string' && supportedTimezones().has(value);
+}
+
+let timezones: ReadonlySet<string> | undefined;
+
+/** The zones {@link isTimezone} admits, in the runtime's order, `UTC` included. */
+export function listTimezones(): readonly string[] {
+  return [...supportedTimezones()];
+}
+
+function supportedTimezones(): ReadonlySet<string> {
+  timezones ??= new Set(['UTC', ...Intl.supportedValuesOf('timeZone')]);
+  return timezones;
+}
+
+const dayFormatters = new Map<string, Intl.DateTimeFormat>();
+
+/**
+ * The calendar day an instant falls on in `zone` — the one zoned day function
+ * every fill and every card reads (`step-node-attempts` design D3).
  *
- * What be-01 writes as a fact end when a row is marked done and the client sent
- * no day of its own: the act's one write stamp (ADR 0012) read as a date, so
- * the fill and the journal entry that carries it cannot name two days. UTC
- * because be-01 has no calendar of its own — a client that has one sends `on`
- * and this is never consulted. Throws on a stamp that is not a finite instant,
- * which is R5's answer to a clock that answered nothing.
+ * `en-CA` because its parts are already year, month and day in ISO order; the
+ * parts are joined rather than the formatted string trusted, so a locale data
+ * change cannot slip a separator in. The formatter is kept per zone: a read
+ * folds every attempt of a plan.
+ *
+ * @throws on a stamp that is not a finite instant (a clock that answered
+ * nothing) and on a zone {@link isTimezone} refuses — a stored zone is trusted
+ * state, so an unknown one is a fault, never a reason to read UTC instead.
+ */
+export function isoDateOfInstantIn(zone: string, epochMs: number): IsoDate {
+  if (!Number.isFinite(epochMs)) throw new Error(`not an instant: ${String(epochMs)}`);
+  if (!isTimezone(zone)) throw new Error(`not a timezone: ${JSON.stringify(zone)}`);
+  let formatter = dayFormatters.get(zone);
+  if (formatter === undefined) {
+    // Proof: `timeZone` dropped from these options and, under `TZ=UTC`,
+    // `isoDateOfInstantIn('Europe/Kyiv', 2026-10-11T23:30Z) is 2026-10-12` read
+    // `2026-10-11`; under the host's EEST `reads the UTC calendar day off an epoch
+    // instant` failed too (`2026-09-12` for `2026-09-13`); watched 2026-10-12.
+    formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: zone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    dayFormatters.set(zone, formatter);
+  }
+  const parts = formatter.formatToParts(epochMs);
+  const part = (type: Intl.DateTimeFormatPartTypes): string => {
+    const found = parts.find((candidate) => candidate.type === type);
+    if (found === undefined) throw new Error(`no ${type} in the day of ${String(epochMs)}`);
+    return found.value;
+  };
+  return `${part('year').padStart(4, '0')}-${part('month')}-${part('day')}`;
+}
+
+/**
+ * The calendar day an instant falls on, in UTC: {@link isoDateOfInstantIn} for
+ * the `UTC` zone, kept because a project that never set a zone reads every
+ * instant there and every existing fill stays byte-identical.
+ *
+ * Throws on a stamp that is not a finite instant, which is R5's answer to a
+ * clock that answered nothing.
  */
 export function isoDateOfInstant(epochMs: number): IsoDate {
-  if (!Number.isFinite(epochMs)) throw new Error(`not an instant: ${String(epochMs)}`);
-  return asIso(new Date(epochMs));
+  return isoDateOfInstantIn('UTC', epochMs);
 }

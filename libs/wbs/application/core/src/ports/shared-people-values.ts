@@ -6,6 +6,7 @@ import type { MembershipRefusal } from './organization-access';
 import type { Project } from './project-values';
 import type { PlanInputReads } from './saved-plan-capture-values';
 import type { EngineUnavailable, ScheduleRead } from './scheduler';
+import type { StoredAttempt } from './step-node-attempt-store';
 import type { Step } from './step-store';
 import type { LabelledWorkItem } from './work-item-values';
 
@@ -77,6 +78,11 @@ export type LivePlanRead =
       readonly project: Project;
       readonly steps: Step[];
       readonly workItems: LabelledWorkItem[];
+      /**
+       * Every attempt in the project, from the same observation as the rows:
+       * live metadata the work-item read carries and no saved plan captures.
+       */
+      readonly attempts: readonly StoredAttempt[];
       readonly seq: number;
     };
 

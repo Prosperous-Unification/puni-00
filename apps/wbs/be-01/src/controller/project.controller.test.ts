@@ -275,7 +275,7 @@ describe('projects', () => {
       slices: unknown[];
     };
     expect(body.project).toMatchObject({ id: project.id, name: 'Export me' });
-    expect(body.document).toMatchObject({ format: 'wbs-plan', version: 6 });
+    expect(body.document).toMatchObject({ format: 'wbs-plan', version: 7 });
     expect(Number.isNaN(Date.parse(body.document.exportedAt))).toBe(false);
     expect(body.settings).toMatchObject({
       name: 'Export me',

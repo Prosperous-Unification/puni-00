@@ -19,6 +19,7 @@ import {
   isDependencyReach,
   isEstimateMethod,
   isEstimateRounding,
+  isTimezone,
   ORGANIZATION_ROLES,
   type OrganizationRole,
   PertWeights,
@@ -108,9 +109,11 @@ function weightColumns(weights: PertWeights): {
  *
  * `optimizationDeletePendingAt` is the optimizer drain's cross-process fence
  * (tasks.md 3.1b): internal state, not a field of a project, and no boundary
- * returns it.
+ * returns it. `timezone` is read and written through
+ * {@link ProjectRepository.timezoneOf} and {@link ProjectRepository.setTimezone}
+ * until the timezone route publishes it (`step-node-attempts` slice 4).
  */
-const INTERNAL_PROJECT_COLUMNS = ['optimizationDeletePendingAt'] as const;
+const INTERNAL_PROJECT_COLUMNS = ['optimizationDeletePendingAt', 'timezone'] as const;
 
 /**
  * What a project created without stating its settings gets — the same three
@@ -531,6 +534,22 @@ export class ProjectRepository implements ProjectStore {
         "l.work_item_id || '/' || l.step_id || '/' || l.metric",
       ),
       stepRow(
+        'step_node_attempt',
+        'step_node_attempt_step',
+        "l.work_item_id || '/' || l.step_id || '/' || l.attempt_number",
+      ),
+      // The executor is nullable, unlike every catalog link above: a null one
+      // references nothing, and `NULL IS NOT o` would report it.
+      // Proof: this arm and the attempt step arm above removed made `fails the
+      // schedule read closed over a crossing step_node_attempt_person` (and
+      // `…_step`) in `schedule-organization.controller.db.test.ts` answer 200
+      // where 500 was owed; watched 2026-10-12.
+      sql`SELECT 'step_node_attempt_person' AS kind,
+          l.work_item_id || '/' || l.step_id || '/' || l.attempt_number AS id
+        FROM step_node_attempt AS l JOIN work_item AS w ON w.id = l.work_item_id
+        WHERE w.project_id = ${p} AND l.executor_person_id IS NOT NULL
+          AND ${ownerOf('person_organization', 'l.executor_person_id')} IS NOT ${o}`,
+      stepRow(
         'assignment',
         'assignment_step',
         "l.work_item_id || '/' || l.step_id || '/' || l.person_id",
@@ -601,6 +620,7 @@ export class ProjectRepository implements ProjectStore {
           ['actual', "l.work_item_id || '/' || l.step_id"],
           ['step_progress', "l.work_item_id || '/' || l.step_id"],
           ['step_measure', "l.work_item_id || '/' || l.step_id || '/' || l.metric"],
+          ['step_node_attempt', "l.work_item_id || '/' || l.step_id || '/' || l.attempt_number"],
           ['assignment', "l.work_item_id || '/' || l.step_id || '/' || l.person_id"],
         ] as const
       ).map(
@@ -1187,6 +1207,35 @@ export class ProjectRepository implements ProjectStore {
         const { revision, ...writtenStep } = written;
         return { ok: true, step: writtenStep, previousPercent: held.allowancePercent, revision };
       });
+    });
+  }
+
+  async timezoneOf(projectId: string): Promise<string | null> {
+    await Promise.resolve();
+    const found = this.db
+      .select({ timezone: project.timezone })
+      .from(project)
+      .where(eq(project.id, projectId))
+      .get();
+    if (found === undefined) return null;
+    if (!isTimezone(found.timezone)) {
+      throw unknownStoredValue('project', 'timezone', found.timezone);
+    }
+    return found.timezone;
+  }
+
+  /** One `UPDATE` carrying the zone and the revision bump together. */
+  async setTimezone(projectId: string, timezone: string, stamp: WriteStamp): Promise<boolean> {
+    return await this.gate.enter(async () => {
+      await Promise.resolve();
+      return (
+        this.db
+          .update(project)
+          .set({ timezone, revision: bumpedProject, ...auditOnUpdate(stamp) })
+          .where(eq(project.id, projectId))
+          .returning({ id: project.id })
+          .all().length === 1
+      );
     });
   }
 

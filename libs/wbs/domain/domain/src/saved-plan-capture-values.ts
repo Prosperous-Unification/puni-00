@@ -22,6 +22,11 @@ export interface CapturedProject {
   readonly scheduleObjective: SolverObjectiveName;
   readonly optimizationEnabled: boolean;
   readonly solutionRef: { readonly slug: string; readonly url: string } | null;
+  /**
+   * The IANA zone the project reads instants as days in (`step-node-attempts`
+   * D3). Captured as a setting; no engine reads it.
+   */
+  readonly timezone: string;
 }
 
 export interface CapturedStep {

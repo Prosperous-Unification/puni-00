@@ -17,6 +17,7 @@ import { ProjectRepository } from './project';
 import { ProjectRankRepository } from './project-rank';
 import { StepRepository } from './step';
 import { StepMeasureRepository } from './step-measure';
+import { StepNodeAttemptRepository } from './step-node-attempt';
 import { StepProgressRepository } from './step-progress';
 import { TypedDependencyRepository } from './typed-dependency';
 import { UserRepository } from './user';
@@ -46,6 +47,7 @@ export function buildStores(
     actuals: new ActualRepository(db, gate),
     measures: new StepMeasureRepository(db, gate),
     progress: new StepProgressRepository(db, gate),
+    attempts: new StepNodeAttemptRepository(db, gate),
     dependencies: new DependencyRepository(db, gate),
     typedDependencies: new TypedDependencyRepository(db, gate),
     subtrees: new SubtreeRepository(db, gate, lateWrite),

@@ -9,6 +9,7 @@ import { openMemorySource, openMemorySourceFixture } from './source';
 const stamp = { at: 1, by: 'owner' };
 const STORE_BINDINGS = [
   'actuals',
+  'attempts',
   'calendarMarkers',
   'capacity',
   'dependencies',
@@ -144,6 +145,18 @@ async function expectDetachedReads(stores: TransactionalStores): Promise<void> {
       metric: 'token_estimate',
       value: 5,
       recordedAt: 2,
+    },
+    stamp,
+  );
+  // Started before the node is stated done: a done node refuses a start.
+  await stores.attempts.start(
+    {
+      workItemId: 'wi-1',
+      stepId: 'step-memory',
+      startedAt: 2,
+      executorPersonId: null,
+      reference: 'stored reference',
+      note: null,
     },
     stamp,
   );
@@ -295,6 +308,11 @@ async function expectDetachedReads(stores: TransactionalStores): Promise<void> {
       name: 'progress',
       returned: await stores.progress.listByProject('p1'),
       reread: () => stores.progress.listByProject('p1'),
+    },
+    {
+      name: 'attempts',
+      returned: await stores.attempts.listByProject('p1'),
+      reread: () => stores.attempts.listByProject('p1'),
     },
     {
       name: 'event record',
@@ -732,4 +750,31 @@ describe('the staged memory source', () => {
     });
     await fixture.source.close();
   });
+});
+
+/**
+ * The memory twin of SQLite's in-transaction `node_done` read.
+ *
+ * Proof, watched 2026-10-12: with the `progress` reader left out of
+ * `inMemoryAttempts`, this case started attempt 1 under the done node.
+ */
+it('refuses an attempt start at a node stated done', async () => {
+  const { stores } = openMemorySource();
+  await stores.workItems.insert(workItemRow({ id: 'wi-1', projectId: 'p1' }), [], stamp);
+  await stores.steps.add(
+    { id: 'step-memory', projectId: 'p1', name: 'Stored step', allowancePercent: 0 },
+    stamp,
+  );
+  await stores.progress.set(
+    { workItemId: 'wi-1', stepId: 'step-memory', state: 'done', statedAt: 2 },
+    stamp,
+  );
+  const node = { workItemId: 'wi-1', stepId: 'step-memory' };
+  expect(
+    await stores.attempts.start(
+      { ...node, startedAt: 2, executorPersonId: null, reference: null, note: null },
+      stamp,
+    ),
+  ).toEqual({ ok: false, reason: 'node_done' });
+  expect(await stores.attempts.listByProject('p1')).toEqual([]);
 });

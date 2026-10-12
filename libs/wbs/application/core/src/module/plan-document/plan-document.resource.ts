@@ -1,7 +1,10 @@
 import {
+  type DocumentAttempt,
+  documentAttempt,
   type DocumentTypedDependency,
   documentTypedDependencyRequest,
   documentV4TypedDependencyRequest,
+  type ImportedAttempt,
   PLAN_DOCUMENT_VERSION,
   type PlanDocument,
   planDocumentHeaderRequest,
@@ -16,9 +19,11 @@ import {
   formatStepReference,
   isHold,
   isReadiness,
+  isTimezone,
   NO_ALLOWANCE,
   orderSteps,
 } from '@wbs/domain';
+import { type } from '@wbs/validation';
 
 import type { CalendarMarkerReader } from '../../ports/calendar-marker-read';
 import type { Clock } from '../../ports/clock';
@@ -33,6 +38,12 @@ import type { ResourceAccess } from '../../ports/organization-access';
 import type { Project } from '../../ports/project-store';
 import type { PlanDocumentReads } from '../../ports/shared-people-values';
 import type { ExternalSystem, Service, Tag, WorkItemType } from '../../ports/work-item-store';
+
+/**
+ * The project an export writes: its settings and the zone its days are read
+ * in, which the document carries as `settings.timezone` (`step-node-attempts` D5).
+ */
+export type ExportedProject = Project & { timezone: string };
 
 type TreeEndpoint = NonNullable<WorkItemTree['typedDependencies']>[number]['predecessor'];
 
@@ -112,7 +123,7 @@ export class PlanDocumentService {
    * wire shape and cannot reach here.
    */
   async export(
-    project: Project,
+    project: ExportedProject,
     tree: WorkItemTree,
     access: ResourceAccess,
   ): Promise<PlanDocumentExport> {
@@ -131,7 +142,7 @@ export class PlanDocumentService {
 
   /** Builds from detached export evidence and performs no store reads. */
   exportCaptured(
-    project: Project,
+    project: ExportedProject,
     tree: WorkItemTree,
     reads: PlanDocumentReads,
   ): PlanDocumentExport {
@@ -201,7 +212,7 @@ function codedTree(
 
 /** Serializes detached evidence without following any store capability. */
 function buildDocument(
-  project: Project,
+  project: ExportedProject,
   tree: WorkItemTree & { steps: PlanDocument['steps'] },
   reads: PlanDocumentReads,
   exportedAt: number,
@@ -214,6 +225,7 @@ function buildDocument(
   return {
     project,
     ...tree,
+    workItems: documentWorkItems(tree, closure.people),
     typedDependencies: tree.typedDependencies.map(({ id, predecessor, successor, type }) => {
       // Proof (2026-09-28): omitting this guard let the unknown-type tree
       // export succeed; its trusted-relationship test failed.
@@ -248,6 +260,7 @@ function buildDocument(
       optimizationEnabled: project.optimizationEnabled,
       scheduleEngine: project.scheduleEngine,
       scheduleObjective: project.scheduleObjective,
+      timezone: project.timezone,
     },
     capacity: tree.teamCapacities.map(({ serviceTeamId, size }) => ({
       teamId: serviceTeamId,
@@ -261,6 +274,54 @@ function buildDocument(
     })),
     directory: closure,
   };
+}
+
+/**
+ * The read's rows as the document writes them: the derived spans dropped, and
+ * a leaf's attempts keyed by step code, instants as ISO strings and each
+ * executor by the name the document's directory gives them.
+ *
+ * Proof: the executors left out of the closure made the mounted export in
+ * `round-trips a Kyiv project whose 010.dev holds attempts…` answer 500 on
+ * `attempt executor "pe-ana" is not in the directory`; watched 2026-10-12.
+ *
+ * @throws on an attempt at a step the tree lacks, or by an executor the
+ * closure does not name: both are trusted reads that disagree.
+ */
+function documentWorkItems(
+  tree: WorkItemTree & { steps: PlanDocument['steps'] },
+  people: readonly { id: string; name: string }[],
+): PlanDocument['workItems'] {
+  const codeOf = new Map(tree.steps.map(({ id, code }) => [id, code] as const));
+  const nameOf = new Map(people.map(({ id, name }) => [id, name] as const));
+  return tree.workItems.map(({ attempts, spans: _spans, span: _span, ...row }) => {
+    if (attempts === undefined) return row;
+    const byCode: Record<string, DocumentAttempt[]> = {};
+    for (const [stepId, held] of Object.entries(attempts)) {
+      const code = codeOf.get(stepId);
+      // `codedTree` has refused an uncoded step before this runs.
+      if (code === undefined || code === null)
+        throw new Error(`attempt at step "${stepId}" the coded tree lacks`);
+      byCode[code] = held.map((attempt) => {
+        const executor =
+          attempt.executorPersonId === null ? null : nameOf.get(attempt.executorPersonId);
+        if (executor === undefined)
+          throw new Error(
+            `attempt executor "${String(attempt.executorPersonId)}" is not in the directory`,
+          );
+        return {
+          number: attempt.attemptNumber,
+          startedAt: new Date(attempt.startedAt).toISOString(),
+          endedAt: attempt.endedAt === null ? null : new Date(attempt.endedAt).toISOString(),
+          outcome: attempt.outcome,
+          executor,
+          reference: attempt.reference,
+          note: attempt.note,
+        };
+      });
+    }
+    return { ...row, attempts: byCode };
+  });
 }
 
 /**
@@ -330,6 +391,7 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
     version !== 3 &&
     version !== 4 &&
     version !== 5 &&
+    version !== 6 &&
     version !== PLAN_DOCUMENT_VERSION
   ) {
     return { ok: false, code: 'unsupported_version', path: 'document.version' };
@@ -402,9 +464,124 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
       return { ok: false, code: 'invalid_body', path: `steps[${String(at)}].code` };
     steps.push({ ...step, allowancePercent: step.allowancePercent, code });
   }
-  const workItems = statusFactsOf(version, checked.value.workItems);
+  const { timezone: written, ...settings } = checked.value.settings;
+  let timezone = 'UTC';
+  if (version >= 7) {
+    // Proof: this refusal removed made the unknown-zone case of `refuses an
+    // unknown zone, an unknown outcome, …` (`step-node-attempt.controller.db`)
+    // answer 201, importing `Kyiv` as a project's zone; watched 2026-10-12.
+    if (!isTimezone(written)) return { ok: false, code: 'invalid_body', path: 'settings.timezone' };
+    timezone = written;
+  }
+  const statused = statusFactsOf(version, checked.value.workItems);
+  if (!Array.isArray(statused)) return statused;
+  const workItems = attemptsOf(version, statused, steps);
   if (!Array.isArray(workItems)) return workItems;
-  return { ok: true, value: { ...checked.value, steps, typedDependencies, workItems } };
+  return {
+    ok: true,
+    value: {
+      ...checked.value,
+      settings: { ...settings, timezone },
+      steps,
+      typedDependencies,
+      workItems,
+    },
+  };
+}
+
+type ClassifiedRow = Omit<PlanDocumentImport['workItems'][number], 'attempts'> & {
+  attempts?: unknown;
+};
+
+/**
+ * Each leaf's attempts as a version-7 file states them, keyed by step code,
+ * checked as the store's own constraints would check them so a refused file
+ * never reaches a write: a known outcome exactly when there is an end, an end
+ * never before its start, numbers from 1 and distinct per node, at most one
+ * running per node and that one the node's highest. A parent holds none.
+ * Before version 7 every row reads as holding none (`step-node-attempts` D5).
+ *
+ * Instants are ISO-8601 UTC strings exactly as `toISOString` writes them, so
+ * a file can never smuggle a local time read in this process's zone.
+ */
+function attemptsOf(
+  version: number,
+  rows: readonly ClassifiedRow[],
+  steps: PlanDocumentImport['steps'],
+): PlanDocumentImport['workItems'] | Extract<PlanDocumentClassification, { ok: false }> {
+  if (version < 7) return rows.map(({ attempts: _attempts, ...row }) => ({ ...row, attempts: [] }));
+  const stepIdOf = new Map(
+    steps.flatMap(({ id, code }) => (code === null ? [] : [[code, id] as const])),
+  );
+  const parents = new Set(rows.map((row) => row.parentId));
+  const imported: PlanDocumentImport['workItems'] = [];
+  for (const [at, { attempts: held, ...row }] of rows.entries()) {
+    const refused = (field: string): Extract<PlanDocumentClassification, { ok: false }> => ({
+      ok: false,
+      code: 'invalid_body',
+      path: `workItems[${String(at)}].attempts${field}`,
+    });
+    if (held === undefined) {
+      imported.push({ ...row, attempts: [] });
+      continue;
+    }
+    if (typeof held !== 'object' || held === null || Array.isArray(held)) return refused('');
+    const attempts: ImportedAttempt[] = [];
+    for (const [code, listed] of Object.entries(held)) {
+      const stepId = stepIdOf.get(code);
+      if (stepId === undefined || parents.has(row.id) || !Array.isArray(listed))
+        return refused(`.${code}`);
+      const atNode: ImportedAttempt[] = [];
+      for (const [index, entry] of listed.entries()) {
+        const path = (field: string) => refused(`.${code}[${String(index)}]${field}`);
+        const parsed = documentAttempt(entry);
+        if (parsed instanceof type.errors) return path('');
+        const startedAt = instantOf(parsed.startedAt);
+        if (startedAt === null) return path('.startedAt');
+        const endedAt = parsed.endedAt === null ? null : instantOf(parsed.endedAt);
+        if (parsed.endedAt !== null && endedAt === null) return path('.endedAt');
+        if (!Number.isSafeInteger(parsed.number) || parsed.number < 1) return path('.number');
+        if (atNode.some((other) => other.attemptNumber === parsed.number)) return path('.number');
+        if ((endedAt === null) !== (parsed.outcome === null)) return path('.outcome');
+        // Proof: this refusal removed made the end-before-start case answer
+        // 500 (`attempt 1 ends before it starts` from `attemptOf` mid-import)
+        // instead of 400; watched 2026-10-12.
+        if (endedAt !== null && endedAt < startedAt) return path('.endedAt');
+        atNode.push({
+          stepId,
+          attemptNumber: parsed.number,
+          startedAt,
+          endedAt,
+          outcome: parsed.outcome,
+          executor: parsed.executor,
+          reference: parsed.reference,
+          note: parsed.note,
+        });
+      }
+      const running = atNode.filter((attempt) => attempt.endedAt === null);
+      // Proof: this refusal removed alone still answered 400 at the same path,
+      // the highest-number refusal below catching the lower running attempt;
+      // with both removed the two-running case answered 500 (`UNIQUE
+      // constraint failed: step_node_attempt.work_item_id`, the partial
+      // index); watched 2026-10-12.
+      if (running.length > 1) return refused(`.${code}`);
+      const highest = Math.max(...atNode.map((attempt) => attempt.attemptNumber));
+      // Proof: this refusal removed made the not-the-highest case answer 201,
+      // importing a running attempt 2 beneath an ended attempt 3; watched
+      // 2026-10-12.
+      if (running.some((attempt) => attempt.attemptNumber !== highest)) return refused(`.${code}`);
+      attempts.push(...atNode.sort((left, right) => left.attemptNumber - right.attemptNumber));
+    }
+    imported.push({ ...row, attempts });
+  }
+  return imported;
+}
+
+/** Epoch milliseconds of an ISO-8601 UTC instant as `toISOString` writes one, else null. */
+function instantOf(written: string): number | null {
+  const parsed = Date.parse(written);
+  if (!Number.isFinite(parsed) || new Date(parsed).toISOString() !== written) return null;
+  return parsed;
 }
 
 /**
@@ -426,10 +603,10 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
 function statusFactsOf(
   version: number,
   rows: PlanDocumentRequest['workItems'],
-): PlanDocumentImport['workItems'] | Extract<PlanDocumentClassification, { ok: false }> {
+): ClassifiedRow[] | Extract<PlanDocumentClassification, { ok: false }> {
   if (version < 6) return rows.map((row) => ({ ...row, readiness: null, hold: null }));
   const parents = new Set(rows.map((row) => row.parentId));
-  const imported: PlanDocumentImport['workItems'] = [];
+  const imported: ClassifiedRow[] = [];
   for (const [at, row] of rows.entries()) {
     const path = (field: string) => `workItems[${String(at)}].${field}`;
     const readiness =
@@ -510,6 +687,10 @@ function referencedDirectory(tree: WorkItemTree, complete: CompleteDirectory): C
     for (const id of row.typeIds) typeIds.add(id);
     for (const id of Object.values(row.assignees)) personIds.add(id);
     for (const reference of row.externalRefs) externalSystemIds.add(reference.systemId);
+    // An attempt's executor is written by name, so the closure must name them.
+    for (const attempts of Object.values(row.attempts ?? {}))
+      for (const { executorPersonId } of attempts)
+        if (executorPersonId !== null) personIds.add(executorPersonId);
   }
 
   const people = requireRows('person', personIds, complete.people);

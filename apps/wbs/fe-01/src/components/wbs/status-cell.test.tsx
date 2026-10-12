@@ -1,8 +1,16 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { NODE_READINGS } from '@wbs/domain/node-reading';
 import type { SettableStatus, WorkItemStatus } from '@wbs/domain/progress';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { StatusCell } from './status-cell';
+import {
+  NODE_READING_GLYPH,
+  NODE_READING_LABEL,
+  readingWords,
+  STATUS_GLYPH,
+  StatusCell,
+} from './status-cell';
+import { NODE_READING_TOKEN, STATUS_TOKEN } from './status-palette';
 
 const hasDom = typeof document !== 'undefined';
 const itDom = hasDom ? it : it.skip;
@@ -98,5 +106,49 @@ describe('the Status cell (add-work-item-statuses)', () => {
     ]);
     fireEvent.click(screen.getByRole('option', { name: 'Blocked' }));
     expect(chosen).toEqual(['blocked']);
+  });
+});
+
+describe('the node reading glyphs (step-node-readings D4)', () => {
+  it('gives every reading its own glyph', () => {
+    const glyphs = NODE_READINGS.map((reading) => NODE_READING_GLYPH[reading]);
+    expect(glyphs).toHaveLength(8);
+    expect(new Set(glyphs).size).toBe(8);
+  });
+
+  it('reuses the status glyph and token for every word a status shares', () => {
+    const shared = [
+      'unknown',
+      'in_progress',
+      'done',
+      'on_hold',
+      'blocked',
+      'blocked_by_proxy',
+    ] as const;
+    expect(shared.map((word) => NODE_READING_GLYPH[word])).toEqual(
+      shared.map((word) => STATUS_GLYPH[word]),
+    );
+    expect(shared.map((word) => NODE_READING_TOKEN[word])).toEqual(
+      shared.map((word) => STATUS_TOKEN[word]),
+    );
+    expect([NODE_READING_GLYPH.waiting, NODE_READING_GLYPH.skipped]).toEqual(['◇', '∅']);
+    expect([NODE_READING_TOKEN.waiting, NODE_READING_TOKEN.skipped]).toEqual([
+      'var(--reading-waiting)',
+      'var(--reading-skipped)',
+    ]);
+  });
+
+  it('says each reading in words for assistive tech', () => {
+    expect(NODE_READINGS.map(readingWords)).toEqual([
+      'Reading: Skipped',
+      'Reading: Done',
+      'Reading: On hold',
+      'Reading: Blocked',
+      'Reading: In progress',
+      'Reading: Blocked by proxy',
+      'Reading: Waiting',
+      'Reading: Unknown',
+    ]);
+    expect(NODE_READING_LABEL.waiting).toBe('Waiting');
   });
 });

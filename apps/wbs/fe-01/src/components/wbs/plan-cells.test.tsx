@@ -2,7 +2,7 @@ import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { Component, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { ProjectApi } from '@/lib/wbs-api';
+import type { NodeReadingView, ProjectApi } from '@/lib/wbs-api';
 import { DEV, fakeProjectApi as fakeApi, QA } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 import { NO_SAVED_PLANS } from '@/testing/no-saved-plans';
@@ -704,6 +704,182 @@ const rowFor = (number: string): HTMLElement => {
   if (found === undefined) throw new Error(`no row numbered ${number}`);
   return found;
 };
+
+describe('step node readings (step-node-readings D4)', () => {
+  /**
+   * One leaf per pair, its Dev and QA nodes reading the pair's two words, read
+   * the way be-01 sends `nodeReadings`: by step id, leaves only.
+   */
+  async function readingTable(pairs: readonly (readonly [NodeReadingView, NodeReadingView])[]) {
+    const api = fakeApi();
+    let after: string | null = null;
+    const leaves: string[] = [];
+    for (const [index] of pairs.entries()) {
+      const row = await api.createWorkItem('p1', {
+        parentId: null,
+        afterId: after,
+        name: `Leaf ${String(index + 1)}`,
+      });
+      after = row.id;
+      leaves.push(row.id);
+    }
+    const readTree = api.tree.bind(api);
+    api.tree = async (projectId) => {
+      const plan = await readTree(projectId);
+      return {
+        ...plan,
+        workItems: plan.workItems.map((item) => {
+          const at = leaves.indexOf(item.id);
+          const pair = pairs.at(at);
+          return at === -1 || pair === undefined || item.rolledUp
+            ? item
+            : { ...item, nodeReadings: { [DEV.id]: pair[0], [QA.id]: pair[1] } };
+        }),
+      };
+    };
+    render(
+      <PlanFaultBoundary>
+        <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />
+      </PlanFaultBoundary>,
+    );
+    await screen.findByLabelText('Dev estimate for 010');
+    return api;
+  }
+
+  /** The reading drawn in one step cell's corner, glyph and words, or null. */
+  const cornerOf = (step: string, number: string) => {
+    const row = screen.getByLabelText(`Name of ${number}`).closest('tr');
+    const cell = row?.querySelector(`[data-final="${step}"]`);
+    if (cell === null || cell === undefined) throw new Error(`No ${step} cell on ${number}`);
+    const corner = cell.querySelector('[data-node-reading]');
+    if (corner === null) return null;
+    return {
+      word: corner.getAttribute('data-node-reading'),
+      glyph: corner.querySelector('[aria-hidden="true"]')?.textContent,
+      said: corner.querySelector('.sr-only')?.textContent,
+    };
+  };
+
+  itDom('draws each reading in its step cell corner with its sr-only words', async () => {
+    await readingTable([
+      ['done', 'waiting'],
+      ['in_progress', 'on_hold'],
+      ['blocked', 'blocked_by_proxy'],
+      ['unknown', 'skipped'],
+    ]);
+    expect([
+      cornerOf(DEV.id, '010'),
+      cornerOf(QA.id, '010'),
+      cornerOf(DEV.id, '020'),
+      cornerOf(QA.id, '020'),
+      cornerOf(DEV.id, '030'),
+      cornerOf(QA.id, '030'),
+      cornerOf(DEV.id, '040'),
+      cornerOf(QA.id, '040'),
+    ]).toEqual([
+      { word: 'done', glyph: '✓', said: 'Reading: Done' },
+      { word: 'waiting', glyph: '◇', said: 'Reading: Waiting' },
+      { word: 'in_progress', glyph: '◐', said: 'Reading: In progress' },
+      { word: 'on_hold', glyph: '‖', said: 'Reading: On hold' },
+      { word: 'blocked', glyph: '⊘', said: 'Reading: Blocked' },
+      { word: 'blocked_by_proxy', glyph: '⊖', said: 'Reading: Blocked by proxy' },
+      { word: 'unknown', glyph: '○', said: 'Reading: Unknown' },
+      { word: 'skipped', glyph: '∅', said: 'Reading: Skipped' },
+    ]);
+    // Said to the focused box too, not only in browse mode.
+    expect(screen.getByLabelText('QA estimate for 010')).toHaveAccessibleDescription(
+      'Reading: Waiting',
+    );
+  });
+
+  itDom('draws the ring glyphs larger, so each reads the size of ◇ and ✓', async () => {
+    // DejaVu Sans, which `sans-serif` resolves to for these on a Linux
+    // Chromium (canvas `measureText`, 2026-10-12), inks ◐ 6×5 and ○ 5×4 at 10px against ◇ 8×9 and ✓ 6×7; at 14px the two
+    // rings ink 7×7, a ✓'s height. Every corner keeps one 10px line box, so the
+    // larger glyph does not push the corner down or the figure over.
+    await readingTable([
+      ['done', 'waiting'],
+      ['in_progress', 'on_hold'],
+      ['blocked', 'blocked_by_proxy'],
+      ['unknown', 'skipped'],
+    ]);
+    const sizeOf = (step: string, number: string) => {
+      const row = screen.getByLabelText(`Name of ${number}`).closest('tr');
+      const corner = row?.querySelector<HTMLElement>(`[data-final="${step}"] [data-node-reading]`);
+      const glyph = corner?.querySelector<HTMLElement>('[aria-hidden="true"]');
+      if (corner === null || corner === undefined || glyph === null || glyph === undefined) {
+        throw new Error(`No corner on ${number}`);
+      }
+      return `${corner.getAttribute('data-node-reading') ?? ''} ${glyph.style.fontSize} ${corner.style.lineHeight}`;
+    };
+    expect(
+      ['010', '020', '030', '040'].flatMap((number) => [
+        sizeOf(DEV.id, number),
+        sizeOf(QA.id, number),
+      ]),
+    ).toEqual([
+      'done 10px 10px',
+      'waiting 10px 10px',
+      'in_progress 14px 10px',
+      'on_hold 10px 10px',
+      'blocked 10px 10px',
+      'blocked_by_proxy 10px 10px',
+      'unknown 14px 10px',
+      'skipped 10px 10px',
+    ]);
+  });
+
+  itDom('keeps the row fold in the Status column', async () => {
+    showEveryColumn();
+    const api = await readingTable([['done', 'waiting']]);
+    const status = screen.getByLabelText<HTMLInputElement>('Status of 010');
+    const row = api.rows.find((each) => each.number === '010');
+    expect(status.getAttribute('data-status-value')).toBe(row?.status);
+    expect(status.value).toBe('○');
+    expect(status.closest('td')?.querySelector('[data-node-reading]')).toBeNull();
+  });
+
+  itDom('draws nothing on a parent cell', async () => {
+    const api = await readingTable([['done', 'waiting']]);
+    const parent = api.rows.find((each) => each.number === '010');
+    if (parent === undefined) throw new Error('No 010');
+    await api.createWorkItem('p1', { parentId: parent.id, afterId: null, name: 'Child' });
+    click('Add work item');
+    await screen.findByLabelText('Name of 010.1');
+    expect(cornerOf(DEV.id, '010')).toBeNull();
+    expect(cornerOf(QA.id, '010')).toBeNull();
+  });
+
+  itDom('renders the query-failure state for an unknown reading word', async () => {
+    const api = fakeApi();
+    await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
+    const readTree = api.tree.bind(api);
+    api.tree = async (projectId) => {
+      const plan = await readTree(projectId);
+      return {
+        ...plan,
+        workItems: plan.workItems.map((item) => ({
+          ...item,
+          // A word no be-01 sends: the cast is the fault under test.
+          nodeReadings: { [DEV.id]: 'paused' as NodeReadingView, [QA.id]: 'unknown' },
+        })),
+      };
+    };
+    render(
+      <PlanFaultBoundary>
+        <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />
+      </PlanFaultBoundary>,
+    );
+    await waitFor(() => {
+      // The harness answers through the response contract, as the HTTP client
+      // does, so the word is refused where the read enters fe-01.
+      expect(document.querySelector('[data-stale-tree]')).toHaveTextContent(
+        'That change could not be completed (fake_invalid_response).',
+      );
+    });
+    expect(document.querySelector('[data-node-reading]')).toBeNull();
+  });
+});
 
 describe('teams and assignees', () => {
   beforeEach(showEveryColumn);

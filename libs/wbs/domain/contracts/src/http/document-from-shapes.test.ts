@@ -5,6 +5,7 @@ import { documentFromShapes } from './document-from-shapes';
 import { defineEndpointShape } from './endpoint-shape';
 import { importProject } from './import-shapes';
 import { requestSchema, responseSchema } from './schema-shape';
+import { httpShapes } from './shapes';
 
 const batch = defineEndpointShape({
   method: 'POST',
@@ -381,4 +382,25 @@ test('emits an operation description only where the shape gives one', () => {
   expect(document.paths['/api/projects/import']?.['post']?.description).toContain(
     'From version 6 every work item must carry both `readiness`',
   );
+});
+
+test('derives the three attempt commands and the timezone read from the shared shapes', () => {
+  const document = documentFromShapes(httpShapes);
+  const commands = document.paths['/api/projects/{id}/commands']?.['post']?.requestBody?.content[
+    'application/json'
+  ]?.schema as {
+    properties: {
+      commands: {
+        items: { anyOf: { properties: { kind: { const: string }; stepNodeId?: unknown } }[] };
+      };
+    };
+  };
+  const arms = commands.properties.commands.items.anyOf;
+  for (const kind of ['startAttempt', 'endAttempt', 'removeAttempt']) {
+    const arm = arms.find((each) => each.properties.kind.const === kind);
+    expect([kind, arm?.properties.stepNodeId]).toEqual([kind, { type: 'string' }]);
+  }
+  const timezones = document.paths['/api/timezones']?.['get'];
+  expect(timezones?.operationId).toBe('getApiTimezones');
+  expect(JSON.stringify(timezones?.responses['200'])).toContain('timezones');
 });

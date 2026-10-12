@@ -110,7 +110,16 @@ describe('Navigator record kinds', () => {
     expect(() => decodeRecord('plan-reference', planReference({ schemaVersion: 2 }))).toThrow(
       /schemaVersion/,
     );
+    // Proof: the literal left at '6' and this decode threw on `planDocumentVersion` (2026-10-12).
+    expect(decodeRecord('plan-reference', planReference({ planDocumentVersion: 7 }))).toMatchObject(
+      {
+        planDocumentVersion: 7,
+      },
+    );
     expect(() => decodeRecord('plan-reference', planReference({ planDocumentVersion: 5 }))).toThrow(
+      /planDocumentVersion/,
+    );
+    expect(() => decodeRecord('plan-reference', planReference({ planDocumentVersion: 8 }))).toThrow(
       /planDocumentVersion/,
     );
   });

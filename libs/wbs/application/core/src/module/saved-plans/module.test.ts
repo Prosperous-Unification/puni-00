@@ -266,7 +266,7 @@ describe('a saved plan and step allowances', () => {
     const body = JSON.parse(read.plan.input.bytes) as {
       steps: { id: string; code: string | null; name: string; allowancePercent: number }[];
     };
-    expect(read.plan.input.schemaVersion).toBe(4);
+    expect(read.plan.input.schemaVersion).toBe(5);
     expect(body.steps.find((step) => step.id === qa.id)?.allowancePercent).toBe(30);
     expect(body.steps.find((step) => step.id === qa.id)?.code).toBe(qa.code);
     expect(body.steps.find((step) => step.id === qa.id)?.name).toBe(qa.name);

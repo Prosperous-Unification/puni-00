@@ -295,6 +295,22 @@ The explicit, one-time creation of a repository's admission authority store; ope
 an absent store refuses instead.
 _Avoid_: Initialization on open, auto-create
 
+**Activation controller**:
+Twilight Dash's second authority: the service that observes ready candidates and drives each
+toolkit activation request through its review and check obligations, owning the observation
+store. It shares no store, lock or account with the admission authority.
+_Avoid_: Observer, Tool Wiki controller, activation daemon
+
+**Observation tick**:
+One bounded, timer-started pass of the activation controller over the provider's ready
+candidates, recorded in the observation store as a numbered attempt with one terminal outcome.
+_Avoid_: Poll, cron run, sync
+
+**Invocation journal**:
+The append-only record of one review harness invocation, from registration through its phases,
+that Twilight Burokrat reads to judge review provenance.
+_Avoid_: Harness log, transcript, audit trail
+
 **Effect**:
 An externally visible action a worker requests, recorded with a stable identity
 before dispatch so its outcome can be reconciled.

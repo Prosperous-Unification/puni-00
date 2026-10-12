@@ -30,7 +30,17 @@ export const WORK_ITEM_FIELD_GROUPS = {
   notes: ['notes'],
   schedule: ['schedule', 'finalDays', 'finalTotal', 'dependsOn'],
   slices: ['slices'],
-  estimates: ['estimates', 'actuals', 'measures', 'progress', 'rolledUp'],
+  estimates: [
+    'estimates',
+    'actuals',
+    'measures',
+    'progress',
+    'rolledUp',
+    'attempts',
+    'spans',
+    'span',
+    'nodeReadings',
+  ],
   constraints: [
     'position',
     'frozenNumber',

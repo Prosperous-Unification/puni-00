@@ -3,6 +3,7 @@ import type { DependencyStore } from '../../ports/dependency-store';
 import type { EstimateStore } from '../../ports/estimate-store';
 import type { MeasureStore } from '../../ports/measure-store';
 import type { StepProgressStore } from '../../ports/progress-store';
+import type { StepNodeAttemptStore } from '../../ports/step-node-attempt-store';
 import type { PlanTransactionalStores } from '../../ports/stores';
 import type { TypedDependencyStore } from '../../ports/typed-dependency-store';
 import type { Scope } from '../../ports/unit-of-work';
@@ -346,6 +347,69 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
       return removed;
     },
   };
+  /**
+   * Attempts pass through to the batch scope — no batch-planning read folds
+   * them — but every write moves its work item's revision, so the retained
+   * rows are refreshed after it, as {@link createWorkingPlanValues} does for
+   * the other step facts. A stale row would hand the journal the revision from
+   * before the write, and the entry's own undo would refuse as stale.
+   *
+   * Proof: the start's refresh skipped (as every one was before this
+   * wrapper) made `starts an attempt by step node ID … and one undo removes
+   * it` in `step-node-attempt.controller.db.test.ts` answer `409 stale_undo`
+   * (`“Strip” has changed since then.`); watched 2026-10-12.
+   */
+  const attempts: StepNodeAttemptStore = {
+    listByProject: (requestedProjectId) => {
+      assertProject(requestedProjectId);
+      return scope.stores.attempts.listByProject(requestedProjectId);
+    },
+    listByWorkItems: (requestedProjectId, ids) => {
+      assertProject(requestedProjectId);
+      return scope.stores.attempts.listByWorkItems(requestedProjectId, ids);
+    },
+    listOfWorkItem: (workItemId) => {
+      assertOpen();
+      return scope.stores.attempts.listOfWorkItem(workItemId);
+    },
+    start: async (start, stamp) => {
+      assertOpen();
+      const started = await scope.stores.attempts.start(start, stamp);
+      if (started.ok) await refreshRows([start.workItemId]);
+      return started;
+    },
+    end: async (end, stamp) => {
+      assertOpen();
+      const ended = await scope.stores.attempts.end(end, stamp);
+      if (ended.ok) await refreshRows([end.workItemId]);
+      return ended;
+    },
+    remove: async (workItemId, stepId, attemptNumber, stamp) => {
+      assertOpen();
+      const removed = await scope.stores.attempts.remove(workItemId, stepId, attemptNumber, stamp);
+      if (removed !== null) await refreshRows([workItemId]);
+      return removed;
+    },
+    restore: async (attempt, stamp) => {
+      assertOpen();
+      await scope.stores.attempts.restore(attempt, stamp);
+      await refreshRows([attempt.workItemId]);
+    },
+    listIssued: (requestedProjectId, ids) => {
+      assertProject(requestedProjectId);
+      return scope.stores.attempts.listIssued(requestedProjectId, ids);
+    },
+    // A mark moves no revision, so there is no row to refresh.
+    raiseIssued: (marks) => {
+      assertOpen();
+      return scope.stores.attempts.raiseIssued(marks);
+    },
+    moveAll: async (fromWorkItemId, toWorkItemId, stamp) => {
+      assertOpen();
+      await scope.stores.attempts.moveAll(fromWorkItemId, toWorkItemId, stamp);
+      await refreshRows([fromWorkItemId, toWorkItemId]);
+    },
+  };
   const retainedSubtrees = createWorkingPlanSubtrees(
     () => scope.stores.subtrees,
     {
@@ -415,6 +479,7 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
     actuals: retainedActuals,
     measures: retainedMeasures,
     progress: retainedProgress,
+    attempts,
     dependencies: retainedDependencies,
     typedDependencies,
     subtrees: retainedSubtrees,

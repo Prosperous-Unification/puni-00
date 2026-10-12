@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { CREATOR_ADMISSION } from '@wbs/core';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
+import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
@@ -158,6 +159,7 @@ beforeEach(async () => {
     actuals: new ActualRepository(db, OPEN),
     measures: new StepMeasureRepository(db, OPEN),
     progress: new StepProgressRepository(db, OPEN),
+    attempts: new StepNodeAttemptRepository(db, OPEN),
     directory: directoryStore,
     capacity: capacityStore,
     priorityBands: inMemoryPriorityBands(),

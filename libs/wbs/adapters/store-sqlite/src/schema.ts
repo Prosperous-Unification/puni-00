@@ -1,6 +1,7 @@
 import {
   allowanceHundredthsOf,
   type AllowancePercent,
+  ATTEMPT_OUTCOMES,
   DOMAIN_CLAIM_STATUSES,
   HOLDS,
   INVITABLE_ROLES,
@@ -319,6 +320,17 @@ export const project = sqliteTable(
      * version of the plan it had rather than a different plan.
      */
     scheduleObjective: text('schedule_objective').notNull().default('pri'),
+    /**
+     * The IANA zone every day derived from an instant is read in — an
+     * attempt's day on a card, a fact fill (`step-node-attempts` design D3).
+     *
+     * Defaulted to `UTC`, the day every reading had before, which is also what
+     * makes `20261012120000_add_step_node_attempts` additive: the outgoing
+     * colour's insert names no zone. Validated at the PATCH boundary with
+     * `isTimezone`; `ProjectRepository.timezoneOf` refuses a stored value that
+     * is not one.
+     */
+    timezone: text('timezone').notNull().default('UTC'),
     createdAt: integer('created_at').notNull(),
     ...auditColumnsBesidesCreatedAt(),
   },
@@ -1136,6 +1148,93 @@ export const stepMeasure = sqliteTable(
 );
 
 export type StepMeasureRow = typeof stepMeasure.$inferSelect;
+
+/**
+ * One **attempt** (`CONTEXT.md`): one run at a step node's work, numbered from
+ * 1 per node — ADR 0045, `openspec/changes/step-node-attempts/design.md` D1,
+ * created by `20261012120000_add_step_node_attempts`.
+ *
+ * **Never pruned, and never a statement.** Nothing reads it to schedule, and
+ * no write here touches {@link stepProgress}; the readings packet shows the two
+ * side by side.
+ *
+ * The four checks and the partial index make the attempt's invariants the
+ * database's: running is one state (`ended_at` and `outcome` both null), an
+ * end before its start is unstorable, and a node holds at most one running
+ * attempt, so `StepNodeAttemptRepository.start`'s `attempt_running` is the
+ * face of `step_node_attempt_running` refusing.
+ *
+ * `work_item_id` cascades and `step_id` does not, as on {@link stepProgress}
+ * and for its reasons. `executor_person_id` is set null with its person: the
+ * attempt is history and outlives whoever ran it.
+ */
+export const stepNodeAttempt = sqliteTable(
+  'step_node_attempt',
+  {
+    workItemId: text('work_item_id')
+      .notNull()
+      .references(() => workItem.id, { onDelete: 'cascade' }),
+    stepId: text('step_id')
+      .notNull()
+      .references(() => step.id),
+    attemptNumber: integer('attempt_number').notNull(),
+    /** Epoch milliseconds, UTC. */
+    startedAt: integer('started_at').notNull(),
+    /** Epoch milliseconds, UTC; null while the attempt runs. */
+    endedAt: integer('ended_at'),
+    outcome: text('outcome', { enum: ATTEMPT_OUTCOMES }),
+    executorPersonId: text('executor_person_id').references(() => person.id, {
+      onDelete: 'set null',
+    }),
+    /** A URL or a label naming the evidence. */
+    reference: text('reference'),
+    note: text('note'),
+    ...auditColumns(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.workItemId, t.stepId, t.attemptNumber] }),
+    index('step_node_attempt_by_step').on(t.stepId),
+    uniqueIndex('step_node_attempt_running')
+      .on(t.workItemId, t.stepId)
+      .where(sql`${t.endedAt} IS NULL`),
+    check('step_node_attempt_number', sql`${t.attemptNumber} >= 1`),
+    check('step_node_attempt_outcome', sql`${t.outcome} IN ('succeeded', 'failed', 'cancelled')`),
+    check('step_node_attempt_running_state', sql`(${t.endedAt} IS NULL) = (${t.outcome} IS NULL)`),
+    check('step_node_attempt_order', sql`${t.endedAt} IS NULL OR ${t.endedAt} >= ${t.startedAt}`),
+  ],
+);
+
+export type StepNodeAttemptRow = typeof stepNodeAttempt.$inferSelect;
+
+/**
+ * The highest attempt number a step node has issued (A42, ADR 0045): the floor
+ * `StepNodeAttemptRepository.start` numbers above, with the rows' own maximum,
+ * so a number freed by a removal is never claimed again. A table of its own
+ * because a node's attempt rows can all be removed, and a mark on them would go
+ * with the last one. Raised by every start and restore, never lowered.
+ *
+ * Both references cascade, unlike {@link stepNodeAttempt}'s `step_id`: the mark
+ * is no history a removal must count or refuse over, only a number, and
+ * neither colour's plain delete of a work item or a step may meet a constraint
+ * it cannot see. Created by `20261012120000_add_step_node_attempts`.
+ */
+export const stepNodeAttemptIssued = sqliteTable(
+  'step_node_attempt_issued',
+  {
+    workItemId: text('work_item_id')
+      .notNull()
+      .references(() => workItem.id, { onDelete: 'cascade' }),
+    stepId: text('step_id')
+      .notNull()
+      .references(() => step.id, { onDelete: 'cascade' }),
+    issued: integer('issued').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.workItemId, t.stepId] }),
+    index('step_node_attempt_issued_by_step').on(t.stepId),
+    check('step_node_attempt_issued_number', sql`${t.issued} >= 1`),
+  ],
+);
 
 export type StepProgressRow = typeof stepProgress.$inferSelect;
 

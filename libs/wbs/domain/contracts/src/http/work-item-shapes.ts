@@ -47,6 +47,36 @@ const parserArms = {
   invalid_actual: type({ error: "'invalid_actual'", at: 'number', kind: commandKindsType }),
   invalid_measure: type({ error: "'invalid_measure'", at: 'number', kind: commandKindsType }),
   invalid_progress: type({ error: "'invalid_progress'", at: 'number', kind: commandKindsType }),
+  invalid_outcome: type({
+    error: "'invalid_outcome'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  at_must_be_an_instant: type({
+    error: "'at_must_be_an_instant'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  reference_must_be_text: type({
+    error: "'reference_must_be_text'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  note_must_be_text: type({
+    error: "'note_must_be_text'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  executorPersonId_must_be_an_id: type({
+    error: "'executorPersonId_must_be_an_id'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  attemptNumber_must_be_a_whole_number_from_1: type({
+    error: "'attemptNumber_must_be_a_whole_number_from_1'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
   invalid_status: type({ error: "'invalid_status'", at: 'number', kind: commandKindsType }),
   invalid_estimate: type({ error: "'invalid_estimate'", at: 'number', kind: commandKindsType }),
   cannot_send_both_teamIds_and_serviceTeamId: type({
@@ -534,6 +564,7 @@ const batchRefusals = [
         type({ ...context, error: "'unknown_service'" }),
         type({ ...context, error: "'unknown_type'" }),
         type({ ...context, error: "'unknown_system'" }),
+        type({ ...context, error: "'unknown_attempt'" }),
       ),
     ),
   },
@@ -562,6 +593,10 @@ const batchRefusals = [
         type({ ...context, error: "'readiness_after_progress'" }),
         type({ ...context, error: "'cannot_hold_done'" }),
         type({ ...context, error: "'no_steps'" }),
+        // Attempt refusals (`step-node-attempts` D2).
+        type({ ...context, error: "'node_done'" }),
+        type({ ...context, error: "'attempt_running'" }),
+        type({ ...context, error: "'no_running_attempt'" }),
       ),
     ),
   },
@@ -582,6 +617,8 @@ const batchRefusals = [
       type.or(
         type({ ...context, error: "'calendar_range'" }),
         type({ ...context, error: "'unsupported_relationship_type'" }),
+        type({ ...context, error: "'attempt_in_future'" }),
+        type({ ...context, error: "'attempt_ends_before_start'" }),
         type({
           ...context,
           error: "'deadline_before_project_start'",

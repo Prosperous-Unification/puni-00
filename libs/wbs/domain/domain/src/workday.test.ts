@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test';
+import fc from 'fast-check';
 
 import {
   addCalendarDays,
@@ -10,6 +11,8 @@ import {
   isIsoDate,
   isMonday,
   isoDateOfInstant,
+  isoDateOfInstantIn,
+  isTimezone,
   isWeekend,
   lastWorkdayOf,
   nextWorkday,
@@ -361,5 +364,65 @@ describe('isoDateOfInstant', () => {
     // value` out of `toISOString` — an untyped throw from inside the date
     // library where a named refusal is owed; watched 2026-09-12.
     expect(() => isoDateOfInstant(Number.NaN)).toThrow('not an instant');
+  });
+});
+
+/**
+ * Instants chosen where a zoned day function goes wrong: the epoch, midnight
+ * either side, a leap day, both 2026 European daylight-saving switches, a
+ * year boundary, and far future and past stamps a journal could hold.
+ */
+const STAMP_CORPUS = [
+  0,
+  -1,
+  Date.UTC(1969, 11, 31, 23, 59, 59, 999),
+  Date.UTC(2024, 1, 29, 12),
+  Date.UTC(2026, 2, 29, 0, 59, 59, 999),
+  Date.UTC(2026, 2, 29, 1),
+  Date.UTC(2026, 9, 25, 0, 59),
+  Date.UTC(2026, 9, 25, 1),
+  Date.UTC(2026, 8, 12, 23, 30),
+  Date.UTC(2026, 11, 31, 23, 59, 59, 999),
+  Date.UTC(2027, 0, 1),
+  Date.UTC(2099, 11, 31, 23, 59),
+  Date.UTC(1900, 0, 1),
+];
+
+describe('isoDateOfInstantIn', () => {
+  it("isoDateOfInstantIn('UTC') equals isoDateOfInstant for every corpus stamp", () => {
+    for (const stamp of STAMP_CORPUS) {
+      expect(isoDateOfInstantIn('UTC', stamp)).toBe(isoDateOfInstant(stamp));
+    }
+    fc.assert(
+      fc.property(
+        fc.integer({ min: Date.UTC(1000, 0, 1), max: Date.UTC(9999, 11, 31) }),
+        (stamp) => isoDateOfInstantIn('UTC', stamp) === isoDateOfInstant(stamp),
+      ),
+    );
+  });
+
+  it("isoDateOfInstantIn('Europe/Kyiv', 2026-10-11T23:30Z) is 2026-10-12", () => {
+    expect(isoDateOfInstantIn('Europe/Kyiv', Date.UTC(2026, 9, 11, 23, 30))).toBe('2026-10-12');
+    expect(isoDateOfInstantIn('America/Los_Angeles', Date.UTC(2026, 9, 11, 3))).toBe('2026-10-10');
+  });
+
+  it('refuses a non-finite instant', () => {
+    expect(() => isoDateOfInstantIn('UTC', Number.NaN)).toThrow('not an instant');
+    expect(() => isoDateOfInstantIn('UTC', Number.POSITIVE_INFINITY)).toThrow('not an instant');
+  });
+
+  it('refuses a zone that is not one', () => {
+    expect(() => isoDateOfInstantIn('Kyiv', 0)).toThrow(/not a timezone/);
+  });
+});
+
+describe('isTimezone', () => {
+  it('isTimezone admits UTC and Europe/Kyiv and refuses Kyiv', () => {
+    expect(isTimezone('UTC')).toBe(true);
+    expect(isTimezone('Europe/Kyiv')).toBe(true);
+    expect(isTimezone('Kyiv')).toBe(false);
+    expect(isTimezone('')).toBe(false);
+    expect(isTimezone(3)).toBe(false);
+    expect(isTimezone(null)).toBe(false);
   });
 });

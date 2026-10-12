@@ -139,6 +139,14 @@ export default defineConfig({
         __dirname,
         '../../../libs/wbs/domain/domain/src/external-system.ts',
       ),
+      // And a sixth, for `step-node-readings`: `node-reading.ts` holds the eight
+      // reading words the corner glyphs and their tokens are keyed by, and its
+      // only import is a type. A second copy here is a glyph table that can
+      // miss a word be-01 derives.
+      '@wbs/domain/node-reading': resolve(
+        __dirname,
+        '../../../libs/wbs/domain/domain/src/node-reading.ts',
+      ),
     },
   },
   test: {
