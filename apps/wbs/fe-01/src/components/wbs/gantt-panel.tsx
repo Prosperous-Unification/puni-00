@@ -39,7 +39,7 @@ import {
   resolveAxisRung,
   SUB_DAY_MARK_LIMIT,
 } from './gantt-axis';
-import { useGanttDetail } from './gantt-detail';
+import { selectMarksAtPointer, useGanttDetail } from './gantt-detail';
 import {
   BAR_INSET,
   BLOCKED_STROKE,
@@ -54,6 +54,7 @@ import {
   hasTags,
   inkOn,
   layOutGantt,
+  placeBarSurface,
   type PlacedArrow,
   type PlacedBar,
   placeOnCalendar,
@@ -3606,6 +3607,19 @@ function GanttChart({
     };
   }, [fullScreen]);
   const [open, setOpen] = useState<OpenSurface | null>(null);
+  const [collision, setCollision] = useState<{ markIds: string[]; anchor: AnchorRect } | null>(
+    null,
+  );
+  useEffect(() => {
+    if (collision === null) return;
+    const close = (key: KeyboardEvent) => {
+      if (key.key === 'Escape') setCollision(null);
+    };
+    document.addEventListener('keydown', close);
+    return () => {
+      document.removeEventListener('keydown', close);
+    };
+  }, [collision]);
   // The axis's own open card: which cell, and the rectangle it was placed
   // against. Separate from the bars' state and mutually exclusive with it —
   // each opener closes the other, so `getByRole('tooltip')` is singular.
@@ -3620,7 +3634,8 @@ function GanttChart({
     null,
   );
   const hasOpenSurface = useRef(false);
-  hasOpenSurface.current = open !== null || openDay !== null || openMarkers !== null;
+  hasOpenSurface.current =
+    open !== null || openDay !== null || openMarkers !== null || collision !== null;
   /**
    * The calendar-marker composer's day, and it is the **date** rather than the
    * offset the cell was drawn at.
@@ -3788,12 +3803,13 @@ function GanttChart({
    * to come and stays pressed; one released anywhere else, or cancelled
    * outright, gets no click and ends here.
    */
-  const endTouchPress = useCallback((pointer: ReactPointerEvent<SVGRectElement>) => {
+  const endTouchPress = useCallback((pointer: ReactPointerEvent<SVGElement>) => {
     if (pointer.type === 'pointercancel') {
       pressedWithTouch.current = false;
       return;
     }
-    const box = pointer.currentTarget.getBoundingClientRect();
+    // The authored group receives these events from its own SVG mark or hit rectangle.
+    const box = (pointer.target as SVGElement).getBoundingClientRect();
     const onTheMark =
       pointer.clientX >= box.left &&
       pointer.clientX <= box.right &&
@@ -3804,6 +3820,7 @@ function GanttChart({
   }, []);
   /** The live geometry `<svg>`, read by {@link downloadGanttSvg} and nothing else. */
   const chartSvgRef = useRef<SVGSVGElement | null>(null);
+  const pointerMarks = useRef(new Map<string, SVGRectElement>());
 
   const cancelOpening = useCallback(() => {
     if (opening.current !== null) clearTimeout(opening.current);
@@ -3814,6 +3831,7 @@ function GanttChart({
     if (!hasOpenSurface.current) return;
     hasOpenSurface.current = false;
     setOpen(null);
+    setCollision(null);
     setOpenDay(null);
     setOpenMarkers(null);
   }, [cancelOpening]);
@@ -3842,8 +3860,12 @@ function GanttChart({
    * anything a mark *draws* stays in the dependency list. These two are only
    * ever asked "what is true now" by a handler the reader has just fired.
    */
-  const gesture = useRef({ fullScreen: false, openSliceId: undefined as string | undefined });
-  gesture.current = { fullScreen, openSliceId: open?.sliceId };
+  const gesture = useRef({
+    fullScreen: false,
+    openSliceId: undefined as string | undefined,
+    collisionOpen: false,
+  });
+  gesture.current = { fullScreen, openSliceId: open?.sliceId, collisionOpen: collision !== null };
   /**
    * The sentence about the waits this chart could not draw, or null where it
    * drew every one — {@link droppedLinkWords}, whose count comes from the three
@@ -3858,6 +3880,7 @@ function GanttChart({
   // {@link GanttProps.generation}.
   useEffect(() => {
     setOpen(null);
+    setCollision(null);
     setOpenDay(null);
   }, [generation]);
 
@@ -4320,7 +4343,8 @@ function GanttChart({
    * follow the bar while the card stayed where it was put. Scrolling dismisses
    * instead — see the panel's `onScroll`.
    */
-  const showSurface = (sliceId: string, mark: SVGRectElement): void => {
+  const showSurface = (sliceId: string, mark: SVGElement): void => {
+    setCollision(null);
     const box = mark.getBoundingClientRect();
     setOpenDay(null);
     setOpen({
@@ -4331,6 +4355,7 @@ function GanttChart({
   const showDaySurface = (offset: number, cell: HTMLElement): void => {
     const box = cell.getBoundingClientRect();
     setOpen(null);
+    setCollision(null);
     setOpenMarkers(null);
     setOpenDay({
       offset,
@@ -4352,6 +4377,7 @@ function GanttChart({
   const showMarkerOverflow = (offset: number, badge: HTMLElement): void => {
     const box = badge.getBoundingClientRect();
     setOpen(null);
+    setCollision(null);
     setOpenDay(null);
     setOpenMarkers({
       offset,
@@ -5064,218 +5090,277 @@ function GanttChart({
           </path>
         ))}
 
-        {drawnBars.map(({ bar, x, width }) => (
-          <rect
-            key={bar.sliceId}
-            data-gantt-bar={bar.sliceId}
-            data-dependency-lit={
-              activeTypedId !== null &&
-              placed.typedArrows.some((arrow) =>
-                arrow.relationshipSlices.some(
-                  (pair) =>
-                    // Proof: dropping this membership check made `names distinct
-                    // typed endpoints and lights only the active grouped
-                    // relationship slices` light B-dev for the QA edge.
-                    // Watched 2026-09-28.
-                    pair.relationshipId === activeTypedId &&
-                    (pair.predecessorSliceId === bar.sliceId ||
-                      pair.successorSliceId === bar.sliceId),
-                ),
-              )
-                ? 'true'
-                : undefined
-            }
-            // The engine's own **workday** numbers, and the geometry
-            // beside them is the calendar's: the two are allowed to
-            // disagree, and the difference between them is exactly what a
-            // test reads to say the conversion happened. A bar at workday
-            // 5 on a Monday-start plan carries `data-start="5"` and stands
-            // at `x="7"`.
-            data-start={bar.start}
-            data-finish={bar.finish}
-            // The last workday this bar is still on, which is the axis cell
-            // its right edge stops inside rather than the one it stops at.
-            // See {@link lastWorkdayOf} — it is the one number about a bar
-            // that cannot be read off `x` and `width` without repeating the
-            // nudge, and the browser gate has to know it to say which label
-            // the edge should line up with.
-            data-last-day={lastWorkdayOf(bar.start, bar.finish)}
-            {...(bar.critical ? { 'data-critical': 'true' } : {})}
-            // The bar whose width is an assumption, findable as such. The
-            // styling below is what a reader sees; this is what the
-            // browser gate selects on, and it has to tell a drawn span
-            // from a measured one before it measures anything. Only ever
-            // in the document with the detail switch on.
-            //
-            // Proof: this hook dropped. `7 failed | 84 passed` —
-            // four on {@link askForTheDetail}'s own throw, `the detail
-            // switch was pressed and nothing arrived at [data-assumed]`,
-            // and three on `expected null to be 'true'` /
-            // `expected +0 to be 1`. Watched 2026-08-12.
-            {...(bar.estimated ? {} : { 'data-assumed': 'true' })}
-            // The bar that is a done row's fact span, findable as such: the
-            // browser gate measures where it stops against the fact end's axis
-            // cell, and has to tell it from a slice first. Never beside
-            // `data-assumed` — a done bar is not a guess.
-            {...(bar.done ? { 'data-done': 'true' } : {})}
-            // What stops the work (`add-work-item-statuses`): the browser gate
-            // and the tests select on these, the outline and the hatch below
-            // are what a reader sees.
-            {...(bar.stop === 'blocked' ? { 'data-blocked': 'true' } : {})}
-            {...(bar.stop === 'blocked_by_proxy' ? { 'data-blocked-by-proxy': 'true' } : {})}
-            x={x}
-            // The **drawn** span in calendar days — the end reading of
-            // the drawn finish less the start reading of the start, so a
-            // bar working through a weekend is drawn across it and one
-            // stopping on the Friday stops at the Saturday. Never a span
-            // from the engine's `finish`: an unestimated slice finishes
-            // where it starts, and that width is no bar at all.
-            width={width}
-            // Its own lane where unknown placeholders overlap on one row, so
-            // each stays under the pointer — see {@link GanttBar.lane}.
-            y={bar.rowIndex + BAR_INSET + (bar.lane * BAR_HEIGHT) / bar.lanes}
-            height={BAR_HEIGHT / bar.lanes}
-            rx={BAR_RADIUS_PX / dayPx}
-            ry={BAR_RADIUS_PX / ROW_PX}
-            // Who is on it — an unestimated slice included, at 35% through
-            // {@link ASSUMED_BAR_CLASSES}. It used to be hollow, which was
-            // honest about the length and cost the reader the assignee;
-            // now it keeps the person and says "guessed" in how it is
-            // painted rather than by having no paint.
-            fill={bar.personColor}
-            // The critical path is the **outline**, because the fill is
-            // already saying who. A ring in the foreground colour rather
-            // than the destructive one: `#d62728` is the fourth person's
-            // colour, and a red ring on a red bar is no ring at all.
-            // A done bar wears the status green as its outline instead
-            // (`status-polish`; Dany: "add smth like a green outline to the
-            // gantt chart slices").
-            // A blocked bar wears the blocked red as its outline, the done
-            // bar's green's way (`add-work-item-statuses`).
-            stroke={
-              bar.done
-                ? DONE_BAR_STROKE
-                : bar.stop === 'blocked'
-                  ? BLOCKED_STROKE
-                  : bar.critical
-                    ? undefined
-                    : bar.personColor
-            }
-            className={cn(
-              barClasses(bar.critical, bar.estimated, bar.done, bar.stop === 'blocked'),
-              'data-[dependency-lit=true]:stroke-foreground data-[dependency-lit=true]:[stroke-width:2]',
-            )}
-            vectorEffect="non-scaling-stroke"
-            // A control, because it is one: it takes the keyboard, it has
-            // a name, and Enter and Space act on it. The step is what
-            // makes the `aria-label` below a name a screen reader reads —
-            // a bare `<rect>` is presentational whatever it is labelled.
-            role="button"
-            tabIndex={0}
-            // **The bar's only accessible name**, and the reason it is
-            // here rather than in the `<title>` this change took off the
-            // bars: two tooltips on one mark is a bug, and the browser's
-            // is the one nothing can place or style. The same facts the
-            // surface shows, from the same derivation.
-            aria-label={barFacts(bar, startDate, today, plan.priorityBands).join('. ')}
-            onPointerDown={(pointer) => {
-              pressedWithTouch.current = pointer.pointerType === 'touch';
-            }}
-            // The three ends a touch has that are not a click, all of
-            // them through {@link endTouchPress}: the release, the
-            // cancellation a scroll or a system gesture takes the touch
-            // away with, and the capture release that follows either.
-            onPointerUp={endTouchPress}
-            onPointerCancel={endTouchPress}
-            onLostPointerCapture={endTouchPress}
-            onClick={(click) => {
-              const rowId = rowIdAt(bar.rowIndex);
-              // A bar with no row is not a state this can be in — the bar
-              // was placed on that row by {@link layOutGantt} — so there is
-              // nothing to do about it but leave the click alone.
-              const touchPress = pressedWithTouch.current;
-              pressedWithTouch.current = false;
-              if (gesture.current.fullScreen && touchPress) {
+        {drawnBars.map(({ bar, x, width }) => {
+          const surface = placeBarSurface(x, width, rung);
+          const middle = bar.rowIndex + BAR_INSET + ((bar.lane + 0.5) * BAR_HEIGHT) / bar.lanes;
+          const hitHeight = Math.max(BAR_HEIGHT / bar.lanes, 18 / ROW_PX);
+          return (
+            <g
+              key={bar.sliceId}
+              onPointerDown={(pointer) => {
+                pressedWithTouch.current = pointer.pointerType === 'touch';
+              }}
+              // The three ends a touch has that are not a click, all of
+              // them through {@link endTouchPress}: the release, the
+              // cancellation a scroll or a system gesture takes the touch
+              // away with, and the capture release that follows either.
+              onPointerUp={endTouchPress}
+              onPointerCancel={endTouchPress}
+              onLostPointerCapture={endTouchPress}
+              onClick={(click) => {
+                const rowId = rowIdAt(bar.rowIndex);
+                // A bar with no row is not a state this can be in — the bar
+                // was placed on that row by {@link layOutGantt} — so there is
+                // nothing to do about it but leave the click alone.
+                const touchPress = pressedWithTouch.current;
+                pressedWithTouch.current = false;
+                if (gesture.current.fullScreen && touchPress) {
+                  cancelOpening();
+                  if (gesture.current.openSliceId !== bar.sliceId) {
+                    showSurface(bar.sliceId, click.currentTarget);
+                    return;
+                  }
+                  dismiss();
+                  // A deliberate second tap navigates to the row, so focus
+                  // belongs on its name cell after leaving full screen, not
+                  // back inside the layer or on the Full trigger.
+                  leavingToRow.current = true;
+                  setFullScreen(false);
+                }
+                if (rowId !== undefined) onPickRow(rowId);
+              }}
+              onKeyDown={(key) => {
+                if (key.key !== 'Enter' && key.key !== ' ') return;
+                // Before anything else: Space's own default is to scroll
+                // the panel, and a reader who asked to go to a row and got
+                // the chart scrolled out from under them is R5 #14's fault
+                // wearing another hat. jsdom performs no default action, so
+                // this line is guarded in a browser (`e2e/gantt.spec.ts`).
+                key.preventDefault();
+                const rowId = rowIdAt(bar.rowIndex);
+                if (rowId !== undefined) onPickRow(rowId);
+              }}
+              onPointerOver={(pointer) => {
+                // **The touch seam.** Chromium synthesizes a whole mouse
+                // sequence from a tap — `mouseover` included — so a surface
+                // opened on a mouse event opens on every tap as well, over
+                // the row the tap was taking the reader to. The pointer
+                // events are the only ones that say which they came from.
+                if (pointer.pointerType !== 'mouse') return;
+                // Before the timer and never inside it: the pointed row is
+                // a tint, which is cheap to paint and cheap to be wrong
+                // about for a moment, while the surface is a card that
+                // covers the chart. So the light is immediate and the card
+                // still waits out {@link HOVER_OPEN_MS} — a pointer
+                // crossing eight bars lights eight rows in turn, which
+                // reads as a trail, and opens no cards at all.
+                pointRow(bar.rowIndex, 'pointer');
+                const mark = pointer.currentTarget;
                 cancelOpening();
-                if (gesture.current.openSliceId !== bar.sliceId) {
-                  showSurface(bar.sliceId, click.currentTarget);
+                opening.current = setTimeout(() => {
+                  const surfaces = [...pointerMarks.current].map(([markId, hit]) => {
+                    const box = hit.getBoundingClientRect();
+                    return {
+                      markId,
+                      left: box.left,
+                      right: box.right,
+                      top: box.top,
+                      bottom: box.bottom,
+                    };
+                  });
+                  const markIds = selectMarksAtPointer(surfaces, pointer.clientX, pointer.clientY);
+                  // Proof: bypassing this list opened the second card immediately;
+                  // the production overlap-choice case failed to find the first line
+                  // (subday2-proof-collision, 2026-10-12).
+                  if (markIds.length > 1) {
+                    const box = mark.getBoundingClientRect();
+                    setOpen(null);
+                    setOpenDay(null);
+                    setOpenMarkers(null);
+                    setCollision({
+                      markIds,
+                      anchor: {
+                        left: box.left,
+                        right: box.right,
+                        top: box.top,
+                        bottom: box.bottom,
+                      },
+                    });
+                  } else showSurface(bar.sliceId, mark);
+                }, HOVER_OPEN_MS);
+              }}
+              onPointerOut={(pointer) => {
+                if (
+                  pointer.relatedTarget instanceof Node &&
+                  pointer.currentTarget.contains(pointer.relatedTarget)
+                )
+                  return;
+                if (gesture.current.collisionOpen) {
+                  cancelOpening();
                   return;
                 }
+                // **The card, and not the light.** Leaving a bar used to
+                // clear the pointed row here, which was right while a bar
+                // was one of only two things on this chart that could
+                // point one. Since `pointed-row-one-ink` the row's own
+                // line points it, so leaving a bar is usually landing on
+                // the same row — and clearing here blinked the light off
+                // under the caret or the dependency link the reader had
+                // moved onto, then straight back on. What clears the
+                // light is leaving the drawing, which the SVG root says.
+                //
+                // A touch leaves the mark before its synthesized click.
+                // In full screen that click owns the surface: first tap
+                // opens it, and a second tap on the same bar navigates.
+                if (gesture.current.fullScreen && pointer.pointerType === 'touch') return;
                 dismiss();
-                // A deliberate second tap navigates to the row, so focus
-                // belongs on its name cell after leaving full screen, not
-                // back inside the layer or on the Full trigger.
-                leavingToRow.current = true;
-                setFullScreen(false);
-              }
-              if (rowId !== undefined) onPickRow(rowId);
-            }}
-            onKeyDown={(key) => {
-              if (key.key !== 'Enter' && key.key !== ' ') return;
-              // Before anything else: Space's own default is to scroll
-              // the panel, and a reader who asked to go to a row and got
-              // the chart scrolled out from under them is R5 #14's fault
-              // wearing another hat. jsdom performs no default action, so
-              // this line is guarded in a browser (`e2e/gantt.spec.ts`).
-              key.preventDefault();
-              const rowId = rowIdAt(bar.rowIndex);
-              if (rowId !== undefined) onPickRow(rowId);
-            }}
-            onPointerOver={(pointer) => {
-              // **The touch seam.** Chromium synthesizes a whole mouse
-              // sequence from a tap — `mouseover` included — so a surface
-              // opened on a mouse event opens on every tap as well, over
-              // the row the tap was taking the reader to. The pointer
-              // events are the only ones that say which they came from.
-              if (pointer.pointerType !== 'mouse') return;
-              // Before the timer and never inside it: the pointed row is
-              // a tint, which is cheap to paint and cheap to be wrong
-              // about for a moment, while the surface is a card that
-              // covers the chart. So the light is immediate and the card
-              // still waits out {@link HOVER_OPEN_MS} — a pointer
-              // crossing eight bars lights eight rows in turn, which
-              // reads as a trail, and opens no cards at all.
-              pointRow(bar.rowIndex, 'pointer');
-              const mark = pointer.currentTarget;
-              cancelOpening();
-              opening.current = setTimeout(() => {
-                showSurface(bar.sliceId, mark);
-              }, HOVER_OPEN_MS);
-            }}
-            onPointerOut={(pointer) => {
-              // **The card, and not the light.** Leaving a bar used to
-              // clear the pointed row here, which was right while a bar
-              // was one of only two things on this chart that could
-              // point one. Since `pointed-row-one-ink` the row's own
-              // line points it, so leaving a bar is usually landing on
-              // the same row — and clearing here blinked the light off
-              // under the caret or the dependency link the reader had
-              // moved onto, then straight back on. What clears the
-              // light is leaving the drawing, which the SVG root says.
-              //
-              // A touch leaves the mark before its synthesized click.
-              // In full screen that click owns the surface: first tap
-              // opens it, and a second tap on the same bar navigates.
-              if (gesture.current.fullScreen && pointer.pointerType === 'touch') return;
-              dismiss();
-            }}
-            // No delay on the keyboard: focus is deliberate, and there is
-            // no crossing of the chart to protect a reader from.
-            onFocus={(focus) => {
-              // A touch focuses before its click. Let that click decide
-              // between opening the facts and deliberate navigation;
-              // keyboard focus keeps the immediate surface below.
-              if (gesture.current.fullScreen && pressedWithTouch.current) return;
-              pointRow(bar.rowIndex, 'focus');
-              cancelOpening();
-              showSurface(bar.sliceId, focus.currentTarget);
-            }}
-            onBlur={() => {
-              onPointRow(null, 'focus');
-              dismiss();
-            }}
-          />
-        ))}
+              }}
+              // No delay on the keyboard: focus is deliberate, and there is
+              // no crossing of the chart to protect a reader from.
+              onFocus={(focus) => {
+                // A touch focuses before its click. Let that click decide
+                // between opening the facts and deliberate navigation;
+                // keyboard focus keeps the immediate surface below.
+                if (gesture.current.fullScreen && pressedWithTouch.current) return;
+                pointRow(bar.rowIndex, 'focus');
+                cancelOpening();
+                showSurface(bar.sliceId, focus.currentTarget);
+              }}
+              onBlur={() => {
+                onPointRow(null, 'focus');
+                dismiss();
+              }}
+            >
+              <rect
+                data-gantt-bar={bar.sliceId}
+                data-tick={surface.tick ? 'true' : undefined}
+                data-dependency-lit={
+                  activeTypedId !== null &&
+                  placed.typedArrows.some((arrow) =>
+                    arrow.relationshipSlices.some(
+                      (pair) =>
+                        // Proof: dropping this membership check made `names distinct
+                        // typed endpoints and lights only the active grouped
+                        // relationship slices` light B-dev for the QA edge.
+                        // Watched 2026-09-28.
+                        pair.relationshipId === activeTypedId &&
+                        (pair.predecessorSliceId === bar.sliceId ||
+                          pair.successorSliceId === bar.sliceId),
+                    ),
+                  )
+                    ? 'true'
+                    : undefined
+                }
+                // The engine's own **workday** numbers, and the geometry
+                // beside them is the calendar's: the two are allowed to
+                // disagree, and the difference between them is exactly what a
+                // test reads to say the conversion happened. A bar at workday
+                // 5 on a Monday-start plan carries `data-start="5"` and stands
+                // at `x="7"`.
+                data-start={bar.start}
+                data-finish={bar.finish}
+                // The last workday this bar is still on, which is the axis cell
+                // its right edge stops inside rather than the one it stops at.
+                // See {@link lastWorkdayOf} — it is the one number about a bar
+                // that cannot be read off `x` and `width` without repeating the
+                // nudge, and the browser gate has to know it to say which label
+                // the edge should line up with.
+                data-last-day={lastWorkdayOf(bar.start, bar.finish)}
+                {...(bar.critical ? { 'data-critical': 'true' } : {})}
+                // The bar whose width is an assumption, findable as such. The
+                // styling below is what a reader sees; this is what the
+                // browser gate selects on, and it has to tell a drawn span
+                // from a measured one before it measures anything. Only ever
+                // in the document with the detail switch on.
+                //
+                // Proof: this hook dropped. `7 failed | 84 passed` —
+                // four on {@link askForTheDetail}'s own throw, `the detail
+                // switch was pressed and nothing arrived at [data-assumed]`,
+                // and three on `expected null to be 'true'` /
+                // `expected +0 to be 1`. Watched 2026-08-12.
+                {...(bar.estimated ? {} : { 'data-assumed': 'true' })}
+                // The bar that is a done row's fact span, findable as such: the
+                // browser gate measures where it stops against the fact end's axis
+                // cell, and has to tell it from a slice first. Never beside
+                // `data-assumed` — a done bar is not a guess.
+                {...(bar.done ? { 'data-done': 'true' } : {})}
+                // What stops the work (`add-work-item-statuses`): the browser gate
+                // and the tests select on these, the outline and the hatch below
+                // are what a reader sees.
+                {...(bar.stop === 'blocked' ? { 'data-blocked': 'true' } : {})}
+                {...(bar.stop === 'blocked_by_proxy' ? { 'data-blocked-by-proxy': 'true' } : {})}
+                x={x}
+                // The **drawn** span in calendar days — the end reading of
+                // the drawn finish less the start reading of the start, so a
+                // bar working through a weekend is drawn across it and one
+                // stopping on the Friday stops at the Saturday. Never a span
+                // from the engine's `finish`: an unestimated slice finishes
+                // where it starts, and that width is no bar at all.
+                width={surface.width}
+                // Its own lane where unknown placeholders overlap on one row, so
+                // each stays under the pointer — see {@link GanttBar.lane}.
+                y={bar.rowIndex + BAR_INSET + (bar.lane * BAR_HEIGHT) / bar.lanes}
+                height={BAR_HEIGHT / bar.lanes}
+                rx={BAR_RADIUS_PX / dayPx}
+                ry={BAR_RADIUS_PX / ROW_PX}
+                // Who is on it — an unestimated slice included, at 35% through
+                // {@link ASSUMED_BAR_CLASSES}. It used to be hollow, which was
+                // honest about the length and cost the reader the assignee;
+                // now it keeps the person and says "guessed" in how it is
+                // painted rather than by having no paint.
+                fill={bar.personColor}
+                // The critical path is the **outline**, because the fill is
+                // already saying who. A ring in the foreground colour rather
+                // than the destructive one: `#d62728` is the fourth person's
+                // colour, and a red ring on a red bar is no ring at all.
+                // A done bar wears the status green as its outline instead
+                // (`status-polish`; Dany: "add smth like a green outline to the
+                // gantt chart slices").
+                // A blocked bar wears the blocked red as its outline, the done
+                // bar's green's way (`add-work-item-statuses`).
+                stroke={
+                  bar.done
+                    ? DONE_BAR_STROKE
+                    : bar.stop === 'blocked'
+                      ? BLOCKED_STROKE
+                      : bar.critical
+                        ? undefined
+                        : bar.personColor
+                }
+                className={cn(
+                  barClasses(bar.critical, bar.estimated, bar.done, bar.stop === 'blocked'),
+                  'data-[dependency-lit=true]:stroke-foreground data-[dependency-lit=true]:[stroke-width:2]',
+                )}
+                vectorEffect="non-scaling-stroke"
+                // A control, because it is one: it takes the keyboard, it has
+                // a name, and Enter and Space act on it. The step is what
+                // makes the `aria-label` below a name a screen reader reads —
+                // a bare `<rect>` is presentational whatever it is labelled.
+                role="button"
+                tabIndex={0}
+                // **The bar's only accessible name**, and the reason it is
+                // here rather than in the `<title>` this change took off the
+                // bars: two tooltips on one mark is a bug, and the browser's
+                // is the one nothing can place or style. The same facts the
+                // surface shows, from the same derivation.
+                aria-label={barFacts(bar, startDate, today, plan.priorityBands).join('. ')}
+              />
+              <rect
+                data-gantt-hit={bar.sliceId}
+                ref={(hit) => {
+                  if (hit === null) pointerMarks.current.delete(bar.sliceId);
+                  else pointerMarks.current.set(bar.sliceId, hit);
+                }}
+                x={surface.hitX}
+                width={surface.hitWidth}
+                y={middle - hitHeight / 2}
+                height={hitHeight}
+                fill="transparent"
+                pointerEvents="all"
+              />
+            </g>
+          );
+        })}
 
         {/*
               The band, as a cap at the bar's left edge — the third channel, and
@@ -6329,8 +6414,43 @@ function GanttChart({
         to the Name cell's preview, which is the same {@link HoverCard} with a
         different body.
       */}
+        {collision !== null && (
+          <HoverCard label="Choose a mark" anchor={collision.anchor} takesPointer>
+            <button
+              type="button"
+              onClick={() => {
+                setCollision(null);
+              }}
+            >
+              Close mark list
+            </button>
+            {collision.markIds.map((markId) => {
+              const placedBar = drawnBars.find(({ bar }) => bar.sliceId === markId);
+              if (placedBar === undefined) return null;
+              const { bar } = placedBar;
+              return (
+                <button
+                  key={markId}
+                  type="button"
+                  className="block text-xs"
+                  onClick={() => {
+                    setOpen({ sliceId: markId, anchor: collision.anchor });
+                    setCollision(null);
+                  }}
+                >{`${bar.workItemNumber} · ${bar.stepName ?? 'No step'} · ${String(Number((bar.duration * 480).toFixed(9)))} min`}</button>
+              );
+            })}
+          </HoverCard>
+        )}
         {openBar !== null && open !== null && (
           <HoverCard label={`Facts for ${openBar.workItemNumber}`} anchor={open.anchor}>
+            {(() => {
+              const placedBar = drawnBars.find(({ bar }) => bar.sliceId === openBar.sliceId);
+              return placedBar !== undefined &&
+                placeBarSurface(placedBar.x, placedBar.width, rung).tick ? (
+                <p className="text-xs">{Number((openBar.duration * 480).toFixed(9))} min</p>
+              ) : null;
+            })()}
             {barFacts(openBar, startDate, today, plan.priorityBands).map((line) => (
               <p key={line} className="text-xs">
                 {line}

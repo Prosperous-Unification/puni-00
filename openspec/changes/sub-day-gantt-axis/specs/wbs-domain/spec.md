@@ -6,7 +6,7 @@ The calendar-scale control SHALL offer, below the three day rungs, three discret
 rungs of 4 hours, 1 hour and 15 minutes per cell, dividing a 480-minute workday into 2, 8
 and 32 cells of 28 px, with no slider. At a sub-day rung a calendar day SHALL be drawn as its
 480 working minutes, weekends greyed as at day rungs, and no non-working hours SHALL be drawn
-until the instant axis exists. Day rungs SHALL be unchanged in pixels, labels and behaviour.
+until the instant axis exists. Day rungs SHALL retain their painted geometry and labels; the pointer surfaces and collision selection below apply at every rung.
 
 #### Scenario: a workday plan at the 1 h rung
 
@@ -18,12 +18,11 @@ until the instant axis exists. Day rungs SHALL be unchanged in pixels, labels an
 
 - **GIVEN** every existing Gantt pixel assertion
 - **WHEN** the panel renders at `Days`, `Weeks` and `Months` after this change
-- **THEN** every assertion holds unchanged
+- **THEN** every paint and label assertion holds unchanged; pointer surfaces and collision selection follow the common rule
 
 ### Requirement: Narrow marks are ticks with a pointer surface and a collision list
 
-A bar narrower than 4 px SHALL be painted 4 px wide carrying `data-tick`; its hover card SHALL
-carry the exact span. Every mark SHALL have a pointer surface of at least 18 CSS px. When more
+At a sub-day rung, a positive-span forecast bar narrower than 4 px SHALL be painted 4 px wide carrying `data-tick`; its hover card SHALL carry the exact scheduled span. Day-rung paint SHALL retain its true width. A true zero-duration milestone SHALL retain its zero-width bar and existing line tick at every rung. Every forecast mark, including a zero-duration milestone, SHALL have a centered pointer rectangle of at least 18 CSS px in both dimensions. When more
 than one pointer surface contains the pointer, hover SHALL open a list naming each mark
 (`number · step · span`) and the card SHALL open for the one chosen; the panel SHALL never
 pick one by guess.
