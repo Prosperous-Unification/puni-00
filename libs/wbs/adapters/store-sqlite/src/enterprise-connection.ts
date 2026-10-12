@@ -420,7 +420,7 @@ export class EnterpriseConnectionRepository implements EnterpriseConnections {
         // `enterprise-link.controller.db.test.ts` prove the connection.
         if (!carriesSubjectPrefix(identity.subject, connection)) {
           tx.update(organizationSsoConnection)
-            .set({ lastPrefixMismatchAt: act.stamp.at })
+            .set({ lastPrefixMismatchAt: act.stamp.at, ...auditOnUpdate(act.stamp) })
             .where(eq(organizationSsoConnection.id, connectionId))
             .run();
           return { kind: 'sso_prefix_mismatch' };
@@ -441,7 +441,7 @@ export class EnterpriseConnectionRepository implements EnterpriseConnections {
           // The partial unique index lets one proven record name an Auth0
           // connection; a second organization's proof throws here.
           tx.update(organizationSsoConnection)
-            .set({ provenAt: act.stamp.at, provenBy: userId })
+            .set({ provenAt: act.stamp.at, provenBy: userId, ...auditOnUpdate(act.stamp) })
             .where(eq(organizationSsoConnection.id, connectionId))
             .run();
           appendOrganizationAudit(tx, {
