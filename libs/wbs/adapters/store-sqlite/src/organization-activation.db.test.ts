@@ -237,7 +237,7 @@ describe('organization activation marker schema', () => {
     ]);
     expect(readAppliedMigrations().at(-1)).toBe(ORGANIZATION_OWNERSHIP);
     runMigrations(path, FOLDER);
-    expect(readAppliedMigrations().at(-1)).toBe('20261012120000_add_step_node_attempts');
+    expect(readAppliedMigrations().at(-1)).toBe('20261012130000_add_step_estimate_unit');
     expect(withDb(readOrganizationActivation)).toBe('pre_activation');
   });
 

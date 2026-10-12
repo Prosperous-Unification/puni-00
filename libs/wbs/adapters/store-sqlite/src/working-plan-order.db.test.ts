@@ -476,7 +476,11 @@ it('advances SQLite assignment and directory cascades before the next runner com
     ]);
     const assignmentEntry = (await source.stores.journal.entriesFor(PROJECT, OWNER)).at(-1);
     if (assignmentEntry === undefined) throw new Error('SQLite assignment batch wrote no journal');
-    expect(assignmentEntry.preconditions).toEqual({ expected: { [ROW]: 4 }, from: { [ROW]: 2 } });
+    expect(assignmentEntry.preconditions).toEqual({
+      expected: { [ROW]: 4 },
+      from: { [ROW]: 2 },
+      estimateUnits: {},
+    });
     expect(await runner.undo(PROJECT, OWNER)).toMatchObject({ ok: true });
     expect(await source.stores.directory.assignmentsFor(ROW)).toEqual([
       { workItemId: ROW, stepId: 'step', personId: createdPersonId },
@@ -1033,6 +1037,7 @@ it('refreshes a dependency survivor before the next runner command and preserves
     expect(entry.preconditions).toEqual({
       expected: { survivor: 3 },
       from: { survivor: 1 },
+      estimateUnits: {},
     });
 
     expect(await runner.undo(PROJECT, OWNER)).toMatchObject({ ok: true });
