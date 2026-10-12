@@ -1,7 +1,7 @@
 # Twilight Dash
 
 Dash owns the runtime admission authority ([`src/authority`](src/authority/authority-store.ts))
-and exposes five local commands. `bootstrap-authority <repository>` is the only command that
+and exposes seven local commands. `bootstrap-authority <repository>` is the only command that
 creates an authority; every other command refuses an absent one. `inspect-authority <repository>
 [--session <id>]` prints the authority state, read-only. `recover-publication <repository> --integration-id
 <id>` finishes an interrupted publication from its durable record. `submit-admission <repository>
@@ -12,6 +12,17 @@ delegates enrollment planning to the existing fleet CLI. Creating a plan authori
 not enroll a node. Fleet owns the plan format, digest, eligibility checks and
 execution admission; see [fleet identities and ownership](../../../../docs/infra/fleet.md)
 and [`runPlan`](../../../../tools/tool-fleet/src/cli.ts).
+
+Dash also owns the activation controller's observation store
+(`<stateDirectory>/activation.sqlite`, `user_version` 10; see
+[`observation-commands.ts`](src/activation/observation-commands.ts)). Both store commands take the
+protected observation service configuration and nothing else.
+`bootstrap-observation <service.json>` creates the v10 store in the existing state directory and
+refuses `exists` when one is present. `migrate-observation <service.json>` steps a v8 or v9 store
+to v10 and prints `migrated` with both versions. It refuses `absent`, `current` and
+`unsupported-version`. Either command refuses `unreadable` with the filesystem or SQLite code, and
+a refused command creates no file. The [fixtures](fixtures/activation/README.md) pin the v10
+schema and a store written by the pre-relocation Burokrat code.
 
 From the repository root, supply a desired fleet, its complete observation, an
 exact observed unenrolled node and cluster, and the SHA-256 values of the reviewed

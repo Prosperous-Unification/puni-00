@@ -1,4 +1,8 @@
 import {
+  bootstrapObservationCommand,
+  migrateObservationCommand,
+} from './activation/observation-commands';
+import {
   bootstrapAuthorityCommand,
   inspectAuthorityCommand,
   recoverPublicationCommand,
@@ -37,9 +41,10 @@ export async function runFleetPlan(argv: readonly string[]): Promise<void> {
 }
 
 /**
- * Dispatches enrollment planning through the fixed fleet planner and the four authority commands
+ * Dispatches enrollment planning through the fixed fleet planner, the four authority commands
  * (`bootstrap-authority`, `inspect-authority`, `recover-publication`, `submit-admission`) through the runtime
- * authority; every other command refuses before any effect.
+ * authority, and the two observation store commands (`bootstrap-observation`,
+ * `migrate-observation`); every other command refuses before any effect.
  */
 export async function runDash(argv: readonly string[], deps: DashDependencies): Promise<void> {
   // A JavaScript caller can omit what the type requires; refuse rather than reach for a default.
@@ -52,22 +57,34 @@ export async function runDash(argv: readonly string[], deps: DashDependencies): 
     }
   }
   const [command, ...argumentsAfterCommand] = argv;
-  const authority = { clock: deps.clock, write: (text: string) => deps.stdout.write(text) };
+  const commandDependencies = {
+    clock: deps.clock,
+    write: (text: string) => deps.stdout.write(text),
+  };
   // Each authority command parses its whole grammar before it opens or creates a store.
   if (command === 'bootstrap-authority') {
-    bootstrapAuthorityCommand(argumentsAfterCommand, authority);
+    bootstrapAuthorityCommand(argumentsAfterCommand, commandDependencies);
     return;
   }
   if (command === 'inspect-authority') {
-    inspectAuthorityCommand(argumentsAfterCommand, authority);
+    inspectAuthorityCommand(argumentsAfterCommand, commandDependencies);
     return;
   }
   if (command === 'recover-publication') {
-    recoverPublicationCommand(argumentsAfterCommand, authority);
+    recoverPublicationCommand(argumentsAfterCommand, commandDependencies);
     return;
   }
   if (command === 'submit-admission') {
-    submitAdmission(argumentsAfterCommand, authority);
+    submitAdmission(argumentsAfterCommand, commandDependencies);
+    return;
+  }
+  // Each observation store command parses its whole grammar before it reads any state.
+  if (command === 'bootstrap-observation') {
+    await bootstrapObservationCommand(argumentsAfterCommand, commandDependencies);
+    return;
+  }
+  if (command === 'migrate-observation') {
+    await migrateObservationCommand(argumentsAfterCommand, commandDependencies);
     return;
   }
   if (command !== 'plan-enrollment') {

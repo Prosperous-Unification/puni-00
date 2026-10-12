@@ -1,0 +1,193 @@
+PRAGMA foreign_keys=OFF;
+BEGIN TRANSACTION;
+CREATE TABLE activation_request (
+        request_identity TEXT PRIMARY KEY,
+        repository_id INTEGER NOT NULL,
+        subject_key TEXT NOT NULL,
+        request_bytes TEXT NOT NULL,
+        bootstrap_identity TEXT NOT NULL,
+        stage TEXT NOT NULL,
+        version INTEGER NOT NULL,
+        lease_epoch INTEGER NOT NULL,
+        lease_owner TEXT,
+        lease_expires_at INTEGER,
+        evaluation_plan_identity TEXT,
+        evidence_set_identity TEXT,
+        pairing_version INTEGER NOT NULL CHECK (pairing_version IN (0, 1)),
+        current INTEGER NOT NULL CHECK (current IN (0, 1))
+      );
+CREATE TABLE activation_delivery (
+        source_id TEXT NOT NULL,
+        delivery_id TEXT NOT NULL,
+        payload_digest TEXT NOT NULL,
+        PRIMARY KEY (source_id, delivery_id)
+      );
+CREATE TABLE activation_subject (
+        repository_id INTEGER NOT NULL,
+        subject_key TEXT NOT NULL,
+        high_water_generation INTEGER NOT NULL CHECK (high_water_generation >= 0),
+        observation_version INTEGER NOT NULL CHECK (observation_version >= 1),
+        PRIMARY KEY (repository_id, subject_key)
+      );
+CREATE TABLE activation_obligation (
+        request_identity TEXT NOT NULL,
+        obligation_identity TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        review_id TEXT,
+        executor_id TEXT NOT NULL,
+        protocol_identity TEXT NOT NULL,
+        command_identity TEXT,
+        phase TEXT,
+        attempt INTEGER NOT NULL CHECK (attempt >= 0),
+        state TEXT NOT NULL,
+        receipt_identity TEXT,
+        PRIMARY KEY (request_identity, obligation_identity),
+        FOREIGN KEY (request_identity) REFERENCES activation_request(request_identity)
+      );
+CREATE TABLE activation_attempt (
+        request_identity TEXT NOT NULL,
+        obligation_identity TEXT NOT NULL,
+        attempt INTEGER NOT NULL CHECK (attempt >= 0),
+        receipt_identity TEXT NOT NULL,
+        receipt_bytes TEXT NOT NULL,
+        authentication_bytes TEXT NOT NULL,
+        status TEXT NOT NULL,
+        PRIMARY KEY (request_identity, obligation_identity, attempt),
+        UNIQUE (receipt_identity),
+        FOREIGN KEY (request_identity, obligation_identity)
+          REFERENCES activation_obligation(request_identity, obligation_identity)
+      );
+CREATE TABLE activation_review_attempt (
+        request_identity TEXT NOT NULL,
+        review_id TEXT NOT NULL,
+        attempt INTEGER NOT NULL CHECK (attempt >= 0),
+        invocation_id TEXT NOT NULL UNIQUE,
+        PRIMARY KEY (request_identity, review_id, attempt),
+        FOREIGN KEY (request_identity) REFERENCES activation_request(request_identity)
+      );
+CREATE TABLE activation_review_dispatch (
+    effect_key TEXT PRIMARY KEY,
+    request_identity TEXT NOT NULL,
+    plan_identity TEXT NOT NULL,
+    review_id TEXT NOT NULL,
+    attempt INTEGER NOT NULL CHECK (attempt >= 0),
+    invocation_id TEXT NOT NULL,
+    cold_obligation_identity TEXT NOT NULL,
+    informed_obligation_identity TEXT NOT NULL,
+    authority_identity TEXT NOT NULL,
+    target_bytes TEXT NOT NULL,
+    payload_bytes TEXT NOT NULL,
+    payload_digest TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    deadline_at INTEGER NOT NULL,
+    max_dispatch_attempts INTEGER NOT NULL CHECK (max_dispatch_attempts >= 1),
+    state TEXT NOT NULL CHECK (state = 'reserved'),
+    owner_epoch INTEGER NOT NULL CHECK (owner_epoch >= 0),
+    owner_id TEXT NOT NULL,
+    version INTEGER NOT NULL CHECK (version >= 0),
+    UNIQUE (request_identity, review_id, attempt),
+    FOREIGN KEY (request_identity, review_id, attempt)
+      REFERENCES activation_review_attempt(request_identity, review_id, attempt)
+  );
+CREATE TABLE activation_review_dispatch_progress (
+    effect_key TEXT PRIMARY KEY,
+    state TEXT NOT NULL CHECK (state IN ('reserved', 'dispatching', 'uncertain', 'acknowledged', 'exhausted')),
+    dispatch_attempts INTEGER NOT NULL CHECK (dispatch_attempts >= 0),
+    owner_epoch INTEGER NOT NULL CHECK (owner_epoch >= 0),
+    owner_id TEXT NOT NULL,
+    version INTEGER NOT NULL CHECK (version >= 0),
+    FOREIGN KEY (effect_key) REFERENCES activation_review_dispatch(effect_key)
+  );
+CREATE TABLE activation_review_dispatch_fact (
+    effect_key TEXT PRIMARY KEY,
+    observation_bytes TEXT NOT NULL,
+    observation_digest TEXT NOT NULL,
+    FOREIGN KEY (effect_key) REFERENCES activation_review_dispatch(effect_key)
+  );
+CREATE TABLE activation_check_attempt (
+    request_identity TEXT NOT NULL,
+    obligation_identity TEXT NOT NULL,
+    attempt INTEGER NOT NULL CHECK (attempt >= 0),
+    invocation_id TEXT NOT NULL UNIQUE,
+    PRIMARY KEY (request_identity, obligation_identity, attempt),
+    FOREIGN KEY (request_identity, obligation_identity)
+      REFERENCES activation_obligation(request_identity, obligation_identity)
+  );
+CREATE TABLE activation_check_dispatch (
+    effect_key TEXT PRIMARY KEY,
+    request_identity TEXT NOT NULL,
+    plan_identity TEXT NOT NULL,
+    obligation_identity TEXT NOT NULL,
+    attempt INTEGER NOT NULL CHECK (attempt >= 0),
+    invocation_id TEXT NOT NULL,
+    command_identity TEXT NOT NULL,
+    protocol_identity TEXT NOT NULL,
+    manifest_bytes TEXT NOT NULL,
+    toolchain_identity TEXT NOT NULL,
+    sandbox_profile_identity TEXT NOT NULL,
+    authority_identity TEXT NOT NULL,
+    target_bytes TEXT NOT NULL,
+    payload_bytes TEXT NOT NULL,
+    payload_digest TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    deadline_at INTEGER NOT NULL,
+    max_dispatch_attempts INTEGER NOT NULL CHECK (max_dispatch_attempts >= 1),
+    UNIQUE (request_identity, obligation_identity, attempt),
+    FOREIGN KEY (request_identity, obligation_identity, attempt)
+      REFERENCES activation_check_attempt(request_identity, obligation_identity, attempt)
+  );
+CREATE TABLE activation_check_dispatch_progress (
+    effect_key TEXT PRIMARY KEY,
+    state TEXT NOT NULL CHECK (state IN ('reserved', 'dispatching', 'uncertain', 'acknowledged', 'exhausted')),
+    dispatch_attempts INTEGER NOT NULL CHECK (dispatch_attempts >= 0),
+    owner_epoch INTEGER NOT NULL CHECK (owner_epoch >= 0),
+    owner_id TEXT NOT NULL,
+    version INTEGER NOT NULL CHECK (version >= 0),
+    FOREIGN KEY (effect_key) REFERENCES activation_check_dispatch(effect_key)
+  );
+CREATE TABLE activation_check_dispatch_fact (
+    effect_key TEXT PRIMARY KEY,
+    observation_bytes TEXT NOT NULL,
+    observation_digest TEXT NOT NULL,
+    FOREIGN KEY (effect_key) REFERENCES activation_check_dispatch(effect_key)
+  );
+CREATE TABLE activation_observation_schedule (
+    singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+    repository_id INTEGER NOT NULL,
+    configuration_identity TEXT NOT NULL,
+    attempt_sequence INTEGER NOT NULL CHECK (attempt_sequence >= 0),
+    burst_attempts INTEGER NOT NULL CHECK (burst_attempts >= 0),
+    last_started_at INTEGER
+  );
+INSERT INTO activation_observation_schedule VALUES(1,8241,'2f934b4acd05a159f36ab1c247a207f3822634b7fa01af08339cfbe89592548f',2,1,1002000);
+CREATE TABLE activation_observation_recovery (
+    singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+    repository_id INTEGER NOT NULL,
+    configuration_identity TEXT NOT NULL,
+    legacy_watermark INTEGER NOT NULL CHECK (legacy_watermark >= 0),
+    active_sequence INTEGER,
+    health TEXT NOT NULL CHECK (health IN ('unknown', 'healthy', 'failed')),
+    mode TEXT NOT NULL CHECK (mode IN ('burst', 'recovery')),
+    provider_not_before INTEGER,
+    next_attempt_at INTEGER,
+    last_clock_at INTEGER,
+    last_failure_sequence INTEGER,
+    last_success_sequence INTEGER
+  );
+INSERT INTO activation_observation_recovery VALUES(1,8241,'2f934b4acd05a159f36ab1c247a207f3822634b7fa01af08339cfbe89592548f',0,NULL,'healthy','burst',1002200,1002200,1002000,2,1);
+CREATE TABLE activation_observation_attempt (
+    sequence INTEGER PRIMARY KEY CHECK (sequence >= 1),
+    configuration_identity TEXT NOT NULL,
+    started_at INTEGER NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('burst', 'recovery')),
+    outcome TEXT CHECK (outcome IN ('complete', 'cancelled', 'provider-failure', 'local-failure', 'interrupted')),
+    classification TEXT,
+    finished_at INTEGER,
+    provider_not_before INTEGER
+  );
+INSERT INTO activation_observation_attempt VALUES(1,'2f934b4acd05a159f36ab1c247a207f3822634b7fa01af08339cfbe89592548f',1001000,'burst','complete',NULL,1001000,NULL);
+INSERT INTO activation_observation_attempt VALUES(2,'2f934b4acd05a159f36ab1c247a207f3822634b7fa01af08339cfbe89592548f',1002000,'burst','provider-failure','unavailable',1002000,1002200);
+CREATE UNIQUE INDEX activation_current_subject ON activation_request(repository_id, subject_key) WHERE current = 1;
+CREATE INDEX activation_dispatch_request ON activation_review_dispatch(request_identity);
+COMMIT;
+PRAGMA user_version=10;

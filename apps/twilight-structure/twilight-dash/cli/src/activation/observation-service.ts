@@ -138,6 +138,34 @@ function serviceConfiguration(path: string): ServiceConfiguration {
   }
 }
 
+function stateConfig(
+  configuration: ServiceConfiguration,
+  clock: WallClock,
+): ObservationStateConfig {
+  return {
+    stateDirectory: configuration.stateDirectory,
+    bootstrapPath: configuration.bootstrapPath,
+    pin: configuration.pin,
+    binding: configuration.binding,
+    policy: configuration.policy,
+    clock: () => clock.read(),
+  };
+}
+
+/**
+ * Reads the protected service configuration as the observation store's configuration, exactly as
+ * the service does, for `bootstrap-observation` and `migrate-observation`.
+ *
+ * @throws Error `observation service configuration unavailable` when the file fails the protected
+ * open, and `... malformed` when its bytes are not the canonical service configuration.
+ */
+export function readObservationStateConfig(
+  configurationPath: string,
+  clock: WallClock,
+): ObservationStateConfig {
+  return stateConfig(serviceConfiguration(configurationPath), clock);
+}
+
 function credential(path: string | null): string | undefined {
   // Proof: ambient replaced this return with GITHUB_TOKEN; an ambient sentinel was sent.
   if (path === null) return undefined;
@@ -185,16 +213,8 @@ export async function runObservationService(
     // throws at its first read, before any GET: `service refuses absent injected clocks before
     // any provider call`.
     const { monotonic } = options;
-    const clock = () => options.clock.read();
-    const state: ObservationStateConfig = {
-      stateDirectory: configuration.stateDirectory,
-      bootstrapPath: configuration.bootstrapPath,
-      pin: configuration.pin,
-      binding: configuration.binding,
-      policy: configuration.policy,
-      clock,
-    };
-    const reader = createGitHubRestReader({ token, fetcher: options.fetcher, clock });
+    const state = stateConfig(configuration, options.clock);
+    const reader = createGitHubRestReader({ token, fetcher: options.fetcher, clock: state.clock });
     // The observer cannot initialize or migrate: those are separate administrator APIs.
     return await runObservationCli({
       state,

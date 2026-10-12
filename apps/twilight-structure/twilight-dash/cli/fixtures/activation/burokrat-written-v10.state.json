@@ -1,0 +1,95 @@
+{
+  "attempts": [
+    {
+      "sequence": 1,
+      "configuration_identity": "2f934b4acd05a159f36ab1c247a207f3822634b7fa01af08339cfbe89592548f",
+      "started_at": 1001000,
+      "kind": "burst",
+      "outcome": "complete",
+      "classification": null,
+      "finished_at": 1001000,
+      "provider_not_before": null
+    },
+    {
+      "sequence": 2,
+      "configuration_identity": "2f934b4acd05a159f36ab1c247a207f3822634b7fa01af08339cfbe89592548f",
+      "started_at": 1002000,
+      "kind": "burst",
+      "outcome": "provider-failure",
+      "classification": "unavailable",
+      "finished_at": 1002000,
+      "provider_not_before": 1002200
+    }
+  ],
+  "bootstrap": {
+    "schemaVersion": 1,
+    "authorityGeneration": 3,
+    "reviewer": {
+      "kind": "external-audit-provider",
+      "providerId": "review.provider",
+      "executorId": "review.executor",
+      "protocolIdentity": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "promptIdentity": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "journal": {
+      "kind": "authenticated-external-journal",
+      "verifierId": "journal.verifier",
+      "issuerId": "journal.issuer",
+      "endpoint": "https://journal.example.invalid/v1"
+    },
+    "publisher": {
+      "kind": "immutable-external-store",
+      "issuerId": "publisher.issuer",
+      "endpoint": "https://store.example.invalid/activations"
+    },
+    "admission": {
+      "requiredWorkflow": ".github/workflows/trusted-wiki.yml",
+      "protectedBranch": "main"
+    }
+  },
+  "binding": {
+    "repositoryId": 8241,
+    "owner": "Prosperous-Unification",
+    "name": "puni-00",
+    "targetRef": "refs/heads/main",
+    "policyIdentity": "3333333333333333333333333333333333333333333333333333333333333333",
+    "mappingIdentity": "4444444444444444444444444444444444444444444444444444444444444444",
+    "toolkitIdentity": "5555555555555555555555555555555555555555555555555555555555555555",
+    "readDeadlineMs": 1000
+  },
+  "policy": {
+    "maxAttempts": 3,
+    "wholeTickMs": 5000,
+    "maxSubjects": 100,
+    "initialDelayMs": 100,
+    "maxDelayMs": 400,
+    "fallbackDelayMs": 200,
+    "recoveryProbeMs": 1000,
+    "horizonMs": 5000
+  },
+  "recovery": {
+    "singleton": 1,
+    "repository_id": 8241,
+    "configuration_identity": "2f934b4acd05a159f36ab1c247a207f3822634b7fa01af08339cfbe89592548f",
+    "legacy_watermark": 0,
+    "active_sequence": null,
+    "health": "healthy",
+    "mode": "burst",
+    "provider_not_before": 1002200,
+    "next_attempt_at": 1002200,
+    "last_clock_at": 1002000,
+    "last_failure_sequence": 2,
+    "last_success_sequence": 1
+  },
+  "schedule": {
+    "singleton": 1,
+    "repository_id": 8241,
+    "configuration_identity": "2f934b4acd05a159f36ab1c247a207f3822634b7fa01af08339cfbe89592548f",
+    "attempt_sequence": 2,
+    "burst_attempts": 1,
+    "last_started_at": 1002000
+  },
+  "version": {
+    "user_version": 10
+  }
+}
