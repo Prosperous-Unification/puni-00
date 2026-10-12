@@ -116,6 +116,12 @@
       "rationale": "WorkItemService folds each row's status from its progress reading, hold, readiness and the dependency graph with the @wbs/domain folds, with no store or clock access"
     },
     {
+      "path": "libs/wbs/application/core/src/service/provisioning-secret.ts",
+      "kind": "support",
+      "disposition": "private member of libs/wbs/application/core/src/service/scim.feature.ts and the provisioning-token routes",
+      "rationale": "Mints a provisioning token's 256-bit secret and its SHA-256 digest; no store, no clock"
+    },
+    {
       "path": "libs/wbs/application/core/src/service/saved-plan-schedule.ts",
       "kind": "support",
       "disposition": "compatibility adapter for direct store-based capture scheduling; delete when callers use the saved-plans module",
@@ -126,6 +132,12 @@
       "kind": "support",
       "disposition": "compatibility adapter for direct store-based SavedPlanService construction; delete when callers install the saved-plans module",
       "rationale": "The sealed Saved plans feature uses SavedPlanResource, while direct callers still construct SavedPlanService with capture and plans stores."
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/scim-admission.ts",
+      "kind": "support",
+      "disposition": "private member of libs/wbs/application/core/src/service/scim.feature.ts",
+      "rationale": "Per-token rolling-window request admission for SCIM over the injected clock; process-local state, no store"
     },
     {
       "path": "libs/wbs/application/core/src/service/shared-people-fanout.ts",
