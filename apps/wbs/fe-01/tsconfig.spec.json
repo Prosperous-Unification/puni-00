@@ -40,6 +40,7 @@
     "src/**/*.spec.tsx",
     "vitest.setup.ts",
     "vite.config.ts",
+    "vite.benchmark.config.ts",
     "vitest.config.ts",
     "vitest.node.config.ts",
     "vitest.zoned.config.ts",
