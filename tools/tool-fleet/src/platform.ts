@@ -100,8 +100,25 @@ const NativeKustomization = type({
   apiVersion: "'kustomize.config.k8s.io/v1beta1'",
   kind: "'Kustomization'",
   resources: type('string>0').array(),
+  // A generator may only turn files beside the kustomization into one hash-named ConfigMap: no
+  // literals, behaviour or options, so the name hash that makes a Job rerun cannot be disabled.
+  // Proof: changing this generator's unknown-key policy to delete made "rejects a generator that
+  // disables the content hash a Job rerun depends on" resolve instead of reject on 2026-10-11.
+  'configMapGenerator?': type({
+    name: 'string>0',
+    namespace: 'string>0',
+    files: type('string>0').array(),
+    '+': 'reject',
+  }).array(),
   '+': 'reject',
 });
+
+/** The ConfigMaps a native kustomization generates: name, namespace and source files. */
+type ConfigMapGenerators = readonly {
+  readonly name: string;
+  readonly namespace: string;
+  readonly files: readonly string[];
+}[];
 
 async function readYaml(path: string): Promise<unknown> {
   try {
@@ -130,7 +147,11 @@ const observabilityResources = (environment: string) => [
   'otlp-ingress.yaml',
 ];
 
-const platformKustomizations: readonly (readonly [string, readonly string[]])[] = [
+const platformKustomizations: readonly (readonly [
+  string,
+  readonly string[],
+  ConfigMapGenerators?,
+])[] = [
   ['target/kustomization.yaml', []],
   ['networking/kustomization.yaml', ['namespaces.yaml', 'cert-manager.yaml', 'traefik.yaml']],
   [
@@ -154,8 +175,23 @@ const platformKustomizations: readonly (readonly [string, readonly string[]])[] 
   ['observability/eck/kustomization.yaml', ['eck-operator.yaml']],
   ['observability/elastic/local/kustomization.yaml', ['elasticsearch.yaml']],
   ['observability/elastic/production/kustomization.yaml', ['elasticsearch.yaml']],
-  ['observability/elastic/settings/kustomization.yaml', ['settings.yaml']],
-  ['observability/kibana/kustomization.yaml', ['kibana.yaml']],
+  [
+    'observability/elastic/settings/kustomization.yaml',
+    ['settings.yaml'],
+    [
+      {
+        name: 'elastic-failure-fields',
+        namespace: 'observability',
+        files: ['failure-fields.json'],
+      },
+    ],
+  ],
+  ['observability/kibana/kustomization.yaml', ['kibana.yaml', 'objects']],
+  [
+    'observability/kibana/objects/kustomization.yaml',
+    ['job.yaml'],
+    [{ name: 'kibana-objects', namespace: 'observability', files: ['apply.sh', 'objects.ndjson'] }],
+  ],
   [
     'observability/prometheus/kustomization.yaml',
     ['kube-prometheus-stack.yaml', 'blackbox-exporter.yaml'],
@@ -181,6 +217,7 @@ function requireNativeResources(
   path: string,
   source: unknown,
   expectedResources: readonly string[],
+  expectedGenerators: ConfigMapGenerators = [],
 ) {
   const kustomization = NativeKustomization(source);
   if (kustomization instanceof type.errors) {
@@ -190,6 +227,13 @@ function requireNativeResources(
     // Proof: removing this comparison made a substituted networking resource list resolve instead
     // of reject in the production validator on 2026-09-17.
     throw new Error(`${path} native Kustomization resources differ from the locked graph`);
+  }
+  if (
+    JSON.stringify(kustomization.configMapGenerator ?? []) !== JSON.stringify(expectedGenerators)
+  ) {
+    // Proof: removing this comparison made "rejects a generated ConfigMap outside the locked
+    // graph" resolve instead of reject on 2026-10-11.
+    throw new Error(`${path} native Kustomization generators differ from the locked graph`);
   }
 }
 
@@ -348,9 +392,9 @@ export async function validatePlatform(root: string): Promise<{
     await assertSecretClosure(root, expectedCluster, referencedSecrets(graphManifests));
   }
 
-  for (const [relativePath, resources] of platformKustomizations) {
+  for (const [relativePath, resources, generators] of platformKustomizations) {
     const path = join(root, 'infra/platform', relativePath);
-    requireNativeResources(path, await readYaml(path), resources);
+    requireNativeResources(path, await readYaml(path), resources, generators);
   }
 
   const releaseNames: string[] = [];

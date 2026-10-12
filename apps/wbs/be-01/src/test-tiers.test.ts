@@ -33,9 +33,11 @@ const SRC = new URL('.', import.meta.url).pathname;
  * renamed into the store tier on that evidence and is back out of it.
  * `OrganizationHarness.open` and `.openComposed` are the fourth and fifth:
  * each migrates and opens a SQLite file for the organization boundary suites.
+ * `BootedBrowserProcess.open` is the sixth: it migrates a file and boots be-01
+ * over it.
  */
 const OPENS_A_DATABASE =
-  /\b(openDrizzle|openDatabase|runMigrations|OrganizationHarness\.open(Composed)?)\b/;
+  /\b(openDrizzle|openDatabase|runMigrations|OrganizationHarness\.open(Composed)?|BootedBrowserProcess\.open)\b/;
 
 /** Every `*.test.ts` under `src`, as a path relative to it. */
 function suites(dir = SRC, prefix = ''): string[] {

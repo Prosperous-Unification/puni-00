@@ -403,8 +403,8 @@ async function legacySourceOccurrences(): Promise<{
                   : [
                         '.dockerignore',
                         '.github/workflows/ci.yml',
-                        'apps/twilight-structure/twilight-burokrat/cli/src/admission/authority-store.ts',
-                        'apps/twilight-structure/twilight-burokrat/cli/src/admission/claims.ts',
+                        'apps/twilight-structure/twilight-dash/cli/src/authority/authority-store.ts',
+                        'apps/twilight-structure/twilight-dash/cli/src/authority/claims.ts',
                         'apps/twilight-structure/twilight-burokrat/cli/src/contracts/records.ts',
                         'lefthook.yml',
                         'tools/tool-dagger/src/main.ts',
@@ -887,9 +887,18 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // occurrences 308 to 309, none unclassified (2026-09-27).
     // Integration round 5 carries both entries above: 308 + 2 + 1 = 311, categories unchanged; the
     // placeholder pin failed with this digest and 311 occurrences, none unclassified (2026-09-27).
+    // Proof: leaving `c35b2d7d…` here after Burokrat's `admission/` split into
+    // `admission-judge/` and `admission-runtime/` failed on the observed digest below at the same
+    // 321 occurrences and categories: the two `production proof or revision transition` contexts
+    // in `authority-store.ts` and `claims.ts` kept their match and class and changed only the
+    // path they are reported under, none unclassified (2026-10-11).
+    // Proof: leaving `a68a8631…` here after the runtime authority moved from Burokrat's
+    // `admission-runtime/` to `twilight-dash/cli/src/authority/` failed on the observed digest
+    // below at the same 321 occurrences and categories; the two proof contexts changed only the
+    // path they are reported under, none unclassified (2026-10-11).
     // Proof: one injected legacy source occurrence changed this count/digest
     // and failed the named corpus test; restoring it passed again.
-    digest: 'c35b2d7d8bbec7e6ea72fe432c94aa3a738a22124482219e0c2339b9b7d56daf',
+    digest: '7b8d87be67c78beb6c7e101e28826844584acac0831a18aaddd5266cc3584bd2',
     occurrences: 321,
     unclassified: [],
   });

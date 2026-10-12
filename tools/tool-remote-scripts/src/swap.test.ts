@@ -403,7 +403,7 @@ describe('startGreen env preflight', () => {
   const IMAGE = 'registry.infra.bulletpoints.club/wbs-be-01@sha256:' + 'a'.repeat(64);
   const APP_ENV =
     'PORT=3100\nLOG_LEVEL=info\nGW_URL=http://gw-01:3200\n' +
-    'DB_PATH=/data/wbs.db\nAUTH_MODE=oidc\nAUTH_METHODS=none\n';
+    'DB_PATH=/data/wbs.db\nAUTH_MODE=oidc\nAUTH_METHODS=none\nBROWSER_SESSION_AUTHORITY=disabled\n';
 
   async function rejectedPreflight(
     readOidc: () => Promise<string>,
@@ -487,7 +487,7 @@ describe('startGreen required-key preflight', () => {
     gw: 'registry.infra.bulletpoints.club/wbs-gw-01@sha256:' + 'a'.repeat(64),
   } as const;
   const APP_ENV = {
-    be: 'PORT=3100\nLOG_LEVEL=info\nGW_URL=http://gw-01:3200\nDB_PATH=/data/wbs.db\nAUTH_MODE=oidc\nAUTH_METHODS=none\n',
+    be: 'PORT=3100\nLOG_LEVEL=info\nGW_URL=http://gw-01:3200\nDB_PATH=/data/wbs.db\nAUTH_MODE=oidc\nAUTH_METHODS=none\nBROWSER_SESSION_AUTHORITY=disabled\n',
     gw: 'PORT=3200\nLOG_LEVEL=info\nBE_URL=http://be-01.internal:3100\nAUTH_MODE=oidc\n',
   } as const;
   const SHARED_ENV =
@@ -907,7 +907,7 @@ it('startGreen admits merged backend config and writes the supervisor directory 
       readText: (path) =>
         Promise.resolve(
           path.endsWith('/be-01.env')
-            ? 'PORT=3100\nLOG_LEVEL=error\nGW_URL=http://gw\nDB_PATH=/data/wbs.db\nAUTH_MODE=oidc\nAUTH_METHODS=none\nAPP_ORIGIN=https://operator.example\nSOLVER_BUDGET_MS=120000\nSOLVER_SEARCH_WORKERS=2\nSOLVER_MEMORY_LIMIT_MB=512\n'
+            ? 'PORT=3100\nLOG_LEVEL=error\nGW_URL=http://gw\nDB_PATH=/data/wbs.db\nAUTH_MODE=oidc\nAUTH_METHODS=none\nBROWSER_SESSION_AUTHORITY=disabled\nAPP_ORIGIN=https://operator.example\nSOLVER_BUDGET_MS=120000\nSOLVER_SEARCH_WORKERS=2\nSOLVER_MEMORY_LIMIT_MB=512\n'
             : path === '/fixture/oidc.env'
               ? COMPLETE_OIDC_ENV
               : `INTERNAL_AUTH_SECRET=${'s'.repeat(32)}\nJWT_SIGNING_KEY_CURRENT=${'k'.repeat(32)}\n`,

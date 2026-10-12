@@ -28,6 +28,9 @@
       "@twilight-burokrat/contracts": [
         "./apps/twilight-structure/twilight-burokrat/cli/src/contracts/index.ts"
       ],
+      "@twilight-burokrat/judge": [
+        "./apps/twilight-structure/twilight-burokrat/cli/src/judge-facade.ts"
+      ],
       "@wbs/auth": ["./libs/wbs/adapters/auth/src/index.ts"],
       "@wbs/config": ["./libs/wbs/adapters/config/src/index.ts"],
       "@wbs/contracts": ["./libs/wbs/domain/contracts/src/index.ts"],

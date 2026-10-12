@@ -1,15 +1,17 @@
 import {
   chmodSync,
+  cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 
 import { afterEach, expect, test } from 'bun:test';
 
@@ -323,4 +325,186 @@ test('unreadable trusted state is refused without mutating destination', () => {
     chmodSync(inaccessible, 0o600);
   }
   expect(readFileSync(join(destination, 'package.json'), 'utf8')).toBe(before);
+});
+
+function declarePackages(root: string, path: string, packages: unknown) {
+  const manifest = parseJson(join(root, path, 'project.json')) as {
+    metadata: { portability: Record<string, unknown> };
+  };
+  manifest.metadata.portability['packages'] = packages;
+  json(join(root, path, 'project.json'), manifest);
+}
+function addPackages(root: string, section: string, packages: Record<string, string>) {
+  const manifest = parseJson(join(root, 'package.json')) as Record<string, Record<string, string>>;
+  manifest[section] = { ...manifest[section], ...packages };
+  json(join(root, 'package.json'), manifest);
+}
+
+test('a project declaring a package the destination lacks is refused before any write', () => {
+  const { source, destination } = pair();
+  project(source, 'libs/fixture/domain/core');
+  project(source, 'apps/fixture/client', ['libs/fixture/domain/core']);
+  declarePackages(source, 'libs/fixture/domain/core', { '@noble/hashes': '^2.0.1' });
+  // Proof: deleting the declared-package comparison copied both projects and failed this refusal assertion.
+  expect(() => copyProject(source, destination, 'apps/fixture/client')).toThrow(
+    `Missing package @noble/hashes@^2.0.1 in ${realpathSync(destination)}/package.json: add it, run bun install, then commit bun.lock`,
+  );
+  expect(existsSync(join(destination, 'apps'))).toBe(false);
+  expect(existsSync(join(destination, 'libs'))).toBe(false);
+  addPackages(destination, 'dependencies', { '@noble/hashes': '^2.0.1' });
+  expect(copyProject(source, destination, 'apps/fixture/client')).toEqual([
+    'libs/fixture/domain/core',
+    'apps/fixture/client',
+  ]);
+});
+
+test('an incompatible declared spec is refused naming the repair', () => {
+  const { source, destination } = pair();
+  project(source, 'apps/fixture/client');
+  declarePackages(source, 'apps/fixture/client', { react: '19.2.0' });
+  addPackages(destination, 'devDependencies', { react: '^19.2.0' });
+  // Proof: deleting the declared-package comparison copied the project despite '^19.2.0' versus '19.2.0'.
+  expect(() => copyProject(source, destination, 'apps/fixture/client')).toThrow(
+    'Missing package react@19.2.0',
+  );
+  expect(existsSync(join(destination, 'apps'))).toBe(false);
+  declarePackages(source, 'apps/fixture/client', ['react']);
+  expect(() => copyProject(source, destination, 'apps/fixture/client')).toThrow(
+    'Invalid package declaration',
+  );
+  declarePackages(source, 'apps/fixture/client', { react: '' });
+  expect(() => copyProject(source, destination, 'apps/fixture/client')).toThrow(
+    'Invalid package declaration',
+  );
+  expect(existsSync(join(destination, 'apps'))).toBe(false);
+});
+
+test('a workspace configuring Nx Cloud, a cache runner or plugin, or a self-hosted cache is refused by check and copy', () => {
+  for (const [side, setting] of [
+    ['destination', { nxCloudId: 'abc123' }],
+    ['source', { nxCloudAccessToken: 'token' }],
+    [
+      'destination',
+      {
+        tasksRunnerOptions: {
+          default: { runner: 'nx/tasks-runners/default', options: { accessToken: 'token' } },
+        },
+      },
+    ],
+    ['destination', { tasksRunnerOptions: { default: { runner: 'nx-cloud' } } }],
+    ['source', { plugins: ['@nx/s3-cache'] }],
+    ['destination', { plugins: [{ plugin: '@nx/gcs-cache', options: {} }] }],
+    ['source', { s3: { bucket: 'outputs' } }],
+  ] as const) {
+    const { source, destination } = pair();
+    project(source, 'apps/fixture/client');
+    const root = side === 'source' ? source : destination;
+    const nx = parseJson(join(root, 'nx.json')) as Record<string, unknown>;
+    json(join(root, 'nx.json'), { ...nx, ...setting });
+    // Proof: removing the remote-cache guard let check pass and copy write apps/fixture/client.
+    expect(() => {
+      verifyBaseline(source, destination);
+    }).toThrow('Remote Nx cache is refused');
+    expect(() => copyProject(source, destination, 'apps/fixture/client')).toThrow(
+      'Remote Nx cache is refused',
+    );
+    expect(existsSync(join(destination, 'apps'))).toBe(false);
+  }
+});
+
+test('a remote Nx cache credential in the environment is refused by check and copy', () => {
+  for (const variable of ['NX_CLOUD_ACCESS_TOKEN', 'NX_SELF_HOSTED_REMOTE_CACHE_SERVER']) {
+    const { source, destination } = pair();
+    project(source, 'apps/fixture/client');
+    process.env[variable] = 'remote';
+    try {
+      // Proof: removing the environment check let check pass and copy write apps/fixture/client.
+      expect(() => {
+        verifyBaseline(source, destination);
+      }).toThrow(`Remote Nx cache is refused: unset ${variable}`);
+      expect(() => copyProject(source, destination, 'apps/fixture/client')).toThrow(variable);
+    } finally {
+      Reflect.deleteProperty(process.env, variable);
+    }
+    expect(existsSync(join(destination, 'apps'))).toBe(false);
+  }
+});
+
+const repository = join(import.meta.dir, '../..');
+/** Stages the repository's root configuration and the named project trees without build output. */
+function stageRepository(paths: string[]) {
+  const root = mkdtempSync(join(tmpdir(), 'puni-stage-'));
+  roots.push(root);
+  for (const file of [
+    '.bun-version',
+    'package.json',
+    'nx.json',
+    'tsconfig.base.json',
+    'workspace.portability.json',
+    ...portableFiles,
+  ]) {
+    mkdirSync(dirname(join(root, file)), { recursive: true });
+    cpSync(join(repository, file), join(root, file));
+  }
+  for (const path of paths)
+    cpSync(join(repository, path), join(root, path), {
+      recursive: true,
+      filter: (location) => !/^(dist|node_modules|\.nx)$/.test(basename(location)),
+    });
+  return root;
+}
+function installDeclaredPackages(source: string, destination: string, paths: string[]) {
+  const manifest = parseJson(join(source, 'package.json')) as Record<
+    string,
+    Record<string, string>
+  >;
+  const specs = { ...manifest['dependencies'], ...manifest['devDependencies'] };
+  const packages: Record<string, string> = {};
+  for (const path of paths) {
+    const declared = parseJson(join(source, path, 'project.json')) as {
+      metadata: { portability: { packages?: Record<string, string> } };
+    };
+    for (const name of Object.keys(declared.metadata.portability.packages ?? {}))
+      packages[name] = specs[name] ?? '';
+  }
+  addPackages(destination, 'dependencies', packages);
+}
+
+test('the website app and its closure copy into a clean private workspace at unchanged paths', () => {
+  const closure = ['libs/website/domain/contracts', 'apps/website/fe-01'];
+  const source = stageRepository(closure);
+  const destination = workspace('private');
+  synchronizeBaseline(source, destination);
+  installDeclaredPackages(source, destination, closure);
+  expect(copyProject(source, destination, 'apps/website/fe-01')).toEqual(closure);
+  for (const file of [
+    'apps/website/fe-01/src/main.tsx',
+    'libs/website/domain/contracts/src/index.ts',
+  ])
+    expect(readFileSync(join(destination, file), 'utf8')).toBe(
+      readFileSync(join(repository, file), 'utf8'),
+    );
+  const copied = parseJson(join(destination, 'tsconfig.base.json')) as CompilerConfig;
+  expect(copied.compilerOptions.paths['@website/contracts']).toEqual([
+    './libs/website/domain/contracts/src/index.ts',
+  ]);
+});
+
+test('an import of an alias owned outside the declared closure is refused before writes', () => {
+  const closure = ['libs/website/domain/contracts', 'apps/website/fe-01'];
+  const source = stageRepository(closure);
+  const destination = workspace('private');
+  synchronizeBaseline(source, destination);
+  installDeclaredPackages(source, destination, closure);
+  const manifest = parseJson(join(source, 'apps/website/fe-01/project.json')) as {
+    metadata: { portability: { dependencies: string[] } };
+  };
+  manifest.metadata.portability.dependencies = [];
+  json(join(source, 'apps/website/fe-01/project.json'), manifest);
+  // Proof: deleting the imported-alias ownership check copied apps/website/fe-01 without its contracts library.
+  expect(() => copyProject(source, destination, 'apps/website/fe-01')).toThrow(
+    'Invalid dependency closure: apps/website/fe-01 imports @website/contracts',
+  );
+  expect(existsSync(join(destination, 'apps'))).toBe(false);
+  expect(existsSync(join(destination, 'libs'))).toBe(false);
 });

@@ -23,7 +23,13 @@
         "command": "bun test --coverage --coverage-reporter=lcov --timeout=10000",
         "cwd": "libs/wbs/adapters/observability"
       },
-      "outputs": ["{projectRoot}/coverage"]
+      "outputs": ["{projectRoot}/coverage"],
+      "inputs": [
+        "default",
+        "^production",
+        "{workspaceRoot}/infra/platform/observability/otel/collector.yaml",
+        "{workspaceRoot}/infra/platform/observability/elastic/settings/failure-fields.json"
+      ]
     },
     "test:unit": {
       "executor": "nx:run-commands",
@@ -31,7 +37,13 @@
         "command": "bun test --coverage --coverage-reporter=lcov --timeout=10000",
         "cwd": "libs/wbs/adapters/observability"
       },
-      "outputs": ["{projectRoot}/coverage"]
+      "outputs": ["{projectRoot}/coverage"],
+      "inputs": [
+        "default",
+        "^production",
+        "{workspaceRoot}/infra/platform/observability/otel/collector.yaml",
+        "{workspaceRoot}/infra/platform/observability/elastic/settings/failure-fields.json"
+      ]
     },
     "typecheck": {
       "executor": "nx:run-commands",

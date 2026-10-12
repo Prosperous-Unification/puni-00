@@ -3,7 +3,11 @@
 <!-- module-index {"schemaVersion":1,"moduleId":"module.infra.tool-wiki","memberships":[{"kind":"directory-prefix","prefix":"src","exclusions":[]},{"kind":"directory-prefix","prefix":"fixtures","exclusions":[]},{"kind":"path","path":"project.json"},{"kind":"path","path":"package.json"},{"kind":"path","path":"LICENSE"},{"kind":"path","path":"NOTICE"},{"kind":"path","path":"tsconfig.json"},{"kind":"path","path":"tsconfig.lib.json"},{"kind":"path","path":"tsconfig.spec.json"}],"relationshipSelectors":["declarations.facts","typescript.imports","typescript.reverse-edges"],"applicableChecks":["check.wiki-cli.test","check.wiki-cli.lint-source","check.wiki-cli.typecheck"],"inapplicableSections":[],"externalConsumers":{"kind":"declared","memberships":[{"kind":"path","path":"bin/tool-wiki-lint.sh"},{"kind":"path","path":"bin/h2puni-gate.sh"},{"kind":"path","path":".github/workflows/trusted-wiki.yml"},{"kind":"path","path":".github/workflows/ci.yml"},{"kind":"path","path":"lefthook.yml"},{"kind":"path","path":"nx.json"}],"knowledgeLimit":"Only the launcher, host gate, trusted workflow, candidate CI workflow, hook, and Nx callers needed by the bootstrap activation are declared; their surrounding directories are not claimed as reviewed."}} -->
 
 This project owns the finite Twilight Burokrat ledger, trusted policy and activation logic, review
-provenance, and admission coordinator. The index covers source, tests, fixtures, and project
+provenance, and the admission judge: packet codec and validation, integration-candidate
+certification and attestation, exposed to Twilight Dash only through
+[`judge-facade.ts`](src/judge-facade.ts). The runtime lease authority that records claims and
+publishes is [Twilight Dash](../../twilight-dash/cli/README.md); Burokrat ships no authority
+writer. The index covers source, tests, fixtures, and project
 configuration as one initial enforced tooling boundary. It does not claim exhaustive repository
 coverage; the six historical pilot modules remain named review debt outside this boundary.
 

@@ -29,28 +29,38 @@ export function OrganizationPage({
   return (
     <>
       <AppHeader nav={nav} account={account} />
-      <main className="bg-background text-foreground mx-auto w-full max-w-3xl p-8 font-sans">
-        <h1 className="mb-6 text-2xl font-semibold">Organization</h1>
-        {/*
-         * Proof: 2026-09-29, rendering the panels whatever `loss` held failed
-         * `clears the organization's rows when a refusal says access was lost`:
-         * the invited address stayed on screen beside the no-access state.
-         */}
-        {loss === null ? (
-          <>
-            <MembersPanel onAccessLost={setLoss} />
-            <InvitationsPanel onAccessLost={setLoss} />
-            <JoinRequestsPanel onAccessLost={setLoss} />
-            <DomainsPanel onAccessLost={setLoss} />
-            {/*
-             * Proof: 2026-10-11, leaving this panel out failed `shows whether
-             * the organization shares its people`.
-             */}
-            <SharingPanel onAccessLost={setLoss} />
-          </>
-        ) : (
-          <p role="alert">{lossCopy(loss)}</p>
-        )}
+      {/*
+       * The scroller is `main`, the Directory's way: the app shell is one
+       * window tall, so a page that let the document scroll instead painted
+       * the canvas, not `bg-background`, beside its column below the first
+       * window in the dark palette (seen at 1280, 2026-10-12).
+       */}
+      <main className="bg-background text-foreground min-h-0 flex-1 overflow-y-auto font-sans">
+        <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-6 sm:p-8">
+          <h1 className="text-2xl font-semibold">Organization</h1>
+          {/*
+           * Proof: 2026-09-29, rendering the panels whatever `loss` held failed
+           * `clears the organization's rows when a refusal says access was lost`:
+           * the invited address stayed on screen beside the no-access state.
+           */}
+          {loss === null ? (
+            <>
+              <MembersPanel onAccessLost={setLoss} />
+              <InvitationsPanel onAccessLost={setLoss} />
+              <JoinRequestsPanel onAccessLost={setLoss} />
+              <DomainsPanel onAccessLost={setLoss} />
+              {/*
+               * Proof: 2026-10-11, leaving this panel out failed `shows whether
+               * the organization shares its people`.
+               */}
+              <SharingPanel onAccessLost={setLoss} />
+            </>
+          ) : (
+            <p role="alert" className="text-sm">
+              {lossCopy(loss)}
+            </p>
+          )}
+        </div>
       </main>
     </>
   );

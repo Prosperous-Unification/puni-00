@@ -20,6 +20,8 @@ The repositories have independent Git histories, CI credentials, protected relea
 
 Creating the private repository establishes its ownership and visibility only. Bootstrap, shared-baseline extraction, bidirectional transfer tests and release integration must pass before claiming that projects are portable. Existing `puni-site` is left unchanged; no repository deletion or history rewrite is part of this decision.
 
+The governance baseline is the portable inventory; hooks, wiki and CI stay repository-owned (batch 10 A18). Each repository runs its own CI: the private companion's gate clones the public revision pinned in its `docs/website/baseline.json` without a credential and runs `portability.ts check` against it.
+
 ## 2026-09-27 service ownership amendment
 
 The unlicensed PUNI application, API, contracts, and SQLite adapter have no dependency on Novaform source. Their canonical source is therefore the public `puni-00` repository at `apps/website/{fe-01,be-01}` and `libs/website/{domain/contracts,adapters/store-sqlite}`. The private companion keeps a pinned copy for its local site/app/API demo and records the public revision. The licensed Astro site remains private at `puni-pr-00/apps/website/site`. This is an ownership selection within the portable-project contract; the original decision against independently maintained configurations still applies.

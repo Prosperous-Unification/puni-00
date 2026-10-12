@@ -14,6 +14,7 @@ configMapGenerator:
       # The images set NODE_ENV=production, which forbids local auth; the lab is not production.
       - NODE_ENV=lab
       - AUTH_MODE=local
+      - BROWSER_SESSION_AUTHORITY=disabled
       - APP_ORIGIN=http://localhost:8080
   - name: wbs-gateway-config
     namespace: wbs

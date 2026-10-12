@@ -420,3 +420,70 @@ test("the overview counts today's ceiling-settled operations", () => {
   });
   store.close();
 });
+
+/** Seeds one conversation of today and returns an insert for its operations. */
+function seedOperations(databasePath: string) {
+  const database = new Database(databasePath);
+  database
+    .query(
+      "INSERT INTO conversation (id, draft_id, source_hash, state, created_at) VALUES ('conversation-1', 'draft-1', 'source-a', 'open', ?)",
+    )
+    .run(day);
+  const insert = database.query(
+    "INSERT INTO conversation_operation (id, conversation_id, idempotency_key, source_hash, body_hash, message, initial, stage, prompt_version, state, utc_day, reserved_micro_usd, settled_micro_usd, settlement, reply, created_at) VALUES (?, 'conversation-1', ?, 'source-a', 'hash', 'message', 0, 'clarify', 'puni-sales-v1', ?, ?, ?, ?, ?, ?, ?)",
+  );
+  return { database, insert };
+}
+
+test("the overview reports today's in-flight calls and the reservations they hold", () => {
+  const databasePath = databaseFile();
+  const store = new WebsiteStore(databasePath);
+  draft(store, 1);
+  const { database, insert } = seedOperations(databasePath);
+  insert.run('live-1', 'turn-1', 'inflight', '2026-10-07', 4_000, null, null, null, day);
+  insert.run('live-2', 'turn-2', 'inflight', '2026-10-07', 6_000, null, null, null, day);
+  insert.run('done-1', 'turn-3', 'completed', '2026-10-07', 5_000, 1_000, 'usage', 'reply', day);
+  insert.run(
+    'live-0',
+    'turn-0',
+    'inflight',
+    '2026-10-06',
+    7_000,
+    null,
+    null,
+    null,
+    day - 24 * hour,
+  );
+  database.close();
+  // Proof: counting every operation of the day instead of `inflight` ones made `count` 3 here.
+  expect(store.readGuardrailOverview(day).inflightToday).toEqual({
+    count: 2,
+    reservedMicroUsd: 10_000,
+  });
+  store.close();
+});
+
+test("a restart and a pause-resume keep today's recorded site spend", () => {
+  const databasePath = databaseFile();
+  const store = new WebsiteStore(databasePath);
+  draft(store, 1);
+  const { database, insert } = seedOperations(databasePath);
+  insert.run('done-1', 'turn-1', 'completed', '2026-10-07', 5_000, 1_000, 'usage', 'reply', day);
+  insert.run('live-1', 'turn-2', 'inflight', '2026-10-07', 6_000, null, null, null, day);
+  database.close();
+  // An in-flight call counts at its reservation until it settles.
+  expect(store.readGuardrailOverview(day).siteSpendMicroUsd).toBe(7_000);
+  store.close();
+  // The restart settles the interrupted call at its full reservation: the total is unchanged.
+  const reopened = new WebsiteStore(databasePath);
+  // Proof: deleting interrupted calls on restart instead of settling them made this 1,000.
+  expect(reopened.readGuardrailOverview(day).siteSpendMicroUsd).toBe(7_000);
+  expect(reopened.readGuardrailOverview(day).inflightToday).toEqual({
+    count: 0,
+    reservedMicroUsd: 0,
+  });
+  expect(reopened.openInferencePause('operator', 'operator', day + hour)).not.toBeNull();
+  expect(reopened.resumeInferencePause(day + 2 * hour)).toBe(true);
+  expect(reopened.readGuardrailOverview(day + 2 * hour).siteSpendMicroUsd).toBe(7_000);
+  reopened.close();
+});

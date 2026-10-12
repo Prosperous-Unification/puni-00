@@ -12,13 +12,16 @@ import {
   openSqliteSource,
   OrganizationRepository,
   SpaceRepository,
+  SqliteBrowserAuthLifecycle,
+  SqliteBrowserCredentialRevocations,
   SqliteOrganizationAccess,
+  SqliteOrganizationSelection,
 } from '@wbs/store-sqlite';
 import { DrizzleEventLogStore } from '@wbs/store-sqlite/event-log';
 import { backfillStepCodes } from '@wbs/store-sqlite/step-code-backfill';
 import { DiBag } from 'di-bag';
 
-import { buildApp } from './app';
+import { type AppOptions, buildApp } from './app';
 import type { DelegationKeys } from './config';
 import type { OidcRouteOptions } from './controller/oidc-options';
 import { readDeployedCommit } from './deployed-commit';
@@ -30,7 +33,12 @@ import { REFUSE_DELEGATIONS } from './runtime/delegation';
 import { REFUSE_DELEGATION_ISSUANCE } from './runtime/delegation-issuer';
 import { importDelegationKeys } from './runtime/delegation-keys';
 import { refusingEmailDelivery } from './runtime/email-delivery';
-import { organizationCredentialEvidence } from './runtime/organization-credential';
+import { organizationCookieBinding } from './runtime/organization-cookie';
+import {
+  nativeBrowserCredentialEvidence,
+  organizationCredentialEvidence,
+} from './runtime/organization-credential';
+import { organizationSelection } from './runtime/organization-selection';
 import { type BeServices, buildServices, type OptimizerRuntime } from './services';
 
 export interface BootOptions {
@@ -41,6 +49,22 @@ export interface BootOptions {
   jwtKey: string;
   gwUrl: string;
   internalAuthSecret: string;
+  /**
+   * Operator configuration, required with no default.
+   *
+   * `enabled` composes the shared durable browser session authority: logout,
+   * OIDC refresh and credential replacement commit through the lifecycle and
+   * credential revocations, and the browser organization cookie is read and
+   * issued. Both are one setting because the cookie's immediate invalidation
+   * on logout (decision D2) is exactly what the lifecycle provides; a bound
+   * cookie without it would outlive the logout that should end it.
+   *
+   * `disabled` keeps the legacy routes, `NO_BOUND_ORGANIZATION` and refusing
+   * selection. Before the organization activation marker both answer every
+   * organization request identically, because access resolution reads the
+   * marker before any binding.
+   */
+  browserSessionAuthority: 'enabled' | 'disabled';
   delegationKeys?: DelegationKeys;
   oidc?: OidcRouteOptions;
   localIdentity?: AuthenticatedUser;
@@ -68,6 +92,71 @@ export interface BootOptions {
   commitDir?: string;
   /** The installed solver process boundary, absent only in tests that do not exercise it. */
   optimizer?: OptimizerRuntime;
+}
+
+/**
+ * The browser identity half of the app composition, chosen by
+ * {@link BootOptions.browserSessionAuthority}.
+ *
+ * Enabled, one lifecycle, token store and provider revocation are shared by
+ * the OIDC routes and the browser session authority (`app.ts` refuses any
+ * disagreement), and organization selection reads the same revocation table
+ * logout writes.
+ */
+function browserComposition(
+  opts: BootOptions,
+  services: BeServices,
+  db: ReturnType<typeof openSqliteSource>['db'],
+): Pick<AppOptions, 'oidc' | 'browserSession' | 'organizationSelection' | 'organizations'> {
+  // Proof: composing the authority whatever the setting failed `keeps the
+  // legacy browser composition when disabled` and the native-logout 404 case
+  // in boot-browser-session.db.test.ts (3 pass, 2 fail, 2026-10-11).
+  if (opts.browserSessionAuthority === 'disabled')
+    return {
+      oidc: opts.oidc,
+      // Proof: wiring legacy access here instead made `refuses the
+      // project and directory lists after activation until a session
+      // binds an organization` in `boot.db.test.ts` receive 200 instead
+      // of 403; watched 2026-09-27.
+      organizations: new SqliteOrganizationAccess(db, NO_BOUND_ORGANIZATION),
+    };
+  const revocations = new SqliteBrowserCredentialRevocations(db, services.gate);
+  const lifecycle =
+    opts.oidc === undefined ? undefined : new SqliteBrowserAuthLifecycle(db, services.gate);
+  const oidc =
+    opts.oidc === undefined || lifecycle === undefined
+      ? undefined
+      : // Proof: mounting `opts.oidc` unchanged made boot reject with "browser
+        // lifecycle composition disagrees with OIDC routes" (`shares one
+        // durable lifecycle…`, 4 pass, 1 fail, 2026-10-11).
+        { ...opts.oidc, browserLifecycle: lifecycle };
+  const selection = organizationSelection(
+    // Proof: a marker-blind choice list made the pre-activation matrix differ
+    // from the disabled composition (3 pass, 2 fail, 2026-10-11).
+    new SqliteOrganizationSelection(db),
+    // The native session key, under its own token type and audience, so a
+    // selection cannot be presented as an access token or the reverse.
+    organizationCookieBinding(opts.jwtKey),
+    // Proof: a lookup that never answers revoked let the old access and
+    // organization cookie pair list projects after its logout committed
+    // (`refuses the whole old token…`, 4 pass, 1 fail, 2026-10-11).
+    revocations,
+  );
+  return {
+    oidc,
+    browserSession: {
+      lifecycle,
+      tokens: oidc?.tokens,
+      revokeProvider: oidc?.client.revoke,
+      revocations,
+      verifyNativeBrowserCredential: nativeBrowserCredentialEvidence(services.auth, opts.jwtKey),
+    },
+    organizationSelection: selection.endpoints,
+    // Proof: keeping NO_BOUND_ORGANIZATION here refused the freshly selected
+    // pair with 403 before any logout (`refuses the whole old token…`, 4 pass,
+    // 1 fail, 2026-10-11).
+    organizations: new SqliteOrganizationAccess(db, selection.activeOrganizationOf),
+  };
 }
 
 export interface RunningBe {
@@ -192,6 +281,7 @@ export async function bootBe01(
             factoryCtx,
           ): BuiltApp => {
             const db = source.db;
+            const browser = browserComposition(opts, services, db);
             const app = (dependencies.makeApp ?? buildApp)({
               appOrigin: opts.appOrigin,
               clock: services.clock,
@@ -210,13 +300,8 @@ export async function bootBe01(
               // boot.db.test.ts receive HTTP 401 instead of 429 (0 pass, 1 fail,
               // 13 filtered).
               loginThrottle: services.loginThrottle,
-              oidc: opts.oidc,
+              ...browser,
               projects: services.projects,
-              // Proof: wiring legacy access here instead made `refuses the
-              // project and directory lists after activation until a session
-              // binds an organization` in `boot.db.test.ts` receive 200 instead
-              // of 403; watched 2026-09-27.
-              organizations: new SqliteOrganizationAccess(db, NO_BOUND_ORGANIZATION),
               memberships: new OrganizationRepository(db, services.gate),
               domains: new DomainClaimRepository(db, services.gate),
               onboarding: new OnboardingRepository(db, services.gate),

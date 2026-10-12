@@ -1,0 +1,13 @@
+[Unit]
+Description=Schedule Tool Wiki ordinary-PR observation
+
+[Timer]
+OnCalendar=*:0/5
+# Proof: persistent omitted this directive; the mounted timer contract refused it.
+Persistent=true
+AccuracySec=1min
+# Proof: timerexec injected an executable command; the timer contract refused it.
+Unit=tool-wiki-observation.service
+
+[Install]
+WantedBy=timers.target

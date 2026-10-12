@@ -1,18 +1,38 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
+import { BootedBrowserProcess } from '../testing/booted-browser-process';
 import { OrganizationHarness } from '../testing/organization-harness';
 
 /**
  * The forwarded organization cookie, end to end: a real selection cookie issued
  * by `POST /api/organization/active` and read back by the production
- * `organizationCookieBinding` when gw-01 forwards it. Production still composes
- * `NO_BOUND_ORGANIZATION` until activation; this proves the path it will use.
+ * `organizationCookieBinding` when gw-01 forwards it. Every case runs twice:
+ * against the organization harness and against `bootBe01`'s own composition
+ * with `browserSessionAuthority: 'enabled'`, so the path production uses after
+ * activation is the one proven here.
  *
  * Proof: reading no organization cookie in `identityResolver` (`cookie: null`)
  * failed all four cases (0 pass, 4 fail): nothing binds an organization
  * without the forwarded cookie (2026-10-11).
+ *
+ * Proof: composing `NO_BOUND_ORGANIZATION` in `bootBe01` when enabled failed
+ * every booted case in `beforeEach`: the selected pair's project creation
+ * answered 403 `no_active_organization` (4 pass, 4 fail, 2026-10-11).
  */
-let h: OrganizationHarness;
+type SelectionHost = Pick<
+  OrganizationHarness,
+  'app' | 'register' | 'token' | 'userId' | 'organization' | 'member' | 'activate' | 'sqlite'
+> & { close(): void | Promise<void> };
+
+const HOSTS: readonly [string, () => Promise<SelectionHost>][] = [
+  [
+    'organization harness',
+    () => Promise.resolve(OrganizationHarness.open({ sessionBinding: true })),
+  ],
+  ['production boot composition', () => BootedBrowserProcess.open('enabled')],
+];
+
+let h: SelectionHost;
 const SECRET = 'x'.repeat(32);
 const selections = new Map<string, string>();
 let aProject: string;
@@ -67,26 +87,26 @@ async function browserAccess(projectId: string, username: string, organizationCo
   return { status: response.status, body: text === '' ? null : (JSON.parse(text) as unknown) };
 }
 
-beforeEach(async () => {
-  h = OrganizationHarness.open({ sessionBinding: true });
-  for (const username of ['ada', 'grace']) await h.register(username);
-  h.organization('org-a');
-  h.organization('org-b');
-  h.member('org-a', 'ada', 'member');
-  h.member('org-b', 'grace', 'member');
-  h.activate();
-  selections.set('ada', await select('ada', 'org-a'));
-  selections.set('grace', await select('grace', 'org-b'));
-  aProject = await project('ada', 'A plan');
-  bProject = await project('grace', 'B plan');
-});
+describe.each(HOSTS)('browser-access with a real forwarded organization cookie (%s)', (_, open) => {
+  beforeEach(async () => {
+    h = await open();
+    for (const username of ['ada', 'grace']) await h.register(username);
+    h.organization('org-a');
+    h.organization('org-b');
+    h.member('org-a', 'ada', 'member');
+    h.member('org-b', 'grace', 'member');
+    h.activate();
+    selections.set('ada', await select('ada', 'org-a'));
+    selections.set('grace', await select('grace', 'org-b'));
+    aProject = await project('ada', 'A plan');
+    bProject = await project('grace', 'B plan');
+  });
 
-afterEach(() => {
-  h.close();
-  selections.clear();
-});
+  afterEach(async () => {
+    await h.close();
+    selections.clear();
+  });
 
-describe('browser-access with a real forwarded organization cookie', () => {
   it('admits the selected organization’s own project', async () => {
     expect(await browserAccess(aProject, 'ada', selections.get('ada') ?? '')).toEqual({
       status: 204,

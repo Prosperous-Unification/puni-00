@@ -1,7 +1,12 @@
 import type { ConversationExhaustedReason } from '@website/contracts';
 import type { Database } from 'bun:sqlite';
 
-import { type CeilingSettled, readCeilingSettled, utcDayOf } from './guardrail-store';
+import {
+  type CeilingSettled,
+  readCeilingSettled,
+  readSiteSpend,
+  utcDayOf,
+} from './guardrail-store';
 
 /**
  * One UTC day of the funnel, counted from stored rows only:
@@ -13,7 +18,10 @@ import { type CeilingSettled, readCeilingSettled, utcDayOf } from './guardrail-s
  * - `proposals`: `proposal_submission` rows created that day, `fromChat` when the draft's
  *   conversation is `handed_off` (the visitor started the AI chat; it does not mean the chat
  *   wrote the brief), otherwise `manual`;
- * - `ceilingSettled`: that day's {@link readCeilingSettled}.
+ * - `ceilingSettled`: that day's {@link readCeilingSettled};
+ * - `spendMicroUsd`: that day's recorded site spend ({@link readSiteSpend}): settled amounts, and
+ *   reservations still in flight. It may over-count by `ceilingSettled.microUsd` and never
+ *   under-counts.
  *
  * Rows erased by draft retention are no longer counted, so a day past the retention cutoff is a
  * lower bound for drafts, conversations and briefs; proposals and ceiling-settled operations are
@@ -27,6 +35,7 @@ export interface FunnelDay {
   exhausted: Record<ConversationExhaustedReason, number>;
   proposals: { manual: number; fromChat: number };
   ceilingSettled: CeilingSettled;
+  spendMicroUsd: number;
 }
 
 /** `GET /operator/funnel`: counts only, newest UTC day first. */
@@ -51,6 +60,7 @@ function emptyDay(utcDay: string): FunnelDay {
     exhausted: { turns: 0, conversation_spend: 0, source_spend: 0, site_spend: 0 },
     proposals: { manual: 0, fromChat: 0 },
     ceilingSettled: { count: 0, microUsd: 0 },
+    spendMicroUsd: 0,
   };
 }
 
@@ -113,6 +123,9 @@ export function readFunnelCounts(database: Database, now: number, days = 30): Fu
     if (counted.from_chat === 1) proposals.fromChat = counted.count;
     else proposals.manual = counted.count;
   }
-  for (const row of rows) row.ceilingSettled = readCeilingSettled(database, row.utcDay);
+  for (const row of rows) {
+    row.ceilingSettled = readCeilingSettled(database, row.utcDay);
+    row.spendMicroUsd = readSiteSpend(database, row.utcDay);
+  }
   return { days: rows };
 }

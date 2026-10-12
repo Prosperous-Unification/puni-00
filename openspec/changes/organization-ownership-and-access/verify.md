@@ -1575,3 +1575,37 @@ Organization cookie (review F1): with the harness's real selection binding, a se
 Smoke (review F5): the backend hop now passes on be-01 refusing the unknown smoke principal; it no longer proves `/internal/resume` reads the log for a real principal, and a be-01 with a wrong session key passes it too.
 
 Not done in this slice: forwarded-command authorization, membership-change notification fan-out (the lease alone meets the bound) and the batch access route (F4).
+
+## Production composition — `BROWSER_SESSION_AUTHORITY`, batch 10, 2026-10-11
+
+Branch `batch-10/010-5-2-production-wiring`, based on `origin/batch-10/integration-5` (58fbd325, which contains realtime-auth).
+
+Commands (all under `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`):
+
+- `bun test --timeout=10000` in `apps/wbs/be-01`: 2033 pass, 0 fail, 1 skip.
+- `bun test --timeout=20000` in `apps/wbs/gw-01` (152/0) and `apps/wbs/mcp-01` (331/0).
+- `bun test --timeout=20000` in `libs/wbs/adapters/store-sqlite`: 1305 pass and 1 fail. The failure was the performance suite's "repository HEAD or status changed during performance run" guard, because files were being edited during the run. That file is rerun on a clean tree (see the lane record).
+- `bunx nx run-many -t test` for tool-bootstrap, tool-deploy, tool-secrets, tool-dev-setup, wbs-auth and tool-remote-scripts (372/0): green.
+- fe-01 `vitest --config vitest.node.config.ts playwright-config`: 17/17.
+- `typecheck` for wbs-auth, be-01, gw-01, fe-01, mcp-01, tool-remote-scripts, tool-deploy, tool-bootstrap, tool-secrets and tool-dev-setup: green. `lint:fast` for be-01, wbs-auth, fe-01, tool-remote-scripts and tool-deploy: green, after deleting a stale `.nx/eslintcache-wbs-be-01` that kept a pre-change `unbound-method` result for `boot.ts`.
+- CI migration lint over `git ls-files '*.sql'`: exit 0. This slice adds no migration.
+- OpenSpec 1.12.0 `validate --all --json`: 170/170.
+
+| Fault injected                                                         | Observed failure                                                                                                                                                                                     |
+| ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BROWSER_SESSION_AUTHORITY` optional in `BeConfig`                     | `requires an explicit browser session authority choice` loads (0/1).                                                                                                                                 |
+| `bootBe01` composes the authority whatever the setting                 | `keeps the legacy browser composition when disabled` and the native-logout 404 case (3 pass, 2 fail).                                                                                                |
+| enabled boot mounts `opts.oidc` without the lifecycle                  | boot rejects "browser lifecycle composition disagrees with OIDC routes" (`shares one durable lifecycle…`, 4/1): the #311 F3 guard now also covers the production composition.                        |
+| enabled boot keeps `NO_BOUND_ORGANIZATION`                             | `refuses the whole old token and organization cookie pair…` (4/1). Every booted `gateway-browser-selection` case also fails: project creation answers 403 `no_active_organization` (4 pass, 4 fail). |
+| enabled selection gets a revocation lookup that never answers revoked  | after native logout the old pair still lists projects (4/1).                                                                                                                                         |
+| enabled selection gets a marker-blind choice list                      | the pre-activation matrix differs from disabled (3/2).                                                                                                                                               |
+| selection `list` (or `select` alone) checks evidence before the marker | the pre-activation matrix answers a `jti`-less native session 401 instead of 403 `onboarding_inactive` (4/1 each).                                                                                   |
+| `activeOrganizationOf` skips its revocation read (reworked race test)  | `a selection in flight before revocation cannot restore authority…` (0/1).                                                                                                                           |
+| swap preflight drops the key from required be keys                     | `demands only keys the be release refuses to boot without` (98/1).                                                                                                                                   |
+| swap preflight accepts any value                                       | `refuses only value shapes the be release also refuses` on `on` (98/1).                                                                                                                              |
+
+Pre-activation equivalence: `boot-browser-session.db.test.ts` runs one fixed request matrix against a disabled boot and an enabled boot and compares the normalized status and body of each answer. The matrix covers project and directory reads with Bearer, with access plus forged or malformed organization cookies, and with a `jti`-less native session; membership listing and selection; and gateway browser access.
+
+Not run: `bin/h2puni-gate.sh <sha>` (B2.6), k3d lab tests, the full fe-01 Vitest suites, Playwright e2e.
+
+Still open in this change: 1.1; 2.4 (2.4C/D3 stale-tab preconditions, the 4.6 switcher, an `enabled` deployment); 2.5; 4.1, 4.4, 4.5 and 4.6; 5.2–5.5; 6.1–6.6; 7.1–7.4.

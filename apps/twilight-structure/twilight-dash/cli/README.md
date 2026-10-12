@@ -1,7 +1,14 @@
 # Twilight Dash
 
-Dash exposes one local command, `plan-enrollment`, which delegates enrollment
-planning to the existing fleet CLI. Creating a plan authorizes no apply and does
+Dash owns the runtime admission authority ([`src/authority`](src/authority/authority-store.ts))
+and exposes five local commands. `bootstrap-authority <repository>` is the only command that
+creates an authority; every other command refuses an absent one. `inspect-authority <repository>
+[--session <id>]` prints the authority state, read-only. `recover-publication <repository> --integration-id
+<id>` finishes an interrupted publication from its durable record. `submit-admission <repository>
+<packet-json> <staged|committed> <revision-or-base>` freezes a bound packet's candidate and
+prints its submission report; it judges the packet through Twilight Burokrat's
+[admission judge](../../twilight-burokrat/cli/src/judge-facade.ts). `plan-enrollment`
+delegates enrollment planning to the existing fleet CLI. Creating a plan authorizes no apply and does
 not enroll a node. Fleet owns the plan format, digest, eligibility checks and
 execution admission; see [fleet identities and ownership](../../../../docs/infra/fleet.md)
 and [`runPlan`](../../../../tools/tool-fleet/src/cli.ts).

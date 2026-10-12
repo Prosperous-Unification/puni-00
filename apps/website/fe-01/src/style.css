@@ -1048,6 +1048,10 @@ textarea {
 .submission .small {
   margin: var(--space-4) 0 var(--space-1);
 }
+.submission-brief {
+  /* Briefs are written as lines and bullets; the operator reads them as written. */
+  white-space: pre-line;
+}
 .submission-head {
   display: flex;
   justify-content: space-between;
@@ -1667,6 +1671,11 @@ body:has(.night-shell) {
 }
 .proposal-failure {
   color: var(--accent) !important;
+}
+.proposal-card .proposal-privacy a {
+  color: #fff;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 .proposal-card .proposal-thanks {
   font-size: var(--text-h3);

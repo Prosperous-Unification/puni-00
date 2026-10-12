@@ -220,6 +220,62 @@ test('anonymous manual request persists, consumes its claim and replays one rece
   api.close();
 });
 
+test('a storage failure while submitting returns no receipt, keeps the draft and the key retries', async () => {
+  const { api, config } = fixture();
+  const { cookie, csrf } = await beginDraft(api);
+  const payload = {
+    email: 'owner@example.test',
+    brief: 'Calendar and payments',
+    idempotencyKey: 'submit-storage-fault',
+  };
+  const fault = new Database(config.databasePath);
+  fault.run(
+    "CREATE TRIGGER fail_submission BEFORE INSERT ON proposal_submission BEGIN SELECT RAISE(ABORT, 'disk full'); END",
+  );
+  // Proof: catching the store error and answering 201 with the fresh receipt left `thrown` null.
+  let thrown: unknown = null;
+  try {
+    await api.fetch(request('/proposals', 'POST', config.appOrigin, payload, cookie, csrf));
+  } catch (error) {
+    thrown = error;
+  }
+  expect(String(thrown)).toContain('disk full');
+  const counts = () =>
+    fault
+      .query<{ submissions: number; consumed: number; replays: number }, []>(
+        'SELECT (SELECT count(*) FROM proposal_submission) AS submissions, (SELECT count(*) FROM intake_draft WHERE consumed_at IS NOT NULL) AS consumed, (SELECT count(*) FROM submission_replay) AS replays',
+      )
+      .get();
+  expect(counts()).toEqual({ submissions: 0, consumed: 0, replays: 0 });
+  expect(
+    (await api.fetch(request('/draft', 'GET', config.appOrigin, undefined, cookie))).status,
+  ).toBe(200);
+  fault.run('DROP TRIGGER fail_submission');
+  const retry = await api.fetch(
+    request('/proposals', 'POST', config.appOrigin, payload, cookie, csrf),
+  );
+  expect(retry.status).toBe(201);
+  expect(counts()).toEqual({ submissions: 1, consumed: 1, replays: 1 });
+  fault.close();
+  api.close();
+});
+
+test('operator sign-in without a configured password answers 503 and creates no session', async () => {
+  const { config } = fixture();
+  const api = mountApi({ ...config, operatorPassword: undefined });
+  const login = await api.fetch(
+    request('/operator/session', 'POST', config.appOrigin, { password: 'anything' }),
+  );
+  // Proof: deleting the unconfigured guard made this answer 401.
+  expect(login.status).toBe(503);
+  expect(await login.json()).toEqual({ code: 'operator_unconfigured' });
+  expect(login.headers.get('set-cookie')).toBeNull();
+  const database = new Database(config.databasePath, { readonly: true });
+  expect(database.query('SELECT count(*) AS n FROM operator_session').get()).toEqual({ n: 0 });
+  database.close();
+  api.close();
+});
+
 test('anonymous receipt replay survives a new intake without changing its active draft', async () => {
   const { api, config } = fixture();
   const first = await beginDraft(api);
@@ -491,6 +547,135 @@ test('operator session reload and ordered status changes require operator CSRF',
       )
     ).status,
   ).toBe(200);
+  api.close();
+});
+
+/** Every handler gated by `operatorSession`; the drift test below keeps it in step with `server.ts`. */
+const operatorRoutes = [
+  ['GET', '/operator/session'],
+  ['GET', '/operator/guardrails'],
+  ['GET', '/operator/funnel'],
+  ['GET', '/operator/submissions'],
+  ['GET', '/operator/retention/status'],
+  ['POST', '/operator/inference/pause'],
+  ['POST', '/operator/inference/resume'],
+  ['POST', '/operator/retention/events'],
+  ['PATCH', '/operator/submissions/0000'],
+  ['DELETE', '/operator/session'],
+] as const;
+
+test('the operator route list matches every operator path and session check in the server', async () => {
+  const source = await Bun.file(new URL('./server.ts', import.meta.url)).text();
+  const literals = new Set(
+    source.match(/'\/operator\/[a-z/]*'/g)?.map((text) => text.slice(1, -1)),
+  );
+  const listed = new Set(
+    operatorRoutes.map(([, path]) => path).filter((path) => path !== '/operator/submissions/0000'),
+  );
+  // Proof: adding `if (path === '/operator/probe' && operatorSession(request, now))` to server.ts listed `/operator/probe` here;
+  // a bare extra `operatorSession(request, now)` made checks 10 and an extra `/^\/operator\//` regex made patterns 2.
+  expect([...literals].sort()).toEqual([...listed].sort());
+  // Pause and resume share one handler and one check; `PATCH /operator/submissions/:id` is the one pattern route.
+  expect({
+    checks: source.match(/operatorSession\(request, now\)/g)?.length,
+    patterns: source.match(/\/\^\\\/operator\\\//g)?.length,
+  }).toEqual({ checks: operatorRoutes.length - 1, patterns: 1 });
+});
+
+test('an expired operator session is refused on every operator route and writes nothing', async () => {
+  const { config } = fixture();
+  const now = Date.UTC(2026, 9, 11, 12);
+  const api = mountApi({ ...config, clock: () => now });
+  const token = 'e'.repeat(64);
+  const csrfToken = createHash('sha256').update(`operator-csrf:${token}`).digest('hex');
+  const store = new WebsiteStore(config.databasePath);
+  store.createOperatorSession(
+    createHash('sha256').update(token).digest('hex'),
+    createHash('sha256').update(csrfToken).digest('hex'),
+    now - 1,
+  );
+  store.close();
+  const cookie = `puni_operator=${token}`;
+  // Any request first mints the day's source salt; this cookieless one keeps that row out of the comparison.
+  await api.fetch(request('/operator/guardrails', 'GET', config.appOrigin));
+  const before = countEveryTable(config.databasePath);
+  const answers: string[] = [];
+  for (const [method, path] of operatorRoutes) {
+    const response = await api.fetch(
+      request(path, method, config.appOrigin, undefined, cookie, csrfToken),
+    );
+    answers.push(`${method} ${path} ${String(response.status)} ${await response.text()}`);
+  }
+  // Proof: dropping `AND expires_at > ?` from findOperatorSession answered 200, 201, 204, 400 or 503 on all ten routes here.
+  expect(answers).toEqual(
+    operatorRoutes.map(
+      ([method, path]) => `${method} ${path} 401 {"code":"operator_unauthorized"}`,
+    ),
+  );
+  expect(countEveryTable(config.databasePath)).toEqual(before);
+  expect(before['operator_session']).toBe(1);
+  api.close();
+});
+
+test('a live operator cookie is refused from any Origin but the app', async () => {
+  const { api, config } = fixture();
+  const login = await api.fetch(
+    request('/operator/session', 'POST', config.appOrigin, { password: config.operatorPassword }),
+  );
+  const cookie = login.headers.get('set-cookie')?.split(';')[0];
+  const { csrfToken } = (await login.json()) as { csrfToken: string };
+  // `null` sends no Origin header at all; '' sends an empty one.
+  const origins = [config.publicOrigin, 'https://foreign.example', '', null];
+  const answers: string[] = [];
+  for (const origin of origins)
+    for (const [method, path] of [
+      ['GET', '/operator/guardrails'],
+      ['POST', '/operator/inference/pause'],
+    ] as const) {
+      const response = await api.fetch(
+        origin === null
+          ? new Request(`http://localhost:3101${path}`, {
+              method,
+              headers: { cookie: cookie ?? '', 'x-puni-csrf': csrfToken },
+            })
+          : request(path, method, origin, undefined, cookie, csrfToken),
+      );
+      answers.push(`${String(origin)} ${method} ${path} ${String(response.status)}`);
+    }
+  // Proof: deleting the app-Origin guard before the operator routes answered 200, 201 and 409 here.
+  expect(answers).toEqual(
+    origins.flatMap((origin) => [
+      `${String(origin)} GET /operator/guardrails 403`,
+      `${String(origin)} POST /operator/inference/pause 403`,
+    ]),
+  );
+  expect(countRows(config.databasePath, 'inference_pause')).toBe(0);
+  api.close();
+});
+
+test('sign-out invalidates the operator token for later reads', async () => {
+  const { api, config } = fixture();
+  const login = await api.fetch(
+    request('/operator/session', 'POST', config.appOrigin, { password: config.operatorPassword }),
+  );
+  expect(login.status).toBe(201);
+  const cookie = login.headers.get('set-cookie')?.split(';')[0];
+  const { csrfToken } = (await login.json()) as { csrfToken: string };
+  expect(
+    (await api.fetch(request('/operator/guardrails', 'GET', config.appOrigin, undefined, cookie)))
+      .status,
+  ).toBe(200);
+  const signOut = await api.fetch(
+    request('/operator/session', 'DELETE', config.appOrigin, undefined, cookie, csrfToken),
+  );
+  expect(signOut.status).toBe(204);
+  // Proof: skipping deleteOperatorSession in DELETE /operator/session answered 200 to this replayed cookie.
+  const replayed = await api.fetch(
+    request('/operator/guardrails', 'GET', config.appOrigin, undefined, cookie),
+  );
+  expect(replayed.status).toBe(401);
+  expect(await replayed.json()).toEqual({ code: 'operator_unauthorized' });
+  expect(countRows(config.databasePath, 'operator_session')).toBe(0);
   api.close();
 });
 
@@ -1379,6 +1564,8 @@ test("the funnel overview counts the day's rows", async () => {
     exhausted: { turns: 1, conversation_spend: 0, source_spend: 0, site_spend: 0 },
     proposals: { manual: 1, fromChat: 1 },
     ceilingSettled: { count: 0, microUsd: 0 },
+    // Two completed operations settled at 900 micro-USD each.
+    spendMicroUsd: 1_800,
   });
 });
 

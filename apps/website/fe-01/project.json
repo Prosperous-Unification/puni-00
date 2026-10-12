@@ -7,12 +7,23 @@
   "metadata": {
     "portability": {
       "visibility": "public",
-      "dependencies": [],
-      "aliases": []
+      "dependencies": ["libs/website/domain/contracts"],
+      "aliases": [],
+      "packages": {
+        "@types/react": "^19.2.18",
+        "@types/react-dom": "^19.2.7",
+        "@vitejs/plugin-react": "^6.1.1",
+        "ai": "7.0.118",
+        "jsdom": "^30.0.1",
+        "react": "^19.2.8",
+        "react-dom": "^19.2.8",
+        "vite": "8.2.2"
+      }
     }
   },
   "targets": {
     "test": {
+      "inputs": ["default", "^production", "{workspaceRoot}/docs/website/walkthrough.md"],
       "executor": "nx:run-commands",
       "options": {
         "command": "bun test apps/website/fe-01/src --timeout=30000"

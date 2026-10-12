@@ -103,7 +103,7 @@ was running a host gate. Ansible reached `10.1.0.4` and `10.1.0.2` as root throu
 ## Not run
 
 Real hosts: the h4claw join-token transfer, `join.yml` on h3mon, `validate-enrollment.yml`, the
-after-enrollment preflight on h3mon and steps 6–8; `tool-fleet:discover` against production (SSH discovery cannot pass a user or
-known-hosts file to the controller yet, so the runbook uses the playbooks directly);
+after-enrollment preflight on h3mon and steps 6–8; `tool-fleet:discover` against production (the SSH transport arrived later in
+`discovery-ssh-transport`; the runbook still uses the playbooks directly);
 `platform.yml` Flux bootstrap on the VM lab; Hetzner snapshots; a memory-pressure drill on the
 observability stack.

@@ -65,11 +65,29 @@ act as the trusted gate. Twilight Dash holds the secrets and performs the effect
   artifacts of every stage.
 - **Leases and admission.** An admission verdict is a static judgment and stays with Twilight
   Burokrat. Lease acquisition, heartbeats and fencing are runtime state and belong to
-  Twilight Dash. Today both live in the Burokrat package; moving the lease authority is the
-  one migration this split implies.
+  Twilight Dash. The lease authority moved to Dash in October 2026
+  ([ADR 0050](../adr/0050-the-admission-authority-keeps-its-on-disk-identity-in-dash.md)); Dash
+  reaches the admission verdict through Burokrat's `@twilight-burokrat/judge` facade.
 - **The verifier tool.** The control-plane design planned a separate Twilight compile and
   verify tool. Its verification half is Twilight Burokrat's work and its compile half is
   Twilight Dash's. No separate tool is created.
+
+### Clock reads
+
+Twilight Burokrat takes the instant it evaluates from its caller: `inspect-manual` requires
+`--now`, and Twilight Dash supplies it. The clock reads still in the package measure events that
+the process itself performs, which is Twilight Dash's work, and they move with it:
+
+| Site                                          | What it measures                                                                                                    | Moves with                                        |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| `review/invoker.ts`                           | review harness journal timestamps and its lock's wait                                                               | the review invoker                                |
+| `policy/prepare-activation-cli.ts`            | start and end of each candidate check it runs                                                                       | the check runner                                  |
+| `policy/prepare-relocation-activation-cli.ts` | start and end of each candidate check it runs                                                                       | the check runner                                  |
+| `activation-controller/*` (ten files)         | deadline and cancellation bounds while it polls GitHub and retrieves reviews; the composition root's injected clock | the activation controller and observation service |
+
+`no-ambient-clock.test.ts` in the Burokrat package fails on a reference to the JavaScript or Bun
+clock APIs outside these files, or on more references in them than they hold today. Its JSDoc
+lists what it cannot see.
 
 ## How the tools depend on each other
 
@@ -109,17 +127,17 @@ match the candidate.
 
 ## Where existing things land
 
-| Existing thing                                                       | Owner after the rename                                   |
-| -------------------------------------------------------------------- | -------------------------------------------------------- |
-| The wiki ledger, policy, activation and review provenance            | Twilight Burokrat, unchanged                             |
-| The lease authority inside the Burokrat package                      | Twilight Dash, after a planned migration                 |
-| Glossaries, ADR rules, OpenSpec schemas and artifact templates       | Twilight Burokrat                                        |
-| The control plane: coordinator, workers, effect execution            | Twilight Dash                                            |
-| Fleet, deploy, image build, compose, smoke, bootstrap, secrets tools | Twilight Dash, first as a facade over the existing tools |
-| Discovery, grilling, assumptions, specification with a person        | Twilight Navigator                                       |
-| Work planning, dependencies, capacity                                | Twilight Navigator, using WBS as its planning surface    |
-| The secretary conversation for software requests                     | Twilight Navigator's front door                          |
-| WBS                                                                  | Stays its own product; Twilight Navigator uses it        |
+| Existing thing                                                       | Owner after the rename                                                                                                        |
+| -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| The wiki ledger, policy, activation and review provenance            | Twilight Burokrat, unchanged                                                                                                  |
+| The lease authority inside the Burokrat package                      | Twilight Dash (`twilight-dash/cli/src/authority`), moved 2026-10; the admission verdict stays in Burokrat's `admission-judge` |
+| Glossaries, ADR rules, OpenSpec schemas and artifact templates       | Twilight Burokrat                                                                                                             |
+| The control plane: coordinator, workers, effect execution            | Twilight Dash                                                                                                                 |
+| Fleet, deploy, image build, compose, smoke, bootstrap, secrets tools | Twilight Dash, first as a facade over the existing tools                                                                      |
+| Discovery, grilling, assumptions, specification with a person        | Twilight Navigator                                                                                                            |
+| Work planning, dependencies, capacity                                | Twilight Navigator, using WBS as its planning surface                                                                         |
+| The secretary conversation for software requests                     | Twilight Navigator's front door                                                                                               |
+| WBS                                                                  | Stays its own product; Twilight Navigator uses it                                                                             |
 
 The sixteen stages of the [Twilight SDLC](sdlc-stages.md) divide the same way. Request,
 discovery, specification and planning are Twilight Navigator's. Implementation through release

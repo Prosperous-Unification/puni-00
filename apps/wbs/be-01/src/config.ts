@@ -14,6 +14,10 @@ export const BeConfig = type({
   // >=32 bound as gw-01's copy so a short key fails at both ends or neither.
   JWT_SIGNING_KEY_CURRENT: 'string>=32',
   AUTH_MODE: "'local'|'oidc'",
+  // Required with no default: whether logout, refresh and replacement commit
+  // through the shared durable browser lifecycle, and whether the browser
+  // organization cookie is read, is an operator decision; see `bootBe01`.
+  BROWSER_SESSION_AUTHORITY: "'enabled'|'disabled'",
   'WBS_DELEGATION_SIGNING_KEY?': 'string',
   'WBS_DELEGATION_VERIFY_KEY?': 'string',
   'SOLVER_BUDGET_MS?': 'string.integer.parse',
