@@ -99,11 +99,12 @@ forbidden` on the runner's judge import.
 ## Review fixes (Fable, MERGE AFTER FIXES)
 
 - **F1.** The facade closure assertion and its Proof are above.
-- **F2.** The root `.gitattributes` now marks `fixtures/check-runs/*/**` `-text`.
+- **F2.** The fixture-local `.gitattributes` marks both golden ledger directories `-text`.
   - Before the rule, a clone with `core.autocrlf=true` rewrote three LF-only streams to other
     digests (`6043908c…` became `8a1725a8…`).
   - After it, the same clone kept all six stream digests and both ledger digests.
-  - Nothing else in the repository uses `.gitattributes` or relies on `autocrlf`.
+  - The root `.gitattributes` made pilot classification refuse unclassified `.gitattributes` in
+    CI. Moving it under `fixtures/check-runs/` keeps it in the existing fixture class.
 - **F3.** Records now say Dash "reproduces both ledgers from their parts", meaning it replays the
   recorded streams and instants through a scripted executor and clock.
 - **F4.** The `check-runs.ts` Proof comments now say they were observed through `readCheckRuns`.

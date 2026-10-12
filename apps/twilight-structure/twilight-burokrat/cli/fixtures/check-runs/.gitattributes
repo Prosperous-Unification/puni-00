@@ -1,0 +1,3 @@
+# The ledgers and streams are pinned by SHA-256. Keep their bytes on every checkout.
+passing/** -text
+skipping/** -text
