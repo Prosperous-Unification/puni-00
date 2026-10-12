@@ -37,6 +37,13 @@ try {
   await expect(page.getByRole('tooltip')).toContainText('2 min');
   const second = await page.locator('[data-gantt-hit="mark-0-1"]').boundingBox();
   if (second === null) throw new Error('Second fixture pointer rectangle is absent');
+  // Walk the real keyboard order to the first forecast before choosing by mouse.
+  await page.mouse.move(1400, 850);
+  for (let tab = 0; tab < 30; tab += 1) {
+    await page.keyboard.press('Tab');
+    if (await first.evaluate((mark) => document.activeElement === mark)) break;
+  }
+  expect(await first.evaluate((mark) => document.activeElement === mark)).toBe(true);
   await page.mouse.move(
     second.x + 2,
     Math.max(hitBounds.y, second.y) +
@@ -48,6 +55,18 @@ try {
   await page.getByRole('button', { name: 'row-0 · Step 1 · 2 min' }).click();
   await expect(page.getByRole('tooltip')).toContainText('Step 1 · Unassigned');
   await page.screenshot({ path: '/tmp/subday2-browser.png' });
+  await page.evaluate(() => window.subdayBenchmark.mountPanel(1, true));
+  const milestone = await page.locator('[data-gantt-tick="mark-0-0"]').boundingBox();
+  if (milestone === null) throw new Error('Milestone fixture has no visible tick');
+  const center = { x: milestone.x + milestone.width / 2, y: milestone.y + milestone.height / 2 };
+  expect(
+    await page.evaluate(
+      ({ x, y }) => document.elementFromPoint(x, y)?.getAttribute('data-gantt-hit'),
+      center,
+    ),
+  ).toBe('mark-0-0');
+  await page.mouse.move(center.x, center.y);
+  await expect(page.getByRole('tooltip')).toContainText('Step 0 · Unassigned');
   await page.evaluate(() => window.subdayBenchmark.mountPanel(500));
   const mounts: number[] = [];
   const interactions: number[] = [];
@@ -99,6 +118,9 @@ try {
       hitWidth: hitBounds.width,
       hitHeight: hitBounds.height,
       explicitCollisionChoice: true,
+      keyboardFocusToMouseChoice: true,
+      milestoneCenterHitsPointerSurface: true,
+      milestoneCenterOpensCard: true,
     },
     browserErrors,
   };

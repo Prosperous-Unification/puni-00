@@ -17,6 +17,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -1695,6 +1696,15 @@ function lateWords(lateBy: number | null): string | null {
  */
 const durationWords = (bar: GanttBar): string =>
   bar.estimated ? dayWords(bar.duration) : 'not estimated';
+
+/** Collision words preserve unknown estimates and the actual span of completed work. */
+export function describeForecastSpan(bar: GanttBar): string {
+  // Proof: removing either arm failed the unknown chooser / done actual-span
+  // regressions (subday-review-proof-{unknown,done}, 2026-10-13).
+  if (!bar.estimated) return 'not estimated';
+  if (bar.done) return `Done — ${dayWords(bar.drawnSpan)} actual span`;
+  return `${String(Number((bar.duration * 480).toFixed(9)))} min`;
+}
 
 /**
  * The service team a bar is labelled with, in words, absences included.
@@ -3851,6 +3861,7 @@ function GanttChart({
   /** The live geometry `<svg>`, read by {@link downloadGanttSvg} and nothing else. */
   const chartSvgRef = useRef<SVGSVGElement | null>(null);
   const pointerMarks = useRef(new Map<string, SVGRectElement>());
+  const chooserRef = useRef<HTMLDivElement | null>(null);
 
   const cancelOpening = useCallback(() => {
     if (opening.current !== null) clearTimeout(opening.current);
@@ -3973,6 +3984,14 @@ function GanttChart({
    * the flags and links have to ask about.
    */
   const drawnBars = placed.bars;
+  // Proof: removing invalidation left the chooser and pending hover alive after
+  // same-generation filter/collapse/rung changes (subday-review-proof-placement).
+  useLayoutEffect(() => {
+    cancelOpening();
+    setCollision(null);
+    setOpen(null);
+    setOpenAttempt(null);
+  }, [placed, dayPx, cancelOpening]);
   /**
    * The bar the open surface belongs to, or null when there is no surface, or
    * no such bar, or that bar is not being drawn.
@@ -5197,6 +5216,7 @@ function GanttChart({
                 const box = hit.getBoundingClientRect();
                 return {
                   markId,
+                  hit,
                   left: box.left,
                   right: box.right,
                   top: box.top,
@@ -5222,7 +5242,16 @@ function GanttChart({
                     bottom: box.bottom,
                   },
                 });
-              } else showSurface(bar.sliceId, mark);
+              } else {
+                // Proof: reverting to the captured event mark failed sole/zero-hit
+                // cases (subday-review-proof-membership, 2026-10-13).
+                const containing = surfaces.filter((surface) => markIds.includes(surface.markId));
+                if (containing.length === 1) {
+                  // The selected rectangle is from this synchronous surface snapshot.
+                  const [only] = containing;
+                  showSurface(only.markId, only.hit);
+                } else dismiss();
+              }
             }, HOVER_OPEN_MS);
           };
           return (
@@ -5312,8 +5341,16 @@ function GanttChart({
                 cancelOpening();
                 showSurface(bar.sliceId, focus.currentTarget);
               }}
-              onBlur={() => {
+              onBlur={(focus) => {
                 onPointRow(null, 'focus');
+                // Proof: unconditional dismissal removed the choice before its click
+                // after a focused forecast transferred focus into the chooser; Chromium
+                // then found no selected card (subday-review-proof-browser-blur).
+                if (
+                  focus.relatedTarget instanceof Node &&
+                  chooserRef.current?.contains(focus.relatedTarget)
+                )
+                  return;
                 dismiss();
               }}
             >
@@ -5572,6 +5609,10 @@ function GanttChart({
               x2={x}
               y2={bar.rowIndex + BAR_INSET + BAR_HEIGHT}
               data-gantt-tick={bar.sliceId}
+              // Proof: removing transparency makes Chromium hit this decorative
+              // stroke instead of the milestone's 18px pointer rectangle; exact-center
+              // elementFromPoint failed (subday-review-proof-browser-zero).
+              pointerEvents="none"
               stroke={bar.critical ? undefined : bar.personColor}
               className={bar.critical ? 'stroke-foreground [stroke-width:2]' : ''}
               vectorEffect="non-scaling-stroke"
@@ -6531,44 +6572,48 @@ function GanttChart({
       */}
         {collision !== null && (
           <HoverCard label="Choose a mark" anchor={collision.anchor} takesPointer>
-            <button
-              type="button"
-              onClick={() => {
-                setCollision(null);
-              }}
-            >
-              Close mark list
-            </button>
-            {collision.markIds.map((markId) => {
-              const attempt = projection.marks.find((mark) => identifyAttemptMark(mark) === markId);
-              if (attempt !== undefined)
+            <div ref={chooserRef} data-gantt-collision-list>
+              <button
+                type="button"
+                onClick={() => {
+                  setCollision(null);
+                }}
+              >
+                Close mark list
+              </button>
+              {collision.markIds.map((markId) => {
+                const attempt = projection.marks.find(
+                  (mark) => identifyAttemptMark(mark) === markId,
+                );
+                if (attempt !== undefined)
+                  return (
+                    <button
+                      key={markId}
+                      type="button"
+                      className="block text-xs"
+                      onClick={() => {
+                        setOpen(null);
+                        setOpenAttempt({ markId, anchor: collision.anchor });
+                        setCollision(null);
+                      }}
+                    >{`Attempt ${String(attempt.attempt.attemptNumber)} — ${attempt.attempt.outcome ?? 'running'} · ${attempt.nodeReference ?? attempt.nodeId}`}</button>
+                  );
+                const placedBar = drawnBars.find(({ bar }) => bar.sliceId === markId);
+                if (placedBar === undefined) return null;
+                const { bar } = placedBar;
                 return (
                   <button
                     key={markId}
                     type="button"
                     className="block text-xs"
                     onClick={() => {
-                      setOpen(null);
-                      setOpenAttempt({ markId, anchor: collision.anchor });
+                      setOpen({ sliceId: markId, anchor: collision.anchor });
                       setCollision(null);
                     }}
-                  >{`Attempt ${String(attempt.attempt.attemptNumber)} — ${attempt.attempt.outcome ?? 'running'} · ${attempt.nodeReference ?? attempt.nodeId}`}</button>
+                  >{`${bar.workItemNumber} · ${bar.stepName ?? 'No step'} · ${describeForecastSpan(bar)}`}</button>
                 );
-              const placedBar = drawnBars.find(({ bar }) => bar.sliceId === markId);
-              if (placedBar === undefined) return null;
-              const { bar } = placedBar;
-              return (
-                <button
-                  key={markId}
-                  type="button"
-                  className="block text-xs"
-                  onClick={() => {
-                    setOpen({ sliceId: markId, anchor: collision.anchor });
-                    setCollision(null);
-                  }}
-                >{`${bar.workItemNumber} · ${bar.stepName ?? 'No step'} · ${String(Number((bar.duration * 480).toFixed(9)))} min`}</button>
-              );
-            })}
+              })}
+            </div>
           </HoverCard>
         )}
         {openAttempt !== null &&
@@ -6596,7 +6641,7 @@ function GanttChart({
               const placedBar = drawnBars.find(({ bar }) => bar.sliceId === openBar.sliceId);
               return placedBar !== undefined &&
                 placeBarSurface(placedBar.x, placedBar.width, rung).tick ? (
-                <p className="text-xs">{Number((openBar.duration * 480).toFixed(9))} min</p>
+                <p className="text-xs">{describeForecastSpan(openBar)}</p>
               ) : null;
             })()}
             {barFacts(openBar, startDate, today, plan.priorityBands).map((line) => (

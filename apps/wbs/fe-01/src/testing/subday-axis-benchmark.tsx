@@ -13,9 +13,9 @@ import { type DayPx, GanttPanel } from '@/components/wbs/gantt-panel';
 import { ApplicationServicesProvider } from '@/runtime/application-services-context';
 
 /** Isolated measurement entry: the shipped panel, with no API or remembered runtime. */
-function SubdayPanelFixture({ leaves }: { leaves: number }) {
+function SubdayPanelFixture({ leaves, milestone }: { leaves: number; milestone: boolean }) {
   const [dayPx, pickDayPx] = useState<DayPx>(896);
-  const steps = Array.from({ length: leaves === 1 ? 2 : 5 }, (_, index) => ({
+  const steps = Array.from({ length: milestone ? 1 : leaves === 1 ? 2 : 5 }, (_, index) => ({
     id: `step-${String(index)}`,
     name: `Step ${String(index)}`,
   }));
@@ -25,7 +25,7 @@ function SubdayPanelFixture({ leaves }: { leaves: number }) {
     slices: Array.from({ length: leaves }, (_, row) =>
       steps.map((step, index) => {
         const start = leaves === 1 ? (index * 6) / 896 : index;
-        const span = leaves === 1 ? 2 / 480 : 1;
+        const span = milestone ? 0 : leaves === 1 ? 2 / 480 : 1;
         return sliceAt(
           `mark-${String(row)}-${String(index)}`,
           `row-${String(row)}`,
@@ -55,7 +55,7 @@ function SubdayPanelFixture({ leaves }: { leaves: number }) {
 const root = createRoot(document.body);
 
 /** Fresh panel mount followed by the experiment's two-frame completion wait. */
-async function mountPanel(leaves: number): Promise<number> {
+async function mountPanel(leaves: number, milestone = false): Promise<number> {
   flushSync(() => {
     root.render(null);
   });
@@ -63,7 +63,7 @@ async function mountPanel(leaves: number): Promise<number> {
   flushSync(() => {
     root.render(
       <ApplicationServicesProvider>
-        <SubdayPanelFixture leaves={leaves} />
+        <SubdayPanelFixture leaves={leaves} milestone={milestone} />
       </ApplicationServicesProvider>,
     );
   });
