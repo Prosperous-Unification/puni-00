@@ -1,4 +1,5 @@
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
 import { kill as killProcess } from 'node:process';
 
@@ -144,7 +145,9 @@ export async function runPinnedOfflineGh(
   // Proof: stage_deadline omission spawned /bin/true after a synchronous
   // staging write had already consumed the whole process budget.
   const startedAt = performance.now();
-  const directory = mkdtempSync('/tmp/review-attestation-');
+  // Proof: the literal '/tmp/review-attestation-' ignored the gate host's TMPDIR=/var/tmp;
+  // `pinned runner stages its private inputs under the configured temporary root` failed.
+  const directory = mkdtempSync(join(tmpdir(), 'review-attestation-'));
   const manifestPath = join(directory, 'manifest.json');
   const bundlePath = join(directory, 'bundle.json');
   let child: ReturnType<typeof Bun.spawn> | undefined;

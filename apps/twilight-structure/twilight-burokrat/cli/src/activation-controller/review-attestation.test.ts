@@ -1140,3 +1140,33 @@ test.each([
   );
   expect(launched).toBe(0);
 });
+
+test('pinned runner stages its private inputs under the configured temporary root', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'review-attestation-tmpdir-test-'));
+  const prior = process.env['TMPDIR'];
+  try {
+    const executablePath = join(root, 'fake-gh');
+    const cwdPath = join(root, 'cwd.txt');
+    writeFileSync(executablePath, `#!/bin/sh\npwd > '${cwdPath}'\n`);
+    chmodSync(executablePath, 0o700);
+    const staging = join(root, 'staging-root');
+    filesystem.mkdirSync(staging, { mode: 0o700 });
+    process.env['TMPDIR'] = staging;
+    await runPinnedOfflineGh({
+      executablePath,
+      argv: [],
+      env: {},
+      manifestBytes: '{}',
+      bundleBytes: '{}',
+      maximumOutputBytes: 100,
+      maximumDurationMs: 5_000,
+    });
+    expect(readFileSync(cwdPath, 'utf8').trim().startsWith(`${staging}/review-attestation-`)).toBe(
+      true,
+    );
+  } finally {
+    if (prior === undefined) delete process.env['TMPDIR'];
+    else process.env['TMPDIR'] = prior;
+    rmSync(root, { recursive: true, force: true });
+  }
+});
