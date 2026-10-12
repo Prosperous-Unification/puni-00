@@ -5175,6 +5175,56 @@ function GanttChart({
           const surface = placeBarSurface(x, width, rung);
           const middle = bar.rowIndex + BAR_INSET + ((bar.lane + 0.5) * BAR_HEIGHT) / bar.lanes;
           const hitHeight = Math.max(BAR_HEIGHT / bar.lanes, 18 / ROW_PX);
+          const hoverMark = (pointer: ReactPointerEvent<SVGGElement>): void => {
+            // **The touch seam.** Chromium synthesizes a whole mouse
+            // sequence from a tap — `mouseover` included — so a surface
+            // opened on a mouse event opens on every tap as well, over
+            // the row the tap was taking the reader to. The pointer
+            // events are the only ones that say which they came from.
+            if (pointer.pointerType !== 'mouse') return;
+            // Before the timer and never inside it: the pointed row is
+            // a tint, which is cheap to paint and cheap to be wrong
+            // about for a moment, while the surface is a card that
+            // covers the chart. So the light is immediate and the card
+            // still waits out {@link HOVER_OPEN_MS} — a pointer
+            // crossing eight bars lights eight rows in turn, which
+            // reads as a trail, and opens no cards at all.
+            pointRow(bar.rowIndex, 'pointer');
+            const mark = pointer.currentTarget;
+            cancelOpening();
+            opening.current = setTimeout(() => {
+              const surfaces = [...pointerMarks.current].map(([markId, hit]) => {
+                const box = hit.getBoundingClientRect();
+                return {
+                  markId,
+                  left: box.left,
+                  right: box.right,
+                  top: box.top,
+                  bottom: box.bottom,
+                };
+              });
+              const markIds = selectMarksAtPointer(surfaces, pointer.clientX, pointer.clientY);
+              // Proof: bypassing this list opened the second card immediately;
+              // the production overlap-choice case failed to find the first line
+              // (subday2-proof-collision, 2026-10-12).
+              if (markIds.length > 1) {
+                const box = mark.getBoundingClientRect();
+                setOpen(null);
+                setOpenAttempt(null);
+                setOpenDay(null);
+                setOpenMarkers(null);
+                setCollision({
+                  markIds,
+                  anchor: {
+                    left: box.left,
+                    right: box.right,
+                    top: box.top,
+                    bottom: box.bottom,
+                  },
+                });
+              } else showSurface(bar.sliceId, mark);
+            }, HOVER_OPEN_MS);
+          };
           return (
             <g
               key={bar.sliceId}
@@ -5221,56 +5271,10 @@ function GanttChart({
                 const rowId = rowIdAt(bar.rowIndex);
                 if (rowId !== undefined) onPickRow(rowId);
               }}
-              onPointerOver={(pointer) => {
-                // **The touch seam.** Chromium synthesizes a whole mouse
-                // sequence from a tap — `mouseover` included — so a surface
-                // opened on a mouse event opens on every tap as well, over
-                // the row the tap was taking the reader to. The pointer
-                // events are the only ones that say which they came from.
-                if (pointer.pointerType !== 'mouse') return;
-                // Before the timer and never inside it: the pointed row is
-                // a tint, which is cheap to paint and cheap to be wrong
-                // about for a moment, while the surface is a card that
-                // covers the chart. So the light is immediate and the card
-                // still waits out {@link HOVER_OPEN_MS} — a pointer
-                // crossing eight bars lights eight rows in turn, which
-                // reads as a trail, and opens no cards at all.
-                pointRow(bar.rowIndex, 'pointer');
-                const mark = pointer.currentTarget;
-                cancelOpening();
-                opening.current = setTimeout(() => {
-                  const surfaces = [...pointerMarks.current].map(([markId, hit]) => {
-                    const box = hit.getBoundingClientRect();
-                    return {
-                      markId,
-                      left: box.left,
-                      right: box.right,
-                      top: box.top,
-                      bottom: box.bottom,
-                    };
-                  });
-                  const markIds = selectMarksAtPointer(surfaces, pointer.clientX, pointer.clientY);
-                  // Proof: bypassing this list opened the second card immediately;
-                  // the production overlap-choice case failed to find the first line
-                  // (subday2-proof-collision, 2026-10-12).
-                  if (markIds.length > 1) {
-                    const box = mark.getBoundingClientRect();
-                    setOpen(null);
-                    setOpenAttempt(null);
-                    setOpenDay(null);
-                    setOpenMarkers(null);
-                    setCollision({
-                      markIds,
-                      anchor: {
-                        left: box.left,
-                        right: box.right,
-                        top: box.top,
-                        bottom: box.bottom,
-                      },
-                    });
-                  } else showSurface(bar.sliceId, mark);
-                }, HOVER_OPEN_MS);
-              }}
+              onPointerOver={hoverMark}
+              // Proof: removing pointermove failed the same-surface membership case
+              // (subday2-move-red, 2026-10-12).
+              onPointerMove={hoverMark}
               onPointerOut={(pointer) => {
                 if (
                   pointer.relatedTarget instanceof Node &&
@@ -5438,7 +5442,10 @@ function GanttChart({
                 y={middle - hitHeight / 2}
                 height={hitHeight}
                 fill="transparent"
-                pointerEvents="all"
+                // Proof: all includes an unpainted 1-unit SVG stroke (896px at
+                // this rung); the browser overlap case opened Step 1 directly at
+                // x183 although its fill starts x187 (2026-10-12).
+                pointerEvents="fill"
               />
             </g>
           );
