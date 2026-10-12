@@ -1,4 +1,5 @@
 import { type AuthorityClock, bootstrapAuthority, openAuthority } from './authority-store';
+import { recoverPublication } from './publication';
 
 /** What an authority command reaches besides its arguments. */
 export interface AuthorityCommandDependencies {
@@ -8,6 +9,7 @@ export interface AuthorityCommandDependencies {
 
 const bootstrapUsage = 'usage: twilight-dash bootstrap-authority <repository>';
 const inspectUsage = 'usage: twilight-dash inspect-authority <repository> [--session <id>]';
+const recoverUsage = 'usage: twilight-dash recover-publication <repository> --integration-id <id>';
 
 /**
  * Creates the repository's authority and prints its path. This is the only command that creates
@@ -73,6 +75,35 @@ export function inspectAuthorityCommand(
             },
       )}\n`,
     );
+  } finally {
+    store.close();
+  }
+}
+
+/**
+ * Finishes an interrupted publication from its durable record and prints the report as JSON.
+ *
+ * @throws Error with the usage line before the store is opened when the grammar is wrong.
+ */
+export function recoverPublicationCommand(
+  argv: readonly string[],
+  { clock, write }: AuthorityCommandDependencies,
+): void {
+  const [repository, flag, integrationId] = argv;
+  // Proof: loosening this check to `argv.length < 3` made `unknown commands and flags refuse
+  // before any store open` observe Dash accept `recover-publication <root> --integration-id x
+  // extra` and open the store (2026-10-12).
+  if (
+    argv.length !== 3 ||
+    repository.startsWith('--') ||
+    flag !== '--integration-id' ||
+    integrationId.startsWith('--')
+  ) {
+    throw new Error(recoverUsage);
+  }
+  const store = openAuthority(repository, { clock });
+  try {
+    write(`${JSON.stringify(recoverPublication(store, repository, integrationId))}\n`);
   } finally {
     store.close();
   }

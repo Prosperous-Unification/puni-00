@@ -26,15 +26,17 @@
 
 ## 5. Idempotent submission (S4)
 
-- [ ] 5.1 `submitGenerationMatching` returns the token for an exact repeated submission.
-- [ ] 5.2 CLI `submit-admission` in Dash with the four lost-response and refusal tests.
+- [x] 5.1 `submitGenerationMatching` returns the token for an exact repeated submission.
+- [x] 5.2 CLI `submit-admission` in Dash with the four lost-response and refusal tests.
+- [x] 5.3 Model-based lifecycle test (`fc.asyncModelRun` + `fc.scheduler()`, child processes) for
+      bootstrap, open, inspect and acquire; five sabotages fail it.
 
 ## 6. Publication recovery (S5)
 
-- [ ] 6.1 `recoverPublication` and CLI `recover-publication`; two-process tests for refs not moved and refs moved.
-- [ ] 6.2 Record the six mandatory proofs in `verify.md` from the relocated code.
+- [x] 6.1 `recoverPublication` and CLI `recover-publication`; two-process tests for refs not moved and refs moved.
+- [x] 6.2 Record the six mandatory proofs in `verify.md` from the relocated code.
 
 ## 7. Rollback proof and documents (S6)
 
-- [ ] 7.1 `rollback-compatibility.test.ts` against the pinned pre-relocation commit.
-- [ ] 7.2 ADR 0048, ADR 0021 pointer, `names.md`, `LLM_README.md`, `CONTEXT.md`, READMEs, `verify.md`.
+- [x] 7.1 Rollback proof: `integration-races.test.ts` case `the pre-relocation authority opens a Dash-written store with identical state and continues its generations`, against the vendored `fixtures/authority/pre-relocation-burokrat.tar` (pinned SHA-256; source `e57278139`).
+- [x] 7.2 ADR 0050 (0048 and 0049 were taken), ADR 0021 pointer, `names.md`, `LLM_README.md`, `CONTEXT.md`, READMEs, `verify.md`.

@@ -51,6 +51,32 @@ publication. Non-goals are in the proposal.
   `acquireClaims` stays strict and a lost token is read back with `inspect-authority
 --session`; publication recovery is idempotent through the durable record and marker.
 
+## Authority lifecycle concurrency model
+
+The store is shared by every process of one common Git directory; each operation below is one
+SQLite transaction or one filesystem step, and processes interleave between them.
+
+- **States.** `absent` (no `module-wiki/authority.sqlite`); `initializing` (the
+  `authority.sqlite.initializing/` lock directory exists); `present(nextGeneration, working
+sessions and their claims)`.
+- **Events.** `bootstrap` (mkdir the directory, take the lock, re-check absence under it, create,
+  release); `open` (wait out an initializer, `lstat` the directory and file, verify schema);
+  `inspect` (deferred read transaction, no write); `acquire` (immediate write transaction that
+  checks session and overlap, then advances `nextGeneration`); `submit` (immediate transaction; an
+  exact repeat of a committed submission writes nothing).
+- **Invariants.** I1 one creator per lifetime: while absent exactly one bootstrap reports
+  `bootstrapped`, every other reports `exists`. I2 absence is refused and leaves no directory.
+  I3 inspection never changes the database bytes. I4 generations are consecutive and never reset.
+  I5 overlapping acquisitions linearize: at most one holds an overlapping path. I6 every outcome
+  is typed; `corrupt` or an untyped failure is a defect.
+
+`authority-lifecycle.model.test.ts` checks I1–I6 with `fc.asyncModelRun` against a reference
+model. Concurrent bootstraps and acquisitions run as Bun child processes. `fc.scheduler()` only
+orders their spawns; a shared barrier file then releases them together, and the operating system
+interleaves their transactions. The scheduler does not control that interleaving, so each
+concurrent command checks every outcome a linearization allows. Five sabotages (each named in
+its `Proof:`) fail it.
+
 ## Risks / Trade-offs
 
 - The published 0.1.0 `submit-admission` can still create a v5 store; nothing on disk can fence
