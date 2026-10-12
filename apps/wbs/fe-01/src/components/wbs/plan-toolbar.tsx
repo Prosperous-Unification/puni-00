@@ -957,7 +957,14 @@ export function PlanToolbar({
           frameState,
           numberOf: (workItemId) => flat.find((row) => row.id === workItemId)?.number ?? null,
           nameOf: (personId) => people.find((person) => person.id === personId)?.name ?? null,
-          addStep: (name) => commands.addStep(name),
+          addStep: (name, unit) => commands.addStep(name, unit),
+          setStepUnit: (stepId, unit) => commands.setStepUnit(stepId, unit),
+          estimateCounts: Object.fromEntries(
+            steps.map((step) => [
+              step.id,
+              flat.filter((row) => !row.rolledUp && Object.hasOwn(row.estimates, step.id)).length,
+            ]),
+          ),
           renameStep: (stepId, name) => commands.renameStep(stepId, name),
           setStepAllowance: (stepId, allowancePercent) =>
             commands.setStepAllowance(stepId, allowancePercent),

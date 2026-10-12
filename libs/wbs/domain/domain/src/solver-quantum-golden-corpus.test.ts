@@ -106,7 +106,7 @@ describe('the quantum golden corpus keys itself on the contract version', () => 
  */
 describe('the stored bytes are the quantisation, not an empty object', () => {
   it('carries a finite unit count and a rounding flag for every case', () => {
-    expect(Object.keys(STORED.cases)).toHaveLength(6);
+    expect(Object.keys(STORED.cases)).toHaveLength(7);
     for (const stored of Object.values(STORED.cases)) {
       expect(Number.isInteger(stored.units)).toBe(true);
       expect(typeof stored.rounded).toBe('boolean');

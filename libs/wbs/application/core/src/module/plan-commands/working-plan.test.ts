@@ -137,7 +137,13 @@ describe('the admitted working batch baseline', () => {
       const projectId = createdProject.project.id;
       const stepId = createdProject.steps[0].id;
       await source.stores.steps.add(
-        { id: stepId, projectId, name: createdProject.steps[0].name, allowancePercent: 0 },
+        {
+          id: stepId,
+          projectId,
+          name: createdProject.steps[0].name,
+          allowancePercent: 0,
+          estimateUnit: 'workdays' as const,
+        },
         { at: 1, by: OWNER },
       );
 
@@ -714,7 +720,13 @@ describe('targeted working-plan refreshes', () => {
       const projectId = createdProject.project.id;
       const stepId = createdProject.steps[0].id;
       await source.stores.steps.add(
-        { id: stepId, projectId, name: 'Build', allowancePercent: 0 },
+        {
+          id: stepId,
+          projectId,
+          name: 'Build',
+          allowancePercent: 0,
+          estimateUnit: 'workdays' as const,
+        },
         { at: 2, by: OWNER },
       );
       for (const row of [
@@ -1202,7 +1214,13 @@ describe('working plan value failures', () => {
       const projectId = createdProject.project.id;
       const stepId = createdProject.steps[0].id;
       await source.stores.steps.add(
-        { id: stepId, projectId, name: 'Build', allowancePercent: 0 },
+        {
+          id: stepId,
+          projectId,
+          name: 'Build',
+          allowancePercent: 0,
+          estimateUnit: 'workdays' as const,
+        },
         { at: 2, by: OWNER },
       );
       const leaf = await publicGraph.workItems.create(projectId, OWNER, {
@@ -1263,7 +1281,13 @@ describe('working plan value failures', () => {
       const projectId = createdProject.project.id;
       const stepId = createdProject.steps[0].id;
       await source.stores.steps.add(
-        { id: stepId, projectId, name: 'Build', allowancePercent: 0 },
+        {
+          id: stepId,
+          projectId,
+          name: 'Build',
+          allowancePercent: 0,
+          estimateUnit: 'workdays' as const,
+        },
         { at: 2, by: OWNER },
       );
       const leaf = await publicGraph.workItems.create(projectId, OWNER, {

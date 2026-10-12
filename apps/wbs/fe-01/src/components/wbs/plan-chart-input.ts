@@ -231,6 +231,7 @@ export function usePlanChartInput({
       rows: structuralRows.map((row) => ({
         id: row.source.id,
         attemptNodes: readAttemptNodes(row.source, chartRead.stepNodes),
+        charged: row.source.charged,
         // The Number column's own number, not a second derivation of it: the
         // chart's labels read `010 - Strip` because that is how the plan is
         // spoken about.

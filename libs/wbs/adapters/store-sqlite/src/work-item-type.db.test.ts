@@ -86,6 +86,7 @@ beforeEach(async () => {
       position: 10,
       code: 'dev',
       allowancePercent: 0,
+      estimateUnit: 'workdays' as const,
     },
   ];
   await new ProjectRepository(db, OPEN).create(project, steps, wrote());

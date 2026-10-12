@@ -1,3 +1,5 @@
+import { type EstimateUnit, MAX_ESTIMATE_MINUTES } from '@wbs/domain/estimate';
+
 import type { Days } from '@/lib/wbs-api';
 
 export const POINTS = ['optimistic', 'realistic', 'pessimistic'] as const;
@@ -44,7 +46,7 @@ const COUNT_MESSAGE = 'Type three days as 2/3/8, or one number for all three.';
  *    `optimistic <= realistic <= pessimistic`. Which single box is "wrong" in
  *    `5 / 3 / 10` is not answerable; the pair is.
  */
-export function trioProblem(typed: TypedTrio): TrioProblem | null {
+export function trioProblem(typed: TypedTrio, unit: EstimateUnit = 'workdays'): TrioProblem | null {
   const filled = POINTS.filter((point) => typed[point].trim() !== '');
   if (filled.length === 0) return null;
 
@@ -53,7 +55,10 @@ export function trioProblem(typed: TypedTrio): TrioProblem | null {
     return !Number.isFinite(value) || value < 0;
   });
   if (unparseable.length > 0) {
-    return { points: unparseable, message: DAYS_MESSAGE };
+    return {
+      points: unparseable,
+      message: unit === 'minutes' ? 'Use whole minutes, zero or more.' : DAYS_MESSAGE,
+    };
   }
 
   const empty = POINTS.filter((point) => typed[point].trim() === '');
@@ -61,6 +66,19 @@ export function trioProblem(typed: TypedTrio): TrioProblem | null {
     return { points: empty, message: 'Fill all three, or this estimate is not saved.' };
   }
 
+  if (unit === 'minutes') {
+    const fractional = POINTS.filter((point) => !Number.isInteger(Number(typed[point])));
+    // Proof: removing the integer guard failed folded and unfolded minute write negatives; watched 2026-10-12.
+    if (fractional.length > 0)
+      return { points: fractional, message: 'Use whole minutes, zero or more.' };
+    const aboveMax = POINTS.filter((point) => Number(typed[point]) > MAX_ESTIMATE_MINUTES);
+    // Proof: removing the maximum guard let the mounted above-max unfolded point send a write; watched 2026-10-12.
+    if (aboveMax.length > 0)
+      return {
+        points: aboveMax,
+        message: `Minutes must be at most ${String(MAX_ESTIMATE_MINUTES)}.`,
+      };
+  }
   const value = (point: Point): number => Number(typed[point]);
   const broken = new Set<Point>();
   if (value('optimistic') > value('realistic')) {
@@ -118,7 +136,7 @@ function readDays(part: string): number | null {
  * out-of-order trio instead of sorting it` in `estimate-draft.test.ts` fails;
  * watched 2026-08-06.
  */
-export function parseTrioShorthand(typed: string): TrioShorthand {
+function readTrioShorthand(typed: string): TrioShorthand {
   const text = typed.trim();
   if (text === '') return { kind: 'empty' };
 
@@ -199,12 +217,27 @@ export function isTrioEmpty(typed: TypedTrio): boolean {
  * request, and the difference between them is {@link trioProblem}'s to
  * report. Never returns a repaired trio — that is the whole point.
  */
-export function sendableTrio(typed: TypedTrio): Days | null {
-  if (trioProblem(typed) !== null) return null;
+export function sendableTrio(typed: TypedTrio, unit: EstimateUnit = 'workdays'): Days | null {
+  if (trioProblem(typed, unit) !== null) return null;
   if (isTrioEmpty(typed)) return null;
   return {
     optimistic: Number(typed.optimistic),
     realistic: Number(typed.realistic),
     pessimistic: Number(typed.pessimistic),
   };
+}
+
+/** Parses shorthand in its addressed step unit, refusing unsendable minute figures locally. */
+export function parseTrioShorthand(typed: string, unit: EstimateUnit = 'workdays'): TrioShorthand {
+  const entry = readTrioShorthand(typed);
+  if (entry.kind !== 'trio') return entry;
+  const problem = trioProblem(
+    {
+      optimistic: String(entry.days.optimistic),
+      realistic: String(entry.days.realistic),
+      pessimistic: String(entry.days.pessimistic),
+    },
+    unit,
+  );
+  return problem === null ? entry : { kind: 'problem', message: problem.message };
 }

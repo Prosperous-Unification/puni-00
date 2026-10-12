@@ -33,6 +33,7 @@ const TREE: WorkItemTree = {
   typedDependencies: [],
   workItems: [
     {
+      charged: {},
       id: 'row-1',
       projectId: PROJECT.id,
       parentId: null,
@@ -124,6 +125,7 @@ const TREE: WorkItemTree = {
       position: 10,
       code: 'build',
       allowancePercent: 30,
+      estimateUnit: 'workdays' as const,
     },
   ],
   assignedPeople: [{ id: 'person-used', name: 'Kat' }],
@@ -264,7 +266,7 @@ test('JSON export is a versioned plan document and settings says what project sa
   expect((await validateSchema(planDocumentResponse, exported)).issues).toBeUndefined();
   expect(exported.document).toEqual({
     format: 'wbs-plan',
-    version: 7,
+    version: 8,
     exportedAt: '2026-09-13T12:30:00.000Z',
   });
   expect(exported.settings).toEqual({
@@ -334,7 +336,7 @@ test('malformed priority names workItems[3].priority', async () => {
 
 test('unknown version precedes version-specific validation', async () => {
   const future = structuredClone(await exportDocument());
-  Reflect.set(future.document, 'version', 8);
+  Reflect.set(future.document, 'version', 9);
   const row = future.workItems[0];
   future.workItems = Array.from({ length: 4 }, () => structuredClone(row));
   Reflect.set(future.workItems[3] ?? {}, 'priority', 'high');
@@ -421,7 +423,7 @@ test('the current export keeps SS and FF types from the trusted tree', async () 
   expect(exported).toMatchObject({
     ok: true,
     value: {
-      document: { version: 7 },
+      document: { version: 8 },
       typedDependencies: [
         { id: 'start-link', type: 'SS' },
         { id: 'finish-link', type: 'FF' },
@@ -612,7 +614,7 @@ test('spells each leaf’s step nodes beside their IDs', async () => {
 
 test('version 6 carries each row’s readiness and hold, and earlier versions read as nothing said', async () => {
   const exported = structuredClone(await exportDocument());
-  expect(exported.document.version).toBe(7);
+  expect(exported.document.version).toBe(8);
   const row = exported.workItems.find(
     (each) => !exported.workItems.some((c) => c.parentId === each.id),
   );
@@ -839,4 +841,34 @@ test('refuses a version-7 zone, outcome, order, running pair or running number i
   for (const [file, path] of cases) {
     expect(await classifyPlanDocument(file)).toEqual({ ok: false, code: 'invalid_body', path });
   }
+});
+
+test('version 8 keeps minute step units and refuses missing or unknown written units', async () => {
+  const tree = structuredClone(TREE);
+  tree.steps = tree.steps.map((step) => ({ ...step, estimateUnit: 'minutes' }));
+  const document = await exportDocument(tree);
+  expect(document.document.version).toBe(8);
+  const classified = await classifyPlanDocument(document);
+  expect(classified.ok).toBe(true);
+  if (!classified.ok) throw new Error('minute document refused');
+  expect(classified.value.steps[0]?.estimateUnit).toBe('minutes');
+  for (const unit of [undefined, 'hours']) {
+    const damaged = structuredClone(document);
+    if (unit === undefined) Reflect.deleteProperty(damaged.steps[0] ?? {}, 'estimateUnit');
+    else Reflect.set(damaged.steps[0] ?? {}, 'estimateUnit', unit);
+    expect(await classifyPlanDocument(damaged)).toEqual({
+      ok: false,
+      code: 'invalid_body',
+      path: 'steps[0].estimateUnit',
+    });
+  }
+  const older = structuredClone(document);
+  Reflect.set(older.document, 'version', 7);
+  Reflect.deleteProperty(older.steps[0] ?? {}, 'estimateUnit');
+  const historical = await classifyPlanDocument(older);
+  if (!historical.ok) throw new Error('historical document refused');
+  expect(historical.value.steps[0]?.estimateUnit).toBe('workdays');
+  const missing = structuredClone(TREE);
+  Reflect.deleteProperty(missing.steps[0] ?? {}, 'estimateUnit');
+  expect(await exportError(missing)).toContain('estimate unit');
 });

@@ -33,6 +33,7 @@ export function projectRegistrations(open: OpenCase<'projects'>): readonly CaseR
           position: 10,
           code: 'build',
           allowancePercent: 0,
+          estimateUnit: 'workdays' as const,
         },
         {
           id: 'project-created-qa',
@@ -41,6 +42,7 @@ export function projectRegistrations(open: OpenCase<'projects'>): readonly CaseR
           position: 20,
           code: 'verify',
           allowancePercent: 0,
+          estimateUnit: 'workdays' as const,
         },
       ];
 

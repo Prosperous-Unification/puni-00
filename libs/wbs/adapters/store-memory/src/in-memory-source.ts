@@ -8,7 +8,7 @@ import { inMemoryCapacity } from './capacity-fixture';
 import { inMemoryCommandJournal } from './command-journal-fixture';
 import { inMemoryDependencies } from './dependency-fixture';
 import { inMemoryDirectory } from './directory-fixture';
-import { inMemoryEstimates } from './estimate-fixture';
+import { inMemoryEstimates, memoryEstimateTable } from './estimate-fixture';
 import { inMemoryPlanEvents } from './history-fixture';
 import { inMemoryMeasures } from './measure-fixture';
 import { inMemoryWorkItems } from './memory-work-item-fixture';
@@ -35,8 +35,9 @@ export function inMemoryStores(): TransactionalStores {
     workItems.listByProject(projectId),
   );
   const workItems = inMemoryWorkItems(directory);
-  const steps = inMemorySteps();
-  const estimates = inMemoryEstimates(workItems, undefined, steps);
+  const estimateTable = memoryEstimateTable();
+  const steps = inMemorySteps([], undefined, estimateTable);
+  const estimates = inMemoryEstimates(workItems, estimateTable, steps);
   const actuals = inMemoryActuals(workItems, undefined, steps);
   const measures = inMemoryMeasures(workItems, undefined, steps);
   const progress = inMemoryProgress(workItems, undefined, steps);

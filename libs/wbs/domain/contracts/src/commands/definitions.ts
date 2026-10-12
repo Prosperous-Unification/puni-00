@@ -120,7 +120,7 @@ export const commandDefinitions = {
     }),
     scope: 'project',
     description:
-      'Set the three-point estimate of one step on a leaf work item. Address it with workItemId/workItemRef and stepId, or stepNodeId (sn1.<workItemId>.<stepId>).',
+      'Set the three-point estimate in the step estimate unit (workdays or whole minutes) on a leaf work item. Address it with workItemId/workItemRef and stepId, or stepNodeId (sn1.<workItemId>.<stepId>).',
   }),
   clearEstimate: defineCommand('clearEstimate', {
     schema: type({ kind: "'clearEstimate'", ...step }),

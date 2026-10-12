@@ -5,19 +5,24 @@ import {
   allowanceHundredthsOf,
   allowanceOf,
   allowancePercentOf,
-  beforeRoundingDays,
+  beforeRoundingFigure,
   chargedDays,
+  chargedMinutes,
+  chargedWorkdaysOf,
   DEFAULT_ESTIMATE_RULE,
   DEFAULT_PERT_WEIGHTS,
   ESTIMATE_METHODS,
   ESTIMATE_ROUNDINGS,
   type EstimateMethod,
   type EstimateRule,
+  EstimateTrio,
   expectedDays,
   isEstimateMethod,
   isEstimateRounding,
   MAX_ALLOWANCE_PERCENT,
   MAX_ESTIMATE_DAYS,
+  MAX_ESTIMATE_MINUTES,
+  minuteTrioProblem,
   NO_ALLOWANCE,
   PertWeights,
   ThreePointEstimate,
@@ -318,13 +323,13 @@ describe('chargedDays', () => {
   });
 
   it('applies a 30% allowance to a 2-day base: 2.6 before rounding, 3 charged', () => {
-    expect(beforeRoundingDays(flat(2), DEFAULT_ESTIMATE_RULE, 30)).toBeCloseTo(2.6, 12);
+    expect(beforeRoundingFigure(flat(2), DEFAULT_ESTIMATE_RULE, 30)).toBeCloseTo(2.6, 12);
     expect(chargedDays(flat(2), DEFAULT_ESTIMATE_RULE, 30)).toBe(3);
   });
 
   /** Proof: see {@link chargedDays} — rounding the base first charges 3 here. */
   it('applies the allowance before rounding', () => {
-    expect(beforeRoundingDays(flat(1.1), DEFAULT_ESTIMATE_RULE, 30)).toBeCloseTo(1.43, 12);
+    expect(beforeRoundingFigure(flat(1.1), DEFAULT_ESTIMATE_RULE, 30)).toBeCloseTo(1.43, 12);
     expect(chargedDays(flat(1.1), DEFAULT_ESTIMATE_RULE, 30)).toBe(2);
   });
 
@@ -353,5 +358,82 @@ describe('allowanceOf', () => {
     const allowances = new Map([['qa', 30]]);
     expect(allowanceOf(allowances, 'qa')).toBe(30);
     expect(() => allowanceOf(allowances, 'dev')).toThrow('no allowance is known for step dev');
+  });
+});
+
+describe('minute estimates', () => {
+  const trio = { optimistic: 30, realistic: 40, pessimistic: 90 };
+
+  it('charges a minute step to the whole minute after its allowance', () => {
+    expect(chargedMinutes(trio, DEFAULT_ESTIMATE_RULE, 10)).toBe(52);
+  });
+
+  it('never consults the project rounding for a minute step', () => {
+    for (const rounding of ['floor', 'exact', 'ceil'] as const) {
+      expect(chargedMinutes(trio, { ...DEFAULT_ESTIMATE_RULE, rounding }, 10)).toBe(52);
+    }
+  });
+
+  it('places 240 minutes as half a workday exactly', () => {
+    expect(
+      chargedWorkdaysOf(
+        'minutes',
+        { optimistic: 240, realistic: 240, pessimistic: 240 },
+        DEFAULT_ESTIMATE_RULE,
+        0,
+      ),
+    ).toBe(0.5);
+    expect(
+      chargedWorkdaysOf(
+        'workdays',
+        { optimistic: 0.5, realistic: 0.5, pessimistic: 0.5 },
+        DEFAULT_ESTIMATE_RULE,
+        0,
+      ),
+    ).toBe(1);
+  });
+
+  it('refuses a fractional minute point', () => {
+    expect(minuteTrioProblem({ optimistic: 1.5, realistic: 2, pessimistic: 3 })).toBe(
+      'minutes_not_integer',
+    );
+    expect(minuteTrioProblem({ optimistic: 1, realistic: 2.5, pessimistic: 3 })).toBe(
+      'minutes_not_integer',
+    );
+    expect(minuteTrioProblem({ optimistic: 1, realistic: 2, pessimistic: 3.5 })).toBe(
+      'minutes_not_integer',
+    );
+    expect(minuteTrioProblem({ optimistic: -1, realistic: 2, pessimistic: 3 })).toBe(
+      'minutes_not_integer',
+    );
+    expect(minuteTrioProblem(trio)).toBeNull();
+  });
+
+  it('refuses a minute point above MAX_ESTIMATE_MINUTES', () => {
+    expect(minuteTrioProblem({ optimistic: 0, realistic: 1, pessimistic: 21_474_836_161 })).toBe(
+      'minutes_above_max',
+    );
+    expect(
+      minuteTrioProblem({ optimistic: 0, realistic: 1, pessimistic: MAX_ESTIMATE_MINUTES }),
+    ).toBeNull();
+  });
+});
+
+describe('EstimateTrio', () => {
+  it('accepts finite minute figures above the workday cap before unit validation', () => {
+    const points = {
+      optimistic: MAX_ESTIMATE_DAYS + 1,
+      realistic: MAX_ESTIMATE_DAYS + 1,
+      pessimistic: MAX_ESTIMATE_DAYS + 1,
+    };
+    expect(parseOrThrow(EstimateTrio, points)).toEqual(points);
+  });
+  it('refuses nonfinite, negative and unordered points', () => {
+    for (const points of [
+      { optimistic: 1, realistic: 2, pessimistic: Infinity },
+      { optimistic: -1, realistic: 2, pessimistic: 3 },
+      { optimistic: 3, realistic: 2, pessimistic: 4 },
+    ])
+      expect(() => parseOrThrow(EstimateTrio, points)).toThrow(ValidationError);
   });
 });

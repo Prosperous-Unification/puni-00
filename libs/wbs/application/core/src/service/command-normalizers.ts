@@ -3,6 +3,7 @@ import {
   type AllowancePercent,
   allowancePercentOf,
   type AttemptOutcome,
+  EstimateTrio,
   isAttemptOutcome,
   isDependencyEndpointScope,
   isIsoDate,
@@ -12,7 +13,6 @@ import {
   LONGEST_NOT_BEFORE_REASON,
   MOST_PEOPLE_AT_ONCE,
   parseStepNodeId,
-  ThreePointEstimate,
 } from '@wbs/domain';
 import { parseOrThrow } from '@wbs/validation';
 
@@ -759,7 +759,7 @@ export const commandNormalizers = {
   setEstimate: (raw: CommandInput<'setEstimate'>) => ({
     kind: 'setEstimate' as const,
     ...normalizeStepAddress(raw),
-    days: parseOrThrow(ThreePointEstimate, raw.days),
+    days: parseOrThrow(EstimateTrio, raw.days),
   }),
   clearEstimate: (raw: CommandInput<'clearEstimate'>) => ({
     kind: 'clearEstimate' as const,

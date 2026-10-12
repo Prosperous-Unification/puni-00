@@ -34,6 +34,7 @@ import type {
 } from '@/lib/wbs-api';
 
 import type { DepLights } from './dep-light-store';
+import { showDuration } from './duration-words';
 import { AttemptCard, AttemptMark, AttemptPatterns, identifyAttemptMark } from './gantt-attempt';
 import {
   AXIS_RUNGS,
@@ -1694,8 +1695,13 @@ function lateWords(lateBy: number | null): string | null {
  * `1 failed | 90 passed`, on `expected '…14 Aug → 14 Aug · 0 days…' to contain
  * 'not estimated'`. Watched 2026-08-12.
  */
+// Proof: formatting minute charge with dayWords(bar.duration) failed the native-minute chart agreement case; watched 2026-10-12.
 const durationWords = (bar: GanttBar): string =>
-  bar.estimated ? dayWords(bar.duration) : 'not estimated';
+  bar.estimated
+    ? bar.charged?.unit === 'minutes'
+      ? `${showDuration(bar.charged)} · placed on the working calendar`
+      : dayWords(bar.duration)
+    : 'not estimated';
 
 /** Collision words preserve unknown estimates and the actual span of completed work. */
 export function describeForecastSpan(bar: GanttBar): string {

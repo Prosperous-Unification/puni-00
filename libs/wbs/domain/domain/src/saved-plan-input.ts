@@ -1,4 +1,4 @@
-import { combinedDays, type EstimateRule } from './estimate';
+import { combinedFigure, type EstimateRule } from './estimate';
 import type { CanonicalExternalRef, CanonicalStepValue, PlanInputRows } from './saved-plan';
 import type { PlanInputReads } from './saved-plan-capture-values';
 
@@ -107,6 +107,8 @@ export function planInputRowsOf(reads: PlanInputReads): PlanInputRows {
       // the live step changes later` failed on `Expected: 30, Received: 0`
       // (2026-09-27).
       allowancePercent: row.allowancePercent,
+      // Proof: forcing workdays failed the captured minute-plan test (saved-plan-input.test.ts).
+      estimateUnit: row.estimateUnit,
     })),
     stepValues: stepValuesOf(reads, rule),
     measures: reads.measures.map((row) => ({
@@ -176,7 +178,7 @@ export function planInputRowsOf(reads: PlanInputReads): PlanInputRows {
  * an early plan and is exactly the row a saved plan must not lose. The key is
  * the pair, and every read contributes keys to it.
  *
- * `derived` is `combinedDays` under the project's own rule — the *unrounded*
+ * `derived` is `combinedFigure` under the project's own rule — the *unrounded*
  * figure, which is what {@link CanonicalStepValue} names and what a reader
  * asking "what does this estimate mean" wants; everything that schedules uses
  * the rounded one and derives it again from the same three points. It is `null`
@@ -184,7 +186,7 @@ export function planInputRowsOf(reads: PlanInputReads): PlanInputRows {
  * three points carry.
  *
  * Storing it at all, when the three points and the rule are both in the body, is
- * the deliberate part: `combinedDays` is a *semantics*, and a saved plan that
+ * the deliberate part: `combinedFigure` is a *semantics*, and a saved plan that
  * re-derived the figure on read would restate history the day the arithmetic
  * changed — the same reason the dates are materialised rather than recomputed.
  */
@@ -211,7 +213,7 @@ function stepValuesOf(reads: PlanInputReads, rule: EstimateRule): CanonicalStepV
       optimistic: estimate?.optimistic ?? null,
       realistic: estimate?.realistic ?? null,
       pessimistic: estimate?.pessimistic ?? null,
-      derived: estimate === undefined ? null : combinedDays(estimate, rule),
+      derived: estimate === undefined ? null : combinedFigure(estimate, rule),
       actual: actuals.get(key)?.days ?? null,
       progress: progress.get(key)?.state ?? null,
     };

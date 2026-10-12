@@ -346,6 +346,7 @@ describe('a priority ladder moves no date', () => {
           position: STEP_POSITION_STEP,
           code: 'dev',
           allowancePercent: 0,
+          estimateUnit: 'workdays' as const,
         },
       ],
       STAMP,
@@ -787,6 +788,7 @@ describe('a priority ladder moves no date', () => {
       code: `step-${String(place)}`,
       position: (place + 1) * STEP_POSITION_STEP,
       allowancePercent: 0,
+      estimateUnit: 'workdays' as const,
     }));
     await projects.create(project, steps, STAMP);
     for (const row of plan.rows) {

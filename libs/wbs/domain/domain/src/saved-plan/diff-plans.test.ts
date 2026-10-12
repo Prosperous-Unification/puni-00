@@ -517,3 +517,13 @@ describe('diffPlans — the catch-all', () => {
     expect(differences[0]).toMatchObject({ category: 'other', path: 'laterCollection[#0].value' });
   });
 });
+
+it('reports a captured estimate unit change under steps', () => {
+  const changed = {
+    ...input,
+    steps: input.steps.map((step) => ({ ...step, estimateUnit: 'minutes' as const })),
+  };
+  const differences = diffPlans(side(), side(changed));
+  expect(planDiffIsEmpty(differences)).toBe(false);
+  expect(JSON.stringify(differences)).toContain('estimateUnit');
+});

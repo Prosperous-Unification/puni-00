@@ -5,6 +5,9 @@ import {
   type AttemptOutcome,
   canDepend,
   cleanName,
+  EstimateTrio,
+  type EstimateUnit,
+  estimateUnitOf,
   findTypedEndpointDefect,
   formatTypedDependencyKey,
   type Hold,
@@ -18,6 +21,7 @@ import {
   LONGEST_NOT_BEFORE_REASON,
   MEASURE_METRICS,
   type MeasureMetric,
+  minuteTrioProblem,
   MOST_PEOPLE_AT_ONCE,
   PertWeights,
   priorityLadderProblem,
@@ -54,6 +58,7 @@ export interface PreparedMarker {
 }
 
 export interface PreparedStep {
+  estimateUnit: EstimateUnit;
   fileId: string;
   name: string;
   position: number;
@@ -266,10 +271,15 @@ function parseLeaf(
   const estimateEntries = stepEntries(row.estimates, `${prefix}.estimates`, steps);
   if ('ok' in estimateEntries) return estimateEntries;
   const estimates: PreparedEstimate[] = [];
+  const units = new Map([...steps].map(([id, step]) => [id, step.estimateUnit]));
   for (const [stepId, value] of estimateEntries) {
-    const estimate = ThreePointEstimate(value);
+    const unit = estimateUnitOf(units, stepId);
+    const estimate = unit === 'minutes' ? EstimateTrio(value) : ThreePointEstimate(value);
     // Proof: bypassing this parse made the unordered-estimate test accept 3/2/1.
     if (estimate instanceof type.errors)
+      return refuses('invalid_body', `${prefix}.estimates.${stepId}`);
+    // Proof: bypassing this guard imported fractional minutes with 201 instead of 400 (composed minute import test).
+    if (unit === 'minutes' && minuteTrioProblem(estimate) !== null)
       return refuses('invalid_body', `${prefix}.estimates.${stepId}`);
     estimates.push({ stepFileId: stepId, ...estimate });
   }
@@ -853,10 +863,10 @@ export function prepareImport(
       rows: document.workItems.map(rowShape),
       // Proof (2026-09-28): restoring file-array order made the shuffled-step
       // position-order cycle test import a project instead of refusing it.
-      steps: inStepOrder.map(({ id, allowancePercent }) => {
+      steps: inStepOrder.map(({ id, allowancePercent, estimateUnit }) => {
         const checked = allowancePercentOf(allowancePercent);
         if (checked === null) throw new Error(`validated allowance disappeared for step ${id}`);
-        return { id, allowancePercent: checked };
+        return { id, allowancePercent: checked, estimateUnit };
       }),
       estimates: preparedRows.flatMap(({ fileId, estimates }) =>
         estimates.map(({ stepFileId }) => ({ workItemId: fileId, stepId: stepFileId })),
@@ -886,11 +896,13 @@ export function prepareImport(
     ...inStepOrder.flatMap(({ id, code }) => (code === null ? [] : [[id, code] as const])),
     ...uncoded.map(({ id }, at) => [id, suggested[at]] as const),
   ]);
-  const preparedSteps = document.steps.map(({ id, name, position, allowancePercent }) => {
-    const code = codeByFileId.get(id);
-    if (code === undefined) throw new Error(`step ${id} was not coded during preparation`);
-    return { fileId: id, name, position, allowancePercent, code };
-  });
+  const preparedSteps = document.steps.map(
+    ({ id, name, position, allowancePercent, estimateUnit }) => {
+      const code = codeByFileId.get(id);
+      if (code === undefined) throw new Error(`step ${id} was not coded during preparation`);
+      return { fileId: id, name, position, allowancePercent, estimateUnit, code };
+    },
+  );
   const stepByFileId = new Map(preparedSteps.map((step) => [step.fileId, step] as const));
   const preparedTeams = document.directory.teams.map(({ id, name, serviceIds }) => ({
     fileId: id,

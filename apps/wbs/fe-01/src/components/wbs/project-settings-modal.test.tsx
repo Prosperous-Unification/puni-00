@@ -69,10 +69,20 @@ function mounted(
     Promise.resolve(),
   );
   const addStep = vi.fn(() =>
-    Promise.resolve({ id: 'step-design', name: 'Design', allowancePercent: 0 }),
+    Promise.resolve({
+      estimateUnit: 'workdays' as const,
+      id: 'step-design',
+      name: 'Design',
+      allowancePercent: 0,
+    }),
   );
   const renameStep = vi.fn(() =>
-    Promise.resolve({ id: 'step-qa', name: 'Review', allowancePercent: 0 }),
+    Promise.resolve({
+      estimateUnit: 'workdays' as const,
+      id: 'step-qa',
+      name: 'Review',
+      allowancePercent: 0,
+    }),
   );
   const removeStep = vi.fn(() => Promise.resolve({ ok: true }));
   const onChanged = vi.fn(() => Promise.resolve());
@@ -93,8 +103,8 @@ function mounted(
     priorities: { bands: DEFAULT_PRIORITY_BANDS, setBands, onChanged },
     steps: {
       steps: [
-        { id: 'step-dev', name: 'Dev', allowancePercent: 0 },
-        { id: 'step-qa', name: 'QA', allowancePercent: 0 },
+        { estimateUnit: 'workdays' as const, id: 'step-dev', name: 'Dev', allowancePercent: 0 },
+        { estimateUnit: 'workdays' as const, id: 'step-qa', name: 'QA', allowancePercent: 0 },
       ],
       frameState: { hasAnyNotBefore: false, deepestDepth: 0, numberingFrozen: false },
       hiddenColumnIds: INITIAL_HIDDEN_COLUMNS,
@@ -105,9 +115,17 @@ function mounted(
       // required prop out typechecks differently from the app that mounts it.
       depReach: 'whole-item',
       setDepReach: () => Promise.resolve(),
+      estimateCounts: { 'step-dev': 0, 'step-qa': 0 },
+      setStepUnit: vi.fn(),
       addStep,
       renameStep,
-      setStepAllowance: () => Promise.resolve({ id: 'step-qa', name: 'QA', allowancePercent: 0 }),
+      setStepAllowance: () =>
+        Promise.resolve({
+          estimateUnit: 'workdays' as const,
+          id: 'step-qa',
+          name: 'QA',
+          allowancePercent: 0,
+        }),
       removeStep,
       onChanged,
     },
@@ -350,13 +368,17 @@ describe('closing over an edit', () => {
     );
     mounted({
       steps: {
-        steps: [{ id: 'step-qa', name: 'QA', allowancePercent: 0 }],
+        steps: [
+          { estimateUnit: 'workdays' as const, id: 'step-qa', name: 'QA', allowancePercent: 0 },
+        ],
         frameState: { hasAnyNotBefore: false, deepestDepth: 0, numberingFrozen: false },
         hiddenColumnIds: INITIAL_HIDDEN_COLUMNS,
         numberOf: () => null,
         nameOf: () => null,
         depReach: 'whole-item',
         setDepReach: () => Promise.resolve(),
+        estimateCounts: { 'step-dev': 0, 'step-qa': 0 },
+        setStepUnit: vi.fn(),
         addStep: vi.fn(),
         renameStep: vi.fn(),
         setStepAllowance: vi.fn(),

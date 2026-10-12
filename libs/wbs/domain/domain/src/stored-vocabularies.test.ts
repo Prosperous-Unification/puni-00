@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'bun:test';
 
-import { ATTEMPT_OUTCOMES, isAttemptOutcome } from './stored-vocabularies';
+import {
+  ATTEMPT_OUTCOMES,
+  ESTIMATE_UNITS,
+  isAttemptOutcome,
+  isEstimateUnit,
+} from './stored-vocabularies';
 
 describe('ATTEMPT_OUTCOMES', () => {
   it('admits exactly the three attempt outcomes', () => {
@@ -10,4 +15,11 @@ describe('ATTEMPT_OUTCOMES', () => {
       expect(isAttemptOutcome(stranger)).toBe(false);
     }
   });
+});
+
+it('admits exactly the two estimate units', () => {
+  expect([...ESTIMATE_UNITS].sort()).toEqual(['minutes', 'workdays']);
+  for (const unit of ESTIMATE_UNITS) expect(isEstimateUnit(unit)).toBe(true);
+  for (const stranger of ['hours', 'days', '', null, undefined, 3])
+    expect(isEstimateUnit(stranger)).toBe(false);
 });

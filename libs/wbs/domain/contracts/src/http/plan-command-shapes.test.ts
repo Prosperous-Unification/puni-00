@@ -187,6 +187,9 @@ test('emits inline MCP-readable command branches with real nested patch and esti
   expect(
     find('patchWorkItem')?.properties?.['patch']?.properties?.['externalRefs']?.items?.required,
   ).toEqual(['systemId', 'url']);
+  // Proof: replacing the production unit wording with configured unit failed these assertions.
+  expect(find('setEstimate')?.description).toContain('workdays');
+  expect(find('setEstimate')?.description).toContain('whole minutes');
   expect(find('setEstimate')?.properties?.['days']?.required).toEqual([
     'optimistic',
     'pessimistic',

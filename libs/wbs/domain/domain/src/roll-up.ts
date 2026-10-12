@@ -1,4 +1,14 @@
-import { allowanceOf, chargedDays, type EstimateRule, type StepAllowances } from './estimate';
+import {
+  allowanceOf,
+  chargedDays,
+  type ChargedEstimate,
+  chargedMinutes,
+  chargedWorkdays,
+  type EstimateRule,
+  estimateUnitOf,
+  type StepAllowances,
+  type StepUnits,
+} from './estimate';
 import type { ParentedRow } from './is-within';
 import { agree, type ProgressStatus, statusOf, UNKNOWN } from './progress';
 import type { StepNodeRef } from './step-node';
@@ -126,20 +136,52 @@ export function rollUpFinals(
   rows: readonly ParentedRow[],
   estimates: readonly StoredEstimate[],
   rule: EstimateRule,
-  /**
-   * Each project step's allowance, applied to a **leaf's** estimate only: a
-   * parent's figure is the sum of its descendants' charged days, so the
-   * allowance is never applied twice.
-   */
   allowances: StepAllowances,
+  units: StepUnits,
 ): Map<string, Map<string, number>> {
+  return new Map(
+    [...rollUpCharged(rows, estimates, rule, allowances, units)].map(([id, byStep]) => [
+      id,
+      new Map([...byStep].map(([stepId, charged]) => [stepId, chargedWorkdays(charged)])),
+    ]),
+  );
+}
+
+/** Folds each leaf's native charge before converting minutes to the workday axis. */
+export function rollUpCharged(
+  rows: readonly ParentedRow[],
+  estimates: readonly StoredEstimate[],
+  rule: EstimateRule,
+  allowances: StepAllowances,
+  units: StepUnits,
+): Map<string, Map<string, ChargedEstimate>> {
   const ownOf = new Map<string, Map<string, number>>();
   for (const held of estimates) {
     const byStep = ownOf.get(held.workItemId) ?? new Map<string, number>();
-    byStep.set(held.stepId, chargedDays(held, rule, allowanceOf(allowances, held.stepId)));
+    const allowance = allowanceOf(allowances, held.stepId);
+    const unit = estimateUnitOf(units, held.stepId);
+    byStep.set(
+      held.stepId,
+      unit === 'minutes'
+        ? chargedMinutes(held, rule, allowance)
+        : chargedDays(held, rule, allowance),
+    );
     ownOf.set(held.workItemId, byStep);
   }
-  return foldByStep(rows, ownOf, (a, b) => a + b);
+  const folded = foldByStep(rows, ownOf, (a, b) => a + b);
+  return new Map(
+    [...folded].map(([id, byStep]) => [
+      id,
+      new Map(
+        [...byStep].map(([stepId, figure]): [string, ChargedEstimate] => [
+          stepId,
+          estimateUnitOf(units, stepId) === 'minutes'
+            ? { unit: 'minutes', minutes: figure }
+            : { unit: 'workdays', days: figure },
+        ]),
+      ),
+    ]),
+  );
 }
 
 /**

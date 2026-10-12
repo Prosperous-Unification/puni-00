@@ -200,6 +200,7 @@ const PROJECT_API_OPERATIONS = {
   addStep: 'postApiProjectsByIdSteps',
   renameStep: 'patchApiProjectsByIdStepsByStepId',
   setStepAllowance: 'patchApiProjectsByIdStepsByStepId',
+  setStepUnit: 'patchApiProjectsByIdStepsByStepId',
   removeStep: 'deleteApiProjectsByIdStepsByStepId',
   createWorkItem: 'postApiProjectsByIdCommands',
   patchWorkItem: 'postApiProjectsByIdCommands',
@@ -796,11 +797,11 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
 
   const addStepAnswer = answers.addStep;
   if (addStepAnswer !== undefined) {
-    checked.addStep = async (projectId, name) => {
+    checked.addStep = async (projectId, name, estimateUnit = 'workdays') => {
       const started = startMutation(
         addStep,
-        { params: { id: projectId }, body: { name } },
-        (prepared) => addStepAnswer(prepared.params.id, prepared.body.name),
+        { params: { id: projectId }, body: { name, estimateUnit } },
+        (prepared) => addStepAnswer(prepared.params.id, prepared.body.name, estimateUnit),
       );
       const { prepared, mutation } = isPromiseLike(started) ? await started : started;
       const client = clientFromShapes([addStep], async () => {
@@ -1113,6 +1114,44 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
           if (!(cause instanceof Error)) throw cause;
           if (cause.message === 'invalid_allowance')
             return { kind: 'json', status: 422, body: { error: 'invalid_allowance' } };
+          if (cause.message === 'not_found')
+            return { kind: 'json', status: 404, body: { error: 'not_found' } };
+          throw cause;
+        }
+      });
+      const reply = await client.patchApiProjectsByIdStepsByStepId({
+        params: prepared.params,
+        body: prepared.body,
+      });
+      if (reply.kind === 'failure') boundaryFailure(reply.failure);
+      if (reply.kind === 'refusal') throw new Error(reply.body.error);
+      return stepViewOf(reply.body.step);
+    };
+  }
+
+  const setStepUnitAnswer = answers.setStepUnit;
+  if (setStepUnitAnswer !== undefined) {
+    checked.setStepUnit = async (projectId, stepId, estimateUnit) => {
+      const started = startMutation(
+        renameStep,
+        { params: { id: projectId, stepId }, body: { estimateUnit } },
+        (prepared) => setStepUnitAnswer(prepared.params.id, prepared.params.stepId, estimateUnit),
+      );
+      const { prepared, mutation } = isPromiseLike(started) ? await started : started;
+      const client = clientFromShapes([renameStep], async () => {
+        try {
+          const step = await mutation;
+          return { kind: 'json', status: 200, body: { step: { ...step, projectId, position: 0 } } };
+        } catch (cause) {
+          if (!(cause instanceof Error)) throw cause;
+          if (cause.message === 'invalid_estimate_unit')
+            return { kind: 'json', status: 422, body: { error: 'invalid_estimate_unit' } };
+          if (cause instanceof EstimateUnitConflict)
+            return {
+              kind: 'json',
+              status: 409,
+              body: { error: 'estimates_present', count: cause.count },
+            };
           if (cause.message === 'not_found')
             return { kind: 'json', status: 404, body: { error: 'not_found' } };
           throw cause;
@@ -1735,4 +1774,11 @@ export function refusingApi<Answers extends Partial<ProjectApi>>(
       return () => Promise.reject(new Error(`api.${key} is not one this test answers`));
     },
   }) as ProjectApi & Answers;
+}
+
+/** The modeled unit-edit conflict carries the stored estimate count. */
+export class EstimateUnitConflict extends Error {
+  constructor(readonly count: number) {
+    super('estimates_present');
+  }
 }

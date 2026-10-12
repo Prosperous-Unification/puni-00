@@ -1,5 +1,6 @@
 import { ASSUMED_SLICE_WORKDAYS } from '@wbs/domain/assumed-duration';
 import type { DependencyReach } from '@wbs/domain/dependency-reach';
+import type { ChargedEstimate, EstimateUnit } from '@wbs/domain/estimate';
 import type { WorkItemStatus } from '@wbs/domain/progress';
 import {
   addWorkdays,
@@ -12,6 +13,7 @@ import {
 
 import type { AttemptView, PriorityBandView } from '@/lib/wbs-api';
 
+import { readMinuteCharge } from './duration-words';
 import { AXIS_RUNGS, type AxisRung, STAGE_ONE_DAY_START_MINUTE } from './gantt-axis';
 import { shortIsoDate } from './short-date';
 import { resolveTypedGanttArrows } from './typed-gantt-arrows';
@@ -342,6 +344,7 @@ export interface EstimateTrio {
 export interface GanttRow {
   /** Attempt history on materialized nodes; absent on legacy reads without attempts. */
   attemptNodes?: readonly GanttAttemptNode[];
+  charged?: Readonly<Record<string, ChargedEstimate>>;
   id: string;
   /**
    * The derived number the plan's Number column shows for this row — `010`,
@@ -568,6 +571,7 @@ export interface GanttTreeRow {
 
 /** A step of the plan: its id, its name for the words on a bar, and its place in the list. */
 export interface GanttStep {
+  estimateUnit?: EstimateUnit;
   id: string;
   name: string;
 }
@@ -743,6 +747,7 @@ export interface GanttRowLabel {
  * numbers reach `x`, `width` and `y` unconverted.
  */
 export interface GanttBar {
+  charged?: ChargedEstimate;
   sliceId: string;
   rowIndex: number;
   start: number;
@@ -2183,7 +2188,10 @@ export function layOutGantt(plan: GanttPlan, rung: AxisRung = AXIS_RUNGS[0]): Ga
   const placedRows = new Map(plan.rows.map((row, rowIndex) => [row.id, { row, rowIndex }]));
   const sliceById = new Map(plan.slices.map((slice) => [slice.id, slice]));
   const stepsById: ReadonlyMap<string, GanttStepPlace> = new Map(
-    plan.steps.map((step, place) => [step.id, { place, name: step.name }]),
+    plan.steps.map((step, place) => [
+      step.id,
+      { place, name: step.name, estimateUnit: step.estimateUnit },
+    ]),
   );
 
   const predecessorOf = new Map<string, GanttSlice>();
@@ -2317,6 +2325,12 @@ export function layOutGantt(plan: GanttPlan, rung: AxisRung = AXIS_RUNGS[0]): Ga
         start: slice.earliestStart,
         finish: slice.earliestFinish,
         duration: slice.duration,
+        charged:
+          slice.estimated &&
+          slice.stepId !== null &&
+          stepsById.get(slice.stepId)?.estimateUnit === 'minutes'
+            ? readMinuteCharge(row.charged, slice.stepId)
+            : undefined,
         // The placeholder width for an unknown length, never the engine's
         // zero-time span nor `duration`, which is the effort nobody supplied.
         // See {@link GanttBar.drawnSpan}.
@@ -2594,6 +2608,7 @@ export function layOutGantt(plan: GanttPlan, rung: AxisRung = AXIS_RUNGS[0]): Ga
 
 /** One step as the drawing reads it: where it comes in the plan's order, and what it is called. */
 interface GanttStepPlace {
+  estimateUnit?: EstimateUnit;
   place: number;
   name: string;
 }
@@ -2881,7 +2896,10 @@ export function startFloorByRow(
   const rowNames = new Map(plan.rows.map((row) => [row.id, spokenNameOf(row)]));
   const sliceById = new Map(plan.slices.map((slice) => [slice.id, slice]));
   const stepsById: ReadonlyMap<string, GanttStepPlace> = new Map(
-    plan.steps.map((step, place) => [step.id, { place, name: step.name }]),
+    plan.steps.map((step, place) => [
+      step.id,
+      { place, name: step.name, estimateUnit: step.estimateUnit },
+    ]),
   );
   const slicesByWorkItem = new Map<string, GanttSlice[]>();
   for (const slice of plan.slices) {

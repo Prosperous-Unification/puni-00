@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { sameSteps } from './delivered-plan-store';
 
 describe('sameSteps', () => {
-  const qa = { id: 'qa', name: 'QA', allowancePercent: 0 };
+  const qa = { estimateUnit: 'workdays' as const, id: 'qa', name: 'QA', allowancePercent: 0 };
 
   it('treats an identical list as the same', () => {
     expect(sameSteps([qa], [{ ...qa }])).toBe(true);

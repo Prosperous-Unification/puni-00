@@ -28,8 +28,18 @@ const itDom = hasDom ? it : it.skip;
 
 afterEach(cleanup);
 
-const DEV: StepView = { id: 'step-dev', name: 'Dev', allowancePercent: 0 };
-const QA: StepView = { id: 'step-qa', name: 'QA', allowancePercent: 0 };
+const DEV: StepView = {
+  estimateUnit: 'workdays' as const,
+  id: 'step-dev',
+  name: 'Dev',
+  allowancePercent: 0,
+};
+const QA: StepView = {
+  estimateUnit: 'workdays' as const,
+  id: 'step-qa',
+  name: 'QA',
+  allowancePercent: 0,
+};
 
 /** A plan where no row sets an earliest start, which is what a fresh project is. */
 const UNDATED: FrameLayoutState = {
@@ -55,10 +65,20 @@ const PEOPLE: Record<string, string> = { p1: 'Kat', p2: 'Ada' };
  */
 function stubbed(overrides: Partial<Parameters<typeof StepsPanel>[0]> = {}) {
   const addStep = vi.fn(() =>
-    Promise.resolve({ id: 'step-design', name: 'Design', allowancePercent: 0 }),
+    Promise.resolve({
+      estimateUnit: 'workdays' as const,
+      id: 'step-design',
+      name: 'Design',
+      allowancePercent: 0,
+    }),
   );
   const renameStep = vi.fn(() =>
-    Promise.resolve({ id: 'step-qa', name: 'Review', allowancePercent: 0 }),
+    Promise.resolve({
+      estimateUnit: 'workdays' as const,
+      id: 'step-qa',
+      name: 'Review',
+      allowancePercent: 0,
+    }),
   );
   const setStepAllowance = vi.fn(() => Promise.resolve({ ...QA, allowancePercent: 30 }));
   const removeStep = vi.fn(() => Promise.resolve({ ok: true }));
@@ -67,6 +87,8 @@ function stubbed(overrides: Partial<Parameters<typeof StepsPanel>[0]> = {}) {
   const onDirtyChange = vi.fn();
   const props = {
     steps: [DEV, QA],
+    estimateCounts: { 'step-dev': 0, 'step-qa': 0 },
+    setStepUnit: vi.fn(() => Promise.resolve(QA)),
     depReach: 'whole-item' as DependencyReach,
     setDepReach,
     frameState: UNDATED,
@@ -212,7 +234,7 @@ describe('the steps a project holds', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add step' }));
     await settle();
 
-    expect(stub.addStep).toHaveBeenCalledWith('Design');
+    expect(stub.addStep).toHaveBeenCalledWith('Design', 'workdays');
     // The reread is what puts the column on the table. Without it the panel
     // would be the only thing on the page that knew about the new step.
     expect(stub.onChanged).toHaveBeenCalled();
@@ -417,7 +439,7 @@ describe('the chord on the surface', () => {
     });
     await settle();
 
-    expect(stub.addStep).toHaveBeenCalledWith('Design');
+    expect(stub.addStep).toHaveBeenCalledWith('Design', 'workdays');
   });
 
   itDom('submits the rename it was pressed in, not the add box', async () => {
@@ -796,4 +818,33 @@ describe('the sentences on their own', () => {
     expect(said).not.toContain('gone-uuid');
     expect(said).toContain('A work item no longer on screen');
   });
+});
+
+itDom(
+  'blocks the unit control over estimates and changes an empty step with an explicit unit',
+  async () => {
+    const setStepUnit = vi.fn(() => Promise.resolve({ ...QA, estimateUnit: 'minutes' as const }));
+    stubbed({ estimateCounts: { 'step-dev': 2, 'step-qa': 0 }, setStepUnit });
+    expect(screen.getByRole('radio', { name: 'Dev minutes' })).toBeDisabled();
+    expect(screen.getByRole('group', { name: 'Dev estimate unit' })).toHaveAttribute(
+      'title',
+      '2 estimates',
+    );
+    fireEvent.click(screen.getByRole('radio', { name: 'QA minutes' }));
+    await settle();
+    expect(setStepUnit).toHaveBeenCalledWith('step-qa', 'minutes');
+  },
+);
+
+itDom('creates a step with its chosen explicit unit', async () => {
+  const stub = stubbed();
+  type('New step', 'Agent');
+  fireEvent.click(screen.getByRole('radio', { name: 'New step minutes' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Add step' }));
+  await settle();
+  expect(stub.addStep).toHaveBeenCalledWith('Agent', 'minutes');
+});
+
+itDom('refuses a trusted step list with an absent estimate count', () => {
+  expect(() => stubbed({ estimateCounts: {} })).toThrow('no estimate count for step step-dev');
 });

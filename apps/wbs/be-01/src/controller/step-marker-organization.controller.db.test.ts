@@ -516,7 +516,10 @@ describe('after activation', () => {
     const step = await firstStep('ada', own);
     expect(
       await h.call('ada', 'PATCH', `/api/projects/${own}/steps/${step}`, { allowancePercent: 15 }),
-    ).toMatchObject({ status: 200, body: { step: { id: step, allowancePercent: 15 } } });
+    ).toMatchObject({
+      status: 200,
+      body: { step: { estimateUnit: 'workdays' as const, id: step, allowancePercent: 15 } },
+    });
     await marker('ada', own, MARKER);
     expect(
       (

@@ -1,4 +1,9 @@
-import { beforeRoundingDays, combinedDays, type EstimateRule } from '@wbs/domain/estimate';
+import {
+  beforeRoundingFigure,
+  combinedFigure,
+  type EstimateRule,
+  type EstimateUnit,
+} from '@wbs/domain/estimate';
 import type { KeyboardEvent } from 'react';
 
 import type { Days, PlanRead } from '@/lib/wbs-api';
@@ -37,6 +42,7 @@ export const SHORTHAND_HELP =
 
 export interface FoldedStepCardProps {
   stepName: string;
+  estimateUnit: EstimateUnit;
   /** The project the copied node belongs to, so a reopened link can select it. */
   projectId: string;
   /** Null means an older read omitted node metadata or a parent has no node: hide node details. A present node with `reference: null` is uncoded and still offers Copy link. */
@@ -108,6 +114,7 @@ export interface FoldedStepCardProps {
  */
 export function FoldedStepCard({
   stepName,
+  estimateUnit,
   projectId,
   stepNode,
   onExitActions,
@@ -126,6 +133,8 @@ export function FoldedStepCard({
   node,
   attemptActions,
 }: FoldedStepCardProps) {
+  const unitWords = estimateUnit === 'minutes' ? 'min' : 'days';
+  const finalWords = estimateUnit === 'minutes' ? final : `${final} days`;
   const estimated = points.some((each) => each.days.trim() !== '');
   const attempted = node === null ? null : attemptsLine(node.attempts);
   const lastAttempt = node === null ? null : lastAttemptLine(node);
@@ -262,15 +271,18 @@ export function FoldedStepCard({
       </div>
       {estimate !== undefined && allowancePercent !== 0 ? (
         <>
-          <div>Base estimate {auditDays(combinedDays(estimate, rule))} days</div>
+          <div>
+            Base estimate {auditDays(combinedFigure(estimate, rule))} {unitWords}
+          </div>
           <div>Allowance +{String(allowancePercent)}%</div>
           <div>
-            Before rounding {auditDays(beforeRoundingDays(estimate, rule, allowancePercent))} days
+            Before rounding {auditDays(beforeRoundingFigure(estimate, rule, allowancePercent))}{' '}
+            {unitWords}
           </div>
-          <div>Charged {final} days</div>
+          <div>Charged {finalWords}</div>
         </>
       ) : (
-        final !== '' && <div>Final {final} days</div>
+        final !== '' && <div>Final {finalWords}</div>
       )}
       {doing !== null && (
         <div>
@@ -310,7 +322,11 @@ export function FoldedStepCard({
         Last and muted: whoever hovers is reading the plan first and an
         estimator second.
       */}
-      <div style={{ color: 'var(--muted-foreground)' }}>{SHORTHAND_HELP}</div>
+      <div style={{ color: 'var(--muted-foreground)' }}>
+        {estimateUnit === 'minutes'
+          ? SHORTHAND_HELP.replace('Days as', 'Whole minutes as')
+          : SHORTHAND_HELP}
+      </div>
     </HoverCard>
   );
 }

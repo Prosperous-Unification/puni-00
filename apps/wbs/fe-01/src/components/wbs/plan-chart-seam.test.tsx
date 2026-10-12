@@ -586,6 +586,7 @@ describe('the chart under a plan being edited', () => {
             estimateRounding: 'ceil' as const,
             workItems: [
               workItemView({
+                charged: {},
                 id: 'w1',
                 parentId: null,
                 revision: 0,

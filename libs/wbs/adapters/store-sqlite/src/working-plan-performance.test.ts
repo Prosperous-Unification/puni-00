@@ -215,6 +215,7 @@ async function performanceFixture(name: string): Promise<PerformanceFixture> {
         position: 10,
         code: 'step',
         allowancePercent: 0,
+        estimateUnit: 'workdays' as const,
       },
     ],
     STAMP,

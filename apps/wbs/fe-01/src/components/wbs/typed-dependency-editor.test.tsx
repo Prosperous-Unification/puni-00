@@ -7,8 +7,8 @@ import { dependencyWords, endpointChoices, TypedDependencyEditor } from './typed
 import { toTree } from './wbs-rows';
 
 const steps = [
-  { id: 'dev', name: 'Dev', allowancePercent: 0 },
-  { id: 'qa', name: 'QA', allowancePercent: 0 },
+  { estimateUnit: 'workdays' as const, id: 'dev', name: 'Dev', allowancePercent: 0 },
+  { estimateUnit: 'workdays' as const, id: 'qa', name: 'QA', allowancePercent: 0 },
 ];
 const rows = toTree([
   workItemView({ id: 'a', number: '010', name: 'Strip' }),
@@ -93,8 +93,18 @@ describe('typed dependency editor', () => {
 
   it('names selected step endpoints in the lower-bound sentence', () => {
     const uuidSteps = [
-      { id: '550e8400-e29b-41d4-a716-446655440000', name: 'Dev', allowancePercent: 0 },
-      { id: '550e8400-e29b-41d4-a716-446655440001', name: 'QA', allowancePercent: 0 },
+      {
+        estimateUnit: 'workdays' as const,
+        id: '550e8400-e29b-41d4-a716-446655440000',
+        name: 'Dev',
+        allowancePercent: 0,
+      },
+      {
+        estimateUnit: 'workdays' as const,
+        id: '550e8400-e29b-41d4-a716-446655440001',
+        name: 'QA',
+        allowancePercent: 0,
+      },
     ];
     render(
       <TypedDependencyEditor

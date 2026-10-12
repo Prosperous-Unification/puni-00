@@ -1,6 +1,8 @@
 import type { Step, StepRemoved, StepStore, StepUsageRows } from '@wbs/core';
 import { NO_ALLOWANCE, STEP_POSITION_STEP, suggestStepCode } from '@wbs/domain';
 
+import { type MemoryEstimateTable, memoryEstimateTable } from './estimate-fixture';
+
 /**
  * A `Step` row carrying every field the schema requires.
  *
@@ -16,6 +18,7 @@ export function stepRow(overrides: Partial<Step> = {}): Step {
     position: STEP_POSITION_STEP,
     code: suggestStepCode(name, new Set()),
     allowancePercent: NO_ALLOWANCE,
+    estimateUnit: 'workdays',
     ...overrides,
   };
 }
@@ -49,6 +52,7 @@ export function memoryStepTable(seed: readonly Step[] = []): MemoryStepTable {
 export function inMemorySteps(
   seed: readonly Step[] = [],
   table: MemoryStepTable = memoryStepTable(seed),
+  estimates: MemoryEstimateTable = memoryEstimateTable(),
 ): StepStore & { readonly rows: Step[] } {
   const { rows } = table;
   /**
@@ -82,11 +86,22 @@ export function inMemorySteps(
       }
       const written: Step = {
         ...toAdd,
+        estimateUnit: toAdd.estimateUnit ?? 'workdays',
         code: toAdd.code ?? suggestStepCode(toAdd.name, taken),
         position: Math.max(0, ...held.map((each) => each.position)) + STEP_POSITION_STEP,
       };
       rows.push(written);
       return Promise.resolve({ ok: true, step: written });
+    },
+    patchUnit(projectId, stepId, unit) {
+      const found = rows.find((each) => each.id === stepId && each.projectId === projectId);
+      if (found === undefined) return Promise.resolve({ ok: false, reason: 'not_found' });
+      if (found.estimateUnit === unit) return Promise.resolve({ ok: true, step: found });
+      const count = estimates.rows.filter((each) => each.stepId === stepId).length;
+      // Proof: without this refusal, step-unit.test.ts admitted conversion over a stored estimate.
+      if (count > 0) return Promise.resolve({ ok: false, reason: 'estimates_present', count });
+      found.estimateUnit = unit;
+      return Promise.resolve({ ok: true, step: found });
     },
     rename(projectId, stepId, name, _stamp) {
       const found = rows.find((each) => each.id === stepId && each.projectId === projectId);

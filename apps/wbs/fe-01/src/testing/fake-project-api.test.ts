@@ -153,8 +153,8 @@ describe('the fake uses the shared tree response shape', () => {
     await expect(api.addStep('p1', 7 as never)).rejects.toThrow('fake_invalid_request');
 
     expect(await api.steps('p1')).toEqual([
-      { id: 'step-dev', name: 'Dev', allowancePercent: 0 },
-      { id: 'step-qa', name: 'QA', allowancePercent: 0 },
+      { estimateUnit: 'workdays' as const, id: 'step-dev', name: 'Dev', allowancePercent: 0 },
+      { estimateUnit: 'workdays' as const, id: 'step-qa', name: 'QA', allowancePercent: 0 },
     ]);
   });
 
@@ -226,4 +226,24 @@ describe('the fake arranges a plan the way be-01 does', () => {
       ['Strip', '010'],
     ]);
   });
+});
+
+it('keeps native minute charges and refuses a unit change over estimates', async () => {
+  const api = fakeProjectApi();
+  const step = await api.addStep('p1', 'Agent', 'minutes');
+  const parent = await api.createWorkItem('p1', { parentId: null, afterId: null });
+  const first = await api.createWorkItem('p1', { parentId: parent.id, afterId: null });
+  const second = await api.createWorkItem('p1', { parentId: parent.id, afterId: first.id });
+  for (const leaf of [first, second])
+    await api.setEstimate(leaf.id, step.id, { optimistic: 40, realistic: 40, pessimistic: 40 });
+  await expect(api.setStepUnit('p1', step.id, 'workdays')).rejects.toThrow('estimates_present');
+  const tree = await api.tree('p1');
+  expect(tree.workItems.find((row) => row.id === parent.id)?.charged?.[step.id]).toEqual({
+    unit: 'minutes',
+    minutes: 80,
+  });
+  expect(tree.workItems.find((row) => row.id === first.id)?.finalDays[step.id]).toBe(40 / 480);
+  expect((await api.steps('p1')).find((candidate) => candidate.id === step.id)?.estimateUnit).toBe(
+    'minutes',
+  );
 });

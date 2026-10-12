@@ -3562,7 +3562,12 @@ describe('the axis is a calendar', () => {
 /** The Monday the fixture plan begins on, so every offset below is a weekday. */
 const MONDAY = '2026-08-10';
 
-const DEV: StepView = { id: 'step-dev', name: 'Dev', allowancePercent: 0 };
+const DEV: StepView = {
+  estimateUnit: 'workdays' as const,
+  id: 'step-dev',
+  name: 'Dev',
+  allowancePercent: 0,
+};
 
 const NO_DAYS: Days = { optimistic: 0, realistic: 0, pessimistic: 0 };
 
@@ -3589,6 +3594,7 @@ function rowOf(parts: {
   notBefore?: string;
 }): WorkItemView {
   return {
+    charged: {},
     id: parts.id,
     parentId: parts.parentId,
     revision: 0,
@@ -3862,6 +3868,7 @@ function fakeApi(startDate: string | null, skew: ReadSkew = {}): ProjectApi {
     listTimezones: () => notImplemented('listTimezones'),
     addStep: () => notImplemented('addStep'),
     renameStep: () => notImplemented('renameStep'),
+    setStepUnit: () => Promise.reject(new Error('unexpected setStepUnit')),
     setStepAllowance: () => notImplemented('setStepAllowance'),
     removeStep: () => notImplemented('removeStep'),
     addTeam: () => notImplemented('addTeam'),
@@ -4483,7 +4490,11 @@ describe('the chart is drawn from one read', () => {
     // and lists none of the step every slice **is** under. That is the
     // four-request skew this fix exists for, and nothing about it is malformed —
     // both answers were true when they were given.
-    await showTheChart(MONDAY, { steps: [{ id: 'step-ops', name: 'Ops', allowancePercent: 0 }] });
+    await showTheChart(MONDAY, {
+      steps: [
+        { estimateUnit: 'workdays' as const, id: 'step-ops', name: 'Ops', allowancePercent: 0 },
+      ],
+    });
 
     // Proof: `ganttPlan`'s `steps` put back to the `steps` state — the separate
     // read. This test failed on `expected null not to be null`, with the
@@ -10621,3 +10632,34 @@ it('describes a done collision by its actual span instead of the summed forecast
   );
   expect(describeForecastSpan(chart.bars[0])).toBe('Done — 3 days actual span');
 });
+
+itDom.each([
+  [40, '40 min'],
+  [135, '2 h 15 min'],
+  [720, '1.5 d'],
+] as const)(
+  'reads the same native minute charge as the table and places it on the working calendar',
+  (minutes, words) => {
+    render(
+      <GanttPanel
+        plan={planOf({
+          steps: [{ id: 'dev', name: 'Agent', estimateUnit: 'minutes' }],
+          rows: [
+            rowAt('minute', 0, minutes / 480, {
+              charged: { dev: { unit: 'minutes', minutes } },
+            }),
+          ],
+          slices: [sliceAt('minute-dev', 'minute', 0, minutes / 480)],
+        })}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointed={pointedAtRow(null)}
+      />,
+    );
+    expect(surfaceOn('minute-dev')).toHaveTextContent(`${words} · placed on the working calendar`);
+  },
+);

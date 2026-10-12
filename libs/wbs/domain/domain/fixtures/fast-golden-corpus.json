@@ -1,6 +1,87 @@
 {
-  "contractVersion": 15,
+  "contractVersion": 16,
   "cases": {
+    "minute-step-half-workday": {
+      "slices": [
+        [
+          "a\u0000",
+          {
+            "workItemId": "a",
+            "stepId": null,
+            "duration": 0.5,
+            "effort": 0.5,
+            "width": 1,
+            "estimated": true,
+            "earliestStart": 0,
+            "earliestFinish": 0.5,
+            "latestStart": 0,
+            "latestFinish": 0.5,
+            "float": 0,
+            "critical": true,
+            "personId": null,
+            "boundBy": "projectStart",
+            "resourcePredecessorId": null,
+            "capacityPredecessorIds": [],
+            "capacityTeamId": null,
+            "lateBy": null
+          }
+        ],
+        [
+          "b\u0000",
+          {
+            "workItemId": "b",
+            "stepId": null,
+            "duration": 1,
+            "effort": 1,
+            "width": 1,
+            "estimated": true,
+            "earliestStart": 0.5,
+            "earliestFinish": 1.5,
+            "latestStart": 0.5,
+            "latestFinish": 1.5,
+            "float": 0,
+            "critical": true,
+            "personId": null,
+            "boundBy": "predecessor",
+            "resourcePredecessorId": null,
+            "capacityPredecessorIds": [],
+            "capacityTeamId": null,
+            "lateBy": null
+          }
+        ]
+      ],
+      "workItems": [
+        [
+          "a",
+          {
+            "duration": 0.5,
+            "estimated": true,
+            "earliestStart": 0,
+            "earliestFinish": 0.5,
+            "latestStart": 0,
+            "latestFinish": 0.5,
+            "float": 0,
+            "critical": true
+          }
+        ],
+        [
+          "b",
+          {
+            "duration": 1,
+            "estimated": true,
+            "earliestStart": 0.5,
+            "earliestFinish": 1.5,
+            "latestStart": 0.5,
+            "latestFinish": 1.5,
+            "float": 0,
+            "critical": true
+          }
+        ]
+      ],
+      "waitingForPerson": 0,
+      "waitingForCapacity": 0,
+      "eventsVisited": 0
+    },
     "chain-of-three": {
       "slices": [
         [

@@ -1,5 +1,5 @@
 import { DEPENDENCY_REACHES, type DependencyReach } from '@wbs/domain/dependency-reach';
-import { allowancePercentOf } from '@wbs/domain/estimate';
+import { allowancePercentOf, type EstimateUnit } from '@wbs/domain/estimate';
 import { type KeyboardEvent, type SubmitEvent, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -82,6 +82,8 @@ export function flipSentence(
 export interface StepsPanelProps extends SettingsSectionReport {
   /** The steps the table is currently drawing columns for. */
   steps: readonly StepView[];
+  estimateCounts: Readonly<Partial<Record<string, number>>>;
+  setStepUnit: (stepId: string, unit: EstimateUnit) => Promise<StepView>;
   /**
    * The plan the table is drawing, as far as a width depends on it.
    *
@@ -99,7 +101,7 @@ export interface StepsPanelProps extends SettingsSectionReport {
   hiddenColumnIds: readonly string[];
   numberOf: NumberOf;
   nameOf: NameOf;
-  addStep: (name: string) => Promise<StepView>;
+  addStep: (name: string, unit: EstimateUnit) => Promise<StepView>;
   renameStep: (stepId: string, name: string) => Promise<StepView>;
   setStepAllowance: (stepId: string, allowancePercent: number) => Promise<StepView>;
   removeStep: (stepId: string, cascade: boolean) => Promise<{ ok: boolean; inUse?: StepUsage }>;
@@ -181,6 +183,8 @@ interface Confirming {
  */
 export function StepsPanel({
   steps,
+  estimateCounts,
+  setStepUnit,
   frameState,
   hiddenColumnIds,
   numberOf,
@@ -197,6 +201,7 @@ export function StepsPanel({
   onDirtyChange,
 }: StepsPanelProps) {
   const [newName, setNewName] = useState('');
+  const [newUnit, setNewUnit] = useState<EstimateUnit>('workdays');
   /**
    * The names being typed over the steps' own, by step id.
    *
@@ -222,6 +227,7 @@ export function StepsPanel({
     words: STEP_REFUSALS,
     dirty:
       newName.trim() !== '' ||
+      newUnit !== 'workdays' ||
       Object.keys(renamed).length > 0 ||
       Object.keys(allowances).length > 0 ||
       confirming !== null,
@@ -252,6 +258,13 @@ export function StepsPanel({
     await section.attempt(change, onLanded);
   }
 
+  function estimateCount(stepId: string): number {
+    const count = estimateCounts[stepId];
+    // Proof: removing the count guard made the absent-estimate-count mounted test render instead of throwing; watched 2026-10-12.
+    if (count === undefined) throw new Error(`no estimate count for step ${stepId}`);
+    return count;
+  }
+
   function submitNew(event: SubmitEvent<HTMLFormElement>): void {
     event.preventDefault();
     const clean = newName.trim();
@@ -263,7 +276,8 @@ export function StepsPanel({
       return;
     }
     void attempt(async () => {
-      await addStep(clean);
+      await addStep(clean, newUnit);
+      setNewUnit('workdays');
       setNewName('');
     });
   }
@@ -435,6 +449,29 @@ export function StepsPanel({
                     Rename {step.name}
                   </button>
                 </form>
+                {/* Proof: removing the estimate-count disabled arm failed blocks the unit control over estimates; watched 2026-10-12. */}
+                <fieldset
+                  title={`${String(estimateCount(step.id))} ${estimateCount(step.id) === 1 ? 'estimate' : 'estimates'}`}
+                  disabled={section.busy || estimateCount(step.id) > 0}
+                >
+                  <legend>{step.name} estimate unit</legend>
+                  {(['workdays', 'minutes'] as const).map((unit) => (
+                    <label key={unit}>
+                      <input
+                        type="radio"
+                        name={`unit-${step.id}`}
+                        aria-label={`${step.name} ${unit}`}
+                        checked={step.estimateUnit === unit}
+                        onChange={() => {
+                          void attempt(async () => {
+                            await setStepUnit(step.id, unit);
+                          });
+                        }}
+                      />
+                      {unit}
+                    </label>
+                  ))}
+                </fieldset>
                 <div className="flex flex-col gap-1">
                   <Label htmlFor={`allowance-${step.id}`}>{step.name} allowance (%)</Label>
                   <Input
@@ -523,6 +560,23 @@ export function StepsPanel({
                 onKeyDown={onChord}
               />
             </div>
+            <fieldset disabled={section.busy}>
+              <legend>New step estimate unit</legend>
+              {(['workdays', 'minutes'] as const).map((unit) => (
+                <label key={unit}>
+                  <input
+                    type="radio"
+                    name="new-step-unit"
+                    aria-label={`New step ${unit}`}
+                    checked={newUnit === unit}
+                    onChange={() => {
+                      setNewUnit(unit);
+                    }}
+                  />
+                  {unit}
+                </label>
+              ))}
+            </fieldset>
             <Button type="submit" size="sm" disabled={section.busy}>
               Add step
             </Button>

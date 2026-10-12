@@ -1,4 +1,10 @@
-import { STEP_POSITION_STEP, type StepHoldings, stepIsInUse, suggestStepCode } from '@wbs/domain';
+import {
+  type EstimateUnit,
+  STEP_POSITION_STEP,
+  type StepHoldings,
+  stepIsInUse,
+  suggestStepCode,
+} from '@wbs/domain';
 
 export { type StepHoldings, stepIsInUse } from '@wbs/domain';
 
@@ -8,11 +14,12 @@ import type {
   Step,
   StepRemoved,
   StepStore,
+  StepUnitWritten,
   StepUsageRows,
   StepWritten,
   WriteStamp,
 } from '@wbs/core';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, count, eq, inArray } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
@@ -47,6 +54,7 @@ export const STEP_COLUMNS = {
   position: step.position,
   code: step.code,
   allowancePercent: step.allowancePercent,
+  estimateUnit: step.estimateUnit,
 };
 
 /**
@@ -145,6 +153,7 @@ export class StepRepository implements StepStore {
             const taken = new Set(held.flatMap((each) => (each.code === null ? [] : [each.code])));
             const written: Step = {
               ...toAdd,
+              estimateUnit: toAdd.estimateUnit ?? 'workdays',
               code: toAdd.code ?? suggestStepCode(toAdd.name, taken),
               position: Math.max(0, ...held.map((each) => each.position)) + STEP_POSITION_STEP,
             };
@@ -167,6 +176,46 @@ export class StepRepository implements StepStore {
           return { ok: false, reason: 'code_taken' };
         throw err;
       }
+    });
+  }
+
+  /** Refuses unit conversion over estimates; count and update hold the same immediate write lock (ADR 0042). */
+  async patchUnit(
+    projectId: string,
+    stepId: string,
+    unit: EstimateUnit,
+    stamp: WriteStamp,
+  ): Promise<StepUnitWritten> {
+    return this.gate.enter(async () => {
+      await Promise.resolve();
+      return this.db.transaction(
+        (tx) => {
+          const current = tx
+            .select(STEP_COLUMNS)
+            .from(step)
+            .where(and(eq(step.id, stepId), eq(step.projectId, projectId)))
+            .get();
+          if (current === undefined) return { ok: false, reason: 'not_found' };
+          if (current.estimateUnit === unit) return { ok: true, step: current };
+          const holdings = tx
+            .select({ count: count() })
+            .from(estimate)
+            .where(eq(estimate.stepId, stepId))
+            .get();
+          // Proof: an injected absent count row without this guard produced a raw TypeError instead of the named refusal (step.db.test.ts, 2026-10-12).
+          if (holdings === undefined) throw new Error('estimate count returned no row');
+          // Proof: bypassing this count returned 200 instead of 409 for three estimates in step.controller.db.test.ts (2026-10-12).
+          if (holdings.count > 0)
+            return { ok: false, reason: 'estimates_present', count: holdings.count };
+          tx.update(step)
+            .set({ estimateUnit: unit, ...auditOnUpdate(stamp) })
+            .where(and(eq(step.id, stepId), eq(step.projectId, projectId)))
+            .run();
+          bumpProject(tx, projectId, stamp);
+          return { ok: true, step: { ...current, estimateUnit: unit } };
+        },
+        { behavior: 'immediate' },
+      );
     });
   }
 

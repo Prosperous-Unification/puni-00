@@ -64,6 +64,7 @@ export function backfillStepCodes(
             code: step.code,
             position: step.position,
             allowancePercent: step.allowancePercent,
+            estimateUnit: step.estimateUnit,
           })
           .from(step)
           .where(eq(step.projectId, projectId))
@@ -98,6 +99,7 @@ export function backfillStepCodes(
               position: each.position,
               code,
               allowancePercent: each.allowancePercent,
+              estimateUnit: each.estimateUnit,
             },
           };
           eventLog.recordEventIn(tx, subscription, announced, at);

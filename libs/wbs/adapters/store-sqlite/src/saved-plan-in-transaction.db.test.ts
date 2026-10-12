@@ -58,6 +58,7 @@ describe('the quota is read inside the transaction that would write', () => {
           position: 10,
           code: 'dev',
           allowancePercent: 0,
+          estimateUnit: 'workdays' as const,
         },
       ],
       wrote,
@@ -202,6 +203,7 @@ describe('a saved plan is independent of the batch beside it', () => {
           position: 10,
           code: 'dev',
           allowancePercent: 0,
+          estimateUnit: 'workdays' as const,
         },
       ],
       wrote,
@@ -232,7 +234,13 @@ describe('a saved plan is independent of the batch beside it', () => {
       try {
         await uow.run<'done'>(async (scope) => {
           await scope.stores.steps.add(
-            { id: 'st-2', projectId: 'p1', name: 'QA', allowancePercent: 0 },
+            {
+              id: 'st-2',
+              projectId: 'p1',
+              name: 'QA',
+              allowancePercent: 0,
+              estimateUnit: 'workdays' as const,
+            },
             wrote,
           );
           // Inside the batch's own turn, from outside the batch: a save that

@@ -7,6 +7,7 @@ import { useCardOpenOn } from '../cell-card-store';
 import { CellInput } from '../cell-input';
 import { STEP_FINAL_HINT } from '../column-hints';
 import { CreatablePicker, PickerList, pickerOptionId } from '../creatable-picker';
+import { minuteCharge, showDuration } from '../duration-words';
 import { cellIn, cellKey } from '../editable-grid';
 import { POINTS, showTrio } from '../estimate-draft';
 import { FoldedStepCard } from '../folded-step-card';
@@ -88,7 +89,7 @@ export function createEstimatesColumns({
             // button covers most of its `<th>`, so a title naming only the
             // fold would be the one heading in the table where hovering
             // teaches nothing about the column (`column-hints.ts`).
-            data-hint={`${STEP_FINAL_HINT} ${
+            data-hint={`${step.estimateUnit === 'minutes' ? STEP_FINAL_HINT.replace('days', 'minutes') : STEP_FINAL_HINT} ${
               unfolded
                 ? 'Click to fold the three points back into the figure.'
                 : 'Click to show the three points; the table may scroll sideways.'
@@ -152,7 +153,12 @@ export function createEstimatesColumns({
           // what be-01 holds, and one recomputed per keystroke would
           // stand `2.2` beside `9/9/` claiming to be its answer.
           const stored = showTrio(row.original.estimates[step.id]);
-          const final = showFinal(row.original.finalDays[step.id]);
+          const charge =
+            step.estimateUnit === 'minutes' ? minuteCharge(row.original, step.id) : undefined;
+          const final =
+            charge === undefined
+              ? showFinal(row.original.finalDays[step.id])
+              : showDuration(charge);
           // What this cell says without a box in it — a parent's roll-up
           // while the step is folded, and every row's while it is
           // unfolded. The trio when it is the only place the trio is, and
@@ -724,6 +730,7 @@ export function createEstimatesColumns({
               {carded && (
                 <FoldedStepCard
                   stepName={step.name}
+                  estimateUnit={step.estimateUnit}
                   projectId={live.current.projectId}
                   stepNode={readStepNode(row.original, step.id)}
                   onAddDependency={() => {
@@ -856,7 +863,7 @@ export function createEstimatesColumns({
                       // a letters keyboard for a box that only ever holds a
                       // number: the one three-box path a tablet can reach was
                       // the one path with no keypad on it.
-                      inputMode="decimal"
+                      inputMode={step.estimateUnit === 'minutes' ? 'numeric' : 'decimal'}
                       aria-invalid={wrong}
                       data-fact={problem?.message}
                       onKeyDown={(e) => {

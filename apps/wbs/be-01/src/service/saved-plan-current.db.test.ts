@@ -119,6 +119,7 @@ describe('projecting the live plan as a comparison side', () => {
           position: 10,
           code: 'dev',
           allowancePercent: 0,
+          estimateUnit: 'workdays' as const,
         },
       ],
       wrote,

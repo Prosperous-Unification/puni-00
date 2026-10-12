@@ -18,6 +18,7 @@ describe('OptimizerTriggerBroadcaster', () => {
       position: 10,
       code: 'dev',
       allowancePercent: 0,
+      estimateUnit: 'workdays' as const,
     };
     const schedulingEvents: ProjectEvent[] = [
       { type: 'elsewhere_changed', projectId: 'p-1', causeProjectId: 'upstream' },
@@ -85,6 +86,7 @@ describe('OptimizerTriggerBroadcaster and step allowances', () => {
         position: 20,
         code: 'qa',
         allowancePercent: 30,
+        estimateUnit: 'workdays' as const,
       },
     });
     expect(changed).toEqual(['p-1']);

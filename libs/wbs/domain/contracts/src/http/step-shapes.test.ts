@@ -58,6 +58,7 @@ test('declares the full step response and each usage count and assumed-assignee 
           position: { type: 'number' },
           code: { anyOf: [{ type: 'string' }, { type: 'null' }] },
           allowancePercent: { type: 'number' },
+          estimateUnit: { enum: ['minutes', 'workdays'] },
         },
         required: ['id', 'name', 'position', 'projectId'],
       },
@@ -99,7 +100,15 @@ test('declares the full step response and each usage count and assumed-assignee 
 });
 
 test('still reads a step from a be-01 that predates step codes', async () => {
-  const older = { step: { id: 'step', projectId: 'project', name: 'Dev', position: 10 } };
+  const older = {
+    step: {
+      id: 'step',
+      projectId: 'project',
+      name: 'Dev',
+      position: 10,
+      estimateUnit: 'workdays' as const,
+    },
+  };
   const reply = addStep.responses[0].schema;
 
   expect(await validateSchema(reply, older)).toEqual({ value: older });
@@ -114,7 +123,14 @@ test('still reads a step from a be-01 that predates step codes', async () => {
  */
 test('still reads a step from a be-01 that predates step allowances', async () => {
   const older = {
-    step: { id: 'step', projectId: 'project', name: 'Dev', position: 10, code: 'dev' },
+    step: {
+      id: 'step',
+      projectId: 'project',
+      name: 'Dev',
+      position: 10,
+      estimateUnit: 'workdays' as const,
+      code: 'dev',
+    },
   };
   const reply = renameStep.responses[0].schema;
 
@@ -123,5 +139,14 @@ test('still reads a step from a be-01 that predates step allowances', async () =
   expect(await validateSchema(reply, current)).toEqual({ value: current });
   expect(
     (await validateSchema(reply, { step: { ...older.step, allowancePercent: '30' } })).issues,
+  ).toBeDefined();
+});
+
+test('reads a pre-unit backend as the historical workday protocol and refuses malformed present units', async () => {
+  const reply = addStep.responses[0].schema;
+  const older = { step: { id: 'step', projectId: 'project', name: 'Dev', position: 10 } };
+  expect((await validateSchema(reply, older)).issues).toBeUndefined();
+  expect(
+    (await validateSchema(reply, { step: { ...older.step, estimateUnit: 'hours' } })).issues,
   ).toBeDefined();
 });

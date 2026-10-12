@@ -82,6 +82,7 @@ describe('SavedPlanService.save answers snapshot_busy without holding up an edit
           position: 10,
           code: 'dev',
           allowancePercent: 0,
+          estimateUnit: 'workdays' as const,
         },
       ],
       wrote,

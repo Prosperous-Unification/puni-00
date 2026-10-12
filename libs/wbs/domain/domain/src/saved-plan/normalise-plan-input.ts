@@ -59,7 +59,32 @@ export const PLAN_INPUT_UPGRADES: ReadonlyMap<number, PlanInputUpgrade> = new Ma
   [2, withNoTypedDependencies],
   [3, withNoStatusFacts],
   [4, withUtcTimezone],
+  [5, withWorkdayUnits],
 ]);
+
+/** Version 5 knew only workdays; validate the trusted step list before upgrading it. */
+function withWorkdayUnits(body: Record<string, unknown>): Record<string, unknown> {
+  const steps = body['steps'];
+  // Proof: removing this guard lost the named version-5 malformed-list refusal (normalise-plan-input.test.ts).
+  if (!Array.isArray(steps)) throw new Error('a version-5 plan input body holds no steps list');
+  return {
+    ...body,
+    schemaVersion: 6,
+    steps: steps.map((step: unknown) => {
+      // Proof: removing this guard accepted null/anonymous version-5 steps (normalise-plan-input.test.ts).
+      if (
+        typeof step !== 'object' ||
+        step === null ||
+        Array.isArray(step) ||
+        !('id' in step) ||
+        typeof step.id !== 'string'
+      )
+        throw new Error('a version-5 plan input body holds a malformed step');
+      // Proof: omitting the unit failed historical workday preservation (normalise-plan-input.test.ts).
+      return { ...step, estimateUnit: 'workdays' };
+    }),
+  };
+}
 
 /**
  * Version 4 to 5: the project timezone did not exist, so every project read

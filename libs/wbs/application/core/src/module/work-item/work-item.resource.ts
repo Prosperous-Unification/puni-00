@@ -9,7 +9,9 @@ import {
   CalendarRangeError,
   canDepend,
   canReparent,
-  chargedDays,
+  type ChargedEstimate,
+  chargedWorkdays,
+  chargedWorkdaysOf,
   type Days,
   deadlineOffsetOf,
   deadlineOffsetsOf,
@@ -20,6 +22,7 @@ import {
   type EstimateMethod,
   type EstimateRounding,
   type EstimateRule,
+  estimateUnitOf,
   findTypedEndpointDefect,
   firstWorkdayOf,
   formatStepNodeId,
@@ -32,8 +35,10 @@ import {
   isWithin,
   isWritableRelationshipType,
   lastWorkdayOf,
+  MAX_ESTIMATE_DAYS,
   MEASURE_METRICS,
   type MeasureMetric,
+  minuteTrioProblem,
   nextWorkday,
   type NodeReading,
   orderSteps,
@@ -46,7 +51,7 @@ import {
   type Readiness,
   rollUp,
   rollUpActuals,
-  rollUpFinals,
+  rollUpCharged,
   rollUpMeasures,
   rollUpProgress,
   rollUpWorkItemStatuses,
@@ -133,8 +138,10 @@ import type {
 } from '../../ports/work-item-store';
 import type { WriteStamp } from '../../ports/write-stamp';
 import {
+  boundEstimateUnits,
   type CompensatingCommand,
   type CompensatingReferences,
+  estimateStepsOf,
   quoteName,
   readCommand,
   readPayload,
@@ -305,7 +312,7 @@ export function slicesOf(
   steps: readonly StepPolicy[],
   /**
    * The project's whole estimate arithmetic — method, weights and rounding.
-   * The number a slice runs for is `chargedDays`' own, so the bar the chart
+   * The number a slice runs for is `chargedWorkdaysOf`'s own, so the bar the chart
    * draws and the figure the table prints are one number rather than two
    * roundings of one estimate.
    */
@@ -337,6 +344,7 @@ export function slicesOf(
 ): Slice[] {
   const inProject = new Set(rows.map((row) => row.id));
   const allowances: StepAllowances = new Map(steps.map((step) => [step.id, step.allowancePercent]));
+  const units = new Map(steps.map((step) => [step.id, step.estimateUnit]));
   const days = new Map<string, number>();
   for (const estimate of estimates) {
     if (hasChildren.has(estimate.workItemId)) continue;
@@ -350,7 +358,12 @@ export function slicesOf(
     // Received: 2` (2026-09-27).
     days.set(
       sliceKey(estimate.workItemId, estimate.stepId),
-      chargedDays(estimate, rule, allowanceOf(allowances, estimate.stepId)),
+      chargedWorkdaysOf(
+        estimateUnitOf(units, estimate.stepId),
+        estimate,
+        rule,
+        allowanceOf(allowances, estimate.stepId),
+      ),
     );
   }
 
@@ -708,17 +721,20 @@ function datesOf(
  * always the addition a reader can do in their head from the row's own step
  * figures.
  */
-function finalsOf(charged: ReadonlyMap<string, number>): {
+function finalsOf(charged: ReadonlyMap<string, ChargedEstimate>): {
+  charged: Record<string, ChargedEstimate>;
   finalDays: Record<string, number>;
   finalTotal: number;
 } {
   const perStep: Record<string, number> = {};
   let total = 0;
-  for (const [stepId, days] of charged) {
+  for (const [stepId, figure] of charged) {
+    const days = chargedWorkdays(figure);
     perStep[stepId] = days;
     total += days;
   }
-  return { finalDays: perStep, finalTotal: total };
+  // Proof: omitting charged made the mounted native-minute read fail on missing charged (2026-10-12).
+  return { charged: Object.fromEntries(charged), finalDays: perStep, finalTotal: total };
 }
 
 /**
@@ -800,6 +816,9 @@ export type WorkItemRefusal =
    * foreign keys, so without this the write reaches the database and answers
    * 500 for a request whose only fault is being out of date.
    */
+  | 'minutes_not_integer'
+  | 'minutes_above_max'
+  | 'invalid_estimate'
   | 'unknown_step'
   /**
    * A figure in a unit this release does not keep — anything outside
@@ -4049,8 +4068,16 @@ export class WorkItemService {
     if (!context.ok) return context;
     const { rows, workItem } = context.value;
     if (rows.some((row) => row.parentId === id)) return { ok: false, reason: 'rolled_up' };
-    if (!(await this.holdsStep(workItem.projectId, stepId)))
-      return { ok: false, reason: 'unknown_step' };
+    const step = (await this.opts.projects.stepsOf(workItem.projectId)).find(
+      (each) => each.id === stepId,
+    );
+    if (step === undefined) return { ok: false, reason: 'unknown_step' };
+    // Proof: skipping the unit branch admitted 1.5 minutes, 200 instead of 422 in the mounted estimate-unit boundary test (2026-10-12).
+    if (step.estimateUnit === 'minutes') {
+      const problem = minuteTrioProblem(days);
+      if (problem !== null) return { ok: false, reason: problem };
+    } else if (days.pessimistic > MAX_ESTIMATE_DAYS)
+      return { ok: false, reason: 'invalid_estimate' };
     const before = await this.storedTrio(workItem.projectId, id, stepId);
     const stamp = this.clock.stampFor(actorId);
     const written = await this.opts.estimates.set({ workItemId: id, stepId, ...days }, stamp);
@@ -5300,8 +5327,9 @@ export class WorkItemService {
    * to is checked against the revision that command left it at, and a single
    * mismatch refuses the whole thing and says which row changed.
    *
-   * A refused entry is **thrown away**. Its preconditions can never hold
-   * again — revisions do not go down — so keeping it would jam the stack,
+   * A refused entry is **thrown away** under the stale-history policy. Unit
+   * equality could hold again after another edit; replaying a refused entry
+   * later would still conceal the conflict already reported, so keeping it would jam the stack,
    * refusing every later press of the key for a change nobody can reach.
    */
   undo(projectId: string, actorId: string): Promise<UndoOutcome> {
@@ -5363,6 +5391,10 @@ export class WorkItemService {
     const payload = readPayload(entry.payload);
     const command = direction === 'undo' ? readCommand(entry.inverse) : payload.forward;
     const preconditions = readPreconditions(entry.preconditions);
+    const bindings = boundEstimateUnits(preconditions, [
+      payload.forward,
+      readCommand(entry.inverse),
+    ]);
 
     // Proof: disabling this check made `command-organization.controller.db.test.ts`
     // answer 200 instead of 404 for `refuses an undo whose entry names another
@@ -5376,6 +5408,22 @@ export class WorkItemService {
       return { ok: false, reason: 'not_found', detail: null };
     }
 
+    const steps = new Map(
+      (await this.opts.projects.stepsOf(projectId)).map((step) => [step.id, step]),
+    );
+    for (const [stepId, unit] of Object.entries(bindings)) {
+      const current = steps.get(stepId);
+      // Proof: bypassing equality restored a day trio under minutes (200 vs 409); dropping absence returned 500 vs 409 for a removed step (mounted unit replay, 2026-10-12).
+      if (current?.estimateUnit !== unit) {
+        await this.opts.journal.discard(entry.id);
+        return {
+          ok: false,
+          reason: 'stale_undo',
+          detail: `the estimate unit of step ${stepId} changed or the step was removed.`,
+          entryId: entry.id,
+        };
+      }
+    }
     const moved = await this.staleness(projectId, preconditions.expected);
     if (moved !== null) {
       await this.opts.journal.discard(entry.id);
@@ -5419,6 +5467,8 @@ export class WorkItemService {
     await this.opts.journal.flip(entry.id, direction === 'undo', {
       expected: now,
       from: preconditions.expected,
+      // Proof: dropping this binding made chained minute redo refuse 409 instead of 200 (mounted unit replay, 2026-10-12).
+      estimateUnits: bindings,
     });
     await this.rebase(stack, entry, direction, preconditions.from, now);
     await this.announceTree(projectId);
@@ -6336,6 +6386,15 @@ export class WorkItemService {
       this.collector.recordings.push({ kind, label, recording });
       return;
     }
+    const units = new Map(
+      (await this.opts.projects.stepsOf(projectId)).map((step) => [step.id, step.estimateUnit]),
+    );
+    const estimateUnits = Object.fromEntries(
+      [...estimateStepsOf([recording.forward, recording.inverse])].map((stepId) => [
+        stepId,
+        estimateUnitOf(units, stepId),
+      ]),
+    );
     const subject = subjectOf(recording.forward);
     await this.opts.journal.append(
       {
@@ -6346,6 +6405,7 @@ export class WorkItemService {
         payload: { label, forward: recording.forward },
         inverse: recording.inverse,
         preconditions: {
+          estimateUnits,
           expected: await this.revisionsOf(projectId, recording.touched),
           // The same entities as they were before the mutation, read off the row
           // list the mutation's own guard produced. Nothing is checked against
@@ -6788,11 +6848,12 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
   // What each row is **charged**, per step: a leaf's own estimate uplifted by
   // its step's allowance and rounded, a parent's the sum of its descendants'
   // charged figures. Not `totals` put through the method — see `rollUpFinals`.
-  const charged = rollUpFinals(
+  const charged = rollUpCharged(
     rows,
     stored,
     rule,
     new Map(steps.map((step) => [step.id, step.allowancePercent])),
+    new Map(steps.map((step) => [step.id, step.estimateUnit])),
   );
   let optimization: PlanOptimization | undefined;
   let timing = new Map<string, Scheduled>();

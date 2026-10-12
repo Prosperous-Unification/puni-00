@@ -590,9 +590,30 @@ test('carries a version-3 file’s step codes to the prepared steps', () => {
 test('suggests codes in step order for an earlier-version file, exactly as for new steps', () => {
   const earlier = planDocumentFixture();
   earlier.steps = [
-    { id: 'step-2', name: 'Review!', position: 20, allowancePercent: 0, code: null },
-    { id: 'step-1', name: ' Review ', position: 10, allowancePercent: 0, code: null },
-    { id: 'step-3', name: 'S1 check', position: 30, allowancePercent: 0, code: null },
+    {
+      estimateUnit: 'workdays' as const,
+      id: 'step-2',
+      name: 'Review!',
+      position: 20,
+      allowancePercent: 0,
+      code: null,
+    },
+    {
+      estimateUnit: 'workdays' as const,
+      id: 'step-1',
+      name: ' Review ',
+      position: 10,
+      allowancePercent: 0,
+      code: null,
+    },
+    {
+      estimateUnit: 'workdays' as const,
+      id: 'step-3',
+      name: 'S1 check',
+      position: 30,
+      allowancePercent: 0,
+      code: null,
+    },
   ];
   const prepared = prepareImport(earlier, supportsAll);
   if (!prepared.ok) throw new Error(`earlier file refused`);
@@ -617,4 +638,19 @@ test('refuses a version-3 step code that is malformed, reserved or a duplicate',
       detail: code,
     });
   }
+});
+
+test('prepares whole minute trios with their step unit and refuses fractional minute imports', () => {
+  const document = planDocumentFixture();
+  document.steps = document.steps.map((step) => ({ ...step, estimateUnit: 'minutes' }));
+  const prepared = prepareImport(document, supportsAll);
+  if (!prepared.ok) throw new Error('whole minute document refused');
+  expect(prepared.value.steps.every((step) => step.estimateUnit === 'minutes')).toBe(true);
+  const row = at(document.workItems);
+  Reflect.set(row.estimates, 'step-1', { optimistic: 1.5, realistic: 2, pessimistic: 3 });
+  expect(prepareImport(document, supportsAll)).toMatchObject({
+    ok: false,
+    code: 'invalid_body',
+    path: 'workItems[0].estimates.step-1',
+  });
 });

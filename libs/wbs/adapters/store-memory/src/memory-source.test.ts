@@ -81,7 +81,17 @@ async function seededSource() {
       scheduleEngine: 'fast',
       scheduleObjective: 'pri',
     },
-    [{ id: 'st-1', projectId: 'p1', name: 'Dev', position: 10, code: 'dev', allowancePercent: 0 }],
+    [
+      {
+        id: 'st-1',
+        projectId: 'p1',
+        name: 'Dev',
+        position: 10,
+        code: 'dev',
+        allowancePercent: 0,
+        estimateUnit: 'workdays' as const,
+      },
+    ],
     stamp,
   );
   return source;
@@ -113,7 +123,13 @@ async function expectDetachedReads(stores: TransactionalStores): Promise<void> {
   const workItem = workItemRow({ id: 'wi-1', projectId: 'p1', name: 'Stored work' });
   await stores.workItems.insert(workItem, [], stamp);
   const addedStep = await stores.steps.add(
-    { id: 'step-memory', projectId: 'p1', name: 'Stored step', allowancePercent: 0 },
+    {
+      id: 'step-memory',
+      projectId: 'p1',
+      name: 'Stored step',
+      allowancePercent: 0,
+      estimateUnit: 'workdays' as const,
+    },
     stamp,
   );
   await stores.dependencies.add(
@@ -458,7 +474,13 @@ describe('the staged memory source', () => {
     const settled = Promise.race([
       source.uow.run(async (scope) => {
         await scope.stores.steps.add(
-          { id: 'st-2', projectId: 'p1', name: 'QA', allowancePercent: 0 },
+          {
+            id: 'st-2',
+            projectId: 'p1',
+            name: 'QA',
+            allowancePercent: 0,
+            estimateUnit: 'workdays' as const,
+          },
           stamp,
         );
         await scope.stores.directory.addTag({ id: 'tag-1', name: 'urgent' }, stamp);
@@ -541,7 +563,13 @@ describe('the staged memory source', () => {
         stamp,
       );
       await scope.stores.steps.add(
-        { id: 'refused-step', projectId: 'p1', name: 'Refused only', allowancePercent: 0 },
+        {
+          id: 'refused-step',
+          projectId: 'p1',
+          name: 'Refused only',
+          allowancePercent: 0,
+          estimateUnit: 'workdays' as const,
+        },
         stamp,
       );
       return { commit: false, value: undefined };
@@ -641,6 +669,7 @@ describe('the staged memory source', () => {
           position: 10,
           code: 'dev',
           allowancePercent: 0,
+          estimateUnit: 'workdays' as const,
         },
       ],
       stamp,
@@ -762,7 +791,13 @@ it('refuses an attempt start at a node stated done', async () => {
   const { stores } = openMemorySource();
   await stores.workItems.insert(workItemRow({ id: 'wi-1', projectId: 'p1' }), [], stamp);
   await stores.steps.add(
-    { id: 'step-memory', projectId: 'p1', name: 'Stored step', allowancePercent: 0 },
+    {
+      id: 'step-memory',
+      projectId: 'p1',
+      name: 'Stored step',
+      allowancePercent: 0,
+      estimateUnit: 'workdays' as const,
+    },
     stamp,
   );
   await stores.progress.set(

@@ -250,6 +250,7 @@ export class ProjectService {
       position: (place + 1) * STEP_POSITION_STEP,
       code: codes[place],
       allowancePercent: NO_ALLOWANCE,
+      estimateUnit: 'workdays' as const,
     }));
     // The store's answer rather than the seed: `create` fills the three
     // settings from the column defaults, so the seed is a `NewProject` and only

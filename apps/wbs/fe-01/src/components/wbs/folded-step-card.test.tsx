@@ -7,6 +7,7 @@ import { FoldedStepCard, type FoldedStepCardProps } from './folded-step-card';
 
 /** A card with no step node: these cases are about the estimate lines alone. */
 const UNADDRESSED = {
+  estimateUnit: 'workdays' as const,
   projectId: 'project',
   stepNode: null,
   onExitActions: () => undefined,
@@ -386,4 +387,29 @@ describe('folded step card attempts (step-node-attempts D7)', () => {
     fireEvent.keyDown(start, { key: 'Tab' });
     expect(exits).toHaveBeenCalledTimes(1);
   });
+});
+
+it('reads native minutes on the folded step card without a day suffix', () => {
+  render(
+    <FoldedStepCard
+      {...UNADDRESSED}
+      estimateUnit="minutes"
+      stepName="Agent"
+      number="010"
+      id="minute-card"
+      points={[{ point: 'realistic', days: '135' }]}
+      estimate={{ optimistic: 135, realistic: 135, pessimistic: 135 }}
+      final="2 h 15 min"
+      allowancePercent={0}
+      rule={{
+        method: 'realistic',
+        pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
+        rounding: 'ceil',
+      }}
+      doing={null}
+      problem={null}
+    />,
+  );
+  expect(screen.getByText('Final 2 h 15 min')).toBeInTheDocument();
+  expect(screen.getByText(/Whole minutes as/)).toBeInTheDocument();
 });
