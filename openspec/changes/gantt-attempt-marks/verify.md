@@ -205,3 +205,19 @@ Final checkpoint checks after explicit fill targeting and pointer-move support:
 | Nx `lint:fast` with daemon/plugin isolation disabled     | Passed, 1m 16s             |
 | `bunx @fission-ai/openspec@1.12.0 validate --all --json` | 184 items passed, 0 failed |
 | `git diff --check`                                       | Exit 0                     |
+
+Axis pointer correction `62b8a24527fa0a6e2c6b55c5bb45f11de8970afa` (#376) was then normally
+merged as `892ab20e38865a15078c79a47a417c2f65fc388e`. The one hover-handler conflict retained
+the axis's extracted pointer-over/pointer-move handler and the attempt card clearing behavior.
+Both verification histories remain intact. Post-merge combined focused suites passed **544**
+tests in 21.25s, and Nx module/app typecheck passed in 5.7s; merge commit format/lint hooks passed.
+
+The isolated Chromium driver was rerun against this merged checkout's own Vite server on
+4337: `bun apps/wbs/fe-01/e2e/subday-axis-benchmark.ts`. It verified a 3.99992px forecast fill,
+17.99992px × 18px pointer surface, exact two-minute card, explicit overlapping-mark choice,
+and the production oversized-plan refusal, with no browser errors. This is synthetic
+panel-boundary evidence, **not** minutes-input or attempt fixture acceptance. Its capped
+500×5 measurement contains no attempts and does not satisfy task 3.2. Output is
+`/tmp/attempt-browser-hit.log`; the separate axis verification history contains the observed
+browser negative. The attempt fixture's pointer aims within the actual overlap, and its
+chooser locator is scoped to the chooser card; the fixture remains unrun.

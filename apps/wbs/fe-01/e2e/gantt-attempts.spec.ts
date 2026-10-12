@@ -112,8 +112,11 @@ test('paint, completed forecast, translated hits and tick collision list agree a
   expect(box.width).toBeGreaterThanOrEqual(18);
   await tick.focus();
   await expect(page.getByText('Reference: run/tick', { exact: true })).toBeVisible();
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.move(box.x + box.width - 2, box.y + box.height / 2);
   await expect(page.getByRole('tooltip', { name: 'Choose a mark' })).toBeVisible();
-  await page.getByRole('button', { name: /Attempt 1.*cancelled/ }).click();
+  await page
+    .getByRole('tooltip', { name: 'Choose a mark' })
+    .getByRole('button', { name: /Attempt 1.*cancelled/ })
+    .click();
   await expect(page.getByText('Reference: run/tick', { exact: true })).toBeVisible();
 });
