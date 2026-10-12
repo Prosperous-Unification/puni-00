@@ -113,4 +113,4 @@
 
   Fault: skip the audit write for `sso_connection_proven`, and observe the completeness test fail. Restore and add `Proof:`.
 
-- [ ] 5.4 Write `verify.md` with the commands, observed outputs and a failure-proof table for every fault above. Run the gate on the exact SHA.
+- [x] 5.4 Write `verify.md` with the commands, observed outputs and a failure-proof table for every fault above. Run the gate on the exact SHA.
