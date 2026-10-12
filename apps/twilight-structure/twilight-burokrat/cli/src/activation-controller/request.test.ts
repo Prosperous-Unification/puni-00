@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 
-import { serializeCanonical } from '../evidence/content-manifest';
+import { serializeCanonical } from '../judge-facade';
 import { createActivationRequest, decodeActivationRequest, requireCurrentRequest } from './request';
 
 const sha = (digit: string): string => digit.repeat(64);

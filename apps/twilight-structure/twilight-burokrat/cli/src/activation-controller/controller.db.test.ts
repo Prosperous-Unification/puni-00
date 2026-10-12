@@ -25,7 +25,7 @@ import { dirname, join } from 'node:path';
 import { Database } from 'bun:sqlite';
 import { afterEach, expect, test } from 'bun:test';
 
-import { hashBytes, hashCanonical, serializeCanonical } from '../evidence/content-manifest';
+import { hashBytes, hashCanonical, serializeCanonical } from '../judge-facade';
 import { readCheckInvocationManifest, storeCheckInvocationManifest } from './check-manifest';
 import {
   type ActivationController,

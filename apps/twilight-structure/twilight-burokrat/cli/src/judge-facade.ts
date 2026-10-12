@@ -1,10 +1,11 @@
 /**
- * The only Twilight Burokrat surface Twilight Dash may reach: the admission judge. Every export
- * answers "is this artifact allowed?" from a Git revision plus bytes; none takes an authority
- * store, reads a clock or reaches the network. Dash's runtime authority (store, claims,
- * generations, composition and publication) calls these through `@twilight-burokrat/judge`;
- * Burokrat never imports Dash. `judge-facade.test.ts` pins the runtime export list and scans
- * every module this file reaches for store, clock and network imports.
+ * The only Twilight Burokrat surface Twilight Dash may reach: the admission and activation judges.
+ * Every export answers "is this artifact allowed?" or "do these bytes reconcile?" from a Git
+ * revision plus bytes; none takes a store, reads a clock or reaches the network. Dash's runtime
+ * authority (store, claims, generations, composition and publication) and its activation
+ * controller and review invoker call these through `@twilight-burokrat/judge`; Burokrat never
+ * imports Dash. `judge-facade.test.ts` pins the runtime export list and scans every module this
+ * file reaches for store, clock and network imports.
  */
 export {
   assertAuthorityClaimPath,
@@ -57,16 +58,65 @@ export {
   validatePacketAgainstBase,
 } from './admission-judge/packet-judgment';
 export {
+  ClassificationPolicy,
+  ContentClass,
+  EvidenceRecordKind,
+  RelationshipDeclaration,
+  RelationshipRequest,
+  RelativePath,
+} from './contracts/records';
+export {
   compareCanonicalText,
   hashBytes,
   hashCanonical,
   serializeCanonical,
 } from './evidence/content-manifest';
+export { type ClassifiedEntry, classifyEntries } from './inventory/classify-entries';
 export {
   type CandidateEntry,
   CandidateReadError,
   type CandidateRequest,
   type CandidateSnapshot,
+  parseCommittedTreeEntries,
   readCandidate,
   resolveCandidateRoot,
 } from './inventory/read-candidate';
+export { extractRelationships } from './relationships';
+export { AuditFinding } from './review/audit';
+export {
+  type ExhaustiveFreezeDocuments,
+  freezeExhaustivePlan,
+  freezeExhaustivePlanFromSource,
+  verifyExhaustivePlanFromSource,
+} from './review/exhaustive-coverage';
+export {
+  ColdAcknowledgement,
+  ColdAttempt,
+  coldHarnessRequest,
+  decodeInvocationRegistration,
+  deriveReviewEvidence,
+  type DurableAcceptance,
+  InformedAttempt,
+  informedHarnessRequest,
+  type InvocationJournal,
+  InvocationJournalRecord,
+  InvocationRegistration,
+  InvocationTerminal,
+  ProcessObservation,
+  readInvocationJournal,
+  reconcileColdAcknowledgement,
+  reconcileJournalEntry,
+  reconcileReviewedInformed,
+  type ReviewInvocationResult,
+  type ReviewInvoker,
+} from './review/invocation-journal';
+export {
+  ColdHarnessOutput,
+  decodeColdHarnessOutput,
+  decodeInformedHarnessOutput,
+  decodeReviewEvidence,
+  InformedHarnessOutput,
+  ReviewEvidence,
+  ReviewInvocationRequest,
+  ReviewSubject,
+} from './review/protocol';

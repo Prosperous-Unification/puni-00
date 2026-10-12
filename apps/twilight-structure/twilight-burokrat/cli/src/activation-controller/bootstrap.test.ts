@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, expect, test } from 'bun:test';
 
-import { hashBytes, serializeCanonical } from '../evidence/content-manifest';
+import { hashBytes, serializeCanonical } from '../judge-facade';
 import { readBootstrapConfiguration } from './bootstrap';
 
 const scratch: string[] = [];

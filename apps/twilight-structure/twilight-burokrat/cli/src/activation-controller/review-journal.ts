@@ -4,7 +4,7 @@ import { isAbsolute, join, resolve, sep } from 'node:path';
 import { parseOrThrow, type } from '@shared/validation';
 import { Database } from 'bun:sqlite';
 
-import { hashBytes, hashCanonical, serializeCanonical } from '../evidence/content-manifest';
+import { hashBytes, hashCanonical, serializeCanonical } from '../judge-facade';
 import type { ReviewExpectation } from './controller';
 import { assertActivationRequest } from './request';
 

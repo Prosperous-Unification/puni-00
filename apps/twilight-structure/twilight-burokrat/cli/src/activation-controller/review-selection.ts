@@ -1,8 +1,7 @@
 import { parseOrThrow, type } from '@shared/validation';
 import type { Database } from 'bun:sqlite';
 
-import { hashBytes, hashCanonical, serializeCanonical } from '../evidence/content-manifest';
-import { ReviewSubject } from '../review/protocol';
+import { hashBytes, hashCanonical, ReviewSubject, serializeCanonical } from '../judge-facade';
 
 const Digest = /^[0-9a-f]{64}$/;
 // Proof: six absent top-level fields and unknown top-level/selection keys

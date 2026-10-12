@@ -22,9 +22,13 @@ import { dirname, join, relative } from 'node:path';
 import { parseOrThrow } from '@shared/validation';
 import { afterEach, expect, spyOn, test } from 'bun:test';
 
-import { ClassificationPolicy, RelationshipRequest } from '../contracts/records';
-import * as contentManifest from '../evidence/content-manifest';
-import { hashBytes, serializeCanonical } from '../evidence/content-manifest';
+import * as judge from '../judge-facade';
+import {
+  ClassificationPolicy,
+  hashBytes,
+  RelationshipRequest,
+  serializeCanonical,
+} from '../judge-facade';
 import { validateGitHubRepositoryBinding } from './github-source';
 import { createActivationRequest } from './request';
 import { deriveHistoricalSelections } from './review-selection-history';
@@ -489,7 +493,7 @@ test('retained raw tuple mismatch refuses before the digest dependency is touche
   const candidate = owner.open(request, prepared.snapshotIdentity);
   const entry = prepared.manifest.entries.at(1);
   if (entry === undefined) throw new Error('fixture tuple absent');
-  const digest = spyOn(contentManifest, 'hashBytes').mockImplementation(() => {
+  const digest = spyOn(judge, 'hashBytes').mockImplementation(() => {
     throw new Error('injected digest dependency reached');
   });
   try {

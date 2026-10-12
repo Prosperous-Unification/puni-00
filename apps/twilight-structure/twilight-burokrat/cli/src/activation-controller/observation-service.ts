@@ -3,7 +3,7 @@ import { isAbsolute, join, resolve, sep } from 'node:path';
 
 import { parseOrThrow, type } from '@shared/validation';
 
-import { serializeCanonical } from '../evidence/content-manifest';
+import { serializeCanonical } from '../judge-facade';
 import { decodeBootstrapConfiguration } from './bootstrap';
 import { createGitHubRestReader, type GitHubFetch } from './github-reader';
 import { type ObservationCliDiagnostic, runObservationCli } from './observation-cli';

@@ -13,8 +13,7 @@ import { dirname, join, relative } from 'node:path';
 import { parseOrThrow } from '@shared/validation';
 import { afterEach, expect, spyOn, test } from 'bun:test';
 
-import { ClassificationPolicy } from '../contracts/records';
-import { hashBytes, serializeCanonical } from '../evidence/content-manifest';
+import { ClassificationPolicy, hashBytes, serializeCanonical } from '../judge-facade';
 import { readOwnedReviewCandidate } from './review-selection-preparation';
 
 const roots: string[] = [];

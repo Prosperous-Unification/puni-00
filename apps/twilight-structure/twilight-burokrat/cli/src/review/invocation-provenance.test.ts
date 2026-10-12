@@ -13,18 +13,19 @@ import { dirname, join } from 'node:path';
 
 import { afterEach, describe, expect, test } from 'bun:test';
 
-import { hashBytes, hashCanonical, serializeCanonical } from '../evidence/content-manifest';
 import {
   type ColdAcknowledgement,
-  FileInvocationJournal,
-  FileJournalLock,
+  hashBytes,
+  hashCanonical,
   type InvocationRegistration,
   type InvocationTerminal,
-  ProcessReviewInvoker,
   readInvocationJournal,
+  type ReviewEvidence,
+  type ReviewInvocationRequest,
   type ReviewInvocationResult,
-} from './invoker';
-import type { ReviewEvidence, ReviewInvocationRequest } from './protocol';
+  serializeCanonical,
+} from '../judge-facade';
+import { FileInvocationJournal, FileJournalLock, ProcessReviewInvoker } from './invoker';
 
 const SHA_A = 'a'.repeat(64);
 const SHA_B = 'b'.repeat(64);

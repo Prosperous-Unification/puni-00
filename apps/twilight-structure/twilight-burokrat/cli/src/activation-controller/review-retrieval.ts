@@ -13,7 +13,7 @@ import { isAbsolute, join, resolve } from 'node:path';
 
 import { parseOrThrow, type } from '@shared/validation';
 
-import { hashBytes } from '../evidence/content-manifest';
+import { hashBytes } from '../judge-facade';
 import type { ReviewExpectation } from './controller';
 import { decodeReviewJournalManifest, type ReviewJournalRegistration } from './review-journal';
 

@@ -5,7 +5,7 @@ import { join } from 'node:path';
 
 import { expect, spyOn, test } from 'bun:test';
 
-import { hashBytes } from '../evidence/content-manifest';
+import { hashBytes } from '../judge-facade';
 import {
   type OfflineVerifierInvocation,
   offlineVerifierPolicy,

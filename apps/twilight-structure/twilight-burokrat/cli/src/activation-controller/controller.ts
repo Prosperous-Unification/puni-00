@@ -3,16 +3,18 @@ import { readFileSync } from 'node:fs';
 import { parseOrThrow, type } from '@shared/validation';
 import { Database } from 'bun:sqlite';
 
-import { hashBytes, hashCanonical, serializeCanonical } from '../evidence/content-manifest';
-import { AuditFinding } from '../review/audit';
 import {
+  AuditFinding,
   ColdHarnessOutput,
   decodeColdHarnessOutput,
   decodeInformedHarnessOutput,
   decodeReviewEvidence,
+  hashBytes,
+  hashCanonical,
   InformedHarnessOutput,
   ReviewEvidence,
-} from '../review/protocol';
+  serializeCanonical,
+} from '../judge-facade';
 import { readBootstrapConfiguration, type TrustedBootstrapPin } from './bootstrap';
 import {
   type CheckCandidateSnapshot,

@@ -16,7 +16,7 @@ import { join } from 'node:path';
 
 import { expect, spyOn, test } from 'bun:test';
 
-import { hashBytes, serializeCanonical } from '../evidence/content-manifest';
+import { hashBytes, serializeCanonical } from '../judge-facade';
 import type { ReviewExpectation } from './controller';
 import type { ReviewJournalRegistration } from './review-journal';
 import * as reviewJournal from './review-journal';

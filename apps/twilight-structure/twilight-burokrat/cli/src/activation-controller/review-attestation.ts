@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
 import { kill as killProcess } from 'node:process';
 
-import { hashBytes, serializeCanonical } from '../evidence/content-manifest';
+import { hashBytes, serializeCanonical } from '../judge-facade';
 import type { ReviewProviderAuthority } from './review-provider';
 
 const Sha256 = /^[0-9a-f]{64}$/;

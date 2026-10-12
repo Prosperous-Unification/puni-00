@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 
 import { afterEach, expect, test } from 'bun:test';
 
-import { hashBytes, hashCanonical, serializeCanonical } from '../evidence/content-manifest';
+import { hashBytes, hashCanonical, serializeCanonical } from '../judge-facade';
 import { assertObservedRequestCurrent, prepareObservedRequest } from './ingress';
 import { createActivationRequest, decodeActivationRequest } from './request';
 

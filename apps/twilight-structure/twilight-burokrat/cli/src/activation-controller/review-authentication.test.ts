@@ -14,7 +14,7 @@ import { join, relative } from 'node:path';
 
 import { expect, spyOn, test } from 'bun:test';
 
-import { hashBytes } from '../evidence/content-manifest';
+import { hashBytes } from '../judge-facade';
 import { runPinnedOfflineGh, verifyOfflineReviewBundle } from './review-attestation';
 import {
   assertRegisteredReviewClaim,

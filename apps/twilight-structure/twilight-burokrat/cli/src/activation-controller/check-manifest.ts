@@ -11,7 +11,7 @@ import { join } from 'node:path';
 
 import { parseOrThrow, type } from '@shared/validation';
 
-import { hashBytes, serializeCanonical } from '../evidence/content-manifest';
+import { hashBytes, serializeCanonical } from '../judge-facade';
 
 const Sha256 = /^[0-9a-f]{64}$/;
 

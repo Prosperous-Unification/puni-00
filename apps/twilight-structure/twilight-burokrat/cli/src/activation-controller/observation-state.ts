@@ -15,7 +15,7 @@ import { parseOrThrow, type } from '@shared/validation';
 import { dlopen, FFIType, toArrayBuffer } from 'bun:ffi';
 import { Database } from 'bun:sqlite';
 
-import { hashCanonical } from '../evidence/content-manifest';
+import { hashCanonical } from '../judge-facade';
 import { readBootstrapConfiguration, type TrustedBootstrapPin } from './bootstrap';
 import { openActivationController } from './controller';
 import { GitHubReadFailure } from './github-reader';

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, expect, spyOn, test } from 'bun:test';
 
-import { hashBytes, serializeCanonical } from '../evidence/content-manifest';
+import { hashBytes, serializeCanonical } from '../judge-facade';
 import { openActivationController } from './controller';
 import { createGitHubRestReader, type GitHubFetch, GitHubReadFailure } from './github-reader';
 import { createGitHubPullRequestSource } from './github-source';

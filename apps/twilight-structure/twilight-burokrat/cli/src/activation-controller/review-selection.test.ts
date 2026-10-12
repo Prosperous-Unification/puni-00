@@ -1,7 +1,7 @@
 import { Database } from 'bun:sqlite';
 import { expect, spyOn, test } from 'bun:test';
 
-import { hashCanonical, serializeCanonical } from '../evidence/content-manifest';
+import { hashCanonical, serializeCanonical } from '../judge-facade';
 import {
   assertUntrustedReviewSelectionSource,
   decodeUntrustedReviewSelectionRecord,

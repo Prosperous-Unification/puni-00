@@ -1,6 +1,6 @@
 import { parseOrThrow, type } from '@shared/validation';
 
-import { hashCanonical, serializeCanonical } from '../evidence/content-manifest';
+import { hashCanonical, serializeCanonical } from '../judge-facade';
 
 const GitCommit = type(/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/);
 const Sha256 = type(/^[0-9a-f]{64}$/);

@@ -3,7 +3,7 @@ import { isAbsolute, join, resolve } from 'node:path';
 
 import { parseOrThrow, type } from '@shared/validation';
 
-import { hashBytes, serializeCanonical } from '../evidence/content-manifest';
+import { hashBytes, serializeCanonical } from '../judge-facade';
 import type { CheckInvocationManifest } from './check-manifest';
 import type { ActivationRequest } from './request';
 

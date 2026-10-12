@@ -16,7 +16,7 @@ import { join } from 'node:path';
 import { Database } from 'bun:sqlite';
 import { afterEach, expect, test } from 'bun:test';
 
-import { hashBytes, hashCanonical, serializeCanonical } from '../evidence/content-manifest';
+import { hashBytes, hashCanonical, serializeCanonical } from '../judge-facade';
 import { openActivationController } from './controller';
 import {
   initializeObservationState,

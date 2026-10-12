@@ -4,10 +4,15 @@ import { isAbsolute } from 'node:path';
 
 import { parseOrThrow } from '@shared/validation';
 
-import { type ClassificationPolicy, RelativePath } from '../contracts/records';
-import { hashBytes, serializeCanonical } from '../evidence/content-manifest';
-import { type ClassifiedEntry, classifyEntries } from '../inventory/classify-entries';
-import { parseCommittedTreeEntries } from '../inventory/read-candidate';
+import {
+  type ClassificationPolicy,
+  type ClassifiedEntry,
+  classifyEntries,
+  hashBytes,
+  parseCommittedTreeEntries,
+  RelativePath,
+  serializeCanonical,
+} from '../judge-facade';
 
 const GitIdentity = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
 const Sha256 = /^[0-9a-f]{64}$/;

@@ -3,7 +3,7 @@ import { join, resolve } from 'node:path';
 
 import { parseOrThrow, type } from '@shared/validation';
 
-import { hashBytes } from '../evidence/content-manifest';
+import { hashBytes } from '../judge-facade';
 import type { OfflineVerifierObservation } from './review-attestation';
 import type { ReviewJournalRegistration } from './review-journal';
 import type { RetrievedReviewJournal } from './review-retrieval';

@@ -14,7 +14,7 @@ import { join } from 'node:path';
 import { Database } from 'bun:sqlite';
 import { expect, spyOn, test } from 'bun:test';
 
-import { hashBytes, hashCanonical, serializeCanonical } from '../evidence/content-manifest';
+import { hashBytes, hashCanonical, serializeCanonical } from '../judge-facade';
 import type { ReviewExpectation } from './controller';
 import { createActivationRequest } from './request';
 import { decodeReviewJournalManifest, lookupReviewJournalRegistration } from './review-journal';

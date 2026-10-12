@@ -3,8 +3,7 @@ import { posix } from 'node:path';
 
 import { parseOrThrow } from '@shared/validation';
 
-import { RelationshipDeclaration, RelationshipRequest } from '../contracts/records';
-import { hashBytes } from '../evidence/content-manifest';
+import { hashBytes, RelationshipDeclaration, RelationshipRequest } from '../judge-facade';
 import type { RetainedCandidate } from './review-selection-objects';
 
 export interface HistoricalDiscoveryLimits {

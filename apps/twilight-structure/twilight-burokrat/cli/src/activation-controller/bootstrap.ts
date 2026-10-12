@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 
 import { parseOrThrow, type } from '@shared/validation';
 
-import { hashBytes, serializeCanonical } from '../evidence/content-manifest';
+import { hashBytes, serializeCanonical } from '../judge-facade';
 
 const Sha256Pattern = /^[0-9a-f]{64}$/;
 const AuthorityIdPattern = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/;

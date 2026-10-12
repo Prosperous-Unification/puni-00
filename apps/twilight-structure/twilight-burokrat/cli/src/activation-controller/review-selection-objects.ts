@@ -21,14 +21,15 @@ import { isAbsolute, join } from 'node:path';
 import { parseOrThrow, type } from '@shared/validation';
 
 import {
+  type CandidateSnapshot,
   ClassificationPolicy,
+  classifyEntries,
   ContentClass,
   EvidenceRecordKind,
+  hashBytes,
   RelativePath,
-} from '../contracts/records';
-import { hashBytes, serializeCanonical } from '../evidence/content-manifest';
-import { classifyEntries } from '../inventory/classify-entries';
-import type { CandidateSnapshot } from '../inventory/read-candidate';
+  serializeCanonical,
+} from '../judge-facade';
 import { type GitHubRepositoryBinding, validateGitHubRepositoryBinding } from './github-source';
 import { type ActivationRequest, assertActivationRequest } from './request';
 import { readOwnedReviewCandidate } from './review-selection-preparation';
