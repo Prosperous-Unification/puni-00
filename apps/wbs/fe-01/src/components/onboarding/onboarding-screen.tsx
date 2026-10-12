@@ -6,6 +6,7 @@ import {
 } from '@wbs/contracts';
 import { useCallback, useEffect, useState } from 'react';
 
+import { MembershipChoices } from '@/components/organization/membership-choices';
 import { browserClient, failureMessage, unreachable } from '@/lib/http';
 
 import { clearLinkOutcome, readLinkOutcome } from './auth0-link';
@@ -176,13 +177,13 @@ export function OnboardingScreen({
       </button>
       {state.state === 'verification_required' && <EmailVerification onVerified={refresh} />}
       {state.state === 'selection_required' && (
-        <section>
+        // The memberships read, not discovery's list, says which organization
+        // this sign-in may enter (`ssoRequired`). Proof: 2026-10-12, listing
+        // discovery's names here failed `lists the memberships to select with
+        // an SSO-enforced one locked`.
+        <section className="my-4 flex flex-col gap-3">
           <p>Your memberships are ready for organization selection.</p>
-          <ul>
-            {state.memberships.map((membership) => (
-              <li key={membership.organizationId}>{membership.name}</li>
-            ))}
-          </ul>
+          <MembershipChoices />
         </section>
       )}
       {state.state === 'create_organization' && (

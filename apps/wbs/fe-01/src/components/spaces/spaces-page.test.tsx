@@ -103,4 +103,22 @@ describe('the spaces page', () => {
     expect((await screen.findByRole('alert')).textContent).toContain('Spaces need an organization');
     expect(screen.getByRole('link', { name: 'All projects' })).toBeDefined();
   });
+
+  it('gives the page up to the company sign-in when enforced SSO refuses it', async () => {
+    stubServer({
+      'GET /api/spaces': [
+        () =>
+          answer(403, {
+            error: 'sso_required',
+            organizationId: 'org_7f3a',
+            login: '/api/auth/login?organization=acme-eu-2',
+            link: true,
+          }),
+      ],
+    });
+    routed(<SpacesPage nav={null} account={null} />);
+    const action = await screen.findByRole('link', { name: 'Sign in with your company' });
+    expect(action.getAttribute('href')).toBe('/api/auth/login?organization=acme-eu-2');
+    expect(screen.queryByRole('link', { name: 'All projects' })).toBeNull();
+  });
 });
