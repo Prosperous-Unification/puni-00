@@ -230,10 +230,22 @@ test('rendered units pass systemd-analyze verify', () => {
       ],
       { stderr: 'pipe', stdout: 'pipe' },
     );
-    // `verify` exits 0 on an unknown key and only warns, so its silence is part of the contract.
-    // Proof: `Restart=no` renamed `Restartt=no` in the service template failed the empty-output
-    // assertion with "Unknown key name 'Restartt'" while the exit stayed 0 (2026-10-12).
-    expect(verified.stdout.toString('utf8') + verified.stderr.toString('utf8')).toBe('');
+    // `verify` exits 0 on an unknown key and only warns, so silence about the rendered units is
+    // part of the contract. It also loads the host's whole unit tree, and newer systemd warns
+    // about unrelated host units (h2puni's systemd 259 on `xfs_scrub_all.service`); those lines
+    // are not this contract, so only lines naming a rendered unit or its directory count.
+    // Proof: `Restart=no` renamed `Restartt=no` in the service template failed this assertion
+    // with "…/twilight-dash-observation.service:39: Unknown key name 'Restartt'" while the exit
+    // stayed 0, before and after the filter (2026-10-12).
+    const findings = `${verified.stdout.toString('utf8')}${verified.stderr.toString('utf8')}`
+      .split('\n')
+      .filter(
+        (line) =>
+          line.includes(outputDirectory) ||
+          line.includes(OBSERVATION_SERVICE_UNIT) ||
+          line.includes(OBSERVATION_TIMER_UNIT),
+      );
+    expect(findings).toEqual([]);
     expect(verified.exitCode).toBe(0);
   } finally {
     rmSync(scratch, { recursive: true, force: true });
