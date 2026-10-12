@@ -603,7 +603,7 @@ test('spells each leaf’s step nodes beside their IDs', async () => {
   const exported = await exportDocument(nested);
 
   expect(exported.stepNodes).toEqual([
-    { id: 'sn1.row-2.step-1', workItemId: 'row-2', stepId: 'step-1', reference: '1.1.build' },
+    { id: 'sn1.row-2.step-1', workItemId: 'row-2', stepId: 'step-1', reference: '1.1.s1-build' },
   ]);
   const classified = await classifyPlanDocument(exported);
   if (!classified.ok) throw new Error(`current file refused at ${classified.path}`);

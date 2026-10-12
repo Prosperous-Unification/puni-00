@@ -4,9 +4,9 @@ export const STEP_CODE_MAX_LENGTH = 32;
 const STEP_CODE = /^[a-z][a-z0-9-]*$/;
 
 /**
- * The ordinal alias's namespace: `s1`, `s12-review`. A step reference may spell
+ * The ordinal reference's namespace: `s1`, `s12-review`. A reference spells
  * a step by displayed position as `010.s1-dev`, so a code of that shape would
- * make `010.s1-dev` mean two things.
+ * make the reference ambiguous.
  */
 const RESERVED_STEP_CODE = /^s[0-9]+(?:-|$)/;
 
@@ -23,7 +23,7 @@ export function isStepCode(candidate: string): boolean {
   return candidate.length <= STEP_CODE_MAX_LENGTH && STEP_CODE.test(candidate);
 }
 
-/** Whether `code` lies in the ordinal alias's namespace, `s<digits>` or `s<digits>-…`. */
+/** Whether `code` lies in the ordinal reference namespace, `s<digits>` or `s<digits>-…`. */
 export function isReservedStepCode(code: string): boolean {
   return RESERVED_STEP_CODE.test(code);
 }

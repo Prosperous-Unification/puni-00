@@ -94,7 +94,7 @@ export const documentV4TypedDependencyRequest = requestSchema(
  * be-01, an uncoded step); here it is a required string, because the export
  * refuses an uncoded project rather than write a file without its codes.
  * `stepNodes` spells each leaf's step node beside the structured work-item and
- * step IDs the estimates, facts and assignments are keyed by — `010.dev` for
+ * step IDs the estimates, facts and assignments are keyed by — `010.s1-dev` for
  * `sn1.<work item>.<step>` — for a reader of the file. It is derived, so import
  * drops it and the new project's nodes follow its own IDs.
  */
