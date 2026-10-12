@@ -5,6 +5,7 @@ import type { Logger } from '@wbs/observability';
 import {
   DomainClaimRepository,
   EmailVerificationRepository,
+  EnterpriseConnectionRepository,
   InvitationRepository,
   JoinRequestRepository,
   NO_BOUND_ORGANIZATION,
@@ -315,6 +316,7 @@ export async function bootBe01(
               memberships: new OrganizationRepository(db, services.gate),
               domains: new DomainClaimRepository(db, services.gate),
               sessionPolicies: new SessionPolicyRepository(db, services.gate),
+              enterpriseConnections: new EnterpriseConnectionRepository(db, services.gate),
               onboarding: new OnboardingRepository(db, services.gate),
               emailVerification: new EmailVerificationRepository(db, services.gate),
               invitations: new InvitationRepository(db, services.gate),

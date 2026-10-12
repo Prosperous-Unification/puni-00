@@ -6,6 +6,7 @@ import type {
   EditAdmission,
   EmailDelivery,
   EmailVerification,
+  EnterpriseConnections,
   HistoryService,
   ImportService,
   Invitation,
@@ -32,6 +33,7 @@ import { personLoadRoutes } from '@wbs/core/http/person-load.routes';
 import { projectRankRoutes } from '@wbs/core/http/project-rank.routes';
 import { sessionPolicyRoutes } from '@wbs/core/http/session-policy.routes';
 import { spaceRoutes } from '@wbs/core/http/space.routes';
+import { ssoConnectionRoutes } from '@wbs/core/http/sso-connection.routes';
 import type { LoginThrottle } from '@wbs/core/module/authentication/login-throttle';
 import type { CalendarMarkerService } from '@wbs/core/module/calendar-marker/calendar-marker.resource';
 import type { CapacityService } from '@wbs/core/module/capacity/capacity.resource';
@@ -144,6 +146,11 @@ export interface AppOptions {
    * harness wire the SQLite store.
    */
   sessionPolicies?: SessionPolicies;
+  /**
+   * Enterprise connection records (`organization-sso`): administration,
+   * login routing and proof by routed link. Required like `domains`.
+   */
+  enterpriseConnections: EnterpriseConnections;
   /** Signed-in onboarding boundary; absence cannot masquerade as an HTTP 404. */
   onboarding: Onboarding;
   /** Required durable challenge boundary; absence is a boot configuration error. */
@@ -395,7 +402,13 @@ export function mountedEndpoints(
             ? []
             : nativeBrowserLogoutEndpoints(opts.appOrigin, opts.browserSession)),
         ]
-      : authOidcEndpoints(opts.auth, opts.oidc, passwordThrottle, opts.browserSession)),
+      : authOidcEndpoints(
+          opts.auth,
+          opts.oidc,
+          passwordThrottle,
+          opts.enterpriseConnections,
+          opts.browserSession,
+        )),
     // Proof: omitting this binding made “binds each shared HTTP shape once”
     // receive 40 endpoints instead of 41 in app.routes.test.ts (2026-09-10).
     ...smokeRoutes(),
@@ -407,6 +420,7 @@ export function mountedEndpoints(
       opts.sessionPolicies ?? INACTIVE_SESSION_POLICIES,
       opts.clock,
     ),
+    ...ssoConnectionRoutes(opts.organizations, opts.enterpriseConnections, opts.clock),
     ...onboardingRoutes(opts.onboarding, opts.clock),
     ...emailVerificationRoutes(opts.emailVerification, opts.emailDelivery, opts.clock, nodeDigest),
     ...invitationRoutes(

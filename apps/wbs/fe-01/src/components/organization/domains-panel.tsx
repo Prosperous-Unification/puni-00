@@ -398,6 +398,8 @@ function domainRefusal(error: DomainRefusalCode, action: string): RefusalOutcome
       return said('Another organization already owns that domain.');
     case 'stale':
       return said('That domain changed since the page loaded. Check its state and try again.');
+    case 'sso_connection_exists':
+      return said('Company sign-in still uses this domain. Remove its connection first.');
     case 'proof_mismatch':
       return said('The TXT record was not found or does not match. Check the record and retry.');
     case 'dns_unavailable':

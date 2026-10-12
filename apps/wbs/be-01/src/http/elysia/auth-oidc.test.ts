@@ -5,6 +5,7 @@ import { authOidcEndpoints } from '../../controller/auth-oidc-endpoints';
 import type { OidcRouteOptions } from '../../controller/oidc-options';
 import { testAuthService } from '../../testing/auth-fixture';
 import { testLoginThrottle } from '../../testing/login-throttle-fixture';
+import { refusingEnterpriseConnections } from '../../testing/organization-access-fixture';
 import { mountEndpoints } from './mount';
 
 const origin = 'https://app.test';
@@ -79,13 +80,16 @@ function fixture(methods: OidcRouteOptions['methods'] = []) {
     passwordHash: null,
     createdAt: 1,
   });
-  const app = mountEndpoints(authOidcEndpoints(auth, options, testLoginThrottle()), {
-    appOrigin: origin,
-    reportUnexpectedFailure: () => undefined,
-    resolveIdentity: () => {
-      return Promise.reject(new Error('OIDC handshakes do not resolve an access identity'));
+  const app = mountEndpoints(
+    authOidcEndpoints(auth, options, testLoginThrottle(), refusingEnterpriseConnections),
+    {
+      appOrigin: origin,
+      reportUnexpectedFailure: () => undefined,
+      resolveIdentity: () => {
+        return Promise.reject(new Error('OIDC handshakes do not resolve an access identity'));
+      },
     },
-  });
+  );
   const send = (path: string, init?: RequestInit) =>
     app.handle(new Request(`${origin}${path}`, init));
   const start = async () => {

@@ -42,7 +42,7 @@ import {
 import { testHistoryService } from './history-fixture';
 import { testLoginThrottle } from './login-throttle-fixture';
 import { refusingOnboarding } from './onboarding-fixture';
-import { refusingDomains } from './organization-access-fixture';
+import { refusingDomains, refusingEnterpriseConnections } from './organization-access-fixture';
 import { testPriorityBandService } from './priority-band-fixture';
 import { testProjectService } from './project-fixture';
 import { refusingProjectRanks } from './project-rank-fixture';
@@ -203,6 +203,7 @@ const app = buildApp(
     ),
     memberships: new OrganizationRepository(db, OPEN),
     domains: refusingDomains,
+    enterpriseConnections: refusingEnterpriseConnections,
     emailVerification: refusingEmailVerification,
     invitations: refusingInvitations,
     joinRequests: refusingJoinRequests,

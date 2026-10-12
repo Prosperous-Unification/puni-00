@@ -59,12 +59,29 @@ test('declares the public method list and the login method hint', () => {
   expect(hint.validate({ method: 'facebook' })).toHaveProperty('issues');
   for (const { id } of AUTH_METHODS)
     expect(hint.validate({ method: id })).not.toHaveProperty('issues');
-  expect(paths['/api/auth/login']?.['get']?.parameters[0].schema).toMatchObject({
+  const parameters = paths['/api/auth/login']?.['get']?.parameters ?? [];
+  expect(parameters.find(({ name }) => name === 'method')?.schema).toMatchObject({
     enum: AUTH_METHODS.map(({ id }) => id).sort(),
   });
-  expect(paths['/api/auth/login']?.['get']?.parameters).toMatchObject([
-    { in: 'query', name: 'method', required: false },
+  expect(
+    parameters
+      .map(({ name, required }) => ({ name, required }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+  ).toEqual([
+    { name: 'email', required: false },
+    { name: 'method', required: false },
+    { name: 'organization', required: false },
   ]);
+});
+
+test('declares the enterprise login hints with the slug grammar', () => {
+  const hint = startOidcLogin.query.validator['~standard'];
+  expect(hint.validate({ organization: 'acme-corp' })).toEqual({
+    value: { organization: 'acme-corp' },
+  });
+  expect(hint.validate({ email: 'bob@acme.test' })).toEqual({ value: { email: 'bob@acme.test' } });
+  for (const organization of ['ac', 'Acme', 'acme_corp', 'a'.repeat(64)])
+    expect(hint.validate({ organization })).toHaveProperty('issues');
 });
 
 test('lets a link start carry a method and omit the password', () => {

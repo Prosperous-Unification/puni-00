@@ -64,6 +64,7 @@ test('pins every generated MCP operation name independently of the registry', ()
     'deleteApiOrganizationDomainsById',
     'deleteApiOrganizationInvitationsById',
     'deleteApiOrganizationMembersByUserId',
+    'deleteApiOrganizationSso-connectionsById',
     'deleteApiProjectsByIdCalendar-markersByMarkerId',
     'deleteApiProjectsByIdStepsByStepId',
     'deleteApiSaved-plansById',
@@ -77,6 +78,8 @@ test('pins every generated MCP operation name independently of the registry', ()
     'getApiOrganizationJoinRequests',
     'getApiOrganizationMembers',
     'getApiOrganizationProject-rank',
+    'getApiOrganizationSession-policy',
+    'getApiOrganizationSso-connections',
     'getApiPeople',
     'getApiPeopleByPersonIdLoad',
     'getApiPeopleLoad',
@@ -103,6 +106,7 @@ test('pins every generated MCP operation name independently of the registry', ()
     'getPlansBy-solutionBySlug',
     'patchApiOrganization',
     'patchApiOrganizationMembersByUserId',
+    'patchApiOrganizationSso-connectionsById',
     'patchApiProjectsById',
     'patchApiProjectsByIdCalendar-markersByMarkerId',
     'patchApiProjectsByIdStepsByStepId',
@@ -121,6 +125,7 @@ test('pins every generated MCP operation name independently of the registry', ()
     'postApiOrganizationJoinRequestsByIdApprove',
     'postApiOrganizationJoinRequestsByIdDeny',
     'postApiOrganizationProjectsByIdRank',
+    'postApiOrganizationSso-connections',
     'postApiProjects',
     'postApiProjectsByIdCalendar-markers',
     'postApiProjectsByIdCommands',
@@ -134,6 +139,7 @@ test('pins every generated MCP operation name independently of the registry', ()
     'postApiSpaces',
     'postApiSpacesByIdProjects',
     'postApiSpacesByIdProjectsByProjectIdMove',
+    'putApiOrganizationSession-policy',
   ]);
 });
 

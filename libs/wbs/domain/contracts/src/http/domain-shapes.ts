@@ -175,7 +175,8 @@ export const releaseDomainClaim = defineEndpointShape({
     },
     { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
     { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
-    { status: 409, schema: responseSchema(type({ error: "'stale'" })) },
+    // `sso_connection_exists`: an enterprise connection still names the claim.
+    { status: 409, schema: responseSchema(type({ error: "'stale' | 'sso_connection_exists'" })) },
   ],
   document: { summary: 'Release a domain claim and invalidate its proof.' },
 });

@@ -1,4 +1,5 @@
 import type { DomainChallenges } from '../ports/domain-challenges';
+import type { EnterpriseConnections } from '../ports/enterprise-connections';
 import type { MembershipAdministration } from '../ports/membership-administration';
 import type { OrganizationAccess } from '../ports/organization-access';
 
@@ -44,4 +45,26 @@ export const refusingDomains: DomainChallenges = {
     Promise.reject(new Error('domain release was reached in a pre-activation suite')),
   isVerifiedDomain: () =>
     Promise.reject(new Error('domain approval status was reached in a pre-activation suite')),
+};
+
+/**
+ * Enterprise connections for suites that are not about enterprise SSO. Their
+ * routes refuse before activation, and these suites route no login by slug or
+ * email and sign no enterprise subject in, so any call is a wiring fault.
+ */
+export const refusingEnterpriseConnections: EnterpriseConnections = {
+  list: () => Promise.reject(new Error('SSO connections were listed in a suite not about SSO')),
+  create: () => Promise.reject(new Error('an SSO connection was created in a suite not about SSO')),
+  update: () => Promise.reject(new Error('an SSO connection was changed in a suite not about SSO')),
+  setEnforced: () =>
+    Promise.reject(new Error('SSO enforcement was switched in a suite not about SSO')),
+  remove: () => Promise.reject(new Error('an SSO connection was deleted in a suite not about SSO')),
+  routeBySlug: () =>
+    Promise.reject(new Error('a login was routed by slug in a suite not about SSO')),
+  routeByDomain: () =>
+    Promise.reject(new Error('a login was routed by email in a suite not about SSO')),
+  provenFor: () =>
+    Promise.reject(new Error('an enterprise subject was resolved in a suite not about SSO')),
+  linkThroughConnection: () =>
+    Promise.reject(new Error('a link was routed through a connection in a suite not about SSO')),
 };

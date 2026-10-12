@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import type { WriteStamp } from '@wbs/core';
+import { isEnterpriseSubject, type WriteStamp } from '@wbs/core';
 import { and, eq, isNotNull, or, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
@@ -63,79 +63,9 @@ export class ExternalIdentityRepository {
     return this.gate.enter(async () => {
       await Promise.resolve();
       // Proof: 2026-09-28, replacing the transaction with direct writes made `rolls mapping insertion back when the email update aborts` leave one external_identity row after the update trigger aborted.
-      return this.db.transaction(
-        (tx): IdentityLink => {
-          // Proof: 2026-09-28, bypassing the activation check made `refuses unverified identity and an inactive marker without creating a mapping` receive linked while inactive.
-          if (readOrganizationActivation(tx) !== 'activated') return { kind: 'inactive' };
-          if (identity.issuer === '' || identity.subject === '')
-            throw new Error('verified Auth0 identity has an empty pair');
-          // Proof: 2026-09-28, using normalizeEmail here made `refuses an IDNA-equivalent email owned by another account` link and `refuses a malformed provider email domain before inserting a mapping` link.
-          const email = canonicalOidcEmail(identity.email);
-          // Proof: 2026-09-28, accepting unverified email made the same store test receive linked.
-          if (!identity.emailVerified || email === null) return { kind: 'unverified' };
-          const account = tx
-            .select({
-              idpIssuer: users.idpIssuer,
-              idpSub: users.idpSub,
-            })
-            .from(users)
-            .where(eq(users.id, userId))
-            .get();
-          // An OIDC-only account may link too; only a vanished account is refused.
-          if (account === undefined) return { kind: 'invalid_account' };
-          // Proof: 2026-09-28, bypassing the partial-pair invariant made `throws on a partial legacy identity pair before linking` resolve with an ordinary collision.
-          // Proof: 2026-10-11, deleting the own-pair check made `throws when the
-          // account own pair is unmapped or mapped to another user` answer linked for both.
-          assertOwnPairMapped(tx, { id: userId, ...account });
-          const owner = tx
-            .select({ userId: externalIdentity.userId })
-            .from(externalIdentity)
-            .where(
-              and(
-                eq(externalIdentity.issuer, identity.issuer),
-                eq(externalIdentity.subject, identity.subject),
-              ),
-            )
-            .get();
-          const legacyOwner = tx
-            .select({ id: users.id })
-            .from(users)
-            .where(and(eq(users.idpIssuer, identity.issuer), eq(users.idpSub, identity.subject)))
-            .get();
-          // Proof: 2026-09-28, omitting this check made `throws when activation left the account legacy pair unmapped` and `throws when another account holds an unmapped legacy pair` silently insert repair mappings.
-          if (legacyOwner !== undefined && legacyOwner.id !== owner?.userId)
-            throw new Error(
-              owner === undefined
-                ? `external identity ${identity.issuer} ${identity.subject} legacy pair has no mapping`
-                : `external identity ${identity.issuer} ${identity.subject} legacy pair disagrees with mapping`,
-            );
-          if (owner !== undefined && owner.userId !== userId) return { kind: 'identity_collision' };
-          const emailOwner = tx
-            .select({ id: users.id })
-            .from(users)
-            .where(
-              sql`(lower(${users.email}) = ${email} OR lower(${users.username}) = ${email}) AND ${users.id} <> ${userId}`,
-            )
-            .get();
-          if (emailOwner !== undefined) return { kind: 'email_collision' };
-          if (owner === undefined)
-            tx.insert(externalIdentity)
-              .values({
-                id: randomUUID(),
-                userId,
-                issuer: identity.issuer,
-                subject: identity.subject,
-                ...auditOnCreate(stamp),
-              })
-              .run();
-          tx.update(users)
-            .set({ email, emailVerified: true, ...auditOnUpdate(stamp) })
-            .where(eq(users.id, userId))
-            .run();
-          return { kind: 'linked' };
-        },
-        { behavior: 'immediate' },
-      );
+      return this.db.transaction((tx) => linkIdentityWithin(tx, userId, identity, stamp), {
+        behavior: 'immediate',
+      });
     });
   }
 
@@ -208,6 +138,104 @@ export class ExternalIdentityRepository {
 }
 
 type Transaction = Parameters<Parameters<SQLiteBunDatabase['transaction']>[0]>[0];
+
+/**
+ * {@link ExternalIdentityRepository.linkIdentity} inside the caller's
+ * immediate transaction, so a routed link can prove its connection in the
+ * same unit of work (`organization-sso`, D5).
+ *
+ * A verified email is stored as the account's verified address. An
+ * enterprise pair (`samlp|`, `oidc|`) whose email is not verified still links
+ * and leaves the account's address untouched: its IdP vouches for no address
+ * outside its proven domain (D4), and an unverified address collides with
+ * nothing, so the answer cannot reveal who holds it. Any other unverified
+ * pair is refused.
+ *
+ * @throws on a partial own pair, an own pair not mapped to this account, or
+ *   a legacy pair whose mapping disagrees: corrupt trusted state.
+ */
+export function linkIdentityWithin(
+  tx: Transaction,
+  userId: string,
+  identity: IssuerSubject & { readonly email: string | null; readonly emailVerified: boolean },
+  stamp: WriteStamp,
+): IdentityLink {
+  // Proof: 2026-09-28, bypassing the activation check made `refuses unverified identity and an inactive marker without creating a mapping` receive linked while inactive.
+  if (readOrganizationActivation(tx) !== 'activated') return { kind: 'inactive' };
+  if (identity.issuer === '' || identity.subject === '')
+    throw new Error('verified Auth0 identity has an empty pair');
+  // Proof: 2026-09-28, using normalizeEmail here made `refuses an IDNA-equivalent email owned by another account` link and `refuses a malformed provider email domain before inserting a mapping` link.
+  const canonical = canonicalOidcEmail(identity.email);
+  const email = identity.emailVerified ? canonical : null;
+  // Proof: 2026-09-28, accepting unverified email made the same store test receive linked.
+  // Proof: 2026-10-12, admitting only verified enterprise pairs made mounted
+  // `links a non-super-admin matching pair without proving or trusting its
+  // email` in `enterprise-link.controller.db.test.ts` answer `refused`.
+  if (email === null && !isEnterpriseSubject(identity.subject)) return { kind: 'unverified' };
+  const account = tx
+    .select({
+      idpIssuer: users.idpIssuer,
+      idpSub: users.idpSub,
+    })
+    .from(users)
+    .where(eq(users.id, userId))
+    .get();
+  // An OIDC-only account may link too; only a vanished account is refused.
+  if (account === undefined) return { kind: 'invalid_account' };
+  // Proof: 2026-09-28, bypassing the partial-pair invariant made `throws on a partial legacy identity pair before linking` resolve with an ordinary collision.
+  // Proof: 2026-10-11, deleting the own-pair check made `throws when the
+  // account own pair is unmapped or mapped to another user` answer linked for both.
+  assertOwnPairMapped(tx, { id: userId, ...account });
+  const owner = tx
+    .select({ userId: externalIdentity.userId })
+    .from(externalIdentity)
+    .where(
+      and(
+        eq(externalIdentity.issuer, identity.issuer),
+        eq(externalIdentity.subject, identity.subject),
+      ),
+    )
+    .get();
+  const legacyOwner = tx
+    .select({ id: users.id })
+    .from(users)
+    .where(and(eq(users.idpIssuer, identity.issuer), eq(users.idpSub, identity.subject)))
+    .get();
+  // Proof: 2026-09-28, omitting this check made `throws when activation left the account legacy pair unmapped` and `throws when another account holds an unmapped legacy pair` silently insert repair mappings.
+  if (legacyOwner !== undefined && legacyOwner.id !== owner?.userId)
+    throw new Error(
+      owner === undefined
+        ? `external identity ${identity.issuer} ${identity.subject} legacy pair has no mapping`
+        : `external identity ${identity.issuer} ${identity.subject} legacy pair disagrees with mapping`,
+    );
+  if (owner !== undefined && owner.userId !== userId) return { kind: 'identity_collision' };
+  if (email !== null) {
+    const emailOwner = tx
+      .select({ id: users.id })
+      .from(users)
+      .where(
+        sql`(lower(${users.email}) = ${email} OR lower(${users.username}) = ${email}) AND ${users.id} <> ${userId}`,
+      )
+      .get();
+    if (emailOwner !== undefined) return { kind: 'email_collision' };
+  }
+  if (owner === undefined)
+    tx.insert(externalIdentity)
+      .values({
+        id: randomUUID(),
+        userId,
+        issuer: identity.issuer,
+        subject: identity.subject,
+        ...auditOnCreate(stamp),
+      })
+      .run();
+  if (email !== null)
+    tx.update(users)
+      .set({ email, emailVerified: true, ...auditOnUpdate(stamp) })
+      .where(eq(users.id, userId))
+      .run();
+  return { kind: 'linked' };
+}
 
 /**
  * Copies every user's legacy `(idp_issuer, idp_sub)` into `external_identity`,

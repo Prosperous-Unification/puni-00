@@ -33,6 +33,7 @@ import { testLoginThrottle } from './testing/login-throttle-fixture';
 import {
   legacyOrganizationAccess,
   refusingDomains,
+  refusingEnterpriseConnections,
   refusingMemberships,
 } from './testing/organization-access-fixture';
 import { testPriorityBandService } from './testing/priority-band-fixture';
@@ -49,6 +50,7 @@ function options(): AppOptions {
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
     domains: refusingDomains,
+    enterpriseConnections: refusingEnterpriseConnections,
     emailVerification: refusingEmailVerification,
     invitations: refusingInvitations,
     joinRequests: refusingJoinRequests,
@@ -152,6 +154,13 @@ const REQUEST_BODIES: Readonly<Record<string, unknown>> = {
   postApiOrganizationActive: { organizationId: ROUTE_ID },
   postApiOnboardingJoinRequests: { organizationId: ROUTE_ID },
   postApiOrganizationDomainsChallenges: { domain: 'example.org' },
+  'postApiOrganizationSso-connections': {
+    domainClaimId: ROUTE_ID,
+    auth0Connection: 'route-probe',
+    strategy: 'samlp',
+    loginSlug: 'route-probe',
+  },
+  'patchApiOrganizationSso-connectionsById': { loginSlug: 'route-probe' },
   postApiOnboardingEmailChallenges: { email: 'test@example.org' },
   postApiOnboardingEmailChallengesConfirm: { email: 'test@example.org', token: 'invalid' },
   postApiOrganizationInvitations: { email: 'test@example.org', role: 'viewer' },
@@ -249,6 +258,7 @@ const SIGNED_IN_OPERATIONS = [
   'getApiOrganizationMemberships',
   'getApiOrganizationProject-rank',
   'getApiOrganizationSession-policy',
+  'getApiOrganizationSso-connections',
   'getApiPeople',
   'getApiPeopleByPersonIdLoad',
   'getApiPeopleLoad',
@@ -278,6 +288,7 @@ const WRITE_SCOPE_OPERATIONS = [
   'deleteApiOrganizationDomainsById',
   'deleteApiOrganizationInvitationsById',
   'deleteApiOrganizationMembersByUserId',
+  'deleteApiOrganizationSso-connectionsById',
   'deleteApiProjectsByIdCalendar-markersByMarkerId',
   'deleteApiProjectsByIdStepsByStepId',
   'deleteApiSaved-plansById',
@@ -285,6 +296,7 @@ const WRITE_SCOPE_OPERATIONS = [
   'deleteApiSpacesByIdProjectsByProjectId',
   'patchApiOrganization',
   'patchApiOrganizationMembersByUserId',
+  'patchApiOrganizationSso-connectionsById',
   'patchApiProjectsById',
   'patchApiProjectsByIdCalendar-markersByMarkerId',
   'patchApiProjectsByIdStepsByStepId',
@@ -303,6 +315,7 @@ const WRITE_SCOPE_OPERATIONS = [
   'postApiOrganizationJoinRequestsByIdApprove',
   'postApiOrganizationJoinRequestsByIdDeny',
   'postApiOrganizationProjectsByIdRank',
+  'postApiOrganizationSso-connections',
   'postApiProjects',
   'postApiProjectsByIdCalendar-markers',
   'postApiProjectsByIdCommands',
@@ -341,6 +354,7 @@ const ALWAYS_ORIGIN_OPERATIONS = [
 const COOKIE_ORIGIN_OPERATIONS = [
   'deleteApiOrganizationDomainsById',
   'deleteApiOrganizationMembersByUserId',
+  'deleteApiOrganizationSso-connectionsById',
   'deleteApiProjectsByIdCalendar-markersByMarkerId',
   'deleteApiProjectsByIdStepsByStepId',
   'deleteApiSaved-plansById',
@@ -349,6 +363,7 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'getApiProjectsByIdHistory',
   'patchApiOrganization',
   'patchApiOrganizationMembersByUserId',
+  'patchApiOrganizationSso-connectionsById',
   'patchApiProjectsById',
   'patchApiProjectsByIdCalendar-markersByMarkerId',
   'patchApiProjectsByIdStepsByStepId',
@@ -363,6 +378,7 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'postApiOrganizationDomainsByIdVerify',
   'postApiOrganizationDomainsChallenges',
   'postApiOrganizationProjectsByIdRank',
+  'postApiOrganizationSso-connections',
   'postApiProjects',
   'postApiProjectsByIdCalendar-markers',
   'postApiProjectsByIdCommands',
@@ -424,6 +440,7 @@ const NO_ORIGIN_OPERATIONS = [
   'postInternalForward',
   'postInternalGatewayProjectAccess',
   'postInternalResume',
+  'getApiOrganizationSso-connections',
 ] as const;
 
 async function reachabilityOptions(

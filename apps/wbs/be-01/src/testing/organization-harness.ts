@@ -26,6 +26,7 @@ import {
   currentMembershipAccess,
   DomainClaimRepository,
   EmailVerificationRepository,
+  EnterpriseConnectionRepository,
   ExternalIdentityRepository,
   InvitationRepository,
   JoinRequestRepository,
@@ -80,6 +81,7 @@ import { recordingBroadcaster } from './broadcast-fixture';
 import { inMemoryCapacity, testCapacityService } from './capacity-fixture';
 import { testClock } from './clock-fixture';
 import { sqliteDependencyGraph } from './dependency-graph-fixture';
+import type { FakeOidcProvider } from './fake-oidc-provider';
 import { testHistoryService } from './history-fixture';
 import { testLoginThrottle } from './login-throttle-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from './priority-band-fixture';
@@ -113,6 +115,11 @@ export interface OrganizationHarnessOptions {
   readonly policyDirectory?: string;
   readonly resolver?: DomainResolver;
   readonly sessionBinding?: boolean;
+  /**
+   * Mounts the browser OIDC routes over this fake provider, with password
+   * sign-in and registration still on; excludes `upstreamCredential`.
+   */
+  readonly provider?: FakeOidcProvider;
   readonly upstreamCredential?: {
     readonly verifier: TokenVerifier;
     readonly groupPrefix: string;
@@ -142,6 +149,11 @@ interface TestMail {
 export class OrganizationHarness {
   private readonly tokens = new Map<string, string>();
   private readonly ids = new Map<string, string>();
+  /**
+   * Set when the browser OIDC routes are mounted: registration then needs an
+   * edge client address and answers its session as the access cookie.
+   */
+  private federated = false;
 
   private constructor(
     private readonly dir: string,
@@ -283,9 +295,12 @@ export class OrganizationHarness {
     policyDirectory,
     resolver,
     sessionBinding,
+    provider,
     upstreamCredential,
     now = Date.now,
   }: OrganizationHarnessOptions = {}): OrganizationHarness {
+    if (provider !== undefined && upstreamCredential !== undefined)
+      throw new Error('a harness takes a fake provider or an upstream credential, not both');
     const dir = mkdtempSync(join(tmpdir(), 'wbs-organization-'));
     const path = join(dir, 'test.db');
     runMigrations(path, FOLDER);
@@ -315,12 +330,22 @@ export class OrganizationHarness {
       clock: testClock,
       users,
       identities: users,
+      enterprise: new EnterpriseConnectionRepository(db, gate),
       tokens: joseTokenCodec(sessionKey),
       passwords: fastPasswordHasher,
       ...(upstreamCredential === undefined
         ? {}
         : {
             oidc: buildOidcVerifier(upstreamCredential.verifier, upstreamCredential),
+            passwordSessions: true,
+          }),
+      ...(provider === undefined
+        ? {}
+        : {
+            oidc: buildOidcVerifier(provider.verifier, {
+              groupPrefix: 'dev',
+              groupsClaim: 'wbs_groups',
+            }),
             passwordSessions: true,
           }),
     });
@@ -377,6 +402,7 @@ export class OrganizationHarness {
       loginThrottle: testLoginThrottle(),
       clock: testClock,
       appOrigin: 'http://localhost',
+      ...(provider === undefined ? {} : { oidc: provider.routeOptions('http://localhost') }),
       savedPlans: testSavedPlanService(),
       ...writing,
       organizations,
@@ -395,6 +421,7 @@ export class OrganizationHarness {
       memberships: new OrganizationRepository(db, OPEN),
       domains,
       sessionPolicies: new SessionPolicyRepository(db, gate),
+      enterpriseConnections: new EnterpriseConnectionRepository(db, gate),
       onboarding: new OnboardingRepository(db, OPEN),
       emailVerification: new EmailVerificationRepository(db, OPEN),
       invitations: new InvitationRepository(db, OPEN),
@@ -450,7 +477,9 @@ export class OrganizationHarness {
       writes: testWrites(undefined, writing),
       migrationsApplied: true,
     });
-    return new OrganizationHarness(dir, app, openDatabase(path), bound, domains, mail);
+    const harness = new OrganizationHarness(dir, app, openDatabase(path), bound, domains, mail);
+    harness.federated = provider !== undefined;
+    return harness;
   }
 
   /**
@@ -498,6 +527,7 @@ export class OrganizationHarness {
     onCapturedFanout,
     onBorrowedUnitOfWork,
     supportedCapacityModes,
+    provider,
   }: ComposedHarnessOptions): OrganizationHarness {
     const dir = mkdtempSync(join(tmpdir(), 'wbs-organization-'));
     const path = join(dir, 'test.db');
@@ -517,6 +547,15 @@ export class OrganizationHarness {
       gwUrl: 'http://gw.invalid',
       internalAuthSecret: 's'.repeat(32),
       pushFetch,
+      ...(provider === undefined
+        ? {}
+        : {
+            oidc: buildOidcVerifier(provider.verifier, {
+              groupPrefix: 'dev',
+              groupsClaim: 'wbs_groups',
+            }),
+            passwordSessions: true,
+          }),
       ...(withOptimizer
         ? {
             optimizer: {
@@ -536,6 +575,7 @@ export class OrganizationHarness {
       appOrigin: 'http://localhost',
       clock: services.clock,
       migrationsApplied: true,
+      ...(provider === undefined ? {} : { oidc: provider.routeOptions('http://localhost') }),
       auth: services.auth,
       loginThrottle: services.loginThrottle,
       projects: services.projects,
@@ -548,6 +588,7 @@ export class OrganizationHarness {
       },
       memberships: new OrganizationRepository(source.db, services.gate),
       domains: new DomainClaimRepository(source.db, services.gate),
+      enterpriseConnections: new EnterpriseConnectionRepository(source.db, services.gate),
       onboarding: new OnboardingRepository(source.db, services.gate),
       emailVerification: new EmailVerificationRepository(source.db, services.gate),
       invitations: new InvitationRepository(source.db, services.gate),
@@ -578,7 +619,7 @@ export class OrganizationHarness {
       },
       internalAuthSecret: 'x'.repeat(32),
     });
-    return new OrganizationHarness(
+    const harness = new OrganizationHarness(
       dir,
       app,
       openDatabase(path),
@@ -619,6 +660,8 @@ export class OrganizationHarness {
       source.history.savedPlanCapture,
       source,
     );
+    harness.federated = provider !== undefined;
+    return harness;
   }
 
   /** Token captured by the test-only injected sink; no message is sent. */
@@ -682,15 +725,25 @@ export class OrganizationHarness {
     const res = await this.app.handle(
       new Request('http://localhost/api/auth/register', {
         method: 'POST',
-        headers: { origin: 'http://localhost', 'content-type': 'application/json' },
+        headers: {
+          origin: 'http://localhost',
+          'content-type': 'application/json',
+          // One address per account, so the registration throttle never joins them.
+          ...(this.federated
+            ? { 'x-forwarded-for': `203.0.113.${String(this.ids.size + 1)}` }
+            : {}),
+        },
         body: JSON.stringify({ username, password: 'correct-horse' }),
       }),
     );
     const body = (await res.json()) as { token?: unknown; user?: { id?: unknown } };
-    if (typeof body.token !== 'string' || typeof body.user?.id !== 'string') {
+    const token = this.federated
+      ? /__Host-wbs_access=([^;]+)/.exec(res.headers.get('set-cookie') ?? '')?.[1]
+      : body.token;
+    if (typeof token !== 'string' || token === '' || typeof body.user?.id !== 'string') {
       throw new Error(`register did not answer with a token and user: ${JSON.stringify(body)}`);
     }
-    this.tokens.set(username, body.token);
+    this.tokens.set(username, decodeURIComponent(token));
     this.ids.set(username, body.user.id);
   }
 
@@ -733,6 +786,11 @@ export class OrganizationHarness {
     this.sqlite.run(
       "UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1",
     );
+  }
+
+  /** One raw request to the app at `http://localhost`, for redirects and cookies. */
+  request(path: string, init: RequestInit = {}): Promise<Response> {
+    return Promise.resolve(this.app.handle(new Request(`http://localhost${path}`, init)));
   }
 
   async call(username: string, method: string, path: string, body?: unknown): Promise<Answer> {
@@ -779,6 +837,8 @@ export interface ComposedHarnessOptions {
   onBorrowedUnitOfWork?: () => void;
   /** The release's capacity modes; production's `SUPPORTED_CAPACITY_MODES` when absent. */
   supportedCapacityModes?: readonly CapacityMode[];
+  /** Mounts the browser OIDC routes over this fake provider; see {@link OrganizationHarnessOptions}. */
+  provider?: FakeOidcProvider;
 }
 
 /**

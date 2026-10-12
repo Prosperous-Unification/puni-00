@@ -248,6 +248,41 @@ describe('enforced SSO', () => {
     expect((await h.callWith(await delegation(SSO), 'GET', '/api/projects')).status).toBe(200);
   });
 
+  // Proof: dropping the lockout guard in `EnterpriseConnectionRepository.setEnforced`
+  // made the social credential enforce (200 instead of 409); watched 2026-10-12.
+  it('enables enforcement for a super-admin signed in through the connection', async () => {
+    enforce();
+    h.sqlite.run("UPDATE organization_sso_connection SET enforced = 0 WHERE id = 'conn-a'");
+    h.sqlite.run(
+      "UPDATE organization_membership SET role = 'super_admin' WHERE organization_id = 'org-a' AND user_id = ?",
+      [h.userId('mia')],
+    );
+    const request = async (subject: string) => {
+      const token = await upstream(subject);
+      const selected = await select(token, 'org-a');
+      const response = await h.app.handle(
+        new Request('http://localhost/api/organization/sso-connections/conn-a', {
+          method: 'PATCH',
+          headers: {
+            cookie: `__Host-wbs_access=${token}; ${selected.pair ?? ''}`,
+            origin: 'http://localhost',
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({ enforced: true }),
+        }),
+      );
+      return { status: response.status, body: (await response.json()) as unknown };
+    };
+    expect(await request(SOCIAL)).toEqual({
+      status: 409,
+      body: { error: 'enforcement_would_lock_out_actor' },
+    });
+    expect((await request(SSO)).status).toBe(200);
+    expect(
+      h.sqlite.query("SELECT enforced FROM organization_sso_connection WHERE id = 'conn-a'").get(),
+    ).toEqual({ enforced: 1 });
+  });
+
   it('marks the memberships this credential cannot enter', async () => {
     enforce();
     const listed = await send(await upstream(SOCIAL), 'GET', '/api/organization/memberships');

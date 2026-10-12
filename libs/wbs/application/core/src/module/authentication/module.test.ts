@@ -6,6 +6,7 @@ import { clockOf } from '../../ports/clock';
 import type { OidcVerifier } from '../../ports/oidc-verifier';
 import type { PasswordHasher, SessionClaims, TokenCodec } from '../../ports/runtime';
 import type { OidcIdentityStore, UserStore } from '../../ports/user-store';
+import { NO_PROVEN_CONNECTIONS } from './account.resource';
 import { installAuthentication } from './check';
 import type { AuthenticationRequirements } from './contract';
 import { AUTHENTICATION_LABEL } from './contract';
@@ -44,6 +45,7 @@ const requirements = () => {
       tokens: fakeTokens,
       passwords: fakePasswords,
       clock: clockOf({ now: () => STAMP_AT, newId: () => 'seeded' }),
+      enterprise: NO_PROVEN_CONNECTIONS,
     },
     now: () => STAMP_AT,
     maxConcurrentLogins: 8,
@@ -104,6 +106,7 @@ const verifierWithoutStore = (): AuthenticationRequirements['account'] => ({
   tokens: fakeTokens,
   passwords: fakePasswords,
   clock: clockOf({ now: () => STAMP_AT, newId: () => 'seeded' }),
+  enterprise: NO_PROVEN_CONNECTIONS,
 });
 
 describe('the Authentication module', () => {
@@ -136,6 +139,7 @@ describe('the Authentication module', () => {
         tokens: fakeTokens,
         passwords: fakePasswords,
         clock: clockOf({ now: () => STAMP_AT, newId: () => 'seeded' }),
+        enterprise: NO_PROVEN_CONNECTIONS,
       },
       now: () => STAMP_AT,
       maxConcurrentLogins: 8,

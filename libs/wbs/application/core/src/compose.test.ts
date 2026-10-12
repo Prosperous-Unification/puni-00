@@ -13,6 +13,7 @@ import {
   type SharedComposition,
   type WritingServices,
 } from './compose';
+import { NO_PROVEN_CONNECTIONS } from './module/authentication/account.resource';
 import { createPlanCommandRunner } from './module/plan-commands/composition';
 import { replay } from './module/realtime/realtime.feature';
 import { savePlan } from './module/saved-plans/save-plan';
@@ -227,6 +228,7 @@ test('accountless composition has no auth capability', () => {
       sign: () => Promise.resolve('token'),
       verify: () => Promise.resolve(null),
     },
+    enterprise: NO_PROVEN_CONNECTIONS,
   };
   // Proof: relaxing the accountless runtime exclusion made core:typecheck fail
   // with TS2578 at this directive; the mismatched composition then compiled.
@@ -255,6 +257,7 @@ test('accountful composition exposes auth when its source and runtime both offer
         sign: (claims) => Promise.resolve(`${claims.subject}:${claims.username}`),
         verify: () => Promise.resolve(null),
       },
+      enterprise: NO_PROVEN_CONNECTIONS,
     },
     shared: fixtureShared,
   });

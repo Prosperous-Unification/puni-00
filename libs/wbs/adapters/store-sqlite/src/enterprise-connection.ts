@@ -7,13 +7,19 @@ import {
   type EnterpriseConnectionDraft,
   type EnterpriseConnections,
   type EnterpriseRoute,
+  isAttestedEmail,
   type ProvenConnection,
+  type RoutedIdentity,
+  type RoutedLink,
   subjectPrefixOf,
 } from '@wbs/core';
 import { and, eq, gt, isNotNull, isNull, or } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
+import { canonicalOidcEmail } from './canonical-oidc-email';
+import { isUniqueViolation, UNIQUE_INDEXES } from './constraint';
+import { linkIdentityWithin } from './external-identity';
 import type { Gate } from './gate';
 import { type ImmediateTransaction, writeImmediately } from './immediate-write';
 import { roleIn } from './organization';
@@ -24,6 +30,7 @@ import {
   organizationScimToken,
   organizationSsoConnection,
 } from './schema';
+import { readSessionPolicy } from './session-policy';
 
 type Transaction = ImmediateTransaction;
 type Reader = Pick<SQLiteBunDatabase, 'select'>;
@@ -167,6 +174,9 @@ export class EnterpriseConnectionRepository implements EnterpriseConnections {
    * dropping the claim-status recheck made `refuses a pending or suspended
    * claim` store a connection; dropping the organization predicate on the
    * claim made `answers a foreign claim as absent` store one on B's claim.
+   * Proof, watched 2026-10-12 through the mounted route: dropping the
+   * claim-status recheck made `refuses a pending or suspended domain and
+   * stores nothing` in `sso-connection.controller.db.test.ts` answer 201.
    */
   create(
     organizationId: string,
@@ -358,13 +368,14 @@ export class EnterpriseConnectionRepository implements EnterpriseConnections {
       .where(eq(organizationSsoConnection.loginSlug, slug))
       .get();
     if (row === undefined) return null;
-    const connection = checkedConnection(row);
-    return {
-      organizationId: connection.organizationId,
-      auth0Connection: connection.auth0Connection,
-    };
+    return routeOf(this.db, checkedConnection(row));
   }
 
+  /**
+   * Proof: 2026-10-12, dropping the `verified` predicate made mounted `sends
+   * no connection for an unrouted domain or a suspended claim` in
+   * `enterprise-login.controller.db.test.ts` route `bob@susp.test`.
+   */
   async routeByDomain(domain: string): Promise<EnterpriseRoute | null> {
     await Promise.resolve();
     const row = selectConnections(this.db)
@@ -376,11 +387,7 @@ export class EnterpriseConnectionRepository implements EnterpriseConnections {
       )
       .get();
     if (row === undefined) return null;
-    const connection = checkedConnection(row);
-    return {
-      organizationId: connection.organizationId,
-      auth0Connection: connection.auth0Connection,
-    };
+    return routeOf(this.db, checkedConnection(row));
   }
 
   /**
@@ -392,8 +399,116 @@ export class EnterpriseConnectionRepository implements EnterpriseConnections {
     return provenConnectionFor(this.db, subject);
   }
 
+  async linkThroughConnection(
+    userId: string,
+    connectionId: string,
+    identity: RoutedIdentity,
+    act: AuditedAct,
+  ): Promise<RoutedLink> {
+    try {
+      return await this.write((tx): RoutedLink => {
+        if (readOrganizationActivation(tx) !== 'activated') return { kind: 'inactive' };
+        const row = selectConnections(tx)
+          .where(eq(organizationSsoConnection.id, connectionId))
+          .get();
+        // Deleted between the link's start and its callback.
+        if (row === undefined) return { kind: 'not_found' };
+        const connection = checkedConnection(row);
+        // Proof: 2026-10-12, comparing without the trailing `|` made mounted
+        // `leaves the connection unproven and links nothing for
+        // samlp|acme-saml-2|alice@acme.test` in
+        // `enterprise-link.controller.db.test.ts` prove the connection.
+        if (!carriesSubjectPrefix(identity.subject, connection)) {
+          tx.update(organizationSsoConnection)
+            .set({ lastPrefixMismatchAt: act.stamp.at, ...auditOnUpdate(act.stamp) })
+            .where(eq(organizationSsoConnection.id, connectionId))
+            .run();
+          return { kind: 'sso_prefix_mismatch' };
+        }
+        const email = canonicalOidcEmail(identity.email);
+        const proves =
+          connection.provenAt === null &&
+          email !== null &&
+          // Proof: 2026-10-12, dropping the domain comparison made mounted
+          // `does not prove through an address off the connection domain` in
+          // `enterprise-link.controller.db.test.ts` prove it.
+          email.slice(email.lastIndexOf('@') + 1) === connection.domain &&
+          // Proof: 2026-10-12, proving for any member made mounted `links a
+          // non-super-admin matching pair without proving or trusting its
+          // email` in `enterprise-link.controller.db.test.ts` prove it.
+          roleIn(tx, connection.organizationId, userId) === 'super_admin';
+        if (proves) {
+          // The partial unique index lets one proven record name an Auth0
+          // connection; a second organization's proof throws here.
+          tx.update(organizationSsoConnection)
+            .set({ provenAt: act.stamp.at, provenBy: userId, ...auditOnUpdate(act.stamp) })
+            .where(eq(organizationSsoConnection.id, connectionId))
+            .run();
+          appendOrganizationAudit(tx, {
+            id: act.auditId,
+            organizationId: connection.organizationId,
+            actorId: act.actor,
+            action: 'sso_connection_proven',
+            subjectKind: 'sso_connection',
+            subjectId: connectionId,
+            detail: { prefix: subjectPrefixOf(connection), domain: connection.domain },
+            at: act.stamp.at,
+          });
+        }
+        const { kind } = linkIdentityWithin(
+          tx,
+          userId,
+          {
+            ...identity,
+            emailVerified:
+              identity.emailVerified &&
+              isAttestedEmail(identity.email, provenConnectionFor(tx, identity.subject)),
+          },
+          act.stamp,
+        );
+        // The prefix makes the pair an enterprise one, which links unverified.
+        if (kind === 'unverified')
+          throw new Error(`enterprise pair through ${connectionId} was refused as unverified`);
+        // A refused link must not leave the proof it would have carried.
+        // Proof: 2026-10-12, returning the refusal instead made mounted `rolls
+        // the proof back with a link refused as a collision` in
+        // `enterprise-link.controller.db.test.ts` keep the proof.
+        if (kind !== 'linked') throw new RefusedRoutedLink({ kind });
+        return { kind };
+      });
+    } catch (cause) {
+      if (cause instanceof RefusedRoutedLink) return cause.outcome;
+      // Proof: 2026-10-12, rethrowing this violation made mounted `lets one of
+      // two organizations prove the same Auth0 connection` in
+      // `enterprise-link.controller.db.test.ts` answer 500.
+      if (isUniqueViolation(cause, UNIQUE_INDEXES.provenAuth0Connection))
+        return { kind: 'sso_connection_taken' };
+      throw cause;
+    }
+  }
+
   private write<T>(work: (tx: Transaction) => T): Promise<T> {
     return writeImmediately(this.db, this.gate, work);
+  }
+}
+
+/** Where `connection` sends a login, with its organization's session policy. */
+function routeOf(db: Reader, connection: EnterpriseConnection): EnterpriseRoute {
+  return {
+    connectionId: connection.id,
+    organizationId: connection.organizationId,
+    auth0Connection: connection.auth0Connection,
+    policy: readSessionPolicy(db, connection.organizationId),
+  };
+}
+
+/**
+ * A routed link's identity write refused after its proof was applied; thrown
+ * to roll the proof back with it, and answered as its outcome.
+ */
+class RefusedRoutedLink extends Error {
+  constructor(readonly outcome: Exclude<RoutedLink, { kind: 'linked' }>) {
+    super(`routed link refused: ${outcome.kind}`);
   }
 }
 

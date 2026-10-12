@@ -1,6 +1,7 @@
 import type { CredentialAuthentication, DelegationAudience, WbsScope } from '@wbs/contracts';
 
 import type { Clock } from '../../ports/clock';
+import type { EnterpriseConnections } from '../../ports/enterprise-connections';
 import type { OidcIdentityStore, UserStore } from '../../ports/user-store';
 import type { AuthService, AuthServiceOptions } from './authentication.feature';
 import type { LoginThrottle } from './login-throttle';
@@ -22,6 +23,8 @@ export interface AuthenticationRequirements {
   readonly account: Omit<AuthServiceOptions, 'account'> & {
     readonly users: UserStore & OidcIdentityStore;
     readonly clock: Clock;
+    /** Which enterprise connections are proven, for enterprise email trust (D4). */
+    readonly enterprise: Pick<EnterpriseConnections, 'provenFor'>;
   };
   readonly now: () => number;
   readonly maxConcurrentLogins: number;

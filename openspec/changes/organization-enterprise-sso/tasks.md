@@ -23,25 +23,25 @@
 
 ## 2. Connection administration and routing
 
-- [ ] 2.1 Add the connection routes (create, update, delete, list), restricted to super-admins and refused before activation, with refusal codes `domain_not_verified`, `sso_connection_exists`, `provisioning_active` and `sso_connection_unproven`. Domain release is refused while a connection exists.
+- [x] 2.1 Add the connection routes (create, update, delete, list), restricted to super-admins and refused before activation, with refusal codes `domain_not_verified`, `sso_connection_exists`, `provisioning_active` and `sso_connection_unproven`. Domain release is refused while a connection exists.
 
   Red: the mounted scenarios of `organization-sso` "records one enterprise connection", including the suspended claim and the foreign claim answering 404.
 
   Fault: drop the claim-status recheck inside the transaction, and observe the suspended-claim test fail. Restore and add `Proof:`.
 
-- [ ] 2.2 `GET /api/auth/login` takes exactly one of `organization`, `email` and `method`. A slug or a verified-domain email routes with `connection=`, and a session policy adds `prompt=login` and `max_age`.
+- [x] 2.2 `GET /api/auth/login` takes exactly one of `organization`, `email` and `method`. A slug or a verified-domain email routes with `connection=`, and a session policy adds `prompt=login` and `max_age`.
 
   Red: slug, email, unrouted, suspended, ambiguous, malformed and unknown cases; no transaction is saved on refusal.
 
   Fault: route by a suspended claim and observe the suspended-email test fail. Then accept two hints and observe the ambiguity test fail. Restore and add `Proof:`.
 
-- [ ] 2.3 Prove a connection through the routed explicit link, recording the mismatch time and `sso_prefix_mismatch`.
+- [x] 2.3 Prove a connection through the routed explicit link, recording the mismatch time and `sso_prefix_mismatch`.
 
   Red: the fixture subject `samlp|acme-saml|alice@acme.test` proves the connection. `samlp|other|…`, `samlp|acme-saml-2|…`, `samlp|alice@acme.test` and `google-oauth2|1` do not. A non-super-admin cannot prove. Two organizations proving the same name end with one winner and `sso_connection_taken`.
 
   Fault: compare the prefix without its trailing `|`, and observe the `acme-saml-2` test fail. Restore and add `Proof:`.
 
-- [ ] 2.4 Enterprise email trust: honour `email_verified` only for a proven prefix on the connection's canonical domain.
+- [x] 2.4 Enterprise email trust: honour `email_verified` only for a proven prefix on the connection's canonical domain.
 
   Red: the `organization-sso` email-trust scenarios. A foreign-domain email gives no `account_exists` and holds no verified address; an unproven connection's email is unverified; the canonical comparison activates.
 

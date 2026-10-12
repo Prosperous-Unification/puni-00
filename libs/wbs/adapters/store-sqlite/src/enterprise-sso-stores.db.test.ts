@@ -277,12 +277,23 @@ describe('the enterprise SSO stores', () => {
     it('routes by slug whatever the claim status, and by domain only when verified', async () => {
       await connections().create('org-a', 'ada', draft, 'conn-a', act('ada'));
       expect(await connections().routeBySlug('acme')).toEqual({
+        connectionId: 'conn-a',
         organizationId: 'org-a',
         auth0Connection: 'acme-saml',
+        policy: null,
       });
       expect(await connections().routeByDomain('acme.test')).toEqual({
+        connectionId: 'conn-a',
         organizationId: 'org-a',
         auth0Connection: 'acme-saml',
+        policy: null,
+      });
+      sql(
+        "INSERT INTO organization_session_policy (organization_id, max_session_seconds, created_at) VALUES ('org-a', 3600, 1)",
+      );
+      expect((await connections().routeBySlug('acme'))?.policy).toEqual({
+        maxSessionSeconds: 3600,
+        reauthenticateAfterSeconds: null,
       });
       sql("UPDATE organization_domain_claim SET status = 'suspended' WHERE id = 'claim-a'");
       expect(await connections().routeByDomain('acme.test')).toBeNull();

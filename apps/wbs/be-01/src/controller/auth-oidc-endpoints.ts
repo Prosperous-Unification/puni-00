@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 
 import {
   browserBindingCookieName,
@@ -26,9 +26,10 @@ import {
   startAuth0Link,
   startOidcLogin,
 } from '@wbs/contracts';
+import type { EnterpriseConnections, EnterpriseRoute } from '@wbs/core';
 import type { LoginThrottle } from '@wbs/core/module/authentication/login-throttle';
 import type { AuthService } from '@wbs/core/service/auth.service';
-import { BrowserLifecycleRefusedError } from '@wbs/store-sqlite';
+import { BrowserLifecycleRefusedError, canonicalOidcEmail } from '@wbs/store-sqlite';
 
 import {
   bind,
@@ -219,6 +220,78 @@ function methodChoice(
 const connectionParameter = (choice: MethodChoice) =>
   choice.kind === 'connection' ? { connection: choice.connection } : {};
 
+/** The hints a login may carry; `GET /api/auth/login` admits at most one (D3). */
+interface LoginHints {
+  readonly method?: AuthMethodId;
+  readonly organization?: string;
+  readonly email?: string;
+}
+
+/**
+ * Where a login goes: the enabled method's or the routed enterprise
+ * connection, the provider's chooser, or a refusal answered before any
+ * transaction is saved.
+ */
+type LoginChoice =
+  | { readonly kind: 'chooser' }
+  | { readonly kind: 'method'; readonly connection: string }
+  | { readonly kind: 'enterprise'; readonly route: EnterpriseRoute }
+  | { readonly kind: 'invalid_query' | 'sso_connection_not_found' };
+
+/**
+ * Resolves the one login hint (`organization-sso` "Login is routed to the
+ * enterprise connection"). A slug routes whatever its claim's status, so a
+ * suspension never weakens enforcement; an email routes only through a
+ * verified claim, and any other email is the ordinary login.
+ */
+async function loginChoice(
+  hints: LoginHints,
+  enabled: readonly AuthMethodId[],
+  enterprise: Pick<EnterpriseConnections, 'routeBySlug' | 'routeByDomain'>,
+): Promise<LoginChoice> {
+  const given = [hints.method, hints.organization, hints.email].filter(
+    (hint) => hint !== undefined,
+  );
+  // Proof: 2026-10-12, admitting two hints made `refuses two hints, a
+  // malformed email or slug, and saves no transaction` in
+  // `enterprise-login.controller.db.test.ts` route `organization=acme&method=google`.
+  if (given.length > 1) return { kind: 'invalid_query' };
+  if (hints.organization !== undefined) {
+    const route = await enterprise.routeBySlug(hints.organization);
+    return route === null ? { kind: 'sso_connection_not_found' } : { kind: 'enterprise', route };
+  }
+  if (hints.email !== undefined) {
+    const email = canonicalOidcEmail(hints.email);
+    if (email === null) return { kind: 'invalid_query' };
+    const route = await enterprise.routeByDomain(email.slice(email.lastIndexOf('@') + 1));
+    return route === null ? { kind: 'chooser' } : { kind: 'enterprise', route };
+  }
+  const method = methodChoice(enabled, hints.method);
+  if (method.kind === 'disabled') return { kind: 'invalid_query' };
+  return method.kind === 'connection'
+    ? { kind: 'method', connection: method.connection }
+    : { kind: 'chooser' };
+}
+
+/**
+ * The `/authorize` parameters a login choice adds. A routed organization
+ * with a session policy also asks for an interactive sign-in, bounded by
+ * `max_age` when it sets a reauthentication bound.
+ */
+function loginParameters(choice: LoginChoice) {
+  if (choice.kind === 'method') return { connection: choice.connection };
+  if (choice.kind !== 'enterprise') return {};
+  const { auth0Connection, policy } = choice.route;
+  if (policy === null) return { connection: auth0Connection };
+  return {
+    connection: auth0Connection,
+    prompt: 'login' as const,
+    ...(policy.reauthenticateAfterSeconds === null
+      ? {}
+      : { maxAge: policy.reauthenticateAfterSeconds }),
+  };
+}
+
 /** The enabled methods as the public list reply. */
 function methodList(enabled: readonly AuthMethodId[]) {
   return enabled.map((id) => ({ id, label: authMethod(id).label }));
@@ -281,7 +354,15 @@ const clearLink = (): Header => cookie(LINK_COOKIE, '', 0);
  * The fixed outcomes a link callback reports to fe-01 as `?auth_link=`.
  * Nothing from the request (state, error, error_description) is echoed.
  */
-type LinkOutcome = 'linked' | 'refused' | 'inactive' | 'collision' | 'unavailable' | 'failed';
+type LinkOutcome =
+  | 'linked'
+  | 'refused'
+  | 'inactive'
+  | 'collision'
+  | 'unavailable'
+  | 'failed'
+  | 'sso_prefix_mismatch'
+  | 'sso_connection_taken';
 const LINK_OUTCOME_FOR_OIDC_FAILURE: Record<OidcFailureKind, LinkOutcome> = {
   defect: 'failed',
   indeterminate: 'unavailable',
@@ -355,6 +436,10 @@ export function authOidcEndpoints(
   auth: AuthService,
   options: OidcRouteOptions,
   passwordThrottle: LoginThrottle,
+  enterprise: Pick<
+    EnterpriseConnections,
+    'routeBySlug' | 'routeByDomain' | 'linkThroughConnection'
+  >,
   browserSession?: BrowserSessionAuthority,
 ) {
   const now = options.now ?? Date.now;
@@ -375,11 +460,13 @@ export function authOidcEndpoints(
       } as const),
     ),
     bind(startOidcLogin, async ({ query, request }) => {
-      const choice = methodChoice(options.methods, query.method);
+      const choice = await loginChoice(query, options.methods, enterprise);
       // Proof: 2026-10-11, moving this refusal after `transactions.save` made
       // `refuses a disabled method without saving a transaction` count one save.
-      if (choice.kind === 'disabled')
+      if (choice.kind === 'invalid_query')
         return { ok: false, status: 400, body: { error: 'invalid_query' } };
+      if (choice.kind === 'sso_connection_not_found')
+        return { ok: false, status: 404, body: { error: 'sso_connection_not_found' } };
       const browserBinding = random();
       const state = random();
       const nonce = random();
@@ -390,7 +477,7 @@ export function authOidcEndpoints(
         state,
         verifier,
         redirectUri: options.redirectUri,
-        ...connectionParameter(choice),
+        ...loginParameters(choice),
       });
       const held = selectBrowserBindings(options.transactions, browserBindingsOf(request), now());
       const evicted = [
@@ -864,9 +951,17 @@ export function authOidcEndpoints(
       if (current === null || session === null)
         return { ok: false, status: 401, body: { error: 'invalid_credentials' } };
       const choice = methodChoice(options.methods, body.method);
-      // A disabled method is refused before any binding or provider address exists.
-      if (choice.kind === 'disabled')
+      // A disabled method, or a method beside a slug, is refused before any
+      // binding or provider address exists.
+      if (
+        choice.kind === 'disabled' ||
+        (body.method !== undefined && body.organization !== undefined)
+      )
         return { ok: false, status: 400, body: { error: 'invalid_body' } };
+      const routed =
+        body.organization === undefined ? null : await enterprise.routeBySlug(body.organization);
+      if (body.organization !== undefined && routed === null)
+        return { ok: false, status: 404, body: { error: 'sso_connection_not_found' } };
       let user;
       if (current.kind === 'oidc') {
         // No password exists to prove; one sent anyway is a confused client.
@@ -907,14 +1002,21 @@ export function authOidcEndpoints(
       const state = random();
       const nonce = random();
       const verifier = random();
-      links.save(binding, { userId: user.id, session, state, nonce, verifier });
+      links.save(binding, {
+        userId: user.id,
+        session,
+        state,
+        nonce,
+        verifier,
+        ...(routed === null ? {} : { connectionId: routed.connectionId }),
+      });
       const location = await options.client.authorizationUrl({
         nonce,
         state,
         verifier,
         redirectUri: linkRedirectUri,
         prompt: 'login',
-        ...connectionParameter(choice),
+        ...(routed === null ? connectionParameter(choice) : { connection: routed.auth0Connection }),
       });
       return {
         ok: true,
@@ -984,6 +1086,28 @@ export function authOidcEndpoints(
           });
         } catch {
           return linkOutcome('refused');
+        }
+        if (proof.connectionId !== undefined) {
+          const at = now();
+          const routed = await enterprise.linkThroughConnection(
+            user.id,
+            proof.connectionId,
+            identity,
+            { stamp: { at, by: user.id }, actor: user.id, auditId: randomUUID() },
+          );
+          switch (routed.kind) {
+            case 'linked':
+            case 'inactive':
+            case 'sso_prefix_mismatch':
+            case 'sso_connection_taken':
+              return linkOutcome(routed.kind);
+            case 'identity_collision':
+            case 'email_collision':
+              return linkOutcome('collision');
+            case 'not_found':
+            case 'invalid_account':
+              return linkOutcome('refused');
+          }
         }
         const linked = await auth.linkOidcIdentity(user.id, identity);
         if (linked.kind === 'inactive') return linkOutcome('inactive');

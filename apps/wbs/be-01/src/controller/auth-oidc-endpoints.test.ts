@@ -8,6 +8,7 @@ import { expect, test } from 'bun:test';
 import { EMPTY } from '../http/endpoint';
 import { testAuthService } from '../testing/auth-fixture';
 import { testLoginThrottle } from '../testing/login-throttle-fixture';
+import { refusingEnterpriseConnections } from '../testing/organization-access-fixture';
 import { authOidcEndpoints } from './auth-oidc-endpoints';
 
 test('direct OIDC login binds the exact transaction to the provider and emits an empty redirect', async () => {
@@ -52,6 +53,7 @@ test('direct OIDC login binds the exact transaction to the provider and emits an
       },
     },
     testLoginThrottle(),
+    refusingEnterpriseConnections,
   );
   const reply = await start.handle({
     params: {},
