@@ -40,7 +40,13 @@ trap - EXIT
 bunx nx format:check --all
 # Proof: dropping this exclusion made gate-entrypoints.test.ts lose the exact-once split and fail
 # at `Expected to contain: --exclude=twilight-burokrat`; source lint is invoked below.
-bunx nx run-many -t test lint typecheck build --parallel=2 --skip-nx-cache --exclude=twilight-burokrat
-bunx nx run-many -t test typecheck build -p twilight-burokrat --parallel=2 --skip-nx-cache
+# The Twilight suite runs as CI's `gate_twilight` does: since 2026-10-12 (WBS a81d93a0)
+# twilight-dash is excluded beside Burokrat and its targets and lint run in the split below;
+# toolchain-pins.test.ts pins the `twilight-dash` half of the exclusion.
+bunx nx run-many -t test lint typecheck build --parallel=2 --skip-nx-cache \
+  --exclude=twilight-burokrat,twilight-dash
+bunx nx run-many -t test typecheck build -p twilight-burokrat,twilight-dash --parallel=2 \
+  --skip-nx-cache
 bunx nx run twilight-burokrat:lint:source --skip-nx-cache
+bunx nx run twilight-dash:lint --skip-nx-cache
 WBS_RUN_SOLVER_ORPHAN_PROC=1 bunx nx run wbs-be-01:solver-image-smoke

@@ -18,7 +18,7 @@ repository workflows, and rerun the affected PR checks.
 
 The uninstalled ordinary-PR observation service and its one-time administrator
 provisioning sequence are documented in the
-[observation service runbook](../infra/ci/burokrat/observation/README.md). The
+[observation service runbook](../apps/twilight-structure/twilight-dash/cli/src/activation/units/README.md). The
 service has no review, publication, admission, merge, or WBS authority.
 
 The bootstrap policy is `policy.tool-wiki-bootstrap.v1` in

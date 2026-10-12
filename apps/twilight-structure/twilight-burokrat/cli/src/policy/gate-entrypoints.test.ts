@@ -1847,7 +1847,7 @@ await import(${JSON.stringify(productionSnapshotter)});
     ) as {
       jobs?: {
         gate_workspace?: { 'timeout-minutes'?: number };
-        gate_tool_wiki?: { 'timeout-minutes'?: number };
+        gate_twilight?: { 'timeout-minutes'?: number };
       };
     };
 
@@ -1862,7 +1862,7 @@ await import(${JSON.stringify(productionSnapshotter)});
     // Proof (2026-09-28): with `gate_tool_wiki` set back to 20 minutes this failed on
     // `Expected: 50 · Received: 20`.
     expect(ci.jobs?.gate_workspace?.['timeout-minutes']).toBe(60);
-    expect(ci.jobs?.gate_tool_wiki?.['timeout-minutes']).toBe(50);
+    expect(ci.jobs?.gate_twilight?.['timeout-minutes']).toBe(50);
   });
 
   test('committed entrypoint certifies the exact external-trust fixture', () => {
@@ -2162,24 +2162,24 @@ describe('package-backed admission bootstrap in the CI gate', () => {
   });
 
   test('the CI gate runs the packed package suite whenever Tool Wiki is in scope', () => {
-    // The ci.yml `gate_tool_wiki` job owns this shape; only its scope and the two named steps
+    // The ci.yml `gate_twilight` job owns this shape; only its scope and the two named steps
     // are claimed. The job-level `if` is the scope; a step-level one would read the
     // `gate_mode` job's outputs as a missing step's and skip the suite on every run.
     const workflow = parseYaml(
       readFileSync(join(workspace, '.github', 'workflows', 'ci.yml'), 'utf8'),
     ) as {
       jobs?: {
-        gate_tool_wiki?: { if?: string; steps?: { name?: string; if?: string; run?: string }[] };
+        gate_twilight?: { if?: string; steps?: { name?: string; if?: string; run?: string }[] };
       };
     };
-    const job = workflow.jobs?.gate_tool_wiki;
+    const job = workflow.jobs?.gate_twilight;
     const steps = job?.steps ?? [];
     const suite = steps.find((step) => step.name === 'Twilight Burokrat packed package suite');
     const bubblewrap = steps.find(
       (step) => step.name === 'Provision bubblewrap for the packed package suite',
     );
     // Proof: deleting the suite step from ci.yml failed here on the undefined step.
-    expect(job?.if).toBe("${{ needs.gate_mode.outputs.tool_wiki == 'run' }}");
+    expect(job?.if).toBe("${{ needs.gate_mode.outputs.twilight == 'run' }}");
     expect(suite).toEqual({
       name: 'Twilight Burokrat packed package suite',
       run: 'bunx nx run twilight-burokrat:test:package --skip-nx-cache --output-style=stream',

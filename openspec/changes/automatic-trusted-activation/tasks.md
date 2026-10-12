@@ -3,6 +3,10 @@ recorded in verify.md. Execute each slice RED → GREEN → watched safety-check
 record the exact source fault and assertion in verify.md and adjacent production Proof comments.
 Keep pure transition rules in Twilight Burokrat and external effects behind mounted adapters.
 
+The controller, observation service and review invoker moved to Twilight Dash
+(`openspec/changes/dash-activation-relocation/`, WBS a81d93a0). Paths below that name
+`twilight-burokrat/cli/src/activation-controller/` now live under `twilight-dash/cli/src/activation/`.
+
 ## 1. Authority and exact requests
 
 - [ ] 1.1 Define and validate bootstrap configuration and canonical request identities — tests:

@@ -75,15 +75,14 @@ act as the trusted gate. Twilight Dash holds the secrets and performs the effect
 ### Clock reads
 
 Twilight Burokrat takes the instant it evaluates from its caller: `inspect-manual` requires
-`--now`, and Twilight Dash supplies it. The clock reads still in the package measure events that
-the process itself performs, which is Twilight Dash's work, and they move with it:
+`--now`, and Twilight Dash supplies it. The activation controller, the observation service and the
+review invoker moved to Twilight Dash in October 2026 with their clock reads (WBS a81d93a0). The
+reads still in the package measure checks the process itself runs:
 
-| Site                                          | What it measures                                                                                                    | Moves with                                        |
-| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| `review/invoker.ts`                           | review harness journal timestamps and its lock's wait                                                               | the review invoker                                |
-| `policy/prepare-activation-cli.ts`            | start and end of each candidate check it runs                                                                       | the check runner                                  |
-| `policy/prepare-relocation-activation-cli.ts` | start and end of each candidate check it runs                                                                       | the check runner                                  |
-| `activation-controller/*` (ten files)         | deadline and cancellation bounds while it polls GitHub and retrieves reviews; the composition root's injected clock | the activation controller and observation service |
+| Site                                          | What it measures                              | Moves with                  |
+| --------------------------------------------- | --------------------------------------------- | --------------------------- |
+| `policy/prepare-activation-cli.ts`            | start and end of each candidate check it runs | a CheckRun receipt protocol |
+| `policy/prepare-relocation-activation-cli.ts` | start and end of each candidate check it runs | a CheckRun receipt protocol |
 
 `no-ambient-clock.test.ts` in the Burokrat package fails on a reference to the JavaScript or Bun
 clock APIs outside these files, or on more references in them than they hold today. Its JSDoc

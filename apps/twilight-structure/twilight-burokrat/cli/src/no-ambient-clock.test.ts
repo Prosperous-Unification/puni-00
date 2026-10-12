@@ -12,7 +12,7 @@ interface ClockRead {
 
 /**
  * Twilight Burokrat reads no clock (docs/twilight-structure/names.md). The only reads left in the
- * package are Twilight Dash's dynamic half that has not moved yet. Each listed file may keep at
+ * package are the prepare-activation check runners' measured instants. Each listed file may keep at
  * most its count of clock references, so a reference in any other file fails, and so does an
  * extra one inside a listed file. A count may only fall. An entry whose file no longer exists
  * fails too, so the list cannot outlive the relocation it records. The cap is a count: replacing
@@ -30,25 +30,11 @@ interface ClockRead {
  */
 const dashOwnedClockReads: readonly { readonly paths: readonly string[]; readonly most: number }[] =
   [
-    // The review harness launcher: journal timestamps and the journal lock's wait deadline.
-    { paths: ['review/invoker.ts'], most: 10 },
-    // Candidate check runs: each check's measured start and end.
+    // Candidate check runs: each check's measured start and end. They stay with the
+    // prepare-activation commands the packed suite runs (WBS a81d93a0, A32) until a CheckRun
+    // receipt protocol lets Dash measure them.
     { paths: ['policy/prepare-activation-cli.ts'], most: 2 },
     { paths: ['policy/prepare-relocation-activation-cli.ts'], most: 2 },
-    // The activation controller (WBS 030.6, PR #328): deadline and cancellation bounds measured
-    // with `performance.now()` while it polls GitHub and runs review retrieval, plus the
-    // composition root's injected clock. None is stored or hashed; the controller is the
-    // dynamic half of activation and relocates to Twilight Dash with the observation service.
-    { paths: ['activation-controller/controller.ts'], most: 1 },
-    { paths: ['activation-controller/github-source.ts'], most: 3 },
-    { paths: ['activation-controller/observation-close-process.ts'], most: 2 },
-    { paths: ['activation-controller/observation-service-cli.ts'], most: 1 },
-    { paths: ['activation-controller/observation-service.fs-fixture.ts'], most: 1 },
-    { paths: ['activation-controller/observation-tick.ts'], most: 5 },
-    { paths: ['activation-controller/review-attestation.ts'], most: 10 },
-    { paths: ['activation-controller/review-retrieval.ts'], most: 8 },
-    { paths: ['activation-controller/review-selection-objects.ts'], most: 6 },
-    { paths: ['activation-controller/review-selection-preparation.ts'], most: 3 },
   ];
 
 const sourceRoot = import.meta.dir;

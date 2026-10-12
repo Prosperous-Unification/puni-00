@@ -1,5 +1,5 @@
 import { chmod, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'bun:test';
@@ -136,6 +136,41 @@ describe('the effective production and test boundaries', () => {
     expect(
       await ruleIds(peerPath, "import { hashBytes } from '@twilight-burokrat/judge';"),
     ).toContain('@nx/enforce-module-boundaries');
+  }, 30_000);
+
+  it('Dash activation reaches only the judge alias', async () => {
+    const peerPath = 'apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts';
+    const peerOptions = boundaryOf(await lint.calculateConfigForFile(peerPath))[1];
+    if (!isRecord(peerOptions)) throw new Error('Dash peer boundary options are malformed');
+    for (const path of [
+      'apps/twilight-structure/twilight-dash/cli/src/activation/controller.ts',
+      'apps/twilight-structure/twilight-dash/cli/src/activation/testing/observation-close-process.ts',
+      'apps/twilight-structure/twilight-dash/cli/src/activation/units/render.ts',
+      'apps/twilight-structure/twilight-dash/cli/src/review/invoker.ts',
+    ]) {
+      const options = boundaryOf(await lint.calculateConfigForFile(path))[1];
+      if (!isRecord(options)) throw new Error(`Dash boundary options are malformed: ${path}`);
+      // Proof: widening the activation override to `['^@twilight-burokrat/']` failed this test at
+      // the exact allow-list assertion (2026-10-12).
+      expect(options['allow'], path).toEqual(['^@twilight-burokrat/judge$']);
+      const withoutJudgeAlias: Readonly<Record<string, unknown>> = { ...options, allow: [] };
+      expect(withoutJudgeAlias, path).toEqual(peerOptions);
+      expect(
+        await ruleIds(path, "import { hashBytes } from '@twilight-burokrat/judge';"),
+        path,
+      ).not.toContain('@nx/enforce-module-boundaries');
+      const judgeModule = relative(
+        dirname(path),
+        'apps/twilight-structure/twilight-burokrat/cli/src/review/invocation-journal',
+      );
+      expect(
+        await ruleIds(path, `import { readInvocationJournal } from '${judgeModule}';`),
+        path,
+      ).toContain('@nx/enforce-module-boundaries');
+      expect(await ruleIds(path, "await import('@tools/fleet-plan');"), path).toContain(
+        '@nx/enforce-module-boundaries',
+      );
+    }
   }, 30_000);
 
   it('keeps Dash authority test helpers out of production modules', async () => {
