@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
+import { realpathSync } from 'node:fs';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 /** The checkout this module was loaded from. */
@@ -38,8 +40,15 @@ export function launcherBuildConfig(root = workspaceRoot): Bun.BuildConfig {
  * survives, as it would inside a string the replacement cannot see whole.
  */
 export function normaliseLauncher(source: string, root: string): string {
-  const normalised = source.replaceAll(`${root}/`, '');
-  if (normalised.includes(root)) throw new Error(`launcher still names its checkout: ${root}`);
+  const roots = [...new Set([root, realpathSync(root)])].sort((a, b) => b.length - a.length);
+  const normalised = roots.reduce((text, prefix) => text.replaceAll(`${prefix}/`, ''), source);
+  // An install layout that links packages from outside the checkout (an isolated store, Bun's
+  // global cache) would leave their real paths; those are refused, never rewritten by guess.
+  // Proof: dropping the home and Bun-install entries from this list made `normaliseLauncher
+  // refuses home, cache and checkout paths` fail on `~/.bun/install/cache/x` (2026-10-12).
+  const forbidden = [...roots, homedir(), process.env['BUN_INSTALL'] ?? join(homedir(), '.bun')];
+  const leaked = forbidden.find((prefix) => normalised.includes(prefix));
+  if (leaked !== undefined) throw new Error(`launcher still names a build-host path: ${leaked}`);
   return normalised;
 }
 
