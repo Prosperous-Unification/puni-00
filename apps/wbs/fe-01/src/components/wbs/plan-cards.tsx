@@ -2587,15 +2587,6 @@ function CardTrioField({
  * (`mobile-structure-menu`) — this one is the three actions the table already
  * had, not a fourth.
  */
-/**
- * A node whose attempts can be printed, or `null`: one with no zone is left
- * out for the reason {@link AttemptsSection} gives.
- */
-function zonedNode(node: StepNodeReadings | null): StepNodeReadings | null {
-  if (node === null) return null;
-  return node.timezone === null ? null : node;
-}
-
 export function PlanCards({
   rows,
   steps,
@@ -2783,7 +2774,7 @@ export function PlanCards({
               // The node's reading, a leaf's only: the line already names the
               // step, so the corner glyph the table draws goes in line here.
               const reading = nodeReadingOf(row, step.id);
-              const attemptedNode = zonedNode(attemptsOn?.(row, step.id) ?? null);
+              const attemptedNode = attemptsOn?.(row, step.id) ?? null;
               const attempted =
                 attemptedNode === null || attemptActionsOn === undefined
                   ? null
@@ -2947,8 +2938,8 @@ export function PlanCards({
                   {/*
                     The node's attempts, the step card's own list and actions
                     behind a tap, since a phone has no hover to open that card.
-                    Left out without the project's zone, for the reason
-                    {@link AttemptsSection} gives.
+                    The count remains visible without the project's zone;
+                    {@link AttemptsSection} leaves the timed lines and actions out.
                   */}
                   {attempted !== null && (
                     <details data-step-attempts={step.id} className="-mt-1 ml-20 text-sm">

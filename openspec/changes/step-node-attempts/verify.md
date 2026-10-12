@@ -119,6 +119,18 @@ this packet.
 | attempt refusals worded (6)               | the six attempt sentences struck from `PLAN_REFUSALS`                                           | "words each attempt refusal rather than naming its code"; "words a refused start in a toast" (`attempt-actions.test`)                                                         | `node_done: expected 'That change could not be completed (n…' not to contain 'node_done'`; the toast carried the fallback                                                          |
 | zone on the server's list (6)             | the list check narrowed to an empty box in `timezone-panel.tsx`                                 | "refuses a zone that is not on the server’s list without sending it" (`project-settings-modal.test`)                                                                          | `Unable to find role="alert"`: `Kyiv` was sent                                                                                                                                     |
 
+## Round 11 review fixes (2026-10-12)
+
+- The End dialog now pins the opened attempt number and clears its target when that attempt is
+  no longer running. The two-read and single-read peer replacement cases both failed red with
+  `Received: { attemptNumber: 2, ... }` where `null` was expected. With the number guard they
+  pass; the targeted attempt suites report 10 pass, 0 fail.
+- The phone disclosure keeps `Attempts (1)` when an older tree read has no timezone, while
+  leaving the timed list and actions out. Before the fix the new case failed because
+  `Attempts (1)` was absent; after it the targeted suites report 10 pass, 0 fail.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-fe-01:lint:fast --skip-nx-cache`:
+  target succeeded. The matching `wbs-fe-01:typecheck` target and its module dependency succeeded.
+
 ## Not run
 
 - Slice 6–7 (2026-10-12): the h2puni host gate (orchestrator); migration lint and apply/rollback

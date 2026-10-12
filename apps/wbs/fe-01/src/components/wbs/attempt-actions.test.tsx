@@ -18,6 +18,7 @@ publishApplicationRuntimeForEachTest();
 beforeEach(() => {
   localStorage.clear();
   window.history.replaceState(null, '', '/');
+  window.innerWidth = 1024;
 });
 
 const toastTexts = (): string[] =>
@@ -28,7 +29,10 @@ const toastTexts = (): string[] =>
  * through a fake whose three attempt commands write the row the next read
  * returns — be-01's answer, in the fake's terms — and record what was sent.
  */
-async function planWithAttempts(attempts: AttemptView[]) {
+async function planWithAttempts(
+  attempts: AttemptView[],
+  options: { olderRead?: boolean; phone?: boolean } = {},
+) {
   const api = fakeProjectApi();
   const made = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
   const row = api.rows.find((each) => each.id === made.id);
@@ -39,7 +43,7 @@ async function planWithAttempts(attempts: AttemptView[]) {
   const readTree = api.tree.bind(api);
   api.tree = async (projectId) => ({
     ...(await readTree(projectId)),
-    timezone: 'Europe/Kyiv',
+    ...(options.olderRead ? {} : { timezone: 'Europe/Kyiv' }),
     stepNodes: [
       { id: 'sn.dev', workItemId: leaf.id, stepId: DEV.id, reference: '010.dev' },
       { id: 'sn.qa', workItemId: leaf.id, stepId: QA.id, reference: '010.qa' },
@@ -90,6 +94,7 @@ async function planWithAttempts(attempts: AttemptView[]) {
   api.startAttempt = start;
   api.endAttempt = end;
   api.removeAttempt = remove;
+  if (options.phone) window.innerWidth = 390;
   render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
   const estimate = await screen.findByLabelText('Dev estimate for 010');
   fireEvent.focus(estimate);
@@ -107,6 +112,12 @@ const FAILED_ONE: AttemptView = {
 };
 
 describe('attempt actions on the step card (step-node-attempts D7)', () => {
+  itDom('keeps the attempt count on a phone when an older read has no timezone', async () => {
+    await planWithAttempts([FAILED_ONE], { phone: true, olderRead: true });
+    expect(screen.getByText('Attempts (1)')).toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'Attempts at 010.dev' })).toBeNull();
+  });
+
   itDom('starts an attempt through the batch and lists it running', async () => {
     const { leaf, start } = await planWithAttempts([FAILED_ONE]);
     fireEvent.click(screen.getByRole('button', { name: 'Start attempt' }));

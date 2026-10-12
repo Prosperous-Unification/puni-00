@@ -54,6 +54,36 @@ describe('the End dialog follows the current tree', () => {
     // A peer's end, arriving as the next read: the node runs nothing now.
     rerender({ rows: [leaf([attempt({ endedAt: 60_000, outcome: 'failed' })])] });
     expect(result.current.ending).toBeNull();
+    // A later start on that node must not resurrect the old End dialog.
+    rerender({
+      rows: [
+        leaf([attempt({ endedAt: 60_000, outcome: 'failed' }), attempt({ attemptNumber: 2 })]),
+      ],
+    });
+    expect(result.current.ending).toBeNull();
+  });
+
+  it('does not switch an open End dialog to a peer’s replacement attempt', () => {
+    const host = {
+      commands: {} as PlanCommands,
+      run: vi.fn(),
+      pushToast: vi.fn(),
+      steps: [DEV],
+      stepNodes: [{ id: 'sn', workItemId: 'w1', stepId: DEV.id, reference: '010.dev' }],
+    };
+    const { result, rerender } = renderHook(
+      ({ rows }: { rows: TreeRow[] }) => useAttemptActions({ ...host, rows }),
+      { initialProps: { rows: [leaf([attempt({})])] } },
+    );
+    act(() => {
+      result.current.openEndAttempt('w1', DEV.id);
+    });
+    rerender({
+      rows: [
+        leaf([attempt({ endedAt: 60_000, outcome: 'failed' }), attempt({ attemptNumber: 2 })]),
+      ],
+    });
+    expect(result.current.ending).toBeNull();
   });
 
   it('names an uncoded node by its step and number', () => {

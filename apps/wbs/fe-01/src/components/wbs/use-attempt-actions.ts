@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import type { RunPlanWrite } from '@/lib/local-write';
 import type { AttemptOutcomeView, PlanRead, StepView } from '@/lib/wbs-api';
@@ -43,11 +43,10 @@ export function attemptNodeLabel(
  * dialog's state: each a batch of one through the plan writer, so a refusal is
  * worded in a toast like every other write and the plan's Undo takes it back.
  *
- * The End dialog is held **by node, not by attempt**, and its attempt is read
- * off the current tree on every render, for `completionFor`'s reason in
- * `wbs-table.tsx`: a peer ending the attempt, or deleting the row, while the
- * dialog is open is a dialog that is simply not there, rather than one that
- * sends `endAttempt` at a node with nothing running.
+ * The End dialog keeps the number of the attempt opened at a node and checks
+ * it against the current tree on every render. A peer ending that attempt or
+ * deleting the row closes the dialog, even when a new attempt starts before
+ * the next read reaches this client.
  */
 export function useAttemptActions({
   commands,
@@ -57,7 +56,11 @@ export function useAttemptActions({
   steps,
   stepNodes,
 }: AttemptActionsHost) {
-  const [endingFor, setEndingFor] = useState<{ rowId: string; stepId: string } | null>(null);
+  const [endingFor, setEndingFor] = useState<{
+    rowId: string;
+    stepId: string;
+    attemptNumber: number;
+  } | null>(null);
 
   const ending = useMemo<EndingAttempt | null>(() => {
     if (endingFor === null) return null;
@@ -67,7 +70,10 @@ export function useAttemptActions({
     // Proof: the running check dropped, `closes the End dialog once a peer
     // ends the attempt` failed on `expected { rowId: 'w1', …(3) } to be null`;
     // watched 2026-10-12.
-    if (last?.outcome !== null) return null;
+    // Proof: without the number comparison, a peer's end followed by a new
+    // start reopened the old dialog for attempt 2, both across two reads and
+    // when both changes arrived in one read (`use-attempt-actions.test.ts`).
+    if (last?.outcome !== null || last.attemptNumber !== endingFor.attemptNumber) return null;
     return {
       rowId: row.id,
       stepId: endingFor.stepId,
@@ -75,6 +81,10 @@ export function useAttemptActions({
       label: attemptNodeLabel(row, endingFor.stepId, steps, stepNodes),
     };
   }, [endingFor, rows, steps, stepNodes]);
+
+  useEffect(() => {
+    if (endingFor !== null && ending === null) setEndingFor(null);
+  }, [ending, endingFor]);
 
   const startAttempt = useCallback(
     (rowId: string, stepId: string) => {
@@ -104,9 +114,16 @@ export function useAttemptActions({
     [commands, pushToast, rows, run, stepNodes, steps],
   );
 
-  const openEndAttempt = useCallback((rowId: string, stepId: string) => {
-    setEndingFor({ rowId, stepId });
-  }, []);
+  const openEndAttempt = useCallback(
+    (rowId: string, stepId: string) => {
+      const row = rows.find((each) => each.id === rowId);
+      if (row === undefined) throw new Error(`Missing row ${rowId} for an attempt end`);
+      const last = row.attempts?.[stepId]?.at(-1);
+      if (last?.outcome !== null) return;
+      setEndingFor({ rowId, stepId, attemptNumber: last.attemptNumber });
+    },
+    [rows],
+  );
 
   const closeEndAttempt = useCallback(() => {
     setEndingFor(null);
