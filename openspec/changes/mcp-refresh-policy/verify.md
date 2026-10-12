@@ -249,3 +249,33 @@ Fresh merged checks:
 - No push, draft PR, host gate, production authority activation, merge into a
   release branch or deploy performed. The production prerequisites listed above
   remain open.
+
+## Align with final reviewed integration head
+
+Normally merged exact #383 head `c2337838b84bda487f623b1311859a18171f5bea`
+into reviewed #385 head `a0d99d16c5a27b5c6038ac3dcda3953f64b762ec`.
+The merge was conflict-free and preserved both histories and prior evidence.
+It changes no MCP source, credential rules, production authority composition,
+or credential epoch. The policy and post-authority-read lease guard remain inert
+in production; the activation prerequisites recorded above remain open.
+
+Fresh checks on the merged tree:
+
+- `bun test ./apps/wbs/mcp-01/src/*.test.ts ./libs/wbs/application/core/src/ports/credential-rules.test.ts`:
+  431 passed, zero failed, 1838 assertions, 17 files.
+- `NX_ISOLATE_PLUGINS=false NX_DAEMON=false bunx nx run twilight-navigator:test --skip-nx-cache`:
+  37 passed, zero failed, 240 assertions, three files.
+- `NX_ISOLATE_PLUGINS=false NX_DAEMON=false bunx nx run-many -t lint typecheck -p wbs-mcp-01 twilight-navigator --skip-nx-cache`:
+  all four targets succeeded with cache skipped.
+- `BUN_TMPDIR=/tmp bunx @fission-ai/openspec@1.12.0 validate --all --json`:
+  185 passed, zero failed (167 changes and 18 specs).
+- The seven merge-changed backend test files, explicitly passed to `bun test`
+  with `--timeout=10000`: 270 passed, zero failed, 15011 assertions.
+- Merge-changed-file Prettier and staged/unstaged `git diff --check`: passed.
+- MCP source and credential-rule content comparison against the prior reviewed
+  #385 head: identical. Production main and session-store comparison against
+  exact #383: identical.
+
+Full repository gate, build, browser/e2e, production migration, authority
+activation, push and deployment were not run. Exact-SHA host gating remains
+coordinator-owned; this packet was checked locally on `pop-os`.
