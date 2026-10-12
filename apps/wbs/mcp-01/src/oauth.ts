@@ -921,6 +921,25 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
         this.store.releaseRefreshLease(family.familyId, owner);
         throw cause;
       }
+      // Proof: removing this synchronous lease recheck made `lease expires during a held
+      // authority read` contact the provider twice with the original secret, 2026-10-13.
+      // The authority await can outlive ownership; a stale owner must converge before dispatch.
+      const currentLease = this.store.family(family.familyId);
+      if (currentLease === null)
+        throw new UpstreamRefreshUnavailable('MCP refresh family disappeared after authority read');
+      if (
+        currentLease.revokedAt !== null ||
+        currentLease.leaseOwner !== owner ||
+        currentLease.version !== leased.version ||
+        currentLease.leaseUntil === null ||
+        currentLease.leaseUntil <= this.now()
+      ) {
+        this.store.releaseRefreshLease(family.familyId, owner);
+        // Proof: adopting currentLease.version here made the `rival provider is completed`
+        // variant refresh its rotated secret again, 2026-10-13. Retain the pre-acquisition
+        // version so the next failed CAS observes completion before trying another lease.
+        continue;
+      }
       let tokens: BrowserOidcTokenSet | undefined;
       let upstreamExpiresAt: number;
       try {

@@ -1635,6 +1635,110 @@ describe('InMemoryMcpOAuth', () => {
     }
   }
 
+  for (const providerCompleted of [false, true]) {
+    it(`converges without provider contact when its lease expires during a held authority read and rival provider is ${providerCompleted ? 'completed' : 'held'}`, async () => {
+      const readerEntered = Promise.withResolvers<undefined>();
+      const releaseReader = Promise.withResolvers<undefined>();
+      const providerEntered = Promise.withResolvers<undefined>();
+      const releaseProvider = Promise.withResolvers<undefined>();
+      const staleRetry = Promise.withResolvers<undefined>();
+      const duplicateProvider = Promise.withResolvers<undefined>();
+      let leaseAttempts = 0;
+      class BoundStore extends McpSessionStore {
+        override createFamily(...args: Parameters<McpSessionStore['createFamily']>): void {
+          const [family, ...credentials] = args;
+          super.createFamily(
+            {
+              ...family,
+              binding: { organizationId: 'org-a', userId: 'user-a', issuer: 'https://idp.example' },
+            },
+            ...credentials,
+          );
+        }
+        override acquireRefreshLease(...args: Parameters<McpSessionStore['acquireRefreshLease']>) {
+          const leased = super.acquireRefreshLease(...args);
+          leaseAttempts += 1;
+          if (leaseAttempts >= 3) staleRetry.resolve(undefined);
+          return leased;
+        }
+      }
+      const store = new BoundStore(':memory:', [randomBytes(32)]);
+      let authorityReads = 0;
+      const providerSecrets: string[] = [];
+      const { advance, oauth } = fixture({
+        store,
+        readRefreshAuthority: async (authority) => {
+          authorityReads += 1;
+          if (authorityReads === 2) {
+            readerEntered.resolve(undefined);
+            await releaseReader.promise;
+          }
+          return {
+            outcome: 'admitted',
+            authority,
+            facts: { enforced: [], policy: null, lifecycle: null },
+          };
+        },
+        exchange: () =>
+          Promise.resolve({
+            accessToken: 'upstream-okta-token',
+            expiresIn: 60,
+            refreshToken: 'provider-original',
+          }),
+        refresh: async (secret) => {
+          providerSecrets.push(secret);
+          providerEntered.resolve(undefined);
+          if (providerSecrets.length > 1) duplicateProvider.resolve(undefined);
+          await releaseProvider.promise;
+          return {
+            accessToken: 'upstream-okta-token',
+            expiresIn: 3600,
+            refreshToken: 'provider-rotated',
+          };
+        },
+      });
+      const pending: Promise<unknown>[] = [];
+      try {
+        const verifier = 'v'.repeat(43);
+        const code = await authorizationCode(oauth, verifier);
+        const issued = await tokenResponse(oauth, 'random-1', code, verifier);
+        const credentials = (await issued.json()) as {
+          access_token: string;
+          refresh_token: string;
+        };
+        pending.push(
+          oauth.callerSessionFor(credentials.access_token).catch((cause: unknown) => cause),
+        );
+        await readerEntered.promise;
+        advance(6_000);
+        const rival = oauth
+          .callerSessionFor(credentials.access_token)
+          .catch((cause: unknown) => cause);
+        pending.push(rival);
+        await providerEntered.promise;
+        if (providerCompleted) {
+          releaseProvider.resolve(undefined);
+          await rival;
+        }
+        releaseReader.resolve(undefined);
+        await Promise.race([staleRetry.promise, duplicateProvider.promise]);
+        expect(providerSecrets).toEqual(['provider-original']);
+        releaseProvider.resolve(undefined);
+        for (const completion of await Promise.all(pending))
+          expect(completion).toMatchObject({ upstreamToken: 'upstream-okta-token' });
+        const family = store.familyForRefreshToken(credentials.refresh_token);
+        expect(family?.upstreamRefreshToken).toBe('provider-rotated');
+        expect(family?.leaseOwner).toBeNull();
+        expect(providerSecrets).toEqual(['provider-original']);
+      } finally {
+        releaseReader.resolve(undefined);
+        releaseProvider.resolve(undefined);
+        await Promise.all(pending);
+        store.close();
+      }
+    });
+  }
+
   it('rechecks authority after a rival lease publishes its provider replacement', async () => {
     class BoundStore extends McpSessionStore {
       override createFamily(...args: Parameters<McpSessionStore['createFamily']>): void {

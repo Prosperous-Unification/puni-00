@@ -176,3 +176,50 @@ checks. All mutations were removed before final checks.
   signed final-use delegation/races (3.2), and mounted forced-refresh family
   semantics (3.3) remain open. Controlled direct OAuth tests do not prove those
   activation prerequisites or mounted tool dispatch behavior.
+
+## Astra P2 follow-up: lease expires during authority read
+
+Review of `4495951d9d54da1a7a5cee65def34fd78e7448a0` identified that the
+awaited pre-provider authority read could outlive its provider lease. Publication
+CAS prevented stale persistence but could not undo duplicate provider dispatch.
+
+The new production-path regression seeds a bound durable family with the original
+provider secret, holds the first owner's second authority read, advances the
+injected clock 6000ms and lets a rival acquire the expired lease. Resuming the
+first read previously contacted the provider a second time with the original
+secret. Red: one failed, zero passed, two assertions; observed duplicate original
+secret in the provider request list.
+
+After the authority await, dispatch now synchronously rereads durable ownership,
+version, expiry and revocation. A stale owner releases only its own lease and
+rejoins existing bounded convergence with the pre-acquisition version. Retaining
+that version matters when the rival has already completed: adopting the new
+version refreshed its rotated secret unnecessarily. The completed-rival variant
+was watched fail with original plus rotated provider requests, then pass after
+preserving the prior version. Both variants assert one provider request, both
+callers resolving through the winner, the retained rotated secret and no held
+lease. Focused restored run: two passed, zero failed, 14 assertions.
+
+R5 mutation: removed the synchronous lease recheck and reran
+`bun test ./apps/wbs/mcp-01/src/oauth.test.ts --test-name-pattern 'lease expires during a held authority read'`.
+Both variants failed with duplicate provider dispatch. Restored the guard before
+final checks. Adjacent `Proof:` comments name both the missing recheck and the
+incorrect version-adoption faults.
+
+No reader wiring, production authority, epoch change, issuance, migration,
+activation, push, merge or deployment is part of this correction. Previously
+listed production binding/revision/signing/mounted prerequisites remain open.
+
+Final correction checks:
+
+- `bun test ./apps/wbs/mcp-01/src/*.test.ts ./libs/wbs/application/core/src/ports/credential-rules.test.ts`:
+  431 passed, zero failed, 1838 assertions, 17 files.
+- `NX_ISOLATE_PLUGINS=false NX_DAEMON=false bunx nx run wbs-mcp-01:lint`:
+  succeeded, uncached, boundary graph available.
+- `NX_ISOLATE_PLUGINS=false NX_DAEMON=false bunx nx run wbs-mcp-01:typecheck`:
+  succeeded, uncached.
+- `BUN_TMPDIR=/tmp bunx @fission-ai/openspec@1.12.0 validate mcp-refresh-policy --type change --json`:
+  valid, one passed, zero failed, no issues.
+- Changed-file Prettier check and `git diff --check`: passed.
+- Exact-SHA host gate, push, draft PR, merge and deploy remain unperformed; the
+  correction is held for Astra re-review.
