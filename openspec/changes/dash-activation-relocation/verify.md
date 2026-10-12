@@ -14,10 +14,14 @@ Observed commands, results and R5 proofs per slice. Bun tests run under
 
 Each fault was restored and the test passed again.
 
-Finding: the test `retained raw tuple mismatch refuses before the digest dependency is touched`
-spies on `hashBytes` through a module namespace. It still passed with a `hashBytes` call injected
-before the tuple check, both on main `21a6bd537` and after S0. The spy never intercepts, so its
-`not.toHaveBeenCalled` assertion proves nothing. This change does not fix it.
+Correction (review F2, 2026-10-12): an earlier note here called the spy in `retained raw tuple
+mismatch refuses before the digest dependency is touched` vacuous. That note was wrong. The probe
+behind it put the injected `hashBytes` call into the first `byPath.get(path)` in
+`review-selection-objects.ts`, which is not the `read` port the test drives.
+
+The review re-ran the probe correctly: a `hashBytes(new Uint8Array())` call before the tuple check
+in `read` fails the test with `injected digest dependency reached`, both on main and at S5. The spy
+on the facade namespace intercepts.
 
 ## S2: clocks
 
@@ -127,11 +131,32 @@ malformed-argv runs of the built launcher, refused ambiguous build) and `units.t
 (`rendered units pass systemd-analyze verify`, `render-observation-units refuses a malformed
 grammar before any effect`): 1526 + 7 = 1533. Every moved test kept its name.
 
-The launcher is 9.7 MB: the judge facade's relationship analysis bundles the TypeScript compiler,
-and Bun inlines that CommonJS module's `__dirname`, so the bundle names the absolute
-`node_modules` path it was built from. Two builds at the same path gave the same SHA-256; a build
-from another checkout path would give another digest (inferred from the embedded path, not built). The units README says to rebuild from the same
-path to reproduce `launcherIdentity`.
+The launcher is 7.4 MB because the judge facade's relationship analysis bundles the TypeScript
+compiler.
+
+Review F1 (2026-10-12) found that the launcher depended on the checkout path. Bun inlined
+TypeScript's CommonJS `__dirname`/`__filename` as absolute paths. It also wrote per-module comments
+with paths relative to the building process's working directory. Two builds of `b1c1112f2` at
+different paths therefore gave different SHA-256s.
+
+`build.ts` now fixes both causes:
+
+- whitespace minification drops the comments;
+- `normaliseLauncher` makes every occurrence of the checkout root workspace-relative, and throws if
+  the root survives.
+
+The new test `two checkouts at different paths build byte-identical launchers` copies every build
+input into two temporary roots and requires equal digests. It also requires that neither bundle
+names its own root, `/home/` or the workspace, and that no path comment remains. The marker test
+also asserts that a real-root build contains neither the workspace root nor `/home/`.
+
+| Injected fault                           | Observed failure                                                                 |
+| ---------------------------------------- | -------------------------------------------------------------------------------- |
+| root normalisation and its throw removed | `bundle.includes(root)`: `Expected: false`, `Received: true`                     |
+| whitespace minification removed          | `Received: "// ../../../../../../../../..node_modules/source-map/lib/base64.js"` |
+
+After the fix, `bunx nx run twilight-dash:build --skip-nx-cache` printed
+`16b4998f5491927f2f8b620f5ec08f2d90d79ee1298bcee17111df31e7d95a0f` (7,436,808 bytes).
 
 | Injected fault                                                                                           | Observed failure                                                                                                                                           | Restored |
 | -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |

@@ -5,7 +5,7 @@ import { join } from 'node:path';
 
 import { afterAll, beforeAll, expect, test } from 'bun:test';
 
-import { buildLauncher } from './build';
+import { buildLauncher, workspaceRoot } from './build';
 
 /**
  * Strings only Dash's other authority and planner carry: the admission store's generation table,
@@ -37,6 +37,8 @@ test('the observation launcher carries no admission authority or fleet planner',
   expect(bundle.length).toBeGreaterThan(10_000);
   expect(bundle).toContain('activation_observation');
   expect(FOREIGN_AUTHORITY_MARKERS.filter((marker) => bundle.includes(marker))).toEqual([]);
+  expect(bundle.includes(workspaceRoot)).toBe(false);
+  expect(bundle.includes('/home/')).toBe(false);
 });
 
 test('the build reports the SHA-256 of the launcher it wrote', () => {

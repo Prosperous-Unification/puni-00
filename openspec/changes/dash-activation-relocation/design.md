@@ -43,7 +43,6 @@ protocol and audit. Only `cli.ts` imports the review invoker, for `readInvocatio
 
 ## Risks
 
-The test that spies on `hashBytes` through a module namespace never intercepted the call, either
-before or after this change: Bun's `spyOn` on an ESM namespace does not rebind importers. The
-call-order claim it makes is therefore unproven. The finding is recorded in `verify.md` and the
-test is left unchanged.
+- **Launcher identity.** The observation launcher's SHA-256 is the layout's `launcherIdentity`.
+  `build.ts` therefore emits a bundle with no checkout path and no source-path comments, and a
+  two-root test pins that it is reproducible.
