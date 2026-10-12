@@ -83,6 +83,7 @@ export const numberedWorkItem = type({
   'charged?': type({
     '[string]': type.or(
       type({ unit: "'workdays'", days: 'number' }),
+      // Proof: weakening minutes to number admitted fractional/negative charges; weakening unit to string admitted hours (work-item-response.test.ts).
       type({ unit: "'minutes'", minutes: 'number%1>=0' }),
     ),
   }),

@@ -148,7 +148,18 @@ test('checks deadline and slice lateness while retaining additive nested respons
     projectRevision: 1,
   };
   expect((await validateSchema(schema, tree)).issues).toBeUndefined();
+  for (const charged of [
+    { s: { unit: 'minutes', minutes: 240 } },
+    { s: { unit: 'workdays', days: 0.5 } },
+  ]) {
+    expect(
+      (await validateSchema(schema, { ...tree, workItems: [{ ...row, charged }] })).issues,
+    ).toBeUndefined();
+  }
   for (const altered of [
+    { ...tree, workItems: [{ ...row, charged: { s: { unit: 'minutes', minutes: 1.5 } } }] },
+    { ...tree, workItems: [{ ...row, charged: { s: { unit: 'minutes', minutes: -1 } } }] },
+    { ...tree, workItems: [{ ...row, charged: { s: { unit: 'hours', minutes: 1 } } }] },
     { ...tree, workItems: [{ ...row, deadline: 3 }] },
     { ...tree, slices: [{ ...slice, lateBy: 'late' }] },
     { ...tree, workItems: [{ ...row, measures: { hours_actual: { s: '8' } } }] },

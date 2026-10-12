@@ -172,3 +172,8 @@ Checkpoint final rerun after style fixes: mounted step + compensating suites 58 
 Prettier write exit 0 and git diff --check exit 0. The four-project typecheck ran six targets,
 all successful (two reused matching Nx cached outputs). Full frontend/browser suites,
 all-change validation, final migration-stamp collision check and host gate remain pending.
+
+Native read schema follow-up: work-item-response suite passes positive workday/minute charges
+and refuses fractional/negative minute charges and unknown units. Weakening minutes to number
+and weakening the minute discriminator to string each failed this production response-schema
+suite (exit 1), then restored with adjacent Proof. This check is separate from input validation.
