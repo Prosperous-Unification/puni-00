@@ -84,6 +84,26 @@ widths are asserted at 56/224/896 px using the bar's user-space width and its ca
 this complements the geometry arithmetic oracle. `pxPerWorkday` also sizes the production
 canvas and axis container, rather than serving tests alone.
 
+## Rereview — stable accessible scale name
+
+Restored `aria-label="Day scale — how wide one day is drawn"` alongside the dynamic
+width/refusal title. The role/name regression now checks the normal title, a refusal
+notice and the cleared title at the same 28px scale.
+
+- Red: `TZ=UTC bunx vitest run src/components/wbs/gantt-panel.test.tsx --testNamePattern='keeps the scale accessible name' --no-file-parallelism --maxWorkers=1`
+  failed 1 test (277 intentionally skipped): no combobox with the stable name. This is
+  also the production-path removal proof for the restored label; adjacent `Proof:` names it.
+  Log: `/tmp/subday-accessible-red.log`.
+- Green: the same command with pattern `keeps the scale accessible name|sub-day offer limit`
+  passed 7 tests (271 intentionally skipped). Log: `/tmp/subday-accessible-green.log`.
+- Full changed suite: `TZ=UTC bunx vitest run src/components/wbs/gantt-panel.test.tsx --no-file-parallelism --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000`
+  passed all 278 tests. Log: `/tmp/subday-accessible-panel.log`.
+- `bunx nx run wbs-fe-01:typecheck` passed both targets. Log: `/tmp/subday-accessible-types.log`.
+- Initial test-edit command used a root-relative path from the frontend package and failed
+  before writing; its filtered run collected no matching case. The corrected command above
+  supplied the observed red. Other suites, timezone, OpenSpec and full lint were not rerun
+  for this two-file label correction; their checkpoint results above remain at `0940c8f03`.
+
 ## Measurement (slice 4)
 
 | Fixture | Rung   | Experiment p95 (020.07) | Shipped p95 | Date |
