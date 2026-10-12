@@ -46,7 +46,10 @@ const MAX_REAUTH_MARKERS = 1_000;
 
 // Proof: on 2026-09-27, extending Error instead failed `refuses a tool-call refresh of an ended or
 // unrefreshable session as a session outcome` on its first toBeInstanceOf.
-/** The provider cannot or will not refresh this family, which is already revoked. */
+/**
+ * Refresh is refused. Provider refusal revokes the family; absent organization
+ * authority leaves the family intact and consumes no refresh credential.
+ */
 class UpstreamRefreshRefused extends SessionRefreshRefused {}
 
 /**
@@ -784,6 +787,10 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     family: FamilyRecord,
     force = false,
   ): Promise<FamilyRecord> {
+    // Proof: 2026-10-13, without this guard all three `without authority` tests
+    // resolved successfully (grant answered 200); automatic used a still-fresh token.
+    if (readFamilyAuthority(family) !== 'legacy')
+      throw new UpstreamRefreshRefused('MCP organization refresh authority is not installed');
     const now = this.now();
     if (
       !force &&
@@ -1296,4 +1303,18 @@ function oauthError(error: string, setCookie?: string, status = 400): Response {
     { error },
     { headers: setCookie === undefined ? undefined : { 'set-cookie': setCookie }, status },
   );
+}
+
+/**
+ * Distinguishes pre-cutover families from durable organization authority. Only an
+ * unbound epoch-0 family belongs to this release's legacy path. Bound families
+ * need an authoritative membership and credential-rule reader before use; this
+ * release deliberately installs none. A future epoch is never treated as legacy.
+ */
+function readFamilyAuthority(family: FamilyRecord): 'legacy' | 'organization' | 'unsupported' {
+  if (family.binding !== undefined) return 'organization';
+  // Proof: 2026-10-13, replacing this epoch test with legacy admission made
+  // `refuses a corrupt nonzero-epoch family read before returning a fresh token`
+  // return the provider credential instead of SessionRefreshRefused.
+  return family.credentialEpoch === 0 ? 'legacy' : 'unsupported';
 }

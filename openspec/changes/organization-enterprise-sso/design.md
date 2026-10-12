@@ -122,7 +122,7 @@ For OIDC credentials both times are new nullable columns on `browser_auth_lifecy
 
 The rule runs at the same points as enforcement and refuses with `403 reauthentication_required` and `{ reason: "max_session" | "reauthenticate_after", login }`, where `login` sends `prompt=login` through the organization's route. A null time in an organization with a policy refuses; a lifecycle opened before the migration therefore reauthenticates once. Refresh never resets `opened_at`.
 
-A delegation in an organization with a policy is refused (`reauthentication_required`) until the MCP cutover adds an `authenticated_at` claim from the grant's consent. A direct context carries no authentication facts at all, so in an organization that enforces SSO or has a policy it is refused on use; at issue the rules read the native session's own `iat`. (Implementation, 2026-10-12.) This is deliberately fail-closed, and the same check exists in mcp-01's refresh path.
+A delegation in an organization with a policy is refused (`reauthentication_required`) until the MCP cutover adds an `authenticated_at` claim from the grant's consent. A direct context carries no authentication facts at all, so in an organization that enforces SSO or has a policy it is refused on use; at issue the rules read the native session's own `iat`. (Implementation, 2026-10-12.) This is deliberately fail-closed at be-01. mcp-01 does not yet evaluate current membership, SSO or session policy on refresh; `mcp-refresh-policy` specifies that prerequisite and its initial inert authority refusal. Organization-aware issuance and cutover remain open in organization-ownership-and-access tasks 6.4–6.6.
 
 ### Audit
 
