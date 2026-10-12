@@ -249,3 +249,15 @@ describe('showTrio', () => {
     }
   });
 });
+
+it('refuses fractional and above-max minute drafts before a trio can be sent', () => {
+  expect(
+    trioProblem({ optimistic: '1.5', realistic: '2', pessimistic: '3' }, 'minutes')?.message,
+  ).toContain('whole minutes');
+  expect(
+    sendableTrio({ optimistic: '1.5', realistic: '2', pessimistic: '3' }, 'minutes'),
+  ).toBeNull();
+  expect(parseTrioShorthand('1.5', 'minutes')).toMatchObject({ kind: 'problem' });
+  expect(parseTrioShorthand('21474836161', 'minutes')).toMatchObject({ kind: 'problem' });
+  expect(parseTrioShorthand('40/50/90', 'minutes')).toMatchObject({ kind: 'trio' });
+});

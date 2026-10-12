@@ -107,7 +107,7 @@
 
 ## 6. Plan document and saved plans
 
-- [ ] 6.1 Red: `plan-document.resource.test.ts` (round trip keeps unit and minutes; version 6
+- [x] 6.1 Red: `plan-document.resource.test.ts` (round trip keeps unit and minutes; version 6
       imports as `workdays`; missing unit, unknown unit and fractional minute each
       `invalid_body` at the field); `saved-plan/normalise-plan-input.test.ts` (previous-schema
       body upgrades with `workdays` and schedules identically; malformed body refused);
@@ -120,18 +120,18 @@
 
 ## 7. fe-01
 
-- [ ] 7.1 Red: `duration-words.test.ts` (`40 min`, `2 h 15 min`, `1 d`, `1.5 d`; a workday
+- [x] 7.1 Red: `duration-words.test.ts` (`40 min`, `2 h 15 min`, `1 d`, `1.5 d`; a workday
       figure prints as the table and the chart printed it); `steps-panel.test.tsx` (unit control; disabled over
       estimates with `2 estimates` in its tool hint; an empty step changes unit; the create
       form sends an explicit unit); `plan-cells.test.tsx` (a minute cell refuses `1.5` with a
       worded problem before sending; the final figure prints through `showDuration`);
-      `folded-step-card.test.tsx` and `gantt-detail.test.tsx` (same string; "placed on the
+      `folded-step-card.test.tsx` and `gantt-panel.test.tsx` (same string; "placed on the
       working calendar" on a minute slice); `e2e/gantt.spec.ts` workday pixel assertions
       unchanged.
-- [ ] 7.2 Green: `duration-words.ts` `showDuration`; steps section control; `estimate-draft.ts`
-      `trioProblem` in minutes; `folded-step-card.tsx`, `gantt-detail.ts`, the spreadsheet
+- [x] 7.2 Green: `duration-words.ts` `showDuration`; steps section control; `estimate-draft.ts`
+      `trioProblem` in minutes; `folded-step-card.tsx`, `gantt-panel.tsx`, the spreadsheet
       export reading `charged`.
-- [ ] 7.3 Negatives: the chart card formatting its own minutes → the agreement test; the
+- [x] 7.3 Negatives: the chart card formatting its own minutes → the agreement test; the
       disabled control removed → the steps-panel test; the integer check removed from the
       draft → the cell test.
 

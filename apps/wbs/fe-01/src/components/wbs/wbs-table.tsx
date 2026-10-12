@@ -1273,7 +1273,7 @@ export function WbsTable({
     combinedValue,
     combinedProblem,
     commitCombinedEstimate,
-  } = useEstimateDrafts({ drafts, setDrafts, run, commands });
+  } = useEstimateDrafts({ drafts, setDrafts, run, commands, steps });
   const {
     setNotBefore,
     setNotBeforeReason,

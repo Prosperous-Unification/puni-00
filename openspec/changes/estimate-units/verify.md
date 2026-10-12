@@ -231,3 +231,44 @@ first failed on document version 7 vs 8 and canonical version 5 vs 6/unit loss.
 Rollback review full suite rerun: 117 pass, 354 assertions. This checkpoint leaves spreadsheet
 headers/native output and the frontend controls/validation/readout for slice 7. Task 6.1 stays
 open for that export assertion; slices 7–8 and the final host gate remain pending.
+
+## Slice 6 corrected mounted checkpoint
+
+After correcting the supported-version assertion, the complete import/saved-plan mounted
+suite passed: 68 tests, 272 assertions (`/tmp/estimate-unit-slice6-mounted-corrected.log`).
+
+## Slice 7 — frontend units and native duration readout (2026-10-12)
+
+Step creation sends an explicit unit. Empty steps can change unit; controls over stored
+estimates are disabled and name the count. Both folded shorthand and unfolded points refuse
+fractional and above-maximum minute input before setEstimate is called. Missing trusted
+counts and native minute charges throw; the mounted missing-charge case reaches the Error
+Boundary. Table, folded detail, cards, chart and spreadsheet final figures read native charge
+through showDuration. Minutes render as minutes/hours below 480 and eight-hour days from
+480; workday faces keep their existing text. Spreadsheet minute headers identify min, and
+minute trio/final cells use the shared formatter. No chart geometry or existing workday
+pixel assertions changed.
+
+Fresh checks: 76 node tests passed (draft, duration, fake API and refusing API); 854 mounted
+regression tests passed across cells, estimates, chart, cards, folded detail, settings, export,
+HTTP client and command routing. Frontend typecheck/module typechecks, affected ESLint and
+Prettier passed. The initial broader run had one invalid test sequence: a pending fractional
+optimistic draft masked a subsequent maximum complaint. Splitting the two unfolded cases
+made each production-path refusal independent; both passed. Two old HTTP export fixtures
+still advertised document 7; updated to current document 8 and the HTTP suite passed.
+
+The unchanged Playwright case `draws a bar at the pixel its calendar day says, under its own
+axis cell` passed (1 case, 15.0s), isolated worktree servers with E2E_PORT_SHIFT=3900. Sandbox
+startup first refused listen with EPERM; the same targeted command passed with escalation.
+No full browser suite or final host gate has run at this checkpoint.
+
+R5 faults individually watched fail then restored: remove minute integer check; remove minute
+maximum; remove estimate-count disabled arm; omit trusted count guard; omit trusted native
+charge guard (also rerun after factoring shared readMinuteCharge); substitute chart dayWords
+for showDuration; export the axis fraction instead of native charge; remove fake estimated-step
+unit refusal; treat unfolded minute writes as workdays. Mounted negatives observed forbidden
+writes, missing disabled controls, missing named throw/Error Boundary, or inconsistent native
+readout. Adjacent Proof comments identify each observation. New formatter tests first failed
+with `8 h` instead of `1 d` at 480, then passed after adding the specified threshold.
+
+Final slice 7 check: 854 mounted tests passed after adding explicit 40/135/720 minute face agreement; folded card also pins 135 as 2 h 15 min. OpenSpec 1.12.0 validation passed all 18 items. Direct sandbox Bun invocation refused its cache temporary directory (EROFS); pinned bunx validation passed with escalation. Final host gate, full browser suite, migration-stamp check against integration main, and Astra review remain pending.

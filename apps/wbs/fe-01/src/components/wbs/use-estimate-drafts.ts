@@ -1,8 +1,9 @@
+import { estimateUnitOf } from '@wbs/domain/estimate';
 import type * as React from 'react';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
 import type { RunPlanWrite } from '@/lib/local-write';
-import type { PersonView, TeamView } from '@/lib/wbs-api';
+import type { PersonView, StepView, TeamView } from '@/lib/wbs-api';
 import type { PlanCommands } from '@/modules/plan-commands/contract';
 
 import { pickableLabel, type PickerOption } from './creatable-picker';
@@ -35,12 +36,16 @@ export function useEstimateDrafts({
   setDrafts,
   run,
   commands,
+  steps,
 }: {
   drafts: Record<string, string>;
   setDrafts: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   run: RunPlanWrite;
   commands: PlanCommands;
+  steps: readonly StepView[];
 }) {
+  const units = useMemo(() => new Map(steps.map((step) => [step.id, step.estimateUnit])), [steps]);
+  const unitOfStep = useCallback((stepId: string) => estimateUnitOf(units, stepId), [units]);
   /**
    * Whether the numbers in the schedule columns mean anything.
    *
@@ -85,8 +90,9 @@ export function useEstimateDrafts({
    * tool telling somebody off for its own arithmetic.
    */
   const trioProblemFor = useCallback(
-    (row: TreeRow, stepId: string) => (row.rolledUp ? null : trioProblem(typedTrio(row, stepId))),
-    [typedTrio],
+    (row: TreeRow, stepId: string) =>
+      row.rolledUp ? null : trioProblem(typedTrio(row, stepId), unitOfStep(stepId)),
+    [typedTrio, unitOfStep],
   );
 
   /**
@@ -136,7 +142,8 @@ export function useEstimateDrafts({
         ...dropDrafts(current, new Set([combinedDraftKey(row.id, stepId)])),
         [draftKey(row.id, stepId, point)]: typed,
       }));
-      const days = sendableTrio(next);
+      // Proof: passing workdays here sent the mounted fractional/above-max minute points; watched 2026-10-12.
+      const days = sendableTrio(next, unitOfStep(stepId));
       if (days === null) {
         // `hasOwn` rather than a truthiness test: what matters is whether
         // be-01 holds a trio for this row and step at all, and a stored
@@ -156,7 +163,7 @@ export function useEstimateDrafts({
         forgetEstimateDrafts(row.id, stepId);
       });
     },
-    [commands, forgetEstimateDrafts, run, setDrafts, typedTrio],
+    [commands, forgetEstimateDrafts, run, setDrafts, typedTrio, unitOfStep],
   );
 
   /**
@@ -211,10 +218,10 @@ export function useEstimateDrafts({
       // folded cell was holding`. Watched, 2026-08-06.
       const key = combinedDraftKey(row.id, stepId);
       if (!Object.hasOwn(drafts, key)) return trioProblemFor(row, stepId)?.message ?? null;
-      const entry = parseTrioShorthand(drafts[key]);
+      const entry = parseTrioShorthand(drafts[key], unitOfStep(stepId));
       return entry.kind === 'problem' ? entry.message : null;
     },
-    [drafts, trioProblemFor],
+    [drafts, trioProblemFor, unitOfStep],
   );
 
   /**
@@ -248,7 +255,7 @@ export function useEstimateDrafts({
       // Emptying a cell with no `@` in it still clears it.
       const { estimate, mention: fragment } = splitMention(typed);
       if (fragment !== null && (estimate.trim() === '' || estimate === baseline)) return unsent();
-      const entry = parseTrioShorthand(estimate);
+      const entry = parseTrioShorthand(estimate, unitOfStep(stepId));
       setDrafts((current) => ({
         // Last edit wins: this entry replaces whatever the three boxes were
         // holding unsent for the same trio. Translating it into three box
@@ -279,7 +286,7 @@ export function useEstimateDrafts({
         forgetEstimateDrafts(row.id, stepId);
       });
     },
-    [commands, forgetEstimateDrafts, run, setDrafts],
+    [commands, forgetEstimateDrafts, run, setDrafts, unitOfStep],
   );
   return {
     estimateValue,

@@ -31,6 +31,7 @@ import {
 } from './creatable-picker';
 import { DEADLINE_BEFORE_START, deadlineBeforeProjectStart } from './deadline-impossible';
 import { type PickerEntry, REFUSAL_SUFFIX } from './dep-picker';
+import { minuteCharge, showDuration } from './duration-words';
 import { type CellElement, cellKey } from './editable-grid';
 import { POINTS, showTrio } from './estimate-draft';
 import type { ServiceLabel, ServiceTeamLabel, TagLabel } from './gantt-geometry';
@@ -643,16 +644,18 @@ const trioFinal = (finalDays: number | undefined, showDay: (days: number) => str
  */
 const cardTrioOf = (
   row: TreeRow,
-  stepId: string,
+  step: StepView,
   showDay: (days: number) => string,
 ): { line: string; final: string } => {
+  const stepId = step.id;
+  const charge = step.estimateUnit === 'minutes' ? minuteCharge(row, stepId) : undefined;
   const points = POINTS.map((point) => ({ point, days: trioPoint(row.estimates[stepId], point) }));
   const estimated = points.some((each) => each.days !== '');
   return {
     line: estimated
       ? points.map((each) => `${each.point} ${each.days === '' ? '—' : each.days}`).join(' · ')
       : 'No estimate yet',
-    final: trioFinal(row.finalDays[stepId], showDay),
+    final: charge === undefined ? trioFinal(row.finalDays[stepId], showDay) : showDuration(charge),
   };
 };
 
@@ -2749,7 +2752,7 @@ export function PlanCards({
               const options = mentionOptions(row, step.id);
               const listId = `card-mention-${row.id}-${step.id}`;
               const assignee = assigneeOn(row, step.id);
-              const trio = cardTrioOf(row, step.id, showDay);
+              const trio = cardTrioOf(row, step, showDay);
               // The table's folded cell, on the face a phone reads: the box
               // holds the trio shorthand and the figure the estimate method
               // makes of it stands beside it, muted, where it says something
@@ -2915,7 +2918,10 @@ export function PlanCards({
                       commit={(typed, baseline) => commitEstimate(row, step.id, typed, baseline)}
                     />
                     {trio.final !== '' && (
-                      <div data-step-final={step.id}>Final {trio.final} days</div>
+                      <div data-step-final={step.id}>
+                        Final {trio.final}
+                        {step.estimateUnit === 'workdays' ? ' days' : ''}
+                      </div>
                     )}
                   </details>
                 </Fragment>

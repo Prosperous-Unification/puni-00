@@ -3865,6 +3865,7 @@ function fakeApi(startDate: string | null, skew: ReadSkew = {}): ProjectApi {
     setStartDate: () => notImplemented('setStartDate'),
     addStep: () => notImplemented('addStep'),
     renameStep: () => notImplemented('renameStep'),
+    setStepUnit: () => Promise.reject(new Error('unexpected setStepUnit')),
     setStepAllowance: () => notImplemented('setStepAllowance'),
     removeStep: () => notImplemented('removeStep'),
     addTeam: () => notImplemented('addTeam'),
@@ -10054,3 +10055,34 @@ describe('each status on the chart (add-work-item-statuses)', () => {
     ]);
   });
 });
+
+itDom.each([
+  [40, '40 min'],
+  [135, '2 h 15 min'],
+  [720, '1.5 d'],
+] as const)(
+  'reads the same native minute charge as the table and places it on the working calendar',
+  (minutes, words) => {
+    render(
+      <GanttPanel
+        plan={planOf({
+          steps: [{ id: 'dev', name: 'Agent', estimateUnit: 'minutes' }],
+          rows: [
+            rowAt('minute', 0, minutes / 480, {
+              charged: { dev: { unit: 'minutes', minutes } },
+            }),
+          ],
+          slices: [sliceAt('minute-dev', 'minute', 0, minutes / 480)],
+        })}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointed={pointedAtRow(null)}
+      />,
+    );
+    expect(surfaceOn('minute-dev')).toHaveTextContent(`${words} · placed on the working calendar`);
+  },
+);

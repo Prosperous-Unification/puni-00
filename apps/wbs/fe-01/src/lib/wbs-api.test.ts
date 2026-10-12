@@ -159,7 +159,7 @@ const PLAN_DOCUMENT = (ids: string[] = ['w1']): Record<string, unknown> => {
     workItems: tree.workItems.map((row, at) => (at === 0 ? { ...row, attempts: ATTEMPTS } : row)),
     project: PROJECT,
     stepNodes: [],
-    document: { format: 'wbs-plan', version: 7, exportedAt: '2026-09-14T08:30:00.000Z' },
+    document: { format: 'wbs-plan', version: 8, exportedAt: '2026-09-14T08:30:00.000Z' },
     typedDependencies: [],
     settings: {
       name: PROJECT.name,
@@ -224,7 +224,7 @@ describe('plan JSON transfer', () => {
     expect(new Headers(call?.[1]?.headers).get('x-wbs-token')).toBe('token');
   });
 
-  it('downloads a version-7 JSON representation containing a typed dependency and attempts', async () => {
+  it('downloads a version-8 JSON representation containing a typed dependency and attempts', async () => {
     const document = PLAN_DOCUMENT(['first', 'second']);
     document['typedDependencies'] = [
       {
@@ -487,7 +487,9 @@ describe('adding and renaming a step', () => {
       allowancePercent: 0,
     });
     expect(fetched.mock.calls[0]?.[0]).toBe('/api/projects/p1/steps');
-    expect(fetched.mock.calls[0]?.[1]?.body).toBe(JSON.stringify({ name: 'Design' }));
+    expect(fetched.mock.calls[0]?.[1]?.body).toBe(
+      JSON.stringify({ name: 'Design', estimateUnit: 'workdays' }),
+    );
   });
 
   it('throws be-01’s code for a duplicate, for the caller to phrase', async () => {
@@ -1733,4 +1735,32 @@ describe('setting a row’s status', () => {
       }),
     });
   });
+});
+
+it('sends explicit estimate units on create and unit patch without converting values', async () => {
+  const fetch = vi.fn((_url: RequestInfo | URL, _init?: RequestInit) =>
+    Promise.resolve(
+      response(
+        200,
+        JSON.stringify({
+          step: {
+            id: 'agent',
+            projectId: 'p1',
+            name: 'Agent',
+            position: 0,
+            allowancePercent: 0,
+            estimateUnit: 'minutes',
+          },
+        }),
+      ),
+    ),
+  );
+  vi.stubGlobal('fetch', fetch);
+  const api = httpProjectApi('token');
+  expect((await api.addStep('p1', 'Agent', 'minutes')).estimateUnit).toBe('minutes');
+  expect((await api.setStepUnit('p1', 'agent', 'minutes')).estimateUnit).toBe('minutes');
+  expect(fetch.mock.calls.map((call) => call[1]?.body)).toEqual([
+    JSON.stringify({ name: 'Agent', estimateUnit: 'minutes' }),
+    JSON.stringify({ estimateUnit: 'minutes' }),
+  ]);
 });

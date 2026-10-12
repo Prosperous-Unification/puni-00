@@ -113,6 +113,8 @@ function mounted(
       // required prop out typechecks differently from the app that mounts it.
       depReach: 'whole-item',
       setDepReach: () => Promise.resolve(),
+      estimateCounts: { 'step-dev': 0, 'step-qa': 0 },
+      setStepUnit: vi.fn(),
       addStep,
       renameStep,
       setStepAllowance: () =>
@@ -360,6 +362,8 @@ describe('closing over an edit', () => {
         nameOf: () => null,
         depReach: 'whole-item',
         setDepReach: () => Promise.resolve(),
+        estimateCounts: { 'step-dev': 0, 'step-qa': 0 },
+        setStepUnit: vi.fn(),
         addStep: vi.fn(),
         renameStep: vi.fn(),
         setStepAllowance: vi.fn(),

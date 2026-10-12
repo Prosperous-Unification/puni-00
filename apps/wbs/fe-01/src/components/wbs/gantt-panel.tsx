@@ -32,6 +32,7 @@ import type {
 } from '@/lib/wbs-api';
 
 import type { DepLights } from './dep-light-store';
+import { showDuration } from './duration-words';
 import { useGanttDetail } from './gantt-detail';
 import {
   BAR_INSET,
@@ -1691,8 +1692,13 @@ function lateWords(lateBy: number | null): string | null {
  * `1 failed | 90 passed`, on `expected '…14 Aug → 14 Aug · 0 days…' to contain
  * 'not estimated'`. Watched 2026-08-12.
  */
+// Proof: formatting minute charge with dayWords(bar.duration) failed the native-minute chart agreement case; watched 2026-10-12.
 const durationWords = (bar: GanttBar): string =>
-  bar.estimated ? dayWords(bar.duration) : 'not estimated';
+  bar.estimated
+    ? bar.charged?.unit === 'minutes'
+      ? `${showDuration(bar.charged)} · placed on the working calendar`
+      : dayWords(bar.duration)
+    : 'not estimated';
 
 /**
  * The service team a bar is labelled with, in words, absences included.
