@@ -6,6 +6,7 @@ import type {
   EditAdmission,
   EmailDelivery,
   EmailVerification,
+  EnterpriseConnections,
   HistoryService,
   ImportService,
   Invitation,
@@ -16,6 +17,8 @@ import type {
   ProjectRankStore,
   ReplayOrchestrator,
   SavedPlanService,
+  ScimUsers,
+  SessionPolicies,
   SpaceStore,
 } from '@wbs/core';
 import type { Scope, UnitOfWork } from '@wbs/core';
@@ -29,7 +32,10 @@ import { onboardingRoutes } from '@wbs/core/http/onboarding.routes';
 import { organizationRoutes } from '@wbs/core/http/organization.routes';
 import { personLoadRoutes } from '@wbs/core/http/person-load.routes';
 import { projectRankRoutes } from '@wbs/core/http/project-rank.routes';
+import { provisioningTokenRoutes } from '@wbs/core/http/provisioning-token.routes';
+import { sessionPolicyRoutes } from '@wbs/core/http/session-policy.routes';
 import { spaceRoutes } from '@wbs/core/http/space.routes';
+import { ssoConnectionRoutes } from '@wbs/core/http/sso-connection.routes';
 import type { LoginThrottle } from '@wbs/core/module/authentication/login-throttle';
 import type { CalendarMarkerService } from '@wbs/core/module/calendar-marker/calendar-marker.resource';
 import type { CapacityService } from '@wbs/core/module/capacity/capacity.resource';
@@ -46,6 +52,8 @@ import { CapacityModeResource } from '@wbs/core/service/capacity-mode.resource';
 import type { CommittedFanoutDelivery } from '@wbs/core/service/committed-fanout';
 import { PersonLoad } from '@wbs/core/service/person-load.feature';
 import { ProjectRankResource } from '@wbs/core/service/project-rank.resource';
+import { ScimService } from '@wbs/core/service/scim.feature';
+import { ScimAdmission } from '@wbs/core/service/scim-admission';
 import { RollUpCache, SpaceResource } from '@wbs/core/service/space.resource';
 import { type CapacityMode, SUPPORTED_CAPACITY_MODES } from '@wbs/domain';
 import { createLogger, type Logger, type MetricsScrape, scrapeMetrics } from '@wbs/observability';
@@ -74,6 +82,7 @@ import { solutionRoutes } from './controller/solution.routes';
 import { stepRoutes } from './controller/step.routes';
 import { workItemRoutes } from './controller/work-item.routes';
 import { mountEndpoints } from './http/elysia/mount';
+import { scimEndpoints } from './http/elysia/scim';
 import { createUnexpectedFailureReporter } from './http/elysia/unexpected-failure';
 import type { BoundEndpoint } from './http/endpoint';
 import { identityResolver } from './http/identity';
@@ -88,7 +97,19 @@ import {
   type OrganizationSelection,
   REFUSE_ORGANIZATION_SELECTION,
 } from './runtime/organization-selection';
+import { type Provisioning, REFUSE_PROVISIONING } from './runtime/provisioning';
 import type { WritingServices } from './services';
+
+/** A composition without SCIM: no record can be pending, so no sign-in activates one. */
+const NO_PENDING_MEMBERSHIPS: Pick<ScimUsers, 'activate'> = {
+  activate: () => Promise.resolve([]),
+};
+
+/** The session policy store of a composition that wires none: every route answers as inactive. */
+const INACTIVE_SESSION_POLICIES: SessionPolicies = {
+  read: () => Promise.resolve('inactive'),
+  set: () => Promise.resolve('inactive'),
+};
 
 export interface AppOptions {
   clock: Pick<Clock, 'now'>;
@@ -130,6 +151,29 @@ export interface AppOptions {
   memberships: MembershipAdministration;
   /** Checked policy and transactional challenge storage; omission is a composition error. */
   domains: DomainChallenges;
+  /**
+   * Session policy administration (`organization-session-policy`). Absent,
+   * the routes answer as before activation; production and the organization
+   * harness wire the SQLite store.
+   */
+  sessionPolicies?: SessionPolicies;
+  /**
+   * Activates SCIM pending memberships at an SSO sign-in or link
+   * (`organization-scim`). Absent, the composition holds no SCIM records, so
+   * nothing is pending; production and the organization harness wire the store.
+   */
+  pendingMemberships?: Pick<ScimUsers, 'activate'>;
+  /**
+   * Enterprise connection records (`organization-sso`): administration,
+   * login routing and proof by routed link. Required like `domains`.
+   */
+  enterpriseConnections: EnterpriseConnections;
+  /**
+   * SCIM provisioning (`organization-scim`). Absent, it is
+   * `REFUSE_PROVISIONING`: administration refuses and no token authenticates.
+   * Production wires the SQLite stores (`boot.db.test.ts`).
+   */
+  provisioning?: Provisioning;
   /** Signed-in onboarding boundary; absence cannot masquerade as an HTTP 404. */
   onboarding: Onboarding;
   /** Required durable challenge boundary; absence is a boot configuration error. */
@@ -381,13 +425,31 @@ export function mountedEndpoints(
             ? []
             : nativeBrowserLogoutEndpoints(opts.appOrigin, opts.browserSession)),
         ]
-      : authOidcEndpoints(opts.auth, opts.oidc, passwordThrottle, opts.browserSession)),
+      : authOidcEndpoints(
+          opts.auth,
+          opts.oidc,
+          passwordThrottle,
+          opts.enterpriseConnections,
+          opts.pendingMemberships ?? NO_PENDING_MEMBERSHIPS,
+          opts.browserSession,
+        )),
     // Proof: omitting this binding made “binds each shared HTTP shape once”
     // receive 40 endpoints instead of 41 in app.routes.test.ts (2026-09-10).
     ...smokeRoutes(),
     ...organizationRoutes(opts.organizations, opts.memberships, opts.clock),
     ...organizationSelectionRoutes(opts.organizationSelection ?? REFUSE_ORGANIZATION_SELECTION),
     ...domainRoutes(opts.organizations, opts.domains, opts.clock),
+    ...sessionPolicyRoutes(
+      opts.organizations,
+      opts.sessionPolicies ?? INACTIVE_SESSION_POLICIES,
+      opts.clock,
+    ),
+    ...ssoConnectionRoutes(opts.organizations, opts.enterpriseConnections, opts.clock),
+    ...provisioningTokenRoutes(
+      opts.organizations,
+      (opts.provisioning ?? REFUSE_PROVISIONING).tokens,
+      (opts.provisioning ?? REFUSE_PROVISIONING).clock,
+    ),
     ...onboardingRoutes(opts.onboarding, opts.clock),
     ...emailVerificationRoutes(opts.emailVerification, opts.emailDelivery, opts.clock, nodeDigest),
     ...invitationRoutes(
@@ -518,6 +580,18 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
             return opts.migrationsApplied;
           },
         };
+  const provisioning = opts.provisioning ?? REFUSE_PROVISIONING;
+  // One admission per app, which is one per process in production: SCIM's
+  // per-token window is per process by design (design.md, "Admission").
+  const scim = new ScimService({
+    tokens: provisioning.tokens,
+    users: provisioning.users,
+    admission: new ScimAdmission(() => provisioning.clock.now()),
+    clock: provisioning.clock,
+    canonicalUserName: provisioning.canonicalUserName,
+    newId: () => crypto.randomUUID(),
+    origin: opts.appOrigin,
+  });
   const endpoints: readonly BoundEndpoint[] = mountedEndpoints(routedOptions, {
     logger,
     scrapeMetrics: opts.metricsScrape ?? (() => scrapeMetrics('be-01')),
@@ -546,5 +620,6 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
           reportUnexpectedFailure,
         }),
       )
+      .use(scimEndpoints(scim, reportUnexpectedFailure))
   );
 }

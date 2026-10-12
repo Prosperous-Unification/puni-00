@@ -35,6 +35,7 @@ import { refusingOnboarding } from '../testing/onboarding-fixture';
 import {
   legacyOrganizationAccess,
   refusingDomains,
+  refusingEnterpriseConnections,
   refusingMemberships,
 } from '../testing/organization-access-fixture';
 import { projectRow } from '../testing/project-fixture';
@@ -140,6 +141,7 @@ describe('setPriorityBands on POST /api/projects/:id/commands', () => {
       organizations: legacyOrganizationAccess,
       memberships: refusingMemberships,
       domains: refusingDomains,
+      enterpriseConnections: refusingEnterpriseConnections,
       emailVerification: refusingEmailVerification,
       invitations: refusingInvitations,
       joinRequests: refusingJoinRequests,

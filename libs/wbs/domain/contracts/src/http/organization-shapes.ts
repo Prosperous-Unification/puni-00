@@ -6,7 +6,17 @@ import { requestSchema, responseSchema } from './schema-shape';
 
 /** A membership role as the wire carries it, `stored-vocabularies`' `ORGANIZATION_ROLES`. */
 const role = "'super_admin' | 'admin' | 'member' | 'viewer'";
-const selectableMembership = type({ organizationId: 'string', name: 'string', role });
+/**
+ * One current membership the signed-in credential may choose. `ssoRequired`
+ * marks an organization whose enforced SSO this credential cannot enter, so a
+ * switcher shows it locked instead of failing on click (`organization-sso`).
+ */
+const selectableMembership = type({
+  organizationId: 'string',
+  name: 'string',
+  role,
+  ssoRequired: 'boolean',
+});
 const memberParams = requestSchema(type({ userId: 'string' }));
 const policies = [
   { kind: 'origin', when: 'always-unsafe-with-session-cookie' },
@@ -175,6 +185,9 @@ export const selectActiveOrganization = defineEndpointShape({
         }),
       ),
     },
+    // Enforced SSO or a session policy refusing this credential in the
+    // selected organization only (`organization-sso`, `organization-session-policy`).
+    organizationRefusal,
   ],
   document: { summary: 'Bind a current organization to this browser access credential.' },
 });

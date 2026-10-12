@@ -79,7 +79,7 @@ export function InvitationsPanel({
         setView({ kind: 'failure', message: failureMessage(reply.failure) });
         return;
       case 'refusal':
-        settle(listRefusal(reply.body.error), (text) => {
+        settle(listRefusal(reply.body), (text) => {
           setView({ kind: 'failure', message: text });
         });
         return;
@@ -114,7 +114,7 @@ export function InvitationsPanel({
           setMessage(failureMessage(reply.failure));
           return;
         case 'refusal':
-          settle(sendRefusal(reply.body.error), setMessage);
+          settle(sendRefusal(reply.body), setMessage);
           return;
         default:
           return unreachable(reply);
@@ -139,7 +139,7 @@ export function InvitationsPanel({
           setMessage(failureMessage(reply.failure));
           return;
         case 'refusal': {
-          const outcome = revokeRefusal(reply.body.error);
+          const outcome = revokeRefusal(reply.body);
           settle(outcome, setMessage);
           if (outcome.kind === 'message') await refresh();
           return;
@@ -278,17 +278,20 @@ function roleOf(value: string): Role {
   throw new Error(`Unexpected invitation role option: ${value}`);
 }
 
-type RefusalCode<
+type RefusalBody<
   Shape extends typeof listInvitations | typeof createInvitation | typeof revokeInvitation,
-> = Extract<ClientReply<Shape>, { kind: 'refusal' }>['body']['error'];
+> = Extract<ClientReply<Shape>, { kind: 'refusal' }>['body'];
 
-function listRefusal(error: RefusalCode<typeof listInvitations>): RefusalOutcome {
-  switch (error) {
+function listRefusal(refusal: RefusalBody<typeof listInvitations>): RefusalOutcome {
+  switch (refusal.error) {
     case 'onboarding_inactive':
     case 'unauthenticated':
     case 'no_active_organization':
     case 'not_a_member':
-      return lostAccess(error);
+      return lostAccess(refusal.error);
+    case 'sso_required':
+    case 'reauthentication_required':
+      return lostAccess(refusal);
     case 'forbidden':
       return said('Your role cannot view invitations.');
     case 'insufficient_scope':
@@ -300,17 +303,20 @@ function listRefusal(error: RefusalCode<typeof listInvitations>): RefusalOutcome
     case 'invalid_origin':
       return said(RELOAD);
     default:
-      return unreachable(error);
+      return unreachable(refusal);
   }
 }
 
-function sendRefusal(error: RefusalCode<typeof createInvitation>): RefusalOutcome {
-  switch (error) {
+function sendRefusal(refusal: RefusalBody<typeof createInvitation>): RefusalOutcome {
+  switch (refusal.error) {
     case 'onboarding_inactive':
     case 'unauthenticated':
     case 'no_active_organization':
     case 'not_a_member':
-      return lostAccess(error);
+      return lostAccess(refusal.error);
+    case 'sso_required':
+    case 'reauthentication_required':
+      return lostAccess(refusal);
     case 'forbidden':
       return said('Your role cannot send this invitation.');
     case 'delivery_failed':
@@ -325,17 +331,20 @@ function sendRefusal(error: RefusalCode<typeof createInvitation>): RefusalOutcom
     case 'invalid_origin':
       return said(RELOAD);
     default:
-      return unreachable(error);
+      return unreachable(refusal);
   }
 }
 
-function revokeRefusal(error: RefusalCode<typeof revokeInvitation>): RefusalOutcome {
-  switch (error) {
+function revokeRefusal(refusal: RefusalBody<typeof revokeInvitation>): RefusalOutcome {
+  switch (refusal.error) {
     case 'onboarding_inactive':
     case 'unauthenticated':
     case 'no_active_organization':
     case 'not_a_member':
-      return lostAccess(error);
+      return lostAccess(refusal.error);
+    case 'sso_required':
+    case 'reauthentication_required':
+      return lostAccess(refusal);
     case 'forbidden':
       return said('Your role cannot revoke this invitation.');
     case 'not_found':
@@ -351,6 +360,6 @@ function revokeRefusal(error: RefusalCode<typeof revokeInvitation>): RefusalOutc
     case 'invalid_origin':
       return said(RELOAD);
     default:
-      return unreachable(error);
+      return unreachable(refusal);
   }
 }

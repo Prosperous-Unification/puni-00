@@ -12,5 +12,8 @@ test('two native sessions issued in one second have distinct credential identiti
   expect(first).not.toBe(second);
   expect(decodeJwt(first).jti).toBeString();
   expect(decodeJwt(second).jti).toBeString();
-  expect(await codec.verify(first)).toEqual(claims);
+  expect(await codec.verify(first)).toEqual({
+    ...claims,
+    issuedAt: Number(decodeJwt(first).iat) * 1000,
+  });
 });

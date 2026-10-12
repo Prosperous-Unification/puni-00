@@ -1,5 +1,5 @@
 import type { AuthenticatedUser, VerifiedOrganizationCredential } from '@wbs/contracts';
-import type { OrganizationPrincipal } from '@wbs/core';
+import type { CredentialRuleRefusal, OrganizationPrincipal } from '@wbs/core';
 
 import type { organizationCookieBinding } from './organization-cookie';
 
@@ -14,13 +14,26 @@ export interface OrganizationChoices {
   list(userId: string): Promise<'inactive' | readonly MembershipChoice[]>;
 }
 
+/**
+ * The credential rules for a principal entering one organization now, read
+ * with its current membership: `SqliteOrganizationAccess.admitTo`.
+ */
+export type CredentialAdmission = (
+  principal: OrganizationPrincipal,
+  organizationId: string,
+) => Promise<'not_a_member' | CredentialRuleRefusal | null>;
+
 /** Shared, per-request revocation lookup for an exact verified browser credential. */
 export interface BrowserCredentialRevocations {
   isRevoked(credential: VerifiedOrganizationCredential): Promise<boolean>;
 }
 
 export type OrganizationSelectionOutcome =
-  | { readonly kind: 'listed'; readonly memberships: readonly MembershipChoice[] }
+  | {
+      readonly kind: 'listed';
+      readonly memberships: readonly (MembershipChoice & { readonly ssoRequired: boolean })[];
+    }
+  | { readonly kind: 'refused'; readonly refusal: CredentialRuleRefusal }
   | {
       readonly kind: 'selected';
       readonly organizationId: string;
@@ -48,6 +61,7 @@ export function organizationSelection(
   choices: OrganizationChoices,
   cookie: ReturnType<typeof organizationCookieBinding>,
   revocations: BrowserCredentialRevocations,
+  admit: CredentialAdmission,
 ): {
   readonly endpoints: OrganizationSelection;
   readonly activeOrganizationOf: (principal: OrganizationPrincipal) => Promise<string | null>;
@@ -69,7 +83,18 @@ export function organizationSelection(
         // Proof: bypassing this lookup let the mounted old-token membership
         // list answer 200 after a second connection committed revocation.
         if (await revocations.isRevoked(evidence)) return { kind: 'invalid_credential' };
-        return { kind: 'listed', memberships };
+        const marked = [];
+        for (const member of memberships) {
+          const admitted = await admit(principal, member.organizationId);
+          marked.push({
+            ...member,
+            ssoRequired:
+              admitted !== null &&
+              admitted !== 'not_a_member' &&
+              admitted.refusal === 'sso_required',
+          });
+        }
+        return { kind: 'listed', memberships: marked };
       },
       async select(principal, organizationId) {
         // The marker first, as in `list`; the snapshot it returns is the
@@ -88,6 +113,15 @@ export function organizationSelection(
         // foreign-selection negative issue a cookie for org-b.
         if (!memberships.some((member) => member.organizationId === organizationId))
           return { kind: 'not_a_member' };
+        // Enforced SSO and session policy, before any cookie: a refused
+        // selection writes no binding (`organization-sso`).
+        // Proof: skipping this admission made `refuses a social identity in
+        // the enforced organization only` in
+        // `organization-credential-rules.controller.db.test.ts` select A
+        // (200 instead of 403); watched 2026-10-12.
+        const admitted = await admit(principal, organizationId);
+        if (admitted === 'not_a_member') return { kind: 'not_a_member' };
+        if (admitted !== null) return { kind: 'refused', refusal: admitted };
         const issued = await cookie.issue(evidence, organizationId);
         return {
           kind: 'selected',

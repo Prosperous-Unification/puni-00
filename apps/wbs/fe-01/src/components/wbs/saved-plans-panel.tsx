@@ -93,6 +93,8 @@ export function renameWords(
     case 'invalid_body':
     case 'no_active_organization':
     case 'not_a_member':
+    case 'sso_required':
+    case 'reauthentication_required':
       return `The rename was refused (${refusal.error}).`;
     default:
       return unreachable(refusal);
@@ -254,6 +256,8 @@ export function SavedPlansPanel({
               case 'invalid_query':
               case 'no_active_organization':
               case 'not_a_member':
+              case 'sso_required':
+              case 'reauthentication_required':
                 return { kind: 'error', code: reply.body.error };
               default:
                 return unreachable(reply.body);

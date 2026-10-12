@@ -158,7 +158,7 @@ export function savedPlanRoutes(
    */
   const refuseTouch = async (savedPlanId: string, principal: OrganizationPrincipal) => {
     const resolved = await organizations.resolve(principal);
-    if (!resolved.ok) return organizationRefusal(resolved.refusal);
+    if (!resolved.ok) return organizationRefusal(resolved);
     if (!(await reachesPlan(savedPlanId, resolved.access)))
       return { ok: false, status: 404, body: { error: 'not_found' } } as const;
     if (resolved.access.kind === 'scoped' && !canWriteInOrganization(resolved.access.scope.role))
@@ -170,7 +170,7 @@ export function savedPlanRoutes(
       savePlanShape,
       async ({ params, body, principal }): Promise<HttpReply<typeof savePlanShape>> => {
         const resolved = await organizations.resolve(principal);
-        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        if (!resolved.ok) return organizationRefusal(resolved);
         let outcome;
         try {
           outcome = await savePlan(
@@ -209,7 +209,7 @@ export function savedPlanRoutes(
       listSavedPlans,
       async ({ params, principal }): Promise<HttpReply<typeof listSavedPlans>> => {
         const resolved = await organizations.resolve(principal);
-        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        if (!resolved.ok) return organizationRefusal(resolved);
         // Proof: reading the project unscoped here, and separately in the
         // compare route, made `answers 404 alike for a foreign and an absent
         // project on every saved-plan and history route` in
@@ -226,7 +226,7 @@ export function savedPlanRoutes(
       compareSavedPlans,
       async ({ params, query, principal }): Promise<HttpReply<typeof compareSavedPlans>> => {
         const resolved = await organizations.resolve(principal);
-        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        if (!resolved.ok) return organizationRefusal(resolved);
         if ((await projects.readWithin(params.id, resolved.access)) === null)
           return { ok: false, status: 404, body: { error: 'not_found' } };
         let called;
@@ -299,7 +299,7 @@ export function savedPlanRoutes(
     ),
     bind(readSavedPlan, async ({ params, principal }): Promise<HttpReply<typeof readSavedPlan>> => {
       const resolved = await organizations.resolve(principal);
-      if (!resolved.ok) return organizationRefusal(resolved.refusal);
+      if (!resolved.ok) return organizationRefusal(resolved);
       if (!(await reachesPlan(params.id, resolved.access)))
         return { ok: false, status: 404, body: { error: 'not_found' } };
       const called = await callSavedPlan(() => plans.read(params.id));
@@ -320,7 +320,7 @@ export function savedPlanRoutes(
         const refused = await refuseTouch(params.id, principal);
         if (refused !== null) return refused;
         const resolved = await organizations.resolve(principal);
-        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        if (!resolved.ok) return organizationRefusal(resolved);
         const scoped =
           resolved.access.kind === 'scoped'
             ? {
@@ -348,7 +348,7 @@ export function savedPlanRoutes(
         const refused = await refuseTouch(params.id, principal);
         if (refused !== null) return refused;
         const resolved = await organizations.resolve(principal);
-        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        if (!resolved.ok) return organizationRefusal(resolved);
         const scoped =
           resolved.access.kind === 'scoped'
             ? {

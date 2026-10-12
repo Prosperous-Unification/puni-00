@@ -37,6 +37,15 @@ describe('invitation acceptance', () => {
       'POST /api/onboarding/invitations/accept': [
         () => answer(200, { membership: { organizationId: 'o', role: 'member' } }),
       ],
+      'GET /api/organization/memberships': [
+        () =>
+          answer(200, {
+            state: 'selection_required',
+            memberships: [
+              { organizationId: 'o', name: 'Acme', role: 'member', ssoRequired: false },
+            ],
+          }),
+      ],
     });
     renderScreen();
     await acceptCode(' tok ');

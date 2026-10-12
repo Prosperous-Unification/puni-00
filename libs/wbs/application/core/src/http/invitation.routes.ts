@@ -52,7 +52,7 @@ export function invitationRoutes(
       if (principal.delegation !== undefined)
         return { ok: false, status: 403, body: { error: 'insufficient_scope' } };
       const resolved = await organizations.resolve(principal);
-      if (!resolved.ok) return organizationRefusal(resolved.refusal);
+      if (!resolved.ok) return organizationRefusal(resolved);
       if (resolved.access.kind === 'legacy') return organizationRefusal('no_active_organization');
       const answer = await invitations.list(resolved.access.scope.organizationId, principal.id);
       if (!answer.ok) {
@@ -71,7 +71,7 @@ export function invitationRoutes(
         if (principal.delegation !== undefined)
           return { ok: false, status: 403, body: { error: 'insufficient_scope' } };
         const resolved = await organizations.resolve(principal);
-        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        if (!resolved.ok) return organizationRefusal(resolved);
         if (resolved.access.kind === 'legacy') return organizationRefusal('no_active_organization');
         const email = body.email.trim().toLowerCase();
         // Proof: 2026-09-28, bypassing syntax, ASCII and 254-byte checks separately failed `rejects malformed recipient addresses and a super-admin offer`.
@@ -117,7 +117,7 @@ export function invitationRoutes(
         if (principal.delegation !== undefined)
           return { ok: false, status: 403, body: { error: 'insufficient_scope' } };
         const resolved = await organizations.resolve(principal);
-        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        if (!resolved.ok) return organizationRefusal(resolved);
         if (resolved.access.kind === 'legacy') return organizationRefusal('no_active_organization');
         const answer = await invitations.revoke(
           resolved.access.scope.organizationId,

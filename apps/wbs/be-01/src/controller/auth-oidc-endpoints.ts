@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 
 import {
   browserBindingCookieName,
@@ -26,9 +26,16 @@ import {
   startAuth0Link,
   startOidcLogin,
 } from '@wbs/contracts';
+import type {
+  EnterpriseConnections,
+  EnterpriseRoute,
+  ReauthenticationRoute,
+  ScimUsers,
+} from '@wbs/core';
 import type { LoginThrottle } from '@wbs/core/module/authentication/login-throttle';
 import type { AuthService } from '@wbs/core/service/auth.service';
-import { BrowserLifecycleRefusedError } from '@wbs/store-sqlite';
+import { BrowserLifecycleRefusedError, canonicalOidcEmail } from '@wbs/store-sqlite';
+import { decodeJwt, errors } from 'jose';
 
 import {
   bind,
@@ -42,6 +49,7 @@ import { cookiesIn, cookieValue } from '../middleware/authenticated';
 import { clientIpOf } from './auth-password-endpoints';
 import {
   accessOf,
+  type BrowserPredecessor,
   type BrowserSessionAuthority,
   correlationOf,
   credentialDigest,
@@ -50,6 +58,7 @@ import {
   retireBrowserPredecessor,
 } from './browser-session';
 import type { OidcRouteOptions } from './oidc-options';
+import { reauthenticatedAtOf, type ReplacedCredential } from './reauthentication-time';
 
 const reportable = new Set([
   'access_denied',
@@ -219,6 +228,109 @@ function methodChoice(
 const connectionParameter = (choice: MethodChoice) =>
   choice.kind === 'connection' ? { connection: choice.connection } : {};
 
+/** The hints a login may carry; `GET /api/auth/login` admits at most one (D3). */
+interface LoginHints {
+  readonly method?: AuthMethodId;
+  readonly organization?: string;
+  readonly email?: string;
+  /** The organization whose `reauthentication_required` refusal sent the browser here. */
+  readonly reauthenticate?: string;
+}
+
+/**
+ * Where a login goes: the enabled method's or the routed enterprise
+ * connection, the provider's chooser, or a refusal answered before any
+ * transaction is saved.
+ */
+type LoginChoice =
+  | { readonly kind: 'chooser' }
+  | { readonly kind: 'method'; readonly connection: string }
+  | { readonly kind: 'enterprise'; readonly route: EnterpriseRoute }
+  | { readonly kind: 'reauthenticate'; readonly route: ReauthenticationRoute }
+  | { readonly kind: 'invalid_query' | 'sso_connection_not_found' };
+
+/**
+ * Resolves the one login hint (`organization-sso` "Login is routed to the
+ * enterprise connection"). A slug routes whatever its claim's status, so a
+ * suspension never weakens enforcement; an email routes only through a
+ * verified claim, and any other email is the ordinary login.
+ */
+async function loginChoice(
+  hints: LoginHints,
+  enabled: readonly AuthMethodId[],
+  enterprise: Pick<
+    EnterpriseConnections,
+    'routeBySlug' | 'routeByDomain' | 'reauthenticationRoute'
+  >,
+): Promise<LoginChoice> {
+  // Proof: leaving `reauthenticate` out of this count made `routes a
+  // reauthentication login by organization` admit a second hint; watched 2026-10-12.
+  const given = [hints.method, hints.organization, hints.email, hints.reauthenticate].filter(
+    (hint) => hint !== undefined,
+  );
+  // Proof: 2026-10-12, admitting two hints made `refuses two hints, a
+  // malformed email or slug, and saves no transaction` in
+  // `enterprise-login.controller.db.test.ts` route `organization=acme&method=google`.
+  if (given.length > 1) return { kind: 'invalid_query' };
+  if (hints.reauthenticate !== undefined) {
+    if (hints.reauthenticate.length === 0) return { kind: 'invalid_query' };
+    return {
+      kind: 'reauthenticate',
+      route: await enterprise.reauthenticationRoute(hints.reauthenticate),
+    };
+  }
+  if (hints.organization !== undefined) {
+    const route = await enterprise.routeBySlug(hints.organization);
+    return route === null ? { kind: 'sso_connection_not_found' } : { kind: 'enterprise', route };
+  }
+  if (hints.email !== undefined) {
+    const email = canonicalOidcEmail(hints.email);
+    if (email === null) return { kind: 'invalid_query' };
+    const route = await enterprise.routeByDomain(email.slice(email.lastIndexOf('@') + 1));
+    return route === null ? { kind: 'chooser' } : { kind: 'enterprise', route };
+  }
+  const method = methodChoice(enabled, hints.method);
+  if (method.kind === 'disabled') return { kind: 'invalid_query' };
+  return method.kind === 'connection'
+    ? { kind: 'method', connection: method.connection }
+    : { kind: 'chooser' };
+}
+
+/**
+ * The `/authorize` parameters a login choice adds. A routed organization
+ * with a session policy also asks for an interactive sign-in, bounded by
+ * `max_age` when it sets a reauthentication bound.
+ */
+function loginParameters(choice: LoginChoice): {
+  readonly connection?: string;
+  readonly prompt?: 'login';
+  readonly maxAge?: number;
+} {
+  if (choice.kind === 'method') return { connection: choice.connection };
+  if (choice.kind === 'reauthenticate') {
+    const { auth0Connection, policy } = choice.route;
+    // A reauthentication login always prompts, whether or not the
+    // organization still has a policy.
+    return {
+      ...(auth0Connection === null ? {} : { connection: auth0Connection }),
+      prompt: 'login',
+      ...(policy?.reauthenticateAfterSeconds == null
+        ? {}
+        : { maxAge: policy.reauthenticateAfterSeconds }),
+    };
+  }
+  if (choice.kind !== 'enterprise') return {};
+  const { auth0Connection, policy } = choice.route;
+  if (policy === null) return { connection: auth0Connection };
+  return {
+    connection: auth0Connection,
+    prompt: 'login',
+    ...(policy.reauthenticateAfterSeconds === null
+      ? {}
+      : { maxAge: policy.reauthenticateAfterSeconds }),
+  };
+}
+
 /** The enabled methods as the public list reply. */
 function methodList(enabled: readonly AuthMethodId[]) {
   return enabled.map((id) => ({ id, label: authMethod(id).label }));
@@ -281,7 +393,15 @@ const clearLink = (): Header => cookie(LINK_COOKIE, '', 0);
  * The fixed outcomes a link callback reports to fe-01 as `?auth_link=`.
  * Nothing from the request (state, error, error_description) is echoed.
  */
-type LinkOutcome = 'linked' | 'refused' | 'inactive' | 'collision' | 'unavailable' | 'failed';
+type LinkOutcome =
+  | 'linked'
+  | 'refused'
+  | 'inactive'
+  | 'collision'
+  | 'unavailable'
+  | 'failed'
+  | 'sso_prefix_mismatch'
+  | 'sso_connection_taken';
 const LINK_OUTCOME_FOR_OIDC_FAILURE: Record<OidcFailureKind, LinkOutcome> = {
   defect: 'failed',
   indeterminate: 'unavailable',
@@ -348,6 +468,28 @@ function linkCallbackFailure(
   return { ok: false, status: 400, body: { error: failure.code } };
 }
 /**
+ * What the callback knows of the credential its sign-in replaces. An OIDC
+ * predecessor's access token was proved associated with its lifecycle by
+ * {@link proveBrowserPredecessor}, so its bytes are ones this server verified
+ * when it issued them, and reading their `sub` unverified is safe.
+ */
+function replacedCredentialOf(
+  predecessor: BrowserPredecessor | { readonly kind: 'none' },
+  request: RequestMetadata,
+): ReplacedCredential {
+  if (predecessor.kind !== 'oidc') return { kind: predecessor.kind };
+  const access = accessOf(request);
+  if (access === null) return { kind: 'oidc', subject: null };
+  try {
+    const { sub } = decodeJwt(access);
+    return { kind: 'oidc', subject: typeof sub === 'string' ? sub : null };
+  } catch (cause) {
+    if (cause instanceof errors.JOSEError) return { kind: 'oidc', subject: null };
+    throw cause;
+  }
+}
+
+/**
  * Browser OIDC bindings. Composition registers these only when OIDC options exist.
  * Exchange failures carry their owned classification; account and token-store failures remain throws.
  */
@@ -355,6 +497,11 @@ export function authOidcEndpoints(
   auth: AuthService,
   options: OidcRouteOptions,
   passwordThrottle: LoginThrottle,
+  enterprise: Pick<
+    EnterpriseConnections,
+    'routeBySlug' | 'routeByDomain' | 'reauthenticationRoute' | 'linkThroughConnection'
+  >,
+  pendingMemberships: Pick<ScimUsers, 'activate'>,
   browserSession?: BrowserSessionAuthority,
 ) {
   const now = options.now ?? Date.now;
@@ -365,6 +512,28 @@ export function authOidcEndpoints(
     now,
   );
   const links = new InMemoryOidcLinkStore(now);
+  /**
+   * Activates the pending membership the authenticating pair completes
+   * (`organization-scim` "SCIM Users subset with pending membership"): the
+   * pair must carry a proven connection's prefix and its connection-attested
+   * email match a pending record, whatever `email_verified` says. The store
+   * decides both inside its own transaction.
+   *
+   * Proof: removing this call from the login callback made `activates a
+   * pending membership at the first SSO sign-in, even unverified` in
+   * `pending-membership.controller.db.test.ts` find no membership; watched
+   * 2026-10-12.
+   */
+  const activatePending = (
+    userId: string,
+    identity: { issuer: string; subject: string; email: string | null },
+  ) =>
+    pendingMemberships.activate(
+      userId,
+      { issuer: identity.issuer, subject: identity.subject },
+      canonicalOidcEmail(identity.email),
+      { stamp: { at: now(), by: userId }, actor: userId, auditIds: () => randomUUID() },
+    );
   const linkRedirectUri = new URL('/api/auth/link/auth0/callback', options.redirectUri).href;
   return [
     bind(listAuthMethods, () =>
@@ -375,22 +544,35 @@ export function authOidcEndpoints(
       } as const),
     ),
     bind(startOidcLogin, async ({ query, request }) => {
-      const choice = methodChoice(options.methods, query.method);
+      const choice = await loginChoice(query, options.methods, enterprise);
       // Proof: 2026-10-11, moving this refusal after `transactions.save` made
       // `refuses a disabled method without saving a transaction` count one save.
-      if (choice.kind === 'disabled')
+      if (choice.kind === 'invalid_query')
         return { ok: false, status: 400, body: { error: 'invalid_query' } };
+      if (choice.kind === 'sso_connection_not_found')
+        return { ok: false, status: 404, body: { error: 'sso_connection_not_found' } };
       const browserBinding = random();
       const state = random();
       const nonce = random();
       const verifier = random();
-      options.transactions.save({ browserBinding, state, nonce, verifier });
+      const parameters = loginParameters(choice);
+      options.transactions.save({
+        browserBinding,
+        state,
+        nonce,
+        verifier,
+        ...(parameters.prompt === undefined
+          ? {}
+          : {
+              reauthentication: { prompt: parameters.prompt, maxAge: parameters.maxAge ?? null },
+            }),
+      });
       const location = await options.client.authorizationUrl({
         nonce,
         state,
         verifier,
         redirectUri: options.redirectUri,
-        ...connectionParameter(choice),
+        ...parameters,
       });
       const held = selectBrowserBindings(options.transactions, browserBindingsOf(request), now());
       const evicted = [
@@ -609,18 +791,39 @@ export function authOidcEndpoints(
             body: EMPTY,
             headers: [...clearsFor(settled), ['location', '/?auth_error=account_exists']],
           };
+        // A pending SCIM membership this sign-in completes, before the session
+        // exists, so the first organization list already shows it.
+        await activatePending(account.id, identity);
         // Proof: without this retirement, a mounted native predecessor still
         // had no B1 row after OIDC callback issued replacement cookies (0/1).
         if (browserSession !== undefined)
           await retireBrowserPredecessor(predecessor, browserSession, now());
         const correlation = random();
-        if (options.browserLifecycle !== undefined && accessEvidence !== null)
-          await options.browserLifecycle.open(correlation, {
-            kind: 'oidc',
-            userId: account.id,
-            digest: accessEvidence.digest,
-            expiresAt: accessEvidence.expiresAt,
-          });
+        if (options.browserLifecycle !== undefined && accessEvidence !== null) {
+          const callbackAt = now();
+          // Proof: opening the lifecycle with a null reauthentication time made
+          // `records when a prompted sign-in reauthenticated` in
+          // `oidc-identity.controller.db.test.ts` store null; watched 2026-10-12.
+          await options.browserLifecycle.open(
+            correlation,
+            {
+              kind: 'oidc',
+              userId: account.id,
+              digest: accessEvidence.digest,
+              expiresAt: accessEvidence.expiresAt,
+            },
+            {
+              openedAt: callbackAt,
+              reauthenticatedAt: reauthenticatedAtOf({
+                requested: transaction.reauthentication,
+                authTime: tokens.idTokenClaims['auth_time'],
+                replaced: replacedCredentialOf(predecessor, request),
+                subject: identity.subject,
+                callbackAt,
+              }),
+            },
+          );
+        }
         if (tokens.refreshToken !== undefined)
           options.tokens.save({
             expiresAt: now() + 30 * 86400000,
@@ -864,9 +1067,17 @@ export function authOidcEndpoints(
       if (current === null || session === null)
         return { ok: false, status: 401, body: { error: 'invalid_credentials' } };
       const choice = methodChoice(options.methods, body.method);
-      // A disabled method is refused before any binding or provider address exists.
-      if (choice.kind === 'disabled')
+      // A disabled method, or a method beside a slug, is refused before any
+      // binding or provider address exists.
+      if (
+        choice.kind === 'disabled' ||
+        (body.method !== undefined && body.organization !== undefined)
+      )
         return { ok: false, status: 400, body: { error: 'invalid_body' } };
+      const routed =
+        body.organization === undefined ? null : await enterprise.routeBySlug(body.organization);
+      if (body.organization !== undefined && routed === null)
+        return { ok: false, status: 404, body: { error: 'sso_connection_not_found' } };
       let user;
       if (current.kind === 'oidc') {
         // No password exists to prove; one sent anyway is a confused client.
@@ -907,14 +1118,21 @@ export function authOidcEndpoints(
       const state = random();
       const nonce = random();
       const verifier = random();
-      links.save(binding, { userId: user.id, session, state, nonce, verifier });
+      links.save(binding, {
+        userId: user.id,
+        session,
+        state,
+        nonce,
+        verifier,
+        ...(routed === null ? {} : { connectionId: routed.connectionId }),
+      });
       const location = await options.client.authorizationUrl({
         nonce,
         state,
         verifier,
         redirectUri: linkRedirectUri,
         prompt: 'login',
-        ...connectionParameter(choice),
+        ...(routed === null ? connectionParameter(choice) : { connection: routed.auth0Connection }),
       });
       return {
         ok: true,
@@ -985,11 +1203,36 @@ export function authOidcEndpoints(
         } catch {
           return linkOutcome('refused');
         }
+        if (proof.connectionId !== undefined) {
+          const at = now();
+          const routed = await enterprise.linkThroughConnection(
+            user.id,
+            proof.connectionId,
+            identity,
+            { stamp: { at, by: user.id }, actor: user.id, auditId: randomUUID() },
+          );
+          switch (routed.kind) {
+            case 'linked':
+              await activatePending(user.id, identity);
+              return linkOutcome('linked');
+            case 'inactive':
+            case 'sso_prefix_mismatch':
+            case 'sso_connection_taken':
+              return linkOutcome(routed.kind);
+            case 'identity_collision':
+            case 'email_collision':
+              return linkOutcome('collision');
+            case 'not_found':
+            case 'invalid_account':
+              return linkOutcome('refused');
+          }
+        }
         const linked = await auth.linkOidcIdentity(user.id, identity);
         if (linked.kind === 'inactive') return linkOutcome('inactive');
         if (linked.kind === 'identity_collision' || linked.kind === 'email_collision')
           return linkOutcome('collision');
         if (linked.kind !== 'linked') return linkOutcome('refused');
+        await activatePending(user.id, identity);
         return linkOutcome('linked');
       },
       { prevalidate: linkCallbackAdmission, classifyRequestFailure: linkCallbackFailure },

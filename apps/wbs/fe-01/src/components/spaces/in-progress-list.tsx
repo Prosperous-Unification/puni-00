@@ -1,5 +1,6 @@
 import { type ClientReply, readSpaceInProgress } from '@wbs/contracts';
 
+import { credentialRefusalHeadline } from '@/components/organization/credential-refusal-state';
 import { browserClient, failureMessage, unreachable } from '@/lib/http';
 
 import { spaceRefusal } from './space-access';
@@ -28,8 +29,14 @@ export async function readInProgress(spaceId: string): Promise<InProgressState> 
       return { kind: 'ready', answer: reply.body };
     case 'failure':
       return { kind: 'failure', message: failureMessage(reply.failure) };
-    case 'refusal':
-      return { kind: 'failure', message: spaceRefusal(reply.body.error).text };
+    case 'refusal': {
+      const outcome = spaceRefusal(reply.body);
+      return {
+        kind: 'failure',
+        message:
+          outcome.kind === 'credential' ? credentialRefusalHeadline(outcome.refusal) : outcome.text,
+      };
+    }
     default:
       return unreachable(reply);
   }

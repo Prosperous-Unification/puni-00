@@ -608,6 +608,58 @@ describe('bootBe01', () => {
     }
   });
 
+  it('serves SCIM provisioning from the shared database once activated', async () => {
+    const dir = tempDir('wbs-scim-boot-');
+    const dbPath = join(dir, 'test.db');
+    runMigrations(dbPath, FOLDER);
+    const secret = `wbs_scim_${'C'.repeat(43)}`;
+    const digest = Array.from(
+      new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(secret))),
+      (byte) => byte.toString(16).padStart(2, '0'),
+    ).join('');
+    const seed = openDatabase(dbPath);
+    try {
+      seed.run(
+        "INSERT INTO users (id, username, password_hash, created_at) VALUES ('ada', 'ada', 'x', 1)",
+      );
+      seed.run("INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)");
+      seed.run(
+        'INSERT INTO organization_scim_token (id, organization_id, digest, created_at, created_by) VALUES (?, ?, ?, 1, ?)',
+        ['t', 'org-a', digest, 'ada'],
+      );
+      seed.run(
+        "UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1",
+      );
+    } finally {
+      seed.close();
+    }
+    let mounted: ReturnType<typeof buildApp> | undefined;
+    running = await bootBe01(bootOptions(dbPath, 0), {
+      openSource: openSqliteSource,
+      makeApp: (options) => {
+        const app = buildApp(options);
+        app.stop = () => Promise.resolve(app);
+        mounted = app;
+        return app;
+      },
+      startListener: (_app, _port, ready) => {
+        ready();
+      },
+    });
+    if (mounted === undefined) throw new Error('boot did not compose an app');
+    const list = (token: string) =>
+      mounted?.handle(
+        new Request('http://localhost/scim/v2/Users', {
+          headers: { authorization: `Bearer ${token}` },
+        }),
+      );
+
+    const listed = await list(secret);
+    expect(listed?.status).toBe(200);
+    expect(await listed?.json()).toMatchObject({ totalResults: 0, Resources: [] });
+    expect((await list(`wbs_scim_${'D'.repeat(43)}`))?.status).toBe(401);
+  });
+
   it('codes the steps an older writer left uncoded once it has migrated', async () => {
     const dir = tempDir('wbs-backfill-boot-');
     const dbPath = join(dir, 'test.db');

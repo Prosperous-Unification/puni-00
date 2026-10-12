@@ -114,6 +114,8 @@ function startRefusal(
         : 'That password is not correct.';
     case 'onboarding_inactive':
       return 'Account linking is not active yet.';
+    case 'sso_connection_not_found':
+      return 'That company sign-in is not set up. Check its address and try again.';
     case 'invalid_client':
       return 'Linking must go through the WBS site address. Reload and try again.';
     case 'invalid_origin':

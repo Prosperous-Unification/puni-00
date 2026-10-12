@@ -206,6 +206,25 @@ describe('a space', () => {
     expect((await screen.findByRole('alert')).textContent).toContain('Spaces need an organization');
   });
 
+  it('gives the space up to a fresh sign-in when the session policy refuses it', async () => {
+    stubServer({
+      'GET /api/spaces/s': [
+        () =>
+          answer(403, {
+            error: 'reauthentication_required',
+            organizationId: 'org_7f3a',
+            reason: 'max_session',
+            login: '/api/auth/login?reauthenticate=org_7f3a',
+          }),
+      ],
+    });
+    routed(<SpacePage spaceId="s" nav={null} account={null} />);
+    expect(await screen.findByText('Your session for this organization is too old.')).toBeDefined();
+    expect(screen.getByRole('link', { name: 'Sign in again' }).getAttribute('href')).toBe(
+      '/api/auth/login?reauthenticate=org_7f3a',
+    );
+  });
+
   it('re-reads every minute while visible', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {

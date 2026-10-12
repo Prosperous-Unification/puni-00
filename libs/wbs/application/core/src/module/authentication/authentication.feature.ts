@@ -197,7 +197,12 @@ export class AuthService {
       } else {
         const user = await this.resolveOidcIdentity(identity);
         if (user === null) return null;
-        return { id: user.id, username: user.username, scopes: identity.scopes };
+        return {
+          id: user.id,
+          username: user.username,
+          scopes: identity.scopes,
+          authentication: { kind: 'upstream', issuer: identity.issuer, subject: identity.subject },
+        };
       }
     }
 
@@ -206,7 +211,12 @@ export class AuthService {
     const user = await this.opts.account.readAccount(claims.subject);
     // A valid signature cannot keep a deleted account authenticated.
     if (user === null) return null;
-    return { id: user.id, username: user.username, scopes: ['read', 'write', 'editor'] };
+    return {
+      id: user.id,
+      username: user.username,
+      scopes: ['read', 'write', 'editor'],
+      authentication: { kind: 'first_party', issuedAt: claims.issuedAt },
+    };
   }
 
   /**

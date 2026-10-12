@@ -21,7 +21,7 @@ export function projectRankRoutes(ranks: ProjectRankResource, organizations: Org
   return [
     bind(readProjectRank, async ({ principal }) => {
       const resolved = await organizations.resolve(principal);
-      if (!resolved.ok) return organizationRefusal(resolved.refusal);
+      if (!resolved.ok) return organizationRefusal(resolved);
       const outcome = await ranks.read(principal.id, resolved.access);
       return outcome.ok
         ? { ok: true, status: 200, body: { projects: outcome.projects } }
@@ -29,7 +29,7 @@ export function projectRankRoutes(ranks: ProjectRankResource, organizations: Org
     }),
     bind(moveProjectRank, async ({ params, body, principal }) => {
       const resolved = await organizations.resolve(principal);
-      if (!resolved.ok) return organizationRefusal(resolved.refusal);
+      if (!resolved.ok) return organizationRefusal(resolved);
       const outcome = await ranks.move(
         principal.id,
         resolved.access,

@@ -1,5 +1,7 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import { stubServer } from '@/testing/stub-server';
 
 import { OnboardingScreen } from './onboarding-screen';
 
@@ -24,6 +26,34 @@ describe('onboarding screen', () => {
     );
     fireEvent.click(await screen.findByRole('button', { name: 'Sign out' }));
     expect(onSignOut).toHaveBeenCalledOnce();
+  });
+
+  it('lists the memberships to select with an SSO-enforced one locked', async () => {
+    stubServer({
+      'GET /api/onboarding': [
+        () =>
+          answer(200, {
+            state: 'selection_required',
+            memberships: [{ organizationId: 'g', name: 'Globex', role: 'admin' }],
+          }),
+      ],
+      'GET /api/organization/memberships': [
+        () =>
+          answer(200, {
+            state: 'selection_required',
+            memberships: [
+              { organizationId: 'g', name: 'Globex', role: 'admin', ssoRequired: true },
+            ],
+          }),
+      ],
+    });
+    render(
+      <OnboardingScreen onSignOut={() => undefined}>
+        <p>Existing app</p>
+      </OnboardingScreen>,
+    );
+    const list = await screen.findByRole('list', { name: 'Your organizations' });
+    expect(within(list).getByRole('listitem').textContent).toContain('Locked');
   });
 
   it('keeps the existing app when onboarding is inactive', async () => {

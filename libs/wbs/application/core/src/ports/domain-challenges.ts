@@ -104,11 +104,14 @@ export interface DomainChallenges {
     | { kind: 'issued'; domain: string; dnsValue: string }
     | { kind: 'forbidden' | 'not_found' | 'stale' | 'inactive' }
   >;
+  /** Refused with `sso_connection_exists` while an enterprise connection names the claim. */
   releaseClaim(
     organizationId: string,
     actorId: string,
     claimId: string,
-  ): Promise<'released' | 'forbidden' | 'not_found' | 'stale' | 'inactive'>;
+  ): Promise<
+    'released' | 'forbidden' | 'not_found' | 'stale' | 'inactive' | 'sso_connection_exists'
+  >;
   /** Reads current claim status; approval must still recheck in its own write transaction. */
   isVerifiedDomain(organizationId: string, domain: string): Promise<boolean>;
 }

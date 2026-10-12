@@ -41,7 +41,12 @@ export interface SessionClaims {
  */
 export interface TokenCodec {
   sign(claims: SessionClaims, ttlSeconds: number): Promise<string>;
-  verify(token: string): Promise<SessionClaims | null>;
+  verify(token: string): Promise<VerifiedSessionClaims | null>;
+}
+
+/** A verified session token's claims and when it was issued, in epoch milliseconds. */
+export interface VerifiedSessionClaims extends SessionClaims {
+  readonly issuedAt: number;
 }
 
 /**

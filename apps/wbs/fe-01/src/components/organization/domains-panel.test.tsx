@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { answerEmpty, answerJson as answer, stubServer } from '@/testing/stub-server';
 
 import { DomainsPanel } from './domains-panel';
+import { type AccessLoss } from './organization-access';
 
 afterEach(() => {
   cleanup();
@@ -28,7 +29,7 @@ const challenge = {
   expiresAt: 86_400_000,
 };
 
-function renderPanel(onAccessLost: (loss: string) => void = () => undefined) {
+function renderPanel(onAccessLost: (loss: AccessLoss) => void = () => undefined) {
   render(<DomainsPanel onAccessLost={onAccessLost} />);
 }
 
@@ -151,6 +152,20 @@ describe('domain settings', () => {
     expect(await screen.findByRole('status')).toHaveProperty('textContent', copy);
   });
 
+  it('renders the release refusal while company sign-in uses the domain', async () => {
+    stubServer({
+      'GET /api/organization/domains': [() => answer(200, { domains: [claim('c', 'acme.test')] })],
+      'DELETE /api/organization/domains/c': [() => answer(409, { error: 'sso_connection_exists' })],
+    });
+    renderPanel();
+    fireEvent.click(await screen.findByRole('button', { name: 'Release acme.test' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm releasing acme.test' }));
+    expect(await screen.findByRole('status')).toHaveProperty(
+      'textContent',
+      'Company sign-in still uses this domain. Remove its connection first.',
+    );
+  });
+
   it.each([
     ['invalid_domain', 400, 'Enter a domain name such as example.com.'],
     [
@@ -172,7 +187,7 @@ describe('domain settings', () => {
   });
 
   it('hands a lost organization to the page', async () => {
-    const losses: string[] = [];
+    const losses: AccessLoss[] = [];
     stubServer({
       'GET /api/organization/domains': [() => answer(403, { error: 'no_active_organization' })],
     });

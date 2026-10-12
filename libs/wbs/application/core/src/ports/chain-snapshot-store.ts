@@ -1,8 +1,8 @@
 import type { CapacityMode } from '@wbs/domain';
 
 import type {
-  OrganizationAccessRefusal,
   OrganizationPrincipal,
+  RefusedOrganizationAccess,
   ResourceAccess,
 } from './organization-access';
 import type { Project } from './project-values';
@@ -40,10 +40,7 @@ export interface ChainSnapshotStore {
     principal: OrganizationPrincipal,
     projectId: string,
     read: (snapshot: ChainSnapshot) => SharedPeopleRead | Promise<SharedPeopleRead>,
-  ): Promise<
-    | { readonly ok: true; readonly value: SharedPeopleRead }
-    | { readonly ok: false; readonly refusal: OrganizationAccessRefusal }
-  >;
+  ): Promise<{ readonly ok: true; readonly value: SharedPeopleRead } | RefusedOrganizationAccess>;
 }
 
 /** Detached live evidence; SQLite owns the distinction between ordinary and command lifetimes. */

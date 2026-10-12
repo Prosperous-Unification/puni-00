@@ -42,7 +42,7 @@ import {
 import { testHistoryService } from './history-fixture';
 import { testLoginThrottle } from './login-throttle-fixture';
 import { refusingOnboarding } from './onboarding-fixture';
-import { refusingDomains } from './organization-access-fixture';
+import { refusingDomains, refusingEnterpriseConnections } from './organization-access-fixture';
 import { testPriorityBandService } from './priority-band-fixture';
 import { testProjectService } from './project-fixture';
 import { refusingProjectRanks } from './project-rank-fixture';
@@ -102,7 +102,8 @@ async function awaitRelease(phase: 'provider' | 'install'): Promise<void> {
   refreshBarrier.phase = null;
 }
 const lifecycle: BrowserAuthLifecycle = {
-  open: (correlation, credential) => storedLifecycle.open(correlation, credential),
+  open: (correlation, credential) =>
+    storedLifecycle.open(correlation, credential, { openedAt: 1, reauthenticatedAt: null }),
   generation: (correlation) => storedLifecycle.generation(correlation),
   proveAssociation: (correlation, presented) =>
     storedLifecycle.proveAssociation(correlation, presented),
@@ -184,11 +185,17 @@ const selection = organizationSelection(
   new SqliteOrganizationSelection(db),
   organizationCookieBinding(sessionKey),
   revocations,
+  (principal, organizationId) => organizations.admitTo(principal, organizationId),
+);
+const organizations: SqliteOrganizationAccess = new SqliteOrganizationAccess(
+  db,
+  selection.activeOrganizationOf,
+  Date.now,
 );
 const logLines: string[] = [];
 const app = buildApp(
   {
-    organizations: new SqliteOrganizationAccess(db, selection.activeOrganizationOf),
+    organizations,
     organizationSelection: selection.endpoints,
     credentialEvidence: organizationCredentialEvidence(
       auth,
@@ -197,6 +204,7 @@ const app = buildApp(
     ),
     memberships: new OrganizationRepository(db, OPEN),
     domains: refusingDomains,
+    enterpriseConnections: refusingEnterpriseConnections,
     emailVerification: refusingEmailVerification,
     invitations: refusingInvitations,
     joinRequests: refusingJoinRequests,

@@ -2,6 +2,7 @@ import { type ReactNode, useState } from 'react';
 
 import { AppHeader } from '@/components/chrome/app-header';
 
+import { CredentialRefusalState } from './credential-refusal-state';
 import { DomainsPanel } from './domains-panel';
 import { InvitationsPanel } from './invitations-panel';
 import { JoinRequestsPanel } from './join-requests-panel';
@@ -14,9 +15,9 @@ import { SharingPanel } from './sharing-panel';
  *
  * The active organization is the server's: this page never names one. When any
  * panel learns that the page lost its access (removed, no organization bound,
- * signed out or not active), the whole page is replaced by that state, and the
- * panels unmount with every row they read, so a stale tab keeps nothing of the
- * organization it lost.
+ * signed out, not active, or a sign-in the organization's rules refuse), the
+ * whole page is replaced by that state, and the panels unmount with every row
+ * they read, so a stale tab keeps nothing of the organization it lost.
  */
 export function OrganizationPage({
   nav,
@@ -55,10 +56,14 @@ export function OrganizationPage({
                */}
               <SharingPanel onAccessLost={setLoss} />
             </>
-          ) : (
+          ) : typeof loss === 'string' ? (
             <p role="alert" className="text-sm">
               {lossCopy(loss)}
             </p>
+          ) : (
+            // Proof: 2026-10-12, rendering only the headline sentence here failed
+            // `replaces the panels with the company sign-in state and its link wording`.
+            <CredentialRefusalState refusal={loss} />
           )}
         </div>
       </main>

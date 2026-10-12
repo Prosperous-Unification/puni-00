@@ -45,7 +45,7 @@ export function organizationRoutes(
       if (principal.delegation !== undefined)
         return { ok: false, status: 403, body: { error: 'insufficient_scope' } };
       const resolved = await organizations.resolve(principal);
-      if (!resolved.ok) return organizationRefusal(resolved.refusal);
+      if (!resolved.ok) return organizationRefusal(resolved);
       if (resolved.access.kind === 'legacy') return organizationRefusal('no_active_organization');
       const listed = await memberships.listMembers(
         resolved.access.scope.organizationId,
@@ -70,7 +70,7 @@ export function organizationRoutes(
         if (principal.delegation !== undefined)
           return { ok: false, status: 403, body: { error: 'insufficient_scope' } };
         const resolved = await organizations.resolve(principal);
-        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        if (!resolved.ok) return organizationRefusal(resolved);
         if (resolved.access.kind === 'legacy') return organizationRefusal('no_active_organization');
         const outcome = await memberships.administer(
           resolved.access.scope.organizationId,
@@ -93,7 +93,7 @@ export function organizationRoutes(
       if (principal.delegation !== undefined)
         return { ok: false, status: 403, body: { error: 'insufficient_scope' } };
       const resolved = await organizations.resolve(principal);
-      if (!resolved.ok) return organizationRefusal(resolved.refusal);
+      if (!resolved.ok) return organizationRefusal(resolved);
       if (resolved.access.kind === 'legacy') return organizationRefusal('no_active_organization');
       const outcome = await memberships.administer(
         resolved.access.scope.organizationId,
