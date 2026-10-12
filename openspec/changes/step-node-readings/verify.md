@@ -46,6 +46,8 @@ this packet.
 | no-attempts property (2.4)         | `stated` left out of `workedStepsOf`'s union                                           | "with no attempts the fold equals the fold before attempts" (fast-check)                    | failed after 2 runs, counterexample stating `a.dev in_progress`                                                          |
 | every reading its own glyph (3.3)  | `NODE_READING_GLYPH.skipped` set to `⊖`                                                | "gives every reading its own glyph" (`status-cell.test.tsx`)                                | `expected 7 to be 8`                                                                                                     |
 | unknown reading word refused (3.3) | the contract's `nodeReadings` union loosened to `'string'` (`work-item-response.ts`)   | "renders the query-failure state for an unknown reading word" (`plan-cells.test.tsx`)       | no `[data-stale-tree]` banner (`Received has value: null`); the Dev corner drew an empty glyph with `Reading: undefined` |
+| CI layout slot (PR #355)           | the glyph's 10px room kept on leaf cells only                                          | `e2e/layout.spec.ts` "stands a parent’s figure in the same slot as its leaves’"             | `Expected: 894.765625, Received: 904.765625`; fixed by keeping the room on every step cell                               |
+| CI glyph contrast (PR #355)        | `--reading-waiting` at `oklch(0.49 0.11 215)`                                          | `e2e/status.spec.ts` "every status glyph clears 4.5:1…"                                     | `4.417` on the done tint's hover; light token now `oklch(0.45 0.11 215)`                                                 |
 
 ## Dev-store report (slice 2.4)
 

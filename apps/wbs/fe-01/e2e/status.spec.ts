@@ -579,4 +579,31 @@ test.describe('node readings in the step cells, in a browser (step-node-readings
       expect(glyph.left, `the glyph clears ${name}`).toBeGreaterThanOrEqual(drawn.right);
     }
   });
+
+  // The captures the readings are reviewed by eye from (UI acceptance): CI
+  // keeps `test-results`, so these land in the pixels artifacts.
+  test('shows the readings and the waiting card in light, dark and at 390px', async ({
+    page,
+  }, testInfo) => {
+    await seedStepReadings(page);
+    const qa = page.getByLabel('QA estimate for 010');
+    await expect(
+      qa.locator('xpath=ancestor::*[@data-final][1]').locator('[data-node-reading]'),
+    ).toHaveAttribute('data-node-reading', 'waiting');
+    await page.screenshot({ path: testInfo.outputPath('readings-table-light.png') });
+
+    await qa.locator('..').hover();
+    const card = page.locator('[role="tooltip"]').first();
+    await expect(card).toContainText('Waiting');
+    await expect(card).toContainText('3 attempts, last cancelled');
+    await page.screenshot({ path: testInfo.outputPath('readings-card-waiting-qa.png') });
+    await page.mouse.move(0, 0);
+
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.screenshot({ path: testInfo.outputPath('readings-table-dark.png') });
+    await page.emulateMedia({ colorScheme: 'light' });
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({ path: testInfo.outputPath('readings-table-390.png'), fullPage: true });
+  });
 });

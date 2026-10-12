@@ -151,7 +151,10 @@
    * chroma on the slate hue the muted text uses. Both are glyph text and clear
    * 4.5:1 on the table's surfaces in both themes.
    */
-  --reading-waiting: oklch(0.49 0.11 215);
+  /* Proof: at oklch(0.49 0.11 215) CI's `every status glyph clears 4.5:1 on the table
+     surfaces it can occupy` (e2e/status.spec.ts) measured 4.417 on the done tint's
+     hover; seen on PR #355, 2026-10-12. */
+  --reading-waiting: oklch(0.45 0.11 215);
   --reading-skipped: oklch(0.49 0.09 257);
 }
 

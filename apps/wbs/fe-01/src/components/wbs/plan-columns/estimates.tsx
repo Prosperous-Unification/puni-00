@@ -285,8 +285,14 @@ export function createEstimatesColumns({
                 minWidth: 0,
                 fontWeight: 600,
                 color: problem === null ? undefined : 'var(--destructive)',
-                // Room for the corner glyph, so it never sits over a figure.
-                ...(reading.node === null ? {} : { paddingRight: READING_CORNER_PX }),
+                // Room for the corner glyph, so it never sits over a figure,
+                // kept on every step cell — a parent's too, which draws no
+                // glyph — so a parent's figure stands in its leaves' slot.
+                // Proof: kept on leaves alone and CI's `stands a parent’s figure
+                // in the same slot as its leaves’` (e2e/layout.spec.ts) failed on
+                // `Expected: 894.765625, Received: 904.765625`, 10px apart; seen
+                // on PR #355, 2026-10-12.
+                paddingRight: READING_CORNER_PX,
               }}
             >
               {reading.node !== null && (
