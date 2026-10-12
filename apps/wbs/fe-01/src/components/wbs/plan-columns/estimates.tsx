@@ -786,6 +786,19 @@ export function createEstimatesColumns({
                   doing={doing}
                   problem={problem}
                   node={reading.node}
+                  // Built here, per open card, off `live` at the moment of the
+                  // click — never pinned into the column definitions.
+                  attemptActions={{
+                    start: () => {
+                      live.current.startAttempt(row.original.id, step.id);
+                    },
+                    end: () => {
+                      live.current.openEndAttempt(row.original.id, step.id);
+                    },
+                    remove: (attemptNumber) => {
+                      live.current.removeAttempt(row.original.id, step.id, attemptNumber);
+                    },
+                  }}
                 />
               )}
             </span>

@@ -470,6 +470,18 @@ function optimizationRetryCode(refusal: RefusalOf<'postApiProjectsByIdOptimizati
   }
 }
 
+function timezonesReadCode(refusal: RefusalOf<'getApiTimezones'>): string {
+  switch (refusal.error) {
+    case 'invalid_query':
+    case 'invalid_params':
+    case 'invalid_body':
+    case 'unauthenticated':
+      return refusal.error;
+    default:
+      return unreachable(refusal);
+  }
+}
+
 function refusalCode(problem: Extract<WbsProblem, { kind: 'refusal' }>): string {
   switch (problem.operation) {
     case 'getApiPeople':
@@ -510,6 +522,8 @@ function refusalCode(problem: Extract<WbsProblem, { kind: 'refusal' }>): string 
       return stepRemoveCode(problem.refusal);
     case 'postApiProjectsByIdOptimizationRetry':
       return optimizationRetryCode(problem.refusal);
+    case 'getApiTimezones':
+      return timezonesReadCode(problem.refusal);
     default:
       return unreachable(problem);
   }
@@ -651,6 +665,22 @@ export const PLAN_REFUSALS: RefusalWords = {
       'Draft and Ready say whether work can start, and a step of this row has already spoken — nothing was changed.',
     cannot_hold_done: 'Finished work cannot be put on hold or blocked — nothing was changed.',
     no_steps: 'This plan has no steps, so no row can be started or finished yet.',
+    // The six attempt refusals (`step-node-attempts` D2). The card offers
+    // Start only where no attempt runs and End only where one does, so each is
+    // reachable when the plan moved under an open card — said as what happened.
+    // Proof: all six struck, `words each attempt refusal` failed on the first,
+    // `node_done`, reading `That change could not be completed (node_done).`;
+    // watched 2026-10-12.
+    node_done:
+      'This step is done — reopen it before starting another attempt. Nothing was changed.',
+    attempt_running:
+      'An attempt at this step is already running — end it before starting another. Nothing was changed.',
+    no_running_attempt:
+      'No attempt at this step is running any more — someone may have ended it. Nothing was changed.',
+    attempt_in_future: 'An attempt cannot start or end after now. Nothing was changed.',
+    attempt_ends_before_start: 'An attempt cannot end before it started. Nothing was changed.',
+    unknown_attempt:
+      'That attempt is no longer here — someone may have removed it. Nothing was changed.',
     // {@link INVALID_REQUEST}'s three, worded from the one list that also decides
     // whether the plan is read again.
     ...Object.fromEntries([...INVALID_REQUEST].map((code) => [code, INVALID_REFUSAL])),

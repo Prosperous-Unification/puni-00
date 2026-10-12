@@ -25,6 +25,7 @@ import { CompletionPrompt, type PromptedStatus } from './completion-prompt';
 import { createDepLights, type DepLights } from './dep-light-store';
 import { type DropZone, planMove, zoneFor } from './drag-drop';
 import { cellIn, cellKey, type CellLanding, cellRefOf, focusCellAt } from './editable-grid';
+import { EndAttemptDialog } from './end-attempt-dialog';
 import { ExternalRefsModal } from './external-refs-modal';
 import { GanttFaultBoundary } from './gantt-fault';
 import { appliedGanttHeight, DAY_PX, GanttPanel, isoToday } from './gantt-panel';
@@ -76,6 +77,7 @@ import {
   tableWidthStyle,
 } from './table-frame';
 import { ToastStack, useToasts } from './toasts';
+import { attemptNodeLabel, useAttemptActions } from './use-attempt-actions';
 import { useColumnSet } from './use-column-set';
 import {
   useEstimateDrafts,
@@ -1018,6 +1020,15 @@ export function WbsTable({
     return out;
   }, [workItems]);
 
+  const attemptActions = useAttemptActions({
+    commands,
+    run,
+    pushToast,
+    rows: flat,
+    steps,
+    stepNodes,
+  });
+
   const hasSuccessfulTreeRead = treeReadProject.current === projectId;
   const hasAnyExternalRefs = useMemo(() => flat.some((row) => row.externalRefs.length > 0), [flat]);
   const resetTargetHiddenColumnIds = resetHiddenColumns(hasAnyExternalRefs);
@@ -1467,7 +1478,7 @@ export function WbsTable({
         if (hiddenColumnIds.includes(step.id)) continue;
         const doing = assigneeOn(row, step.id);
         const anyAssignee = anyAssigneeOn(step.id);
-        const node = stepNodeReadingsOf(row, step.id, peopleById);
+        const node = stepNodeReadingsOf(row, step.id, peopleById, chartRead.timezone);
         if (unfoldedSteps.includes(step.id)) {
           estimateReadings.set(step.id, {
             layout: 'unfolded',
@@ -1549,6 +1560,7 @@ export function WbsTable({
     anyAssigneeOn,
     assigneeOn,
     busy,
+    chartRead.timezone,
     combinedProblem,
     combinedValue,
     depEntriesFor,
@@ -1656,6 +1668,9 @@ export function WbsTable({
     setFactStart,
     setFactEnd,
     setStatus,
+    startAttempt: attemptActions.startAttempt,
+    openEndAttempt: attemptActions.openEndAttempt,
+    removeAttempt: attemptActions.removeAttempt,
     chooseStatus,
     statusOffers,
     openFactStart,
@@ -2560,6 +2575,23 @@ export function WbsTable({
               leaveEstimate={leaveFoldedCell}
               mentionOptions={mentionOptions}
               assigneeOn={assigneeOn}
+              attemptsOn={(row, stepId) =>
+                stepNodeReadingsOf(row, stepId, peopleById, chartRead.timezone)
+              }
+              attemptActionsOn={(row, stepId) => ({
+                label: attemptNodeLabel(row, stepId, steps, stepNodes),
+                actions: {
+                  start: () => {
+                    attemptActions.startAttempt(row.id, stepId);
+                  },
+                  end: () => {
+                    attemptActions.openEndAttempt(row.id, stepId);
+                  },
+                  remove: (attemptNumber) => {
+                    attemptActions.removeAttempt(row.id, stepId, attemptNumber);
+                  },
+                },
+              })}
               waitsFor={waitsFor}
               typedWaitsFor={(row) =>
                 typedDependencies.filter((dependency) => dependency.successor.workItemId === row.id)
@@ -3193,6 +3225,20 @@ export function WbsTable({
               `[data-cell="${cellKey(completion.row.id, 'status')}"]`,
             );
             asked?.focus();
+          }}
+        />
+      )}
+      {planActive && attemptActions.ending !== null && (
+        <EndAttemptDialog
+          // One dialog per node: a fresh outcome and reference for the next.
+          key={`${attemptActions.ending.rowId}:${attemptActions.ending.stepId}:${String(attemptActions.ending.attemptNumber)}`}
+          ending={attemptActions.ending}
+          onOpenChange={(open) => {
+            if (!open) attemptActions.closeEndAttempt();
+          }}
+          onEnd={(outcome, reference) => {
+            if (attemptActions.ending === null) return;
+            attemptActions.endAttempt(attemptActions.ending, outcome, reference);
           }}
         />
       )}

@@ -3,6 +3,7 @@ import type { KeyboardEvent } from 'react';
 
 import type { Days, PlanRead } from '@/lib/wbs-api';
 
+import { type AttemptActions, AttemptsSection } from './attempts-section';
 import type { Point } from './estimate-draft';
 import { HoverCard } from './hover-card';
 import type { CardAssignee } from './plan-cards';
@@ -74,6 +75,11 @@ export interface FoldedStepCardProps {
    * null on a parent and from an older be-01.
    */
   node: StepNodeReadings | null;
+  /**
+   * Start, end and remove for this node's attempts (`step-node-attempts` D7);
+   * `null` where the card offers none — a parent, an uncoded older read.
+   */
+  attemptActions: AttemptActions | null;
 }
 
 /**
@@ -118,6 +124,7 @@ export function FoldedStepCard({
   doing,
   problem,
   node,
+  attemptActions,
 }: FoldedStepCardProps) {
   const estimated = points.some((each) => each.days.trim() !== '');
   const attempted = node === null ? null : attemptsLine(node.attempts);
@@ -153,9 +160,14 @@ export function FoldedStepCard({
       return;
     }
     if (event.key !== 'Tab') return;
-    const parent = event.currentTarget.parentElement;
+    // The copy and attempt actions are walked as one list across the card,
+    // marked `data-card-action`; any other button walks its own group.
+    const walked = event.currentTarget.hasAttribute('data-card-action');
+    const parent = walked ? document.getElementById(id) : event.currentTarget.parentElement;
     if (parent === null) throw new Error('Step card action has no action group');
-    const actions = [...parent.querySelectorAll('button')];
+    const actions = [
+      ...parent.querySelectorAll<HTMLButtonElement>(walked ? 'button[data-card-action]' : 'button'),
+    ];
     const current = actions.indexOf(event.currentTarget);
     const next = current + (event.shiftKey ? -1 : 1);
     event.preventDefault();
@@ -193,6 +205,7 @@ export function FoldedStepCard({
           {reference !== null && (
             <button
               type="button"
+              data-card-action
               onKeyDown={onActionKeyDown}
               onClick={() => {
                 copyText(
@@ -207,6 +220,7 @@ export function FoldedStepCard({
           )}
           <button
             type="button"
+            data-card-action
             onKeyDown={onActionKeyDown}
             onClick={() => {
               const url = new URL(window.location.href);
@@ -223,6 +237,19 @@ export function FoldedStepCard({
         <button type="button" onKeyDown={onActionKeyDown} onClick={onAddDependency}>
           Add dependency from {stepName}
         </button>
+      )}
+      {/*
+        The attempts themselves, newest first, and what can be done to them —
+        after the copy actions, so F2 still lands on Copy reference and Tab
+        walks on into these.
+      */}
+      {node !== null && stepNode !== null && (
+        <AttemptsSection
+          node={node}
+          label={reference ?? `${stepName} for ${number}`}
+          actions={attemptActions}
+          onActionKeyDown={onActionKeyDown}
+        />
       )}
       {/*
         Said in words, not as `2/3/8`: the shorthand is what an estimator types

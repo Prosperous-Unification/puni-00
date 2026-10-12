@@ -23,6 +23,7 @@ export function createPlanCommands({ projectId, routes }: PlanCommandPorts): Pla
     setOptimizationSettings: (...rest) => routes.setOptimizationSettings(projectId, ...rest),
     retryOptimization: (...rest) => routes.retryOptimization(projectId, ...rest),
     setStartDate: (...rest) => routes.setStartDate(projectId, ...rest),
+    setTimezone: (...rest) => routes.setTimezone(projectId, ...rest),
     setTeamCapacity: (...rest) => routes.setTeamCapacity(projectId, ...rest),
     setPriorityBands: (...rest) => routes.setPriorityBands(projectId, ...rest),
     addStep: (...rest) => routes.addStep(projectId, ...rest),
@@ -51,6 +52,10 @@ export function createPlanCommands({ projectId, routes }: PlanCommandPorts): Pla
     // `factStart` arrived as `undefined`, failed `passes every work-item command through unchanged,
     // leaving out what the caller left out`: the recorded call gained a trailing `undefined`.
     setStatus: (...args) => routes.setStatus(...args),
+    startAttempt: (...args) => routes.startAttempt(...args),
+    endAttempt: (...args) => routes.endAttempt(...args),
+    removeAttempt: (...args) => routes.removeAttempt(...args),
+    listTimezones: (...args) => routes.listTimezones(...args),
     assignPerson: (...args) => routes.assignPerson(...args),
     moveWorkItem: (...args) => routes.moveWorkItem(...args),
     duplicateWorkItem: (...args) => routes.duplicateWorkItem(...args),
