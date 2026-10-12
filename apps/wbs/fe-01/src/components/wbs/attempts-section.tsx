@@ -1,5 +1,6 @@
-import type { KeyboardEvent } from 'react';
+import type { KeyboardEvent, ReactNode } from 'react';
 
+import { Button } from '@/components/ui/button';
 import type { AttemptOutcomeView } from '@/lib/wbs-api';
 
 import { attemptEntryText } from './attempt-words';
@@ -43,7 +44,7 @@ export interface AttemptsSectionProps {
    * returns to the cell — so these buttons are walked with the copy actions.
    */
   onActionKeyDown?: (event: KeyboardEvent<HTMLButtonElement>) => void;
-  /** 44px tall buttons, for the phone card a finger taps (`plan-cards.tsx`'s `TAP`). */
+  /** 44px chrome buttons, for the phone card a finger taps (`plan-cards.tsx`'s `TAP`). */
   tapSized?: boolean;
 }
 
@@ -62,6 +63,79 @@ export interface AttemptsSectionProps {
  * stop, so the list and its actions are left out and the summary lines above
  * still say how many attempts there were.
  */
+/** How heavy an attempt control is: the act itself, or the quiet correction beside a line. */
+type ControlWeight = 'act' | 'correction';
+
+/**
+ * One attempt control, drawn for where it stands.
+ *
+ * In the step card — inside `[data-grid]`, where no utility class may reach —
+ * the act is the plain button the card's Copy actions are, and the correction a
+ * muted underlined word, so three `Remove`s down the list do not outweigh the
+ * one thing the card is for. On a phone (`tapSized`) both are {@link Button}s at
+ * the 44px a finger needs, the correction a ghost.
+ */
+function AttemptControl({
+  weight,
+  tapSized,
+  label,
+  onKeyDown,
+  onClick,
+  children,
+}: {
+  weight: ControlWeight;
+  tapSized: boolean;
+  label?: string;
+  onKeyDown?: (event: KeyboardEvent<HTMLButtonElement>) => void;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  if (tapSized) {
+    return (
+      <Button
+        type="button"
+        data-card-action
+        aria-label={label}
+        variant={weight === 'act' ? 'outline' : 'ghost'}
+        size="sm"
+        className={
+          weight === 'act' ? 'min-h-11 text-sm' : 'text-muted-foreground min-h-11 px-2 underline'
+        }
+        onKeyDown={onKeyDown}
+        onClick={onClick}
+      >
+        {children}
+      </Button>
+    );
+  }
+  return (
+    <button
+      type="button"
+      data-card-action
+      aria-label={label}
+      onKeyDown={onKeyDown}
+      onClick={onClick}
+      style={
+        weight === 'act'
+          ? undefined
+          : {
+              flex: 'none',
+              border: 0,
+              background: 'none',
+              padding: '0 2px',
+              font: 'inherit',
+              color: 'var(--muted-foreground)',
+              textDecoration: 'underline',
+              textUnderlineOffset: 2,
+              cursor: 'pointer',
+            }
+      }
+    >
+      {children}
+    </button>
+  );
+}
+
 export function AttemptsSection({
   node,
   label,
@@ -70,7 +144,6 @@ export function AttemptsSection({
   tapSized = false,
 }: AttemptsSectionProps) {
   const zone = node.timezone;
-  const tap = tapSized ? { minHeight: 44, padding: '0 12px' } : {};
   // Proof: the zone defaulted to `UTC` and this guard removed, `leaves the
   // list and its actions out without the project zone` failed on `expected
   // <ol …(2)>…(2)</ol> to be null`; watched 2026-10-12.
@@ -107,18 +180,17 @@ export function AttemptsSection({
                   )}
                 </span>
                 {actions !== null && (
-                  <button
-                    type="button"
-                    data-card-action
-                    aria-label={`Remove attempt ${String(attempt.attemptNumber)} of ${label}`}
+                  <AttemptControl
+                    weight="correction"
+                    tapSized={tapSized}
+                    label={`Remove attempt ${String(attempt.attemptNumber)} of ${label}`}
                     onKeyDown={onActionKeyDown}
                     onClick={() => {
                       actions.remove(attempt.attemptNumber);
                     }}
-                    style={{ flex: 'none', ...tap }}
                   >
                     Remove
-                  </button>
+                  </AttemptControl>
                 )}
               </li>
             );
@@ -132,15 +204,14 @@ export function AttemptsSection({
             // `node.attempts.length > 0` — `offers Start attempt when none
             // runs, and sends it` failed on `expected <button …> to be null`
             // for the ended node's End button; watched 2026-10-12.
-            <button
-              type="button"
-              data-card-action
+            <AttemptControl
+              weight="act"
+              tapSized={tapSized}
               onKeyDown={onActionKeyDown}
               onClick={actions.end}
-              style={tap}
             >
               End attempt {String(running.attemptNumber)}…
-            </button>
+            </AttemptControl>
           ) : node.reading === 'done' ? (
             // A done node refuses a start (`node_done`); saying so here is
             // cheaper than a refusal in the corner of the screen.
@@ -148,15 +219,14 @@ export function AttemptsSection({
               Done — reopen the step to start another attempt.
             </span>
           ) : (
-            <button
-              type="button"
-              data-card-action
+            <AttemptControl
+              weight="act"
+              tapSized={tapSized}
               onKeyDown={onActionKeyDown}
               onClick={actions.start}
-              style={tap}
             >
               Start attempt
-            </button>
+            </AttemptControl>
           )}
         </div>
       )}

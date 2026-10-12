@@ -87,7 +87,7 @@ export function EndAttemptDialog({ ending, onEnd, onOpenChange }: EndAttemptDial
           }}
           className="flex flex-col gap-4"
         >
-          <fieldset className="flex flex-col gap-2">
+          <fieldset className="m-0 flex min-w-0 flex-col gap-2 border-0 p-0">
             <legend className="mb-1 text-sm font-medium">How did it end?</legend>
             {OUTCOMES.map((each) => (
               <Label
