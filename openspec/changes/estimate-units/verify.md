@@ -365,3 +365,35 @@ migration with its adjacent `down.sql`.
 Full host gate, full frontend suite, full historical Gantt browser shard and broad
 backend/domain suites have not been run by this worker. The final exact-SHA host gate
 is queued by the PM after the preceding integration merges; task 8.1 stays open.
+
+### PR #380 field-group gate correction — 2026-10-13
+
+Base: `743e0a508905027d8ab9c513e5fe42e73bf1cff8`. This restores the existing
+`list-reads` requirement that every tree field belongs to one page field group,
+and the existing optional tree-field response contract; no new behavior delta.
+`charged` belongs to `estimates`, preserving native minute and workday charges.
+`rowOf` copies only present tree properties, preserving absent optional fields.
+
+- Initial `bun test libs/wbs/domain/contracts/src/http/work-item-fields.test.ts`:
+  0 pass / 1 fail, missing `charged`.
+- Mounted regression exposed explicit undefined `attempts`, `spans`, and `span`
+  copied from a leaf without attempts; response validation returned HTTP 500.
+  A parent also lacks `nodeReadings`; both absent and present optional fields are
+  now covered, including legacy absent `charged` in the core projection test.
+- Mutation: removing `charged` from `estimates` failed both the partition test
+  and mounted `includes native charges only when the estimates group is requested`
+  (missing `charged`). Removing the own-property check restored the mounted HTTP 500. Both mutations were restored; adjacent Proof comments record them.
+- `bun test libs/wbs/domain/contracts/src/http/work-item-fields.test.ts
+libs/wbs/domain/contracts/src/http/work-item-response.test.ts
+libs/wbs/application/core/src/service/work-item-page.test.ts
+apps/wbs/be-01/src/controller/work-item-rows.controller.db.test.ts`:
+  25 pass / 0 fail, 110 assertions.
+- `bunx tsc --build --force libs/wbs/domain/contracts/tsconfig.json
+libs/wbs/application/core/tsconfig.json apps/wbs/be-01/tsconfig.json`: exit 0.
+- Changed source files: Prettier check passes. Initial direct ESLint identified
+  array-index guards typed as unnecessary; using `at` retains checked absence.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint:fast
+-p wbs-contracts,wbs-core,wbs-be-01`: all three targets pass (0/3 cache hits).
+
+Full host gate, full repository suites, build, and OpenSpec validation are not run
+by this worker; the PM will run the exact-SHA host gate after this fix is pushed.

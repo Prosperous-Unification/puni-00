@@ -25,6 +25,9 @@ export const WORK_ITEM_OUTLINE = [
  * failed `the outline and the field groups partition the whole-tree work item`
  * (the tree field was missing); adding `name` to `notes` failed it on the
  * duplicate (39 names, 38 distinct).
+ * Proof: dropping `charged` from `estimates` failed the partition test and
+ * `includes native charges only when the estimates group is requested`:
+ * the mounted page omitted the expected minute and workday charges.
  */
 export const WORK_ITEM_FIELD_GROUPS = {
   notes: ['notes'],
@@ -32,6 +35,7 @@ export const WORK_ITEM_FIELD_GROUPS = {
   slices: ['slices'],
   estimates: [
     'estimates',
+    'charged',
     'actuals',
     'measures',
     'progress',
