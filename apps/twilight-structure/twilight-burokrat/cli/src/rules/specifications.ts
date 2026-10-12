@@ -1,17 +1,12 @@
 import { hashBytes, hashCanonical } from '../evidence/content-manifest';
 import { readSelectedBlob } from '../inventory/read-blob';
 import { type CandidateSnapshot, readCandidate } from '../inventory/read-candidate';
-import {
-  type ActiveSpecSelection,
-  selectActiveSpecifications,
-  type SpecInput,
-} from './active-spec-selector';
+import { type ActiveSpecSelection, selectActiveSpecifications } from './active-spec-selector';
 import { decodeScenarioJournal } from './scenario-command';
 import { deriveScenarioIndex, type ScenarioJournal } from './scenarios';
+import { readActiveSpecifications } from './spec-sources';
 
 const JournalPath = 'openspec/scenario-allocations.json';
-const MainSpec = /^openspec\/specs\/([a-z][a-z0-9-]*)\/spec\.md$/;
-const ChangeSpec = /^openspec\/changes\/([a-z][a-z0-9-]*)\/specs\/([a-z][a-z0-9-]*)\/spec\.md$/;
 const FullSha = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
 
 export interface SpecificationsAuthority {
@@ -130,34 +125,6 @@ function readJournal(
   }
 }
 
-function canonicalSpecs(repository: string, candidate: CandidateSnapshot): readonly SpecInput[] {
-  const selected: SpecInput[] = [];
-  for (const entry of candidate.entries) {
-    const main = MainSpec.exec(entry.path);
-    const change = ChangeSpec.exec(entry.path);
-    const capability = main?.[1] ?? change?.[2];
-    if (capability === undefined) continue;
-    if (entry.mode !== '100644' && entry.mode !== '100755') {
-      throw new Error(`canonical specification must be a regular blob: ${entry.path}`);
-    }
-    const bytes = readSelectedBlob(repository, candidate.entries, entry.blob, entry.path);
-    let markdown: string;
-    try {
-      markdown = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
-    } catch (cause) {
-      throw new Error(`canonical specification is not UTF-8: ${entry.path}`, { cause });
-    }
-    selected.push({
-      path: entry.path,
-      capability,
-      markdown,
-      digest: hashBytes(bytes),
-      kind: main === null ? 'change' : 'main',
-    });
-  }
-  return selected;
-}
-
 /** Judges selected immutable journal and active spec blobs against one external reviewed base. */
 export function evaluateSpecifications(
   repository: string,
@@ -208,7 +175,7 @@ export function evaluateSpecifications(
   );
   const seen = new Set<string>();
   const unidentified: { path: string; title: string }[] = [];
-  const selected = selectActiveSpecifications(canonicalSpecs(repository, candidate));
+  const selected = selectActiveSpecifications(readActiveSpecifications(repository, candidate));
   const selection: ActiveSpecSelection = {
     ...selected,
     effective: selected.effective.map((requirement) => ({
