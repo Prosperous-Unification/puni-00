@@ -1,0 +1,24 @@
+import pathlib,json,hashlib,subprocess
+folder=pathlib.Path.cwd()/'openspec/changes/wbs-burokrat-evaluation/evidence/candidate-a478c109'
+identity=json.loads((folder/'identity.json').read_text()); sha='a478c109d13233ffb61df874adf90c23fc583e75'
+assert identity['candidateSha']==sha and identity['toolSha']==sha
+assert subprocess.check_output(['git','rev-parse',sha+'^{tree}'],text=True).strip()==identity['candidateTree']
+assert subprocess.check_output(['git','diff',sha,'--','apps/twilight-structure/twilight-burokrat/cli/src','libs/shared','tsconfig.base.json','bun.lock'])==b''
+for key,filename in [('originalPolicy','original-policy.json.txt'),('diagnosticPolicy','diagnostic-policy.json.txt')]:assert hashlib.sha256((folder/filename).read_bytes()).hexdigest()==identity['sha256'][key]
+runtime=pathlib.Path(identity['trustedModules'])
+for key,path in [('typescriptPackage',runtime/'typescript/package.json'),('typescriptCompiler',runtime/'typescript/lib/typescript.js'),('bunExecutable',pathlib.Path(identity['bunExecutable'])),('bunLock',pathlib.Path('bun.lock'))]:assert hashlib.sha256(path.read_bytes()).hexdigest()==identity['sha256'][key]
+closure='\n'.join(sorted(str(path.relative_to(runtime))+':'+hashlib.sha256(path.read_bytes()).hexdigest() for path in (runtime/'typescript').rglob('*') if path.is_file()))+'\n'
+assert hashlib.sha256(closure.encode()).hexdigest()==identity['typescriptClosureSha256']
+verdict=json.loads((folder/'full.stdout.txt').read_text()); prior=json.loads((folder.parent/'candidate-a61ce440/full.stdout.txt').read_text()); inventory=json.loads((folder/'inventory.json').read_text())
+assert len(verdict['ruleIds'])==14 and len(verdict['unevaluated'])==10 and len(verdict['findings'])==42
+assert verdict['allowed'] is False and verdict['certifies'] is False
+assert verdict['findings']==prior['findings'] and verdict['unevaluated']==prior['unevaluated'] and verdict['candidate']!=prior['candidate']
+assert inventory['candidateDigest']==verdict['candidate'] and inventory['candidateSha']==sha
+for wbs in ['090','100']:
+ projection=json.loads((folder/('wbs-'+wbs+'.json')).read_text());assert projection['globalUnevaluated']==verdict['unevaluated'];assert projection['certifies'] is False and projection['independentScopedVerdict'] is False;assert projection['candidateSha']==sha and projection['candidateDigest']==verdict['candidate']
+commands=list(folder.glob('rule-*.command.json'));assert len(commands)==8
+for path in commands:
+ command=json.loads(path.read_text()); rule=command['argv'][-1];assert sha in command['argv'];observed=json.loads((folder/path.name.replace('.command.json','.stdout.txt')).read_text());assert observed['ruleIds']==[rule] and observed['candidate']==verdict['candidate'];assert observed['certifies'] is False
+ assert observed['unevaluated']==[entry for entry in verdict['unevaluated'] if entry['ruleId']==rule];assert observed['findings']==[entry for entry in verdict['findings'] if entry['ruleId']==rule]
+validation=json.loads((folder/'openspec-validate.stdout.txt').read_text());assert validation['summary']['totals']['failed']==0 and validation['summary']['totals']['passed']==185
+print('Exact a478 candidate/tool/runtime/policy identities, unchanged historical findings, global projections, eight per-rule verdicts and OpenSpec185/185 checked.')
