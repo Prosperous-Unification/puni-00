@@ -1302,6 +1302,33 @@ describe('migration deploy entrypoints', () => {
     expect(missingArgument.stderr).toContain('usage:');
   }, 60_000);
 
+  it('guards the estimate unit rollback CLI usage and refuses a database without the unit column', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'wbs-estimate-unit-cli-'));
+    roots.push(root);
+    const dbPath = join(root, 'plan.db');
+    const savedPath = join(root, 'units.json');
+    // Every migration before the attempts table, so `save` meets a database
+    // that has never held one.
+    const unmigrated = join(root, 'migrations');
+    mkdirSync(unmigrated);
+    for (const name of readdirSync(MIGRATIONS).filter(
+      (entry) => !entry.endsWith('_add_step_estimate_unit'),
+    )) {
+      cpSync(join(MIGRATIONS, name), join(unmigrated, name), { recursive: true });
+    }
+    runMigrations(dbPath, unmigrated);
+    const refused = await runCli('estimate-unit-rollback-cli.ts', dbPath, 'save', savedPath);
+    expect(refused.exitCode).not.toBe(0);
+    expect(refused.stderr).toContain('step.estimate_unit does not exist');
+    expect(existsSync(savedPath)).toBe(false);
+    const invalid = await runCli('estimate-unit-rollback-cli.ts', dbPath, 'erase', savedPath);
+    expect(invalid.exitCode).not.toBe(0);
+    expect(invalid.stderr).toContain('usage:');
+    const missingArgument = await runCli('estimate-unit-rollback-cli.ts', dbPath, 'restore');
+    expect(missingArgument.exitCode).not.toBe(0);
+    expect(missingArgument.stderr).toContain('usage:');
+  }, 60_000);
+
   it('saves, removes and restores attempts through the rollback CLI', async () => {
     const root = mkdtempSync(join(tmpdir(), 'wbs-attempt-round-trip-'));
     roots.push(root);

@@ -984,6 +984,43 @@ try {
   ];
 }
 
+/**
+ * Estimate units read by an incoming image (ADR 0042). Absence under readable src
+ * identifies legacy workday arithmetic; unavailable src and nonregular CLI paths refuse.
+ * Proof: an unconditional legacy answer made the missing-source estimate-unit test read exit 0 instead of 74 (2026-10-12).
+ */
+export function estimateUnitsCommand(container: string): string[] {
+  const cli = 'src/estimate-units-cli.ts';
+  return [
+    'exec',
+    container,
+    'sh',
+    '-c',
+    `if test -f ${cli}; then bun run ${cli}; elif test -e ${cli}; then exit 73; elif test -d src && test -r src && test -x src; then printf '["workdays"]\\n'; else exit 74; fi`,
+  ];
+}
+
+/** Stored step units and counts; an older schema only ever held workdays (ADR 0042). */
+export function storedEstimateUnitsCommand(container: string): string[] {
+  return [
+    'exec',
+    container,
+    'bun',
+    '-e',
+    `import { Database } from 'bun:sqlite';
+const path = process.env.DB_PATH;
+if (!path) throw new Error('DB_PATH must be set');
+const db = new Database(path, { readonly: true });
+try {
+  const columns = db.query('PRAGMA table_info(step)').all();
+  if (columns.length === 0) throw new Error('step table does not exist');
+  const hasUnit = columns.some((column) => column.name === 'estimate_unit');
+  const rows = db.query(hasUnit ? 'SELECT estimate_unit AS unit, count(*) AS count FROM step GROUP BY estimate_unit ORDER BY estimate_unit' : "SELECT 'workdays' AS unit, count(*) AS count FROM step HAVING count(*) > 0").all();
+  console.log(JSON.stringify(rows));
+} finally { db.close(); }`,
+  ];
+}
+
 /** Applies pending migrations through the path shipped in the backend image. */
 export function migrateCommand(container: string): string[] {
   return ['exec', container, 'bun', 'run', 'src/migrate-cli.ts'];

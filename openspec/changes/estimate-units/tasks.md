@@ -26,14 +26,14 @@
 
 ## 2. Swap vocabulary and rollback CLI (before storage can hold minutes)
 
-- [ ] 2.1 Red: `tools/tool-remote-scripts/src/swap.test.ts` "refuses an image that reads no
+- [x] 2.1 Red: `tools/tool-remote-scripts/src/swap.test.ts` "refuses an image that reads no
       minutes while minute steps are stored, and stops green", "passes an image without the
       units CLI over workday steps", "refuses a minute unit written after the first check once
       blue stops"; `lib/docker.test.ts` estimate-unit commands (present, absent, missing `src`,
       stored units before and after the column exists); `apps/wbs/be-01/src/migration-cli.db.test.ts` the rollback
       CLI's usage guard and its refusal on an unmigrated file (the round trip needs the column:
       slice 3).
-- [ ] 2.2 Green: `ESTIMATE_UNITS_VOCABULARY` in `swap.ts`; `estimate-units-cli.ts` printing
+- [x] 2.2 Green: `ESTIMATE_UNITS_VOCABULARY` in `swap.ts`; `estimate-units-cli.ts` printing
       `ESTIMATE_UNITS`; `libs/wbs/adapters/store-sqlite/src/estimate-unit-rollback.ts`
       (`save`, `remove`, `restore`) and `apps/wbs/be-01/src/estimate-unit-rollback-cli.ts`;
       runbook anchor `#estimate-unit-rollback` in `docs/runbook-prod-deploy.md`.

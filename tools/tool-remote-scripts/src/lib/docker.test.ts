@@ -27,6 +27,7 @@ import {
   deriveTierSecrets,
   envKeysOf,
   envLayout,
+  estimateUnitsCommand,
   grantAliasCommands,
   holdKindsCommand,
   isDigest,
@@ -45,6 +46,7 @@ import {
   SOLVER_SUPERVISOR_HOST_DIRECTORY,
   storedAttemptOutcomesCommand,
   storedCapacityModesCommand,
+  storedEstimateUnitsCommand,
   storedHoldsCommand,
   storedReadinessesCommand,
   storedRelationshipTypesCommand,
@@ -1525,6 +1527,111 @@ describe('capacity modes commands', () => {
       });
       expect(await child.exited).not.toBe(0);
       expect(await new Response(child.stderr).text()).toContain('DB_PATH must be set');
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+});
+describe('estimate unit commands', () => {
+  it('executes the present estimate units CLI', async () => {
+    const directory = scratchSync('wbs-units-present-');
+    try {
+      mkdirSync(join(directory, 'src'));
+      writeFileSync(
+        join(directory, 'src/estimate-units-cli.ts'),
+        'console.log(JSON.stringify(["workdays", "minutes"]));\n',
+      );
+      const command = estimateUnitsCommand('be-01-green');
+      expect(command.slice(0, 4)).toEqual(['exec', 'be-01-green', 'sh', '-c']);
+      const probe = Bun.spawn(command.slice(2), { cwd: directory, stdout: 'pipe' });
+      expect(await probe.exited).toBe(0);
+      expect(JSON.parse(await new Response(probe.stdout).text())).toEqual(['workdays', 'minutes']);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('treats an absent estimate units CLI as reading workdays', async () => {
+    const directory = scratchSync('wbs-units-absent-');
+    try {
+      mkdirSync(join(directory, 'src'));
+      const probe = Bun.spawn(estimateUnitsCommand('be-01-green').slice(2), {
+        cwd: directory,
+        stdout: 'pipe',
+      });
+      expect(await probe.exited).toBe(0);
+      expect(JSON.parse(await new Response(probe.stdout).text())).toEqual(['workdays']);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('does not treat a missing source directory as an older release', async () => {
+    const directory = scratchSync('wbs-units-unavailable-');
+    try {
+      const probe = Bun.spawn(estimateUnitsCommand('be-01-green').slice(2), { cwd: directory });
+      expect(await probe.exited).toBe(74);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects a nonregular estimate units CLI path', async () => {
+    const directory = scratchSync('wbs-units-nonregular-');
+    try {
+      mkdirSync(join(directory, 'src/estimate-units-cli.ts'), { recursive: true });
+      const probe = Bun.spawn(estimateUnitsCommand('be-01-green').slice(2), { cwd: directory });
+      expect(await probe.exited).toBe(73);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('reads stored units before and after the column exists', async () => {
+    const directory = scratchSync('wbs-stored-units-');
+    try {
+      const path = join(directory, 'wbs.db');
+      const db = new Database(path);
+      db.run('CREATE TABLE step (id text)');
+      db.run("INSERT INTO step VALUES ('a'), ('b')");
+      const readUnits = async () => {
+        const probe = Bun.spawn(storedEstimateUnitsCommand('be-01-green').slice(2), {
+          env: { ...process.env, DB_PATH: path },
+          stdout: 'pipe',
+          stderr: 'pipe',
+        });
+        const output = await new Response(probe.stdout).text();
+        expect(await probe.exited).toBe(0);
+        const parsed: unknown = JSON.parse(output);
+        return parsed;
+      };
+      expect(await readUnits()).toEqual([{ unit: 'workdays', count: 2 }]);
+      db.run("ALTER TABLE step ADD COLUMN estimate_unit text NOT NULL DEFAULT 'workdays'");
+      db.run("UPDATE step SET estimate_unit='minutes' WHERE id='a'");
+      expect(await readUnits()).toEqual([
+        { unit: 'minutes', count: 1 },
+        { unit: 'workdays', count: 1 },
+      ]);
+      db.close();
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects a missing database file and an unset DB_PATH', async () => {
+    const directory = scratchSync('wbs-stored-units-missing-');
+    try {
+      const missing = Bun.spawn(storedEstimateUnitsCommand('be-01-green').slice(2), {
+        env: { ...process.env, DB_PATH: join(directory, 'missing.db') },
+        stderr: 'pipe',
+      });
+      expect(await missing.exited).not.toBe(0);
+      const { DB_PATH: _dbPath, ...environment } = process.env;
+      const unset = Bun.spawn(storedEstimateUnitsCommand('be-01-green').slice(2), {
+        env: environment,
+        stderr: 'pipe',
+      });
+      expect(await unset.exited).not.toBe(0);
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }

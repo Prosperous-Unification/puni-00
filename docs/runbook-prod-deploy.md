@@ -423,3 +423,27 @@ step is gone, and it refuses a version-1 file:
 ```sh
 docker exec be-01-<colour> bun run src/step-node-attempt-rollback-cli.ts restore /data/step-node-attempts-<date>.json
 ```
+
+## Estimate unit rollback
+
+An older image understands only workday estimates. The swap refuses it while any step
+stores `minutes`; the estimate unit migration's `down.sql` refuses the same state.
+Stop writers before saving and removing minute estimates, and keep the save file until
+restoration is verified:
+
+```sh
+DB_PATH=/data/wbs.db bun run src/estimate-unit-rollback-cli.ts save /data/estimate-units.json
+DB_PATH=/data/wbs.db bun run src/estimate-unit-rollback-cli.ts remove /data/estimate-units.json
+```
+
+`remove` refuses a save that no longer matches the stored minute steps and estimates.
+It deletes their estimate rows before changing their units to `workdays`; it never reads
+minute trios as days. Deploy the older release or reverse the migration after removal.
+To restore, apply the forward migration on a compatible release and then run:
+
+```sh
+DB_PATH=/data/wbs.db bun run src/estimate-unit-rollback-cli.ts restore /data/estimate-units.json
+```
+
+Restoration writes the saved units and estimate columns verbatim, in one transaction,
+and refuses missing steps, new estimates on those steps, or a malformed save.

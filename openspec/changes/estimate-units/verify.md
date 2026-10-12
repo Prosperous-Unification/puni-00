@@ -51,3 +51,17 @@ mechanical renames of the unit-free helpers and continue to pass.
 
 Every injected file was restored before the green rerun. No stored units or public minute
 writes exist at this checkpoint. Remaining slices and final host gate are not run yet.
+
+## Slice 2 — deploy boundary (2026-10-12)
+
+Focused Docker unit probes: 6 pass. Whole swap suite: 98 pass, 242 assertions.
+Rollback CLI usage and unmigrated database test: 1 pass, 7 assertions.
+
+| Check                | Fault injected                                 | Test that observed it                            | Observed                                                       |
+| -------------------- | ---------------------------------------------- | ------------------------------------------------ | -------------------------------------------------------------- |
+| Swap unit vocabulary | remove ESTIMATE_UNITS_VOCABULARY from registry | three minute swap cases                          | exit 1; 3 failures, absent refusal/probe and routing continued |
+| Legacy CLI absence   | unconditional workdays answer                  | estimate unit commands: missing source directory | exit 1, expected 74, received 0                                |
+| Rollback usage       | bypass argument guard                          | estimate unit rollback CLI usage                 | exit 1, expected usage, received ENOENT                        |
+
+Save/remove/restore round-trip and its remove-row fault await slice 3's column. No minute
+writes are enabled. Domain lint/typecheck passed at slice 1; canonical saved-plan tests 29 pass.

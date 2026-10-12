@@ -37,6 +37,7 @@ import {
   deriveTierSecrets,
   EDGE_CONTAINER,
   type EnvLayout,
+  estimateUnitsCommand,
   grantAliasCommands,
   holdKindsCommand,
   manifestInspectArgs,
@@ -55,6 +56,7 @@ import {
   SHARED_ENV_PATH,
   storedAttemptOutcomesCommand,
   storedCapacityModesCommand,
+  storedEstimateUnitsCommand,
   storedHoldsCommand,
   storedReadinessesCommand,
   storedRelationshipTypesCommand,
@@ -582,7 +584,7 @@ const PRODUCTION_SWAP_IO: SwapExecutionIo = { sh, readPhase, writePhase, writeAt
  */
 interface StoredVocabulary {
   name: string;
-  key: 'type' | 'kind' | 'mode' | 'outcome';
+  key: 'type' | 'kind' | 'mode' | 'outcome' | 'unit';
   supportedCommand: (container: string) => string[];
   storedCommand: (container: string) => string[];
   recoveryCli: string;
@@ -653,6 +655,16 @@ const ATTEMPT_OUTCOMES_VOCABULARY: StoredVocabulary = {
   runbookAnchor: 'step-node-attempt-rollback',
 };
 
+/** A prior image would interpret stored minutes as days; refuse before either migration boundary (ADR 0042). */
+const ESTIMATE_UNITS_VOCABULARY: StoredVocabulary = {
+  name: 'estimate units',
+  key: 'unit',
+  supportedCommand: estimateUnitsCommand,
+  storedCommand: storedEstimateUnitsCommand,
+  recoveryCli: 'estimate-unit-rollback-cli.ts',
+  runbookAnchor: 'estimate-unit-rollback',
+};
+
 // Proof: `HOLD_KINDS_VOCABULARY` left out of this list made four cases fail,
 // among them `refuses an image that reads no holds while holds are stored, and
 // stops green` and `refuses a hold written after the first check once blue
@@ -672,6 +684,8 @@ const STORED_VOCABULARIES: readonly StoredVocabulary[] = [
   // blue stops` went on to migrate and commit, and `passes an image without the
   // outcomes CLI over no attempts` never read the stored outcomes; watched 2026-10-12.
   ATTEMPT_OUTCOMES_VOCABULARY,
+  // Proof: omitting this entry failed all three minute swap cases; watched 2026-10-12.
+  ESTIMATE_UNITS_VOCABULARY,
 ];
 
 /** Parses the incoming release's supported values at the Docker output boundary. */
