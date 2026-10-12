@@ -287,3 +287,42 @@ with no browser errors. Final outputs: `/tmp/attempt-focus-browser.log`,
 The isolated Vite server on 4347 was stopped. Real-stack browser acceptance, browser
 translation mutation, attempt-inclusive performance and the full integration host gate remain
 open; tasks 2.2, 2.3 and 3 are unchanged pending estimate-units integration and review.
+
+## Shared hover dispatcher review correction — 2026-10-13
+
+Astra's follow-up P2 reproduced in four delayed-hover cases: attempt-origin zero hits,
+sole other attempt, sole forecast, and forecast-origin sole attempt all failed before the
+fix (`/tmp/attempt-dispatch-red.log`). Both handlers now call one timer-time membership
+selector and dispatcher. Zero hits dismiss; a sole hit opens its current forecast or attempt
+facts using the selected rectangle; multiple hits open the chooser. Direct focus/click
+opens the addressed mark immediately. Stable callbacks participate in the forecast paint
+memo so card updates retain its render isolation.
+
+Observed R5 production negatives (source restored after each):
+
+| Injected fault                                                  | Observed failure                                                                                                                                       |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Attempt timer opens its captured attempt                        | All three attempt-origin membership cases failed (`/tmp/attempt-dispatch-captured-mutation.log`)                                                       |
+| Shared card dispatcher treats every identity as a forecast      | Forecast-origin sole-attempt case failed to find a card (`/tmp/attempt-dispatch-forecast-mutation.log`)                                                |
+| Sole-hit card measures the event source instead of selected hit | All three sole-current-mark rectangle assertions failed (`/tmp/attempt-dispatch-anchor-mutation.log`)                                                  |
+| Selector dependency returns an absent snapshot identity         | Production throws the named snapshot error; suppressing that check failed the expected-throw assertion (`/tmp/attempt-dispatch-snapshot-mutation.log`) |
+
+An initial snapshot-check mutation did not match Prettier's multiline source and ran a
+passing test; it is not counted as evidence. The corrected mutation failed as recorded.
+The first lint runs found unbound DOM method assertions and missing memo dependencies;
+assertions now retain the spies and dispatch callbacks are stable memo dependencies.
+
+| Final check                                               | Observed result                                                                  |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| UTC geometry/input/forecast/attempt/detail focused suites | 562 passed, 5 files, 21.81s                                                      |
+| Los Angeles attempt zoned card suite                      | 1 passed, 742ms                                                                  |
+| Nx frontend typecheck                                     | Passed, 5.6s                                                                     |
+| Nx frontend lint:fast                                     | Passed, 8.2s                                                                     |
+| OpenSpec validate all                                     | 184 valid, 0 invalid                                                             |
+| Chromium 153 attempt regression driver                    | Tiny paint, Tab-away dismissal and chooser focus transfer passed; no page errors |
+| git diff --check                                          | Exit 0                                                                           |
+
+Outputs are `/tmp/attempt-dispatch-{final-tests,typecheck,lint-final,zoned,spec,browser}.log`.
+The isolated 4347 Vite server is stopped. These checks do not close real-stack browser
+acceptance, attempt-inclusive performance or the full integration host gate. Tasks 2.2,
+2.3 and 3 remain open pending estimate-units integration and reviewed integration checks.

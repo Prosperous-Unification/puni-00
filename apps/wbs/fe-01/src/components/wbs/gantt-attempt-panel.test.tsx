@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AttemptView } from '@/lib/wbs-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 
+import * as ganttDetail from './gantt-detail';
 import { GanttFaultBoundary } from './gantt-fault';
 import { MONDAY_START, planOf, pointedAtRow, rowAt, sliceAt } from './gantt-fixtures';
 import type { GanttPlan } from './gantt-geometry';
@@ -320,6 +321,86 @@ describe('attempt marks in the panel', () => {
       );
       expect(screen.getByText('Reference: run/2')).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Close mark list' })).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+      vi.restoreAllMocks();
+    }
+  });
+  it.each([
+    { origin: 'attempt', selected: 'none', expected: null },
+    { origin: 'attempt', selected: 'other-attempt', expected: 'Reference: run/3' },
+    { origin: 'attempt', selected: 'forecast', expected: 'Dev · Unassigned' },
+    { origin: 'forecast', selected: 'other-attempt', expected: 'Reference: run/3' },
+  ])(
+    'dispatches delayed $origin hover to current $selected membership',
+    ({ origin, selected, expected }) => {
+      vi.useFakeTimers();
+      try {
+        render(draw(attemptPlan()));
+        const attemptHit = document.querySelector<SVGRectElement>(
+          '[data-attempt="cancelled"] [data-attempt-hit]',
+        )!;
+        const forecastHit = document.querySelector<SVGRectElement>('[data-gantt-hit="slice"]')!;
+        const otherHit = document.querySelector<SVGRectElement>(
+          '[data-attempt="succeeded"] [data-attempt-hit]',
+        )!;
+        const measureOther = vi.spyOn(otherHit, 'getBoundingClientRect');
+        const measureForecast = vi.spyOn(forecastHit, 'getBoundingClientRect');
+        let hasMoved = false;
+        for (const hit of document.querySelectorAll<SVGRectElement>(
+          '[data-gantt-hit], [data-attempt-hit]',
+        )) {
+          vi.spyOn(hit, 'getBoundingClientRect').mockImplementation(() => {
+            const isSelected =
+              hasMoved &&
+              (selected === 'other-attempt'
+                ? hit === otherHit
+                : selected === 'forecast' && hit === forecastHit);
+            const left = isSelected ? 0 : 100;
+            return {
+              left,
+              right: left + 18,
+              top: 0,
+              bottom: 18,
+              width: 18,
+              height: 18,
+              x: left,
+              y: 0,
+              toJSON: () => ({}),
+            };
+          });
+        }
+        const pointer = new MouseEvent('pointerover', { bubbles: true, clientX: 9, clientY: 9 });
+        Object.defineProperty(pointer, 'pointerType', { value: 'mouse' });
+        fireEvent(origin === 'attempt' ? attemptHit : forecastHit, pointer);
+        hasMoved = true;
+        act(() => {
+          vi.advanceTimersByTime(1000);
+        });
+        if (expected === null) expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+        else expect(screen.getByRole('tooltip')).toHaveTextContent(expected);
+        expect(screen.queryByText('Reference: run/2')).not.toBeInTheDocument();
+        if (selected === 'other-attempt') expect(measureOther).toHaveBeenCalledTimes(2);
+        if (selected === 'forecast') expect(measureForecast).toHaveBeenCalledTimes(2);
+      } finally {
+        vi.useRealTimers();
+        vi.restoreAllMocks();
+      }
+    },
+  );
+  it('throws when pointer membership names an absent snapshot hit', () => {
+    vi.useFakeTimers();
+    try {
+      vi.spyOn(ganttDetail, 'selectMarksAtPointer').mockReturnValue(['absent-hit']);
+      render(draw(attemptPlan()));
+      const pointer = new MouseEvent('pointerover', { bubbles: true, clientX: 9, clientY: 9 });
+      Object.defineProperty(pointer, 'pointerType', { value: 'mouse' });
+      fireEvent(document.querySelector('[data-attempt="cancelled"] [data-attempt-hit]')!, pointer);
+      expect(() => {
+        act(() => {
+          vi.advanceTimersByTime(1000);
+        });
+      }).toThrow('Gantt pointer selection is absent from its snapshot');
     } finally {
       vi.useRealTimers();
       vi.restoreAllMocks();

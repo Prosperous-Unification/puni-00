@@ -4429,60 +4429,74 @@ export function GanttRenderer({
   });
 
   /**
-   * Opens a surface on one bar, against the rectangle the browser has that
-   * mark at.
+   * Opens forecast or attempt facts against the selected mark rectangle.
    *
    * The rectangle is read here and kept, rather than the element: the surface
    * is a fixed layer outside this scroll box, so a live measurement would
    * follow the bar while the card stayed where it was put. Scrolling dismisses
    * instead — see the panel's `onScroll`.
    */
-  const showSurface = (sliceId: string, mark: SVGElement): void => {
-    setOpenAttempt(null);
-    setCollision(null);
-    const box = mark.getBoundingClientRect();
-    setOpenDay(null);
-    setOpen({
-      sliceId,
-      anchor: { left: box.left, right: box.right, top: box.top, bottom: box.bottom },
-    });
-  };
+  const showMarkSurface = useCallback(
+    (markId: string, hit: SVGElement): void => {
+      const box = hit.getBoundingClientRect();
+      const anchor = { left: box.left, right: box.right, top: box.top, bottom: box.bottom };
+      setOpen(null);
+      setOpenAttempt(null);
+      setCollision(null);
+      setOpenDay(null);
+      setOpenMarkers(null);
+      // Proof: forecast-only dispatch fails forecast-origin sole-attempt membership (2026-10-13).
+      if (projection.marks.some((mark) => identifyAttemptMark(mark) === markId)) {
+        setOpenAttempt({ markId, anchor });
+      } else {
+        setOpen({ sliceId: markId, anchor });
+      }
+    },
+    [projection.marks],
+  );
+  /** Dispatches timer-time membership across both mark kinds, using the selected hit anchor. */
+  const showPointerSurface = useCallback(
+    (point: { x: number; y: number }, source: SVGElement): void => {
+      const surfaces = [...pointerMarks.current].map(([markId, hit]) => {
+        const box = hit.getBoundingClientRect();
+        return { markId, hit, left: box.left, right: box.right, top: box.top, bottom: box.bottom };
+      });
+      const markIds = selectMarksAtPointer(surfaces, point.x, point.y);
+      // Proof: captured-source fallback fails attempt-origin zero, sole-other-attempt and sole-forecast cases (2026-10-13).
+      if (markIds.length === 0) {
+        dismiss();
+      } else if (markIds.length === 1) {
+        const selected = surfaces.find((surface) => surface.markId === markIds[0]);
+        // Proof: injecting an absent selector identity throws in the broken-membership dependency test (2026-10-13).
+        if (selected === undefined)
+          throw new Error('Gantt pointer selection is absent from its snapshot');
+        // Proof: anchoring to the event source instead fails all three sole-current-mark rectangle assertions (2026-10-13).
+        showMarkSurface(selected.markId, selected.hit);
+      } else {
+        const box = source.getBoundingClientRect();
+        setOpen(null);
+        setOpenAttempt(null);
+        setOpenDay(null);
+        setOpenMarkers(null);
+        setCollision({
+          markIds,
+          anchor: { left: box.left, right: box.right, top: box.top, bottom: box.bottom },
+        });
+      }
+    },
+    [dismiss, showMarkSurface],
+  );
   const showAttemptSurface = (
     mark: GanttAttemptMark,
     target: SVGRectElement,
     point?: { x: number; y: number },
   ): void => {
     cancelOpening();
-    const openSurface = () => {
-      const box = target.getBoundingClientRect();
-      const anchor = { left: box.left, right: box.right, top: box.top, bottom: box.bottom };
-      setOpen(null);
-      setOpenDay(null);
-      setOpenMarkers(null);
-      setOpenAttempt(null);
-      if (point !== undefined) {
-        const surfaces = [...pointerMarks.current].map(([markId, hit]) => {
-          const bounds = hit.getBoundingClientRect();
-          return {
-            markId,
-            left: bounds.left,
-            right: bounds.right,
-            top: bounds.top,
-            bottom: bounds.bottom,
-          };
-        });
-        const markIds = selectMarksAtPointer(surfaces, point.x, point.y);
-        // Proof: removing this branch failed the shared forecast/attempt collision chooser case (2026-10-12).
-        if (markIds.length > 1) {
-          setCollision({ markIds, anchor });
-          return;
-        }
-      }
-      setCollision(null);
-      setOpenAttempt({ markId: identifyAttemptMark(mark), anchor });
-    };
-    if (point === undefined) openSurface();
-    else opening.current = setTimeout(openSurface, HOVER_OPEN_MS);
+    if (point === undefined) showMarkSurface(identifyAttemptMark(mark), target);
+    else
+      opening.current = setTimeout(() => {
+        showPointerSurface(point, target);
+      }, HOVER_OPEN_MS);
   };
   const showDaySurface = (offset: number, cell: HTMLElement): void => {
     const box = cell.getBoundingClientRect();
@@ -5245,47 +5259,9 @@ export function GanttRenderer({
             pointRow(bar.rowIndex, 'pointer');
             const mark = pointer.currentTarget;
             cancelOpening();
+            const point = { x: pointer.clientX, y: pointer.clientY };
             opening.current = setTimeout(() => {
-              const surfaces = [...pointerMarks.current].map(([markId, hit]) => {
-                const box = hit.getBoundingClientRect();
-                return {
-                  markId,
-                  hit,
-                  left: box.left,
-                  right: box.right,
-                  top: box.top,
-                  bottom: box.bottom,
-                };
-              });
-              const markIds = selectMarksAtPointer(surfaces, pointer.clientX, pointer.clientY);
-              // Proof: bypassing this list opened the second card immediately;
-              // the production overlap-choice case failed to find the first line
-              // (subday2-proof-collision, 2026-10-12).
-              if (markIds.length > 1) {
-                const box = mark.getBoundingClientRect();
-                setOpen(null);
-                setOpenAttempt(null);
-                setOpenDay(null);
-                setOpenMarkers(null);
-                setCollision({
-                  markIds,
-                  anchor: {
-                    left: box.left,
-                    right: box.right,
-                    top: box.top,
-                    bottom: box.bottom,
-                  },
-                });
-              } else {
-                // Proof: reverting to the captured event mark failed sole/zero-hit
-                // cases (subday-review-proof-membership, 2026-10-13).
-                const containing = surfaces.filter((surface) => markIds.includes(surface.markId));
-                if (containing.length === 1) {
-                  // The selected rectangle is from this synchronous surface snapshot.
-                  const [only] = containing;
-                  showSurface(only.markId, only.hit);
-                } else dismiss();
-              }
+              showPointerSurface(point, mark);
             }, HOVER_OPEN_MS);
           };
           return (
@@ -5311,7 +5287,7 @@ export function GanttRenderer({
                 if (gesture.current.fullScreen && touchPress) {
                   cancelOpening();
                   if (gesture.current.openSliceId !== bar.sliceId) {
-                    showSurface(bar.sliceId, click.currentTarget);
+                    showMarkSurface(bar.sliceId, click.currentTarget);
                     return;
                   }
                   dismiss();
@@ -5373,7 +5349,7 @@ export function GanttRenderer({
                 if (gesture.current.fullScreen && pressedWithTouch.current) return;
                 pointRow(bar.rowIndex, 'focus');
                 cancelOpening();
-                showSurface(bar.sliceId, focus.currentTarget);
+                showMarkSurface(bar.sliceId, focus.currentTarget);
               }}
               onBlur={(focus) => {
                 onPointRow(null, 'focus');
@@ -5693,6 +5669,8 @@ export function GanttRenderer({
       startDate,
       today,
       todayAt,
+      showMarkSurface,
+      showPointerSurface,
     ],
   );
   /**
