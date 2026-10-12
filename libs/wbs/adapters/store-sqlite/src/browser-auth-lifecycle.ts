@@ -146,8 +146,22 @@ function matchesCredential(lifecycle: StoredLifecycle, credential: OidcCredentia
  * Every transition reads and writes one SQLite transaction, including B1
  * revocation, so a losing refresh cannot republish a closed credential.
  */
+/**
+ * When a sign-in opened and when its person last authenticated interactively,
+ * in epoch milliseconds (`organization-session-policy`). `reauthenticatedAt`
+ * is null when the callback proved no interactive authentication.
+ */
+export interface BrowserSignInTimes {
+  readonly openedAt: number;
+  readonly reauthenticatedAt: number | null;
+}
+
 export interface BrowserAuthLifecycle {
-  open(correlation: string, credential: VerifiedOrganizationCredential): Promise<number>;
+  open(
+    correlation: string,
+    credential: VerifiedOrganizationCredential,
+    times: BrowserSignInTimes,
+  ): Promise<number>;
   generation(correlation: string): Promise<{
     readonly generation: number;
     readonly current: VerifiedOrganizationCredential;
@@ -177,10 +191,24 @@ export class SqliteBrowserAuthLifecycle implements BrowserAuthLifecycle {
     private readonly gate: Gate,
   ) {}
 
-  /** Opens one new correlation and retains its first exact credential tuple. */
-  open(correlation: string, credential: VerifiedOrganizationCredential): Promise<number> {
+  /**
+   * Opens one new correlation and retains its first exact credential tuple
+   * and its sign-in times. A refresh (`replace`) never moves either time.
+   */
+  open(
+    correlation: string,
+    credential: VerifiedOrganizationCredential,
+    times: BrowserSignInTimes,
+  ): Promise<number> {
     const digest = sessionDigest(correlation);
     const key = credentialKey(credential);
+    if (
+      !Number.isSafeInteger(times.openedAt) ||
+      times.openedAt < 0 ||
+      (times.reauthenticatedAt !== null &&
+        (!Number.isSafeInteger(times.reauthenticatedAt) || times.reauthenticatedAt < 0))
+    )
+      throw new Error('browser sign-in times are malformed');
     return this.gate.enter(() => {
       this.db.transaction(
         (tx) => {
@@ -191,8 +219,10 @@ export class SqliteBrowserAuthLifecycle implements BrowserAuthLifecycle {
           if (isStoredRevoked(prior, key.expiresAt))
             throw new BrowserLifecycleRefusedError('OIDC browser credential was already revoked');
           tx.run(sql`INSERT INTO browser_auth_lifecycle
-          (session_digest, user_id, generation, state, current_kind, current_digest, current_expires_at)
-          VALUES (${digest}, ${key.userId}, 1, 'active', ${key.kind}, ${key.digest}, ${key.expiresAt})`);
+          (session_digest, user_id, generation, state, current_kind, current_digest, current_expires_at,
+            opened_at, reauthenticated_at)
+          VALUES (${digest}, ${key.userId}, 1, 'active', ${key.kind}, ${key.digest}, ${key.expiresAt},
+            ${times.openedAt}, ${times.reauthenticatedAt})`);
           tx.run(sql`INSERT INTO browser_auth_association
           (session_digest, generation, kind, credential_digest, expires_at)
           VALUES (${digest}, 1, ${key.kind}, ${key.digest}, ${key.expiresAt})`);

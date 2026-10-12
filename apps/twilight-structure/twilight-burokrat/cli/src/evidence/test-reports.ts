@@ -1,4 +1,4 @@
-import { readCandidateBlob } from '../inventory/read-blob';
+import { readSelectedBlob } from '../inventory/read-blob';
 import { readCandidate, resolveCandidateRoot } from '../inventory/read-candidate';
 import { inspectBrowserBundle } from './browser';
 import { compareCanonicalText, hashBytes, hashCanonical } from './content-manifest';
@@ -60,7 +60,7 @@ export function inspectTestReports(
       browserCase.file,
       browserCase.titlePath,
     ]);
-    const source = readCandidateBlob(root, entry.blob, browserCase.file);
+    const source = readSelectedBlob(root, selected.entries, entry.blob, browserCase.file);
     return {
       caseId,
       config: browserCase.config,

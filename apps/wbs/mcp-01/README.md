@@ -12,13 +12,13 @@ an ordered list of typed commands (create, patch, move, estimate, dependency,
 capacity, directory entries…) applied all or none, recorded as **one undo**, and
 answering the id each `ref` became. A later command names what an earlier one
 created by its ref. The directory has no project, so its edits alone have
-`postApiDirectoryCommands`. 73 tools in all: the reads, the work-item page and single work-item reads, the two person-load reads, the project rank read and move, the organization's capacity-mode read and switch (the switch refuses every delegated caller and so answers an MCP client with 403), the two batches,
+`postApiDirectoryCommands`. 79 tools in all: the reads, the work-item page and single work-item reads, the two person-load reads, the project rank read and move, the organization's capacity-mode read and switch (the switch refuses every delegated caller and so answers an MCP client with 403), the two batches,
 undo, redo, the project and step routes, the export, the import, the six saved-plan
 routes — the five that create, list, read, rename and delete a snapshot, plus
 `getApiProjectsByIdSaved-plansCompare`, which answers what changed between two
 of them — the four calendar-marker routes that list, add, edit and delete a
 dated annotation on a project's axis, the three membership routes that list, promote or demote, and
-remove members of the active organization (which, like the onboarding routes below, refuse every delegated caller and so answer an MCP client with 403), three invitation administration routes, three join-request administration routes, the organization domain-claim routes,
+remove members of the active organization (which, like the onboarding routes below, refuse every delegated caller and so answer an MCP client with 403), three invitation administration routes, three join-request administration routes, the organization domain-claim routes, the four enterprise SSO connection routes and the two session-policy routes (which refuse every delegated caller and so answer an MCP client with 403),
 and six onboarding routes, which refuse every delegated caller and so answer an
 MCP client with 403, and the ten space routes that list, create, read, rename and delete a
 space, add, remove and move its projects, and read its projects' roll-ups and the work in progress across it. The marker and space writes are not batched with

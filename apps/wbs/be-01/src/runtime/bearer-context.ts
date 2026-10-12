@@ -1,4 +1,9 @@
-import type { DelegationIssuer, DelegationSourceResolver, OrganizationAccess } from '@wbs/core';
+import type {
+  CredentialRuleRefusal,
+  DelegationIssuer,
+  DelegationSourceResolver,
+  OrganizationAccess,
+} from '@wbs/core';
 import type { AuthService } from '@wbs/core/service/auth.service';
 import { errors, jwtVerify } from 'jose';
 
@@ -10,7 +15,8 @@ export class InvalidNativeCredential extends Error {}
 /** The only expected outcomes of requesting a direct organization bearer. */
 export type BearerContextOutcome =
   | { readonly kind: 'issued'; readonly token: string }
-  | { readonly kind: 'inactive' | 'invalid_binding' | 'forbidden' };
+  | { readonly kind: 'inactive' | 'invalid_binding' | 'forbidden' }
+  | { readonly kind: 'refused'; readonly refusal: CredentialRuleRefusal };
 
 /** One request-bound credential exchange; production supplies the refusing binding. */
 export type IssueBearerContext = (
@@ -54,14 +60,26 @@ export function bearerContextIssuer(
     // Proof (2026-09-28): dropping organization_activation made `issues a
     // native direct context only for its own current membership` answer 500
     // rather than issue or classify the missing trusted marker as inactive.
+    // The native session's own facts, so enforced SSO refuses a password
+    // credential and a session policy reads its issue time
+    // (`organization-sso`, `organization-session-policy`).
+    // Proof: omitting `authentication` here made `refuses a direct context
+    // under a session policy only once the password session is too old` in
+    // `organization-credential-rules.controller.db.test.ts` refuse the fresh
+    // session too; watched 2026-10-12.
     const resolved = await organizations.resolve({
       id: source.userId,
       delegation: { organizationId, audience: 'wbs-be-01/direct' },
+      authentication: source.authentication,
     });
     // Proof (2026-09-28): turning this refusal into an issued result made
     // `refuses direct issuance before activation, without membership, or from
     // a delegated source` issue for a nonmember.
-    if (!resolved.ok) return { kind: 'forbidden' };
+    if (!resolved.ok) {
+      if (resolved.refusal === 'sso_required' || resolved.refusal === 'reauthentication_required')
+        return { kind: 'refused', refusal: resolved };
+      return { kind: 'forbidden' };
+    }
     try {
       const token = await issue(
         credential,
@@ -122,6 +140,7 @@ export function nativeCredentialSource(
       throw new InvalidNativeCredential('invalid native session binding');
     return {
       kind: 'verified-first-party-credential',
+      authentication: principal.authentication,
       delegated: false,
       credentialExpiresAt: claims.exp * 1000,
       userId: principal.id,

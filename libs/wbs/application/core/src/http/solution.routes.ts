@@ -17,7 +17,7 @@ export function solutionRoutes(projects: ProjectService, organizations: Organiza
   return [
     bind(readSolution, async ({ params, principal }): Promise<HttpReply<typeof readSolution>> => {
       const resolved = await organizations.resolve(principal);
-      if (!resolved.ok) return organizationRefusal(resolved.refusal);
+      if (!resolved.ok) return organizationRefusal(resolved);
       const found = await projects.readBySolutionSlugWithin(params.slug, resolved.access);
       return found === null
         ? { ok: false, status: 404, body: { error: 'not_found' } }

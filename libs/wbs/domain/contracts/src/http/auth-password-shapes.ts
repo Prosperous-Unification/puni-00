@@ -1,6 +1,7 @@
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
+import { organizationRefusal } from './organization-refusal';
 import { requestSchema, responseSchema } from './schema-shape';
 
 // Proof: admitting an extra boolean made the mounted extra-field request receive 400 instead of 422.
@@ -128,6 +129,9 @@ export const issueBearerContext = defineEndpointShape({
       schema: responseSchema(type({ error: "'context_inactive' | 'invalid_origin'" })),
     },
     { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
+    // A password session in an organization enforcing SSO, or one older than
+    // its session policy allows (`organization-sso`, `organization-session-policy`).
+    organizationRefusal,
   ],
   document: { summary: 'Issue a direct WBS bearer for a current organization membership.' },
 });

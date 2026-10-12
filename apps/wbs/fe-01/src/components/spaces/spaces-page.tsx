@@ -9,13 +9,14 @@ import {
 import { type ReactNode, useCallback, useEffect, useState } from 'react';
 
 import { AppHeader } from '@/components/chrome/app-header';
+import { CredentialRefusalState } from '@/components/organization/credential-refusal-state';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { CONTROL_HEIGHT, FIELD_LABEL_CLASS, FORM_CLASS } from '@/components/ui/control';
 import { Input } from '@/components/ui/input';
 import { browserClient, failureMessage, unreachable } from '@/lib/http';
 
-import { spaceRefusal } from './space-access';
+import { type RefusedView, refusedView, spaceRefusal } from './space-access';
 import {
   ALERT_CLASS,
   FIELD_CLASS,
@@ -33,8 +34,7 @@ const spaces = browserClient([listSpaces, createSpace, renameSpace, removeSpace]
 type Space = Extract<ClientReply<typeof listSpaces>, { kind: 'success' }>['body']['spaces'][number];
 type View =
   | { kind: 'loading' }
-  | { kind: 'failure'; message: string }
-  | { kind: 'refused'; message: string }
+  | RefusedView
   | { kind: 'ready'; spaces: readonly Space[]; writable: boolean };
 
 /**
@@ -67,12 +67,7 @@ export function SpacesPage({
         setView({ kind: 'failure', message: failureMessage(reply.failure) });
         return;
       case 'refusal': {
-        const outcome = spaceRefusal(reply.body.error);
-        setView(
-          outcome.kind === 'page'
-            ? { kind: 'refused', message: outcome.text }
-            : { kind: 'failure', message: outcome.text },
-        );
+        setView(refusedView(spaceRefusal(reply.body)));
         return;
       }
       default:
@@ -116,9 +111,9 @@ export function SpacesPage({
           setMessage(failureMessage(reply.failure));
           break;
         case 'refusal': {
-          const outcome = spaceRefusal(reply.body.error);
-          if (outcome.kind === 'page') {
-            setView({ kind: 'refused', message: outcome.text });
+          const outcome = spaceRefusal(reply.body);
+          if (outcome.kind !== 'message') {
+            setView(refusedView(outcome));
             return;
           }
           setMessage(outcome.text);
@@ -141,7 +136,9 @@ export function SpacesPage({
       <main className={MAIN_CLASS}>
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-6 sm:p-8">
           <h1 className="text-2xl font-semibold">Spaces</h1>
-          {view.kind === 'refused' ? (
+          {view.kind === 'credential' ? (
+            <CredentialRefusalState refusal={view.refusal} />
+          ) : view.kind === 'refused' ? (
             <>
               <p role="alert" className={STATUS_CLASS}>
                 {view.message}

@@ -77,6 +77,12 @@ import {
   retryProjectOptimization,
 } from './project-shapes';
 import {
+  issueProvisioningToken,
+  listProvisioningTokens,
+  revokeProvisioningToken,
+  rotateProvisioningToken,
+} from './provisioning-token-shapes';
+import {
   compareSavedPlans,
   deleteSavedPlan,
   listSavedPlans,
@@ -84,6 +90,7 @@ import {
   renameSavedPlan,
   savePlan,
 } from './saved-plan-shapes';
+import { readSessionPolicy, setSessionPolicy } from './session-policy-shapes';
 import { smokeEcho } from './smoke-shapes';
 import { readSolution } from './solution-shapes';
 import {
@@ -98,6 +105,12 @@ import {
   removeSpaceProject,
   renameSpace,
 } from './space-shapes';
+import {
+  createSsoConnection,
+  listSsoConnections,
+  removeSsoConnection,
+  updateSsoConnection,
+} from './sso-connection-shapes';
 import { addStep, removeStep, renameStep } from './step-shapes';
 import {
   applyDirectoryCommands,
@@ -138,7 +151,17 @@ export const httpShapes = [
   releaseDomainClaim,
   createDomainChallenge,
   verifyDomainClaim,
+  listProvisioningTokens,
+  issueProvisioningToken,
+  rotateProvisioningToken,
+  revokeProvisioningToken,
   rotateDomainProof,
+  readSessionPolicy,
+  setSessionPolicy,
+  listSsoConnections,
+  createSsoConnection,
+  updateSsoConnection,
+  removeSsoConnection,
   listInvitations,
   createInvitation,
   revokeInvitation,

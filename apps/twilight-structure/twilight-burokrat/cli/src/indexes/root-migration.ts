@@ -2,6 +2,8 @@ import { posix } from 'node:path';
 
 import { parseOrThrow, type } from '@shared/validation';
 
+import type { ReadBlob } from '../inventory/classify-entries';
+import { readSelectedBlob } from '../inventory/read-blob';
 import type {
   CandidateEntry,
   CandidateSelection,
@@ -101,8 +103,8 @@ function assertCandidatePath(path: string): void {
   }
 }
 
-function readSelectedBlob(
-  repository: string,
+function readMappedBlob(
+  readBlob: ReadBlob,
   entries: ReadonlyMap<string, CandidateEntry>,
   path: string,
   absentMessage: string,
@@ -117,10 +119,7 @@ function readSelectedBlob(
   if (entry.mode !== '100644' && entry.mode !== '100755') {
     throw new Error(`mapped destination is not a regular selected blob: ${path}`);
   }
-  return decode(
-    invokeGit(repository, ['cat-file', 'blob', entry.blob], `cannot read selected ${path}`),
-    `cannot decode selected ${path}`,
-  );
+  return decode(readBlob(entry.blob, path), `cannot decode selected ${path}`);
 }
 
 function readHistoricalSource(repository: string, source: RootSource): string {
@@ -215,6 +214,7 @@ function destinationBlocks(path: string, source: string): ReadonlyMap<string, De
 
 function validateSource(
   repository: string,
+  readBlob: ReadBlob,
   entries: ReadonlyMap<string, CandidateEntry>,
   source: RootSource,
   sourceIds: Set<string>,
@@ -224,8 +224,8 @@ function validateSource(
 ): number {
   assertCandidatePath(source.destinationPath);
   const historical = sectionBlocks(readHistoricalSource(repository, source), source.sourceHeading);
-  const destination = readSelectedBlob(
-    repository,
+  const destination = readMappedBlob(
+    readBlob,
     entries,
     source.destinationPath,
     `mapped destination absent: ${source.destinationPath}`,
@@ -342,7 +342,7 @@ function validateMarkdownLinks(
   sourcePath: string,
   source: string,
   entries: ReadonlyMap<string, CandidateEntry>,
-  repository: string,
+  readBlob: ReadBlob,
 ): void {
   for (const match of source.matchAll(/\[[^\]]*\]\(([^)]+)\)/g)) {
     const destination = match.at(1);
@@ -358,8 +358,8 @@ function validateMarkdownLinks(
     assertCandidatePath(requested);
     const path = exactPath(sourcePath, requested, entries);
     if (anchor === undefined || anchor.length === 0) continue;
-    const target = readSelectedBlob(
-      repository,
+    const target = readMappedBlob(
+      readBlob,
       entries,
       path,
       `Markdown path absent in ${sourcePath}: ${path}`,
@@ -385,8 +385,10 @@ export function checkRootMigration(
   mapPath: string,
 ): RootMigrationReport {
   const entries = new Map(candidate.entries.map((entry) => [entry.path, entry]));
-  const mapSource = readSelectedBlob(
-    repository,
+  const readBlob: ReadBlob = (blob, path) =>
+    readSelectedBlob(repository, candidate.entries, blob, path);
+  const mapSource = readMappedBlob(
+    readBlob,
     entries,
     mapPath,
     `root migration map absent: ${mapPath}`,
@@ -421,6 +423,7 @@ export function checkRootMigration(
     sourceKeys.add(sourceKey);
     blockCount += validateSource(
       repository,
+      readBlob,
       entries,
       source,
       sourceIds,
@@ -450,14 +453,14 @@ export function checkRootMigration(
   ) {
     throw new Error(`root migration authority mismatch: ${authorityDigest}`);
   }
-  const agents = readSelectedBlob(
-    repository,
+  const agents = readMappedBlob(
+    readBlob,
     entries,
     'AGENTS.md',
     'required root file absent: AGENTS.md',
   );
-  const llmReadme = readSelectedBlob(
-    repository,
+  const llmReadme = readMappedBlob(
+    readBlob,
     entries,
     'LLM_README.md',
     'required root file absent: LLM_README.md',
@@ -486,9 +489,9 @@ export function checkRootMigration(
   for (const path of markdownPaths) {
     validateMarkdownLinks(
       path,
-      readSelectedBlob(repository, entries, path, `required mapped Markdown absent: ${path}`),
+      readMappedBlob(readBlob, entries, path, `required mapped Markdown absent: ${path}`),
       entries,
-      repository,
+      readBlob,
     );
   }
   return {

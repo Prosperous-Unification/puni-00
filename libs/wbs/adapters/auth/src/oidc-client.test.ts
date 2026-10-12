@@ -452,9 +452,16 @@ describe('browserOidcClientFromEnv authorization URL', () => {
     expect(url.searchParams.get('state')).toBe('state-1');
   });
 
+  it('passes max_age and prompt through to /authorize', async () => {
+    const url = await client.authorizationUrl({ ...input, prompt: 'login', maxAge: 3600 });
+    expect(url.searchParams.get('max_age')).toBe('3600');
+    expect(url.searchParams.get('prompt')).toBe('login');
+  });
+
   it('omits connection when absent', async () => {
     const url = await client.authorizationUrl(input);
     expect(url.searchParams.has('connection')).toBe(false);
+    expect(url.searchParams.has('max_age')).toBe(false);
     expect(url.origin + url.pathname).toBe('https://tenant.test/authorize');
   });
 });

@@ -36,7 +36,7 @@ Only a current super-admin of an activated organization with a proven enterprise
 
 ### Requirement: SCIM requests authenticate by provisioning token without revealing an organization
 
-`/scim/v2/Users` and `/scim/v2/Users/:id` SHALL accept only `Authorization: Bearer <provisioning token>`. The token SHALL select the organization, and no header, path or body SHALL be able to choose it. A missing, malformed, unknown, expired or revoked token SHALL receive the same `401` SCIM error body, with no organization named. After authentication, each token SHALL be limited to 300 requests per rolling 60 seconds. A request beyond that SHALL receive `429` with `Retry-After` and SHALL change nothing.
+`/scim/v2/Users` and `/scim/v2/Users/:id` SHALL accept only `Authorization: Bearer <provisioning token>`. The token SHALL select the organization, and no header, path or body SHALL be able to choose it. A missing, malformed, unknown, expired or revoked token SHALL receive the same `401` SCIM error body, with no organization named. The request body SHALL NOT be read before the token is authenticated and admitted, and a body larger than 64 KiB SHALL be answered `413` and change nothing. After authentication, each token SHALL be limited to 300 requests per rolling 60 seconds. A request beyond that SHALL receive `429` with `Retry-After` and SHALL change nothing.
 
 #### Scenario: Revoked token replay
 
@@ -104,7 +104,7 @@ PATCH SHALL support `replace` of `active`, `externalId` and `userName`, with `us
 
 ### Requirement: Deprovisioning removes the membership and ends access in one transaction
 
-`active=false` and DELETE on a bound SCIM user SHALL, in one transaction, delete that user's membership in the token's organization, revoke that user's browser organization bindings for that organization, and write one audit row. The user's other organizations and their identity SHALL be unaffected. On a pending record, deprovisioning SHALL remove only the pending membership. After DELETE, GET of the identifier SHALL answer `404`. `active=true` on an inactive bound record SHALL create a pending membership, never a restored role. Deprovisioning the organization's last super-admin SHALL be refused with `409`, SHALL change nothing, and its detail SHALL name the ownerless-organization recovery path.
+`active=false` and DELETE on a bound SCIM user SHALL, in one transaction, delete that user's membership in the token's organization, revoke that user's browser organization bindings for that organization, and write one audit row. The user's other organizations and their identity SHALL be unaffected. Deleting the membership is the revocation: no separate binding state exists, and every browser binding resolution, gateway lease and delegation verification rechecks current membership on each request, so the user's next request in that organization is refused. On a pending record, deprovisioning SHALL remove only the pending membership. After DELETE, GET of the identifier SHALL answer `404`. `active=true` on an inactive bound record SHALL create a pending membership, never a restored role. Deprovisioning the organization's last super-admin SHALL be refused with `409`, SHALL change nothing, and its detail SHALL name the ownerless-organization recovery path.
 
 #### Scenario: Deactivation ends access at once
 

@@ -31,7 +31,7 @@ In an organization with a session policy, WBS SHALL refuse the organization cont
 
 The refusal SHALL carry a login path that sends `prompt=login` and `max_age=<reauthenticate_after_seconds>`. A login callback SHALL set `reauthenticated_at` in one of two ways:
 
-1. from the verified ID token's `auth_time` when it is present;
+1. from the verified ID token's `auth_time`, only when the transaction sent `max_age` and the claim is present and no later than the callback;
 2. otherwise to the callback time, only when the transaction sent `prompt=login` and the returned pair's `{strategy}|{connection}|` equals the authenticating pair of the credential it replaces, or when it opens a lifecycle with no predecessor.
 
 Sending `prompt=login` alone SHALL NOT set it, and a link callback SHALL NOT change it. Limitation: `reauthenticated_at` proves an interactive authentication at Auth0, not necessarily a fresh credential entry at the customer's IdP, because Auth0 need not force the upstream IdP to prompt.

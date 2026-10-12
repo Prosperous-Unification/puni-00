@@ -203,8 +203,15 @@ export function authPasswordEndpoints(
           ok: true,
           status: 200,
           body: {
+            // Named fields, never a spread: the principal also carries its
+            // credential's authentication facts (an upstream subject), which
+            // the browser must not be handed.
+            // Proof: the spread made `issues the hardened browser cookie for a
+            // password account in OIDC mode` (oidc.integration.test.ts) receive
+            // an `authentication` member; watched 2026-10-12.
             user: {
-              ...user,
+              id: user.id,
+              username: user.username,
               scopes: [...user.scopes],
               linkedMethods: await auth.linkedMethods(user.id),
             },

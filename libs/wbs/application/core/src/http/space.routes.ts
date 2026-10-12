@@ -74,7 +74,7 @@ export function spaceRoutes(spaces: SpaceResource, organizations: OrganizationAc
   return [
     bind(listSpaces, async ({ principal }) => {
       const resolved = await organizations.resolve(principal);
-      if (!resolved.ok) return organizationRefusal(resolved.refusal);
+      if (!resolved.ok) return organizationRefusal(resolved);
       const outcome = await spaces.list(principal.id, resolved.access);
       return outcome.ok
         ? {
@@ -86,7 +86,7 @@ export function spaceRoutes(spaces: SpaceResource, organizations: OrganizationAc
     }),
     bind(createSpace, async ({ body, principal }) => {
       const resolved = await organizations.resolve(principal);
-      if (!resolved.ok) return organizationRefusal(resolved.refusal);
+      if (!resolved.ok) return organizationRefusal(resolved);
       const outcome = await spaces.create(principal.id, resolved.access, body.name);
       return outcome.ok
         ? { ok: true, status: 201, body: { space: outcome.value } }
@@ -94,7 +94,7 @@ export function spaceRoutes(spaces: SpaceResource, organizations: OrganizationAc
     }),
     bind(readSpace, async ({ params, principal }) => {
       const resolved = await organizations.resolve(principal);
-      if (!resolved.ok) return organizationRefusal(resolved.refusal);
+      if (!resolved.ok) return organizationRefusal(resolved);
       const outcome = await spaces.read(principal.id, resolved.access, params.id);
       return outcome.ok
         ? {
@@ -111,7 +111,7 @@ export function spaceRoutes(spaces: SpaceResource, organizations: OrganizationAc
       const projectIds = projectIdsOf(query.projectIds);
       if (projectIds === null) return { ok: false, status: 400, body: { error: 'invalid_query' } };
       const resolved = await organizations.resolve(principal);
-      if (!resolved.ok) return organizationRefusal(resolved.refusal);
+      if (!resolved.ok) return organizationRefusal(resolved);
       const outcome = await spaces.rollUps(principal.id, resolved.access, params.id, projectIds);
       if ('kind' in outcome) return organizationRefusal(outcome.refusal);
       return outcome.ok
@@ -122,14 +122,14 @@ export function spaceRoutes(spaces: SpaceResource, organizations: OrganizationAc
       const limit = limitOf(query.limit);
       if (limit === null) return { ok: false, status: 400, body: { error: 'invalid_query' } };
       const resolved = await organizations.resolve(principal);
-      if (!resolved.ok) return organizationRefusal(resolved.refusal);
+      if (!resolved.ok) return organizationRefusal(resolved);
       const outcome = await spaces.inProgress(principal.id, resolved.access, params.id, limit);
       if ('kind' in outcome) return organizationRefusal(outcome.refusal);
       return outcome.ok ? { ok: true, status: 200, body: outcome.value } : refused(outcome.refusal);
     }),
     bind(renameSpace, async ({ params, body, principal }) => {
       const resolved = await organizations.resolve(principal);
-      if (!resolved.ok) return organizationRefusal(resolved.refusal);
+      if (!resolved.ok) return organizationRefusal(resolved);
       const outcome = await spaces.rename(principal.id, resolved.access, params.id, body.name);
       return outcome.ok
         ? { ok: true, status: 200, body: { space: outcome.value } }
@@ -137,13 +137,13 @@ export function spaceRoutes(spaces: SpaceResource, organizations: OrganizationAc
     }),
     bind(removeSpace, async ({ params, principal }) => {
       const resolved = await organizations.resolve(principal);
-      if (!resolved.ok) return organizationRefusal(resolved.refusal);
+      if (!resolved.ok) return organizationRefusal(resolved);
       const outcome = await spaces.remove(resolved.access, params.id);
       return outcome.ok ? { ok: true, status: 204, body: EMPTY } : refused(outcome.refusal);
     }),
     bind(addSpaceProject, async ({ params, body, principal }) => {
       const resolved = await organizations.resolve(principal);
-      if (!resolved.ok) return organizationRefusal(resolved.refusal);
+      if (!resolved.ok) return organizationRefusal(resolved);
       const outcome = await spaces.addProject(
         principal.id,
         resolved.access,
@@ -157,7 +157,7 @@ export function spaceRoutes(spaces: SpaceResource, organizations: OrganizationAc
     }),
     bind(removeSpaceProject, async ({ params, principal }) => {
       const resolved = await organizations.resolve(principal);
-      if (!resolved.ok) return organizationRefusal(resolved.refusal);
+      if (!resolved.ok) return organizationRefusal(resolved);
       const outcome = await spaces.removeProject(
         principal.id,
         resolved.access,
@@ -168,7 +168,7 @@ export function spaceRoutes(spaces: SpaceResource, organizations: OrganizationAc
     }),
     bind(moveSpaceProject, async ({ params, body, principal }) => {
       const resolved = await organizations.resolve(principal);
-      if (!resolved.ok) return organizationRefusal(resolved.refusal);
+      if (!resolved.ok) return organizationRefusal(resolved);
       const outcome = await spaces.moveProject(
         principal.id,
         resolved.access,

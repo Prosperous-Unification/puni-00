@@ -37,6 +37,7 @@ import { refusingOnboarding } from '../testing/onboarding-fixture';
 import {
   legacyOrganizationAccess,
   refusingDomains,
+  refusingEnterpriseConnections,
   refusingMemberships,
 } from '../testing/organization-access-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
@@ -185,6 +186,7 @@ describe('the calendar-marker routes', () => {
       organizations: legacyOrganizationAccess,
       memberships: refusingMemberships,
       domains: refusingDomains,
+      enterpriseConnections: refusingEnterpriseConnections,
       emailVerification: refusingEmailVerification,
       invitations: refusingInvitations,
       joinRequests: refusingJoinRequests,

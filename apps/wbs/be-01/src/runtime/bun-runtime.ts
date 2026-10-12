@@ -1,6 +1,13 @@
 import { createHash, randomUUID } from 'node:crypto';
 
-import type { Digest, Intervals, PasswordHasher, SessionClaims, TokenCodec } from '@wbs/core';
+import type {
+  Digest,
+  Intervals,
+  PasswordHasher,
+  SessionClaims,
+  TokenCodec,
+  VerifiedSessionClaims,
+} from '@wbs/core';
 import { errors, type JWTPayload, jwtVerify, SignJWT } from 'jose';
 
 /**
@@ -39,7 +46,7 @@ export function joseTokenCodec(jwtKey: string): TokenCodec {
         .setExpirationTime(issuedAt + ttlSeconds)
         .sign(key);
     },
-    async verify(token: string): Promise<SessionClaims | null> {
+    async verify(token: string): Promise<VerifiedSessionClaims | null> {
       let payload: JWTPayload;
       try {
         // Proof: without the algorithm guard, an invalid RS256 bearer that
@@ -55,8 +62,17 @@ export function joseTokenCodec(jwtKey: string): TokenCodec {
       }
       const subject = payload.sub;
       const username = payload['username'];
-      if (typeof subject !== 'string' || typeof username !== 'string') return null;
-      return { subject, username };
+      // Every token `sign` makes carries `iat`; session policy reads it as the
+      // password sign-in time, so a token without a usable one is not ours.
+      const issuedAt = payload.iat;
+      if (
+        typeof subject !== 'string' ||
+        typeof username !== 'string' ||
+        typeof issuedAt !== 'number' ||
+        !Number.isSafeInteger(issuedAt * 1000)
+      )
+        return null;
+      return { subject, username, issuedAt: issuedAt * 1000 };
     },
   };
 }

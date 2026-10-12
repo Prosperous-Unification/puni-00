@@ -30,6 +30,9 @@ function captureWrites(stream: NodeJS.WriteStream, chunks: string[]): () => void
  * entry calls, and captures its output and exit code. Tests use it instead of spawning
  * `bun run cli.ts`, which starts a Bun and loads every module per case.
  *
+ * Every call ends with a full garbage collection, so retained garbage from one command does not
+ * add up across a suite the way it never could across separate processes.
+ *
  * It swaps the process-global stdout, stderr and exit code, so calls must not overlap: it throws
  * when one is already running instead of mixing their output. A test about the process boundary
  * itself (arity, usage, real exit status) still spawns the CLI.
@@ -75,5 +78,12 @@ export async function invokeCli(
     }
     process.exitCode = exitCode ?? 0;
     running = false;
+    // A spawned command handed its heap back to the system when it exited; in-process, Bun
+    // collected lazily and the whole suite peaked at 5.6 GB, which a 7 GB CI runner shared with
+    // typecheck and build does not have. A full collection per command keeps it near the
+    // per-file working set.
+    // Proof: without it `relationships.test.ts` alone peaked at 3,894,420 KB; with it,
+    // 1,190,804 KB in the same time (2026-10-12, `/usr/bin/time -f %M`).
+    Bun.gc(true);
   }
 }
