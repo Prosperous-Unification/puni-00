@@ -486,6 +486,7 @@ describe('toolsFromDocument, on the generated document', () => {
     expect(rename.method).toBe('patch');
     expect(Object.keys(rename.inputSchema.properties).sort()).toEqual([
       'allowancePercent',
+      'estimateUnit',
       'id',
       'name',
       'stepId',
@@ -494,6 +495,8 @@ describe('toolsFromDocument, on the generated document', () => {
     expect(rename.locations['stepId']).toBe('path');
     expect(rename.locations['name']).toBe('body');
     expect(rename.locations['allowancePercent']).toBe('body');
+    expect(rename.locations['estimateUnit']).toBe('body');
+    expect(rename.inputSchema.properties['estimateUnit']).toEqual({ type: 'string' });
     expect(byName(tools, 'postApiProjectsByIdCommands').description).toContain('all or none');
   });
 
