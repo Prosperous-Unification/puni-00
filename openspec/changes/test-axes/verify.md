@@ -2488,3 +2488,18 @@ with 1282 assertions (`/tmp/spec-inventory-tests-final.log`).
 its sandbox socket denial and ran plugins in the main process; both targets completed.
 Changed-file Prettier and `git diff --check` passed. Full Burokrat test/build, whole-repository
 lint, CI and the canonical h2puni gate were not run locally.
+
+### Task 4.1b.1 review acceptance — 2026-10-13
+
+Astra reviewed committed fallback `743e0a5` and found no P1/P2 issues in the bounded
+`inspect-test-sources` diagnostic. Its adapter blob
+`6eb15333aa8ae0364efd027b6c3142a6f4fa5f88` and test blob
+`25174f3803c540b85ce36a28612c523831e8ad92` byte-match coordinator-gated `403a0462`;
+the evidence, index, inventory and CLI paths also match. The coordinator reported that the
+exact `403a0462` gate exited zero. A local `git rev-parse` comparison independently confirmed
+both named adapter/test blob identities before this acceptance note was written.
+
+This accepts Task 4.1b.1's source-owner/provenance diagnostic only. The reviewer did not rerun
+tests or mutations, and historical RED evidence does not establish that every negative was
+test-first. Complete level classification, broader ledgers and admission remain open. No source
+hold, Task 2.2a work, selector refusal or noncertifying boundary was changed by this acceptance.
