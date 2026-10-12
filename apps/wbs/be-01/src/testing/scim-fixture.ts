@@ -131,11 +131,17 @@ export interface ScimWorld {
 /**
  * Two activated organizations with proven connections: org-a (`acme.test`,
  * super-admin ada, admin sam) and org-b (`b.test`, super-admin bob).
+ * `sessionBinding` selects the production organization cookie binding in
+ * place of the harness's stand-in.
  */
-export async function openScimWorld(): Promise<ScimWorld> {
+export async function openScimWorld(sessionBinding = false): Promise<ScimWorld> {
   const clock = { at: 1_800_000_000_000 };
   const keys = await generateKeyPair('RS256');
-  const h = OrganizationHarness.open({ delegationKey: keys.publicKey, now: () => clock.at });
+  const h = OrganizationHarness.open({
+    delegationKey: keys.publicKey,
+    now: () => clock.at,
+    sessionBinding,
+  });
   for (const username of ['ada', 'sam', 'bob']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');

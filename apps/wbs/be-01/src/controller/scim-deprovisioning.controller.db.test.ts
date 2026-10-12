@@ -12,6 +12,7 @@ import {
   scim,
   scimUser,
   type ScimWorld,
+  sha256Hex,
 } from '../testing/scim-fixture';
 
 /**
@@ -279,4 +280,86 @@ describe('SCIM deprovisioning', () => {
     expect(activated).toEqual([{ organizationId: 'org-a', scimUserId: id }]);
     expect(roleIn('org-a', 'carol')).toBe('member');
   });
+});
+
+it('ends a real selected-organization cookie’s browser and gateway access at once', async () => {
+  const cookieWorld = await openScimWorld(true);
+  const { h } = cookieWorld;
+  try {
+    // Issued as ada would through her own selected session.
+    const secret = `wbs_scim_${'E'.repeat(43)}`;
+    h.sqlite.run(
+      'INSERT INTO organization_scim_token (id, organization_id, digest, created_at, created_by) VALUES (?, ?, ?, 1, ?)',
+      ['t-cookie', 'org-a', await sha256Hex(secret), h.userId('ada')],
+    );
+    await h.register('carol');
+    h.member('org-a', 'carol', 'member');
+    const selected = await h.app.handle(
+      new Request('http://localhost/api/organization/active', {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${h.token('carol')}`,
+          origin: 'http://localhost',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ organizationId: 'org-a' }),
+      }),
+    );
+    const pair = selected.headers.get('set-cookie')?.split(';')[0];
+    if (selected.status !== 200 || pair === undefined) throw new Error('selection refused');
+    const cookie = `__Host-wbs_access=${h.token('carol')}; ${pair}`;
+    const browser = async (path: string, method: string, headers: Record<string, string> = {}) => {
+      const response = await h.app.handle(
+        new Request(`http://localhost${path}`, {
+          method,
+          headers: { cookie, origin: 'http://localhost', ...headers },
+        }),
+      );
+      return { status: response.status, body: await response.text() };
+    };
+    const created = await h.app.handle(
+      new Request('http://localhost/api/projects', {
+        method: 'POST',
+        headers: { cookie, origin: 'http://localhost', 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'A plan' }),
+      }),
+    );
+    const projectId = ((await created.json()) as { project: { id: string } }).project.id;
+    const gatewayPath = `/internal/gateway/projects/${projectId}/browser-access`;
+    expect((await browser('/api/projects', 'GET')).status).toBe(200);
+    expect((await browser(gatewayPath, 'POST', { 'x-internal-auth': SECRET })).status).toBe(204);
+    const provisioned = await scim(
+      h,
+      secret,
+      'POST',
+      '/scim/v2/Users',
+      scimUser('carol@acme.test'),
+    );
+    const id = (provisioned.body as { id: string }).id;
+    h.sqlite.run(
+      "UPDATE organization_scim_user SET user_id = ?, issuer = 'https://idp.test', subject = 'samlp|acme-saml|carol@acme.test' WHERE id = ?",
+      [h.userId('carol'), id],
+    );
+
+    expect(
+      (
+        await scim(
+          h,
+          secret,
+          'PATCH',
+          `/scim/v2/Users/${id}`,
+          replace({ path: 'active', value: false }),
+        )
+      ).status,
+    ).toBe(200);
+
+    const notMember = JSON.stringify({ error: 'not_a_member' });
+    expect(await browser('/api/projects', 'GET')).toEqual({ status: 403, body: notMember });
+    expect(await browser(gatewayPath, 'POST', { 'x-internal-auth': SECRET })).toEqual({
+      status: 403,
+      body: notMember,
+    });
+  } finally {
+    cookieWorld.h.close();
+  }
 });

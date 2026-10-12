@@ -127,6 +127,11 @@ function endMembership(
   // the record; watched 2026-10-12.
   const guarded = guardFinalSuperAdmin(tx, organizationId, userId, null);
   if (guarded === 'last-super-admin') return 'last_super_admin';
+  // Proof: skipping this deletion made mounted `ends browser, gateway and MCP
+  // access to A at once, leaving B unchanged` and `ends a real
+  // selected-organization cookie’s browser and gateway access at once`
+  // (`scim-deprovisioning.controller.db.test.ts`) keep carol's A access;
+  // watched 2026-10-12.
   if (guarded === null)
     tx.delete(organizationMembership).where(membershipOf(organizationId, userId)).run();
   return 'ended';
