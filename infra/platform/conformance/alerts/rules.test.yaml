@@ -19,11 +19,73 @@ tests:
   - name: log ingest alert stays quiet while records flow
     interval: 1m
     input_series:
-      - series: 'otelcol_exporter_sent_log_records_total{exporter="elasticsearch",pod="c"}'
+      # The collector's counters carry no `_total` suffix as Prometheus stores them (k3d, 2026-10-12).
+      - series: 'otelcol_exporter_sent_log_records{exporter="elasticsearch",pod="c"}'
         values: '0+10x40'
     alert_rule_test:
       - eval_time: 35m
         alertname: PuniLogIngestStopped
+        exp_alerts: []
+
+  # A counter the collector creates on its first failure arrives already incremented, so
+  # `increase` alone sees no change for the first dropped batch.
+  - name: the first dropped batch alerts although its counter appears already incremented
+    interval: 1m
+    input_series:
+      - series: 'otelcol_exporter_send_failed_log_records{exporter="elasticsearch",pod="c"}'
+        values: '_x10 49x30'
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: PuniLogRecordsDropped
+        exp_alerts:
+          - exp_labels: { severity: critical, pod: c }
+            exp_annotations:
+              summary: c dropped log records it could not deliver to Elasticsearch
+      - eval_time: 25m
+        alertname: PuniLogRecordsDropped
+        exp_alerts: []
+
+  - name: a later dropped batch alerts again
+    interval: 1m
+    input_series:
+      - series: 'otelcol_exporter_send_failed_log_records{exporter="elasticsearch",pod="c"}'
+        values: '49x20 98x20'
+    alert_rule_test:
+      - eval_time: 18m
+        alertname: PuniLogRecordsDropped
+        exp_alerts: []
+      - eval_time: 22m
+        alertname: PuniLogRecordsDropped
+        exp_alerts:
+          - exp_labels: { severity: critical, pod: c }
+            exp_annotations:
+              summary: c dropped log records it could not deliver to Elasticsearch
+
+  - name: records refused by a full persistent queue alert
+    interval: 1m
+    input_series:
+      - series: 'otelcol_exporter_queue_size{exporter="elasticsearch",data_type="logs",pod="c"}'
+        values: '5000x20'
+      - series: 'otelcol_exporter_enqueue_failed_log_records{exporter="elasticsearch",pod="c"}'
+        values: '_x10 300x10'
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: PuniLogRecordsDropped
+        exp_alerts:
+          - exp_labels: { severity: critical, pod: c }
+            exp_annotations:
+              summary: c dropped log records it could not deliver to Elasticsearch
+
+  - name: a backlog the queue absorbs drops nothing
+    interval: 1m
+    input_series:
+      - series: 'otelcol_exporter_queue_size{exporter="elasticsearch",data_type="logs",pod="c"}'
+        values: '0 0 20 40 60 80 60 40 20 0x10'
+      - series: 'otelcol_exporter_sent_log_records{exporter="elasticsearch",pod="c"}'
+        values: '0+10x2 20x6 30+10x10'
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: PuniLogRecordsDropped
         exp_alerts: []
 
   - name: a failed backup run alerts until a later run succeeds

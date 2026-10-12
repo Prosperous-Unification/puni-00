@@ -21,17 +21,32 @@ spec:
           labels: { severity: warning }
           annotations:
             summary: '{{ $labels.pod }} is queueing logs it cannot deliver to Elasticsearch'
-        - alert: PuniLogExportFailing
-          expr: sum by (pod) (rate(otelcol_exporter_send_failed_log_records_total[5m])) > 0
-          for: 5m
-          labels: { severity: warning }
+        # A failed send or a full persistent queue loses records for good; the Elasticsearch
+        # exporter does not retry a request that times out (docs/infra/platform.md, "Log loss").
+        # The collector creates these counters at their first failure, already incremented, so the
+        # `unless … offset` branch catches a series that is new within the window. `or` matches
+        # without the metric name, so the `increase` branch drops its zeros first.
+        # Proof: with the `increase` branch alone, and again without its inner `> 0`, the
+        # first-dropped-batch promtool case got no alert on 2026-10-12.
+        - alert: PuniLogRecordsDropped
+          expr: >-
+            sum by (pod) (
+              (increase({__name__=~"otelcol_exporter_(send|enqueue)_failed_log_records", exporter="elasticsearch"}[5m]) > 0)
+              or
+              ({__name__=~"otelcol_exporter_(send|enqueue)_failed_log_records", exporter="elasticsearch"}
+                unless {__name__=~"otelcol_exporter_(send|enqueue)_failed_log_records", exporter="elasticsearch"} offset 5m)
+            ) > 0
+          labels: { severity: critical }
           annotations:
-            summary: '{{ $labels.pod }} fails to export logs'
+            summary: '{{ $labels.pod }} dropped log records it could not deliver to Elasticsearch'
         - alert: PuniLogIngestStopped
           # `or vector(0)` keeps the alert live when the collector or its series disappears.
           # Proof: the previous expression failed the vanished-series promtool case on 2026-09-18.
+          # The collector's counters have no `_total` suffix in Prometheus.
+          # Proof: with `_total` the rule fired while k3d sent records, and the records-flow
+          # promtool case failed, on 2026-10-12.
           expr: >-
-            (sum(rate(otelcol_exporter_sent_log_records_total{exporter="elasticsearch"}[15m]))
+            (sum(rate(otelcol_exporter_sent_log_records{exporter="elasticsearch"}[15m]))
             or vector(0)) == 0
           for: 15m
           labels: { severity: critical }
