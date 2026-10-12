@@ -365,3 +365,50 @@ migration with its adjacent `down.sql`.
 Full host gate, full frontend suite, full historical Gantt browser shard and broad
 backend/domain suites have not been run by this worker. The final exact-SHA host gate
 is queued by the PM after the preceding integration merges; task 8.1 stays open.
+
+## Next WBS integration verification — 2026-10-13
+
+The isolated `integrate/next-wbs-release` branch started at exact #380 head
+`54328f32a40ba86ba39c9a30e0f593e4c6fdd0f3`, then merged reviewed #381
+`34edec068dc9a4e5bd4189981e0b1149db2433fa` and #382
+`1d40e4b1ee17ebafe54fe509f4797fe0df011769` with normal merge commits and no conflicts.
+All source histories and existing verification notes remain present.
+
+Additional migration coverage exposed a historical capacity-oracle test that had not
+accounted for this change's new `estimateUnit` and `charged` wire fields. Exact #380
+reproduced the failure independently: 2 passed, 1 failed. Test-only correction
+`164b993a0fe8fce164f2c27e344d3bf400e2237c` asserts legacy steps remain `workdays`
+and that every native charge equals the corresponding workday `finalDays` value;
+the prior whole-document oracle still pins every historical value. The corrected
+focused suite passed 3/3 with 3,531 assertions. Returning empty `charged` from the
+production `finalsOf` dependency failed the new assertion (2 passed, 1 failed);
+restoring the dependency passed 3/3 again. No production correction was required.
+
+Fresh combined checks:
+
+- `BUN_TMPDIR=/tmp bun install --frozen-lockfile`: 1,573 installs checked across
+  1,447 packages, no dependency changes. The first install without `BUN_TMPDIR`
+  failed because the default temporary directory was read-only.
+- `bun test apps/wbs/mcp-01/src/oauth.test.ts apps/wbs/mcp-01/src/session-store.test.ts apps/wbs/mcp-01/src/store-migrations.test.ts`:
+  207 passed, 0 failed, 607 assertions, 9.58 seconds.
+- `bun test apps/wbs/be-01/src/service/optimization-coordinator.model.db.test.ts apps/wbs/be-01/src/controller/capacity-mode.controller.db.test.ts`:
+  28 passed, 0 failed, 27,270 assertions, 59.01 seconds.
+- `bun test apps/wbs/be-01/src/migrate.test.ts apps/wbs/be-01/src/migration-cli.db.test.ts apps/wbs/be-01/src/service/capacity-migration-identity.db.test.ts`:
+  54 passed, 0 failed, 3,978 assertions, 21.38 seconds after the oracle correction.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx --no-install nx graph --file=/tmp/next-wbs-graph.json`:
+  produced a nonempty graph artifact.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx --no-install nx run-many -t typecheck -p wbs-mcp-01,wbs-be-01 --skip-nx-cache`:
+  both typechecks and the backend module typecheck passed.
+- Focused ESLint on changed OAuth, OAuth tests, model tests and capacity-oracle tests
+  passed with the generated graph available. Prettier on changed files and
+  `git diff --check` passed. Correction commit hooks passed.
+- Migration inventory: 69 unique backend stamps and 2 unique MCP stamps within their
+  respective databases; every migration has `down.sql`. Neither merged PR adds a
+  migration. `SUPPORTED_CAPACITY_MODES` remains `['isolated']`; no credential-epoch
+  write or production shared-mode activation is introduced.
+
+OpenSpec CLI validation is unavailable locally: no `openspec` on PATH or in the
+local dependency bin directory. Frontend typecheck was not run because this stacked
+diff changes no frontend file. The canonical host gate, full builds, browser checks,
+merge, publication, activation and deployment are reserved for the release coordinator;
+this focused integration verification does not claim those checks.
