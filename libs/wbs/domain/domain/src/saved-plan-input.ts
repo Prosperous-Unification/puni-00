@@ -107,6 +107,8 @@ export function planInputRowsOf(reads: PlanInputReads): PlanInputRows {
       // the live step changes later` failed on `Expected: 30, Received: 0`
       // (2026-09-27).
       allowancePercent: row.allowancePercent,
+      // Proof: forcing workdays failed the captured minute-plan test (saved-plan-input.test.ts).
+      estimateUnit: row.estimateUnit,
     })),
     stepValues: stepValuesOf(reads, rule),
     measures: reads.measures.map((row) => ({

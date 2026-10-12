@@ -1,5 +1,5 @@
 import type { DependencyReach } from '../dependency-reach';
-import type { EstimateMethod, EstimateRounding } from '../estimate';
+import type { EstimateMethod, EstimateRounding, EstimateUnit } from '../estimate';
 import type { Hold, Readiness } from '../progress';
 import type { StepState } from '../progress';
 import type { TypedDependency } from '../typed-dependency';
@@ -42,7 +42,7 @@ import type { TypedDependency } from '../typed-dependency';
  */
 export interface CanonicalPlanInput {
   /** Bumped whenever this field list changes; the body carries it. */
-  readonly schemaVersion: 5;
+  readonly schemaVersion: 6;
   readonly project: CanonicalProject;
   /** Sorted by `id`. */
   readonly workItems: readonly CanonicalWorkItem[];
@@ -193,6 +193,7 @@ export interface CanonicalExternalRef {
 }
 
 export interface CanonicalStep {
+  readonly estimateUnit: EstimateUnit;
   readonly id: string;
   /** Captured step code, or null when the step was uncoded at capture. */
   readonly code: string | null;
@@ -353,7 +354,7 @@ export interface PlanInputRows {
 }
 
 /** The one version this module writes. Stored bodies carry it; readers check it. */
-export const CANONICAL_PLAN_INPUT_SCHEMA_VERSION = 5 as const;
+export const CANONICAL_PLAN_INPUT_SCHEMA_VERSION = 6 as const;
 
 const byString =
   <T>(...keys: readonly ((row: T) => string)[]) =>
@@ -460,6 +461,8 @@ export function canonicalisePlanInput(values: PlanInputRows): CanonicalPlanInput
       name: row.name,
       position: row.position,
       allowancePercent: row.allowancePercent,
+      // Proof: forcing workdays failed canonical minute preservation (canonical-plan-input.test.ts).
+      estimateUnit: row.estimateUnit,
     })),
     stepValues: sorted(
       values.stepValues,

@@ -112,10 +112,10 @@
       `invalid_body` at the field); `saved-plan/normalise-plan-input.test.ts` (previous-schema
       body upgrades with `workdays` and schedules identically; malformed body refused);
       `diff-plans.test.ts` (a unit change is reported under `steps`); spreadsheet export header.
-- [ ] 6.2 Green: `PLAN_DOCUMENT_VERSION` and `CANONICAL_PLAN_INPUT_SCHEMA_VERSION` allocated
+- [x] 6.2 Green: `PLAN_DOCUMENT_VERSION` and `CANONICAL_PLAN_INPUT_SCHEMA_VERSION` allocated
       now, written into `design.md`; `[<previous>, withWorkdayUnits]` in `PLAN_INPUT_UPGRADES`;
       `CanonicalStep.estimateUnit`; export and import converters.
-- [ ] 6.3 Negatives: the upgrade returning the body unchanged → the upgrade case; each import
+- [x] 6.3 Negatives: the upgrade returning the body unchanged → the upgrade case; each import
       check disabled → its `invalid_body` case answers `200`.
 
 ## 7. fe-01

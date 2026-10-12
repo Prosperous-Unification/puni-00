@@ -276,6 +276,7 @@ function storeWith(overrides: Partial<StepStore>): StepStore {
     add: (toAdd, stamp) => stepStore.add(toAdd, stamp),
     rename: (projectOf, stepOf, name, stamp) => stepStore.rename(projectOf, stepOf, name, stamp),
     usageOf: (projectOf, stepOf) => stepStore.usageOf(projectOf, stepOf),
+    patchUnit: (...args) => stepStore.patchUnit(...args),
     remove: (projectOf, stepOf, cascade, stamp) =>
       stepStore.remove(projectOf, stepOf, cascade, stamp),
     ...overrides,

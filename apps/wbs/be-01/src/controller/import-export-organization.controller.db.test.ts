@@ -836,3 +836,50 @@ describe('the solution lookup', () => {
     });
   });
 });
+
+it('round-trips minute units through the composed import/export and refuses malformed minute documents atomically', async () => {
+  const document = planDocumentFixture();
+  document.document.version = 8;
+  for (const row of document.workItems) Reflect.set(row, 'attempts', {});
+  document.steps = document.steps.map((step) => ({ ...step, estimateUnit: 'minutes' }));
+  for (const fault of ['missing-unit', 'unknown-unit', 'fractional', 'above-max']) {
+    const damaged = structuredClone(document);
+    const step = damaged.steps.at(0);
+    const row = damaged.workItems.at(0);
+    if (step === undefined || row === undefined) throw new Error('minute fixture is empty');
+    if (fault === 'missing-unit') Reflect.deleteProperty(step, 'estimateUnit');
+    else if (fault === 'unknown-unit') Reflect.set(step, 'estimateUnit', 'hours');
+    else
+      Reflect.set(
+        row.estimates,
+        step.id,
+        fault === 'fractional'
+          ? { optimistic: 1.5, realistic: 2, pessimistic: 3 }
+          : { optimistic: 21_474_836_161, realistic: 21_474_836_161, pessimistic: 21_474_836_161 },
+      );
+    const before = h.sqlite.query('SELECT * FROM project').all();
+    const refused = await h.call('ada', 'POST', '/api/projects/import', damaged);
+    expect(refused.status).toBe(400);
+    expect(refused.body).toMatchObject({ error: 'invalid_body' });
+    expect(h.sqlite.query('SELECT * FROM project').all()).toEqual(before);
+  }
+  const imported = await h.call('ada', 'POST', '/api/projects/import', document);
+  if (imported.status !== 201)
+    throw new Error(`minute import refused: ${JSON.stringify(imported.body)}`);
+  expect(imported.status).toBe(201);
+  const { projectId } = imported.body as { projectId: string };
+  expect(
+    h.sqlite.query('SELECT estimate_unit FROM step WHERE project_id = ?').all(projectId),
+  ).toEqual([{ estimate_unit: 'minutes' }, { estimate_unit: 'minutes' }]);
+  const exported = await h.call('ada', 'GET', `/api/projects/${projectId}/export?format=json`);
+  expect(exported.status).toBe(200);
+  expect(exported.body).toMatchObject({
+    document: { version: 8 },
+    steps: [{ estimateUnit: 'minutes' }, { estimateUnit: 'minutes' }],
+  });
+  const stepId = await firstStep('ada', projectId);
+  const unitRefusal = await h.call('ada', 'PATCH', `/api/projects/${projectId}/steps/${stepId}`, {
+    estimateUnit: 'workdays',
+  });
+  expect(unitRefusal.status).toBe(409);
+});

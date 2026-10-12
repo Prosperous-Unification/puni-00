@@ -203,3 +203,31 @@ Focused command probes: 36 pass, 106 assertions. Recovery CLI round trip and neg
 1 pass, 36 assertions. Store-sqlite and remote-scripts typechecks passed; affected ESLint,
 Prettier and migration lint exited 0. An initial full docker suite exposed an overbroad test
 edit in two unrelated fixtures; corrected and the focused command suites rerun green.
+
+## Slice 6 — document and saved-plan unit preservation (2026-10-12)
+
+The base already writes document 7 and canonical input 5 (the initial packet allocation was
+stale). This change writes document 8 and canonical input 6. Historical canonical inputs
+upgrade from 5 with explicit workday units; historical documents through 7 import as workdays.
+Current documents require a supported unit; minute trios retain native figures through
+preparation and both store imports. Captured saved-plan units enter the hashed canonical body
+and scheduling; a captured 240-minute slice schedules as 0.5 workday. Saved-plan readers now
+advertise versions 1–6. Unit changes appear in the steps diff.
+
+Focused domain/core plus both import-source contracts: 233 pass, 889 assertions. Composed
+minute import/export: 1 pass, 17 assertions, including missing/unknown units and fractional/
+above-max trios refused before writes. Full composed import and saved-plan suites initially
+67 pass/1 fail: the supported-version response assertion still expected versions 1–5; updated
+for version 6 and its focused case rerun. Full backend typecheck found a missing production
+step-route forwarding method from slice 4; it now forwards patchUnitWithin and the composed
+minute test reaches its 409 estimated-step refusal. Six projects/eight typecheck targets pass.
+
+R5 faults watched exit 1 then restored: drop the historical unit upgrade; drop its list/step
+shape guards; force captured/canonical units to workdays; skip current document-unit refusal;
+skip trusted export missing-unit refusal; skip imported minute validation; force persisted
+import units to workdays. Adjacent Proof comments identify the observing tests. New tests
+first failed on document version 7 vs 8 and canonical version 5 vs 6/unit loss.
+
+Rollback review full suite rerun: 117 pass, 354 assertions. This checkpoint leaves spreadsheet
+headers/native output and the frontend controls/validation/readout for slice 7. Task 6.1 stays
+open for that export assertion; slices 7–8 and the final host gate remain pending.

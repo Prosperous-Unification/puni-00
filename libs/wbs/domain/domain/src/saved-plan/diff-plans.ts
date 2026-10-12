@@ -169,7 +169,12 @@ const FIELD_CATEGORIES: Readonly<
     readiness: 'progress',
     hold: 'progress',
   },
-  steps: { name: 'renamed', position: 'reordered', allowancePercent: 'estimates' },
+  steps: {
+    name: 'renamed',
+    position: 'reordered',
+    allowancePercent: 'estimates',
+    estimateUnit: 'estimates',
+  },
   stepValues: {
     optimistic: 'uncertainty',
     realistic: 'uncertainty',

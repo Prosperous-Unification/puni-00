@@ -298,7 +298,8 @@ export class ImportService {
           position: step.position,
           code: step.code,
           allowancePercent: step.allowancePercent,
-          estimateUnit: 'workdays' as const,
+          // Proof: forcing workdays failed native units in the composed minute round trip.
+          estimateUnit: step.estimateUnit,
         }));
         const stepsByFileId = new Map(
           prepared.steps.map((step, at) => {

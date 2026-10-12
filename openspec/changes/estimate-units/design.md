@@ -121,3 +121,7 @@ minute bindings from command_journal, including undo/redo and bindings for remov
 The down migration and recovery remove refuse such history unchanged. Whole-entry quarantine
 is deferred; operators must keep a compatible release while minute history is retained.
 Recovery saved figures pass EstimateTrio and minuteTrioProblem before any transaction writes.
+
+Slice 6 allocation correction (2026-10-12): base 99f588257 already contains document 7 and
+canonical input 5 from attempts. This change allocates document 8 and canonical input 6;
+normalization from 5 explicitly adds workday units.
