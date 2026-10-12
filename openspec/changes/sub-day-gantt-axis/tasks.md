@@ -27,8 +27,8 @@
       exact span of a tick", "two overlapping surfaces open a list and the chosen line opens
       its card", "one surface opens the card directly"; `e2e/gantt.spec.ts` "a two-minute slice
       is a tick in a browser".
-- [ ] 2.2 Green: positive-span sub-day tick paint (day widths and zero-duration line ticks preserved), centered 18px hit rects above the row line, the collision model in `gantt-detail.ts` and rendered list in `GanttChart`.
-- [ ] 2.3 Negatives: the 4 px floor removed → the two-minute tick case (width `3.733` at 15 min); the list bypassed
+- [x] 2.2 Green: positive-span sub-day tick paint (day widths and zero-duration line ticks preserved), centered 18px hit rects above the row line, the collision model in `gantt-detail.ts` and rendered list in `GanttChart`.
+- [x] 2.3 Negatives: the 4 px floor removed → the two-minute tick case (width `3.733` at 15 min); the list bypassed
       for the nearest mark → "two overlapping surfaces…" opens the wrong card.
 
 ## 3. Offer rule

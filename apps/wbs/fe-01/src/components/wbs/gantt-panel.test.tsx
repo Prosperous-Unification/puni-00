@@ -7432,6 +7432,40 @@ describe('downloading the chart as a standalone .svg', () => {
     expect(Number(clocks[1]?.getAttribute('x')) - Number(clocks[0]?.getAttribute('x'))).toBe(28);
   });
 
+  itDom('exports a positive sub-day tick at the same 4 px width as the live mark', async () => {
+    const captured = captureDownloads();
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [rowAt('short', 0, 2 / 480)],
+          slices: [sliceAt('short-dev', 'short', 0, 2 / 480)],
+        })}
+        dayPx={896}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointed={pointedAtRow(null)}
+      />,
+    );
+    const liveWidth = Number(
+      document.querySelector('[data-gantt-bar="short-dev"]')?.getAttribute('width'),
+    );
+    clickDownload();
+    const doc = new DOMParser().parseFromString(
+      await readBlobText(captured.blobs[0]),
+      'image/svg+xml',
+    );
+    const exported = doc.querySelector('[data-gantt-bar="short-dev"]');
+    expect(exported?.getAttribute('data-tick')).toBe('true');
+    expect(Number(exported?.getAttribute('width'))).toBe(liveWidth);
+    expect(liveWidth * 896).toBeCloseTo(4);
+    expect(exported?.getAttribute('data-start')).toBe('0');
+    expect(Number(exported?.getAttribute('data-finish'))).toBeCloseTo(2 / 480);
+  });
+
   itDom('puts a download control in the panel corner, without a toolbar button', () => {
     render(
       <GanttPanel
@@ -10295,7 +10329,7 @@ describe('sub-day forecast pointer surfaces', () => {
         pointed={pointedAtRow(null)}
       />,
     );
-  const restOnSurface = (sliceId: string, clientX: number) => {
+  const restOnSurface = (sliceId: string, clientX: number, eventName = 'pointerover') => {
     const surfaces = [...document.querySelectorAll<SVGRectElement>('[data-gantt-hit]')];
     for (const [index, surface] of surfaces.entries()) {
       vi.spyOn(surface, 'getBoundingClientRect').mockReturnValue({
@@ -10312,7 +10346,7 @@ describe('sub-day forecast pointer surfaces', () => {
     }
     const surface = document.querySelector(`[data-gantt-hit="${sliceId}"]`);
     if (surface === null) throw new Error('Missing forecast pointer surface');
-    const pointer = new MouseEvent('pointerover', { bubbles: true, clientX, clientY: 10 });
+    const pointer = new MouseEvent(eventName, { bubbles: true, clientX, clientY: 10 });
     Object.defineProperty(pointer, 'pointerType', { value: 'mouse' });
     fireEvent(surface, pointer);
     act(() => {
@@ -10326,6 +10360,7 @@ describe('sub-day forecast pointer surfaces', () => {
     expect(Number(bar?.getAttribute('width')) * 896).toBeCloseTo(4);
     const hit = document.querySelector('[data-gantt-hit="first"]');
     expect(Number(hit?.getAttribute('width')) * 896).toBeCloseTo(18);
+    expect(hit?.getAttribute('pointer-events')).toBe('fill');
     expect(Number(hit?.getAttribute('height')) * ROW_PX).toBeGreaterThanOrEqual(18);
   });
   itDom('one surface opens the card directly with the exact span of a tick', () => {
@@ -10335,6 +10370,51 @@ describe('sub-day forecast pointer surfaces', () => {
       restOnSurface('first', 2);
       expect(screen.getByRole('tooltip').textContent).toContain('2 min');
       expect(screen.queryByRole('button', { name: 'one · Dev · 2 min' })).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  itDom(
+    'keeps the collision list reachable after leaving a hit surface and closes it on Escape',
+    () => {
+      vi.useFakeTimers();
+      try {
+        drawTicks(true);
+        restOnSurface('second', 12);
+        const hit = document.querySelector('[data-gantt-hit="second"]');
+        if (hit === null) throw new Error('Missing forecast hit surface');
+        const pointer = new Event('pointerout', { bubbles: true });
+        Object.defineProperty(pointer, 'pointerType', { value: 'mouse' });
+        fireEvent(hit, pointer);
+        expect(screen.getByRole('button', { name: 'one · QA · 2 min' })).toBeTruthy();
+        expect(screen.getByRole('tooltip').style.pointerEvents).toBe('auto');
+        fireEvent.keyDown(document, { key: 'Escape' });
+        expect(screen.queryByRole('tooltip')).toBeNull();
+      } finally {
+        vi.useRealTimers();
+      }
+    },
+  );
+  itDom('dismisses the collision list when the chart scrolls', () => {
+    vi.useFakeTimers();
+    try {
+      drawTicks(true);
+      restOnSurface('second', 12);
+      const scrollport = screen.getByLabelText('Gantt chart');
+      fireEvent.scroll(scrollport);
+      expect(screen.queryByRole('tooltip')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  itDom('re-evaluates collisions when the pointer moves within the same surface', () => {
+    vi.useFakeTimers();
+    try {
+      drawTicks(true);
+      restOnSurface('second', 22);
+      expect(screen.getByRole('tooltip').textContent).toContain('QA · Unassigned');
+      restOnSurface('second', 12, 'pointermove');
+      expect(screen.getByRole('button', { name: 'one · Dev · 2 min' })).toBeTruthy();
     } finally {
       vi.useRealTimers();
     }
