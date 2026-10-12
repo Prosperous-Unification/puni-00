@@ -1,13 +1,16 @@
 # Twilight Dash
 
 Dash owns the runtime admission authority ([`src/authority`](src/authority/authority-store.ts))
-and exposes five local commands. `bootstrap-authority <repository>` is the only command that
+and exposes six local commands. `bootstrap-authority <repository>` is the only command that
 creates an authority; every other command refuses an absent one. `inspect-authority <repository>
 [--session <id>]` prints the authority state, read-only. `recover-publication <repository> --integration-id
 <id>` finishes an interrupted publication from its durable record. `submit-admission <repository>
 <packet-json> <staged|committed> <revision-or-base>` freezes a bound packet's candidate and
 prints its submission report; it judges the packet through Twilight Burokrat's
-[admission judge](../../twilight-burokrat/cli/src/judge-facade.ts). `plan-enrollment`
+[admission judge](../../twilight-burokrat/cli/src/judge-facade.ts). `render-observation-units
+<layout.json> <new-dir>` renders the uninstalled `twilight-dash-observation.{service,timer}` units
+and their `runtime.sha256` into a new directory; see the
+[observation service runbook](src/activation/units/README.md). `plan-enrollment`
 delegates enrollment planning to the existing fleet CLI. Creating a plan authorizes no apply and does
 not enroll a node. Fleet owns the plan format, digest, eligibility checks and
 execution admission; see [fleet identities and ownership](../../../../docs/infra/fleet.md)
@@ -47,11 +50,14 @@ apply, discovery, build, deploy, operation-selection or executable-selection opt
 This local facade does not relocate lease authority.
 
 The declared [Nx project](project.json) runs its real dispatcher and entrypoint
-tests with the ordinary acceptance targets. It has no `build` target: the CLI runs
-from source, and nothing consumes a bundle.
+tests with the ordinary acceptance targets. The CLI runs from source. `build`
+bundles only the observation launcher, a second composition root that the
+observation service unit pins, into
+`dist/apps/twilight-structure/twilight-dash/cli/observation-service.mjs` and prints
+its SHA-256 ([build.ts](src/packaging/build.ts)).
 
 ```sh
-bunx nx run-many -t test lint typecheck -p twilight-dash --skip-nx-cache
+bunx nx run-many -t test lint typecheck build -p twilight-dash --skip-nx-cache
 ```
 
 `twilight-dash:test` needs a non-root runner. The unreadable-input and
