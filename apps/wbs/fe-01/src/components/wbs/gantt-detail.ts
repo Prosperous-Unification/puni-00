@@ -273,3 +273,26 @@ export function useGanttDetail(hasDependencyEdges: boolean): GanttDetail {
     },
   };
 }
+
+/** A viewport pointer rectangle shared by forecast and attempt marks. */
+export interface MarkPointerSurface {
+  markId: string;
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+}
+
+/** Every containing mark, in drawing order; overlapping surfaces require a reader's choice. */
+export function selectMarksAtPointer(
+  surfaces: readonly MarkPointerSurface[],
+  x: number,
+  y: number,
+): string[] {
+  return surfaces
+    .filter(
+      (surface) =>
+        x >= surface.left && x <= surface.right && y >= surface.top && y <= surface.bottom,
+    )
+    .map((surface) => surface.markId);
+}
