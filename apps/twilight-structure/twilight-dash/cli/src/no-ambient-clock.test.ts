@@ -8,7 +8,11 @@ import ts from 'typescript';
 const sourceRoot = import.meta.dir;
 const clockFactories = new Set(['wallClock', 'monotonicClock']);
 
-/** Every production module: each `.ts` under `src/` except tests and anything under a `testing/` directory. */
+/**
+ * Every production module: each `.ts` under `src/` except tests and anything under a `testing/`
+ * directory. Not scanned: modules in a `testing/` segment (fixtures and child processes may read
+ * real clocks) and non-`.ts` sources such as `.tmpl` files, which hold no code.
+ */
 function readProductionModules(): string[] {
   return [...new Bun.Glob('**/*.ts').scanSync({ cwd: sourceRoot })]
     .filter((path) => !path.endsWith('.test.ts') && !path.split('/').includes('testing'))
