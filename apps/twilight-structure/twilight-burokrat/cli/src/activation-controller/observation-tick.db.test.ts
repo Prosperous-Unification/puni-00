@@ -715,6 +715,16 @@ async function expectTickRefusal(pending: Promise<unknown>, message?: string): P
   if (message !== undefined) expect(String(cause)).toContain(message);
 }
 
+/**
+ * How long a spawned fixture process may take to reach its entered marker. It bounds a Bun start,
+ * not the behavior under test, so it only has to outlast a loaded host: at 2 seconds the SIGINT
+ * case's start timed out while two test suites shared the workstation (2026-10-12). The waits after
+ * the marker keep their 2-second bounds, which are the promptness the cases prove.
+ * Proof: a fixture held before `runObservationCli` failed the SIGINT case with `tick test watchdog
+ * expired` at 20,063 ms (2026-10-12).
+ */
+const CHILD_START_BOUND_MS = 20_000;
+
 async function finishWithin<T>(pending: Promise<T>, milliseconds: number): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
@@ -1152,7 +1162,7 @@ test('unsettled local continuation terminates with the process lock still owned'
           await Bun.sleep(10);
         }
       })(),
-      2000,
+      CHILD_START_BOUND_MS,
     );
     expect(await withObservationAttempt(source.state, () => Promise.resolve('unexpected'))).toEqual(
       { kind: 'busy' },
@@ -1253,7 +1263,7 @@ for (const phase of ['controller', 'scheduler', 'terminal'] as const)
             await Bun.sleep(10);
           }
         })(),
-        2000,
+        CHILD_START_BOUND_MS,
       );
       expect(await withObservationAttempt(state, () => Promise.resolve('unexpected'))).toEqual({
         kind: 'busy',
@@ -1624,7 +1634,7 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
             await Bun.sleep(10);
           }
         })(),
-        2000,
+        CHILD_START_BOUND_MS,
       );
       child.kill(signal);
       expect(await finishWithin(child.exited, 2000)).toBe(signal === 'SIGINT' ? 130 : 143);
