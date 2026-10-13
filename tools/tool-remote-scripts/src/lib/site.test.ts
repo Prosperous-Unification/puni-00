@@ -218,10 +218,11 @@ describe('rendered dev site.caddy MCP exposure', () => {
   it('preserves the reviewed MCP routes after exposure is enabled', () => {
     const exposed = rendered(true);
     expect(
-      [...exposed.matchAll(/^\s*handle\s+(\/mcp\*|\/\.well-known\/\S+)\s*\{/gm)].map(
+      [...exposed.matchAll(/^\s*handle\s+(\/mcp\*?|\/\.well-known\/\S+)\s*\{/gm)].map(
         (match) => match[1],
       ),
     ).toEqual([
+      '/mcp',
       '/mcp*',
       '/.well-known/oauth-protected-resource',
       '/.well-known/oauth-protected-resource/mcp',
@@ -240,6 +241,12 @@ describe('rendered dev site.caddy MCP exposure', () => {
         new RegExp(`handle\\s+${escaped}\\s*\\{\\s*reverse_proxy\\s+wbs-dev-src:3300`),
       );
     }
+  });
+
+  it('gives only exact /mcp the resource body limit', () => {
+    expect(rendered(true)).toMatch(
+      /handle\s+\/mcp\s*\{[\s\S]*?request_body\s*\{\s*max_size\s+4194304\s*\}/,
+    );
   });
 
   it('keeps MCP routes absent before exposure is enabled', () => {

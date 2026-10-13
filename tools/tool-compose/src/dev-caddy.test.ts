@@ -6,6 +6,7 @@ import { describe, expect, it } from 'bun:test';
 const CANDIDATE = join(import.meta.dir, '../../../deploy/compose/site-dev.caddy.candidate');
 const source = existsSync(CANDIDATE) ? readFileSync(CANDIDATE, 'utf8') : '';
 const MCP_ROUTES = [
+  '/mcp',
   '/mcp*',
   '/.well-known/oauth-protected-resource',
   '/.well-known/oauth-protected-resource/mcp',
@@ -15,7 +16,7 @@ const MCP_ROUTES = [
 function mcpRouteBlocks(candidate: string): string[] {
   return [...candidate.matchAll(/^\s*handle\s+(\S+)\s*\{/gm)]
     .map((match) => match[1])
-    .filter((route) => route === '/mcp*' || route.startsWith('/.well-known/'));
+    .filter((route) => route === '/mcp' || route === '/mcp*' || route.startsWith('/.well-known/'));
 }
 
 function hasUnsafeMcpMatcher(candidate: string): boolean {
@@ -39,7 +40,7 @@ describe('dev MCP Caddy candidate', () => {
   it('routes the MCP resource plus exactly the three RFC discovery paths', () => {
     expect(mcpRouteBlocks(source)).toEqual(MCP_ROUTES);
     for (const route of MCP_ROUTES) {
-      if (route === '/mcp*') continue;
+      if (route === '/mcp' || route === '/mcp*') continue;
       const escaped = route.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       expect(source).toMatch(
         new RegExp(`handle\\s+${escaped}\\s*\\{\\s*reverse_proxy\\s+wbs-dev-src:3300`),
@@ -47,6 +48,12 @@ describe('dev MCP Caddy candidate', () => {
     }
     expect(source).toMatch(
       /handle\s+\/mcp\*\s*\{[\s\S]*?request_body\s*\{\s*max_size\s+64KB\s*\}[\s\S]*?reverse_proxy\s+wbs-dev-src:3300/,
+    );
+  });
+
+  it('gives only exact /mcp the resource body limit', () => {
+    expect(source).toMatch(
+      /handle\s+\/mcp\s*\{[\s\S]*?request_body\s*\{\s*max_size\s+4194304\s*\}/,
     );
   });
 
