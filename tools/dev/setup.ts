@@ -55,6 +55,16 @@ export async function seedApp(app: string, root: string = ROOT): Promise<SeedOut
           'apps/wbs/be-01/.env requires APP_ORIGIN=http://localhost:4200 for local mode. Add the origin of your browser frontend; existing configuration was left unchanged.',
         );
       }
+      // be-01 refuses to boot without a solver supervisor caller id (F-001,
+      // UI review 2026-10-13). A `.env` seeded before `.env.example` carried
+      // one is diagnosed here rather than at `bun run dev`.
+      // Proof: removing this check makes the missing-caller setup.test.ts
+      // case resolve 'already-present'.
+      if (environment['AUTH_MODE'] === 'local' && !environment['HOSTNAME']) {
+        throw new Error(
+          'apps/wbs/be-01/.env requires HOSTNAME=000000000000 for local mode: be-01 names itself to the solver supervisor by it (see docs/local-dev.md). Add the line; existing configuration was left unchanged.',
+        );
+      }
     }
     return 'already-present';
   }
