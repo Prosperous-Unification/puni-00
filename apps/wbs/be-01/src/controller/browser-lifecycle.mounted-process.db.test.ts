@@ -411,6 +411,9 @@ function request(path: string, token: string, marker?: string, correlation?: str
   };
 }
 
+// CI cold-starts three mounted processes here; the aggregate can exceed 10 s.
+// Proof: withholding the first worker readiness failed 0/1 at its 10 s
+// worker deadline under this 30 s outer budget; restoring readiness passed 1/1.
 test('logout in another mounted process denies an old intact selected OIDC pair while independent sessions remain live', async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-mounted-lifecycle-'));
   const path = join(dir, 'shared.db');
@@ -471,7 +474,7 @@ test('logout in another mounted process denies an old intact selected OIDC pair 
   } finally {
     sqlite.close();
   }
-});
+}, 30_000);
 
 for (const expires of ['5m', '-1s']) {
   // Proof: PR CI timed out the current-token restart case at its
