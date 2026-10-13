@@ -3,6 +3,7 @@ import type { DependencyStore } from '../../ports/dependency-store';
 import type { EstimateStore } from '../../ports/estimate-store';
 import type { MeasureStore } from '../../ports/measure-store';
 import type { StepProgressStore } from '../../ports/progress-store';
+import type { StepBlockageStore } from '../../ports/step-blockage-store';
 import type { StepNodeAttemptStore } from '../../ports/step-node-attempt-store';
 import type { PlanTransactionalStores } from '../../ports/stores';
 import type { TypedDependencyStore } from '../../ports/typed-dependency-store';
@@ -410,6 +411,41 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
       await refreshRows([fromWorkItemId, toWorkItemId]);
     },
   };
+  const assertOwner = async (workItemId: string): Promise<void> => {
+    assertOpen();
+    const owner = await scope.stores.workItems.findById(workItemId);
+    if (owner?.projectId !== projectId) {
+      throw new Error(`step blockage owner ${workItemId} is outside project ${projectId}`);
+    }
+  };
+  /** Scope-bound facts preserve the transactional read and row revision after writes. */
+  const blockages: StepBlockageStore = {
+    listByProject: (requestedProjectId) => {
+      assertProject(requestedProjectId);
+      return scope.stores.blockages.listByProject(requestedProjectId);
+    },
+    listByWorkItems: (requestedProjectId, ids) => {
+      assertProject(requestedProjectId);
+      return scope.stores.blockages.listByWorkItems(requestedProjectId, ids);
+    },
+    set: async (blockage, stamp) => {
+      await assertOwner(blockage.workItemId);
+      const written = await scope.stores.blockages.set(blockage, stamp);
+      if (written === 'written') await refreshRows([blockage.workItemId]);
+      return written;
+    },
+    remove: async (workItemId, stepId, stamp) => {
+      await assertOwner(workItemId);
+      await scope.stores.blockages.remove(workItemId, stepId, stamp);
+      await refreshRows([workItemId]);
+    },
+    moveAll: async (fromWorkItemId, toWorkItemId, stamp) => {
+      await assertOwner(fromWorkItemId);
+      await assertOwner(toWorkItemId);
+      await scope.stores.blockages.moveAll(fromWorkItemId, toWorkItemId, stamp);
+      await refreshRows([fromWorkItemId, toWorkItemId]);
+    },
+  };
   const retainedSubtrees = createWorkingPlanSubtrees(
     () => scope.stores.subtrees,
     {
@@ -480,10 +516,7 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
     measures: retainedMeasures,
     progress: retainedProgress,
     attempts,
-    get blockages() {
-      assertOpen();
-      return scope.stores.blockages;
-    },
+    blockages,
     dependencies: retainedDependencies,
     typedDependencies,
     subtrees: retainedSubtrees,

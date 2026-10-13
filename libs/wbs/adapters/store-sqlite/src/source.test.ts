@@ -2,6 +2,9 @@ import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { createWorkingPlan } from '@wbs/core';
+import { workItemRow } from '@wbs/core/testing/work-item-fixture';
+import { projectRow } from '@wbs/store-memory/project-fixture';
 import { afterEach, describe, expect, it } from 'bun:test';
 
 import { type Connection, openConnection } from './db';
@@ -22,6 +25,67 @@ afterEach(() => {
 });
 
 describe('openSqliteSource', () => {
+  it('keeps blockage writes and refreshed owner revisions transactional', async () => {
+    const path = databasePath();
+    runMigrations(path, MIGRATIONS);
+    const source = openSqliteSource({ dbPath: path });
+    const stamp = { at: 10, by: 'owner' };
+    const fact = { workItemId: 'blocked-owner', stepId: 'dev', blockedAt: 123 };
+    try {
+      await source.stores.users.create(
+        { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
+        stamp,
+      );
+      await source.stores.projects.create(
+        projectRow({ id: 'blocked-project', ownerId: 'owner' }),
+        [
+          {
+            id: 'dev',
+            projectId: 'blocked-project',
+            name: 'Dev',
+            position: 10,
+            code: 'dev',
+            allowancePercent: 0,
+            estimateUnit: 'workdays',
+          },
+        ],
+        stamp,
+      );
+      await source.stores.workItems.insert(
+        workItemRow({ id: fact.workItemId, projectId: 'blocked-project' }),
+        [],
+        stamp,
+      );
+      await source.uow.run(async (scope) => {
+        const plan = createWorkingPlan(scope, 'blocked-project');
+        expect((await plan.stores.workItems.listByProject('blocked-project'))[0]?.revision).toBe(0);
+        expect(await plan.stores.blockages.set(fact, stamp)).toBe('written');
+        expect(await plan.stores.blockages.listByProject('blocked-project')).toEqual([fact]);
+        // Proof: skipping the wrapper refresh leaves the retained revision at zero after SQLite bumps it.
+        expect((await plan.stores.workItems.listByProject('blocked-project'))[0]?.revision).toBe(1);
+        plan.close();
+        return { commit: false, value: undefined };
+      });
+      // Proof: forcing COMMIT for a refused SQLite batch left the fact here.
+      expect(await source.stores.blockages.listByProject('blocked-project')).toEqual([]);
+      expect((await source.stores.workItems.findById(fact.workItemId))?.revision).toBe(0);
+      await source.uow.run(async (scope) => {
+        const plan = createWorkingPlan(scope, 'blocked-project');
+        expect(await plan.stores.blockages.set(fact, stamp)).toBe('written');
+        expect(
+          await plan.stores.blockages.listByWorkItems('blocked-project', [fact.workItemId]),
+        ).toEqual([fact]);
+        plan.close();
+        return { commit: true, value: undefined };
+      });
+      expect(await source.stores.blockages.listByProject('blocked-project')).toEqual([fact]);
+      expect((await source.stores.workItems.findById(fact.workItemId))?.revision).toBe(1);
+      await source.stores.workItems.remove([fact.workItemId], [], stamp);
+      expect(await source.stores.blockages.listByProject('blocked-project')).toEqual([]);
+    } finally {
+      await source.close();
+    }
+  });
   it('opens without applying migrations', async () => {
     const path = databasePath();
     const source = openSqliteSource({ dbPath: path });
