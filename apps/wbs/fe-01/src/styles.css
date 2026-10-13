@@ -753,6 +753,15 @@
     white-space: nowrap;
     /* The cell's own inline `overflow: clip` (`CELL`) is what this ends. */
     text-overflow: ellipsis;
+    /* The heading row stays 24px tall, the height its wrapped `DEPENDS ON`
+       gave it before this was one line (measured on main, 2026-10-14): the
+       scroll link pairs the table's rows with the Gantt's below two headings
+       of different heights, and the 18px a single line needs left the faces
+       0.31 of a row apart at the end of a 50-row plan
+       (`scroll-stability.e2e.ts`). Vertical geometry is not this change's to
+       move; the extra room centres the words. */
+    height: 24px;
+    vertical-align: middle;
   }
 
   /* The step accordion's toggle, which is a `<button>` in a heading cell: the
