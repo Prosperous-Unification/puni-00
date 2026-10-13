@@ -76,6 +76,10 @@ export function createOrganizationOwner({
   let state: OrganizationState = { kind: 'loading' };
   let generation = 0;
   let selecting = false;
+  const pendingReconciliations: {
+    resolve: (transition: OrganizationTransition) => void;
+    reject: (cause: unknown) => void;
+  }[] = [];
   const listeners = new Set<() => void>();
   const publish = (next: OrganizationState) => {
     state = next;
@@ -119,6 +123,8 @@ export function createOrganizationOwner({
       },
     });
     if (!current(turn)) return 'overtaken';
+    // Proof: a notice during held confirmation failed `a peer notice invalidates a held B confirmation before it can publish` when this fence was absent.
+    if (selecting && pendingReconciliations.length > 0) return 'overtaken';
     if (fatal()) return 'fatal';
     const lifetime = sessions.snapshot();
     if (lifetime.status !== 'live')
@@ -183,6 +189,11 @@ export function createOrganizationOwner({
         return unreachable(reply);
     }
   };
+  const reconcile = async (expected?: string): Promise<OrganizationTransition> => {
+    const { turn, retirement } = begin('loading');
+    const refused = await retire(turn, retirement);
+    return refused ?? discover(turn, expected);
+  };
   const owner: OrganizationOwner = {
     snapshot: () => state,
     subscribe: (listener) => {
@@ -195,13 +206,17 @@ export function createOrganizationOwner({
       return refused ?? install(turn, null);
     },
     refresh: async () => {
-      const { turn, retirement } = begin('loading');
-      const refused = await retire(turn, retirement);
-      return refused ?? discover(turn);
+      // Proof: eager discovery failed `focus reconciliation cannot publish old A while a B selection is in flight` and restored A before the held POST settled.
+      if (selecting)
+        return new Promise<OrganizationTransition>((resolve, reject) => {
+          pendingReconciliations.push({ resolve, reject });
+        });
+      return reconcile();
     },
     choose: async (organizationId) => {
       if (selecting) return 'pending';
       selecting = true;
+      let selected = false;
       const { turn, retirement } = begin('switching');
       try {
         const refused = await retire(turn, retirement);
@@ -217,6 +232,7 @@ export function createOrganizationOwner({
               });
               return 'refused';
             }
+            selected = true;
             announce();
             return await discover(turn, organizationId);
           case 'failure':
@@ -238,12 +254,29 @@ export function createOrganizationOwner({
         }
       } finally {
         selecting = false;
+        const waiting = pendingReconciliations.splice(0);
+        if (waiting.length > 0) {
+          if (selected && current(turn)) {
+            // Proof: reconciling without the chosen ID failed the held-confirmation test by publishing peer C as confirmation of B.
+            void reconcile(organizationId).then(
+              (transition) => {
+                for (const request of waiting) request.resolve(transition);
+              },
+              (cause: unknown) => {
+                for (const request of waiting) request.reject(cause);
+              },
+            );
+          } else {
+            for (const request of waiting) request.resolve(current(turn) ? 'refused' : 'overtaken');
+          }
+        }
       }
     },
     // Proof: selecting org-b from a notice failed `cross-tab payload cannot select authority` (c2-fault-payload).
     notice: (_message) => owner.refresh(),
     lose: (refusal) => {
       ++generation;
+      for (const request of pendingReconciliations.splice(0)) request.resolve('overtaken');
       const retirement = sessions.leave();
       publish({ kind: 'lost', refusal });
       const turn = generation;
@@ -253,6 +286,7 @@ export function createOrganizationOwner({
     },
     leave: async () => {
       const { turn, retirement } = begin('loading');
+      for (const request of pendingReconciliations.splice(0)) request.resolve('overtaken');
       await retire(turn, retirement);
     },
   };

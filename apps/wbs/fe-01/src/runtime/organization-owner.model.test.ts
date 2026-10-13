@@ -211,6 +211,166 @@ it('sign-out fences a pending selection confirmation', async () => {
   expect(sessionOwner.snapshot().status).not.toBe('live');
 });
 
+it('focus reconciliation cannot publish old A while a B selection is in flight', async () => {
+  let releaseSelection: ((reply: ClientReply<typeof selectActiveOrganization>) => void) | undefined;
+  let selectedOrganization = 'org-a';
+  const announce = vi.fn();
+  const discover = vi.fn(() => Promise.resolve(active(selectedOrganization)));
+  const owner = createOrganizationOwner({
+    identity,
+    sessions: sessions(),
+    routes: {
+      discover,
+      select: () =>
+        new Promise((resolve) => {
+          releaseSelection = resolve;
+        }),
+    },
+    announce,
+  });
+  await owner.refresh();
+  const published: string[] = [];
+  const unsubscribe = owner.subscribe(() => {
+    const state = owner.snapshot();
+    if (state.kind === 'active') published.push(state.organization.organizationId);
+  });
+  const choosing = owner.choose('org-b');
+  await vi.waitFor(() => {
+    expect(releaseSelection).toBeDefined();
+  });
+  const reconciling = owner.notice('focus');
+  expect(owner.snapshot().kind).toBe('switching');
+  expect(discover).toHaveBeenCalledTimes(1);
+  if (releaseSelection === undefined) throw new Error('selection was not requested');
+  selectedOrganization = 'org-b';
+  releaseSelection(selected('org-b'));
+  expect(await choosing).toBe('overtaken');
+  expect(await reconciling).toBe('published');
+  expect(owner.snapshot()).toMatchObject({
+    kind: 'active',
+    organization: { organizationId: 'org-b' },
+  });
+  expect(announce).toHaveBeenCalledTimes(1);
+  expect(published).toEqual(['org-b']);
+  unsubscribe();
+  await owner.leave();
+});
+
+it('focus reconciliation cannot restore old A when an in-flight B selection fails', async () => {
+  let releaseSelection: ((reply: ClientReply<typeof selectActiveOrganization>) => void) | undefined;
+  const discover = vi.fn(() => Promise.resolve(active('org-a')));
+  const owner = createOrganizationOwner({
+    identity,
+    sessions: sessions(),
+    routes: {
+      discover,
+      select: () =>
+        new Promise((resolve) => {
+          releaseSelection = resolve;
+        }),
+    },
+  });
+  await owner.refresh();
+  const published: string[] = [];
+  const unsubscribe = owner.subscribe(() => {
+    const state = owner.snapshot();
+    if (state.kind === 'active') published.push(state.organization.organizationId);
+  });
+  const choosing = owner.choose('org-b');
+  await vi.waitFor(() => {
+    expect(releaseSelection).toBeDefined();
+  });
+  const reconciling = owner.notice('focus');
+  expect(owner.snapshot().kind).toBe('switching');
+  if (releaseSelection === undefined) throw new Error('selection was not requested');
+  releaseSelection({
+    kind: 'failure',
+    failure: { code: 'transport', cause: new Error('offline') },
+  });
+  expect(await choosing).toBe('refused');
+  expect(await reconciling).toBe('refused');
+  expect(owner.snapshot().kind).toBe('failure');
+  expect(discover).toHaveBeenCalledTimes(1);
+  expect(published).toEqual([]);
+  unsubscribe();
+  await owner.leave();
+});
+
+it('a peer notice invalidates a held B confirmation before it can publish', async () => {
+  let releaseConfirmation:
+    ((reply: ClientReply<typeof readActiveOrganization>) => void) | undefined;
+  let latest = 'org-a';
+  let reads = 0;
+  const owner = createOrganizationOwner({
+    identity,
+    sessions: sessions(),
+    routes: {
+      discover: () =>
+        ++reads === 2
+          ? new Promise((resolve) => {
+              releaseConfirmation = resolve;
+            })
+          : Promise.resolve(active(latest)),
+      select: (organizationId) => {
+        latest = organizationId;
+        return Promise.resolve(selected(organizationId));
+      },
+    },
+  });
+  await owner.refresh();
+  const published: string[] = [];
+  const unsubscribe = owner.subscribe(() => {
+    const state = owner.snapshot();
+    if (state.kind === 'active') published.push(state.organization.organizationId);
+  });
+  const choosing = owner.choose('org-b');
+  await vi.waitFor(() => {
+    expect(releaseConfirmation).toBeDefined();
+  });
+  latest = 'org-c';
+  const reconciling = owner.notice({ organizationId: 'org-a' });
+  if (releaseConfirmation === undefined) throw new Error('confirmation was not requested');
+  releaseConfirmation(active('org-b'));
+  expect(await choosing).toBe('overtaken');
+  expect(await reconciling).toBe('refused');
+  expect(owner.snapshot().kind).toBe('failure');
+  expect(reads).toBe(3);
+  expect(published).toEqual([]);
+  unsubscribe();
+  await owner.leave();
+});
+
+it('sign-out cancels queued reconciliation without reopening resources', async () => {
+  let releaseSelection: ((reply: ClientReply<typeof selectActiveOrganization>) => void) | undefined;
+  const announce = vi.fn();
+  const sessionOwner = sessions();
+  const owner = createOrganizationOwner({
+    identity,
+    sessions: sessionOwner,
+    routes: {
+      discover: () => Promise.resolve(active('org-a')),
+      select: () =>
+        new Promise((resolve) => {
+          releaseSelection = resolve;
+        }),
+    },
+    announce,
+  });
+  await owner.refresh();
+  const choosing = owner.choose('org-b');
+  await vi.waitFor(() => {
+    expect(releaseSelection).toBeDefined();
+  });
+  const reconciling = owner.notice('focus');
+  await owner.leave();
+  expect(await reconciling).toBe('overtaken');
+  if (releaseSelection === undefined) throw new Error('selection was not requested');
+  releaseSelection(selected('org-b'));
+  expect(await choosing).toBe('overtaken');
+  expect(sessionOwner.snapshot().status).not.toBe('live');
+  expect(announce).not.toHaveBeenCalled();
+});
+
 it('preserves the complete company sign-in refusal during selection', async () => {
   const refusal = {
     error: 'sso_required',

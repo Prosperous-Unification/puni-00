@@ -6,6 +6,7 @@ import { describe, expect, test } from 'bun:test';
 interface WorkflowStep {
   id?: string;
   name?: string;
+  if?: string;
   env?: Record<string, string>;
   run?: string;
   uses?: string;
@@ -44,6 +45,9 @@ describe('the CI pixels gate', () => {
     const shardJob = workflow.jobs?.['pixels_shard'];
     const summaryJob = workflow.jobs?.['pixels'];
     const layoutStep = shardJob?.steps?.find(({ name }) => name === 'Layout gate');
+    const organizationStep = shardJob?.steps?.find(
+      ({ name }) => name === 'Activated organization context',
+    );
     const artifactStep = shardJob?.steps?.find(({ uses }) =>
       uses?.startsWith('actions/upload-artifact@'),
     );
@@ -51,6 +55,9 @@ describe('the CI pixels gate', () => {
     expect(shardJob?.strategy?.matrix?.shard).toEqual([1, 2, 3, 4]);
     expect(shardJob?.name).toBe('pixels shard ${{ matrix.shard }}/4');
     expect(layoutStep?.run).toBe('bun run e2e -- --shard=${{ matrix.shard }}/4');
+    // Proof: deleting the dedicated step failed this production-workflow oracle with an absent run command (c2-review-pixels-fault).
+    expect(organizationStep?.run).toBe('bunx nx run wbs-fe-01:e2e-organization');
+    expect(organizationStep?.if).toBe('${{ matrix.shard == 1 }}');
     expect(artifactStep?.with?.name).toBe(
       'wbs-table-screenshot-${{ matrix.shard }}-${{ github.run_attempt }}',
     );

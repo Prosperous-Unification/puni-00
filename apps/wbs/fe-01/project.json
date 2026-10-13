@@ -105,6 +105,13 @@
       },
       "cache": false
     },
+    "e2e-organization": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx playwright test --config=apps/wbs/fe-01/playwright.organization.config.ts"
+      },
+      "cache": false
+    },
     "e2e-packaged": {
       "executor": "nx:run-commands",
       "options": {
