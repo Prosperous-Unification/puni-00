@@ -1663,3 +1663,39 @@ Final compatibility checks (same checkout, restored production source):
 - The final `wbs-fe-01:lint` run found only a `no-fallthrough` caused by placing a proof comment between empty case labels. Moved that comment above the switch; `bunx eslint apps/wbs/fe-01/src/modules/saved-plans/saved-plans.feature.ts` then exited 0. The earlier six-project lint was green; the normal commit hook checks every staged source after this correction.
 - `git ls-files --modified --others --exclude-standard -z | xargs -0 bunx prettier --check`: all matched files use Prettier style. `git diff --check`: passed.
 - Final post-evidence `bunx @fission-ai/openspec@1.12.0 validate --all --json`: 186 passed, 0 failed.
+
+### C1 review correction: captured frontend R5 proofs
+
+Astra's review of implementation `581b0ede90ca56677f70e222da0bb8e10ce1163c` found the four frontend fault logs were empty. The earlier in-process spawn-wrapper exit codes did not establish the named failures; this rerun supersedes those four frontend proof claims. No production or test behavior changed for this correction.
+
+Each fault below was applied alone to its production source, then its named Vitest acceptance ran from `apps/wbs/fe-01` with shell redirection capturing both stdout and stderr. The original file was restored before applying the next fault. `git diff --exit-code --` over all four production files exited 0 after restoration.
+
+Command pattern, with the concrete suite, exact test name and log in the table:
+
+```sh
+bunx vitest run <suite> -t '<test name>' --no-file-parallelism --maxWorkers=1 > <log> 2>&1
+```
+
+| Independently injected source fault                                                                                     | Suite and exact acceptance                                                                                                      | Captured observation                                                                                                                                                                                  |
+| ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Remove only `organization_context_changed` from `commandCode` in `components/wbs/plan-refusal.ts`                       | `src/modules/plan-writer/plan-writer.test.ts`: `reports organization context change once without retrying the refused mutation` | Exit 1; 1 failed / 6 skipped; `Unexpected response variant: object` from `commandCode`. `/tmp/c1-fault-fe-mapper.log`: 1724 bytes.                                                                    |
+| Remove only the context case from `readShelf` in `modules/saved-plans/saved-plans.feature.ts`                           | `src/modules/saved-plans/saved-plans.feature.test.ts`: `withdraws the saved-plan shelf on organization context refusal`         | Exit 1; 1 failed / 21 skipped; expected error code `organization_context_changed`, received `Unexpected response variant: object`. `/tmp/c1-fault-shelf-mapper.log`: 1423 bytes.                      |
+| Remove only the context case from `lostAccess` in `components/organization/organization-access.ts`                      | `src/components/organization/credential-refusal-state.test.tsx`: `withdraws organization panels on context refusal`             | Exit 1; 1 failed / 15 skipped and 1 uncaught error; expected page-loss copy absent; cause `Unexpected response variant: string` from `lostAccess`. `/tmp/c1-fault-organization-page.log`: 3945 bytes. |
+| Remove the complete context case and its returned page state from `spaceRefusal` in `components/spaces/space-access.ts` | `src/components/spaces/spaces-page.test.tsx`: `withdraws spaces on organization context refusal`                                | Exit 1; 1 failed / 6 skipped; expected recovery copy absent; cause `Unexpected response variant: object` from `spaceRefusal`. `/tmp/c1-fault-space-page.log`: 5588 bytes.                             |
+
+The nonempty logs remain at those paths for reviewer inspection. SHA-256 captures their exact contents:
+
+```text
+ddfdbc347ce4cec21a3dbe1d1ca630fbbcab1e0027589fa9347d6a7dd596677f  /tmp/c1-fault-fe-mapper.log
+6a45a1230b87ed24a6e74c331df8ffb46b2d2810cbfe2b36d716179b07ff2a69  /tmp/c1-fault-shelf-mapper.log
+c414a16c342461d808d109e90735954c39d71969f7ad054f503168e57986d411  /tmp/c1-fault-organization-page.log
+05771fdff445bcb572060fd94f3804070ad6e37ea25ab73b2f4e4f681a8174fa  /tmp/c1-fault-space-page.log
+```
+
+Restored command, from `apps/wbs/fe-01`:
+
+```sh
+bunx vitest run src/modules/plan-writer/plan-writer.test.ts src/modules/saved-plans/saved-plans.feature.test.ts src/components/organization/credential-refusal-state.test.tsx src/components/spaces/spaces-page.test.tsx --no-file-parallelism --maxWorkers=1 > /tmp/c1-fe-proof-restored.log 2>&1
+```
+
+Observed: exit 0, 4 files passed, 52 tests passed, 0 failed. Canonical gate, C2 and deployment obligations remain as recorded above.
