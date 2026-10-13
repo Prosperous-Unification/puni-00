@@ -393,3 +393,91 @@ it('retains only the owned refusal in durable phase evidence', async () => {
   );
   expect(JSON.stringify(phase)).not.toContain('sensitive-unrelated-output');
 });
+
+function wrappedPdbFailure(
+  fault: {
+    node?: string;
+    pod?: string;
+    duration?: string;
+    append?: string;
+    rc?: number;
+    denial?: boolean;
+    commandNode?: string;
+    commandDuration?: string;
+    extraPendingNode?: string;
+  } = {},
+) {
+  const pod = fault.pod ?? 'fixture-abc';
+  const node = fault.node ?? target;
+  const timeout = `error when evicting pods/"${pod}" -n "${identity.namespace}": global timeout reached: ${fault.duration ?? '1m30s'}`;
+  const stderr = [
+    ...(fault.denial === false
+      ? []
+      : [
+          `error when evicting pods/"fixture-abc" -n "${identity.namespace}" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.`,
+        ]),
+    `There are pending pods in node "${node}" when an error occurred: ${timeout}`,
+    `pod/${pod}`,
+    `error: unable to drain node "${node}" due to error: ${timeout}, continuing command...`,
+    'There are pending nodes to be drained:',
+    ` ${node}`,
+    ...(fault.extraPendingNode === undefined ? [] : [` ${fault.extraPendingNode}`]),
+    `error: ${timeout}`,
+    ...(fault.append === undefined ? [] : [fault.append]),
+  ].join('\n');
+  return `Retirement drain for ${target} failed with exit 2:\nTASK [Drain while respecting disruption budgets and local storage refusal]\nfatal: [${target}]: FAILED! => ${JSON.stringify({ changed: true, cmd: ['kubectl', '--context', 'workers', 'drain', fault.commandNode ?? target, '--ignore-daemonsets', fault.commandDuration ?? '--timeout=90s'], delta: '0:01:30.100000', rc: fault.rc ?? 1, stdout: `node/${target} already cordoned\nevicting pod ${identity.namespace}/fixture-abc`, stderr, stdout_lines: [`node/${target} already cordoned`, `evicting pod ${identity.namespace}/fixture-abc`], stderr_lines: stderr.split('\n') })}\nPLAY RECAP\n${target} : ok=7 changed=0 unreachable=0 failed=1 skipped=7 rescued=0 ignored=0`;
+}
+
+it('accepts complete pinned kubectl PDB timeout diagnostics through the production collector', async () => {
+  const before = await collectDrainSnapshot(identity, 'pdb', true, 'marker', fixtureKubectl());
+  const journal = {
+    state: 'recoverable',
+    activeStep: { effect: 'evict workloads respecting disruption budgets' },
+    completedSteps: [
+      { effect: 'verify replacement capacity, storage topology, and backup status' },
+      { effect: 'cordon node' },
+    ],
+  };
+  const attributes = {
+    cordoned: true,
+    serviceActive: true,
+    receiptAbsent: true,
+    elapsedMs: 90_100,
+  };
+  expect(() => {
+    collectProtectedCase(
+      identity,
+      'pdb',
+      before,
+      before,
+      { exitCode: 1, stdout: '', stderr: wrappedPdbFailure() },
+      journal,
+      attributes,
+    );
+  }).not.toThrow();
+  for (const fault of [
+    { node: 'foreign' },
+    { commandNode: 'foreign' },
+    { commandDuration: '--timeout=10m' },
+    { extraPendingNode: 'foreign' },
+    { pod: 'foreign' },
+    { duration: '2m0s' },
+    { duration: '90s' },
+    { append: 'API connection failed' },
+    { append: `Retirement drain for ${target} failed with exit 124` },
+    { rc: 0 },
+    { denial: false },
+  ]) {
+    expect(() => {
+      collectProtectedCase(
+        identity,
+        'pdb',
+        before,
+        before,
+        { exitCode: 1, stdout: '', stderr: wrappedPdbFailure(fault) },
+        journal,
+        attributes,
+      );
+    }).toThrow('refusal');
+  }
+});

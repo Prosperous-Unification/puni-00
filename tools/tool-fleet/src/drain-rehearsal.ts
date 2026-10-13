@@ -130,18 +130,83 @@ function requireProtectedCase(
   }
 }
 
+/** Decode the pinned default callback capture and preserve only the owned drain command streams. */
+function readCapturedDrain(source: string, identity: DrainIdentity): string {
+  const captures = [...source.matchAll(/FAILED! => (\{[^\r\n]*\})/g)];
+  if (source.includes('FAILED! =>') && captures.length === 0)
+    throw new Error('PDB refusal has malformed Ansible capture');
+  let remainder = source;
+  const streams: string[] = [];
+  for (const capture of captures) {
+    const encoded = capture[1];
+    let command: Record<string, unknown>;
+    try {
+      command = record(JSON.parse(encoded));
+    } catch (cause) {
+      throw new Error('PDB refusal has malformed Ansible capture', { cause });
+    }
+    if (
+      JSON.stringify(command['cmd']) !==
+        JSON.stringify([
+          'kubectl',
+          '--context',
+          'workers',
+          'drain',
+          identity.target,
+          '--ignore-daemonsets',
+          '--timeout=90s',
+        ]) ||
+      typeof command['stdout'] !== 'string' ||
+      typeof command['stderr'] !== 'string'
+    ) {
+      // Proof: removing the comparator accepted the captured foreign node and 10m command in the complete-diagnostic collector negative.
+      throw new Error('PDB refusal is not the owned drain command completion');
+    }
+    streams.push(command['stdout'], command['stderr']);
+    remainder = remainder.replace(capture[0], '');
+  }
+  return [remainder.replaceAll('\\n', '\n').replaceAll('\\"', '"'), ...streams].join('\n');
+}
+
 function requireObservedRefusal(
   refusal: Record<string, unknown>,
   kind: (typeof protectedKinds)[number],
   identity: DrainIdentity,
   before: Record<string, unknown>,
 ): string {
-  const output = stringField(refusal, 'output').replaceAll('\\n', '\n').replaceAll('\\"', '"');
+  const raw = stringField(refusal, 'output');
+  const output =
+    kind === 'pdb'
+      ? readCapturedDrain(raw, identity)
+      : raw.replaceAll('\\n', '\n').replaceAll('\\"', '"');
   const podName = stringField(before, 'podName');
   const ownsDenial = (line: string) =>
     line.includes(`pods/"${podName}"`) &&
     line.includes(`-n "${identity.namespace}"`) &&
     line.includes("Cannot evict pod as it would violate the pod's disruption budget.");
+  const timeout = `error when evicting pods/"${podName}" -n "${identity.namespace}": global timeout reached: 1m30s`;
+  // Proof: removing this exact summary exception rejected the complete pinned kubectl diagnostic fixture.
+  const summaries = new Set([
+    timeout,
+    `error: ${timeout}`,
+    `error: unable to drain node "${identity.target}" due to error: ${timeout}, continuing command...`,
+    `There are pending pods in node "${identity.target}" when an error occurred: ${timeout}`,
+  ]);
+  const lines = output.split('\n').map((line) => line.trim());
+  let listsPendingNodes = false;
+  let hasForeignPendingResource = false;
+  for (const line of lines) {
+    if (line === 'There are pending nodes to be drained:') listsPendingNodes = true;
+    else if (listsPendingNodes && line !== '' && !line.startsWith('error:')) {
+      // Proof: disabling this comparison accepted a foreign node appended to the pending-node list.
+      if (line !== identity.target) hasForeignPendingResource = true;
+    } else listsPendingNodes = false;
+    if (
+      (line.startsWith('pod/') && line !== `pod/${podName}`) ||
+      (line.startsWith('There are pending pods in node ') && !summaries.has(line))
+    )
+      hasForeignPendingResource = true;
+  }
   const hasControllerTimeout =
     /failed with exit 124|timed out after|Cannot terminate timed-out/.test(output);
   const hasTransportFailure = output
@@ -150,16 +215,19 @@ function requireObservedRefusal(
       (line) =>
         /error when evicting|Unable to connect|connection.*(?:refused|failed)|TLS handshake|Unauthorized|Forbidden|Error from server|API.*(?:error|unavailable|failed)|error: (?:unable|failed|couldn't|connection|context deadline|the server)|Release operation lease.*failed/i.test(
           line,
-        ) && !ownsDenial(line),
+        ) &&
+        !ownsDenial(line) &&
+        !summaries.has(line.trim()),
     );
   const expected =
     kind === 'local-pv'
       ? output.includes(`refused: ${identity.namespace} is local or pinned to ${identity.target}`)
       : kind === 'pdb'
-        ? !hasControllerTimeout &&
+        ? !hasForeignPendingResource &&
+          !hasControllerTimeout &&
           !hasTransportFailure &&
           output.includes(`Retirement drain for ${identity.target} failed with exit 2`) &&
-          /"rc"\s*:\s*1\b/.test(output) &&
+          /"rc"\s*:\s*1\b/.test(raw) &&
           output.includes(`evicting pod ${identity.namespace}/${podName}`) &&
           output
             .split('\n')

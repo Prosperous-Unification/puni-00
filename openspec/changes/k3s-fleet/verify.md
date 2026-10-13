@@ -832,3 +832,34 @@ Final repair checks: focused Bun coverage passed 41 tests with 282 assertions; u
 `k3s-fleet` passed with no issues. The production-budget capture test passed in about one
 second using its declared100× time scaling. No real VM or locked-controller acceptance is
 claimed; `/dev/kvm` is absent and Docker API access is permission denied.
+
+### Complete pinned kubectl diagnostic repair (2026-10-13)
+
+Astra reproduced a false refusal in `212380e8`: normal PDB timeout summaries matched the
+transport-error predicate. A complete realistic default-callback Ansible failed-task JSON
+fixture now carries the command, rc1, captured stdout/stderr and line arrays, pending Pod,
+owned-node summary, pending nodes and final aggregate. The production collector test failed
+before repair and passes after it. These formats were checked against the pinned upstream
+[kubectl drain command](https://raw.githubusercontent.com/kubernetes/kubectl/v0.36.4/pkg/cmd/drain/drain.go)
+and [eviction helper](https://raw.githubusercontent.com/kubernetes/kubectl/v0.36.4/pkg/drain/drain.go).
+
+The collector extracts captured streams and validates the exact owned drain argv before
+classifying them. Expected timeout summary lines are permitted only for the owned Pod,
+namespace, node and `1m30s` duration. Pending resource lists are also checked for foreign
+identities. PDB denial, normal Ansible nonzero completion, preserved workload/service and
+journal progress remain required; API/transport errors and controller124 remain failures.
+
+The complete-fixture negatives cover foreign command node/duration, foreign summary node or
+Pod, extra pending nodes, changed summary duration, missing denial, rc0, API failure after
+denial and controller124. Watched mutations removed the exact summary exception (valid
+fixture failed), captured-command comparator (foreign command accepted), pending-node
+comparison (extra foreign node accepted), and unrelated-error rejection (API failure
+accepted). All mutations were restored. Logs are `/tmp/fleet-f5-proof-p1-*.log`.
+Real VM/locked-controller acceptance is still unavailable: `/dev/kvm` is absent and Docker
+API access is denied. F5.2/F5.4 and WBS070.13 remain open; this repair remains local pending
+Astra rereview.
+
+Final scoped repair checks: 42 focused tests / 294 assertions passed; uncached Nx project
+lint and typecheck passed; strict OpenSpec1.12.0 `k3s-fleet` validation passed with no issues.
+Direct lint identified an unnecessary regex-capture null check, removed before the successful
+project lint run. No host gate or live VM acceptance was run in this worker.
