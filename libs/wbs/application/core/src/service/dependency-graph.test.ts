@@ -4,7 +4,11 @@ import { describe, expect, it } from 'bun:test';
 import type { StoredDependency } from '../ports/dependency-store';
 import type { WorkItem } from '../ports/work-item-store';
 import { workItemRow } from '../testing/work-item-fixture';
-import { type DependencyGraphState, findDependencyGraphCycle } from './dependency-graph';
+import {
+  type DependencyGraphState,
+  findDependencyGraphCycle,
+  resolveDependencyGraph,
+} from './dependency-graph';
 
 const item = (id: string, parentId: string | null = null): WorkItem =>
   workItemRow({ id, projectId: 'p1', parentId, name: id });
@@ -118,4 +122,10 @@ describe('findDependencyGraphCycle', () => {
       }),
     ).toEqual({ kind: 'cycle', relationshipIds: ['r1'] });
   });
+});
+
+it('refuses legacy endpoints absent from the full tree before expanding to leaves', () => {
+  for (const link of [legacy('gone', 'A'), legacy('A', 'gone')]) {
+    expect(() => resolveDependencyGraph({ ...base, legacy: [link] })).toThrow(/legacy.*gone/);
+  }
 });

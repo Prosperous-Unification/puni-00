@@ -6775,26 +6775,23 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
   // The row's own reading, folded over its **children** rather than over its
   // rolled-up steps — see `rollUpWorkItemStatuses` for why the two differ and which
   // one is true.
-  // A legacy edge naming a work item from another project is stored state
-  // the schema does not prevent and the read already hides (`dependsOn`
-  // below); it cannot hold a leaf of this plan back, so the status fold is
-  // handed only edges between rows it holds. Typed dependencies are checked
-  // against the project when written, so a stray one there throws.
+  // Preserve the row proxy fold's leaf-level endpoint filter. The complete
+  // node graph below separately refuses missing legacy endpoints as malformed
+  // trusted state; its precise node projection never supplies this row status.
   const rowIds = new Set(rows.map((row) => row.id));
   const itemStatuses = workItemStatusesOf(rows, rollUpWorkItemStatuses(rows, statedTotals), {
     edges: edges.filter((edge) => rowIds.has(edge.predecessorId) && rowIds.has(edge.successorId)),
     typed: authored,
   });
-  // Every leaf node's reading over the resolved step-node graph, its
-  // predecessors the workflow and authored edges into it; legacy joins are
-  // left out of the resolution because the reading never reads them
-  // (`step-node-readings` D1, D3).
+  // Canonical readings use complete topology for blockage propagation and
+  // workflow/authored predecessors for waiting (ADR 0053). Row proxy remains
+  // independent; it cannot turn a sibling endpoint into a node predecessor.
   const readingsOf = nodeReadingsOf({
     graph: resolveDependencyGraph({
       rows,
       steps,
       estimates: stored,
-      legacy: [],
+      legacy: edges,
       typed: authored,
       reach: project.depReach,
     }),
@@ -6802,6 +6799,7 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
     statusOf: itemStatuses,
     stated,
     running,
+    blocked: [],
   });
   // The write path refuses an edge that would close a cycle, but two clients
   // drawing conflicting edges at the same instant are each checked against the

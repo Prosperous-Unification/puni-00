@@ -502,6 +502,85 @@ describe('node readings on the work-item read', () => {
     expect((await readingsByName()).get('Strip')).toMatchObject({ [dev]: 'in_progress' });
   });
 
+  for (const mode of ['isolated', 'shared'] as const) {
+    it(`keeps row proxy independent of an unblocked typed step endpoint (${mode})`, async () => {
+      if (mode === 'shared') {
+        h.close();
+        h = OrganizationHarness.openComposedWith({
+          supportedCapacityModes: ['isolated', 'shared'],
+        });
+        await populate();
+        h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
+      }
+      const successor = await leaf('Successor');
+      await run([
+        { kind: 'setProgress', workItemId: strip, stepId: dev, state: 'done' },
+        { kind: 'setProgress', workItemId: strip, stepId: qa, state: 'in_progress' },
+        { kind: 'setStatus', workItemId: strip, status: 'on_hold' },
+        {
+          kind: 'addTypedDependency',
+          predecessor: { scope: 'node', workItemId: strip, stepId: dev },
+          successor: { scope: 'node', workItemId: successor, stepId: dev },
+          type: 'FS',
+        },
+      ]);
+      const read = await h.call('ada', 'GET', `/api/projects/${project}/work-items`);
+      expect(read.status).toBe(200);
+      const rows = (
+        read.body as { workItems: { id: string; status: string; nodeReadings: Readings }[] }
+      ).workItems;
+      const downstream = rows.find((row) => row.id === successor);
+      expect(downstream?.status).toBe('blocked_by_proxy');
+      expect(downstream?.nodeReadings).toEqual({ [dev]: 'waiting', [qa]: 'unknown' });
+    });
+  }
+
+  for (const mode of ['isolated', 'shared'] as const) {
+    it(`reads migrated historical parent progress while preserving the row fold (${mode})`, async () => {
+      if (mode === 'shared') {
+        h.close();
+        h = OrganizationHarness.openComposedWith({
+          supportedCapacityModes: ['isolated', 'shared'],
+        });
+        await populate();
+        h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
+      }
+      const child = (
+        await run([{ kind: 'createWorkItem', parentId: strip, afterId: null, name: 'Child' }])
+      ).at(0);
+      if (child === undefined) throw new Error('no child');
+      await run([{ kind: 'setProgress', workItemId: child, stepId: dev, state: 'in_progress' }]);
+      const before = await h.call('ada', 'GET', `/api/projects/${project}/work-items`);
+      expect(before.status).toBe(200);
+      // Reproduce a pre-fix move's persisted row in the fully migrated database.
+      h.sqlite.run(
+        "INSERT INTO step_progress (work_item_id, step_id, state, stated_at) VALUES (?, ?, 'done', 1)",
+        [strip, dev],
+      );
+      const after = await h.call('ada', 'GET', `/api/projects/${project}/work-items`);
+      expect(after.status).toBe(200);
+      interface Row {
+        id: string;
+        status: string;
+        progress: Record<string, string>;
+        nodeReadings: Readings;
+      }
+      const projectRows = (answer: Answer) =>
+        (answer.body as { workItems: Row[] }).workItems.map(
+          ({ id, status, progress, nodeReadings }) => ({ id, status, progress, nodeReadings }),
+        );
+      expect(projectRows(after)).toEqual(projectRows(before));
+      expect(projectRows(after).find((row) => row.id === strip)?.nodeReadings).toBeUndefined();
+      expect(
+        h.sqlite
+          .query<{ state: string }, [string]>(
+            'SELECT state FROM step_progress WHERE work_item_id = ?',
+          )
+          .get(strip),
+      ).toEqual({ state: 'done' });
+    });
+  }
+
   it('a first node is unknown', async () => {
     expect((await readingsByName()).get('Strip')).toEqual({ [dev]: 'unknown', [qa]: 'unknown' });
   });
