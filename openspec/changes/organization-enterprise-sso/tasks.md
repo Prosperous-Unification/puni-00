@@ -47,6 +47,12 @@
 
   Fault: honour `email_verified` for every enterprise identity, and observe the foreign-domain test fail. Restore and add `Proof:`.
 
+- [x] 2.5 Add the organization page's Company sign-in setup panel: list server connection state; create on a verified unused domain; refresh after create, conflicts and explicit request; start one routed proof form with its server login slug. Super-admin refusal hides setup controls; shared authority loss replaces the whole page. Editing, enforcement, deletion, SCIM and session-policy panels are deferred.
+
+  Red: missing page composition and empty component scaffold; verified and unused domain filtering separately; exact create fields; held duplicate create; conflicts and refresh; forbidden/failure controls; shared access loss; server proof/enforcement/mismatch labels; distinct row slugs; one held proof; 1280/375px drawing and Tab traversal.
+
+  Fault: remove each domain predicate, eligibility or pending admission, use a wrong claim id, skip refresh, ignore forbidden/create authority loss, replace the row slug with its connection id, or fail to freeze the pending proof. Watch the production component negative fail, restore and record adjacent `Proof:` comments and `verify.md` evidence.
+
 ## 3. Enforcement
 
 - [x] 3.1 Add one `EnforcedSso` rule inside `OrganizationAccess`, applied at selection, binding resolution, direct context and delegation verification. The rule uses the pair that authenticated this credential. The refusal is typed `403 sso_required` in contracts. Membership listing marks such organizations.

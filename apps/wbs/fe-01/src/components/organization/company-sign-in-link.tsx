@@ -15,11 +15,17 @@ const links = browserClient([startAuth0Link]);
  */
 export function CompanySignInLink({
   organization,
+  disabled = false,
+  onPendingChange,
   navigate = (url) => {
     window.location.assign(url);
   },
 }: {
   organization: string;
+  /** The owning setup operation temporarily prevents a company-link start. */
+  disabled?: boolean;
+  /** Freezes the owning proof target until a refused start or navigation. */
+  onPendingChange?: (pending: boolean) => void;
   /** Leaves the page for the validated provider address; injected in tests. */
   navigate?: (url: string) => void;
 }): React.JSX.Element {
@@ -37,7 +43,10 @@ export function CompanySignInLink({
     event.preventDefault();
     // Proof: 2026-10-13, removing this guard made `prevents repeated form
     // submissions while a request is pending` send two production requests.
-    if (pending.current) return;
+    // Proof: 2026-10-13, removing owner-disabled admission failed `blocks
+    // the selected proof form while a create request is held`: a forced form
+    // event posted the link despite disabled controls.
+    if (pending.current || disabled) return;
     // Proof: 2026-10-13, skipping this branch made `requires an explicit
     // current sign-in choice before posting` send a request without a choice.
     if (choice === '') {
@@ -51,6 +60,9 @@ export function CompanySignInLink({
       return;
     }
     pending.current = true;
+    // Proof: 2026-10-13, ignoring pending in the owning setup panel failed
+    // `freezes the only proof target while its start request is held`.
+    onPendingChange?.(true);
     setSending(true);
     setMessage('');
     try {
@@ -79,19 +91,22 @@ export function CompanySignInLink({
           return unreachable(reply);
       }
       pending.current = false;
+      onPendingChange?.(false);
       setSending(false);
     } catch (cause) {
       setFault(new Error('Unexpected company sign-in link failure', { cause }));
     }
   }
 
+  // Proof: 2026-10-13, ignoring disabled on these controls failed `blocks
+  // the selected proof form while a create request is held` on the selector.
   return (
     <form onSubmit={(event) => void start(event)} className="flex w-full flex-col gap-3">
       <label htmlFor={choiceId}>How did you sign in to WBS?</label>
       <select
         id={choiceId}
         value={choice}
-        disabled={sending}
+        disabled={sending || disabled}
         required
         className="border-input bg-background rounded-md border p-2"
         onChange={(event) => {
@@ -116,14 +131,14 @@ export function CompanySignInLink({
             required
             className="border-input bg-background rounded-md border p-2"
             value={password}
-            disabled={sending}
+            disabled={sending || disabled}
             onChange={(event) => {
               setPassword(event.target.value);
             }}
           />
         </>
       )}
-      <Button type="submit" disabled={sending}>
+      <Button type="submit" disabled={sending || disabled}>
         Link your company sign-in
       </Button>
       {sending && <p role="status">Opening your company sign-in…</p>}
