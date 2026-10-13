@@ -1051,6 +1051,17 @@ test('[TEST-AXES-086] Architecture reviewed-empty refuses a committed policy or 
   expect(refused.stderr).toContain('Architecture reviewed-empty contradicts');
 });
 
+test('[TEST-AXES-086] Architecture reviewed-empty refuses a directory at the fixed policy path', async () => {
+  const selected = fixture();
+  const revision = recommit(selected, `${architecturePolicyPath}/child.json`, '{}');
+  const invocation = await selected.inspect(revision);
+  expect(invocation.exitCode).toBe(1);
+  expect(invocation.stdout).toBe('');
+  expect(invocation.stderr).toContain(
+    'Architecture reviewed-empty contradicts committed policy or target',
+  );
+});
+
 test('[TEST-AXES-084] three-way overlap sorts Architecture files and deduplicates complete source tuples', async () => {
   const selected = committedArchitecture(
     {

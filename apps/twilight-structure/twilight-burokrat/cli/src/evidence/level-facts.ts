@@ -254,6 +254,7 @@ export function inspectLevelFacts(repository: string, revision: string, authorit
   const architecture = (() => {
     if (authority.architecture.kind === 'reviewed-empty') {
       // Proof: [TEST-AXES-086] commits a fixed policy or target under reviewed-empty authority.
+      // Removing the descendant subcondition made its policy-directory production CLI case exit 0.
       if (
         selected.entries.some(
           (entry) => entry.path === policyPath || entry.path.startsWith(`${policyPath}/`),
