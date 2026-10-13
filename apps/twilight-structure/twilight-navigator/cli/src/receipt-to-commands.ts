@@ -3,12 +3,12 @@ import {
   canonicalJson,
   digestOf,
   PlanReferenceRecord,
+  PlanTasks,
   ProgressReceiptRecord,
 } from '@twilight-burokrat/contracts';
 import type { PlanCommandWire } from '@wbs/contracts';
 
 import type { FlagValues } from './cli';
-import { PlanTasks } from './plan-tasks';
 import { createExclusiveFiles, parseRequiredJson, readRequiredBytes } from './required-file';
 
 /** The flags of `twin receipt-to-commands`, each required once. */

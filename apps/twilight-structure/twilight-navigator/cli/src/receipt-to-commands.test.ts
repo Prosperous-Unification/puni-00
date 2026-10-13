@@ -1,11 +1,10 @@
 import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { digestOf, PlanReferenceRecord } from '@twilight-burokrat/contracts';
+import { digestOf, PlanReferenceRecord, PlanTasks } from '@twilight-burokrat/contracts';
 import { applyProjectCommands, validateSchema } from '@wbs/contracts';
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 
-import { PlanTasks } from './plan-tasks';
 import { runTwin, runTwinInProcess, scratchDirectory, type TwinRun } from './testing/run-twin';
 
 const FIXTURE = join(import.meta.dir, 'fixtures', 'plan-export.v8.json');

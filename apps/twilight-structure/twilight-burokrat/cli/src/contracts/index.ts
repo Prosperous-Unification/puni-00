@@ -3,6 +3,7 @@ import { type } from '@shared/validation';
 export * from './canonical';
 export * from './decode-record';
 export * from './navigator-records';
+export * from './plan-tasks';
 export * from './records';
 
 const IndexPathPattern = /^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))(?!.*[*?[\]{}\\])(?!.*\/\/)(?!.*\/$).+$/;

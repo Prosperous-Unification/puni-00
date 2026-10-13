@@ -138,3 +138,12 @@ set before audit evaluation. Evidence payload bytes remain confined to evidence-
 and any declared Gitlink that is still inaccessible is retained in the coverage report and blocks
 acceptance. These commands validate a proposed sweep record. They do not run reviews, activate
 policy, or certify the still-pending operational sweep.
+
+## Plan task consistency
+
+`twib validate-plan-tasks <plan-reference.json> <tasks.json>` strictly checks the two supplied
+documents using [`validatePlanTasks`](src/contracts/validate-plan-tasks.ts). Its deterministic
+`plan-task-consistency` report names the reference digest, canonical task digest, plan and task
+count. It checks historical/current schema pairing and unique task IDs and step IDs/codes.
+This report grants no approval, admission, certification, requirements validation or composite
+dependency closure.

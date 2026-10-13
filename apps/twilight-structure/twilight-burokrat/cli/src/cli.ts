@@ -10,6 +10,7 @@ import {
   ContentManifestRequest,
   RelationshipRequest,
 } from './contracts/records';
+import { validatePlanTasks } from './contracts/validate-plan-tasks';
 import {
   buildContentManifest,
   compareContentIdentity,
@@ -309,6 +310,20 @@ function validatorEntryPaths(): string[] | { artifactManifest: string } {
 
 export function runCli(argv: readonly string[]): Promise<void> | void {
   const args = [...argv];
+  if (args[0] === 'validate-plan-tasks') {
+    // Proof: removing operand validation lost the named usage refusal in all five invalid
+    // operand CLI cases (plan-tasks.test.ts, 2026-10-13).
+    if (
+      args.length !== 3 ||
+      args.slice(1).some((path) => path.length === 0 || path.startsWith('-'))
+    ) {
+      throw new Error('usage: twib validate-plan-tasks <plan-reference.json> <tasks.json>');
+    }
+    const reference = readJsonDocument(args[1]);
+    const tasks = readJsonDocument(args[2]);
+    process.stdout.write(`${JSON.stringify(validatePlanTasks(reference.input, tasks.input))}\n`);
+    return;
+  }
   if (args.length === 3 && (args[0] === 'validate' || args[0] === 'validate-record')) {
     validateRecord(args);
     return;
@@ -498,7 +513,7 @@ export function runCli(argv: readonly string[]): Promise<void> | void {
   // re-adding its route above failed `submit-admission is an unknown command` (cli.test.ts) and
   // `the validator bundle carries no authority store` (packaging/bundle.test.ts) (2026-10-11).
   throw new Error(
-    `unknown command: ${args[0] ?? '<missing>'}\nusage: twilight-burokrat <validate-record|read-candidate|candidate-identity|inspect-performance|inspect-performance-sources|inspect-browser|inspect-test-reports|inspect-test-sources|inspect-spec-sources|inspect-manual|classify-candidate|content-manifest|validate-artifacts|extract-relationships|check-indexes|check-root-migration|validate-review-provenance|freeze-exhaustive|verify-exhaustive|evaluate-exhaustive-coverage|lint-local|lint-ci|check|explain|scenario|template|validate-policy-activation> ...`,
+    `unknown command: ${args[0] ?? '<missing>'}\nusage: twilight-burokrat <validate-plan-tasks|validate-record|read-candidate|candidate-identity|inspect-performance|inspect-performance-sources|inspect-browser|inspect-test-reports|inspect-test-sources|inspect-spec-sources|inspect-manual|classify-candidate|content-manifest|validate-artifacts|extract-relationships|check-indexes|check-root-migration|validate-review-provenance|freeze-exhaustive|verify-exhaustive|evaluate-exhaustive-coverage|lint-local|lint-ci|check|explain|scenario|template|validate-policy-activation> ...`,
   );
 }
 
