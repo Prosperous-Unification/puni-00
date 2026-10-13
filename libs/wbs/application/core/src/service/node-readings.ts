@@ -83,7 +83,9 @@ export function projectNodeReadings({
     const identity =
       node.kind === 'step' ? formatStepNodeId(node.ref) : `boundary.${node.workItemId}`;
     // Proof: identity guard removed; duplicate identity at another graph
-    // position was silently projected instead of refused; watched 2026-10-13.
+    // position was silently projected instead of refused. Independently,
+    // nodes.has removed made distinct identities at one position fail its
+    // refusal negative (did not throw); both watched 2026-10-13.
     if (nodes.has(key) || identities.has(identity))
       throw new Error(`duplicate step node ${identity}`);
     nodes.set(key, node);

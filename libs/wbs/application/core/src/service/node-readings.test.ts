@@ -221,6 +221,19 @@ describe('step blockage projection', () => {
     ).toThrow(/duplicate step node/);
   });
 
+  it('refuses distinct step identities sharing one graph position', () => {
+    const original = inputs();
+    expect(() =>
+      projectNodeReadings({
+        ...original,
+        graph: {
+          ...original.graph,
+          nodes: [...original.graph.nodes, stepNode('a', 'extra', 0)],
+        },
+      }),
+    ).toThrow(/duplicate step node/);
+  });
+
   it('refuses missing legacy endpoints even when their successor is done', () => {
     expect(() => projectNodeReadings(inputs([edge(['gone', 0], ['a', 0], 'legacy')]))).toThrow(
       /gone#0.*no.*node/,

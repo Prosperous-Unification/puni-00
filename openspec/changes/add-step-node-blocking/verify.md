@@ -47,3 +47,11 @@ Core/domain implementation and targeted test evidence follow below. Persistence,
 - Strict `openspec validate add-step-node-blocking --strict --json`: **valid, zero issues**.
 - Initial stepless unit fixture incorrectly carried Dev progress via its shared helper; the stricter unknown-step rule correctly refused it. Fixture now supplies no progress for its stepless graph. The migrated-parent cases separately prove the deliberate compatibility exception.
 - Tasks 1.1/1.2 now correspond to the implemented canonical projection and passing tests in this core commit. Task 1.3 schedule-byte proof and remaining task 1.4 coverage remain open.
+
+### Graph-position followup
+
+- Added `refuses distinct step identities sharing one graph position`, independently of duplicate stable IDs. Production guard passes the case by refusing malformed topology.
+- Removed only `nodes.has(key)` from the duplicate-node guard, retaining the identity guard: the position-specific negative failed with `Received function did not throw` (exit 1), and the projection incorrectly exposed both Dev and Extra at position 0. Restored the guard afterward. This is the fourteenth watched fault injection.
+- No migration or transfer edits while core review is queued.
+
+- Followup `bun test libs/wbs/application/core/src/service/node-readings.test.ts`: **19 passed, 0 failed, 32 assertions**. ESLint over the two changed source/test files passed with exit 0.
