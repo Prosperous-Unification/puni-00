@@ -973,6 +973,127 @@ test('cancel aborts the provider call and settles the operation at its reserved 
   api.close();
 });
 
+/** Runs the production erasure fence in a separate process while this API owns the provider. */
+function fenceFromCleanup(databasePath: string, kind: 'fence' | 'purge' = 'fence'): void {
+  const cleanup = Bun.spawnSync([
+    process.execPath,
+    '-e',
+    kind === 'purge'
+      ? `
+     import { inspectExpiredDrafts, purgeExpiredDrafts } from './libs/website/adapters/store-sqlite/src/draft-retention.ts';
+     const cutoff = Date.now() + 2 * 86_400_000;
+     const plan = inspectExpiredDrafts(process.argv[1], cutoff);
+     purgeExpiredDrafts(process.argv[1], cutoff, plan.fingerprint, cutoff);
+     `
+      : `import { Database } from 'bun:sqlite';
+     import { fenceSubject } from './libs/website/adapters/store-sqlite/src/request-erasure.ts';
+     const database = new Database(process.argv[1]);
+     database.run("INSERT INTO prospect_account (id, email, created_at) VALUES ('cleanup-account', 'cleanup@example.test', 1)");
+     database.run("INSERT INTO software_request (id, account_id, draft_id, description, brief, created_at) SELECT 'cleanup-request', 'cleanup-account', id, description, '', created_at FROM intake_draft");
+     database.run("INSERT INTO retention_subject (subject_kind, subject_id, resolution, anchor_at, deadline_at, anchor_source) VALUES ('software_request', 'cleanup-request', 'anchored', 1, 2, 'draft')");
+     fenceSubject(database, { kind: 'software_request', id: 'cleanup-request' });
+     database.close();`,
+    databasePath,
+  ]);
+  expect(cleanup.exitCode, new TextDecoder().decode(cleanup.stderr)).toBe(0);
+}
+
+for (const cleanup of ['fence', 'purge'] as const)
+  test(`a cleanup process ${cleanup} aborts an idle provider stream and keeps unknown usage at its ceiling`, async () => {
+    const fake = fakeOpenRouter(() => ({ hang: 'Partial' }));
+    const config = paidConfig(fake.providerFetch);
+    const api = mountApi(config);
+    const visitor = await beginVisitor(api);
+    const streaming = await sendInitial(api, visitor);
+    const reader = streaming.body?.getReader();
+    if (!reader) throw new Error('Missing stream body');
+    try {
+      let partial = '';
+      while (!partial.includes('text-delta')) {
+        const chunk = await reader.read();
+        if (chunk.done) throw new Error('Stream ended before the partial reply');
+        partial += new TextDecoder().decode(chunk.value);
+      }
+      fenceFromCleanup(config.databasePath, cleanup);
+      // Proof: removing the durable watcher left this signal live; both cross-process cleanup tests failed.
+      await Bun.sleep(250);
+      expect(fake.signals[0]?.aborted).toBe(true);
+      let rest = '';
+      for (;;) {
+        const chunk = await reader.read();
+        if (chunk.done) break;
+        rest += new TextDecoder().decode(chunk.value);
+      }
+      expect(chunkTypes(rest)).toContain('error');
+      expect(chunkTypes(rest)).not.toContain('finish');
+      expect(rest).not.toContain('text-delta');
+      expectCeilingSettled(config.databasePath, [0]);
+      expect(count(config.databasePath, 'SELECT count(*) AS count FROM conversation_turn')).toBe(0);
+    } finally {
+      await reader.cancel();
+      api.close();
+    }
+  });
+
+test('a cleanup fence suppresses later provider text and final usage before the polling tick', async () => {
+  const transport = Promise.withResolvers<ReadableStreamDefaultController<Uint8Array>>();
+  const encode = (content: string, finish: boolean) =>
+    new TextEncoder().encode(
+      `data: ${JSON.stringify({
+        id: 'gen-late',
+        model: 'openai/gpt-4.1-mini',
+        choices: [{ index: 0, delta: { content }, finish_reason: finish ? 'stop' : null }],
+        ...(finish ? { usage: { prompt_tokens: 900, completion_tokens: 60 } } : {}),
+      })}\n\n`,
+    );
+  const config = paidConfig(
+    () =>
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(encode('Partial', false));
+            transport.resolve(controller);
+          },
+        }),
+        { headers: { 'content-type': 'text/event-stream' } },
+      ),
+  );
+  const api = mountApi(config);
+  const visitor = await beginVisitor(api);
+  const streaming = await sendInitial(api, visitor);
+  const reader = streaming.body?.getReader();
+  if (!reader) throw new Error('Missing stream body');
+  try {
+    let partial = '';
+    while (!partial.includes('text-delta')) {
+      const chunk = await reader.read();
+      if (chunk.done) throw new Error('Stream ended before the partial reply');
+      partial += new TextDecoder().decode(chunk.value);
+    }
+    const controller = await transport.promise;
+    fenceFromCleanup(config.databasePath);
+    // This transport deliberately sends final text despite cancellation, without yielding to the timer.
+    controller.enqueue(encode('SECRET LATE REPLY', false));
+    controller.enqueue(encode('', true));
+    controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
+    controller.close();
+    let rest = '';
+    for (;;) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      rest += new TextDecoder().decode(chunk.value);
+    }
+    expect(rest).not.toContain('SECRET LATE REPLY');
+    expect(chunkTypes(rest)).not.toContain('finish');
+    expect(chunkTypes(rest)).toContain('error');
+    expectCeilingSettled(config.databasePath, [0]);
+    expect(count(config.databasePath, 'SELECT count(*) AS count FROM conversation_turn')).toBe(0);
+  } finally {
+    await reader.cancel();
+    api.close();
+  }
+});
+
 test('a browser disconnect mid-stream aborts the call and leaves the operation unknown', async () => {
   const fake = fakeOpenRouter(() => ({ hang: 'Partial' }));
   const config = paidConfig(fake.providerFetch);
