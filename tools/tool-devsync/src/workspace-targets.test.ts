@@ -806,6 +806,9 @@ describe('every cached target declares what it reads', () => {
         }
       }
     }
+    // Proof: omitting the blockage recovery CLI input failed this scan naming wbs-store-sqlite.
+    // With that input omitted from test and test:api, a real Nx task-hasher probe ignored a CLI
+    // edit; declaring it made both hashes change, without changing project edges (2026-10-14).
     expect(undeclared).toBeEmpty();
   });
 });
