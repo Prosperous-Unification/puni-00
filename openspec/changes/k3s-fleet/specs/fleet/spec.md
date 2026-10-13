@@ -69,6 +69,8 @@ Retirement SHALL refuse lost required capability, unsafe storage/workload moveme
 - **GIVEN** a planned retirement whose workload cannot be evicted under its disruption budget
 - **WHEN** generic drain runs
 - **THEN** retirement stops without force deletion or a completion receipt
+- **AND** kubectl drain is bounded at 90 seconds inside the 120-second controller deadline so Ansible can report the refusal
+- **AND** controller or transport timeout is an infrastructure failure and never evidence of PDB protection
 
 #### Scenario: Enrolled node disappears
 

@@ -175,8 +175,10 @@ the SQLite container writes a real `bun:sqlite` database marker on its Pod volum
 rather than the local-PV guard, must protect that existing Pod and database.
 
 Local PV, forge and SQLite refusals require no cordon or receipt and an initial journal with
-no completed effects. PDB `minAvailable: 1` requires cordon followed by a bounded eviction
-failure and recoverable active drain effect. Every refusal preserves Pod/controller/service
+no completed effects. PDB `minAvailable: 1` requires cordon followed by the owned Pod eviction denial, normal
+Ansible nonzero completion and recoverable active drain effect. Kubectl drain is bounded at
+90 seconds inside the controller deadline of 120 seconds. Controller/transport timeout is a
+failed rehearsal, including when an earlier PDB denial was seen. Every refusal preserves Pod/controller/service
 UIDs, PV/PVC identity where present, workload/PV specifications, the marker served through
 the fixture Service, and active k3s-agent. Recovery explicitly uncordons before deleting the
 owned fixture namespace. Ordinary stateless retirement must then complete, move the service,

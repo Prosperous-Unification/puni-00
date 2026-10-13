@@ -280,6 +280,7 @@
 
     # Proof: injecting --disable-eviction failed the exact production argv assertion in
     # retire.test.ts; the old test passed that fault. Live PDB proof remains required.
+    # Proof: restoring the old 10m drain deadline failed the scaled production-budget test.
     - name: Drain while respecting disruption budgets and local storage refusal
       ansible.builtin.command:
         argv:
@@ -290,7 +291,7 @@
             drain,
             '{{ puni_node_name }}',
             --ignore-daemonsets,
-            --timeout=10m,
+            --timeout=90s,
           ]
       delegate_to: localhost
       become: false

@@ -33,3 +33,9 @@ fixtures before the stateless positive control and byte-identical second apply. 
 generated identity, kubeconfig/toolchain hashes, target UID, namespace and observation time.
 Command diagnostics and failed labs remain inspectable. KVM is required by the locked QEMU
 launcher; no TCG fallback or production-host mutation is part of this rehearsal.
+
+Rehearsal snapshots share an explicit producer/consumer type. Protected-phase collection
+requires observed refusal naming the owned fixture, rather than inferring a refusal from an
+exit code or missing active step. PDB acceptance additionally requires owned eviction denial,
+normal Ansible completion with captured kubectl denial and the expected journal progress; unrelated API failure
+after denial invalidates the phase. Controller/outer timeout is an infrastructure failure. The retirement kubectl drain deadline is 90 seconds inside the 120-second controller deadline, with a bounded 15-second outer completion allowance. Durable phase evidence retains canonical refusal text.

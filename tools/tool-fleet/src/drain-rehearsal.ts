@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path';
 
 import { readToolchain } from './contracts';
 import { readOperationJournal } from './journal';
+import { readOrCreateClusterToken } from './lab';
 import { planQemuMachine, qemuSshArguments } from './lab-qemu';
 import { decodeOperationPlan } from './plan';
 import { type CommandResponse, controllerRequest, runBoundedCommand } from './production-apply';
@@ -65,7 +66,7 @@ export function requireDrainEvidence(input: unknown, identity: DrainIdentity, no
   if (!Array.isArray(cases) || cases.length !== protectedKinds.length)
     throw new Error('Rehearsal evidence lacks protected cases');
   for (const [position, kind] of protectedKinds.entries())
-    requireProtectedCase(cases[position], kind);
+    requireProtectedCase(cases[position], kind, identity);
   const success = record(document['success']);
   if (
     success['state'] !== 'complete' ||
@@ -79,7 +80,11 @@ export function requireDrainEvidence(input: unknown, identity: DrainIdentity, no
   }
 }
 
-function requireProtectedCase(input: unknown, kind: (typeof protectedKinds)[number]): void {
+function requireProtectedCase(
+  input: unknown,
+  kind: (typeof protectedKinds)[number],
+  identity: DrainIdentity,
+): void {
   const phase = record(input);
   const before = record(phase['before']);
   const after = record(phase['after']);
@@ -98,6 +103,7 @@ function requireProtectedCase(input: unknown, kind: (typeof protectedKinds)[numb
       throw new Error(`${kind} lost preserved ${key}`);
     }
   }
+  requireObservedRefusal(record(phase['refusal']), kind, identity, before);
   const completed = phase['completedEffects'];
   const expected = kind === 'pdb' ? [preflight, 'cordon node'] : [];
   if (!Array.isArray(completed) || JSON.stringify(completed) !== JSON.stringify(expected)) {
@@ -108,18 +114,114 @@ function requireProtectedCase(input: unknown, kind: (typeof protectedKinds)[numb
     phase['kind'] !== kind ||
     typeof phase['exitCode'] !== 'number' ||
     phase['exitCode'] === 0 ||
+    (kind === 'pdb' && phase['exitCode'] !== 1) ||
     phase['cordoned'] !== (kind === 'pdb') ||
     phase['serviceActive'] !== true ||
     phase['receiptAbsent'] !== true ||
     phase['journalState'] !== (kind === 'pdb' ? 'recoverable' : 'running') ||
-    phase['failedEffect'] !== (kind === 'pdb' ? eviction : preflight) ||
+    phase['failedEffect'] !== (kind === 'pdb' ? eviction : null) ||
     typeof phase['elapsedMs'] !== 'number' ||
     phase['elapsedMs'] <= 0 ||
+    (kind === 'pdb' && phase['elapsedMs'] < 90_000) ||
     phase['elapsedMs'] > 180_000
   ) {
     // Proof: individually removing exit, cordon, service, receipt, journal-state, phase and deadline predicates made the corresponding injected evidence negative fail.
     throw new Error(`${kind} lacks the expected protected retirement refusal`);
   }
+}
+
+function requireObservedRefusal(
+  refusal: Record<string, unknown>,
+  kind: (typeof protectedKinds)[number],
+  identity: DrainIdentity,
+  before: Record<string, unknown>,
+): string {
+  const output = stringField(refusal, 'output').replaceAll('\\n', '\n').replaceAll('\\"', '"');
+  const podName = stringField(before, 'podName');
+  const ownsDenial = (line: string) =>
+    line.includes(`pods/"${podName}"`) &&
+    line.includes(`-n "${identity.namespace}"`) &&
+    line.includes("Cannot evict pod as it would violate the pod's disruption budget.");
+  const hasControllerTimeout =
+    /failed with exit 124|timed out after|Cannot terminate timed-out/.test(output);
+  const hasTransportFailure = output
+    .split('\n')
+    .some(
+      (line) =>
+        /error when evicting|Unable to connect|connection.*(?:refused|failed)|TLS handshake|Unauthorized|Forbidden|Error from server|API.*(?:error|unavailable|failed)|error: (?:unable|failed|couldn't|connection|context deadline|the server)|Release operation lease.*failed/i.test(
+          line,
+        ) && !ownsDenial(line),
+    );
+  const expected =
+    kind === 'local-pv'
+      ? output.includes(`refused: ${identity.namespace} is local or pinned to ${identity.target}`)
+      : kind === 'pdb'
+        ? !hasControllerTimeout &&
+          !hasTransportFailure &&
+          output.includes(`Retirement drain for ${identity.target} failed with exit 2`) &&
+          /"rc"\s*:\s*1\b/.test(output) &&
+          output.includes(`evicting pod ${identity.namespace}/${podName}`) &&
+          output
+            .split('\n')
+            .some(
+              (line) =>
+                line.includes(`pods/"${podName}"`) &&
+                line.includes(`-n "${identity.namespace}"`) &&
+                line.includes("Cannot evict pod as it would violate the pod's disruption budget."),
+            )
+        : output.includes(
+            `refused: ${identity.namespace}/${podName} needs a maintenance transaction`,
+          );
+  if (!expected) {
+    // Proof: removing this boundary made unrelated preflight/API failures and a timeout without owned PDB denial count as protection.
+    throw new Error(`${kind} lacks an observed owned fixture refusal`);
+  }
+  return kind === 'local-pv'
+    ? `refused: ${identity.namespace} is local or pinned to ${identity.target}`
+    : kind === 'pdb'
+      ? `Retirement drain for ${identity.target} failed with exit 2\n"rc": 1\nevicting pod ${identity.namespace}/${podName}\nerror when evicting pods/"${podName}" -n "${identity.namespace}": Cannot evict pod as it would violate the pod's disruption budget.`
+      : `refused: ${identity.namespace}/${podName} needs a maintenance transaction`;
+}
+
+/** Collect a protected phase from actual apply output, actual journal progress and live snapshots; unrelated failures never count as a refusal. */
+export function collectProtectedCase(
+  identity: DrainIdentity,
+  kind: (typeof protectedKinds)[number],
+  before: DrainSnapshot,
+  after: DrainSnapshot,
+  command: CommandResponse,
+  journal: {
+    readonly state: string;
+    readonly activeStep?: { readonly effect: string };
+    readonly completedSteps: readonly { readonly effect: string }[];
+  },
+  attributes: {
+    readonly cordoned: boolean;
+    readonly serviceActive: boolean;
+    readonly receiptAbsent: boolean;
+    readonly elapsedMs: number;
+  },
+) {
+  const phase = {
+    kind,
+    before,
+    after,
+    exitCode: command.exitCode,
+    refusal: {
+      output: requireObservedRefusal(
+        { output: `${command.stdout}\n${command.stderr}` },
+        kind,
+        identity,
+        record(before),
+      ),
+    },
+    journalState: journal.state,
+    completedEffects: journal.completedSteps.map((step) => step.effect),
+    failedEffect: journal.activeStep === undefined ? null : journal.activeStep.effect,
+    ...attributes,
+  };
+  requireProtectedCase(phase, kind, identity);
+  return phase;
 }
 
 /** Read required evidence without converting absence, unreadability, or malformed bytes into a skipped case. */
@@ -334,6 +436,98 @@ async function isAbsent(path: string): Promise<boolean> {
   }
 }
 
+export interface DrainSnapshot {
+  readonly podName: string;
+  readonly podUid: string;
+  readonly workloadUid: string;
+  readonly serviceUid: string;
+  readonly marker: string;
+  readonly pvUid: string;
+  readonly claimUid: string;
+  readonly workloadSha256: string;
+  readonly pvSha256: string;
+}
+
+/**
+ * Collect the actual owned fixture state; the shared return type makes omitted preservation evidence a compile error.
+ * Proof: removing claimUid failed the actual producer-to-collector test; the same omission fails the declared return type.
+ */
+export async function collectDrainSnapshot(
+  identity: DrainIdentity,
+  kind: DrainKind,
+  expectsTarget: boolean,
+  marker: string,
+  k: (arguments_: readonly string[]) => Promise<string>,
+): Promise<DrainSnapshot> {
+  requireOwnedLab(identity);
+  const { namespace, target } = identity;
+  const pods = record(
+    JSON.parse(
+      await k(['-n', namespace, 'get', 'pods', '-l', 'app=protected-drain', '-o', 'json']),
+    ),
+  )['items'];
+  if (!Array.isArray(pods) || pods.length !== 1)
+    throw new Error('Fixture must have exactly one Pod');
+  const pod = record(pods[0]);
+  const metadata = record(pod['metadata']);
+  if (!Array.isArray(metadata['ownerReferences']) || metadata['ownerReferences'].length === 0)
+    throw new Error('Fixture Pod lacks a controller');
+  if (metadata['namespace'] !== namespace)
+    throw new Error('Fixture Pod belongs to another namespace');
+  if (kind === 'forge-worktree' || kind === 'singleton-sqlite') {
+    if (record(metadata['labels'])[`puni.dev/${kind}`] !== 'true')
+      throw new Error('Fixture lacks its protected workload label');
+  }
+  const scheduled = stringField(record(pod['spec']), 'nodeName');
+  if ((scheduled === target) !== expectsTarget)
+    throw new Error(`Fixture Pod unexpectedly scheduled on ${scheduled}`);
+  const workload = record(
+    JSON.parse(await k(['-n', namespace, 'get', 'deployment', 'fixture', '-o', 'json'])),
+  );
+  const service = record(
+    JSON.parse(await k(['-n', namespace, 'get', 'service', 'fixture', '-o', 'json'])),
+  );
+  const url = `http://fixture.${namespace}.svc:8080/${kind === 'singleton-sqlite' ? '' : 'marker'}`;
+  const response = (
+    await k([
+      '-n',
+      namespace,
+      'exec',
+      stringField(metadata, 'name'),
+      '--',
+      ...(kind === 'singleton-sqlite'
+        ? ['bun', '-e', `console.log(await (await fetch(${JSON.stringify(url)})).text())`]
+        : ['wget', '-qO-', url]),
+    ])
+  ).trim();
+  if (response !== marker) throw new Error('Fixture service lost its persisted marker');
+  const pv =
+    kind === 'local-pv'
+      ? record(JSON.parse(await k(['get', 'pv', namespace, '-o', 'json'])))
+      : undefined;
+  return {
+    podName: stringField(metadata, 'name'),
+    podUid: stringField(metadata, 'uid'),
+    workloadUid: stringField(record(workload['metadata']), 'uid'),
+    serviceUid: stringField(record(service['metadata']), 'uid'),
+    marker: response,
+    pvUid: pv === undefined ? 'not-applicable' : stringField(record(pv['metadata']), 'uid'),
+    claimUid:
+      kind === 'local-pv'
+        ? stringField(
+            record(
+              record(JSON.parse(await k(['-n', namespace, 'get', 'pvc', 'fixture', '-o', 'json'])))[
+                'metadata'
+              ],
+            ),
+            'uid',
+          )
+        : 'not-applicable',
+    workloadSha256: sha256(JSON.stringify(record(workload['spec']))),
+    pvSha256: pv === undefined ? 'not-applicable' : sha256(JSON.stringify(record(pv['spec']))),
+  };
+}
+
 /**
  * Exercise production plan/apply against an exclusively generated disposable workers lab.
  * Requires the locked rootless QEMU prefix, usable KVM and the locked Docker controller.
@@ -353,6 +547,12 @@ export async function runDrainRehearsal(root: string, qemuPrefix: string): Promi
   delete process.env['HCLOUD_TOKEN'];
   const toolchain = await readToolchain(join(root, 'infra/versions/toolchain.json'));
   let commandNumber = 0;
+  const credentials: string[] = [];
+  const redact = (source: string) =>
+    credentials.reduce(
+      (redacted, credential) => redacted.replaceAll(credential, '[lab-credential]'),
+      source,
+    );
   async function command(
     executable: string,
     arguments_: readonly string[],
@@ -363,11 +563,16 @@ export async function runDrainRehearsal(root: string, qemuPrefix: string): Promi
       ? controllerRequest(root, toolchain.controller.image, toolchain.controller.digest, request)
       : request;
     const outcome = await runBoundedCommand({ ...invocation, environment }, 30 * 60_000);
+    const tokenPath = join(state, 'cluster-token');
+    if (!(await isAbsent(tokenPath)))
+      credentials.push(await readOrCreateClusterToken(state, false));
     commandNumber += 1;
     await writeOwned(join(diagnostics, `${String(commandNumber).padStart(4, '0')}.json`), {
       executable,
       arguments: arguments_,
       ...outcome,
+      stdout: redact(outcome.stdout),
+      stderr: redact(outcome.stderr),
     });
     return outcome;
   }
@@ -461,6 +666,16 @@ export async function runDrainRehearsal(root: string, qemuPrefix: string): Promi
     await writeOwned(join(diagnostics, 'identity.json'), identity);
     const inventory = record(JSON.parse(await readFile(join(state, 'inventory.json'), 'utf8')));
     const all = record(inventory['all']);
+    const variables = record(all['vars']);
+    for (const key of [
+      'puni_k3s_server_credential',
+      'puni_k3s_agent_credential',
+      'puni_k3s_server_token',
+      'puni_k3s_agent_token',
+    ]) {
+      const credential = variables[key];
+      if (typeof credential === 'string' && credential.length > 0) credentials.push(credential);
+    }
     const children = record(all['children']);
     const hosts: Record<string, unknown> = {};
     for (const group of ['k3s_agents', 'k3s_bootstrap_servers', 'k3s_join_servers']) {
@@ -519,53 +734,8 @@ export async function runDrainRehearsal(root: string, qemuPrefix: string): Promi
         throw new Error(`Unexpected k3s-agent state ${active}`);
       return active === 'active';
     }
-    async function snapshot(kind: DrainKind, expectsTarget: boolean) {
-      const pods = record(
-        JSON.parse(
-          await k(['-n', namespace, 'get', 'pods', '-l', 'app=protected-drain', '-o', 'json']),
-        ),
-      )['items'];
-      if (!Array.isArray(pods) || pods.length !== 1)
-        throw new Error('Fixture must have exactly one Pod');
-      const pod = record(pods[0]);
-      const metadata = record(pod['metadata']);
-      if (!Array.isArray(metadata['ownerReferences']) || metadata['ownerReferences'].length === 0)
-        throw new Error('Fixture Pod lacks a controller');
-      const scheduled = stringField(record(pod['spec']), 'nodeName');
-      if ((scheduled === target) !== expectsTarget)
-        throw new Error(`Fixture Pod unexpectedly scheduled on ${scheduled}`);
-      const workload = record(
-        JSON.parse(await k(['-n', namespace, 'get', 'deployment', 'fixture', '-o', 'json'])),
-      );
-      const service = record(
-        JSON.parse(await k(['-n', namespace, 'get', 'service', 'fixture', '-o', 'json'])),
-      );
-      const url = `http://fixture.${namespace}.svc:8080/${kind === 'singleton-sqlite' ? '' : 'marker'}`;
-      const response = (
-        await k([
-          '-n',
-          namespace,
-          'exec',
-          stringField(metadata, 'name'),
-          '--',
-          ...(kind === 'singleton-sqlite'
-            ? ['bun', '-e', `console.log(await (await fetch(${JSON.stringify(url)})).text())`]
-            : ['wget', '-qO-', url]),
-        ])
-      ).trim();
-      if (response !== marker) throw new Error('Fixture service lost its persisted marker');
-      const pv =
-        kind === 'local-pv'
-          ? record(JSON.parse(await k(['get', 'pv', namespace, '-o', 'json'])))
-          : undefined;
-      return {
-        podUid: stringField(metadata, 'uid'),
-        workloadUid: stringField(record(workload['metadata']), 'uid'),
-        serviceUid: stringField(record(service['metadata']), 'uid'),
-        marker: response,
-        pvUid: pv === undefined ? 'not-applicable' : stringField(record(pv['metadata']), 'uid'),
-      };
-    }
+    const snapshot = (kind: DrainKind, expectsTarget: boolean) =>
+      collectDrainSnapshot(identity, kind, expectsTarget, marker, k);
     async function preparePlan(kind: DrainKind) {
       await requireTarget();
       const planPath = join(diagnostics, `${kind}.plan.json`);
@@ -578,7 +748,10 @@ export async function runDrainRehearsal(root: string, qemuPrefix: string): Promi
             k3s_agents: {
               hosts: {
                 [target]: {
-                  ...record(all['vars']),
+                  ansible_ssh_private_key_file: stringField(
+                    variables,
+                    'ansible_ssh_private_key_file',
+                  ),
                   ...host,
                   ansible_user: 'puni',
                   puni_provider_identity: stringField(host, 'puni_machine_id'),
@@ -680,21 +853,20 @@ export async function runDrainRehearsal(root: string, qemuPrefix: string): Promi
       const elapsedMs = Date.now() - started;
       const journal = await readOperationJournal(`${prepared.planPath}.journal.json`);
       const current = await requireTarget();
-      const phase = {
+      const phase = collectProtectedCase(
+        identity,
         kind,
-        exitCode: refused.exitCode,
         before,
-        after: await snapshot(kind, true),
-        cordoned: record(current['spec'])['unschedulable'] === true,
-        serviceActive: await serviceActive(),
-        receiptAbsent: await isAbsent(`${prepared.planPath}.retirement-receipt.json`),
-        journalState: journal.state,
-        completedEffects: journal.completedSteps.map((step) => step.effect),
-        failedEffect: journal.activeStep?.effect ?? preflight,
-        elapsedMs,
-      };
-      // Validate each phase immediately, so a lost marker never gets erased by recovery.
-      requireProtectedCase(phase, kind);
+        await snapshot(kind, true),
+        refused,
+        journal,
+        {
+          cordoned: record(current['spec'])['unschedulable'] === true,
+          serviceActive: await serviceActive(),
+          receiptAbsent: await isAbsent(`${prepared.planPath}.retirement-receipt.json`),
+          elapsedMs,
+        },
+      );
       cases.push(phase);
       await writeOwned(join(diagnostics, `${kind}.evidence.json`), phase);
       await clearFixture(kind);

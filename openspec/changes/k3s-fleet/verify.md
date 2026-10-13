@@ -783,3 +783,52 @@ ownership, target drift, tunnel failure and cleanup guards have no live fault pr
 fixtures, mocked kubectl replies and adapter failures are component evidence only. The canonical
 host gate, broader F4/cloud/backend, HA removal and upgrade checks were not run in this worker;
 the root PM owns integration, host gate and Astra review. No push or merge is authorized here.
+
+### Astra review repairs for `9c3fdee5` (2026-10-13)
+
+The P1 finding reproduced: the live snapshot producer omitted PVC UID and Deployment/PV
+spec hashes required by its consumer. `collectDrainSnapshot` now returns the shared explicit
+`DrainSnapshot` type, reads the actual PVC UID, hashes actual Deployment/PV specs, and emits
+explicit `not-applicable` storage fields for other cases. The production runner calls this
+same exported producer. Controlled kubectl tests feed its actual snapshots to the actual
+protected-phase collector: a valid local-PV phase passes, while changed claim/Pod UID,
+Deployment/PV spec or marker fails. Removing `claimUid` made both that test and typecheck fail.
+
+The P2 finding also reproduced: nonzero exit plus journal shape accepted unrelated failures.
+`collectProtectedCase` now requires observed refusal text naming the owned PV or fixture Pod.
+Preflight observation has null active effect; no phase is invented from a missing journal
+step. PDB requires the owned eviction attempt and the owned Pod's disruption-budget denial,
+normal Ansible nonzero completion (exit 2 with captured kubectl rc 1), elapsed time between 90 and 180 seconds,
+completed preflight/cordon, and recoverable active eviction. A controller/outer timeout always rejects, including after a genuine denial. An unrelated API failure after a
+real denial rejects acceptance. Nonzero SSH/API errors, missing denial on timeout, denial
+without drain timeout, wrong namespace, and a genuine denial followed by an API failure all
+fail through the same production collector.
+
+An adapter test reproduced lost Ansible stdout on nonzero status. The production adapter now
+preserves stdout and stderr in the propagated error. The outer controller command deadline
+allows 15 bounded seconds for the inner 120-second controller timeout to exit and return its diagnostics. The drain itself is now bounded at 90 seconds, so Ansible can collect kubectl's denial before the controller deadline. Astra reviewed this duration choice: the spec has no 10-minute SLA, the previous effective production ceiling was already 120 seconds, and extending beyond 10 minutes would exceed the 300-second Lease without heartbeat renewal. A slow earlier metrics-server move remains a failed rehearsal, rather than accepted PDB protection.
+The existing real process-group timeout test still proves a hung descendant is killed; a
+transport timeout without the owned denial cannot count as PDB protection. Durable phase
+evidence retains only canonical matched refusal text, and command diagnostics redact the
+retained lab credentials. Retirement inventory no longer copies enrollment credentials.
+
+Watched repair mutations (all restored) removed the owned-refusal check, API-failure rejection,
+normal-completion observation, controller-timeout rejection, elapsed lower bound, preservation comparison, required snapshot
+field, and propagated stdout. Each relevant production producer/collector/adapter negative
+failed. Logs are `/tmp/fleet-f5-proof-repair-*.log`, including the missing-field typecheck log.
+The earlier component-only tests failed to expose P1/P2; the new tests exercise the producer
+and collector used by orchestration. Real VM acceptance remains blocked by absent `/dev/kvm`;
+F5.2/F5.4 and WBS070.13 remain open. This repair is local and unpushed pending Astra rereview.
+
+A scaled subprocess capture test reads the actual production drain argv and actual controller
+timeout argument. Its kubectl stand-in finishes at the scaled 90-second budget, its Ansible
+stand-in captures rc1 plus denial and exits2 before the scaled120-second controller deadline.
+Restoring the old10-minute drain deadline fails the same production-budget contract test.
+This is component-only timing evidence: Docker API access returned permission denied here,
+and real locked Ansible/Kubernetes diagnostics are still unverified until the disposable VM run.
+
+Final repair checks: focused Bun coverage passed 41 tests with 282 assertions; uncached
+`tool-fleet:lint` and `tool-fleet:typecheck` passed. OpenSpec1.12.0 strict validation of
+`k3s-fleet` passed with no issues. The production-budget capture test passed in about one
+second using its declared100× time scaling. No real VM or locked-controller acceptance is
+claimed; `/dev/kvm` is absent and Docker API access is permission denied.
