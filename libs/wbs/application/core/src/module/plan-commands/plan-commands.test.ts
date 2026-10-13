@@ -2292,3 +2292,86 @@ function setFamilyCommand(family: ValueFamily, workItemId: string, stepId: strin
     return { kind: 'setProgress', workItemId, stepId, state: 'in_progress' };
   return { kind: 'setMeasure', workItemId, stepId, metric: 'token_actual', value: 2 };
 }
+
+/** Proof: committing refused staged batches failed both exact snapshots; watched 2026-10-14. */
+describe('transactional memory move blockage closure', () => {
+  async function seeded() {
+    const source = openMemorySource();
+    const graph = compose(source.stores, silentBroadcaster());
+    await source.stores.users.create(
+      { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
+      { at: 1, by: OWNER },
+    );
+    const created = await graph.projects.create('Move closure', OWNER);
+    const projectId = created.project.id;
+    const step = created.steps[0];
+    await source.stores.steps.add(
+      { id: step.id, projectId, name: step.name, allowancePercent: 0, estimateUnit: 'workdays' },
+      { at: 1, by: OWNER },
+    );
+    for (const id of ['parent', 'destination', 'moving']) {
+      await source.stores.workItems.insert(
+        workItemRow({ id, projectId, parentId: id === 'moving' ? 'parent' : null }),
+        [],
+        { at: 1, by: OWNER },
+      );
+    }
+    await source.stores.blockages.set(
+      { workItemId: 'moving', stepId: step.id, blockedAt: -10 },
+      { at: 1, by: OWNER },
+    );
+    await source.stores.blockages.set(
+      { workItemId: 'destination', stepId: step.id, blockedAt: -20 },
+      { at: 1, by: OWNER },
+    );
+    await source.stores.progress.set(
+      { workItemId: 'destination', stepId: step.id, state: 'done', statedAt: 1 },
+      { at: 1, by: OWNER },
+    );
+    const snapshot = () =>
+      Promise.all([
+        source.stores.workItems.listByProject(projectId),
+        source.stores.progress.listByProject(projectId),
+        source.stores.blockages.listByProject(projectId),
+      ]);
+    return { source, graph, projectId, stepId: step.id, snapshot };
+  }
+
+  it('rolls back cleared facts and moved rows when a later batch command refuses', async () => {
+    const { source, graph, projectId, snapshot } = await seeded();
+    try {
+      const before = await snapshot();
+      const runner = runnerOver(source, graph);
+      expect(
+        await runner.run(projectId, OWNER, [
+          { kind: 'moveWorkItem', workItemId: 'moving', parentId: 'destination', afterId: null },
+          { kind: 'moveWorkItem', workItemId: 'moving', parentId: 'missing', afterId: null },
+        ]),
+      ).toMatchObject({ ok: false });
+      expect(await snapshot()).toEqual(before);
+    } finally {
+      await source.close();
+    }
+  });
+
+  it('rolls back an earlier handed blockage clear when move undo finds new progress', async () => {
+    const { source, graph, projectId, stepId, snapshot } = await seeded();
+    try {
+      const runner = runnerOver(source, graph);
+      expect(
+        await runner.run(projectId, OWNER, [
+          { kind: 'moveWorkItem', workItemId: 'moving', parentId: 'destination', afterId: null },
+        ]),
+      ).toMatchObject({ ok: true });
+      await source.stores.progress.set(
+        { workItemId: 'parent', stepId, state: 'done', statedAt: 456 },
+        { at: 2, by: OWNER },
+      );
+      const before = await snapshot();
+      expect(await runner.undo(projectId, OWNER)).toMatchObject({ ok: false });
+      expect(await snapshot()).toEqual(before);
+    } finally {
+      await source.close();
+    }
+  });
+});

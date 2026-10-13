@@ -2964,6 +2964,14 @@ export class WorkItemService {
     return { ok: true, value: null };
   }
 
+  /**
+   * Reparents the subtree, clearing unrelated destination leaf statements before
+   * the store move. Incoming facts stay with their owners. A last-child departure
+   * hands up direct blockage only when every former leaf has that step fact,
+   * using the latest blocked time even when negative or retained beneath done.
+   * Progress is never handed up. Undo restores destination progress through
+   * the existing statement replay and restores blockage timestamps exactly.
+   */
   async move(id: string, actorId: string, input: MoveWorkItem): Promise<WorkItemOutcome<null>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
@@ -3053,6 +3061,7 @@ export class WorkItemService {
     // is other work, so the statements are cleared rather than handed to it.
     const becomesParent =
       input.parentId !== null &&
+      workItem.parentId !== input.parentId &&
       !rows.some((row) => row.parentId === input.parentId && row.id !== id)
         ? rows.find((row) => row.id === input.parentId)
         : undefined;
@@ -3104,6 +3113,56 @@ export class WorkItemService {
             },
           }
         : undefined;
+    const destinationProgress =
+      becomesParent === undefined
+        ? []
+        : await this.opts.progress.listByWorkItems(workItem.projectId, [becomesParent.id]);
+    const destinationBlockages =
+      becomesParent === undefined
+        ? []
+        : await this.opts.blockages.listByWorkItems(workItem.projectId, [becomesParent.id]);
+    const movedBlockages =
+      leftParentId === null
+        ? []
+        : await this.opts.blockages.listByWorkItems(
+            workItem.projectId,
+            movedLeaves.map(({ id }) => id),
+          );
+    const handedBlockages: StoredStepBlockage[] = [];
+    if (leftParentId !== null) {
+      for (const step of await this.opts.projects.stepsOf(workItem.projectId)) {
+        const facts = movedBlockages.filter(({ stepId }) => stepId === step.id);
+        // Proof: accepting any direct fact failed the missing-former-leaf regression; watched 2026-10-14.
+        if (movedLeaves.every((leaf) => facts.some(({ workItemId }) => workItemId === leaf.id))) {
+          handedBlockages.push({
+            workItemId: leftParentId,
+            stepId: step.id,
+            blockedAt: Math.max(...facts.map(({ blockedAt }) => blockedAt)),
+          });
+        }
+      }
+    }
+    const clearDestinationProgress: CompensatingCommand[] = destinationProgress.map(
+      ({ workItemId, stepId }) => ({ do: 'clear_progress', workItemId, stepId }),
+    );
+    const restoreDestinationProgress: CompensatingCommand[] = destinationProgress.map(
+      ({ workItemId, stepId, state }) => ({ do: 'set_progress', workItemId, stepId, state }),
+    );
+    const planBlockageReplacements = (
+      facts: readonly StoredStepBlockage[],
+      isClear: boolean,
+    ): CompensatingCommand[] =>
+      facts.map(({ workItemId, stepId, blockedAt }) => ({
+        do: 'replace_blockage',
+        workItemId,
+        stepId,
+        expectedBlockedAt: isClear ? blockedAt : null,
+        replacementBlockedAt: isClear ? null : blockedAt,
+      }));
+    const clearDestinationBlockages = planBlockageReplacements(destinationBlockages, true);
+    const restoreDestinationBlockages = planBlockageReplacements(destinationBlockages, false);
+    const setHandedBlockages = planBlockageReplacements(handedBlockages, false);
+    const clearHandedBlockages = planBlockageReplacements(handedBlockages, true);
     // Cleared **before** the move, so no read between the two writes sees a
     // parent holding a statement (Fable review, I1). Moved after the move,
     // `no read sees a parent holding a statement while a row moves under a
@@ -3115,6 +3174,12 @@ export class WorkItemService {
       const cleared = await this.apply(workItem.projectId, statementsCleared.forward, stamp);
       if (!cleared.ok) throw new Error(`cannot clear the new parent: ${cleared.detail}`);
     }
+    // Proof: skipping clears failed the pre-store-move destination ownership assertions; watched 2026-10-14.
+    for (const command of [...clearDestinationProgress, ...clearDestinationBlockages]) {
+      const cleared = await this.apply(workItem.projectId, command, stamp);
+      // Proof: removing this refusal failed `reports a refused move destination clear before reparenting`; watched 2026-10-14.
+      if (!cleared.ok) throw new Error(`cannot clear move destination: ${cleared.detail}`);
+    }
     await this.opts.workItems.move(id, input.parentId, placed.position, placed.renumbered, stamp);
     if (statementsHandedUp !== undefined) {
       // Proof: this write skipped made `gives the parent a moved last child
@@ -3123,47 +3188,41 @@ export class WorkItemService {
       const handed = await this.apply(workItem.projectId, statementsHandedUp.forward, stamp);
       if (!handed.ok) throw new Error(`cannot hand statements up: ${handed.detail}`);
     }
+    // Proof: skipping these writes failed unanimous hand-up, including negative timestamps and done facts; watched 2026-10-14.
+    for (const command of setHandedBlockages) {
+      const handed = await this.apply(workItem.projectId, command, stamp);
+      // Proof: removing this refusal made `reports a refused move blockage hand-up` resolve; watched 2026-10-14.
+      if (!handed.ok) throw new Error(`cannot hand move blockage up: ${handed.detail}`);
+    }
+    const forwardSteps: CompensatingCommand[] = [
+      ...(statementsCleared === undefined ? [] : [statementsCleared.forward]),
+      ...clearDestinationProgress,
+      // Proof: omitting replay clears failed mounted exact move redo; watched 2026-10-14.
+      ...clearDestinationBlockages,
+      { do: 'move', workItemId: id, parentId: input.parentId, afterId: input.afterId },
+      ...(statementsHandedUp === undefined ? [] : [statementsHandedUp.forward]),
+      ...setHandedBlockages,
+    ];
+    // Proof: restoring destination statements before moving back refused undo;
+    // clearing old-parent statements after moving back exposed a parent statement
+    // in the intermediate read. Both ordering regressions were watched 2026-09-29.
+    const inverseSteps: CompensatingCommand[] = [
+      ...clearHandedBlockages,
+      ...(statementsHandedUp === undefined ? [] : [statementsHandedUp.inverse]),
+      { do: 'move', workItemId: id, parentId: workItem.parentId, afterId: wasAfter?.id ?? null },
+      ...restoreDestinationProgress,
+      // Proof: omitting restoration failed mounted exact move undo; watched 2026-10-14.
+      ...restoreDestinationBlockages,
+      ...(statementsCleared === undefined ? [] : [statementsCleared.inverse]),
+    ];
     await this.announceTree(workItem.projectId);
     await this.record(workItem.projectId, stamp, 'move', `move ${quoteName(workItem.name)}`, {
-      forward: withPatchStep(
-        withPatchStep(
-          { do: 'move', workItemId: id, parentId: input.parentId, afterId: input.afterId },
-          statementsHandedUp?.forward,
-          'after',
-        ),
-        statementsCleared?.forward,
-        'before',
-      ),
-      // The parent it left cleared first, then back where it was, then the
-      // statements of the row it had moved under: each patch lands while its
-      // row is a leaf, so no read between the writes sees a parent holding a
-      // statement, and the write never refuses a statement on a parent.
-      // Proof: the new parent's restore ordered before the move-back made
-      // `clears the readiness and hold of a leaf another row moves under, and
-      // one undo restores them` fail on `Expected: true, Received: false` — the
-      // undo was refused; watched 2026-09-29. The left parent's clear ordered
-      // after the move-back made `no read sees a parent holding a statement
-      // while a move that emptied it is undone` fail on the read taken after
-      // the move-back (`parent … holds a readiness or a hold`); watched
-      // 2026-09-29 (Fable review, round 4).
-      inverse: withPatchStep(
-        withPatchStep(
-          {
-            do: 'move',
-            workItemId: id,
-            parentId: workItem.parentId,
-            afterId: wasAfter?.id ?? null,
-          },
-          statementsCleared?.inverse,
-          'after',
-        ),
-        statementsHandedUp?.inverse,
-        'before',
-      ),
+      forward: { do: 'batch', steps: forwardSteps },
+      inverse: { do: 'batch', steps: inverseSteps },
       touched: [
         id,
-        ...(statementsCleared === undefined ? [] : [statementsCleared.forward.workItemId]),
-        ...(statementsHandedUp === undefined ? [] : [statementsHandedUp.forward.workItemId]),
+        ...(becomesParent === undefined ? [] : [becomesParent.id]),
+        ...(leftParentId === null ? [] : [leftParentId]),
       ],
       before: rows,
     });
@@ -3192,6 +3251,10 @@ export class WorkItemService {
    *   end outside the subtree are left behind. Internal typed relationships
    *   receive new IDs and address the copied work items; their scopes, steps
    *   and type stay the same.
+   *
+   * Direct step blockage belongs to the original work and is omitted from copies.
+   * Proof: injecting copied facts failed the blocked leaf/descendant regression;
+   * watched 2026-10-14.
    *
    * Refuses `too_large` past {@link MAX_DUPLICATED_ROWS}, having written
    * nothing.
@@ -6065,6 +6128,16 @@ export class WorkItemService {
       return { ok: false, detail: 'the work item it sat after has been deleted since then.' };
     }
     if (moving.parentId !== parentId) {
+      if (parentId !== null && !rows.some((row) => row.parentId === parentId)) {
+        // Proof: bypassing this guard returned 200 in mounted residual-progress undo/redo; watched 2026-10-14.
+        if ((await this.opts.progress.listByWorkItems(projectId, [parentId])).length > 0) {
+          return { ok: false, detail: 'the destination leaf has progress stated since this move.' };
+        }
+        // Proof: bypassing this guard returned 500 in mounted other-step blockage undo/redo; watched 2026-10-14.
+        if ((await this.opts.blockages.listByWorkItems(projectId, [parentId])).length > 0) {
+          return { ok: false, detail: 'the destination leaf has blockage stated since this move.' };
+        }
+      }
       const authored = await this.opts.typedDependencies.listByProject(projectId);
       const invalid = findInvalidTypedShape(
         rows.map((row) => (row.id === id ? { ...row, parentId } : row)),

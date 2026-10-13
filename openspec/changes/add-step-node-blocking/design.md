@@ -87,3 +87,23 @@ an image vocabulary plus an independent database inventory at both existing guar
 phases. Missing source/database state refuses; only genuine older CLI/table absence
 has the modeled empty vocabulary/inventory. Command-history compatibility remains
 an explicit prerequisite when new journal variants are enabled in the command slice.
+
+## Move closure (task 3.0.3)
+
+A true reparent into a current leaf captures its progress and blockage before any
+write. The forward journal clears destination readiness/hold, progress and exact
+blockage facts, moves the incoming subtree, then sets agreed readiness/hold and
+blockage on the old parent if it lost its last child. The inverse clears those
+handed-up facts, moves the subtree back, restores destination progress and exact
+blockage, then restores readiness/hold. Every step runs while its fact owner is a
+leaf. Progress restoration keeps the existing `set_progress` replay timestamp
+semantics. No new progress hand-up is added.
+
+Blockage agreement is per project step over every former leaf in the moved
+subtree: each must hold a direct fact, including facts retained on done nodes.
+The old parent's blocked time is the maximum of those timestamps, with no zero
+seed so negative timestamps remain valid. Incoming subtree facts are preserved.
+Replay into a current leaf refuses any residual progress or blockage after the
+recorded clear steps, even when revisions were forged unchanged. Same-parent
+reorder and existing-parent progress history are preserved. Work-item deletion,
+project-step deletion and the public blockage setter remain separate slices.

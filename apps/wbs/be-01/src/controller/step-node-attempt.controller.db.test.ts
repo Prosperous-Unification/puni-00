@@ -1299,3 +1299,197 @@ describe('first-child blockage preservation', () => {
     expect(snapshot()).toEqual(before);
   });
 });
+
+describe('move blockage closure', () => {
+  const snapshot = (journal = false) =>
+    [
+      'work_item',
+      'step_progress',
+      'step_blockage',
+      ...(journal ? ['command_journal'] : []),
+      'event_log',
+      'event_sequencer',
+    ].map((table) => h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all());
+  const facts = () =>
+    h.sqlite
+      .query(
+        'SELECT work_item_id, step_id, blocked_at FROM step_blockage ORDER BY work_item_id, step_id',
+      )
+      .all();
+  const block = (owner: string, step: string, at: number) =>
+    h.sqlite.run('INSERT INTO step_blockage (work_item_id, step_id, blocked_at) VALUES (?, ?, ?)', [
+      owner,
+      step,
+      at,
+    ]);
+  async function create(name: string, parentId: string | null = null): Promise<string> {
+    const created = await batch([{ kind: 'createWorkItem', parentId, afterId: null, name }]);
+    expect(created.status).toBe(200);
+    const id = (created.body as { results?: { id?: string }[] }).results?.[0]?.id;
+    if (id === undefined) throw new Error('move fixture row missing');
+    return id;
+  }
+  async function move(owner: string, parentId: string | null) {
+    return batch([{ kind: 'moveWorkItem', workItemId: owner, parentId, afterId: null }]);
+  }
+  async function arranged() {
+    const moving = await create('Moving', strip);
+    const destination = await create('Destination');
+    block(moving, dev, -10);
+    block(destination, dev, -20);
+    block(destination, qa, -30);
+    expect(
+      (
+        await batch([
+          { kind: 'setProgress', workItemId: moving, stepId: dev, state: 'in_progress' },
+          { kind: 'setProgress', workItemId: destination, stepId: dev, state: 'done' },
+        ])
+      ).status,
+    ).toBe(200);
+    return { moving, destination };
+  }
+
+  it('preserves exact mounted move facts and progress through one undo redo', async () => {
+    const { moving, destination } = await arranged();
+    const before = facts();
+    expect((await move(moving, destination)).status).toBe(200);
+    const after = facts();
+    expect(after).toEqual(
+      [
+        { work_item_id: moving, step_id: dev, blocked_at: -10 },
+        { work_item_id: strip, step_id: dev, blocked_at: -10 },
+      ].sort((a, b) => a.work_item_id.localeCompare(b.work_item_id)),
+    );
+    const states = () =>
+      h.sqlite
+        .query('SELECT work_item_id, step_id, state FROM step_progress ORDER BY work_item_id')
+        .all();
+    expect(states()).toEqual([{ work_item_id: moving, step_id: dev, state: 'in_progress' }]);
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+    expect(facts()).toEqual(before);
+    expect(states()).toEqual(
+      [
+        { work_item_id: moving, step_id: dev, state: 'in_progress' },
+        { work_item_id: destination, step_id: dev, state: 'done' },
+      ].sort((a, b) => a.work_item_id.localeCompare(b.work_item_id)),
+    );
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/redo`)).status).toBe(200);
+    expect(facts()).toEqual(after);
+    expect(states()).toEqual([{ work_item_id: moving, step_id: dev, state: 'in_progress' }]);
+  });
+
+  it('hands up each mounted step only when every former leaf has a direct fact', async () => {
+    const moving = await create('Branch', strip);
+    const first = await create('First', moving);
+    const second = await create('Second', moving);
+    block(first, dev, -30);
+    block(second, dev, -10);
+    block(first, qa, 123);
+    expect(
+      (await batch([{ kind: 'setProgress', workItemId: first, stepId: dev, state: 'done' }]))
+        .status,
+    ).toBe(200);
+    const incoming = facts();
+    expect((await move(moving, null)).status).toBe(200);
+    expect(
+      h.sqlite
+        .query('SELECT step_id, blocked_at FROM step_blockage WHERE work_item_id = ?')
+        .all(strip),
+    ).toEqual([{ step_id: dev, blocked_at: -10 }]);
+    expect(h.sqlite.query('SELECT * FROM step_progress WHERE work_item_id = ?').all(strip)).toEqual(
+      [],
+    );
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+    expect(facts()).toEqual(incoming);
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/redo`)).status).toBe(200);
+    expect(
+      h.sqlite
+        .query('SELECT step_id, blocked_at FROM step_blockage WHERE work_item_id = ?')
+        .all(strip),
+    ).toEqual([{ step_id: dev, blocked_at: -10 }]);
+  });
+
+  it.each(['undo', 'redo'] as const)(
+    'refuses residual leaf progress atomically on move %s despite unchanged revisions',
+    async (direction) => {
+      const { moving, destination } = await arranged();
+      expect((await move(moving, destination)).status).toBe(200);
+      if (direction === 'redo')
+        expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+      const owner = direction === 'undo' ? strip : destination;
+      h.sqlite.run(
+        'INSERT INTO step_progress (work_item_id, step_id, state, stated_at) VALUES (?, ?, ?, ?)',
+        [owner, qa, 'done', 456],
+      );
+      const before = snapshot();
+      expect((await h.call('ada', 'POST', `/api/projects/${project}/${direction}`)).status).toBe(
+        409,
+      );
+      expect(snapshot()).toEqual(before);
+    },
+  );
+
+  it.each(['undo', 'redo'] as const)(
+    'refuses other-step residual leaf blockage atomically on move %s despite unchanged revisions',
+    async (direction) => {
+      const moving = await create('Moving', strip);
+      const destination = await create('Destination');
+      block(moving, dev, 123);
+      block(destination, dev, 234);
+      expect((await move(moving, destination)).status).toBe(200);
+      if (direction === 'redo')
+        expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+      block(direction === 'undo' ? strip : destination, qa, 456);
+      const before = snapshot();
+      expect((await h.call('ada', 'POST', `/api/projects/${project}/${direction}`)).status).toBe(
+        409,
+      );
+      expect(snapshot()).toEqual(before);
+    },
+  );
+
+  it.each(['undo', 'redo'] as const)(
+    'refuses changed expected blockage atomically on move %s',
+    async (direction) => {
+      const { moving, destination } = await arranged();
+      expect((await move(moving, destination)).status).toBe(200);
+      if (direction === 'redo')
+        expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+      h.sqlite.run(
+        'UPDATE step_blockage SET blocked_at = 456 WHERE work_item_id = ? AND step_id = ?',
+        [direction === 'undo' ? strip : destination, dev],
+      );
+      const before = snapshot();
+      expect((await h.call('ada', 'POST', `/api/projects/${project}/${direction}`)).status).toBe(
+        409,
+      );
+      expect(snapshot()).toEqual(before);
+    },
+  );
+
+  /** Proof: bypassing exact comparison or committing a refused SQLite UOW failed the second-fact refusal and snapshot; watched 2026-10-14. */
+  it('rolls back earlier replay steps when a later destination replacement refuses', async () => {
+    const { moving, destination } = await arranged();
+    expect((await move(moving, destination)).status).toBe(200);
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+    h.sqlite.run(
+      'UPDATE step_blockage SET blocked_at = 456 WHERE work_item_id = ? AND step_id = ?',
+      [destination, qa],
+    );
+    const before = snapshot();
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/redo`)).status).toBe(409);
+    expect(snapshot()).toEqual(before);
+  });
+
+  /** Proof: committing the exception path left destination facts cleared and failed the exact snapshot; watched 2026-10-14. */
+  it('rolls back destination clears when the SQLite parent_id write fails', async () => {
+    const { moving, destination } = await arranged();
+    const before = snapshot(true);
+    h.sqlite.run(
+      "CREATE TRIGGER refuse_move BEFORE UPDATE OF parent_id ON work_item WHEN NEW.parent_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM step_blockage WHERE work_item_id = NEW.parent_id) AND NOT EXISTS (SELECT 1 FROM step_progress WHERE work_item_id = NEW.parent_id) BEGIN SELECT RAISE(ABORT, 'injected move failure'); END",
+    );
+    expect((await move(moving, destination)).status).toBe(500);
+    h.sqlite.run('DROP TRIGGER refuse_move');
+    expect(snapshot(true)).toEqual(before);
+  });
+});

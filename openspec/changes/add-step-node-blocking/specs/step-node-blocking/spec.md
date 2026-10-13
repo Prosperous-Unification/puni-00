@@ -221,3 +221,37 @@ A stored dependency cycle SHALL preserve the existing readable plan and modeled 
 - **GIVEN** a cycle containing one directly blocked node
 - **WHEN** node roots are projected
 - **THEN** each reachable silent node names that root exactly once, and running or done nodes stop incoming propagation
+
+### Requirement: Move closure preserves direct blockage facts in one undo unit
+
+When unrelated work moves beneath a current leaf, the system SHALL clear that
+leaf's direct blockage before the store move, preserve all incoming subtree
+facts, and restore the destination's exact owner, step and blocked time after
+inverse movement. Redo SHALL conditionally clear those destination facts before
+moving. Same-parent reorder SHALL preserve existing parent history.
+
+When a move removes a parent's last child, the parent SHALL receive a direct
+blockage for a step only if every former leaf has a direct fact for that step.
+Its blocked time SHALL be the maximum original blocked time, including negative
+timestamps and facts retained beneath done progress. Such a move SHALL NOT hand
+up progress. Replay SHALL refuse atomically when a current destination leaf has
+residual progress or blockage, including another project step, even if revisions
+remain unchanged.
+
+#### Scenario: Last-child move hands up only complete direct agreement
+
+- **GIVEN** a branch has two former leaves with direct Dev facts at -30 and -10, including a done leaf, and only one has a QA fact
+- **WHEN** that branch moves away as its parent's last child
+- **THEN** the parent receives Dev blockage at -10, receives no QA blockage and no progress, and the incoming facts remain unchanged
+
+#### Scenario: Move replay refuses residual facts atomically
+
+- **GIVEN** a move made a parent into a leaf and a peer added progress or another-step blockage without changing its revision
+- **WHEN** undo would move the subtree beneath that leaf again
+- **THEN** replay refuses and preserves the full tree and facts, including earlier conditional clears in the same batch
+
+#### Scenario: Duplicate blockage is not inherited
+
+- **GIVEN** a blocked leaf or a subtree containing blocked descendants
+- **WHEN** that leaf or subtree is duplicated
+- **THEN** the originals retain their exact facts and the copies have no blockage

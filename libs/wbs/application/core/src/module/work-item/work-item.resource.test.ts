@@ -374,6 +374,156 @@ describe('creating work items', () => {
 });
 
 describe('moving work items', () => {
+  it.each([false, true])(
+    'clears destination progress before moving and restores it after undo (blockage: %s)',
+    async (isBlocked) => {
+      const destination = await add('Destination');
+      const incoming = await add('Incoming');
+      if (isBlocked) {
+        await serviceOptions.blockages.set(
+          { workItemId: destination, stepId, blockedAt: -20 },
+          WROTE,
+        );
+        await serviceOptions.blockages.set({ workItemId: incoming, stepId, blockedAt: -10 }, WROTE);
+      }
+      await progress.set({ workItemId: destination, stepId, state: 'done', statedAt: 10 }, WROTE);
+      await progress.set(
+        { workItemId: incoming, stepId, state: 'in_progress', statedAt: 11 },
+        WROTE,
+      );
+      const observed = new WorkItemService({
+        ...serviceOptions,
+        workItems: {
+          ...workItems,
+          move: async (...parameters) => {
+            expect(
+              await serviceOptions.blockages.listByWorkItems(projectId, [destination]),
+            ).toEqual([]);
+            expect(await progress.listByWorkItems(projectId, [destination])).toEqual([]);
+            await workItems.move(...parameters);
+          },
+        },
+      });
+      expect(
+        (await observed.move(incoming, OWNER, { parentId: destination, afterId: null })).ok,
+      ).toBe(true);
+      expect(await serviceOptions.blockages.listByProject(projectId)).toEqual(
+        isBlocked ? [{ workItemId: incoming, stepId, blockedAt: -10 }] : [],
+      );
+      expect((await service.undo(projectId, OWNER)).ok).toBe(true);
+      expect(await serviceOptions.blockages.listByWorkItems(projectId, [destination])).toEqual(
+        isBlocked ? [{ workItemId: destination, stepId, blockedAt: -20 }] : [],
+      );
+      expect(
+        (await progress.listByWorkItems(projectId, [destination])).map(({ state }) => state),
+      ).toEqual(['done']);
+      expect((await service.redo(projectId, OWNER)).ok).toBe(true);
+      expect(await progress.listByWorkItems(projectId, [destination])).toEqual([]);
+      expect(await serviceOptions.blockages.listByWorkItems(projectId, [destination])).toEqual([]);
+      expect(
+        (await progress.listByWorkItems(projectId, [incoming])).map(({ state }) => state),
+      ).toEqual(['in_progress']);
+    },
+  );
+
+  it('reports a refused move destination clear before reparenting', async () => {
+    const destination = await add('Destination');
+    const incoming = await add('Incoming');
+    await serviceOptions.blockages.set({ workItemId: destination, stepId, blockedAt: 123 }, WROTE);
+    let reads = 0;
+    const refused = new WorkItemService({
+      ...serviceOptions,
+      blockages: {
+        ...serviceOptions.blockages,
+        listByWorkItems: async (...parameters) => {
+          reads += 1;
+          return reads === 1 ? serviceOptions.blockages.listByWorkItems(...parameters) : [];
+        },
+      },
+    });
+    const refusal = await refused
+      .move(incoming, OWNER, { parentId: destination, afterId: null })
+      .then(
+        () => '(resolved without throwing)',
+        (cause: unknown) => String(cause),
+      );
+    expect(refusal).toContain('cannot clear move destination');
+    expect((await workItems.findById(incoming))?.parentId).toBeNull();
+  });
+
+  it('reports a refused move blockage hand-up', async () => {
+    const parent = await add('Parent');
+    const incoming = await add('Incoming', parent);
+    await serviceOptions.blockages.set({ workItemId: incoming, stepId, blockedAt: 123 }, WROTE);
+    const refused = new WorkItemService({
+      ...serviceOptions,
+      blockages: { ...serviceOptions.blockages, set: () => Promise.resolve('unknown_step') },
+    });
+    const refusal = await refused.move(incoming, OWNER, { parentId: null, afterId: parent }).then(
+      () => '(resolved without throwing)',
+      (cause: unknown) => String(cause),
+    );
+    expect(refusal).toContain('cannot hand move blockage up');
+  });
+
+  it('hands up only unanimous direct blockage with the latest negative timestamp and no progress', async () => {
+    const parent = await add('Parent');
+    const moving = await add('Branch', parent);
+    const first = await add('First', moving);
+    const second = await add('Second', moving);
+    await serviceOptions.blockages.set({ workItemId: first, stepId, blockedAt: -30 }, WROTE);
+    await serviceOptions.blockages.set({ workItemId: second, stepId, blockedAt: -10 }, WROTE);
+    await progress.set({ workItemId: first, stepId, state: 'done', statedAt: 10 }, WROTE);
+    await progress.set({ workItemId: second, stepId, state: 'done', statedAt: 11 }, WROTE);
+    expect((await service.move(moving, OWNER, { parentId: null, afterId: parent })).ok).toBe(true);
+    expect(await serviceOptions.blockages.listByWorkItems(projectId, [parent])).toEqual([
+      { workItemId: parent, stepId, blockedAt: -10 },
+    ]);
+    expect(await progress.listByWorkItems(projectId, [parent])).toEqual([]);
+    expect((await service.undo(projectId, OWNER)).ok).toBe(true);
+    expect(await serviceOptions.blockages.listByWorkItems(projectId, [parent])).toEqual([]);
+    expect((await service.redo(projectId, OWNER)).ok).toBe(true);
+    expect(await serviceOptions.blockages.listByWorkItems(projectId, [parent])).toEqual([
+      { workItemId: parent, stepId, blockedAt: -10 },
+    ]);
+  });
+
+  it('does not hand up blockage when any former leaf lacks a direct fact', async () => {
+    const parent = await add('Parent');
+    const moving = await add('Branch', parent);
+    const first = await add('First', moving);
+    await add('Second', moving);
+    await serviceOptions.blockages.set({ workItemId: first, stepId, blockedAt: 123 }, WROTE);
+    expect((await service.move(moving, OWNER, { parentId: null, afterId: parent })).ok).toBe(true);
+    expect(await serviceOptions.blockages.listByWorkItems(projectId, [parent])).toEqual([]);
+  });
+
+  it('preserves historical parent progress during same-parent reorder and reparent into an existing parent', async () => {
+    const parent = await add('Parent');
+    const child = await add('Child', parent);
+    const incoming = await add('Incoming');
+    await progress.set({ workItemId: parent, stepId, state: 'done', statedAt: 10 }, WROTE);
+    expect((await service.move(child, OWNER, { parentId: parent, afterId: null })).ok).toBe(true);
+    expect((await service.move(incoming, OWNER, { parentId: parent, afterId: child })).ok).toBe(
+      true,
+    );
+    expect(await progress.listByWorkItems(projectId, [parent])).toEqual([
+      { workItemId: parent, stepId, state: 'done', statedAt: 10 },
+    ]);
+  });
+
+  /** Proof: injecting copied direct facts failed the exact original-only fact assertion; watched 2026-10-14. */
+  it('duplicates blocked leaves and descendants without inheriting blockage', async () => {
+    const parent = await add('Parent');
+    const leaf = await add('Leaf', parent);
+    await serviceOptions.blockages.set({ workItemId: leaf, stepId, blockedAt: 123 }, WROTE);
+    expect((await service.duplicate(leaf, OWNER)).ok).toBe(true);
+    expect((await service.duplicate(parent, OWNER)).ok).toBe(true);
+    expect(await serviceOptions.blockages.listByProject(projectId)).toEqual([
+      { workItemId: leaf, stepId, blockedAt: 123 },
+    ]);
+  });
+
   it('renumbers everything the move displaced', async () => {
     const strip = await add('Strip');
     const cable = await add('Cable', null, strip);
