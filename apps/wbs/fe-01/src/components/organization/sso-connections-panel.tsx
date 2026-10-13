@@ -413,7 +413,9 @@ type SetupRefusal = Extract<
 /** Maps every modeled setup refusal without inferring authority from member rows. */
 function setupRefusal(refusal: SetupRefusal): RefusalOutcome {
   switch (refusal.error) {
+    // Proof: omitting this C1 refusal failed the mounted panel's read and create 409 authority-loss cases with `Unexpected response variant: object` (2026-10-13).
     case 'unauthenticated':
+    case 'organization_context_changed':
     case 'no_active_organization':
     case 'not_a_member':
       return lostAccess(refusal.error);

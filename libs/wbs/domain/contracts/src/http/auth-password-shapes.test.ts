@@ -18,14 +18,17 @@ test('declares the three password operations, their media and ordered origin pol
     'getApiAuthMe',
   ]);
   for (const shape of [registerPassword, loginPassword]) {
-    expect(shape.policies).toEqual([{ kind: 'origin', when: 'always' }]);
+    expect(shape.policies).toEqual([
+      { kind: 'origin', when: 'always' },
+      { kind: 'organization-control' },
+    ]);
     expect(shape.bodyMedia).toEqual([
       'application/json',
       'application/x-www-form-urlencoded',
       'multipart/form-data',
     ]);
   }
-  expect(readPasswordSession.policies).toEqual([]);
+  expect(readPasswordSession.policies).toEqual([{ kind: 'organization-control' }]);
 
   const document = documentFromShapes(shapes);
   expect(
@@ -69,6 +72,7 @@ test('declares an explicit anonymous session while rejecting malformed success b
 
 test('context exchange fixes its audience and models credential and authority refusals', async () => {
   expect(issueBearerContext.policies).toEqual([
+    { kind: 'organization-control' },
     { kind: 'origin', when: 'always-unsafe-with-session-cookie' },
   ]);
   expect(
@@ -83,6 +87,6 @@ test('context exchange fixes its audience and models credential and authority re
     ).issues,
   ).toBeDefined();
   expect(issueBearerContext.refusals.map(({ status }) => status)).toEqual([
-    400, 401, 403, 403, 403,
+    400, 401, 403, 403, 403, 409,
   ]);
 });

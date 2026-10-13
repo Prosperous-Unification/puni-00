@@ -1,7 +1,7 @@
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
-import { organizationRefusal } from './organization-refusal';
+import { organizationContextRefusal, organizationRefusal } from './organization-refusal';
 import { requestSchema, responseSchema } from './schema-shape';
 
 const writePolicies = [
@@ -39,11 +39,11 @@ export const listInvitations = defineEndpointShape({
   method: 'GET',
   path: '/api/organization/invitations',
   operationId: 'getApiOrganizationInvitations',
-  policies: readPolicies,
+  policies: [...readPolicies, { kind: 'organization-resource', operation: 'read' }],
   responses: [
     { kind: 'json', status: 200, schema: responseSchema(type({ invitations: summary.array() })) },
   ],
-  refusals: [...common, organizationRefusal],
+  refusals: [...common, organizationRefusal, organizationContextRefusal],
   document: { summary: 'List invitations in the active organization.' },
 });
 
@@ -52,13 +52,14 @@ export const createInvitation = defineEndpointShape({
   method: 'POST',
   path: '/api/organization/invitations',
   operationId: 'postApiOrganizationInvitations',
-  policies: writePolicies,
+  policies: [...writePolicies, { kind: 'organization-resource', operation: 'mutation' }],
   // Proof: 2026-09-28, admitting super_admin here failed `rejects malformed recipient addresses and a super-admin offer` (403 instead of 400).
   body: requestSchema(type({ email: 'string', role: "'admin' | 'member' | 'viewer'" })),
   responses: [{ kind: 'json', status: 201, schema: responseSchema(type({ invitation: summary })) }],
   refusals: [
     ...common,
     organizationRefusal,
+    organizationContextRefusal,
     { status: 503, schema: responseSchema(type({ error: "'delivery_failed'" })) },
   ],
   document: { summary: 'Issue an invitation through the configured mail sink.' },
@@ -69,12 +70,13 @@ export const revokeInvitation = defineEndpointShape({
   method: 'DELETE',
   path: '/api/organization/invitations/:id',
   operationId: 'deleteApiOrganizationInvitationsById',
-  policies: writePolicies,
+  policies: [...writePolicies, { kind: 'organization-resource', operation: 'mutation' }],
   params: requestSchema(type({ id: 'string' })),
   responses: [{ kind: 'empty', status: 204 }],
   refusals: [
     ...common,
     organizationRefusal,
+    organizationContextRefusal,
     { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
     { status: 409, schema: responseSchema(type({ error: "'invitation_invalid'" })) },
   ],
@@ -86,7 +88,7 @@ export const acceptInvitation = defineEndpointShape({
   method: 'POST',
   path: '/api/onboarding/invitations/accept',
   operationId: 'postApiOnboardingInvitationsAccept',
-  policies: writePolicies,
+  policies: [...writePolicies, { kind: 'organization-control' }],
   body: requestSchema(type({ token: 'string' })),
   responses: [
     {

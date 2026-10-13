@@ -1,7 +1,7 @@
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
-import { organizationRefusal } from './organization-refusal';
+import { organizationContextRefusal, organizationRefusal } from './organization-refusal';
 import { requestSchema, responseSchema } from './schema-shape';
 
 const projectParams = requestSchema(type({ id: 'string' }));
@@ -36,6 +36,7 @@ const common = [
   },
   { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
   organizationRefusal,
+  organizationContextRefusal,
 ] as const;
 const collection = [
   ...common,
@@ -70,7 +71,7 @@ export const listCalendarMarkers = defineEndpointShape({
   method: 'GET',
   path: '/api/projects/:id/calendar-markers',
   operationId: 'getApiProjectsByIdCalendar-markers',
-  policies: readPolicies,
+  policies: [...readPolicies, { kind: 'organization-resource', operation: 'read' }],
   params: projectParams,
   responses: [
     { kind: 'json', status: 200, schema: responseSchema(type({ markers: marker.array() })) },
@@ -89,7 +90,7 @@ export const createCalendarMarker = defineEndpointShape({
   method: 'POST',
   path: '/api/projects/:id/calendar-markers',
   operationId: 'postApiProjectsByIdCalendar-markers',
-  policies: writePolicies,
+  policies: [...writePolicies, { kind: 'organization-resource', operation: 'mutation' }],
   params: projectParams,
   body: requestSchema(
     type({ 'markerId?': 'string', date: 'string', name: 'string', 'color?': 'string | null' }),
@@ -108,7 +109,7 @@ export const updateCalendarMarker = defineEndpointShape({
   method: 'PATCH',
   path: '/api/projects/:id/calendar-markers/:markerId',
   operationId: 'patchApiProjectsByIdCalendar-markersByMarkerId',
-  policies: writePolicies,
+  policies: [...writePolicies, { kind: 'organization-resource', operation: 'mutation' }],
   params: markerParams,
   // Proof: responseSchema here admitted an immutable date and returned 200, expected 422,
   // in the mounted undeclared-input test.
@@ -124,7 +125,7 @@ export const removeCalendarMarker = defineEndpointShape({
   method: 'DELETE',
   path: '/api/projects/:id/calendar-markers/:markerId',
   operationId: 'deleteApiProjectsByIdCalendar-markersByMarkerId',
-  policies: writePolicies,
+  policies: [...writePolicies, { kind: 'organization-resource', operation: 'mutation' }],
   params: markerParams,
   responses: [{ kind: 'empty', status: 204 }],
   refusals: addressed,

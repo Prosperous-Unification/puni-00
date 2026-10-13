@@ -122,7 +122,7 @@ export function mountEndpoints(endpoints: readonly BoundEndpoint[], options: Mou
         // Proof: on 2026-09-21, reporting before this refusal made “blocks missing or
         // foreign cookie origins while admitting bearer-only writes” receive injected failures.
         if (invalid) return refuse(matched.endpoint.shape, { error: 'invalid_origin' });
-      } else {
+      } else if (policy.kind === 'identity') {
         const identity = await options.resolveIdentity(policy.require, metadata);
         // Proof: on 2026-09-21, reporting before this refusal made “refuses anonymous
         // identity and preserves an unexpected account-store failure” receive a failure before

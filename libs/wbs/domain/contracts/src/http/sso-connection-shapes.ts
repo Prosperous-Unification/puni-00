@@ -1,7 +1,7 @@
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
-import { organizationRefusal } from './organization-refusal';
+import { organizationContextRefusal, organizationRefusal } from './organization-refusal';
 import { requestSchema, responseSchema } from './schema-shape';
 
 /** The Auth0 connection name an enterprise connection records. */
@@ -32,6 +32,7 @@ const writePolicy = [
 const common = [
   { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
   organizationRefusal,
+  organizationContextRefusal,
   {
     status: 403,
     schema: responseSchema(type({ error: "'invalid_origin' | 'insufficient_scope'" })),
@@ -52,7 +53,7 @@ export const listSsoConnections = defineEndpointShape({
   method: 'GET',
   path: '/api/organization/sso-connections',
   operationId: 'getApiOrganizationSso-connections',
-  policies: readPolicy,
+  policies: [...readPolicy, { kind: 'organization-resource', operation: 'read' }],
   responses: [
     {
       kind: 'json',
@@ -72,7 +73,7 @@ export const createSsoConnection = defineEndpointShape({
   method: 'POST',
   path: '/api/organization/sso-connections',
   operationId: 'postApiOrganizationSso-connections',
-  policies: writePolicy,
+  policies: [...writePolicy, { kind: 'organization-resource', operation: 'mutation' }],
   body: requestSchema(
     type({ domainClaimId: 'string', auth0Connection, strategy, loginSlug: enterpriseLoginSlug }),
   ),
@@ -102,7 +103,7 @@ export const updateSsoConnection = defineEndpointShape({
   method: 'PATCH',
   path: '/api/organization/sso-connections/:id',
   operationId: 'patchApiOrganizationSso-connectionsById',
-  policies: writePolicy,
+  policies: [...writePolicy, { kind: 'organization-resource', operation: 'mutation' }],
   params: requestSchema(type({ id: 'string' })),
   body: requestSchema(
     type({
@@ -137,7 +138,7 @@ export const removeSsoConnection = defineEndpointShape({
   method: 'DELETE',
   path: '/api/organization/sso-connections/:id',
   operationId: 'deleteApiOrganizationSso-connectionsById',
-  policies: writePolicy,
+  policies: [...writePolicy, { kind: 'organization-resource', operation: 'mutation' }],
   params: requestSchema(type({ id: 'string' })),
   responses: [{ kind: 'empty', status: 204 }],
   refusals: [

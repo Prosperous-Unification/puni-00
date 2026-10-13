@@ -2,7 +2,7 @@ import { type Type, type } from 'arktype';
 
 import { PLAN_COMMAND_KINDS } from '../commands/definitions';
 import { defineEndpointShape } from './endpoint-shape';
-import { organizationRefusal } from './organization-refusal';
+import { organizationContextRefusal, organizationRefusal } from './organization-refusal';
 import { planCommandsBody } from './plan-command-shapes';
 import type { ParserRefusalCode } from './refusal';
 import { engineUnavailableRefusal } from './scheduler-shapes';
@@ -523,6 +523,7 @@ const writeRefusals = [
  */
 const scopedBatchRefusals = [
   organizationRefusal,
+  organizationContextRefusal,
   { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
   { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
 ] as const;
@@ -651,7 +652,7 @@ export const getWorkItems = defineEndpointShape({
   method: 'GET',
   path: '/api/projects/:id/work-items',
   operationId: 'getApiProjectsByIdWork-items',
-  policies: readPolicies,
+  policies: [...readPolicies, { kind: 'organization-resource', operation: 'read' }],
   params,
   // `full=true` names today's whole dump explicitly and answers it byte for
   // byte; the paged read is getWorkItemRows. Callers that must also reach a
@@ -683,6 +684,7 @@ export const getWorkItems = defineEndpointShape({
     ...genericRefusals,
     { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
     organizationRefusal,
+    organizationContextRefusal,
     engineUnavailableRefusal,
   ],
   document: {
@@ -712,7 +714,7 @@ export const getWorkItemRows = defineEndpointShape({
   method: 'GET',
   path: '/api/projects/:id/work-item-rows',
   operationId: 'getApiProjectsByIdWork-item-rows',
-  policies: readPolicies,
+  policies: [...readPolicies, { kind: 'organization-resource', operation: 'read' }],
   params,
   query: requestSchema(
     type({
@@ -740,6 +742,7 @@ export const getWorkItemRows = defineEndpointShape({
     { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
     { status: 404, schema: responseSchema(type({ error: "'unknown_parent'" })) },
     organizationRefusal,
+    organizationContextRefusal,
     engineUnavailableRefusal,
     { status: 409, schema: responseSchema(type({ error: "'stale_cursor'" })) },
   ],
@@ -755,7 +758,7 @@ export const getWorkItem = defineEndpointShape({
   method: 'GET',
   path: '/api/projects/:id/work-items/:workItemId',
   operationId: 'getApiProjectsByIdWork-itemsByWorkItemId',
-  policies: readPolicies,
+  policies: [...readPolicies, { kind: 'organization-resource', operation: 'read' }],
   params: requestSchema(type({ id: 'string', workItemId: 'string' })),
   responses: [
     {
@@ -776,6 +779,7 @@ export const getWorkItem = defineEndpointShape({
     ...genericRefusals,
     { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
     organizationRefusal,
+    organizationContextRefusal,
     engineUnavailableRefusal,
   ],
   document: { summary: 'Read one work item in full, with its own slices.' },
@@ -786,7 +790,7 @@ export const getStepReference = defineEndpointShape({
   method: 'GET',
   path: '/api/projects/:id/step-references',
   operationId: 'getApiProjectsByIdStep-references',
-  policies: readPolicies,
+  policies: [...readPolicies, { kind: 'organization-resource', operation: 'read' }],
   params,
   query: requestSchema(type({ reference: 'string', revision: 'string' })),
   responses: [
@@ -802,6 +806,7 @@ export const getStepReference = defineEndpointShape({
     ...genericRefusals,
     { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
     organizationRefusal,
+    organizationContextRefusal,
     {
       status: 409,
       schema: responseSchema(
@@ -830,7 +835,7 @@ export const applyProjectCommands = defineEndpointShape({
   method: 'POST',
   path: '/api/projects/:id/commands',
   operationId: 'postApiProjectsByIdCommands',
-  policies: writePolicies,
+  policies: [...writePolicies, { kind: 'organization-resource', operation: 'mutation' }],
   params,
   body: planCommandsBody,
   responses: [
@@ -846,10 +851,10 @@ export const applyProjectCommands = defineEndpointShape({
 
 /** Directory requests retain plan kinds so project_required keeps its command index. */
 export const applyDirectoryCommands = defineEndpointShape({
+  policies: [...writePolicies, { kind: 'organization-resource', operation: 'mutation' }],
   method: 'POST',
   path: '/api/directory/commands',
   operationId: 'postApiDirectoryCommands',
-  policies: writePolicies,
   body: planCommandsBody,
   responses: [{ kind: 'json', status: 200, schema: commandResults }],
   refusals: batchRefusals,
@@ -865,6 +870,7 @@ const undoResponses = [
 const undoRefusals = [
   ...writeRefusals,
   organizationRefusal,
+  organizationContextRefusal,
   { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
   { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
   {
@@ -879,7 +885,7 @@ export const undoProject = defineEndpointShape({
   method: 'POST',
   path: '/api/projects/:id/undo',
   operationId: 'postApiProjectsByIdUndo',
-  policies: writePolicies,
+  policies: [...writePolicies, { kind: 'organization-resource', operation: 'mutation' }],
   params,
   responses: undoResponses,
   refusals: undoRefusals,
@@ -890,7 +896,7 @@ export const redoProject = defineEndpointShape({
   method: 'POST',
   path: '/api/projects/:id/redo',
   operationId: 'postApiProjectsByIdRedo',
-  policies: writePolicies,
+  policies: [...writePolicies, { kind: 'organization-resource', operation: 'mutation' }],
   params,
   responses: undoResponses,
   refusals: undoRefusals,

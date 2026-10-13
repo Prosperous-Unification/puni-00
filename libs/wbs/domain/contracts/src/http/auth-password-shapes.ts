@@ -1,7 +1,7 @@
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
-import { organizationRefusal } from './organization-refusal';
+import { organizationContextRefusal, organizationRefusal } from './organization-refusal';
 import { requestSchema, responseSchema } from './schema-shape';
 
 // Proof: admitting an extra boolean made the mounted extra-field request receive 400 instead of 422.
@@ -35,7 +35,7 @@ export const registerPassword = defineEndpointShape({
   method: 'POST',
   path: '/api/auth/register',
   operationId: 'postApiAuthRegister',
-  policies: originPolicy,
+  policies: [...originPolicy, { kind: 'organization-control' }],
   body: credentials,
   bodyMedia,
   responses: [{ kind: 'json', status: 200, schema: signedIn }],
@@ -61,7 +61,7 @@ export const loginPassword = defineEndpointShape({
   method: 'POST',
   path: '/api/auth/login',
   operationId: 'postApiAuthLogin',
-  policies: originPolicy,
+  policies: [...originPolicy, { kind: 'organization-control' }],
   body: credentials,
   bodyMedia,
   responses: [{ kind: 'json', status: 200, schema: signedIn }],
@@ -91,7 +91,7 @@ export const readPasswordSession = defineEndpointShape({
   path: '/api/auth/me',
   operationId: 'getApiAuthMe',
   // Authentication stays inside the handler because this protocol answers invalid_token, not unauthenticated.
-  policies: [],
+  policies: [{ kind: 'organization-control' }],
   responses: [{ kind: 'json', status: 200, schema: currentUser }],
   refusals: [
     {
@@ -113,7 +113,10 @@ export const issueBearerContext = defineEndpointShape({
   // Proof (2026-09-28): requiring origin for a bearer-only request made
   // `issues a native direct context only for its own current membership`
   // answer 403 to a direct client with no Origin header.
-  policies: [{ kind: 'origin', when: 'always-unsafe-with-session-cookie' }],
+  policies: [
+    { kind: 'organization-control' },
+    { kind: 'origin', when: 'always-unsafe-with-session-cookie' },
+  ],
   // Proof (2026-09-28): admitting a caller audience made `context route stays
   // inert before activation and production binding` answer 403 instead of 400.
   body: requestSchema(type({ organizationId: 'string' })),
@@ -132,6 +135,7 @@ export const issueBearerContext = defineEndpointShape({
     // A password session in an organization enforcing SSO, or one older than
     // its session policy allows (`organization-sso`, `organization-session-policy`).
     organizationRefusal,
+    organizationContextRefusal,
   ],
   document: { summary: 'Issue a direct WBS bearer for a current organization membership.' },
 });

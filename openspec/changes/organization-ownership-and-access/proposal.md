@@ -1,43 +1,42 @@
 ## Why
 
-WBS currently lets authenticated users read every project and shares directory records across the deployment. A company cannot use it beside another company without exposing its work. Identity sign-in alone does not establish who owns a resource or who may act for an organization.
+WBS's legacy access lets authenticated users read every project and share directory records. Companies need ownership and membership boundaries. Browser tabs also share cookies: after one switches organizations, another must not read or mutate the new organization using its old screen.
 
 ## What Changes
 
-- Every project, directory record, external system and saved plan belongs to one organization. Reads, writes, exports, history, scheduling, events and references stay within that boundary.
-- A new user creates an organization as its first super-admin, or sees a matching verified organization domain and requests membership. A matching domain never grants access automatically.
-- Organization members use one active organization at a time. Super-admin, admin, member and viewer roles govern actions; administrators manage invitations, join requests and member roles through organization pages.
-- WBS verifies domain control through DNS TXT challenges and refuses public email domains. Invitations are addressed, expiring, revocable and single-use.
-- Existing shared content and users enter one legacy organization after an inventory identifies Dany's account unambiguously.
-- be-01, gw-01 and mcp-01 enforce current organization membership, including live sockets and MCP grants.
+- Every project, directory record, external system and saved plan belongs to one organization; dependent records, references, exports, history, schedules and events remain within it.
+- Verified users create an organization as first super-admin or request membership through a matching verified domain. Matching never grants access automatically. Roles govern resource and administration actions.
+- Invitations are addressed, expiring, revocable and single-use. Domain ownership requires DNS proof and excludes public email domains.
+- Browser organization selection is explicit and bound to the verified credential. Switching retires organization state; resource mutations require an expected organization, and stale context refuses without retry. Reads carrying that expectation also refuse a mismatch.
+- Legacy content and users enter one organization after inventory identifies Dany unambiguously. Backend, gateway and MCP enforce current membership.
 
 ## Non-Goals
 
-Social login with Google, GitHub or Apple; Auth0 email code or email/password login; Auth0 Organizations; provider migration; enterprise SSO policy; SCIM; automatic domain or SSO joining; cross-organization content transfer.
+Social login; Auth0 email/password or email-code login; Auth0 Organizations; provider migration; enterprise SSO policy; SCIM; automatic domain or SSO joining; cross-organization transfer. C1/C2 do not activate a deployment or configure live Auth0, mail or DNS.
 
 ## Constraints
 
-Auth0 remains the identity provider; WBS owns organization policy and stores stable issuer/subject mappings. Existing first-party password accounts must acquire a verified email through a single-use address challenge or explicitly link a verified Auth0 identity after proving both sessions, preserving local user IDs. Development identity paths must pass the same authorization boundary. Blue/green processes share SQLite: schema expansion is additive, each migration has `migration.sql` and `down.sql`, and organization-unaware releases must never receive traffic after tenancy activation. Public-domain refusal, invitation-only matching, and one legacy organization owned by Dany are product-owner defaults recorded here as assumptions for review.
+Auth0 remains the identity provider; WBS owns policy and stable local identity mappings. Password accounts retain IDs and establish verified email through address proof or an explicit Auth0 link proving both sessions. Development identities cross the same authorization boundary. Blue/green shares SQLite: migrations are additive and paired; organization-unaware releases must never serve after activation. C1/C2 preserve preactivation behavior, existing SSO/session-policy refusals, the explicit browser authority setting and operator-controlled rollout. Local fixtures cannot establish live-provider readiness.
 
 ## Capabilities
 
 ### New Capabilities
 
-- `organization-access`: organization ownership, roles, active context and backend authorization.
+- `organization-access`: ownership, roles, active context and authorization.
 - `organization-onboarding`: creation, invitations, join requests and frontend administration.
-- `organization-domains`: DNS verification and domain-aware signup.
-- `organization-realtime`: gateway subscriptions, presence, replay and revocation.
-- `organization-mcp`: organization-bound MCP authorization and tool calls.
-- `organization-migration`: legacy backfill, staged activation and rollback safety.
+- `organization-domains`: verification and domain-aware signup.
+- `organization-realtime`: subscriptions, presence, replay and revocation.
+- `organization-mcp`: bound authorization and tools.
+- `organization-migration`: backfill, activation and rollback safety.
 
 ## Domain Terms
 
-Organization, membership, role, super-admin, verified domain, join request, invitation, legacy organization, project-step allowance, charged estimate.
+Organization, membership, active organization, expected organization, role, super-admin, verified domain, join request, invitation, legacy organization.
 
 ## Decisions Recorded
 
-None; the product owner fixed the identity and organization boundaries for this change.
+None requiring a new ADR. C1/C2 defaults were adopted by the coordinator on 2026-10-13 under standing authorization.
 
 ## Impact
 
-WBS contracts, storage, be-01, gw-01, mcp-01, fe-01, shared authorization, paired WBS and MCP SQLite migrations and deployment rollback checks.
+WBS contracts, core, storage, be-01, gw-01, mcp-01, fe-01 and deployment gates.

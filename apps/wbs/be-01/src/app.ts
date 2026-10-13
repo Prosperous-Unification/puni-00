@@ -438,7 +438,10 @@ export function mountedEndpoints(
     // receive 40 endpoints instead of 41 in app.routes.test.ts (2026-09-10).
     ...smokeRoutes(),
     ...organizationRoutes(opts.organizations, opts.memberships, opts.clock),
-    ...organizationSelectionRoutes(opts.organizationSelection ?? REFUSE_ORGANIZATION_SELECTION),
+    ...organizationSelectionRoutes(
+      opts.organizationSelection ?? REFUSE_ORGANIZATION_SELECTION,
+      opts.organizations,
+    ),
     ...domainRoutes(opts.organizations, opts.domains, opts.clock),
     ...sessionPolicyRoutes(
       opts.organizations,

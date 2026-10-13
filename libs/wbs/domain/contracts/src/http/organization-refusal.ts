@@ -24,3 +24,9 @@ export const organizationRefusal = {
       }),
   ),
 } as const;
+
+/** A stale browser expectation cannot redirect a resource operation to a newly selected organization. */
+export const organizationContextRefusal = {
+  status: 409,
+  schema: responseSchema(type({ error: "'organization_context_changed'" })),
+} as const;

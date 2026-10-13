@@ -301,3 +301,61 @@ WBS SHALL enforce the role matrix below against current membership; Auth0 groups
 - **AND** an ordinary creator write writes no recovery record, a non-creator member or admin and a viewer creator are refused, a foreign project answers 404, and a removed super-admin is refused
 - **AND** a recovered saved-plan rename or delete may touch another author's plan of that restricted project, while ordinary touches retain the author-or-project-creator rule
 - **AND** before activation these routes retain their legacy permissions and behavior
+
+### Requirement: Browser resource operations preserve their expected organization
+
+After activation, every organization-resource mutation authenticated by a browser session SHALL require exactly one nonempty `X-WBS-Expected-Organization` header matching the organization resolved from the verified credential pair and current membership. Native and OIDC credentials carried by cookie or Bearer SHALL follow this rule. The header SHALL convey only the expected organization and SHALL never select or grant authority. Absent, empty, ambiguous duplicate/comma-combined or mismatched expectations SHALL receive `409 organization_context_changed`, with no resource, journal, audit, recency, credential-administration or event-publication effect. A browser resource read carrying an expectation SHALL receive the same refusal when it is empty, ambiguous or mismatched; a read without that header SHALL retain its existing authorization contract. Every organization-bound frontend resource read SHALL carry its captured expectation. The client SHALL retire stale organization state and SHALL NOT automatically retry a refused mutation.
+
+Existing authentication, current-membership and SSO/session-policy checks SHALL remain mandatory; this precondition SHALL NOT turn a refused credential into an authorized request. A verified delegation SHALL retain its signed organization and existing scope/membership contract without needing the browser header. Preactivation behavior SHALL remain unchanged. Sign-in, refresh, logout, identity linking, onboarding, membership choices and active-context selection/discovery SHALL remain separate operations with their existing authorization contracts rather than requiring an already-selected organization.
+
+#### Scenario: Shared cookie switches beneath a stale tab
+
+- **GIVEN** two tabs with one browser credential, tab A displaying organization A, and a current membership in A and B
+- **WHEN** the other tab selects B and tab A sends directory creation, project creation, project import or a project command with expected organization A
+- **THEN** each request receives `409 organization_context_changed`, neither organization changes, no journal/audit/event is published, and the client sends no automatic retry
+- **AND** the same rule covers project metadata and recency, steps, calendar markers, saved plans, optimization retry, undo/redo, spaces, project rank, shared people and organization administration mutations
+
+#### Scenario: A header cannot grant authority
+
+- **GIVEN** authority bound to A and a request naming expected organization B
+- **WHEN** the caller writes an organization resource
+- **THEN** the request refuses without accessing B, including when the caller also belongs to B
+- **AND** a correct expected organization does not bypass removed membership, viewer restrictions, enforced SSO or session policy
+
+#### Scenario: Missing and ambiguous mutation expectations
+
+- **GIVEN** valid activated browser authority and a mutation otherwise permitted in A
+- **WHEN** the expected header is absent, empty, duplicated, comma-combined or names B
+- **THEN** the request receives `409 organization_context_changed` and leaves all resource and publication state unchanged
+- **AND** exactly one matching A expectation permits the operation subject to its existing permissions and resource validation
+
+#### Scenario: A stale read cannot populate the previous organization screen
+
+- **GIVEN** an organization A runtime whose clients captured expectation A and a browser cookie now bound to B
+- **WHEN** that runtime reads an organization resource
+- **THEN** the server receives expectation A and refuses with `409 organization_context_changed` without returning B's resource content
+- **AND** the frontend clears the A runtime and requires reconciliation or selection
+
+#### Scenario: Existing authority boundaries remain intact
+
+- **WHEN** the preactivation request matrix is run with browser authority enabled and disabled, or a valid signed delegation accesses its bound organization
+- **THEN** preactivation requests retain their existing behavior and delegations retain their signed organization, audience, scope and current-membership requirements without the browser header
+- **AND** removing one mutation route from expected-organization enforcement causes the mounted route-inventory acceptance to fail
+
+### Requirement: A browser can discover its currently bound organization
+
+`GET /api/organization/active` SHALL authenticate a session, check activation, the exact verified credential binding, revocation, current membership and current credential rules, and return `200 {organizationId, name, role}` only for its currently bound organization. It SHALL require no expected-organization header, SHALL never select a membership, and SHALL expose no membership list. An inactive deployment SHALL answer `403 onboarding_inactive`; an unbound credential SHALL answer `403 no_active_organization`; removed membership SHALL answer `403 not_a_member`; invalid credentials SHALL answer 401; delegated callers SHALL answer `403 insufficient_scope`. Existing credential-rule refusals SHALL remain typed and trusted-state defects SHALL throw. Success and refusal responses SHALL use `Cache-Control: no-store` and `Vary: Cookie, Authorization`. This browser endpoint SHALL be excluded from generated MCP tools.
+
+#### Scenario: Discovering context never selects it
+
+- **GIVEN** a signed-in user with one or multiple memberships and no bound organization
+- **WHEN** the browser discovers its active organization
+- **THEN** the server answers `no_active_organization` without setting a selection cookie or choosing a membership
+- **AND** after explicit selection the same endpoint returns only the currently bound organization's ID, name and current role
+
+#### Scenario: Discovery after credential or membership changes
+
+- **GIVEN** a previously selected organization
+- **WHEN** its credential is replaced or revoked, membership is removed, or current SSO/session policy refuses admission
+- **THEN** discovery returns the existing applicable authority refusal rather than the earlier organization
+- **AND** a broken trusted marker or store is a server fault rather than a default context

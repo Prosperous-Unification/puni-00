@@ -1,7 +1,7 @@
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
-import { organizationRefusal } from './organization-refusal';
+import { organizationContextRefusal, organizationRefusal } from './organization-refusal';
 import { requestSchema, responseSchema } from './schema-shape';
 
 const readPolicy = [{ kind: 'identity', require: 'signed-in' }] as const;
@@ -40,7 +40,7 @@ export const listProvisioningTokens = defineEndpointShape({
   method: 'GET',
   path: '/api/organization/provisioning-tokens',
   operationId: 'getApiOrganizationProvisioningTokens',
-  policies: readPolicy,
+  policies: [...readPolicy, { kind: 'organization-resource', operation: 'read' }],
   responses: [
     {
       kind: 'json',
@@ -52,6 +52,7 @@ export const listProvisioningTokens = defineEndpointShape({
     unauthenticated,
     { status: 403, schema: responseSchema(type({ error: "'insufficient_scope'" })) },
     organizationRefusal,
+    organizationContextRefusal,
     { status: 400, schema: responseSchema(type({ error: "'invalid_query' | 'invalid_body'" })) },
     forbidden,
   ],
@@ -67,7 +68,7 @@ export const issueProvisioningToken = defineEndpointShape({
   method: 'POST',
   path: '/api/organization/provisioning-tokens',
   operationId: 'postApiOrganizationProvisioningTokens',
-  policies: writePolicy,
+  policies: [...writePolicy, { kind: 'organization-resource', operation: 'mutation' }],
   responses: [
     {
       kind: 'json',
@@ -79,6 +80,7 @@ export const issueProvisioningToken = defineEndpointShape({
     { status: 400, schema: responseSchema(type({ error: "'invalid_query' | 'invalid_body'" })) },
     unauthenticated,
     organizationRefusal,
+    organizationContextRefusal,
     writeScope,
     forbidden,
     unissuable,
@@ -94,7 +96,7 @@ export const rotateProvisioningToken = defineEndpointShape({
   method: 'POST',
   path: '/api/organization/provisioning-tokens/:id/rotate',
   operationId: 'postApiOrganizationProvisioningTokensByIdRotate',
-  policies: writePolicy,
+  policies: [...writePolicy, { kind: 'organization-resource', operation: 'mutation' }],
   params: requestSchema(type({ id: 'string' })),
   responses: [
     {
@@ -109,6 +111,7 @@ export const rotateProvisioningToken = defineEndpointShape({
     { status: 400, schema: responseSchema(type({ error: "'invalid_params' | 'invalid_query'" })) },
     unauthenticated,
     organizationRefusal,
+    organizationContextRefusal,
     writeScope,
     forbidden,
     notFound,
@@ -122,13 +125,14 @@ export const revokeProvisioningToken = defineEndpointShape({
   method: 'DELETE',
   path: '/api/organization/provisioning-tokens/:id',
   operationId: 'deleteApiOrganizationProvisioningTokensById',
-  policies: writePolicy,
+  policies: [...writePolicy, { kind: 'organization-resource', operation: 'mutation' }],
   params: requestSchema(type({ id: 'string' })),
   responses: [{ kind: 'empty', status: 204 }],
   refusals: [
     { status: 400, schema: responseSchema(type({ error: "'invalid_params' | 'invalid_query'" })) },
     unauthenticated,
     organizationRefusal,
+    organizationContextRefusal,
     writeScope,
     forbidden,
     notFound,

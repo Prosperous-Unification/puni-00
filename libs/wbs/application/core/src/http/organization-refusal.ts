@@ -9,6 +9,8 @@ export function organizationRefusal(refused: MembershipRefusal | RefusedOrganiza
   if (typeof refused === 'string')
     return { ok: false, status: 403, body: { error: refused } } as const;
   switch (refused.refusal) {
+    case 'organization_context_changed':
+      return { ok: false, status: 409, body: { error: refused.refusal } } as const;
     case 'sso_required':
       return {
         ok: false,

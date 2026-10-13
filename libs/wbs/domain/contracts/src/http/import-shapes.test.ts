@@ -25,6 +25,7 @@ test('declares the plan import shape and complete typed outcomes', async () => {
     path: '/api/projects/import',
     operationId: 'postApiProjectsImport',
     policies: [
+      { kind: 'organization-resource', operation: 'mutation' },
       { kind: 'origin', when: 'always-unsafe-with-session-cookie' },
       { kind: 'identity', require: 'write-scope' },
     ],
@@ -32,7 +33,7 @@ test('declares the plan import shape and complete typed outcomes', async () => {
   });
   expect(importProject.responses.map(({ status }) => status)).toEqual([201]);
   expect(importProject.refusals.map(({ status }) => status)).toEqual([
-    400, 401, 403, 403, 403, 409,
+    400, 401, 403, 403, 409, 403, 409,
   ]);
 
   const operation = documentFromShapes([importProject]).paths['/api/projects/import']?.['post'];

@@ -12,7 +12,7 @@ export const readTimezones = defineEndpointShape({
   method: 'GET',
   path: '/api/timezones',
   operationId: 'getApiTimezones',
-  policies: [{ kind: 'identity', require: 'signed-in' }],
+  policies: [{ kind: 'organization-control' }, { kind: 'identity', require: 'signed-in' }],
   responses: [
     {
       kind: 'json',

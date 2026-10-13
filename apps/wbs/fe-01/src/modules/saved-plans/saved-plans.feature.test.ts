@@ -512,3 +512,22 @@ describe('one project’s saved plans', () => {
     }).toThrow('the socket would not close');
   });
 });
+
+it('withdraws the saved-plan shelf on organization context refusal', async () => {
+  await expect(
+    readShelf(
+      {
+        available: () => Promise.resolve(true),
+        list: () =>
+          Promise.resolve({
+            kind: 'refusal',
+            representation: 'json',
+            status: 409,
+            headers: new Headers(),
+            body: { error: 'organization_context_changed' },
+          }),
+      },
+      'p1',
+    ),
+  ).resolves.toEqual({ kind: 'error', code: 'organization_context_changed' });
+});

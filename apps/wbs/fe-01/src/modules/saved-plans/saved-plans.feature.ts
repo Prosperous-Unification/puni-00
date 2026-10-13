@@ -57,6 +57,8 @@ export async function readShelf(deps: ShelfDeps, projectId: string): Promise<Sav
         // Proof: mapping not_found to an empty successful shelf failed the
         // production-path case: expected `error:not_found`, received
         // `{kind:'ready',rows:[]}` (saved-plans.feature.test.ts).
+        // Proof: removing the context arm changed the shelf read outcome code to
+        // Unexpected response variant: object; saved-plans.feature.test.ts, watched 2026-10-13.
         switch (reply.body.error) {
           case 'invalid_params':
           case 'unauthenticated':
@@ -64,6 +66,7 @@ export async function readShelf(deps: ShelfDeps, projectId: string): Promise<Sav
           case 'not_found':
           case 'invalid_body':
           case 'invalid_query':
+          case 'organization_context_changed':
           case 'no_active_organization':
           case 'not_a_member':
           case 'sso_required':

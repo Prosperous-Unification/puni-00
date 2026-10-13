@@ -130,3 +130,119 @@ Rollout order: each deployed backend's environment gains the setting explicitly 
 ## Slice realtime-auth: gateway project authorization (tasks 6.1–6.3)
 
 One per-socket `ConnectionAccess` (gw-01) owns admission, leases and ordering. Every `project:` subscribe, every resume point and every lease renewal asks one `CheckProjectAccess` port bound to that socket's credential, never a client-chosen name. In production that port is `POST /internal/gateway/projects/:id/browser-access` (decision A14): the `gateway-browser` identity policy requires the gateway secret, refuses any `Authorization` header, then proves the forwarded browser cookies through be-01's ordinary browser authentication with read scope; the handler rechecks current membership and the organization-scoped project. 204 grants; 404 (absent or foreign) and 403 organization or scope refusals deny; 401 `unauthenticated` closes the socket 1008; anything else, including 401 `unauthorized`, is be-01 unavailable and closes 1013 with nothing granted. `/internal/resume` takes the same policy and replays only the subscriptions that principal may read; every other one is `denied`/`forbidden`. Cookies are forwarded as sent and never logged. Subscription changes and lease rounds run through one serial queue; a round checks every held project at once and at most one round is queued, so the 4.5 s bound (3 s cadence plus one 1.5 s check deadline) holds whatever the number of subscriptions and a subscribe never waits behind stacked rounds. One transport failure is retried inside the same deadline so a blue/green alias change does not close every socket; a deadline or a closed socket is never retried. **Production today:** before activation every authenticated socket reads every project (legacy access, the same as HTTP reads) in either browser session composition. After activation, `BROWSER_SESSION_AUTHORITY=disabled` composes `NO_BOUND_ORGANIZATION`, so every subscribe would be refused `no_active_organization`; `enabled` composes the selection binding, and the forwarded organization cookie path is proven against `bootBe01`'s own composition as well as the harness. Known cost (review F4): one check per held project per round, about 83 requests per second at 50 sockets × 5 projects; a batch route `POST /internal/gateway/browser-access {projectIds}` would make it one request per socket per round. Only a local-mode socket, which carries no credential, uses the grant-all `LOCAL_PROJECT_ACCESS`; `buildGateway` is the one production composition and selects it for nothing else. The deploy smoke's backend hop accepts be-01 refusing the unknown smoke principal (close 1008 after the resume) as proof that gw-01 reached be-01.
+
+## Slices 2.4C and 4.6: expected organization and browser lifetime
+
+### Context and accepted scope
+
+Coordinator adopted this bounded C1/C2 packet on 2026-10-13 under standing authorization. Source baseline is `0ea6a1166242edf694294d1ed6e715fb7e1aed60`. C1 implements the HTTP precondition and current-context discovery; C2 consumes them to complete explicit selection and switcher acceptance. Execute the ordered section 8 tasks. Both are part of this change; this decision does not reopen identity-provider, role or activation choices.
+
+At that baseline production composition supports required `BROWSER_SESSION_AUTHORITY=enabled|disabled`, while the recorded deployed environments are disabled. `OnboardingScreen` displays memberships without selecting one; `SessionOwner.open` deduplicates by account ID, and its clients have no expected organization. `GET /api/organization/memberships` lists choices and cannot establish which cookie binding is active. Current SSO/session-policy refusals are part of access resolution and must survive this work.
+
+### C1: one expectation, independent authority
+
+Use `X-WBS-Expected-Organization`. The HTTP boundary parses it once into absent, present or invalid request evidence; trim only HTTP surrounding whitespace, refuse empty and comma-combined values, and do not normalize organization IDs into another identifier. Headers are case-insensitive. Duplicate physical values appear comma-combined through Fetch `Headers` and are refused even when equal. Internal code receives a precise union rather than reparsing a string or treating absence as the active organization.
+
+Resource operation classification is explicit: read or mutation. Carry that classification and parsed expectation to the access resolution that returns the operation's `ResourceAccess`. After ordinary authentication, revocation, current membership and credential-rule checks, an activated browser mutation requires a matching present expectation. Reads compare when an expectation is supplied. Only an explicit preactivation resolution preserves legacy behavior; a failed or corrupt marker never skips the check. A separately awaited preflight followed by an independent access resolution is insufficient: the operation must use the same resolved organization that was compared. Existing transactional membership/role checks remain in the committing store operations.
+
+Keep the shared precondition refusal distinct from resource-specific 409 conflicts. Declare `409 organization_context_changed` in affected endpoint shapes so shape-derived clients recognize it as a modeled refusal, including raw-text/export and multipart/import routes. Encode the resource operation policy where the shared shape and binding can enforce it; do not guess solely from HTTP verb or `write-scope`. Test the mounted operation inventory against the production shape/binding list, with explicit classification or exemption for every route. The inventory must detect an omitted route, and its expected list must not be generated solely from the same policy annotation it checks.
+
+| Organization operation family | Coverage owed by C1                                                                                                                                                                   |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Project roots and catalogs    | List/detail and solution lookup reads; creation, import, metadata, recent-open writes; directory lists and commands                                                                   |
+| Project dependents            | Work-item/schedule/history/export reads; command batches, undo/redo, steps, calendar markers, saved-plan and optimization-retry writes                                                |
+| Shared organization resources | Spaces and their project membership, project rank, shared-people policy, capacity/directory relations and corresponding reads                                                         |
+| Administration                | Members, invitation issuance/revocation, join decisions, domain lifecycle, SSO connections, session policy, provisioning administration and corresponding reads                       |
+| Exempt control flows          | Identity/authentication, refresh/logout/linking, onboarding and invitation acceptance, membership choices, active selection/discovery, infrastructure/internal service authentication |
+
+An exemption from the browser expectation never exempts existing authentication or permissions. Signed delegation retains its organization, audience, scope and membership rules; a supplied expectation cannot change it. Gateway service routes retain their existing browser/delegation authority contract and do not become browser resource writes merely because an internal check uses POST. Any actual resource command forwarded as a browser operation remains in the mutation inventory. Read-only organization selections or grants must not be inferred from arbitrary headers.
+
+`GET /api/organization/active` returns only `{organizationId, name, role}` from current verified authority, using the same activation/revocation/membership/credential-rule decisions as resource access. It neither chooses nor resets a cookie. Its no-store responses and MCP exclusion mirror the existing browser membership and selection routes. The frontend may use it without an expectation to reconcile; a protected resource fetch is never a substitute for reconciliation.
+
+### C2: the organization owns resource lifetime
+
+Keep the account identity and organization selection distinct. Model the signed-in view as loading, inactive legacy, onboarding/selection, switching, active, lost access or failure. For legacy mode retain an explicit legacy context. An active organization runtime is identified by account plus organization and its transition generation; generations reject superseded completion and are not server authority. Never extend a bare account-key comparison to accept any same-account organization.
+
+Create clients from the runtime's immutable organization context. Every organization resource read and mutation captures its expected organization from that runtime. Authentication/onboarding/selection clients remain independent. Existing module-level `browserClient` constructions in panels and utility APIs need an explicit bound-client/context seam; reading the newest organization from a global inside `fetch` would allow old closures to send B and defeats D3. A withdrawn runtime must be unable to issue new work or publish completed work.
+
+Selection ordering:
+
+1. Withdraw the current organization runtime synchronously and render switching with no old resource panels. Retire selected projects, streams, directory and catalog through the existing lifetime owners.
+2. Serialize same-tab selection requests. Post the intended membership through the existing exact-origin selection route. Reject double submission while pending; transition generations still guard sign-out, replacement and cross-tab supersession.
+3. Re-read active context after successful selection. Publish a new runtime only when that current response matches the intended membership and the transition remains current. A conflicting response renders explicit recovery/reselection; it never silently turns a request for A into selection of B.
+4. On selection failure or lost response, keep resource content withdrawn. Render a failure and allow context discovery/reselection; do not restore old services or replay an organization mutation. An ambiguous selection completion can be reconciled by the read endpoint.
+5. Preserve lifetime `fatal` and `overtaken` outcomes. A failed retirement cannot report a completed switch. Existing account sign-out/credential replacement also invalidate organization transitions and stale responses.
+
+On initial load, discover onboarding and active context: a currently valid binding may restore its explicitly selected membership; absence requires an explicit choice even when only one membership exists. Creation or invitation acceptance refreshes choices rather than selecting. Add the organization administration navigation with the switcher. Existing email verification, Auth0 link recovery, invitations, members and domains keep their distinct rendered refusals.
+
+Selection success sends a same-origin cross-tab invalidation notice containing no credential or authority. A `BroadcastChannel` notice is sufficient; it never selects the named organization, and focus/persisted-pageshow reconciliation plus request preconditions cover a missed notice. Withdraw retained resource UI before reconciling on these events. On organization-context mismatch, missing binding or removed membership, clear the whole organization runtime, including panels outside the project tree, and render recovery. Do not automatically repeat the mutation. Resource responses carry the originating runtime's generation so late reads/events cannot refill a successor. Remote membership removal is discovered through existing refusals/refresh or gateway policy; C2 promises no new instantaneous remote notification service.
+
+### Worker file boundaries
+
+C1 owns:
+
+- `libs/wbs/domain/contracts/src/http/endpoint-shape.ts`, organization shapes/refusals and affected resource shapes; client/OpenAPI/type contract tests and exports.
+- `libs/wbs/application/core/src/ports/organization-access.ts`, its shared HTTP refusal mapping and affected `src/http/*.routes.ts` bindings. Add a small expectation module beside this boundary if needed, rather than duplicating checks.
+- `apps/wbs/be-01/src/http/identity.ts`, `src/http/elysia/mount.ts`, `src/runtime/organization-selection.ts`, `src/controller/organization-selection.routes.ts` and necessary `app.ts` composition.
+- `libs/wbs/adapters/store-sqlite/src/organization-access.ts` and selection read adapter only where current context needs it; preserve all current credential rules and transactions. No migration is expected.
+- Backend mounted tests, shape audits, and the explicit MCP browser-route exclusion and tests in `apps/wbs/mcp-01/src/openapi-tools.ts` and related shape suites.
+
+C2 owns:
+
+- `apps/wbs/fe-01/src/app.tsx`, `app-router.tsx`, `runtime/session-runtime.ts`, and the small organization lifetime/context seam beside them, with lifetime/model tests.
+- `src/components/onboarding/onboarding-screen.tsx`, `components/organization/*`, switcher/chrome navigation and the existing SSO/session-policy administration components.
+- `src/lib/http.ts`, `wbs-api.ts`, refusal mapping and all other organization API consumers found by the C1 inventory, including spaces and saved plans.
+- `apps/wbs/fe-01/e2e/organization.spec.ts` and a dedicated local authority fixture if the existing browser suite stubs HTTP. At least one acceptance must run the real mounted backend with its authority enabled and activation confined to a disposable database.
+
+Each worker updates only its task checkboxes and records actual implementation evidence in `verify.md`. Coordinate shared contracts between workers; C2 begins after C1 is reviewed. No runtime-wide cleanup or unrelated refactor is included. Neither worker changes production environment values, activation markers, real tenants, DNS, mail delivery, migration history or provider credentials.
+
+### Required failure proofs
+
+The following are required observations during implementation, not completed evidence. Record injected faults, exact test names/commands and observed failure output in `verify.md`, then restore each guard and add its adjacent `Proof:` comment.
+
+| Safety check                      | Injected fault                                                               | Required production-path observation                                                                                        |
+| --------------------------------- | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Expected organization             | Remove comparison, or substitute resolved organization when header is absent | Mounted stale-tab/missing-header writes cease returning 409 and the test fails on status or changed persistence/publication |
+| Carrier cardinality               | Accept first of duplicate or comma-combined values                           | Mounted ambiguous-header request is admitted and the negative fails                                                         |
+| Complete route coverage           | Remove one real mutation's classification/check, including a bodyless route  | Independently enumerated mounted inventory test fails for that route                                                        |
+| Read isolation                    | Ignore a supplied expectation on a resource read                             | B content reaches an A client and the mounted/browser negative fails                                                        |
+| Context discovery authority       | Skip binding or current membership during active discovery                   | Removed/unbound session receives context and the mounted negative fails                                                     |
+| Account and organization lifetime | Restore user-ID-only keying                                                  | Same-account A-to-B test reuses A services and fails                                                                        |
+| Immutable request expectation     | Read latest global context when sending an old closure                       | A stale closure sends B and its no-write negative fails                                                                     |
+| Withdrawal and generation fence   | Publish an old deferred response/event or permit work after withdrawal       | Runtime/model and rendered tests observe stale content or an outbound request and fail                                      |
+| Retirement completion             | Publish B despite failed project/stream retirement                           | Fatal-state negative receives an active runtime and fails                                                                   |
+| Cross-tab authority               | Trust notice payload, or skip focus/pageshow invalidation                    | Browser test exposes unconfirmed organization content and fails                                                             |
+| Refusal recovery                  | Retain a panel/cache, or retry the refused mutation under B                  | Lost-access browser test retains A content or observes a second mutation and fails                                          |
+
+Use deterministic deferred responses and event delivery; no sleeps as ordering proofs. Cover revocation, credential replacement and SSO/session-policy refusals with both positive controls and refusal cases. Tests that inject trusted-state faults distinguish missing and unreadable state when the underlying boundary does. The packet introduces no new persistence state.
+
+### Validation and handoff
+
+Run focused mounted/backend, contracts, core/store and frontend/model suites for each edited boundary, then the real-stack browser case. Relevant existing backend suites include organization selection, project organization, directory commands, import/export, command organization, step/marker, saved plans, spaces/rank and credential rules. Add `organization-context.controller.db.test.ts` for the complete mounted precondition matrix and a frontend organization-context model suite. The exact test names in section 8 define acceptance; they are new tests to write, not claims that they exist on the baseline.
+
+Candidate commands, from the implementation checkout:
+
+```sh
+bun test apps/wbs/be-01/src/controller/organization-context.controller.db.test.ts
+bun test apps/wbs/be-01/src/controller/organization-selection.controller.db.test.ts
+bun test apps/wbs/be-01/src/controller/organization-credential-rules.controller.db.test.ts
+bunx nx run wbs-contracts:test
+bunx nx run wbs-fe-01:test
+bunx nx run wbs-be-01:typecheck
+bunx nx run wbs-fe-01:typecheck
+bunx nx run wbs-contracts:typecheck
+bunx nx run wbs-be-01:lint
+bunx nx run wbs-fe-01:lint
+openspec validate --all --json
+bin/h2puni-gate.sh <committed-implementation-sha>
+```
+
+Use the checked-in browser runner for `organization.spec.ts` with the dedicated local fixture; record its exact invocation and backend authority/activation evidence. Do not describe a route-stub browser test as full-stack acceptance. The canonical h2puni gate is required before implementation completion; trust its printed SHA and record any skipped or unavailable check. These commands are a future acceptance plan, not results of this design-only change.
+
+### Rollout, risks and remaining gates
+
+The immutable client context and backend refusal must land together before organization activation. Older activated clients missing the header will receive the intended 409. Header propagation and response unions touch multiple frontend consumers; contract and exhaustive-switch type checks are part of acceptance. Shared cookies can change after a successful discovery response; per-request expectations and generation fences remain necessary even with cross-tab notices. They do not promise linearizable global selection across every browser tab.
+
+Keep deployed `BROWSER_SESSION_AUTHORITY` settings unchanged. Existing rollout still switches backends to enabled before frontend production sign-out changes from local to server. C1/C2 can use enabled authority and an activated disposable local database for proof; fake OIDC fixtures exercise the same verification boundary without claiming live Auth0 configuration. Live callback allowlisting, identity/rights inventory, mail/DNS adapters and scheduling, remaining gateway/MCP integration, key/epoch operations and activation/rollback evidence remain their existing tasks. Existing gateway primitives and lease work are preserved, not reimplemented here.
+
+Completion of section 8 may close the local D3/switcher acceptance portions of 2.4 and 4.6 when their proofs pass. It does not mark the whole WBS item done, enable a deployment, or close other open task checkboxes. There are no unresolved product choices blocking C1; external operations remain behind the existing activation fence.

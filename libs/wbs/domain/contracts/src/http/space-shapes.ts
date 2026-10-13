@@ -1,7 +1,7 @@
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
-import { organizationRefusal } from './organization-refusal';
+import { organizationContextRefusal, organizationRefusal } from './organization-refusal';
 import { project } from './project-response';
 import { requestSchema, responseSchema } from './schema-shape';
 
@@ -42,6 +42,7 @@ const common = [
   },
   { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
   organizationRefusal,
+  organizationContextRefusal,
   { status: 409, schema: responseSchema(type({ error: "'organization_required'" })) },
 ] as const;
 const notFound = { status: 404, schema: responseSchema(type({ error: "'not_found'" })) } as const;
@@ -71,7 +72,7 @@ export const listSpaces = defineEndpointShape({
   method: 'GET',
   path: '/api/spaces',
   operationId: 'getApiSpaces',
-  policies: readPolicies,
+  policies: [...readPolicies, { kind: 'organization-resource', operation: 'read' }],
   responses: [
     {
       kind: 'json',
@@ -88,7 +89,7 @@ export const createSpace = defineEndpointShape({
   method: 'POST',
   path: '/api/spaces',
   operationId: 'postApiSpaces',
-  policies: writePolicies,
+  policies: [...writePolicies, { kind: 'organization-resource', operation: 'mutation' }],
   body: requestSchema(type({ name: 'string' })),
   bodyMedia,
   responses: [{ kind: 'json', status: 201, schema: spaceReply }],
@@ -110,7 +111,7 @@ export const readSpace = defineEndpointShape({
   method: 'GET',
   path: '/api/spaces/:id',
   operationId: 'getApiSpacesById',
-  policies: readPolicies,
+  policies: [...readPolicies, { kind: 'organization-resource', operation: 'read' }],
   params: spaceParams,
   responses: [
     {
@@ -143,7 +144,7 @@ export const renameSpace = defineEndpointShape({
   method: 'PATCH',
   path: '/api/spaces/:id',
   operationId: 'patchApiSpacesById',
-  policies: writePolicies,
+  policies: [...writePolicies, { kind: 'organization-resource', operation: 'mutation' }],
   params: spaceParams,
   body: requestSchema(type({ name: 'string' })),
   bodyMedia,
@@ -162,7 +163,7 @@ export const removeSpace = defineEndpointShape({
   method: 'DELETE',
   path: '/api/spaces/:id',
   operationId: 'deleteApiSpacesById',
-  policies: writePolicies,
+  policies: [...writePolicies, { kind: 'organization-resource', operation: 'mutation' }],
   params: spaceParams,
   responses: [{ kind: 'empty', status: 204 }],
   refusals: [...writing, notFound, virtualSpace],
@@ -177,7 +178,7 @@ export const addSpaceProject = defineEndpointShape({
   method: 'POST',
   path: '/api/spaces/:id/projects',
   operationId: 'postApiSpacesByIdProjects',
-  policies: writePolicies,
+  policies: [...writePolicies, { kind: 'organization-resource', operation: 'mutation' }],
   params: spaceParams,
   body: requestSchema(type({ projectId: 'string', 'afterProjectId?': 'string | null' })),
   bodyMedia,
@@ -198,7 +199,7 @@ export const removeSpaceProject = defineEndpointShape({
   method: 'DELETE',
   path: '/api/spaces/:id/projects/:projectId',
   operationId: 'deleteApiSpacesByIdProjectsByProjectId',
-  policies: writePolicies,
+  policies: [...writePolicies, { kind: 'organization-resource', operation: 'mutation' }],
   params: memberParams,
   responses: [{ kind: 'empty', status: 204 }],
   refusals: [...writing, notFound, virtualSpace],
@@ -210,7 +211,7 @@ export const moveSpaceProject = defineEndpointShape({
   method: 'POST',
   path: '/api/spaces/:id/projects/:projectId/move',
   operationId: 'postApiSpacesByIdProjectsByProjectIdMove',
-  policies: writePolicies,
+  policies: [...writePolicies, { kind: 'organization-resource', operation: 'mutation' }],
   params: memberParams,
   body: requestSchema(type({ 'afterProjectId?': 'string | null' })),
   bodyMedia,
@@ -255,7 +256,7 @@ export const readSpaceRollUps = defineEndpointShape({
   method: 'GET',
   path: '/api/spaces/:id/roll-ups',
   operationId: 'getApiSpacesByIdRoll-ups',
-  policies: readPolicies,
+  policies: [...readPolicies, { kind: 'organization-resource', operation: 'read' }],
   params: spaceParams,
   query: requestSchema(type({ projectIds: 'string' })),
   responses: [
@@ -292,7 +293,7 @@ export const readSpaceInProgress = defineEndpointShape({
   method: 'GET',
   path: '/api/spaces/:id/in-progress',
   operationId: 'getApiSpacesByIdIn-progress',
-  policies: readPolicies,
+  policies: [...readPolicies, { kind: 'organization-resource', operation: 'read' }],
   params: spaceParams,
   query: requestSchema(type({ 'limit?': 'string' })),
   responses: [

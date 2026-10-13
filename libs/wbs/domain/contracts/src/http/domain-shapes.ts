@@ -1,7 +1,7 @@
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
-import { organizationRefusal } from './organization-refusal';
+import { organizationContextRefusal, organizationRefusal } from './organization-refusal';
 import { requestSchema, responseSchema } from './schema-shape';
 
 const readPolicy = [{ kind: 'identity', require: 'signed-in' }] as const;
@@ -13,6 +13,7 @@ const common = [
   { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
   { status: 403, schema: responseSchema(type({ error: "'insufficient_scope'" })) },
   organizationRefusal,
+  organizationContextRefusal,
 ] as const;
 
 /** Lists the active organization's exact domain claims without challenge secrets. */
@@ -20,7 +21,7 @@ export const listOrganizationDomains = defineEndpointShape({
   method: 'GET',
   path: '/api/organization/domains',
   operationId: 'getApiOrganizationDomains',
-  policies: readPolicy,
+  policies: [...readPolicy, { kind: 'organization-resource', operation: 'read' }],
   responses: [
     {
       kind: 'json',
@@ -53,7 +54,7 @@ export const createDomainChallenge = defineEndpointShape({
   method: 'POST',
   path: '/api/organization/domains/challenges',
   operationId: 'postApiOrganizationDomainsChallenges',
-  policies: writePolicy,
+  policies: [...writePolicy, { kind: 'organization-resource', operation: 'mutation' }],
   body: requestSchema(type({ domain: 'string' })),
   responses: [
     {
@@ -73,6 +74,7 @@ export const createDomainChallenge = defineEndpointShape({
   refusals: [
     { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
     organizationRefusal,
+    organizationContextRefusal,
     {
       status: 400,
       schema: responseSchema(type({ error: "'invalid_json' | 'invalid_body' | 'invalid_domain'" })),
@@ -92,7 +94,7 @@ export const verifyDomainClaim = defineEndpointShape({
   method: 'POST',
   path: '/api/organization/domains/:id/verify',
   operationId: 'postApiOrganizationDomainsByIdVerify',
-  policies: writePolicy,
+  policies: [...writePolicy, { kind: 'organization-resource', operation: 'mutation' }],
   params: requestSchema(type({ id: 'string' })),
   responses: [
     {
@@ -105,6 +107,7 @@ export const verifyDomainClaim = defineEndpointShape({
     { status: 400, schema: responseSchema(type({ error: "'invalid_params' | 'invalid_query'" })) },
     { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
     organizationRefusal,
+    organizationContextRefusal,
     {
       status: 403,
       schema: responseSchema(type({ error: "'invalid_origin' | 'insufficient_scope'" })),
@@ -125,7 +128,7 @@ export const rotateDomainProof = defineEndpointShape({
   method: 'POST',
   path: '/api/organization/domains/:id/rotate',
   operationId: 'postApiOrganizationDomainsByIdRotate',
-  policies: writePolicy,
+  policies: [...writePolicy, { kind: 'organization-resource', operation: 'mutation' }],
   params: requestSchema(type({ id: 'string' })),
   responses: [
     {
@@ -146,6 +149,7 @@ export const rotateDomainProof = defineEndpointShape({
     { status: 400, schema: responseSchema(type({ error: "'invalid_params' | 'invalid_query'" })) },
     { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
     organizationRefusal,
+    organizationContextRefusal,
     {
       status: 403,
       schema: responseSchema(type({ error: "'invalid_origin' | 'insufficient_scope'" })),
@@ -162,13 +166,14 @@ export const releaseDomainClaim = defineEndpointShape({
   method: 'DELETE',
   path: '/api/organization/domains/:id',
   operationId: 'deleteApiOrganizationDomainsById',
-  policies: writePolicy,
+  policies: [...writePolicy, { kind: 'organization-resource', operation: 'mutation' }],
   params: requestSchema(type({ id: 'string' })),
   responses: [{ kind: 'empty', status: 204 }],
   refusals: [
     { status: 400, schema: responseSchema(type({ error: "'invalid_params' | 'invalid_query'" })) },
     { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
     organizationRefusal,
+    organizationContextRefusal,
     {
       status: 403,
       schema: responseSchema(type({ error: "'invalid_origin' | 'insufficient_scope'" })),

@@ -14,6 +14,11 @@ import type { WbsScope } from './oidc-identity';
  * older token keeps the scopes it was minted with until it expires.
  */
 export interface AuthenticatedUser {
+  /** Request evidence installed by the endpoint binding, never authority. */
+  organizationOperation?: {
+    readonly kind: 'read' | 'mutation';
+    readonly expected: ExpectedOrganization;
+  };
   id: string;
   username: string;
   scopes: readonly WbsScope[];
@@ -90,3 +95,8 @@ export type Delegation =
 export interface InternalIdentity {
   kind: 'internal';
 }
+
+/** The HTTP carrier preserves absence and malformed evidence independently of authority. */
+export type ExpectedOrganization =
+  | { readonly kind: 'absent' | 'invalid' }
+  | { readonly kind: 'present'; readonly organizationId: string };

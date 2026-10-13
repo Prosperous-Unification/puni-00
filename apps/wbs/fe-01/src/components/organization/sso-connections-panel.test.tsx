@@ -262,6 +262,7 @@ describe('company sign-in connection setup', () => {
     [401, { error: 'unauthenticated' }, 'signed_out'],
     [403, { error: 'no_active_organization' }, 'no_organization'],
     [403, { error: 'not_a_member' }, 'removed'],
+    [409, { error: 'organization_context_changed' }, 'no_organization'],
     [
       403,
       {
@@ -291,16 +292,19 @@ describe('company sign-in connection setup', () => {
     });
   });
 
-  it('hands create authority loss to the page', async () => {
+  it.each([
+    [403, 'not_a_member', 'removed'],
+    [409, 'organization_context_changed', 'no_organization'],
+  ] as const)('hands create authority loss %s %s to the page', async (status, error, loss) => {
     const onAccessLost = vi.fn();
     stubPanel({
-      'POST /api/organization/sso-connections': [() => answer(403, { error: 'not_a_member' })],
+      'POST /api/organization/sso-connections': [() => answer(status, { error })],
     });
     renderPanel(onAccessLost);
     await fillCreate();
     fireEvent.click(screen.getByRole('button', { name: 'Create connection' }));
     await waitFor(() => {
-      expect(onAccessLost).toHaveBeenCalledWith('removed');
+      expect(onAccessLost).toHaveBeenCalledWith(loss);
     });
   });
 

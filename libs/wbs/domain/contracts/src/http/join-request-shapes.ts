@@ -1,7 +1,7 @@
 import { type } from 'arktype';
 
 import { defineEndpointShape, type EndpointShape } from './endpoint-shape';
-import { organizationRefusal } from './organization-refusal';
+import { organizationContextRefusal, organizationRefusal } from './organization-refusal';
 import { requestSchema, responseSchema } from './schema-shape';
 
 const readPolicies = [{ kind: 'identity', require: 'signed-in' }] as const;
@@ -25,6 +25,7 @@ const refusals = [
   },
   { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
   organizationRefusal,
+  organizationContextRefusal,
   { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
   { status: 409, schema: responseSchema(type({ error: "'request_resolved' | 'domain_changed'" })) },
 ] as const satisfies EndpointShape['refusals'];
@@ -34,7 +35,7 @@ export const listJoinRequests = defineEndpointShape({
   method: 'GET',
   path: '/api/organization/join-requests',
   operationId: 'getApiOrganizationJoinRequests',
-  policies: readPolicies,
+  policies: [...readPolicies, { kind: 'organization-resource', operation: 'read' }],
   responses: [
     {
       kind: 'json',
@@ -60,7 +61,7 @@ export const approveJoinRequest = defineEndpointShape({
   method: 'POST',
   path: '/api/organization/join-requests/:id/approve',
   operationId: 'postApiOrganizationJoinRequestsByIdApprove',
-  policies: writePolicies,
+  policies: [...writePolicies, { kind: 'organization-resource', operation: 'mutation' }],
   params: requestSchema(type({ id: 'string' })),
   // Proof: 2026-09-28, admitting `admin` failed `rejects an admin approval role at the HTTP boundary` (400 became success).
   body: requestSchema(type({ role: "'viewer' | 'member'" })),
@@ -79,7 +80,7 @@ export const denyJoinRequest = defineEndpointShape({
   method: 'POST',
   path: '/api/organization/join-requests/:id/deny',
   operationId: 'postApiOrganizationJoinRequestsByIdDeny',
-  policies: writePolicies,
+  policies: [...writePolicies, { kind: 'organization-resource', operation: 'mutation' }],
   params: requestSchema(type({ id: 'string' })),
   responses: [{ kind: 'empty', status: 204 }],
   refusals,

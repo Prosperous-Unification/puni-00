@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { PlanRefresh, RefreshResource } from '@/lib/plan-refresh';
+import { WbsRequestError } from '@/lib/wbs-api';
 
 import { createBusy } from './busy-store';
 import type { PlanWriteRefusal, PlanWriterHost } from './contract';
@@ -177,4 +178,28 @@ describe('the plan writer', () => {
 
     expect(outcome).toBe('landed-unread');
   });
+});
+
+it('reports organization context change once without retrying the refused mutation', async () => {
+  const recorded = recordingHost();
+  const writer = createPlanWriter(recorded.host);
+  let requests = 0;
+  const outcome = await writer.run(async (write) => {
+    await write.perform(['tree'], () => {
+      requests += 1;
+      return Promise.reject(
+        new WbsRequestError({
+          kind: 'refusal',
+          operation: 'postApiProjectsByIdCommands',
+          refusal: { error: 'organization_context_changed' },
+        }),
+      );
+    });
+  });
+  expect(outcome).toBe('refused');
+  expect(requests).toBe(1);
+  expect(recorded.rereads).toEqual([]);
+  expect(recorded.refusals).toEqual([
+    { sentence: 'Your organization changed. Reload before making another change.' },
+  ]);
 });

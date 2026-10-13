@@ -542,6 +542,7 @@ export class OrganizationHarness {
     onCapturedFanout,
     onBorrowedUnitOfWork,
     supportedCapacityModes,
+    sessionBinding,
     provider,
   }: ComposedHarnessOptions): OrganizationHarness {
     const dir = mkdtempSync(join(tmpdir(), 'wbs-organization-'));
@@ -581,9 +582,19 @@ export class OrganizationHarness {
           }
         : {}),
     });
-    const organizationAccess = new SqliteOrganizationAccess(
+    const selection =
+      sessionBinding === true
+        ? organizationSelection(
+            new SqliteOrganizationSelection(source.db),
+            organizationCookieBinding(TEST_JWT_KEY),
+            new SqliteBrowserCredentialRevocations(source.db, services.gate),
+            (principal, organizationId) => organizationAccess.admitTo(principal, organizationId),
+          )
+        : undefined;
+    const organizationAccess: SqliteOrganizationAccess = new SqliteOrganizationAccess(
       source.db,
-      userBoundOrganizationOf((userId) => Promise.resolve(bound.get(userId) ?? null)),
+      selection?.activeOrganizationOf ??
+        userBoundOrganizationOf((userId) => Promise.resolve(bound.get(userId) ?? null)),
       () => services.clock.now(),
     );
     const app = buildApp({
@@ -601,6 +612,12 @@ export class OrganizationHarness {
           return access;
         },
       },
+      ...(selection === undefined
+        ? {}
+        : {
+            organizationSelection: selection.endpoints,
+            credentialEvidence: organizationCredentialEvidence(services.auth, TEST_JWT_KEY),
+          }),
       memberships: new OrganizationRepository(source.db, services.gate),
       domains: new DomainClaimRepository(source.db, services.gate),
       enterpriseConnections: new EnterpriseConnectionRepository(source.db, services.gate),
@@ -809,7 +826,15 @@ export class OrganizationHarness {
   }
 
   async call(username: string, method: string, path: string, body?: unknown): Promise<Answer> {
-    return this.callWith(this.tokens.get(username) ?? 'none', method, path, body);
+    const userId = this.ids.get(username);
+    const organizationId = userId === undefined ? undefined : this.bound.get(userId);
+    return this.callWith(
+      this.tokens.get(username) ?? 'none',
+      method,
+      path,
+      body,
+      organizationId === undefined ? {} : { 'X-WBS-Expected-Organization': organizationId },
+    );
   }
 
   /** {@link call} with an explicit Bearer credential, and any extra headers a caller forges. */
@@ -840,6 +865,7 @@ export class OrganizationHarness {
 
 /** Named options for {@link OrganizationHarness.openComposedWith}. */
 export interface ComposedHarnessOptions {
+  readonly sessionBinding?: boolean;
   withOptimizer?: boolean;
   /** Runs after organization access resolves, before the route acts. */
   afterResolve?: () => void;
