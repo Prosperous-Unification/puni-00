@@ -39,9 +39,9 @@ export type MembershipRefusal = 'no_active_organization' | 'not_a_member';
  */
 export type OrganizationAccessRefusal = MembershipRefusal | CredentialRuleRefusal['refusal'];
 
-/** A refused resolution: the membership refusal alone, or a credential rule's whole body. */
+/** A membership/context precondition refusal, or a credential rule's whole body. */
 export type RefusedOrganizationAccess =
-  | { readonly ok: false; readonly refusal: MembershipRefusal }
+  | { readonly ok: false; readonly refusal: MembershipRefusal | 'organization_context_changed' }
   | ({ readonly ok: false } & CredentialRuleRefusal);
 
 export type OrganizationAccessResolution =
@@ -61,6 +61,9 @@ export interface OrganizationAccess {
    * The access `principal` has for this request. After activation a verified
    * delegation's organization is the one checked; otherwise the
    * session's bound organization. Current membership is rechecked either way.
+   * Browser resource evidence installed by the endpoint binding is compared
+   * against that same resolved organization after the credential rules; it
+   * never selects authority. Controls and signed delegations need no expectation.
    */
   resolve(principal: OrganizationPrincipal): Promise<OrganizationAccessResolution>;
 }
@@ -68,7 +71,7 @@ export interface OrganizationAccess {
 /** What {@link OrganizationAccess.resolve} reads of a principal. */
 export type OrganizationPrincipal = Pick<
   AuthenticatedUser,
-  'id' | 'delegation' | 'organizationBinding' | 'authentication'
+  'id' | 'delegation' | 'organizationBinding' | 'authentication' | 'organizationOperation'
 >;
 
 /** The access every unscoped method uses: deployment-wide, as before organizations. */

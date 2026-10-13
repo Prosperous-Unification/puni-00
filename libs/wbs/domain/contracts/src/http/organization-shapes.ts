@@ -1,7 +1,7 @@
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
-import { organizationRefusal } from './organization-refusal';
+import { organizationContextRefusal, organizationRefusal } from './organization-refusal';
 import { requestSchema, responseSchema } from './schema-shape';
 
 /** A membership role as the wire carries it, `stored-vocabularies`' `ORGANIZATION_ROLES`. */
@@ -30,6 +30,7 @@ const refusals = [
     schema: responseSchema(type({ error: "'invalid_origin' | 'insufficient_scope'" })),
   },
   organizationRefusal,
+  organizationContextRefusal,
   // The role matrix refuses this change to this caller.
   { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
   // No membership of that user in the caller's active organization.
@@ -47,7 +48,7 @@ export const changeMemberRole = defineEndpointShape({
   method: 'PATCH',
   path: '/api/organization/members/:userId',
   operationId: 'patchApiOrganizationMembersByUserId',
-  policies,
+  policies: [...policies, { kind: 'organization-resource', operation: 'mutation' }],
   params: memberParams,
   body: requestSchema(type({ role })),
   responses: [
@@ -69,7 +70,7 @@ export const removeMember = defineEndpointShape({
   method: 'DELETE',
   path: '/api/organization/members/:userId',
   operationId: 'deleteApiOrganizationMembersByUserId',
-  policies,
+  policies: [...policies, { kind: 'organization-resource', operation: 'mutation' }],
   params: memberParams,
   responses: [{ kind: 'empty', status: 204 }],
   refusals,
@@ -86,7 +87,10 @@ export const listMembers = defineEndpointShape({
   method: 'GET',
   path: '/api/organization/members',
   operationId: 'getApiOrganizationMembers',
-  policies: [{ kind: 'identity', require: 'signed-in' }],
+  policies: [
+    { kind: 'organization-resource', operation: 'read' },
+    { kind: 'identity', require: 'signed-in' },
+  ],
   responses: [
     {
       kind: 'json',
@@ -112,6 +116,7 @@ export const listMembers = defineEndpointShape({
       schema: responseSchema(type({ error: "'insufficient_scope' | 'onboarding_inactive'" })),
     },
     organizationRefusal,
+    organizationContextRefusal,
     { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
   ],
   document: { summary: 'List members of the active organization.' },
@@ -122,7 +127,7 @@ export const listOrganizationMemberships = defineEndpointShape({
   method: 'GET',
   path: '/api/organization/memberships',
   operationId: 'getApiOrganizationMemberships',
-  policies: [{ kind: 'identity', require: 'signed-in' }],
+  policies: [{ kind: 'organization-control' }, { kind: 'identity', require: 'signed-in' }],
   defaultResponseHeaders: [
     ['cache-control', 'no-store'],
     ['vary', 'Cookie, Authorization'],
@@ -158,6 +163,7 @@ export const selectActiveOrganization = defineEndpointShape({
   path: '/api/organization/active',
   operationId: 'postApiOrganizationActive',
   policies: [
+    { kind: 'organization-control' },
     // Proof: the cookie-conditional policy let a bearer-only POST with no
     // Origin issue a selection cookie (mounted selection negative, 0/1).
     { kind: 'origin', when: 'always' },
@@ -188,6 +194,39 @@ export const selectActiveOrganization = defineEndpointShape({
     // Enforced SSO or a session policy refusing this credential in the
     // selected organization only (`organization-sso`, `organization-session-policy`).
     organizationRefusal,
+    organizationContextRefusal,
   ],
   document: { summary: 'Bind a current organization to this browser access credential.' },
+});
+
+/** Reads the current browser binding without choosing a membership or changing cookies. */
+export const readActiveOrganization = defineEndpointShape({
+  method: 'GET',
+  path: '/api/organization/active',
+  operationId: 'getApiOrganizationActive',
+  // Proof: removing no-store failed current-context discovery's mounted
+  // cache-header assertion; watched 2026-10-13.
+  policies: [{ kind: 'identity', require: 'signed-in' }, { kind: 'organization-control' }],
+  defaultResponseHeaders: [
+    ['cache-control', 'no-store'],
+    ['vary', 'Cookie, Authorization'],
+  ],
+  responses: [
+    {
+      kind: 'json',
+      status: 200,
+      schema: responseSchema(type({ organizationId: 'string', name: 'string', role })),
+    },
+  ],
+  refusals: [
+    { status: 400, schema: responseSchema(type({ error: "'invalid_query' | 'invalid_body'" })) },
+    { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
+    {
+      status: 403,
+      schema: responseSchema(type({ error: "'onboarding_inactive' | 'insufficient_scope'" })),
+    },
+    organizationRefusal,
+    organizationContextRefusal,
+  ],
+  document: { summary: 'Read the currently bound organization for this browser credential.' },
 });

@@ -273,6 +273,7 @@ function memberRefusal(refusal: MemberRefusal, action: string): RefusalOutcome {
   switch (refusal.error) {
     case 'onboarding_inactive':
     case 'unauthenticated':
+    case 'organization_context_changed':
     case 'no_active_organization':
     case 'not_a_member':
       return lostAccess(refusal.error);

@@ -17,7 +17,7 @@ export const health = defineEndpointShape({
   method: 'GET',
   path: '/health',
   operationId: 'getHealth',
-  policies: [],
+  policies: [{ kind: 'organization-control' }],
   responses: [
     {
       kind: 'json',
@@ -48,7 +48,7 @@ export const metrics = defineEndpointShape({
   method: 'GET',
   path: '/metrics',
   operationId: 'getMetrics',
-  policies: [],
+  policies: [{ kind: 'organization-control' }],
   responses: [
     { kind: 'text', status: 200, contentType: PROMETHEUS_CONTENT_TYPE },
     { kind: 'text', status: 500, contentType: PROMETHEUS_CONTENT_TYPE },

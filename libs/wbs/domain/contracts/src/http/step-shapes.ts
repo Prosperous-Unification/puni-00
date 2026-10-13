@@ -1,7 +1,7 @@
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
-import { organizationRefusal } from './organization-refusal';
+import { organizationContextRefusal, organizationRefusal } from './organization-refusal';
 import { requestSchema, responseSchema } from './schema-shape';
 
 const projectParams = requestSchema(type({ id: 'string' }));
@@ -77,6 +77,7 @@ const sharedRefusals = [
   },
   { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
   organizationRefusal,
+  organizationContextRefusal,
   { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
 ] as const;
 const nameRefusals = [
@@ -97,7 +98,7 @@ export const addStep = defineEndpointShape({
   method: 'POST',
   path: '/api/projects/:id/steps',
   operationId: 'postApiProjectsByIdSteps',
-  policies,
+  policies: [...policies, { kind: 'organization-resource', operation: 'mutation' }],
   params: projectParams,
   body: newStepBody,
   bodyMedia: ['application/json', 'application/x-www-form-urlencoded', 'multipart/form-data'],
@@ -120,7 +121,7 @@ export const renameStep = defineEndpointShape({
   method: 'PATCH',
   path: '/api/projects/:id/steps/:stepId',
   operationId: 'patchApiProjectsByIdStepsByStepId',
-  policies,
+  policies: [...policies, { kind: 'organization-resource', operation: 'mutation' }],
   params: stepParams,
   body: patchBody,
   bodyMedia: ['application/json', 'application/x-www-form-urlencoded', 'multipart/form-data'],
@@ -145,7 +146,7 @@ export const removeStep = defineEndpointShape({
   method: 'DELETE',
   path: '/api/projects/:id/steps/:stepId',
   operationId: 'deleteApiProjectsByIdStepsByStepId',
-  policies,
+  policies: [...policies, { kind: 'organization-resource', operation: 'mutation' }],
   params: stepParams,
   // Proof: the tolerant wrapper deleted the used step,204 instead of400 in
   // the unknown-cascade-query wire case (step.controller.db.test.ts).

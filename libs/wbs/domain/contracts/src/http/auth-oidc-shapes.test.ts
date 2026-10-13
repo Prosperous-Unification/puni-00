@@ -47,7 +47,7 @@ test('declares a JSON link start and a callback whose outcomes are all redirects
 
 test('declares the public method list and the login method hint', () => {
   const paths = documentFromShapes([startOidcLogin, listAuthMethods]).paths;
-  expect(listAuthMethods.policies).toEqual([]);
+  expect(listAuthMethods.policies).toEqual([{ kind: 'organization-control' }]);
   expect(paths['/api/auth/methods']?.['get']?.responses).toHaveProperty('200');
   const methods = { methods: [{ id: 'google', label: 'Continue with Google' }] };
   expect(

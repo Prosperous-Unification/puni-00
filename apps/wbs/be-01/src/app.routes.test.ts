@@ -10,7 +10,6 @@ import {
   startOidcLogin,
 } from '@wbs/contracts';
 import { AuthService } from '@wbs/core/service/auth.service';
-import { planDocumentFixture } from '@wbs/core/testing/plan-document-fixture';
 import { inMemorySpaces } from '@wbs/store-memory/space-fixture';
 import { describe, expect, it, spyOn } from 'bun:test';
 
@@ -40,6 +39,7 @@ import { testPriorityBandService } from './testing/priority-band-fixture';
 import { inMemoryProjects, testProjectService } from './testing/project-fixture';
 import { refusingProjectRanks } from './testing/project-rank-fixture';
 import { testReplay } from './testing/replay-fixture';
+import { REQUEST_BODIES, REQUEST_QUERIES } from './testing/route-requests';
 import { testSavedPlanService } from './testing/saved-plan-fixture';
 import { testStepService } from './testing/step-fixture';
 import { testWorkItemService } from './testing/work-item-fixture';
@@ -145,82 +145,6 @@ const OIDC_SHAPES = new Set<(typeof httpShapes)[number]>([
   refreshOidcSession,
   logoutOidcSession,
 ]);
-const REQUEST_BODIES: Readonly<Record<string, unknown>> = {
-  postApiAuthContext: { organizationId: ROUTE_ID },
-  postApiAuthLinkAuth0: { password: 'valid-password' },
-  postApiAuthRegister: { username: 'route-probe', password: 'valid-password' },
-  postApiAuthLogin: { username: 'route-probe', password: 'valid-password' },
-  postApiOnboardingOrganizations: { name: 'Reachable organization' },
-  postApiOrganizationActive: { organizationId: ROUTE_ID },
-  postApiOnboardingJoinRequests: { organizationId: ROUTE_ID },
-  postApiOrganizationDomainsChallenges: { domain: 'example.org' },
-  'postApiOrganizationSso-connections': {
-    domainClaimId: ROUTE_ID,
-    auth0Connection: 'route-probe',
-    strategy: 'samlp',
-    loginSlug: 'route-probe',
-  },
-  'patchApiOrganizationSso-connectionsById': { loginSlug: 'route-probe' },
-  postApiOnboardingEmailChallenges: { email: 'test@example.org' },
-  postApiOnboardingEmailChallengesConfirm: { email: 'test@example.org', token: 'invalid' },
-  postApiOrganizationInvitations: { email: 'test@example.org', role: 'viewer' },
-  postApiOrganizationJoinRequestsByIdApprove: { role: 'viewer' },
-  postApiOnboardingInvitationsAccept: { token: 'invalid' },
-  postApiSmokeEcho: { text: 'reachable' },
-  postApiProjectsByIdSteps: { name: 'Reachable step' },
-  patchApiProjectsByIdStepsByStepId: { name: 'Renamed step' },
-  patchApiOrganizationMembersByUserId: { role: 'member' },
-  postApiProjects: { name: 'Reachable plan' },
-  postApiProjectsImport: planDocumentFixture(),
-  patchApiProjectsById: {
-    pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
-  },
-  postApiProjectsByIdOptimizationRetry: { objective: 'pri', inputHash: 'route-probe' },
-  postApiProjectsByIdCommands: {
-    commands: [
-      {
-        kind: 'patchWorkItem',
-        workItemId: ROUTE_ID,
-        patch: {
-          externalRefs: [{ systemId: ROUTE_ID, url: 'https://example.test/work/1' }],
-          teamIds: [],
-        },
-      },
-    ],
-  },
-  postApiDirectoryCommands: {
-    commands: [{ kind: 'createPerson', name: 'Route probe', teamIds: [] }],
-  },
-  'postApiProjectsByIdCalendar-markers': {
-    markerId: ROUTE_MARKER_ID,
-    date: '2026-09-06',
-    name: 'Route probe',
-  },
-  'patchApiProjectsByIdCalendar-markersByMarkerId': { name: 'Renamed route probe' },
-  'postApiProjectsByIdSaved-plans': {},
-  postApiSpaces: { name: 'Route probe' },
-  patchApiSpacesById: { name: 'Renamed route probe' },
-  postApiSpacesByIdProjects: { projectId: ROUTE_ID },
-  postApiSpacesByIdProjectsByProjectIdMove: {},
-  postApiOrganizationProjectsByIdRank: {},
-  patchApiOrganization: { sharedPeople: true },
-  'putApiOrganizationSession-policy': {
-    maxSessionSeconds: 28_800,
-    reauthenticateAfterSeconds: null,
-  },
-  'patchApiSaved-plansById': { name: 'Renamed snapshot' },
-  postInternalForward: { message: { kind: 'route-probe' }, trace_id: 'route-probe' },
-  postInternalResume: { resume_points: { subscription: -1 }, trace_id: 'route-probe' },
-};
-const REQUEST_QUERIES: Readonly<Partial<Record<string, Readonly<Record<string, string>>>>> = {
-  'getApiSpacesByIdRoll-ups': { projectIds: 'route-probe' },
-  getApiAuthOktaCallback: { state: 'route-probe', error: 'access_denied' },
-  getApiPeopleByPersonIdLoad: { from: '2026-10-05', to: '2026-10-09' },
-  getApiPeopleLoad: { from: '2026-10-05', to: '2026-10-09' },
-  getApiProjectsByIdExport: { format: 'json' },
-  'getApiProjectsByIdSaved-plansCompare': { left: 'current', right: 'current' },
-  'getApiProjectsByIdStep-references': { reference: '010.dev', revision: 'ar1:route-probe' },
-};
 const REQUEST_BOUNDARY_ERRORS = new Set([
   'invalid_body',
   'invalid_json',
@@ -256,6 +180,7 @@ const SIGNED_IN_OPERATIONS = [
   'getApiOrganizationJoinRequests',
   'getApiOrganizationMembers',
   'getApiOrganizationMemberships',
+  'getApiOrganizationActive',
   'getApiOrganizationProject-rank',
   'getApiOrganizationProvisioningTokens',
   'getApiOrganizationSession-policy',
@@ -413,6 +338,7 @@ const NO_ORIGIN_OPERATIONS = [
   'getApiExternal-systems',
   'getApiOnboarding',
   'getApiOrganizationMemberships',
+  'getApiOrganizationActive',
   'getApiOrganization',
   'getApiOrganizationDomains',
   'getApiOrganizationInvitations',
@@ -703,7 +629,7 @@ it('enforces the complete pinned identity and origin policy inventory on the pro
     expect({ operationId, status: response.status }).toEqual({ operationId, status: 403 });
   }
 
-  expect(policyOperations('identity', 'signed-in')).toEqual([...SIGNED_IN_OPERATIONS]);
+  expect(policyOperations('identity', 'signed-in')).toEqual([...SIGNED_IN_OPERATIONS].sort());
   expect(policyOperations('identity', 'read-scope')).toEqual([...READ_SCOPE_OPERATIONS]);
   expect(policyOperations('identity', 'write-scope')).toEqual([...WRITE_SCOPE_OPERATIONS]);
   expect(policyOperations('identity', 'internal')).toEqual([...INTERNAL_OPERATIONS]);
@@ -729,7 +655,9 @@ it('enforces the complete pinned identity and origin policy inventory on the pro
     [...NO_ORIGIN_OPERATIONS, ...ALWAYS_ORIGIN_OPERATIONS, ...COOKIE_ORIGIN_OPERATIONS].sort(),
   ).toEqual(everyOperation);
   for (const shape of httpShapes) {
-    const actualPolicies: readonly RequestPolicy[] = shape.policies;
+    const actualPolicies: readonly RequestPolicy[] = shape.policies.filter(
+      (policy) => policy.kind === 'identity' || policy.kind === 'origin',
+    );
     expect({ operationId: shape.operationId, policies: actualPolicies }).toEqual({
       operationId: shape.operationId,
       policies: expectedPolicies(shape.operationId),

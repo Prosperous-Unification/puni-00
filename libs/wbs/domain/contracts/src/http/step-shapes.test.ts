@@ -65,8 +65,7 @@ test('declares the full step response and each usage count and assumed-assignee 
     },
   });
   const remove = document.paths['/api/projects/{id}/steps/{stepId}']?.['delete'];
-  // Three 409 variants since typed dependencies: in use, referenced by a
-  // typed dependency, and a removal that would close a step-node cycle.
+  // Context change joins in-use, typed dependency and cycle conflicts.
   interface Variant {
     anyOf?: Variant[];
     properties?: Record<string, unknown>;
@@ -76,11 +75,12 @@ test('declares the full step response and each usage count and assumed-assignee 
   const conflicts = remove?.responses['409']?.content?.['application/json']?.schema;
   const variants = conflicts === undefined ? [] : flatten(conflicts as Variant);
   expect(variants.map((variant) => Object.keys(variant.properties ?? {}).sort())).toEqual([
+    ['error'],
     ['error', 'inUse'],
     ['dependencyIds', 'error'],
     ['error'],
   ]);
-  expect(variants.at(0)).toMatchObject({
+  expect(variants.at(1)).toMatchObject({
     properties: {
       inUse: {
         required: [

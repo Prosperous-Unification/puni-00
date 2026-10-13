@@ -1,7 +1,7 @@
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
-import { organizationRefusal } from './organization-refusal';
+import { organizationContextRefusal, organizationRefusal } from './organization-refusal';
 import { requestSchema, responseSchema } from './schema-shape';
 
 /**
@@ -29,6 +29,7 @@ export const readHistory = defineEndpointShape({
   path: '/api/projects/:id/history',
   operationId: 'getApiProjectsByIdHistory',
   policies: [
+    { kind: 'organization-resource', operation: 'read' },
     { kind: 'origin', when: 'always-unsafe-with-session-cookie' },
     { kind: 'identity', require: 'signed-in' },
   ],
@@ -53,6 +54,7 @@ export const readHistory = defineEndpointShape({
       schema: responseSchema(type({ error: "'invalid_origin' | 'insufficient_scope'" })),
     },
     organizationRefusal,
+    organizationContextRefusal,
     { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
   ],
   document: {

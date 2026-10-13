@@ -51,6 +51,7 @@ test('keeps browser organization selection out of the generated MCP tools', () =
   const names = toolsFromDocument(readDocument()).map((tool) => tool.name);
   expect(names).not.toContain('getApiOrganizationMemberships');
   expect(names).not.toContain('postApiOrganizationActive');
+  expect(names).not.toContain('getApiOrganizationActive');
 });
 
 test('keeps provisioning-token administration out of the generated MCP tools', () => {
@@ -173,4 +174,9 @@ test('optional operational deny paths cannot become tools in external documents'
   };
   expect(toolsFromDocument(document).map((tool) => tool.name)).not.toContain('getHealth');
   expect(toolsFromDocument(document).map((tool) => tool.name)).not.toContain('getMetrics');
+});
+
+test('keeps browser current-context discovery out of generated MCP tools', () => {
+  const names = toolsFromDocument(documentFromShapes(httpShapes)).map((tool) => tool.name);
+  expect(names).not.toContain('getApiOrganizationActive');
 });

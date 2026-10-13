@@ -4,6 +4,7 @@ import { unreachable } from '@/lib/http';
 /** Every refusal word a space route answers, as `@wbs/contracts` declares them. */
 export type SpaceRefusalCode =
   | 'unauthenticated'
+  | 'organization_context_changed'
   | 'no_active_organization'
   | 'not_a_member'
   | 'organization_required'
@@ -38,6 +39,13 @@ export function spaceRefusal(refusal: SpaceRefusal): SpaceRefusalOutcome {
   switch (refusal.error) {
     case 'unauthenticated':
       return { kind: 'page', text: 'Your session ended. Sign in again.' };
+    // Proof: removing this arm failed the rendered spaces withdrawal test
+    // in spaces-page.test.tsx; watched 2026-10-13.
+    case 'organization_context_changed':
+      return {
+        kind: 'page',
+        text: 'Your organization changed. Reload before making another change.',
+      };
     case 'no_active_organization':
       return { kind: 'page', text: 'No organization is selected for this session.' };
     case 'not_a_member':

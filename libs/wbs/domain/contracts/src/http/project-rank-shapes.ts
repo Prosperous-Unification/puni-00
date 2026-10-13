@@ -1,7 +1,7 @@
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
-import { organizationRefusal } from './organization-refusal';
+import { organizationContextRefusal, organizationRefusal } from './organization-refusal';
 import { requestSchema, responseSchema } from './schema-shape';
 
 /** The organization's projects in rank order (`share-people-across-projects`, spec `project-rank`). */
@@ -24,6 +24,7 @@ const common = [
   },
   { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
   organizationRefusal,
+  organizationContextRefusal,
   { status: 409, schema: responseSchema(type({ error: "'organization_required'" })) },
 ] as const;
 
@@ -32,7 +33,10 @@ export const readProjectRank = defineEndpointShape({
   method: 'GET',
   path: '/api/organization/project-rank',
   operationId: 'getApiOrganizationProject-rank',
-  policies: [{ kind: 'identity', require: 'signed-in' }],
+  policies: [
+    { kind: 'organization-resource', operation: 'read' },
+    { kind: 'identity', require: 'signed-in' },
+  ],
   responses: [{ kind: 'json', status: 200, schema: rankReply }],
   refusals: common,
   document: { summary: 'Read the active organization’s projects in rank order.' },
@@ -49,6 +53,7 @@ export const moveProjectRank = defineEndpointShape({
   path: '/api/organization/projects/:id/rank',
   operationId: 'postApiOrganizationProjectsByIdRank',
   policies: [
+    { kind: 'organization-resource', operation: 'mutation' },
     { kind: 'origin', when: 'always-unsafe-with-session-cookie' },
     { kind: 'identity', require: 'write-scope' },
   ],

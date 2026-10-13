@@ -92,6 +92,8 @@ export const EXCLUDED_PATHS: readonly string[] = [
   // Proof: removing either path independently made the production-document
   // exclusion test expose its GET or POST tool (0/1 for each mutation).
   '/api/organization/memberships',
+  // Proof: removing this path exposed getApiOrganizationActive and failed
+  // the generated current-context discovery exclusion; watched 2026-10-13.
   '/api/organization/active',
   // A provisioning token is a credential, so issuing one is a credential
   // factory exactly as `/api/auth/*` is (`organization-scim`).

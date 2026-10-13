@@ -1,7 +1,7 @@
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
-import { organizationRefusal } from './organization-refusal';
+import { organizationContextRefusal, organizationRefusal } from './organization-refusal';
 import { responseSchema } from './schema-shape';
 
 const namedRow = type({ id: 'string', name: 'string' });
@@ -15,6 +15,7 @@ const refusals = [
   },
   { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
   organizationRefusal,
+  organizationContextRefusal,
 ] as const;
 
 /**
@@ -28,7 +29,7 @@ export const listTeams = defineEndpointShape({
   method: 'GET',
   path: '/api/teams',
   operationId: 'getApiTeams',
-  policies,
+  policies: [...policies, { kind: 'organization-resource', operation: 'read' }],
   responses: [
     {
       kind: 'json',
@@ -52,7 +53,7 @@ export const listPeople = defineEndpointShape({
   method: 'GET',
   path: '/api/people',
   operationId: 'getApiPeople',
-  policies,
+  policies: [...policies, { kind: 'organization-resource', operation: 'read' }],
   responses: [
     {
       kind: 'json',
@@ -81,7 +82,7 @@ export const listTags = defineEndpointShape({
   method: 'GET',
   path: '/api/tags',
   operationId: 'getApiTags',
-  policies,
+  policies: [...policies, { kind: 'organization-resource', operation: 'read' }],
   responses: [
     { kind: 'json', status: 200, schema: responseSchema(type({ tags: namedRow.array() })) },
   ],
@@ -97,7 +98,7 @@ export const listServices = defineEndpointShape({
   method: 'GET',
   path: '/api/services',
   operationId: 'getApiServices',
-  policies,
+  policies: [...policies, { kind: 'organization-resource', operation: 'read' }],
   responses: [
     { kind: 'json', status: 200, schema: responseSchema(type({ services: namedRow.array() })) },
   ],
@@ -113,7 +114,7 @@ export const listWorkItemTypes = defineEndpointShape({
   method: 'GET',
   path: '/api/work-item-types',
   operationId: 'getApiWork-item-types',
-  policies,
+  policies: [...policies, { kind: 'organization-resource', operation: 'read' }],
   responses: [
     {
       kind: 'json',
@@ -133,7 +134,7 @@ export const listExternalSystems = defineEndpointShape({
   method: 'GET',
   path: '/api/external-systems',
   operationId: 'getApiExternal-systems',
-  policies,
+  policies: [...policies, { kind: 'organization-resource', operation: 'read' }],
   responses: [
     {
       kind: 'json',

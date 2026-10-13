@@ -2,6 +2,8 @@ import type { ImportRefusal, Refusal, RefusalStatus } from './refusal';
 import type { SchemaShape } from './schema-shape';
 
 export type RequestPolicy =
+  | { kind: 'organization-resource'; operation: 'read' | 'mutation' }
+  | { kind: 'organization-control' }
   | { kind: 'origin'; when: 'always-unsafe-with-session-cookie' | 'always' }
   | {
       kind: 'identity';

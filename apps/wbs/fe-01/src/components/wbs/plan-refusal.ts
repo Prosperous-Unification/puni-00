@@ -16,6 +16,7 @@ function directoryReadCode(refusal: RefusalOf<'getApiPeople'>): string {
     case 'invalid_params':
     case 'invalid_body':
     case 'unauthenticated':
+    case 'organization_context_changed':
     case 'no_active_organization':
     case 'not_a_member':
     case 'sso_required':
@@ -35,6 +36,7 @@ function projectCreateCode(refusal: RefusalOf<'postApiProjects'>): string {
     case 'insufficient_scope':
     case 'invalid_json':
     case 'invalid_body':
+    case 'organization_context_changed':
     case 'no_active_organization':
     case 'not_a_member':
     case 'sso_required':
@@ -55,6 +57,7 @@ function projectOpenCode(refusal: RefusalOf<'postApiProjectsByIdOpened'>): strin
     case 'insufficient_scope':
     case 'not_found':
     case 'invalid_body':
+    case 'organization_context_changed':
     case 'no_active_organization':
     case 'not_a_member':
     case 'sso_required':
@@ -72,6 +75,7 @@ function projectReadCode(refusal: RefusalOf<'getApiProjectsById'>): string {
     case 'invalid_params':
     case 'unauthenticated':
     case 'not_found':
+    case 'organization_context_changed':
     case 'no_active_organization':
     case 'not_a_member':
     case 'sso_required':
@@ -99,6 +103,7 @@ function projectPatchCode(refusal: RefusalOf<'patchApiProjectsById'>): string {
     case 'optimizer_unavailable':
     case 'solution_taken':
     case 'dependency_cycle':
+    case 'organization_context_changed':
     case 'no_active_organization':
     case 'not_a_member':
     case 'sso_required':
@@ -116,6 +121,7 @@ function treeReadCode(refusal: RefusalOf<'getApiProjectsByIdWork-items'>): strin
     case 'invalid_body':
     case 'invalid_json':
     case 'unauthenticated':
+    case 'organization_context_changed':
     case 'no_active_organization':
     case 'not_a_member':
     case 'sso_required':
@@ -141,6 +147,7 @@ function historyCode(refusal: RefusalOf<'postApiProjectsByIdUndo'>): string {
     case 'not_found':
     case 'nothing_to_undo':
     case 'stale_undo':
+    case 'organization_context_changed':
     case 'no_active_organization':
     case 'not_a_member':
     case 'sso_required':
@@ -160,6 +167,7 @@ function markerListCode(refusal: RefusalOf<'getApiProjectsByIdCalendar-markers'>
     case 'unauthenticated':
     case 'invalid_origin':
     case 'insufficient_scope':
+    case 'organization_context_changed':
     case 'no_active_organization':
     case 'not_a_member':
     case 'sso_required':
@@ -182,6 +190,7 @@ function markerWriteCode(refusal: RefusalOf<'postApiProjectsByIdCalendar-markers
     case 'unauthenticated':
     case 'invalid_origin':
     case 'insufficient_scope':
+    case 'organization_context_changed':
     case 'no_active_organization':
     case 'not_a_member':
     case 'sso_required':
@@ -208,6 +217,7 @@ function markerRemoveCode(
     case 'unauthenticated':
     case 'invalid_origin':
     case 'insufficient_scope':
+    case 'organization_context_changed':
     case 'no_active_organization':
     case 'not_a_member':
     case 'sso_required':
@@ -231,6 +241,7 @@ function stepWriteCode(
     case 'unauthenticated':
     case 'invalid_origin':
     case 'insufficient_scope':
+    case 'organization_context_changed':
     case 'no_active_organization':
     case 'not_a_member':
     case 'sso_required':
@@ -264,6 +275,7 @@ function stepRemoveCode(refusal: RefusalOf<'deleteApiProjectsByIdStepsByStepId'>
     case 'unauthenticated':
     case 'invalid_origin':
     case 'insufficient_scope':
+    case 'organization_context_changed':
     case 'no_active_organization':
     case 'not_a_member':
     case 'sso_required':
@@ -280,6 +292,10 @@ function stepRemoveCode(refusal: RefusalOf<'deleteApiProjectsByIdStepsByStepId'>
   }
 }
 
+/**
+ * Proof: removing the organization-context arm made the plan writer's context
+ * refusal throw instead of render once, in plan-writer.test.ts; watched 2026-10-13.
+ */
 function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string {
   switch (refusal.error) {
     case 'invalid_params':
@@ -422,6 +438,7 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'readiness_after_progress':
     case 'cannot_hold_done':
     case 'no_steps':
+    case 'organization_context_changed':
     case 'no_active_organization':
     case 'not_a_member':
     case 'sso_required':
@@ -464,6 +481,7 @@ function optimizationRetryCode(refusal: RefusalOf<'postApiProjectsByIdOptimizati
     case 'insufficient_scope':
     case 'forbidden':
     case 'not_found':
+    case 'organization_context_changed':
     case 'no_active_organization':
     case 'not_a_member':
     case 'sso_required':
@@ -626,6 +644,7 @@ export const INVALID_REFUSAL =
  */
 export const PLAN_REFUSALS: RefusalWords = {
   sentences: {
+    organization_context_changed: 'Your organization changed. Reload before making another change.',
     engine_unavailable: 'Optimized scheduling is unavailable in this runtime.',
     not_found:
       'That change could not be completed: its target is no longer here — someone may have deleted it.',

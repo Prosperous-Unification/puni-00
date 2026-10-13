@@ -1,7 +1,7 @@
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
-import { organizationRefusal } from './organization-refusal';
+import { organizationContextRefusal, organizationRefusal } from './organization-refusal';
 import { requestSchema, responseSchema } from './schema-shape';
 
 /**
@@ -21,6 +21,7 @@ const common = [
   },
   { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
   organizationRefusal,
+  organizationContextRefusal,
   { status: 409, schema: responseSchema(type({ error: "'organization_required'" })) },
 ] as const;
 
@@ -29,7 +30,10 @@ export const readCapacityMode = defineEndpointShape({
   method: 'GET',
   path: '/api/organization',
   operationId: 'getApiOrganization',
-  policies: [{ kind: 'identity', require: 'signed-in' }],
+  policies: [
+    { kind: 'organization-resource', operation: 'read' },
+    { kind: 'identity', require: 'signed-in' },
+  ],
   responses: [{ kind: 'json', status: 200, schema: modeReply }],
   refusals: common,
   document: { summary: 'Read whether the active organization shares its people.' },
@@ -48,6 +52,7 @@ export const switchCapacityMode = defineEndpointShape({
   path: '/api/organization',
   operationId: 'patchApiOrganization',
   policies: [
+    { kind: 'organization-resource', operation: 'mutation' },
     { kind: 'origin', when: 'always-unsafe-with-session-cookie' },
     { kind: 'identity', require: 'write-scope' },
   ],

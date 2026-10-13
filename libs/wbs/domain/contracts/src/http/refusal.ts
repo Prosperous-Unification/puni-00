@@ -256,6 +256,8 @@ export type CommandRefusalDetail = {
 type BareRefusalCode =
   | 'unauthenticated'
   | 'insufficient_scope'
+  /** A browser operation names a different organization than its current authority. */
+  | 'organization_context_changed'
   /** Authenticated, but the session is bound to no organization (after activation). */
   | 'no_active_organization'
   | 'onboarding_inactive'

@@ -62,6 +62,7 @@ import {
   changeMemberRole,
   listMembers,
   listOrganizationMemberships,
+  readActiveOrganization,
   removeMember,
   selectActiveOrganization,
 } from './organization-shapes';
@@ -148,6 +149,7 @@ export const httpShapes = [
   removeMember,
   listOrganizationMemberships,
   selectActiveOrganization,
+  readActiveOrganization,
   listOrganizationDomains,
   releaseDomainClaim,
   createDomainChallenge,

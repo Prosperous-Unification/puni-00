@@ -168,3 +168,20 @@ describe('the credential refusal state', () => {
     expect(screen.queryByRole('link', { name: 'Sign in with your company' })).toBeNull();
   });
 });
+
+it('withdraws organization panels on context refusal', async () => {
+  stubServer({
+    'GET /api/organization/members': [() => answer(409, { error: 'organization_context_changed' })],
+    'GET /api/organization/invitations': [
+      () => answer(409, { error: 'organization_context_changed' }),
+    ],
+    'GET /api/organization/join-requests': [
+      () => answer(409, { error: 'organization_context_changed' }),
+    ],
+    'GET /api/organization/domains': [() => answer(409, { error: 'organization_context_changed' })],
+    'GET /api/organization': [() => answer(409, { error: 'organization_context_changed' })],
+  });
+  renderPage();
+  expect(await screen.findByText('No organization is selected for this session.')).toBeDefined();
+  expect(screen.queryByRole('heading', { name: 'Members' })).toBeNull();
+});

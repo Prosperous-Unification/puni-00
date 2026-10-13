@@ -1609,3 +1609,57 @@ Pre-activation equivalence: `boot-browser-session.db.test.ts` runs one fixed req
 Not run: `bin/h2puni-gate.sh <sha>` (B2.6), k3d lab tests, the full fe-01 Vitest suites, Playwright e2e.
 
 Still open in this change: 1.1; 2.4 (2.4C/D3 stale-tab preconditions, the 4.6 switcher, an `enabled` deployment); 2.5; 4.1, 4.4, 4.5 and 4.6; 5.2–5.5; 6.1–6.6; 7.1–7.4.
+
+## 2026-10-13 C1 expected organization (8.1–8.4)
+
+Source: design-only `2a45b9a4b95aef1a8134e3344d1a2377602181df`; isolated implementation clone `/tmp/puni-org-context-c1`. No deployed activation or configuration changed. C2 runtime ownership, immutable clients, switcher and cross-tab recovery remain open. Manager authorized the minimal frontend exhaustive-refusal compatibility required by the new typed 409; it uses existing page-loss/error/refused states and does not retry mutations.
+
+The shared shape policies explicitly classify all 105 operations: 43 organization mutations, 34 organization reads and 28 controls. `organization-route-inventory.ts` independently names their method/path/classification. The mounted inventory sends structurally valid requests to every mutation and read. Endpoint binding parses the expectation once into a precise union on a copied request principal; the same `SqliteOrganizationAccess.resolve` that supplies resource access checks it after membership and credential rules. Control flows and verified signed delegation retain their contracts. Resource-specific 409s remain distinct in the shared response unions, including import and export.
+
+`GET /api/organization/active` checks browser credential/activation through selection discovery and current bound membership/role/credential rules through resource authority. It returns only current ID/name/role, selects nothing, sends no cookie, and uses no-store/Vary on success, refusal and boundary failure. Invalid/revoked credentials retain discovery's existing 401; a valid credential with a missing/replaced binding is 403 `no_active_organization`. Delegation is 403 `insufficient_scope`. Missing trusted activation state throws and is a no-store 500.
+
+### Observed R5 faults
+
+Each fault was applied independently, its named acceptance watched fail, and the original production source restored before the green checks below. `/tmp/c1-fault-*.log` held the transient command output during this handoff; the stable observed details are recorded here and adjacent to the changed checks.
+
+| Injected production fault                                               | Observed acceptance failure                                                                                                                            |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Bypass expected/authority comparison                                    | `refuses a stale directory write after the shared cookie selects B`: 200 instead of 409.                                                               |
+| Default absent expectation to resolved authority                        | `requires exactly one expected organization on browser mutations`: missing-header write 200 instead of 409.                                            |
+| Accept first duplicate header value                                     | Same exactly-one test: duplicate equal `org-a` values admitted, 200 instead of 409.                                                                    |
+| Remove project creation's resource policy                               | `covers every mounted organization mutation`: mounted creation returned a persisted B project with steps, 200 instead of 409.                          |
+| Ignore read expectations                                                | `refuses a stale expected organization before returning resource content`: seeded B team and its ID returned to the A assertion, 200 instead of 409.   |
+| Use the first membership without binding/current admission in discovery | Unbound, removed and replacement-credential discovery cases returned 200 instead of 403.                                                               |
+| Replace discovery no-store with public caching                          | `discovers only the currently bound organization without selecting`: cache header assertion failed.                                                    |
+| Remove active-context MCP path exclusion                                | `keeps browser current-context discovery out of generated MCP tools`: exposed `getApiOrganizationActive`.                                              |
+| Bypass resource evidence binding in `bind`                              | `boot composition refuses stale cookie context without effects`: production boot created a project, 200 instead of 409.                                |
+| Remove missing-identity guard from the binding                          | Mounted production project declaration with its identity policy lost reached its handler (`calls=1` instead of 0).                                     |
+| Remove frontend context refusal mapper arms                             | `reports organization context change once without retrying the refused mutation`: threw an unexpected response variant instead of rendering a refusal. |
+| Remove saved-plan shelf context arm                                     | `withdraws the saved-plan shelf on organization context refusal`: wrong error code `Unexpected response variant: object`.                              |
+| Remove organization page context loss arm                               | `withdraws organization panels on context refusal`: failed the page-loss rendering assertion with an unexpected response variant.                      |
+| Remove spaces context arm                                               | `withdraws spaces on organization context refusal`: failed rendered withdrawal/recovery copy assertion.                                                |
+
+SQLite snapshots in the C1 mounted matrix compare every application table before and after refusals, covering resources, ownership, journal, audit, recency, credential administration and events. The boot proof independently compares project, team, journal, audit, event log and sequencer rows against real `bootBe01` composition, with a successful matching-context creation as control. OIDC tests use real signed upstream JWTs and a local JWKS verifier; these are disposable fixtures, not live Auth0 acceptance. Cookie and native/OIDC Bearer are covered. Matching expectation does not bypass SSO, session policy, viewer permission or removed membership. Signed delegation writes succeed without the browser expectation and cannot use discovery. Existing store tests distinguish missing and unreadable activation/revocation state.
+
+### Commands and restored results
+
+Nx commands used `NX_DAEMON=false NX_ISOLATE_PLUGINS=false`. The sandbox initially denied JWKS/HTTP fixture sockets; those suites passed when rerun with local socket permission. Initial Nx run-many commands stalled under the sandbox and were interrupted; the completed affected checks used local process/socket coordination. These initial attempts are not counted as passing checks.
+
+- `bun test apps/wbs/be-01/src/controller/organization-context.controller.db.test.ts apps/wbs/be-01/src/organization-context.boot.db.test.ts apps/wbs/be-01/src/boot-browser-session.db.test.ts apps/wbs/mcp-01/src/generated-document.test.ts`: 23 passed, 0 failed. Includes the unchanged enabled/disabled preactivation matrix, zero/one/multiple membership discovery, current role, revocation, credential replacement and corrupt trusted state.
+- `bun test apps/wbs/be-01/src/controller/organization-credential-rules.controller.db.test.ts apps/wbs/be-01/src/controller/delegation.controller.db.test.ts apps/wbs/be-01/src/app.routes.test.ts apps/wbs/be-01/src/controller/organization-selection.controller.db.test.ts`: 49 passed, 0 failed.
+- `bun test apps/wbs/be-01/src/controller/{project,directory,directory-command,import-export,command,step-marker,saved-plan,space,membership,domain,schedule}-organization.controller.db.test.ts`: 289 passed, 0 failed. The initial run found two fixture regressions for intentionally missing credentials; the helper was corrected and the full suite rerun successfully.
+- `bunx nx run wbs-contracts:test`: 470 passed, 0 failed, including shapes, client and generated OpenAPI tests.
+- `bun test libs/wbs/application/core/src/http/endpoint.test.ts libs/wbs/adapters/store-sqlite/src/organization-activation.db.test.ts libs/wbs/adapters/store-sqlite/src/organization-credential-rules.db.test.ts libs/wbs/adapters/store-sqlite/src/browser-credential-revocations.db.test.ts apps/wbs/mcp-01/src/openapi-tools.test.ts apps/wbs/mcp-01/src/generated-document.test.ts`: 81 passed, 0 failed.
+- Affected backend/contracts/core/store/MCP typechecks: `bunx nx run-many -t typecheck --projects=wbs-be-01,wbs-contracts,wbs-core,wbs-store-sqlite,wbs-mcp-01 --parallel=1 --outputStyle=stream`: passed all five projects and their two dependency tasks.
+- `bunx nx run wbs-fe-01:typecheck`: passed including module checks after explicit refusal compatibility updates.
+- `bunx nx run-many -t lint --projects=wbs-be-01,wbs-contracts,wbs-core,wbs-store-sqlite,wbs-mcp-01,wbs-fe-01 --parallel=2 --outputStyle=stream`: passed all six projects. Final frontend edits receive a further focused lint below.
+- `bunx @fission-ai/openspec@1.12.0 validate --all --json`: 186 valid, 0 invalid. CLI is pinned because no unqualified `openspec` executable is on this checkout's PATH.
+
+Pending exact-SHA review/gate: canonical `bin/h2puni-gate.sh <committed-sha>` is reserved for manager coordination after Astra review. No raw full Nx gate was run. Full frontend/browser acceptance, real-stack C2 organization browser cases, live Auth0/provider configuration, migration/deployment activation and rollback obligations were not run or closed by C1. Section 8.5–8.8 and all unrelated change tasks remain open.
+
+Final compatibility checks (same checkout, restored production source):
+
+- From `apps/wbs/fe-01`: `bunx vitest run src/modules/plan-writer/plan-writer.test.ts src/modules/saved-plans/saved-plans.feature.test.ts src/lib/wbs-api.test.ts src/lib/refusal.test.ts src/components/organization/credential-refusal-state.test.tsx src/components/spaces/space-page.test.tsx src/components/spaces/spaces-page.test.tsx src/components/wbs/saved-plans-panel.test.tsx src/lib/saved-plan-save.test.ts --no-file-parallelism --maxWorkers=1`: 169 passed, 0 failed across 9 files. Organization/space panels withdraw into existing loss states; saved-plan shelf/save use existing error states; the plan writer sends exactly once and returns `refused`.
+- The final `wbs-fe-01:lint` run found only a `no-fallthrough` caused by placing a proof comment between empty case labels. Moved that comment above the switch; `bunx eslint apps/wbs/fe-01/src/modules/saved-plans/saved-plans.feature.ts` then exited 0. The earlier six-project lint was green; the normal commit hook checks every staged source after this correction.
+- `git ls-files --modified --others --exclude-standard -z | xargs -0 bunx prettier --check`: all matched files use Prettier style. `git diff --check`: passed.
+- Final post-evidence `bunx @fission-ai/openspec@1.12.0 validate --all --json`: 186 passed, 0 failed.
