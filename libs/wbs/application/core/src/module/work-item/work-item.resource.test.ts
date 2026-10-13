@@ -1,4 +1,5 @@
-import { workdaysBetween } from '@wbs/domain';
+import { schedule, serializeSchedule, workdaysBetween } from '@wbs/domain';
+import { canonicalScheduleInput, type ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { inMemoryPriorityBands } from '@wbs/store-memory/priority-band-fixture';
 import { projectRow } from '@wbs/store-memory/project-fixture';
 import { personAdded } from '@wbs/store-memory/testing/service-fixtures';
@@ -16,6 +17,8 @@ import type {
 } from '../../index';
 import { clockOf } from '../../ports/clock';
 import { CREATOR_ADMISSION } from '../../ports/edit-admission';
+import { resolveDependencyGraph } from '../../service/dependency-graph';
+import { projectNodeReadings } from '../../service/node-readings';
 import { AvailableWorkItemService as WorkItemService } from '../../testing/available-work-item-service';
 import { type RecordingBroadcaster } from '../../testing/broadcast-fixture';
 import { testClock } from '../../testing/clock-fixture';
@@ -516,6 +519,113 @@ describe('dependencies', () => {
     );
 
     expect(service.tree(projectId)).rejects.toThrow(/legacy dependency names absent work item/);
+  });
+
+  it('refuses stored progress naming an unknown work item or project step', async () => {
+    const known = await add('Strip');
+    for (const statement of [
+      { workItemId: 'missing-work-item', stepId, state: 'done' as const, statedAt: 1 },
+      {
+        workItemId: known,
+        stepId: 'missing-step',
+        state: 'done' as const,
+        statedAt: 1,
+      },
+    ]) {
+      const broken = {
+        ...progress,
+        listByProject: async (readProjectId: string) => [
+          ...(await progress.listByProject(readProjectId)),
+          statement,
+        ],
+      };
+      const reader = new WorkItemService({ ...serviceOptions, progress: broken });
+      expect(reader.tree(projectId)).rejects.toThrow(/progress for unknown (work item|step)/);
+    }
+  });
+
+  it('refuses a stored typed dependency whose endpoint is absent', async () => {
+    const present = await add('Strip');
+    const broken = {
+      ...serviceOptions.typedDependencies,
+      listByProject: () =>
+        Promise.resolve([
+          {
+            id: 'missing-endpoint',
+            projectId,
+            predecessor: { scope: 'node' as const, workItemId: 'missing-work-item', stepId },
+            successor: { scope: 'node' as const, workItemId: present, stepId },
+            type: 'FS' as const,
+          },
+        ]),
+    };
+    const reader = new WorkItemService({ ...serviceOptions, typedDependencies: broken });
+    expect(reader.tree(projectId)).rejects.toThrow(/no work item missing-work-item in this plan/);
+  });
+
+  it('keeps canonical input and full Fast bytes while direct blockage projects over a typed edge', async () => {
+    // This proves the current domain projection seam. The live tree still
+    // supplies blocked: [] until command/read wiring lands, so task 1.3 also
+    // needs a stored-fact production test before its checkbox can close.
+    const source = await add('Source');
+    const downstream = await add('Downstream');
+    await service.setEstimate(source, OWNER, stepId, {
+      optimistic: 2,
+      realistic: 2,
+      pessimistic: 2,
+    });
+    await service.setEstimate(downstream, OWNER, stepId, {
+      optimistic: 3,
+      realistic: 3,
+      pessimistic: 3,
+    });
+    const linked = await service.addTypedDependency(projectId, OWNER, {
+      predecessor: { scope: 'node', workItemId: source, stepId },
+      successor: { scope: 'node', workItemId: downstream, stepId },
+      type: 'FS',
+    });
+    if (!linked.ok) throw new Error(`typed dependency refused: ${linked.reason}`);
+    const before = await service.scheduleInput(projectId);
+    if (before === null) throw new Error('missing canonical input');
+    const fastBytes = (input: ScheduleInput): string =>
+      JSON.stringify(
+        serializeSchedule(
+          schedule(
+            input.rows,
+            input.edges,
+            input.slices,
+            input.notBefore,
+            input.poolSizes,
+            input.reach,
+            input.deadlines,
+            input.typed,
+          ),
+        ),
+      );
+    const baselineInput = canonicalScheduleInput(before);
+    const baselineFast = fastBytes(before);
+    const rows = await workItems.listByProject(projectId);
+    const projection = projectNodeReadings({
+      graph: resolveDependencyGraph({
+        rows,
+        steps: await projects.stepsOf(projectId),
+        estimates: await serviceOptions.estimates.listByProject(projectId),
+        legacy: await dependencies.listByProject(projectId),
+        typed: await serviceOptions.typedDependencies.listByProject(projectId),
+        reach: 'whole-item',
+      }),
+      holdOf: new Map(rows.map((row) => [row.id, row.hold])),
+      statusOf: new Map(rows.map((row) => [row.id, 'unknown' as const])),
+      stated: [],
+      running: [],
+      blocked: [{ workItemId: source, stepId }],
+    });
+    expect(projection.readings.get(source)?.[stepId]).toBe('blocked');
+    expect(projection.readings.get(downstream)?.[stepId]).toBe('blocked_by_proxy');
+    const after = await service.scheduleInput(projectId);
+    if (after === null) throw new Error('missing canonical input after projection');
+    expect(canonicalScheduleInput(after)).toBe(baselineInput);
+    expect(fastBytes(after)).toBe(baselineFast);
   });
 
   it('reports no schedule error for a project that schedules', async () => {

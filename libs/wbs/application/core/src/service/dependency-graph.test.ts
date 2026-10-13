@@ -129,3 +129,12 @@ it('refuses legacy endpoints absent from the full tree before expanding to leave
     expect(() => resolveDependencyGraph({ ...base, legacy: [link] })).toThrow(/legacy.*gone/);
   }
 });
+
+it('refuses a typed node endpoint absent from the full tree', () => {
+  expect(() =>
+    resolveDependencyGraph({
+      ...base,
+      typed: [nodeFs('missing-node', ['gone', 'dev'], ['B', 'dev'])],
+    }),
+  ).toThrow(/no work item gone in this project/);
+});

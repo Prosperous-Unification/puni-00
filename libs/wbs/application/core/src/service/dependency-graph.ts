@@ -120,6 +120,9 @@ export function resolveDependencyGraph(state: DependencyGraphState): StepNodeGra
       dependencies: state.typed,
       leavesUnder: (workItemId) => {
         const found = index.leavesUnder.get(workItemId);
+        // Proof: returning an empty leaf set for absent typed owner made the
+        // graph negative fail: it received a later "not a leaf" error instead
+        // of this missing-work-item refusal; watched 2026-10-13.
         if (found === undefined) throw new Error(`no work item ${workItemId} in this project`);
         return found;
       },

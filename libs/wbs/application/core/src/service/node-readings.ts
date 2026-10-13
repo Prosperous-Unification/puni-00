@@ -110,11 +110,13 @@ export function projectNodeReadings({
   for (const said of stated) {
     // Proof: owner guard removed; unknown-progress-owner negative silently
     // dropped its statement instead of throwing; watched 2026-10-13.
+    // The live tree negative also resolved after this guard was disabled.
     if (!holdOf.has(said.workItemId) || !statusOf.has(said.workItemId)) {
       throw new Error(`progress for unknown work item ${said.workItemId}`);
     }
     // Proof: step guard removed; unknown-progress-step negative silently
     // dropped its statement instead of throwing; watched 2026-10-13.
+    // The live tree negative resolved after this guard was disabled.
     if (!stepIds.has(said.stepId)) throw new Error(`progress for unknown step ${said.stepId}`);
   }
   // Historical moves could leave progress on a known parent. Preserve that
