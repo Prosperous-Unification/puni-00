@@ -205,3 +205,46 @@ In an organization whose proven connection is enforced, the organization context
 - **WHEN** the signed-in page renders
 - **THEN** it explains the failed company proof or already assigned connection and directs the person to their organization administrator
 - **AND** it removes the outcome parameter while preserving other URL state
+
+### Requirement: Organization administrators can record and prove a company connection in the browser
+
+The organization page SHALL render a Company sign-in panel that reads connections and domain claims from the active organization's typed routes. It SHALL display loading, empty, unavailable and query-failure states. A forbidden response SHALL offer no create or proof controls. Membership, authentication or credential authority loss SHALL replace the whole organization page through its shared refusal state. The server SHALL decide super-admin authority.
+
+The panel SHALL show each connection's domain, Auth0 name, strategy, login slug, proof timestamp, enforcement state and any last prefix mismatch timestamp from the server. The create form SHALL offer only verified claims without a connection, and SHALL post exactly the selected claim id, Auth0 name, strategy and login slug. It SHALL admit one pending create, re-read connections and claims after success or modeled conflict, and offer an explicit refresh. This setup slice SHALL provide no edit, enforce, delete, provisioning-token or session-policy controls.
+
+#### Scenario: Verified unused domain creates a connection
+
+- **GIVEN** verified unused, pending, suspended and already connected claims
+- **WHEN** a super-admin opens Company sign-in
+- **THEN** only the verified unused claims are offered
+- **AND** creating posts the selected claim id and the three entered connection fields once while pending
+- **AND** success refreshes both lists and displays the server's unproven, unenforced connection
+
+#### Scenario: Stale setup is reconciled
+
+- **GIVEN** a domain or login slug changed after the panel was read
+- **WHEN** create answers `domain_not_verified`, `sso_connection_exists`, `login_slug_taken` or `not_found`
+- **THEN** its modeled refusal is shown and both lists are refreshed
+- **AND** explicit refresh discovers domain verification performed in Domains
+
+#### Scenario: Setup authority is lost
+
+- **GIVEN** the setup panel is reading or creating a connection
+- **WHEN** a route refuses organization access or the credential
+- **THEN** the page clears all panels and renders its shared access-loss state
+- **AND** plain forbidden leaves other organization panels available but removes setup controls
+
+#### Scenario: One routed proof uses its connection's slug
+
+- **GIVEN** two listed connections with distinct ids and login slugs
+- **WHEN** a super-admin selects a proof and starts the existing explicit company link
+- **THEN** the request carries that connection's login slug rather than its id
+- **AND** only one proof form exists, its target and refresh are frozen until the start is refused or navigation begins
+- **AND** if create starts first, the selected proof form disables its controls and refuses submission until create ends
+- **AND** proof and enforcement labels remain server state until refreshed after returning
+
+#### Scenario: Company setup fits a phone and supports keyboard navigation
+
+- **GIVEN** the populated organization page at 1280px or 375px, including the company-link password form
+- **WHEN** the page is drawn and its controls are traversed with Tab
+- **THEN** no panel overflows horizontally and every enabled control can be reached
