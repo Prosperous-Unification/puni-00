@@ -19,6 +19,7 @@
 
 ## 3. Command journal and structural edits
 
+- [x] 3.0 Prepare transactional blockage command plumbing: scope project and lifetime reads/writes, refresh retained owner revisions after successful writes, and prove memory/SQLite same-batch visibility, commit/rollback and owner deletion. Keep the public command absent.
 - [ ] 3.1 Red: test `setStepBlocked` ownership, unknown work item/step, parent refusal, done refusal, no-op behavior, event append, retained read, and command batch atomicity.
 - [ ] 3.2 Implement `setStepBlocked` through the project command registry, write coordinator and command journal. Undo/redo must conditionally restore the prior fact and refuse stale state.
 - [ ] 3.3 Red: include migrated parent progress compatibility across memory/SQLite retained reads; pre-store-move destination done/incoming in-progress clear/undo/redo with and without blockage; block→done→move→undo→redo; last-child move/delete→peer progress→undo refusals with revision checks bypassed. Test no new progress hand-up. Then test test hand-down, moving another row beneath a leaf, delete/undo, duplicate, last-child hand-up agreement, and concurrent stale undo.

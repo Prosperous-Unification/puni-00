@@ -106,7 +106,19 @@ it('commits and rolls back project-seeded blockage facts and cascades removed ow
     stamp,
   );
   const fact = { workItemId: 'wi-blocked', stepId: 'st-1', blockedAt: 123 };
-  expect(await source.stores.blockages.set(fact, stamp)).toBe('written');
+  await source.uow.run(async (scope) => {
+    expect(await scope.stores.blockages.set(fact, stamp)).toBe('written');
+    expect(await scope.stores.blockages.listByWorkItems('p1', [fact.workItemId])).toEqual([fact]);
+    return { commit: false, value: undefined };
+  });
+  // Proof: committing a refused staged batch made this read contain the fact; watched 2026-10-13.
+  expect(await source.stores.blockages.listByProject('p1')).toEqual([]);
+  await source.uow.run(async (scope) => {
+    expect(await scope.stores.blockages.set(fact, stamp)).toBe('written');
+    expect(await scope.stores.blockages.listByProject('p1')).toEqual([fact]);
+    return { commit: true, value: undefined };
+  });
+  // Proof: omitting MemoryState's blockage-table copy left this read empty; watched 2026-10-13.
   expect(await source.stores.blockages.listByProject('p1')).toEqual([fact]);
   await source.uow.run(async (scope) => {
     await scope.stores.blockages.remove(fact.workItemId, fact.stepId, stamp);
