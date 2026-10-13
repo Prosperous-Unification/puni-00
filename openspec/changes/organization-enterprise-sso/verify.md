@@ -158,3 +158,73 @@ removed before the final rerun.
 Final full frontend lint passes (exit 0), and the three touched files pass
 Prettier and `git diff --check`. The canonical host gate, integration, and deploy
 remain outside this worker's scope.
+
+## Task 2.5 company connection setup — 2026-10-13 (WBS 010.5.7)
+
+Branch `round14/sso-connection-setup` starts at exact reviewed #390 head
+`7db722008350fc18d53de6a726d949f78555c44f`, freshly confirmed by
+`git ls-remote origin refs/heads/round14/sso-downstream-integration`. Work lives
+in an isolated `/tmp/puni-sso-setup` clone. Local checks use the existing reviewed
+downstream dependency tree via a `node_modules` symlink; this is
+not a fresh frozen install or the canonical host gate. No backend, contract or
+migration changed. Edit/enforce/delete, SCIM and session-policy panels remain
+outside this bounded setup slice.
+
+The page composition test first failed because Company sign-in was absent.
+Twenty initial component cases failed against the empty component scaffold.
+Additional eligibility and impossible-strategy negatives were watched failing
+under the separately injected faults below. All faults were restored before
+final verification. Each mutation run exited 1 with assertion failures, not
+compile/import errors. Logs are `/tmp/sso-mutation-*.log` outside the repository.
+
+| Injected production fault                 | Observed production-path failure                                                                   |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Omit setup panel                          | `composes company sign-in setup on the organization page`: region missing                          |
+| Remove verified claim predicate           | `offers only verified domains`: pending and suspended options appear                               |
+| Remove unused claim predicate             | `excludes domains already used by a connection`: used option appears                               |
+| Skip selected claim eligibility           | `refuses a forged unused-domain selection before posting`: request sent                            |
+| Remove create pending admission           | `blocks repeated submissions while create is held`: duplicate request                              |
+| Replace claim id with `wrong-id`          | `creates with the claim id and exact fields, then refreshes both lists`: wrong request body        |
+| Skip successful create refresh            | Same create test: recorded server row missing                                                      |
+| Ignore write-time forbidden               | `removes controls when create loses super-admin authority`: unavailable alert missing              |
+| Omit read access-loss callback            | Five `hands read authority loss` cases: page callback missing                                      |
+| Treat forbidden read as ready             | Two `offers no create or proof controls after a forbidden` cases: unavailable alert missing        |
+| Treat failed read as ready                | `clears controls on query failure and recovers with explicit refresh`: failure alert missing       |
+| Remove impossible strategy check          | `throws on an impossible strategy selection`: no error thrown                                      |
+| Route proof with connection id            | `uses server proof and enforcement labels and each row slug for proof`: wrong organization body    |
+| Permit create while a proof start is held | `freezes the only proof target while its start request is held`: extra create request              |
+| Force parent proving state false          | `freezes the only proof target while its start request is held`: target button remains enabled     |
+| Render a second proof form                | `uses server proof and enforcement labels and each row slug for proof`: duplicate sign-in selector |
+
+Browser verification uses the committed `e2e/organization.spec.ts` with a
+throwaway Vite-only Playwright config at `tmp/organization.playwright.config.ts`:
+all API calls are route fixtures, so no organization activation or backend is
+required. The command is `bunx playwright test --config
+tmp/organization.playwright.config.ts`; its server command is
+`VITE_BE_URL=http://127.0.0.1:3100 VITE_GW_URL=ws://127.0.0.1:3200 bunx vite
+--host 127.0.0.1 --port 6297`, cwd `apps/wbs/fe-01`, baseURL
+`http://127.0.0.1:6297`, one worker, Chromium. Eight tests passed: populated
+setup and password-link drawing with no horizontal overflow, denied setup,
+held proof using the second row's distinct slug, and Tab traversal, each at
+1280px and 375px. This proves fixture behavior and layout, not a live IdP link.
+
+Intermediate frontend typecheck and build passed (1079 modules transformed).
+Initial full frontend lint returned nonzero without diagnostics; focused
+ESLint exposed void-expression/import style issues, corrected by autofix.
+The Vite-only fixture initially lacked the required Vite URLs; explicit fixture
+URLs fixed startup. Nx used its sandbox socket fallback; Vite/Vitest printed
+the existing `__dirname` native-config warning. Final results follow below.
+
+Not run by this worker: canonical host gate, fresh frozen dependency install,
+full repository suite, live Auth0/customer proof, merge, deploy, or WBS write.
+Task 4.6 and overall task 5.4 remain open. Root owns exact-head review and release.
+
+Final verification after restoring every injected fault:
+
+- Four affected Vitest suites (`sso-connections-panel`, `organization-page`, `company-sign-in-link`, `credential-refusal-state`): **68 tests passed**, exit 0.
+- Browser fixture command above: **8 tests passed**, exit 0, including phone and keyboard coverage.
+- `NX_DAEMON=false NX_NO_CLOUD=true bunx nx run wbs-fe-01:lint`: **passed**, exit 0 (69 seconds); focused ESLint passed again after final test additions.
+- `NX_DAEMON=false NX_NO_CLOUD=true bunx nx run wbs-fe-01:typecheck`: **passed**, exit 0, including module typechecks.
+- `NX_DAEMON=false NX_NO_CLOUD=true bunx nx run wbs-fe-01:build`: **passed**, exit 0, 1079 modules transformed.
+- `bunx @fission-ai/openspec@1.13.0 validate --all --json`: **186 passed, 0 failed**, exit 0.
+- Prettier checks on touched files and `git diff --check`: clean. Full Nx format result is recorded in the handoff.

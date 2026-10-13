@@ -15,11 +15,14 @@ const links = browserClient([startAuth0Link]);
  */
 export function CompanySignInLink({
   organization,
+  onPendingChange,
   navigate = (url) => {
     window.location.assign(url);
   },
 }: {
   organization: string;
+  /** Freezes the owning proof target until a refused start or navigation. */
+  onPendingChange?: (pending: boolean) => void;
   /** Leaves the page for the validated provider address; injected in tests. */
   navigate?: (url: string) => void;
 }): React.JSX.Element {
@@ -51,6 +54,9 @@ export function CompanySignInLink({
       return;
     }
     pending.current = true;
+    // Proof: 2026-10-13, ignoring pending in the owning setup panel failed
+    // `freezes the only proof target while its start request is held`.
+    onPendingChange?.(true);
     setSending(true);
     setMessage('');
     try {
@@ -79,6 +85,7 @@ export function CompanySignInLink({
           return unreachable(reply);
       }
       pending.current = false;
+      onPendingChange?.(false);
       setSending(false);
     } catch (cause) {
       setFault(new Error('Unexpected company sign-in link failure', { cause }));
