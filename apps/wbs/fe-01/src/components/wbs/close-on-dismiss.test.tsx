@@ -75,10 +75,12 @@ describe('a dismissible panel', () => {
     expect(panel().open).toBe(true);
   });
 
-  itDom('closes when the focus leaves it by the keyboard (F-028)', async () => {
+  itDom('closes when Tab takes the focus out of it (F-028)', async () => {
     render(<Panel />);
-    screen.getByRole('checkbox').focus();
+    const box = screen.getByRole('checkbox');
+    box.focus();
 
+    fireEvent.keyDown(box, { key: 'Tab' });
     screen.getByRole('button', { name: 'Elsewhere' }).focus();
     // The panel judges where the focus landed a task later.
     await new Promise((settle) => setTimeout(settle, 0));
@@ -86,6 +88,18 @@ describe('a dismissible panel', () => {
     // Proof: on 2026-10-13, without the focusout listener, this failed on `expected true to
     // be false`.
     expect(panel().open).toBe(false);
+  });
+
+  itDom('stays open when the page moves the focus by itself', async () => {
+    render(<Panel />);
+    screen.getByRole('checkbox').focus();
+
+    screen.getByRole('button', { name: 'Elsewhere' }).focus();
+    await new Promise((settle) => setTimeout(settle, 0));
+
+    // Proof: on 2026-10-14, with every focusout closing the panel, this failed on `expected
+    // false to be true` — the shape of `status.spec.ts`'s CI failure.
+    expect(panel().open).toBe(true);
   });
 
   itDom('stays open while the focus moves inside it', async () => {

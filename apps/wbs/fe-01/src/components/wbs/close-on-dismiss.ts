@@ -79,22 +79,27 @@ export function useClosedOnDismiss(): RefCallback<HTMLDetailsElement> {
       summaryOf(panel).focus();
     };
 
-    // The keyboard's half of the pointer rule above: Tab out of an open panel and it
+    // The keyboard's half of the pointer rule above: **Tab** out of an open panel and it
     // closes, so an Escape pressed later never meets a panel it can no longer reach.
     //
-    // Judged a task later, on where the focus **landed**, not on the event's
-    // `relatedTarget`. A click on a tick box's label inside the phone's sheet moves the
-    // focus through the sheet's own surface on its way to the box: closing on that
-    // passing target hid the box mid-click, the sheet's focus trap took the focus back,
-    // and the two chased each other until the tab crashed (`makes the row of a tick box
-    // the tick box` in `e2e/mobile.spec.ts`: `Target crashed`, 2026-10-14). A focus that
-    // ends nowhere (`<body>`) is left to the pointer rule, and one in the panel's own
-    // dialog keeps it open.
-    // Proof: on 2026-10-13, without this listener `closes when the focus leaves it by
-    // the keyboard` in `close-on-dismiss.test.tsx` failed on `expected true to be false`.
+    // Only a Tab pressed inside the panel arms it. A focus the page moves by itself — the
+    // grid putting the caret back after a refetch — is not the reader leaving, and closing
+    // on it shut the Columns panel under `status.spec.ts`'s tick in CI (2026-10-14). And it
+    // is judged a task later, on where the focus **landed** rather than on the event's
+    // `relatedTarget`: a tick-box label click in the phone's sheet passes the focus through
+    // the sheet's surface, and closing on that hid the box mid-click until the sheet's focus
+    // trap and this handler crashed the tab (`mobile.spec.ts`, `Target crashed`). A focus in
+    // the panel's own dialog keeps it open.
+    // Proof: on 2026-10-13, without this listener `closes when Tab takes the focus out of
+    // it` in `close-on-dismiss.test.tsx` failed on `expected true to be false`.
+    let leavingByTab = false;
     let pendingFocusCheck: ReturnType<typeof setTimeout> | undefined;
+    const armOnTab = (event: KeyboardEvent): void => {
+      leavingByTab = event.key === 'Tab';
+    };
     const closeOnFocusOut = (): void => {
-      if (!panel.open) return;
+      if (!panel.open || !leavingByTab) return;
+      leavingByTab = false;
       clearTimeout(pendingFocusCheck);
       pendingFocusCheck = setTimeout(() => {
         const landed = document.activeElement;
@@ -122,11 +127,13 @@ export function useClosedOnDismiss(): RefCallback<HTMLDetailsElement> {
     // focus back to its summary (F-028)` in `e2e/toolbar-panels.spec.ts` failed listing all five
     // panels as `open=true focused=false`.
     document.addEventListener('keydown', closeOnEscape);
+    panel.addEventListener('keydown', armOnTab);
     panel.addEventListener('focusout', closeOnFocusOut);
     panel.addEventListener('toggle', closeTheOthers);
     return () => {
       document.removeEventListener('pointerdown', closeIfOutside, true);
       document.removeEventListener('keydown', closeOnEscape);
+      panel.removeEventListener('keydown', armOnTab);
       panel.removeEventListener('focusout', closeOnFocusOut);
       clearTimeout(pendingFocusCheck);
       panel.removeEventListener('toggle', closeTheOthers);

@@ -53,7 +53,10 @@ to be false` without the listener; browser: `Expected: false · Received: true`)
 - The focusout close first closed on the event's `relatedTarget`; in the phone sheet a
   tick-box label click passed the focus through the sheet's surface and `mobile.spec.ts`
   `makes the row of a tick box the tick box` crashed the tab (3/3). It now judges where
-  the focus landed a task later; mobile, toolbar-panels and import-with-ai: 39 passed.
+  the focus landed a task later. CI then failed `status.spec.ts` (the Columns panel closed
+  under its tick when the page moved the focus by itself), so only a Tab pressed inside
+  the panel arms the close (unit: `expected false to be true` without the Tab guard).
+  toolbar-panels, status, mobile, import-with-ai, header: 60 passed.
 - Sheet panels: with the sheet rule's reset taken out, `Received: "640px"`.
 - Import JSON from the No project open card opens the imported project
   (`e2e/home.spec.ts`).

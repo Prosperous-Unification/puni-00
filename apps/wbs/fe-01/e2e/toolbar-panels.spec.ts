@@ -87,7 +87,9 @@ test.describe('the toolbar popovers', () => {
     await openPlan(page);
     await summaryOf(page, 'Columns').focus();
     await page.keyboard.press('Enter');
-    await page.getByLabel('Find').focus();
+    // Shift+Tab from the summary leaves the panel for the Views summary before it.
+    await page.keyboard.press('Shift+Tab');
+    await expect(summaryOf(page, 'Views')).toBeFocused();
     const open = await summaryOf(page, 'Columns')
       .locator('..')
       .evaluate((node) => (node as HTMLDetailsElement).open);
