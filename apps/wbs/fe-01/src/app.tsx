@@ -14,6 +14,7 @@ import { AccountMenu } from '@/components/chrome/account-menu';
 import { AppFaultBoundary } from '@/components/chrome/app-fault';
 import { LifetimeFault } from '@/components/chrome/lifetime-fault';
 import { OnboardingScreen } from '@/components/onboarding/onboarding-screen';
+import { OrganizationGate } from '@/components/organization/organization-gate';
 import { PresencePanel } from '@/components/presence/presence-panel';
 import { HintLayer } from '@/components/wbs/hint';
 import { type logout, me as fetchMe, type Session } from '@/lib/api';
@@ -22,6 +23,8 @@ import { ThemeProvider, useThemeChoice } from '@/lib/theme';
 import { useRetirementJoin } from '@/runtime/application-services-context';
 import { type BrowserSignOutState, createBrowserSignOut } from '@/runtime/browser-sign-out';
 import { credentialOf } from '@/runtime/credential';
+import { OrganizationResourcesProvider } from '@/runtime/organization-resources';
+import type { SessionRuntime } from '@/runtime/session-runtime';
 import {
   createSessionOwner,
   sessionFor,
@@ -298,6 +301,28 @@ function AppContent({
 
   return (
     <OnboardingScreen
+      renderOrganization={(mode) => (
+        <OrganizationGate
+          key={session.user.id}
+          mode={mode}
+          identity={{ userId: session.user.id, credential: credentialOf(session.token) }}
+          openOwner={openOwner}
+          onOwner={(current) => {
+            owner.current = current;
+          }}
+          onSignOut={(current) => {
+            beginSignOut(session, current);
+          }}
+          renderRuntime={(services, switcher, signOut) => (
+            <SessionView
+              session={session}
+              services={services}
+              switcher={switcher}
+              onSignOut={signOut}
+            />
+          )}
+        />
+      )}
       onSignOut={() => {
         beginSignOut(session, owner.current);
       }}
@@ -419,6 +444,21 @@ export function SignedInApp({
     onSignOut(sessionOwner);
   };
 
+  return <SessionView session={session} services={services} onSignOut={signOut} />;
+}
+
+/** The complete resource region belongs to exactly one confirmed runtime. */
+export function SessionView({
+  session,
+  services,
+  switcher,
+  onSignOut,
+}: {
+  session: Session;
+  services: SessionRuntime;
+  switcher?: ReactNode;
+  onSignOut: () => void;
+}): React.JSX.Element {
   return (
     /*
      * The signed-in page is exactly one window tall, and that is what makes the
@@ -434,42 +474,49 @@ export function SignedInApp({
      * minimum leaves the page scrolling vertically, which is the honest fallback:
      * clipping it would put rows below the fold with no way to reach them.
      */
-    <div className="bg-background text-foreground flex h-full flex-col font-sans">
-      {/*
-       * Every hint in this app, in one card. Mounted here rather than per page
-       * because it is driven by an attribute and not by a prop: any control
-       * anywhere under this element that carries `data-hint` is hinted, and
-       * there is exactly one card and one listener for all of them. See
-       * {@link HintLayer} for why that is what makes it stale-proof.
-       */}
-      <HintLayer />
-      {/*
-       * The router is mounted **here**, inside the branch the gate already
-       * chose, and never around it. That is what makes a signed-out
-       * `/directory` the sign-in form with the address left alone rather than a
-       * redirect to a `/sign-in` nobody asks for by name, and it is why signing
-       * in continues to the page that was asked for: nothing rewrote it.
-       * ADR 0004 has the alternatives.
-       */}
-      <ProjectRetirementGate projects={services.projects}>
-        <AppRouter
-          session={services}
-          presence={
-            // The panel is presentational and the roster is the page's, because
-            // it arrives on the table's own socket — one connection per browser
-            // since 2026-09-02. What the session contributes is the username the
-            // panel marks as "you".
-            // Proof: renaming the shared login response username to displayName produced
-            // TS2339 here and at AccountMenu below in the actual FE app typecheck.
-            (roster) => <PresencePanel me={session.user.username} {...roster} />
-          }
-          // Proof: on 2026-09-24, handing the menu onSignedOut itself (a1) failed `signs out once
-          // the project and then the session have let go, and sends nothing`: expected
-          // [ 'signed out' ] to deeply equal [ 'project given back', …(2) ].
-          account={<ThemedAccountMenu username={session.user.username} onSignOut={signOut} />}
-        />
-      </ProjectRetirementGate>
-    </div>
+    <OrganizationResourcesProvider scope={services.resourceScope}>
+      <div className="bg-background text-foreground flex h-full flex-col font-sans">
+        {/*
+         * Every hint in this app, in one card. Mounted here rather than per page
+         * because it is driven by an attribute and not by a prop: any control
+         * anywhere under this element that carries `data-hint` is hinted, and
+         * there is exactly one card and one listener for all of them. See
+         * {@link HintLayer} for why that is what makes it stale-proof.
+         */}
+        <HintLayer />
+        {/*
+         * The router is mounted **here**, inside the branch the gate already
+         * chose, and never around it. That is what makes a signed-out
+         * `/directory` the sign-in form with the address left alone rather than a
+         * redirect to a `/sign-in` nobody asks for by name, and it is why signing
+         * in continues to the page that was asked for: nothing rewrote it.
+         * ADR 0004 has the alternatives.
+         */}
+        <ProjectRetirementGate projects={services.projects}>
+          <AppRouter
+            session={services}
+            presence={
+              // The panel is presentational and the roster is the page's, because
+              // it arrives on the table's own socket — one connection per browser
+              // since 2026-09-02. What the session contributes is the username the
+              // panel marks as "you".
+              // Proof: renaming the shared login response username to displayName produced
+              // TS2339 here and at AccountMenu below in the actual FE app typecheck.
+              (roster) => <PresencePanel me={session.user.username} {...roster} />
+            }
+            // Proof: on 2026-09-24, handing the menu onSignedOut itself (a1) failed `signs out once
+            // the project and then the session have let go, and sends nothing`: expected
+            // [ 'signed out' ] to deeply equal [ 'project given back', …(2) ].
+            account={
+              <>
+                {switcher}
+                <ThemedAccountMenu username={session.user.username} onSignOut={onSignOut} />
+              </>
+            }
+          />
+        </ProjectRetirementGate>
+      </div>
+    </OrganizationResourcesProvider>
   );
 }
 

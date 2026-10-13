@@ -20,7 +20,7 @@ import { cn } from '@/lib/utils';
  * is not here. `app-router.test.tsx`'s `marks only the page that is showing`
  * asserts both ends of the mark and was watched failing against a plain anchor.
  */
-export function PageNav() {
+export function PageNav({ organization = false }: { organization?: boolean }) {
   // `text-foreground` because these are `<a href>`s: `buttonVariants` names no
   // colour for `ghost` at rest, and `styles.css`'s reset gives `color: inherit`
   // to form controls and not to links — so each of these kept whatever the user
@@ -50,6 +50,11 @@ export function PageNav() {
       <Link to="/spaces" className={shape} activeProps={marked}>
         Spaces
       </Link>
+      {organization && (
+        <Link to="/organization" className={shape} activeProps={marked}>
+          Organization
+        </Link>
+      )}
     </nav>
   );
 }

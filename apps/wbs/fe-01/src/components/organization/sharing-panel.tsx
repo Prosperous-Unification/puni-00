@@ -2,7 +2,8 @@ import { type ClientReply, readCapacityMode, switchCapacityMode } from '@wbs/con
 import { useCallback, useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
-import { browserClient, failureMessage, unreachable } from '@/lib/http';
+import { failureMessage, unreachable } from '@/lib/http';
+import { useResourceClient } from '@/runtime/organization-resources';
 
 import {
   type AccessLoss,
@@ -20,7 +21,7 @@ import {
   STATUS_CLASS,
 } from './organization-section';
 
-const sharing = browserClient([readCapacityMode, switchCapacityMode]);
+const SHARING_SHAPES = [readCapacityMode, switchCapacityMode] as const;
 
 type View =
   | { kind: 'loading' }
@@ -50,6 +51,7 @@ export function SharingPanel({
 }: {
   onAccessLost: (loss: AccessLoss) => void;
 }): React.JSX.Element {
+  const sharing = useResourceClient(SHARING_SHAPES);
   const [view, setView] = useState<View>({ kind: 'loading' });
   const [confirming, setConfirming] = useState(false);
   const [sending, setSending] = useState(false);
@@ -79,7 +81,7 @@ export function SharingPanel({
       default:
         return unreachable(reply);
     }
-  }, [onAccessLost]);
+  }, [sharing, onAccessLost]);
 
   useEffect(() => {
     void refresh().catch((cause: unknown) => {

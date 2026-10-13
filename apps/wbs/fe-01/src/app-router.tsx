@@ -16,6 +16,7 @@ import type { Roster } from '@/components/presence/presence-panel';
 import { SpacePage } from '@/components/spaces/space-page';
 import { SpacesPage } from '@/components/spaces/spaces-page';
 import { ProjectPage } from '@/components/wbs/project-page';
+import { OrganizationResourcesProvider } from '@/runtime/organization-resources';
 import type { SessionRuntime } from '@/runtime/session-runtime';
 
 /**
@@ -223,8 +224,8 @@ declare module '@tanstack/react-router' {
  * render, because the account menu and the presence slot are elements the gate
  * rebuilds when the session changes. A router recreated with them would throw
  * the current address away on a re-render. The session's runtime is context
- * too, and it is the same object for as long as the same user is signed in: the
- * session owner replaces it only for another user.
+ * too. A confirmed organization transition retires the previous resource region
+ * and mounts a new router for the same account and the new organization.
  */
 export function AppRouter({
   history,
@@ -232,9 +233,18 @@ export function AppRouter({
 }: SignedInRegion & { history?: RouterHistory }): React.JSX.Element {
   const { session, presence, account } = region;
   const context = useMemo<RouteContext>(
-    () => ({ session, presence, account, nav: <PageNav /> }),
+    () => ({
+      session,
+      presence,
+      account,
+      nav: <PageNav organization={session.organization.kind === 'active'} />,
+    }),
     [session, presence, account],
   );
   const [router] = useState(() => createAppRouter(context, history));
-  return <RouterProvider router={router} context={context} />;
+  return (
+    <OrganizationResourcesProvider scope={session.resourceScope}>
+      <RouterProvider router={router} context={context} />
+    </OrganizationResourcesProvider>
+  );
 }

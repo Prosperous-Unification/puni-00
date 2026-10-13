@@ -10,6 +10,7 @@ import {
 
 import { browserClient } from './http';
 import { unreachable } from './http';
+import type { ResourceScope } from './organization-context';
 
 export const OPENAPI_SPEC_PATH = '/api/openapi.json';
 
@@ -118,20 +119,16 @@ function storedEntry(wire: StoredWire): SavedPlanListEntryView {
 
 const sideParam = (side: SavedPlanSideRef): string => (side === 'current' ? side : side.saved);
 
-const client = browserClient([
-  listSavedPlans,
-  savePlan,
-  compareSavedPlans,
-  renameSavedPlan,
-  deleteSavedPlan,
-]);
-
 // Proof: the former cast-based client threw `unsupported_body_version` for a
 // complete 501 and admitted malformed known shelf fields; saved-plan-api.test.ts
 // failed 10 cases before this shape-derived production path replaced it.
 
 /** Every call is validated by its shared endpoint shape before this adapter maps view-only units. */
-export function httpSavedPlanApi(): SavedPlanApi {
+export function httpSavedPlanApi(scope?: ResourceScope): SavedPlanApi {
+  const client = browserClient(
+    [listSavedPlans, savePlan, compareSavedPlans, renameSavedPlan, deleteSavedPlan],
+    scope,
+  );
   return {
     async list(projectId) {
       const reply = await client['getApiProjectsByIdSaved-plans']({ params: { id: projectId } });

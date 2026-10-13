@@ -30,9 +30,11 @@ type View =
 export function OnboardingScreen({
   children,
   onSignOut,
+  renderOrganization,
 }: {
   children: React.ReactNode;
   onSignOut: () => void;
+  renderOrganization?: (mode: 'legacy' | 'activated') => React.ReactNode;
 }): React.JSX.Element {
   const [view, setView] = useState<View>({ kind: 'loading' });
   // Read in an initializer and cleared in an effect, as `AuthForm` does with
@@ -155,7 +157,7 @@ export function OnboardingScreen({
     return (
       <>
         {notice}
-        {children}
+        {renderOrganization === undefined ? children : renderOrganization('legacy')}
       </>
     );
   if (view.kind === 'failure')
@@ -168,6 +170,13 @@ export function OnboardingScreen({
       </>
     );
   const state = view.state;
+  if (state.state === 'selection_required' && renderOrganization !== undefined)
+    return (
+      <>
+        {notice}
+        {renderOrganization('activated')}
+      </>
+    );
   return (
     <main className="bg-background text-foreground mx-auto max-w-xl p-8 font-sans">
       {notice}

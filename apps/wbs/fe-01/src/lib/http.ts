@@ -1,21 +1,78 @@
 import {
+  type Client,
   type ClientFailure,
   clientFromShapes,
   type EndpointShape,
   fetchTransport,
+  type TransportInput,
 } from '@wbs/contracts';
+
+import type { OrganizationRefusal, ResourceScope } from './organization-context';
 
 /**
  * Shape-derived browser calls use the serving origin and its cookies. Fetch is
  * resolved per invocation, and no request sharing or invalidation lives here.
  */
-export function browserClient<const Shapes extends readonly EndpointShape[]>(shapes: Shapes) {
-  return clientFromShapes(shapes, (shape, input) =>
-    fetchTransport(location.origin, (url, init) => {
+export function browserClient<const Shapes extends readonly EndpointShape[]>(
+  shapes: Shapes,
+  scope?: ResourceScope,
+): Client<Shapes> {
+  // Proof: consulting the mutable context per request failed `old clients retain their expected organization` (c2-fault-header).
+  const expected = scope?.organization.kind === 'active' ? scope.organization.organizationId : null;
+  const client = clientFromShapes(shapes, (shape, input) => {
+    if (scope !== undefined && !scope.isCurrent())
+      throw new Error('organization runtime withdrawn');
+    const headers = new Headers(input.headers);
+    const resource = shape.policies.some((policy) => policy.kind === 'organization-resource');
+    if (resource && expected !== null) headers.set('X-WBS-Expected-Organization', expected);
+    return fetchTransport(location.origin, (url, init) => {
       const address = new URL(url);
       return fetch(`${address.pathname}${address.search}`, init);
-    })(shape, input),
+    })(shape, { ...input, headers });
+  });
+  if (scope === undefined) return client;
+  // Each entry comes from clientFromShapes' exact shape binding and retains that
+  // operation's validator; erasure only allows the same wrapper around each method.
+  const methods = client as unknown as Record<
+    string,
+    (
+      input: Partial<TransportInput>,
+    ) => Promise<
+      { kind: 'success' | 'refusal'; body: unknown } | { kind: 'failure'; failure: ClientFailure }
+    >
+  >;
+  const wrapped = Object.fromEntries(
+    Object.entries(methods).map(([operation, invoke]) => [
+      operation,
+      async (input: Partial<TransportInput>) => {
+        if (!scope.isCurrent()) return { kind: 'failure', failure: { code: 'cancelled' } } as const;
+        const reply = await invoke(input);
+        // Proof: removing currentness fences failed `late organization responses cannot publish` (c2-fault-late).
+        if (!scope.isCurrent()) return { kind: 'failure', failure: { code: 'cancelled' } } as const;
+        if (reply.kind === 'refusal') {
+          const body = reply.body;
+          if (typeof body === 'object' && body !== null && 'error' in body) {
+            switch (body.error) {
+              case 'organization_context_changed':
+              case 'no_active_organization':
+              case 'not_a_member':
+              case 'unauthenticated':
+              case 'sso_required':
+              case 'reauthentication_required':
+                // The shared client validated this exact refusal shape; recognized
+                // organization errors retain their complete validated credential body.
+                // Proof: dropping withdrawal failed `membership loss clears the whole organization runtime without retry` and `context refusal sends exactly one mutation` (c2-fault-refusal).
+                scope.refuse(body as OrganizationRefusal);
+            }
+          }
+        }
+        return reply;
+      },
+    ]),
   );
+  // Wrappers preserve every exact operation/input/reply correlation established
+  // by clientFromShapes; only the common cancelled variant can replace a reply.
+  return wrapped as unknown as Client<Shapes>;
 }
 
 /** Unknown discriminants indicate a programming error rather than a modeled refusal. */

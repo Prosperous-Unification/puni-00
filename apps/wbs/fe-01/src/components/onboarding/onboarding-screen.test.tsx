@@ -194,3 +194,61 @@ describe('onboarding screen', () => {
     );
   });
 });
+
+it.each(['creation', 'invitation acceptance'] as const)(
+  '%s refreshes choices without selection',
+  async (action) => {
+    let member = false;
+    const posted: string[] = [];
+    vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        posted.push(url);
+        member = true;
+        return Promise.resolve(
+          action === 'creation'
+            ? answer(201, {
+                organization: { id: 'org-a', name: 'Alpha' },
+                membership: { organizationId: 'org-a', userId: 'u1', role: 'super_admin' },
+              })
+            : answer(200, { membership: { organizationId: 'org-a', role: 'member' } }),
+        );
+      }
+      return Promise.resolve(
+        answer(
+          200,
+          member
+            ? {
+                state: 'selection_required',
+                memberships: [{ organizationId: 'org-a', name: 'Alpha', role: 'member' }],
+              }
+            : { state: 'create_organization' },
+        ),
+      );
+    });
+    render(
+      <OnboardingScreen
+        onSignOut={() => undefined}
+        renderOrganization={(mode) => <p>Choices {mode}</p>}
+      >
+        <p>Legacy app</p>
+      </OnboardingScreen>,
+    );
+    if (action === 'creation') {
+      fireEvent.change(await screen.findByLabelText('Organization name'), {
+        target: { value: 'Alpha' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: 'Create organization' }));
+    } else {
+      fireEvent.change(await screen.findByLabelText('Invitation code'), {
+        target: { value: 'invitation-code' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: 'Accept invitation' }));
+    }
+    await screen.findByText('Choices activated');
+    expect(posted).toEqual([
+      action === 'creation'
+        ? '/api/onboarding/organizations'
+        : '/api/onboarding/invitations/accept',
+    ]);
+  },
+);

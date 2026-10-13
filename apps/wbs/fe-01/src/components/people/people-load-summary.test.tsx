@@ -5,10 +5,10 @@ import {
   createRouter,
   RouterProvider,
 } from '@tanstack/react-router';
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { DirectorySnapshot } from '@/modules/directory-management/contract';
+import { act, cleanup, render, screen, waitFor } from '@/testing/organization-render';
 import { answerJson as answer, stubServer } from '@/testing/stub-server';
 
 import { loadWindowFrom } from './load-window';

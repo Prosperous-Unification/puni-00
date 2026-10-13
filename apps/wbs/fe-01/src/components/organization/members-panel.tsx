@@ -2,7 +2,8 @@ import { changeMemberRole, type ClientReply, listMembers, removeMember } from '@
 import { useCallback, useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
-import { browserClient, failureMessage, unreachable } from '@/lib/http';
+import { failureMessage, unreachable } from '@/lib/http';
+import { useResourceClient } from '@/runtime/organization-resources';
 
 import {
   type AccessLoss,
@@ -23,7 +24,7 @@ import {
   STATUS_CLASS,
 } from './organization-section';
 
-const members = browserClient([listMembers, changeMemberRole, removeMember]);
+const MEMBERS_SHAPES = [listMembers, changeMemberRole, removeMember] as const;
 
 type Member = Extract<
   ClientReply<typeof listMembers>,
@@ -45,6 +46,7 @@ export function MembersPanel({
 }: {
   onAccessLost: (loss: AccessLoss) => void;
 }): React.JSX.Element {
+  const members = useResourceClient(MEMBERS_SHAPES);
   const [view, setView] = useState<View>({ kind: 'loading' });
   const [chosen, setChosen] = useState<Readonly<Record<string, Role>>>({});
   const [removing, setRemoving] = useState<string | null>(null);
@@ -71,7 +73,7 @@ export function MembersPanel({
       default:
         return unreachable(reply);
     }
-  }, [onAccessLost]);
+  }, [members, onAccessLost]);
 
   useEffect(() => {
     void refresh().catch((cause: unknown) => {
