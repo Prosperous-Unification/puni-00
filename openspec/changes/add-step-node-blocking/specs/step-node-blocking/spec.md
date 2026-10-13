@@ -134,13 +134,19 @@ The step cell and step card SHALL show whether blockage is direct or derived, ke
 
 ### Requirement: Deployment refuses to remove stored step blockage during rollback
 
-The step blockage migration SHALL be additive and ship beside a guarded `down.sql`. The swap compatibility guard SHALL detect stored step blockage before removing its schema. The rollback save/remove/restore path SHALL preserve the facts exactly; a failed guard or restore SHALL refuse deployment loudly with the manual completion command.
+The step blockage migration SHALL be additive and ship beside a guarded `down.sql`. The swap compatibility guard SHALL detect stored step blockage before removing its schema. The rollback save/remove/restore path SHALL preserve the facts exactly. Saving SHALL exclusively create its destination and refuse an existing path without changing its bytes; a failed guard or restore SHALL refuse deployment loudly with the manual completion command.
 
 #### Scenario: Rollback preserves stored blockage facts
 
 - **GIVEN** a database with step blockage facts and an older image without the new table
 - **WHEN** rollback runs
 - **THEN** it saves and removes the facts before the old image starts, and restore recreates the exact facts
+
+#### Scenario: A recovery copy cannot be overwritten after removal
+
+- **GIVEN** a recovery file saved before its database facts were removed
+- **WHEN** another save targets the same path
+- **THEN** it fails without changing the file bytes, and restore recovers every original column
 
 #### Scenario: The schema is not removed when rollback preservation is bypassed
 

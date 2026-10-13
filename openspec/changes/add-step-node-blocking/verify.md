@@ -173,3 +173,11 @@ Broader caller/service tests and final lint/typecheck/format/OpenSpec checks rec
 | repository write timestamp call | Named guard/constraint/call removed or disabled | `refuses fractional writes and malformed stored timestamp reads`; exit 1                                                                                                                                           |
 
 This committed checkpoint implements persistence and rollback only. Journaled commands, retained direct-blockage reads, structural stale replay, document/saved-plan versions, schedule neutrality, UI and the complete-feature gate remain pending. WBS010.4.13.3 also includes work beyond this bounded change.
+
+### Review correction: exclusive recovery-file creation
+
+- Review reproduced `save → remove → save same path → restore` silently replacing the only recovery copy with an empty capture. The new CLI regression first failed because repeated save exited 0.
+- `save` now writes with filesystem exclusive creation (`wx`). An existing destination fails with `EEXIST` without changing its bytes. The CLI test removes the stored facts, attempts the repeated save, compares the exact original file bytes, and restores all original identity, blocked-time and audit columns.
+- Focused green: **1 passed, 0 failed, 8 assertions**. Replacing `wx` with `w` independently made the same production CLI regression fail on repeated-save exit 0; the original source was restored in `finally`. The adjacent `Proof:` and [fault receipt](evidence/persistence/recovery-file-exclusive.txt) record that observation; the persistence inventory now contains **47 watched faults**.
+- Fresh broader persistence/backend caller rerun: **123 passed, 0 failed, 731 assertions** (70.99s). Backend Nx typecheck: **2 tasks passed, 0 cache hits** (17.6s). Changed-TypeScript ESLint and strict OpenSpec validation passed.
+- Fresh full swap/Docker rerun (`--timeout=30000`): **216 passed, 0 failed, 606 assertions** (157.25s). Prettier check passed; exact-SHA heavy gate remains reserved for the complete feature.

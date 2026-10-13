@@ -187,6 +187,21 @@ describe('step blockage recovery', () => {
     expect(stderr).toContain('DB_PATH must be set');
   }, 10000);
 
+  it('refuses overwriting a recovery file after removal and restores all original columns', async () => {
+    const file = join(directory, 'saved.json');
+    const original = saveStepBlockages(connection.db);
+    expect((await runCli('save', file)).exitCode).toBe(0);
+    const bytes = await Bun.file(file).text();
+    expect((await runCli('remove', file)).exitCode).toBe(0);
+    expect(saveStepBlockages(connection.db).rows).toEqual([]);
+    const repeatedSave = await runCli('save', file);
+    expect(repeatedSave.exitCode).not.toBe(0);
+    expect(repeatedSave.stderr).toContain('EEXIST');
+    expect(await Bun.file(file).text()).toBe(bytes);
+    expect((await runCli('restore', file)).exitCode).toBe(0);
+    expect(saveStepBlockages(connection.db)).toEqual(original);
+  }, 10000);
+
   it('runs the CLI round trip and rejects malformed/absent inputs without creating databases', async () => {
     const file = join(directory, 'saved.json');
     const saved = await runCli('save', file);

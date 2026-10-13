@@ -1,3 +1,5 @@
+import { writeFile } from 'node:fs/promises';
+
 import { openExistingConnection } from '@wbs/store-sqlite/db';
 import {
   removeSavedStepBlockages,
@@ -23,7 +25,9 @@ const connection = openExistingConnection(path);
 try {
   if (command === 'save') {
     const saved = saveStepBlockages(connection.db);
-    await Bun.write(file, JSON.stringify(saved));
+    // Proof: exclusive flag replaced with 'w'; recovery-file overwrite negative
+    // failed because the repeated save exited 0; watched 2026-10-13.
+    await writeFile(file, JSON.stringify(saved), { flag: 'wx' });
     console.log(`step blockages saved: ${String(saved.rows.length)}`);
   } else {
     const saved: unknown = await Bun.file(file).json();

@@ -76,7 +76,8 @@ remains restrictive until the structural command explicitly accounts for its fac
 Repository reads validate left-joined references so corrupted state is never hidden
 by an inner join, including missing owner/step, crossed project and parent ownership.
 
-Recovery file version 1 preserves all columns. The decoder rejects malformed
+Recovery file version 1 preserves all columns. Saving exclusively creates the
+destination; an existing path refuses without changing its bytes. The decoder rejects malformed
 columns, timestamps, versions and duplicate identities. `remove` compares the current
 capture with the file in one transaction, while `restore` requires an empty table
 and relies on schema reference/ownership checks in the same transaction as inserts.

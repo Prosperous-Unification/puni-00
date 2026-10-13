@@ -502,5 +502,16 @@
       "(fail) StepBlockageRepository > refuses fractional writes and malformed stored timestamp reads [111.67ms]"
     ],
     "output_file": "repository-write-timestamp-call.txt"
+  },
+  {
+    "fault": "recovery file exclusive create",
+    "source": "apps/wbs/be-01/src/step-blockage-rollback-cli.ts",
+    "test": "./libs/wbs/adapters/store-sqlite/src/step-blockage-rollback.db.test.ts",
+    "pattern": "refuses overwriting a recovery file",
+    "exit": 1,
+    "failed": [
+      "(fail) step blockage recovery > refuses overwriting a recovery file after removal and restores all original columns [782.69ms]"
+    ],
+    "output_file": "recovery-file-exclusive.txt"
   }
 ]

@@ -474,7 +474,9 @@ DB_PATH=/data/wbs.db bun run src/migrate-down-cli.ts --to=20261012130000_add_ste
 ```
 
 The version-1 save contains every column, including original blocked time and audit
-columns, ordered by node identity. Recovery requires an existing readable database;
+columns, ordered by node identity. `save` exclusively creates a new file and refuses
+an existing destination without changing its bytes; choose a fresh path for each capture.
+Recovery requires an existing readable database;
 it never creates a missing database. `remove` refuses a stale save before deleting
 anything. Keep the save until restoration has been verified. After applying the
 forward migration on a compatible release:
