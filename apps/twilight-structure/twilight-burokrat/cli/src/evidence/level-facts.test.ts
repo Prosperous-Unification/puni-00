@@ -389,7 +389,7 @@ test('[TEST-AXES-078] external authority and command shape refuse malformed inpu
   expect(extra.stderr).toContain('usage: twilight-burokrat inspect-level-facts');
 });
 
-test('[TEST-AXES-078] unknown authority keys and committed Architecture are refused', async () => {
+test('[TEST-AXES-078] unknown authority keys and wrong committed Architecture path are refused', async () => {
   const selected = fixture();
   writeFileSync(selected.authorityPath, JSON.stringify({ ...selected.authority, unknown: true }));
   let invocation = await selected.inspect();
@@ -408,7 +408,7 @@ test('[TEST-AXES-078] unknown authority keys and committed Architecture are refu
     }),
   );
   invocation = await selected.inspect();
-  expect(invocation.stderr).toContain('committed Architecture source is unsupported');
+  expect(invocation.stderr).toContain('Architecture policy pin differs from fixed runner path');
 });
 
 test('[TEST-AXES-078] incomplete, duplicate and outside scope refuse by name', async () => {
@@ -832,4 +832,366 @@ test('[TEST-AXES-081] explicit Conformance file operand binds only the literal c
     `${projectRoot}/src/other.test.ts`,
   );
   expect(observation.sources.some((source) => source.path.includes('/nested/'))).toBe(false);
+});
+
+const architecturePolicyPath = `${projectRoot}/src/architecture-fixtures.json`;
+const architectureFile = `${projectRoot}/src/architecture/f7.architecture.test.ts`;
+function committedArchitecture(
+  policy: unknown = {
+    schemaVersion: 1,
+    fixtures: [{ ruleId: 'F7', file: 'src/architecture/f7.architecture.test.ts' }],
+  },
+  overlap = false,
+) {
+  const selected = fixture();
+  file(
+    selected.repository,
+    architectureFile,
+    'throw new Error("architecture candidate executed");',
+  );
+  if (overlap) {
+    const declaration = decodePerformanceCases(
+      JSON.parse(readFileSync(join(selected.repository, declarationPath), 'utf8')) as unknown,
+    );
+    declaration.cases.push({
+      ...declaration.cases[0],
+      caseId: 'architecture',
+      fixture: architectureFile,
+      titlePath: ['architecture'],
+    });
+    file(selected.repository, declarationPath, JSON.stringify(declaration));
+    selected.authority.scope.declaration.digest = hashBytes(JSON.stringify(declaration));
+    selected.authority.scope.fixtures.push(architectureFile);
+  }
+  recommit(
+    selected,
+    architecturePolicyPath,
+    typeof policy === 'string' || policy instanceof Uint8Array ? policy : JSON.stringify(policy),
+  );
+  const writeCommitted = (
+    pin: unknown = {
+      kind: 'committed',
+      path: architecturePolicyPath,
+      digest: hashBytes(readFileSync(join(selected.repository, architecturePolicyPath))),
+    },
+  ) => {
+    writeFileSync(
+      selected.authorityPath,
+      JSON.stringify({ ...selected.authority, architecture: pin }),
+    );
+  };
+  writeCommitted();
+  const inspectCommitted = () => selected.inspect(selected.authority.revision);
+  return { ...selected, writeCommitted, inspectCommitted };
+}
+
+test('[TEST-AXES-084] Architecture policy membership binds complete sources and overlap without candidate execution', async () => {
+  for (const overlap of [false, true]) {
+    const selected = committedArchitecture(undefined, overlap);
+    file(selected.repository, architectureFile, 'working replacement');
+    const invocation = await selected.inspectCommitted();
+    expect(invocation.exitCode).toBe(0);
+    expect(invocation.stderr).toBe('');
+    const observation = JSON.parse(invocation.stdout) as ReturnType<typeof inspectLevelFacts>;
+    expect(observation.memberships.architecture).toEqual({
+      kind: 'committed',
+      path: architecturePolicyPath,
+      digest: hashBytes(readFileSync(join(selected.repository, architecturePolicyPath))),
+      files: overlap ? [architectureFile] : [],
+    });
+    const paths = observation.sources.map((source) => source.path);
+    expect(paths).toEqual([...new Set(paths)].sort());
+    expect(paths).toContain(architectureFile);
+    expect(paths).toContain(architecturePolicyPath);
+    expect(
+      observation.sources.find((source) => source.path === architectureFile)?.contentDigest,
+    ).toBe(hashBytes('throw new Error("architecture candidate executed");'));
+    expect(observation.authentication).toEqual({ kind: 'absent' });
+    expect(observation.certifies).toBe(false);
+    expect(observation).not.toHaveProperty('coverage');
+    const { observationDigest, ...payload } = observation;
+    expect(observationDigest).toBe(hashCanonical(payload));
+  }
+});
+
+test('[TEST-AXES-085] Architecture pins and closed policies refuse by name', async () => {
+  const selected = committedArchitecture();
+  for (const pin of [
+    {
+      kind: 'committed',
+      path: configPath,
+      digest: hashBytes(readFileSync(join(selected.repository, architecturePolicyPath))),
+    },
+    { kind: 'committed', path: architecturePolicyPath, digest: '0'.repeat(64) },
+  ]) {
+    selected.writeCommitted(pin);
+    const invocation = await selected.inspectCommitted();
+    expect(invocation.exitCode).toBe(1);
+    expect(invocation.stdout).toBe('');
+    expect(invocation.stderr).toContain('Architecture policy pin');
+  }
+  for (const [policy, message] of [
+    ['{', 'JSON'],
+    [Uint8Array.from([0xff]), 'UTF-8'],
+    [{ schemaVersion: 2, fixtures: [] }, 'schemaVersion'],
+    [{ schemaVersion: 1, fixtures: [], extra: true }, 'extra'],
+    [
+      {
+        schemaVersion: 1,
+        fixtures: [{ ruleId: 'F7', file: 'src/architecture/f7.architecture.test.ts', extra: true }],
+      },
+      'extra',
+    ],
+    [{ schemaVersion: 1, fixtures: [] }, 'no-cases'],
+    [
+      { schemaVersion: 1, fixtures: [{ ruleId: 'F7', file: 'src/unit.test.ts' }] },
+      'cannot collect Unit',
+    ],
+    [
+      {
+        schemaVersion: 1,
+        fixtures: [{ ruleId: 'F7', file: 'src/architecture/mod-index.architecture.test.ts' }],
+      },
+      'needs its own fixture',
+    ],
+    [
+      {
+        schemaVersion: 1,
+        fixtures: [{ ruleId: 'UNKNOWN', file: 'src/architecture/unknown.architecture.test.ts' }],
+      },
+      'unknown rule',
+    ],
+    [
+      {
+        schemaVersion: 1,
+        fixtures: [
+          { ruleId: 'F7', file: 'src/architecture/f7.architecture.test.ts' },
+          { ruleId: 'F7', file: 'src/architecture/f7.architecture.test.ts' },
+        ],
+      },
+      'mapped twice',
+    ],
+  ] as const) {
+    const malformed = committedArchitecture(policy);
+    const invocation = await malformed.inspectCommitted();
+    expect(invocation.exitCode).toBe(1);
+    expect(invocation.stdout).toBe('');
+    expect(invocation.stderr).toContain(message);
+  }
+});
+
+test('[TEST-AXES-085] Architecture validates every selected mapping even outside intersection', async () => {
+  for (const kind of ['missing', 'symlink', 'unreadable', 'directory'] as const) {
+    const selected = committedArchitecture();
+    if (kind === 'unreadable') {
+      const blob = git(
+        selected.repository,
+        'rev-parse',
+        `${selected.authority.revision}:${architectureFile}`,
+      );
+      unlinkSync(join(selected.repository, '.git/objects', blob.slice(0, 2), blob.slice(2)));
+    } else {
+      unlinkSync(join(selected.repository, architectureFile));
+      if (kind === 'symlink')
+        symlinkSync(
+          '../../playwright.performance.config.ts',
+          join(selected.repository, architectureFile),
+        );
+      if (kind === 'directory') file(selected.repository, `${architectureFile}/child`, 'child');
+      recommit(selected, configPath, 'changed sentinel');
+      selected.writeCommitted();
+      rmSync(join(selected.repository, architectureFile), { recursive: true, force: true });
+    }
+    file(selected.repository, architectureFile, 'working repair');
+    const invocation = await selected.inspectCommitted();
+    expect(invocation.exitCode).toBe(1);
+    expect(invocation.stdout).toBe('');
+    expect(invocation.stderr).toContain(
+      kind === 'unreadable' ? 'cannot read selected blob' : 'not a selected regular blob',
+    );
+  }
+});
+
+test('[TEST-AXES-086] Architecture discovers immediate suffix children including directories but ignores nested ordinary fixtures', async () => {
+  for (const suffix of [
+    'extra.architecture.test.ts',
+    'extra.architecture.test.ts/child',
+    'nested/extra.architecture.test.ts',
+  ]) {
+    const selected = committedArchitecture();
+    recommit(
+      selected,
+      `${projectRoot}/src/architecture/${suffix}`,
+      'throw new Error("decoy executed");',
+    );
+    selected.writeCommitted();
+    const invocation = await selected.inspectCommitted();
+    expect(invocation.exitCode).toBe(suffix.startsWith('nested/') ? 0 : 1);
+    if (!suffix.startsWith('nested/'))
+      expect(invocation.stderr).toContain('unmapped architecture fixture');
+  }
+});
+
+test('[TEST-AXES-086] Architecture reviewed-empty refuses a committed policy or target', async () => {
+  const policy = committedArchitecture();
+  policy.writeCommitted({ kind: 'reviewed-empty' });
+  const invocation = await policy.inspectCommitted();
+  expect(invocation.exitCode).toBe(1);
+  expect(invocation.stdout).toBe('');
+  expect(invocation.stderr).toContain('Architecture reviewed-empty contradicts');
+  const target = fixture();
+  const revision = recommit(
+    target,
+    manifestPath,
+    JSON.stringify({ targets: { 'test:architecture:level': {} } }),
+  );
+  const refused = await target.inspect(revision);
+  expect(refused.exitCode).toBe(1);
+  expect(refused.stdout).toBe('');
+  expect(refused.stderr).toContain('Architecture reviewed-empty contradicts');
+});
+
+test('[TEST-AXES-084] three-way overlap sorts Architecture files and deduplicates complete source tuples', async () => {
+  const selected = committedArchitecture(
+    {
+      schemaVersion: 1,
+      fixtures: [
+        { ruleId: 'MOD-INDEX', file: 'src/architecture/mod-index.architecture.test.ts' },
+        { ruleId: 'F7', file: 'src/architecture/f7.architecture.test.ts' },
+      ],
+    },
+    true,
+  );
+  const second = `${projectRoot}/src/architecture/mod-index.architecture.test.ts`;
+  file(selected.repository, second, 'throw new Error("second architecture executed");');
+  const declaration = decodePerformanceCases(
+    JSON.parse(readFileSync(join(selected.repository, declarationPath), 'utf8')) as unknown,
+  );
+  declaration.cases.push({
+    ...declaration.cases[0],
+    caseId: 'second',
+    fixture: second,
+    titlePath: ['second'],
+  });
+  selected.authority.scope.fixtures.push(second);
+  file(selected.repository, declarationPath, JSON.stringify(declaration));
+  selected.authority.scope.declaration.digest = hashBytes(JSON.stringify(declaration));
+  const manifest = JSON.stringify({
+    targets: {
+      'test:conformance': conformanceTarget(
+        'bun test ./src/architecture/mod-index.architecture.test.ts ./src/architecture/f7.architecture.test.ts --timeout=1000',
+      ),
+    },
+  });
+  recommit(selected, manifestPath, manifest);
+  writeFileSync(
+    selected.authorityPath,
+    JSON.stringify({
+      ...selected.authority,
+      architecture: {
+        kind: 'committed',
+        path: architecturePolicyPath,
+        digest: hashBytes(readFileSync(join(selected.repository, architecturePolicyPath))),
+      },
+      conformance: { kind: 'committed', ...selected.authority.scope.projectManifest },
+    }),
+  );
+  const invocation = await selected.inspectCommitted();
+  expect(invocation.exitCode).toBe(0);
+  const observation = JSON.parse(invocation.stdout) as ReturnType<typeof inspectLevelFacts>;
+  expect(observation.memberships.architecture).toHaveProperty('files', [architectureFile, second]);
+  expect(observation.memberships.conformance).toHaveProperty('files', [architectureFile, second]);
+  expect(observation.memberships.performance).toEqual(
+    [fixturePath, architectureFile, second].sort(),
+  );
+  const paths = observation.sources.map((source) => source.path);
+  expect(paths).toEqual([...new Set(paths)].sort());
+  expect(paths).toHaveLength(7);
+});
+
+test('[TEST-AXES-084] packaged executable inspects declared Architecture without executing candidate code', async () => {
+  const selected = committedArchitecture(undefined, true);
+  const packageRoot = mkdtempSync(join(tmpdir(), 'architecture-facts-package-'));
+  scratch.push(packageRoot);
+  await buildPackage(packageRoot);
+  const invocation = Bun.spawnSync(
+    [
+      process.execPath,
+      join(packageRoot, 'dist/bin.mjs'),
+      'inspect-level-facts',
+      selected.repository,
+      selected.authority.revision,
+      selected.authorityPath,
+    ],
+    { stdout: 'pipe', stderr: 'pipe' },
+  );
+  expect(invocation.exitCode).toBe(0);
+  expect(invocation.stderr.toString()).toBe('');
+  const observation = JSON.parse(invocation.stdout.toString()) as ReturnType<
+    typeof inspectLevelFacts
+  >;
+  expect(observation.memberships.architecture).toHaveProperty('files', [architectureFile]);
+  expect(observation.authentication).toEqual({ kind: 'absent' });
+  expect(observation.certifies).toBe(false);
+}, 120_000);
+
+test('[TEST-AXES-085] fixed Architecture policy itself must be a readable selected regular blob despite working repair', async () => {
+  for (const kind of ['missing', 'symlink', 'unreadable'] as const) {
+    const selected = committedArchitecture();
+    const pin = {
+      kind: 'committed',
+      path: architecturePolicyPath,
+      digest: hashBytes(readFileSync(join(selected.repository, architecturePolicyPath))),
+    };
+    if (kind === 'unreadable') {
+      const blob = git(
+        selected.repository,
+        'rev-parse',
+        `${selected.authority.revision}:${architecturePolicyPath}`,
+      );
+      unlinkSync(join(selected.repository, '.git/objects', blob.slice(0, 2), blob.slice(2)));
+    } else {
+      unlinkSync(join(selected.repository, architecturePolicyPath));
+      if (kind === 'symlink')
+        symlinkSync(
+          '../playwright.performance.config.ts',
+          join(selected.repository, architecturePolicyPath),
+        );
+      recommit(selected, configPath, 'changed sentinel');
+      selected.writeCommitted(pin);
+      if (kind === 'symlink') unlinkSync(join(selected.repository, architecturePolicyPath));
+    }
+    file(selected.repository, architecturePolicyPath, '{"schemaVersion":1,"fixtures":[]}');
+    const invocation = await selected.inspectCommitted();
+    expect(invocation.exitCode).toBe(1);
+    expect(invocation.stdout).toBe('');
+    expect(invocation.stderr).toContain(
+      kind === 'unreadable' ? 'cannot read selected blob' : 'not a selected regular blob',
+    );
+  }
+});
+
+test('[TEST-AXES-084] actual Burokrat Architecture policy binds all fourteen declared fixtures', async () => {
+  const policy = JSON.parse(
+    readFileSync(new URL('../architecture-fixtures.json', import.meta.url), 'utf8'),
+  ) as { schemaVersion: number; fixtures: { ruleId: string; file: string }[] };
+  expect(policy.fixtures).toHaveLength(14);
+  const selected = committedArchitecture(policy);
+  for (const mapping of policy.fixtures)
+    file(
+      selected.repository,
+      `${projectRoot}/${mapping.file}`,
+      'throw new Error("adopted candidate executed");',
+    );
+  recommit(selected, configPath, 'throw new Error("config candidate executed");');
+  selected.writeCommitted();
+  const invocation = await selected.inspectCommitted();
+  expect(invocation.exitCode).toBe(0);
+  const observation = JSON.parse(invocation.stdout) as ReturnType<typeof inspectLevelFacts>;
+  expect(observation.memberships.architecture).toHaveProperty('files', []);
+  for (const mapping of policy.fixtures)
+    expect(observation.sources.map((source) => source.path)).toContain(
+      `${projectRoot}/${mapping.file}`,
+    );
+  expect(observation.sources).toHaveLength(19);
 });

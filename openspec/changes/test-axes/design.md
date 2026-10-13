@@ -138,11 +138,10 @@ The timeout is a nonzero decimal integer with no leading zeros. A true end const
 all trailing input, including newlines. Globs, directories,
 shell indirection, filters, extra flags, duplicate and outside paths refuse. A present unsupported
 target cannot be treated as reviewed empty; a reviewed-empty declaration contradicting a
-present target refuses. Architecture names a committed policy under its project root. Extract
+present target refuses. Architecture pins exactly `<projectRoot>/src/architecture-fixtures.json`, the runner's fixed policy. A reviewed-empty assertion refuses either that selected path (including a directory at that name) or `test:architecture:level`. A valid nonempty policy can have an empty intersection. Bind its selected blob and every mapped fixture before intersecting with the complete Performance fixture set. Membership is policy-declared; the runner currently passes bare Bun filters and this slice does not assert complete execution collection. Extract
 its schema, registry mapping, exact rule-file relation and nonrecursive unmapped-fixture check
 into pure functions shared by the existing runner and the committed blob reader. Preserve the
-runner's current validation order, error text and report-clearing/execution side effects; stop
-if that cannot be done without a behavioral change.
+runner's current validation order, error text and report-clearing/execution side effects: report directory, stale clear, decode, directory discovery, mapping validation immediately before each mapping's IO, unmapped check, spawn and JUnit. Derive immediate Git child names from the first path component below `src/architecture/`; a suffix-looking directory with selected descendants is an immediate unmapped child, while an ordinary nested directory's fixtures are ignored.
 
 Capture `readCandidate` once, require committed kind and exact requested SHA (including refusal
 of full-hex tag objects), and hash the selected snapshot. Read each named candidate file from

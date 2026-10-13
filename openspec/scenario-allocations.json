@@ -786,6 +786,24 @@
       "id": "TEST-AXES-083",
       "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
       "title": "Unsafe or incomplete Conformance selection refuses"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-084",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Architecture declared membership preserves overlap and disjoint sources"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-085",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Architecture authority and complete selected mappings refuse substitution"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-086",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Architecture immediate children and reviewed empty contradictions refuse"
     }
   ]
 }

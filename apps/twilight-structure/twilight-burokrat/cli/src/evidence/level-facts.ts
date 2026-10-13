@@ -1,6 +1,11 @@
 import { decodePerformanceCases } from '@shared/test-evidence';
 import { parseOrThrow, type } from '@shared/validation';
 
+import {
+  decodeArchitecturePolicy,
+  validateArchitectureDiscovery,
+  validateArchitectureMapping,
+} from '../architecture-policy';
 import { RelativePath } from '../contracts/records';
 import { readSelectedBlob } from '../inventory/read-blob';
 import {
@@ -86,7 +91,7 @@ function sourceFromCandidate(repository: string, selected: CandidateSnapshot, pa
 }
 
 /**
- * Inspect one externally reviewed Performance fixture scope and bounded Conformance selection.
+ * Inspect one externally reviewed Performance scope, bounded Conformance selection and declared Architecture policy.
  * Candidate source bytes come only from exact committed Git objects.
  * This facts-only observation is unauthenticated and never classifies a test or awards coverage.
  */
@@ -245,9 +250,66 @@ export function inspectLevelFacts(repository: string, revision: string, authorit
   // Proof: disabling this guard let [TEST-AXES-078]'s omitted authority fixture pass.
   if (JSON.stringify(declaredFixtures) !== JSON.stringify(reviewedFixtures))
     throw new Error('level facts Performance fixtures differ from complete declaration');
-  // Proof: disabling this guard made [TEST-AXES-078] accept unparsed committed Architecture.
-  if (authority.architecture.kind !== 'reviewed-empty')
-    throw new Error('level facts committed Architecture source is unsupported in this slice');
+  const policyPath = `${scope.projectRoot}/src/architecture-fixtures.json`;
+  const architecture = (() => {
+    if (authority.architecture.kind === 'reviewed-empty') {
+      // Proof: [TEST-AXES-086] commits a fixed policy or target under reviewed-empty authority.
+      if (
+        selected.entries.some(
+          (entry) => entry.path === policyPath || entry.path.startsWith(`${policyPath}/`),
+        ) ||
+        Object.hasOwn(manifest.targets, 'test:architecture:level')
+      )
+        throw new Error(
+          'level facts Architecture reviewed-empty contradicts committed policy or target',
+        );
+      return authority.architecture;
+    }
+    // Proof: disabling this path comparison made [TEST-AXES-085] lose its fixed-path refusal.
+    if (authority.architecture.path !== policyPath)
+      throw new Error('level facts Architecture policy pin differs from fixed runner path');
+    const policySource = sourceFromCandidate(root, selected, policyPath);
+    // Proof: disabling this digest comparison made [TEST-AXES-085] accept a changed policy pin.
+    if (policySource.contentDigest !== authority.architecture.digest)
+      throw new Error('level facts Architecture policy pin digest differs from selected blob');
+    if (!sources.some((entry) => entry.path === policyPath)) sources.push(policySource);
+    const policy = decodeArchitecturePolicy(
+      decodeJson(policySource.bytes, 'level facts Architecture policy'),
+    );
+    const architectureRoot = `${scope.projectRoot}/src/architecture/`;
+    // The runner discovers immediate child names, including directories. Git supplies leaves.
+    // Proof: [TEST-AXES-086] puts a selected child below extra.architecture.test.ts/.
+    const discovered = [
+      ...new Set(
+        selected.entries
+          .filter((entry) => entry.path.startsWith(architectureRoot))
+          .map((entry) => entry.path.slice(architectureRoot.length).split('/')[0]),
+      ),
+    ]
+      .filter((name) => name.endsWith('.architecture.test.ts'))
+      .map((name) => `src/architecture/${name}`);
+    const rules = new Set<string>();
+    const files = new Set<string>();
+    for (const fixture of policy.fixtures) {
+      validateArchitectureMapping(fixture, rules);
+      const path = `${scope.projectRoot}/${fixture.file}`;
+      // Validate the complete declared selection before intersection, with shared tuples once.
+      // Proof: [TEST-AXES-085] breaks selected blobs outside the Performance intersection.
+      if (!sources.some((entry) => entry.path === path))
+        sources.push(sourceFromCandidate(root, selected, path));
+      files.add(fixture.file);
+    }
+    validateArchitectureDiscovery(discovered, files);
+    // Proof: removing intersection failed disjoint [TEST-AXES-084]; removing sort reversed
+    // its three-way overlap. Removing source deduplication duplicated those shared tuples.
+    return {
+      ...authority.architecture,
+      files: [...files]
+        .map((file) => `${scope.projectRoot}/${file}`)
+        .filter((path) => scope.fixtures.includes(path))
+        .sort(compareCanonicalText),
+    };
+  })();
   const observation = {
     schemaVersion: 1 as const,
     revision,
@@ -257,7 +319,7 @@ export function inspectLevelFacts(repository: string, revision: string, authorit
     memberships: {
       manual: authority.manual,
       conformance,
-      architecture: authority.architecture,
+      architecture,
       performance: reviewedFixtures,
     },
     sources: sources

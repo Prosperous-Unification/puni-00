@@ -647,7 +647,7 @@ path SHALL be a regular selected Git blob, including paths outside the Performan
 The observation SHALL bind every selected source tuple and emit committed Conformance path,
 digest and sorted workspace-relative files intersecting the Performance fixtures. Legitimate
 Performance overlap and an empty intersection SHALL remain valid, noncertifying observations.
-Manual remains reviewed-empty and committed Architecture remains unsupported.
+Manual remains reviewed-empty; Architecture follows the committed policy requirement below.
 
 #### Scenario: [TEST-AXES-081] Complete committed Conformance membership preserves overlap
 
@@ -668,3 +668,25 @@ Manual remains reviewed-empty and committed Architecture remains unsupported.
 - **GIVEN** a command with bare filters (including one with an exact file and a nested matching decoy), flags, shell syntax, globs, traversal, duplicates, whitespace variants, invalid timeout, or a selected file that is missing, nonregular or unreadable even outside the fixture intersection
 - **WHEN** the facts command validates the complete committed selection
 - **THEN** it refuses by name despite a working-tree repair
+
+### Requirement: Committed Architecture facts bind declared rule fixtures
+
+Committed Architecture authority SHALL pin `<projectRoot>/src/architecture-fixtures.json` and its selected blob digest. The shared runner policy SHALL require closed version 1, a nonempty fixture list, known unique rule IDs and each exact `src/architecture/<lowercase-rule-id>.architecture.test.ts` relation. Every mapped fixture SHALL be a regular readable selected Git blob before intersection, including disjoint fixtures. Immediate children ending `.architecture.test.ts` SHALL be mapped, including directory names with selected descendants; ordinary nested fixtures SHALL be ignored. Reviewed-empty Architecture SHALL refuse a present fixed policy or `test:architecture:level` target. Sources SHALL include the policy and every mapping once in canonical order; Architecture files SHALL be the sorted intersection with the complete Performance declaration. Membership describes policy declarations, not Bun execution collection, authentication, classification or certification. The runner SHALL preserve report creation, stale report clearing and validation error order.
+
+#### Scenario: [TEST-AXES-084] Architecture declared membership preserves overlap and disjoint sources
+
+- **GIVEN** pinned committed Architecture mappings and a complete Performance fixture scope
+- **WHEN** source or packaged facts inspection runs
+- **THEN** it binds every selected source, emits a sorted unique intersection and stays unauthenticated and noncertifying without executing candidate code
+
+#### Scenario: [TEST-AXES-085] Architecture authority and complete selected mappings refuse substitution
+
+- **GIVEN** a wrong policy path or digest, malformed policy, unknown or duplicate rule, wrong rule-file relation, or missing, unreadable, symlinked or nonregular mapping outside the intersection
+- **WHEN** the facts command inspects committed Architecture
+- **THEN** it refuses with no observation despite working-tree repairs
+
+#### Scenario: [TEST-AXES-086] Architecture immediate children and reviewed empty contradictions refuse
+
+- **GIVEN** an unmapped immediate suffix child including a directory with descendants, or reviewed-empty authority with a policy or Architecture target
+- **WHEN** the facts command inspects the selected candidate
+- **THEN** it refuses, while nested ordinary fixtures remain outside declared membership and the runner retains stale-report and error precedence behavior
