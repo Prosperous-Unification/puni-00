@@ -2755,3 +2755,31 @@ external authority pins and reviewed-empty semantics. Four authority/completenes
 written. Task 4.1b.6 remains open; Tasks 2.1/2.2/4.1 and existing noncertifying status remain
 unchanged. `bunx @fission-ai/openspec@1.12.0 validate test-axes --strict` passed, and changed-file
 Prettier completed. No production or R5 checks apply to this design-only checkpoint.
+
+## 4.1b.6a external facts authority — 2026-10-13
+
+After Astra reviewed the design checkpoint, the scope was split: 4.1b.6a implements one
+Performance declaration's strict external authority and committed facts; 4.1b.6b retains the
+Conformance command and Architecture policy adapters. The production allocator proposed and
+issued TEST-AXES-077 through TEST-AXES-080; its proposed journal preserved every prior event
+as an exact prefix. The CLI's unknown-command RED failed all three initial production tests.
+The committed Conformance-target contradiction test and array-valued manifest test each failed
+on a success observation before its guard fix. Other boundary tests were added after the minimal
+implementation and watched fail under the injected guard-off faults below. The installed package
+test failed on missing help/dispatch before
+registration and passed afterward. The diagnostic emits no level, coverage or certification.
+
+R5 guard-off probes were run against the production CLI test file with one fault at a time, then
+restored. Each targeted test exited 1 for a changed named refusal or an unexpected success;
+logs are `/tmp/puni-level-facts-r5-{symbolic-sha,tag-object,candidate-pin,manifest-path,unique-fixtures,outside-scope,conflicting-source,regular-blob,pin-digest,conformance-empty,declaration-config,complete-fixtures,unsupported-conformance,unsupported-architecture,digest-completeness,authentication,certification,manual-only,unknown-key,arity,installed-registration}.log`. The installed-registration fault was run against the packaged executable test. These logs were inspected for assertion failures rather than parse/compiler errors. The selected-blob deletion and working-tree replacement case remained a named refusal; the sentinel config and fixture source would throw if candidate JavaScript executed.
+
+Fresh scoped checks after restoring every fault: owning facts and installed-dispatch suites
+14/14 tests, 85 assertions; uncached `twilight-burokrat:typecheck` and `lint:fast` passed.
+`scenario validate` returned `{"unidentified":[]}` and strict OpenSpec validation passed.
+Changed-file Prettier, `git diff --check` and normal Lefthook hooks are recorded with the
+commit. No host gate, push, publication authenticity or coverage certification is claimed.
+
+Dependent Performance-source/judge suites initially hit Bun's default five-second timeout in
+one existing digest test during the combined run (38 passed, 1 timed out). Re-running the same
+two suites with `--timeout 60000` passed 39/39 tests and 251 assertions. The timeout was a
+harness deadline, not an assertion failure; the longer run is the scoped regression evidence.

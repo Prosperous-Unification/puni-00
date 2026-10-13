@@ -392,6 +392,16 @@ export function runCli(argv: readonly string[]): Promise<void> | void {
       process.stdout.write(`${JSON.stringify(inspectSpecSources(args[1], args[2]))}\n`);
     });
   }
+  if (args[0] === 'inspect-level-facts') {
+    // Proof: [TEST-AXES-078] supplies an extra operand and requires this named usage refusal.
+    if (args.length !== 4)
+      throw new Error(
+        'usage: twilight-burokrat inspect-level-facts <repository> <committed-sha> <external-authority>',
+      );
+    return import('./evidence/level-facts').then(({ inspectLevelFacts }) => {
+      process.stdout.write(`${JSON.stringify(inspectLevelFacts(args[1], args[2], args[3]))}\n`);
+    });
+  }
   if (args[0] === 'inspect-manual') {
     // Proof: disabling this arity refusal made the production CLI usage assertion fail.
     if (!(args.length === 5 || (args.length === 7 && args[5] === '--now')))

@@ -96,57 +96,59 @@ diagnostics remain noncertifying and gain no coverage or admission authority.
 
 ## Level classification and runner evidence
 
-### Candidate-bound level facts design checkpoint (proposed 4.1b.6)
+### Candidate-bound level facts authority (4.1b.6)
 
 The pure `classifyTestFile` accepts bare sets, whose emptiness cannot distinguish reviewed
 absence from an unknown source. The devsync helpers use working-tree collection and permissive
-command parsing, so they cannot serve as immutable Burokrat authority. Before any source-owner
-observation gains a level, add a separately versioned external level-facts authority and a
-committed-candidate facts inspector. Limit the first scope to one Performance publication's
-fixture files. It emits facts and provenance, never a level or coverage judgment. The existing
-version-1 Performance-source output stays unresolved.
+command parsing, so they cannot serve as immutable Burokrat authority. The first facts scope
+is exactly one complete committed Performance declaration under one project root. It is not a
+claim about all tests in the repository or the publication's complete collected case set.
 
-The proposed version-1 external authority is strict JSON selected outside the candidate. It
-pins the exact commit SHA and candidate digest, Performance declaration and config paths and
-byte digests, project root and committed `project.json` path and byte digest, and the complete
-fixture path set for this scope. It states each higher-precedence membership independently:
-Manual procedures, Conformance target files and Architecture fixtures. Each is either
-`{kind:'reviewed-empty'}` for the exact fixture scope or `{kind:'committed',path,digest}` with
-source-specific schema and validation. Omission, `unknown`, duplicate fixtures, conflicting
-claims and undeclared keys refuse. Reviewed empty is an explicit external assertion included
-in the authority byte digest; an absent Manual report or target cannot imply emptiness. This
-input contract does not authenticate the reviewer.
+The external authority is a strict version-1 JSON record `{schemaVersion,revision,candidate,
+scope,manual,conformance,architecture}` selected outside the candidate. `scope` contains
+`projectRoot`, pinned `{path,digest}` records for `projectManifest`, `declaration` and `config`,
+`project` (the Playwright project), and unique workspace-relative `fixtures`. The fixture set
+must equal the full decoded Performance declaration, and all paths must be under `projectRoot`.
+The selected committed SHA and candidate digest must equal the authority pins. A missing field,
+unknown kind, duplicate or contradictory pin refuses. Membership overlap across precedence rows
+is legitimate and remains recorded; classification and target isolation come later.
 
-Capture `readCandidate` once and require committed kind and requested SHA equality, rejecting
-a full-hex tag object. Hash that snapshot before reading authority. Read every named candidate
-file from its selected regular Git blob, compare its bytes with the pin, and reject absent or
-unreadable blobs, symlinks and special modes despite working-tree repair. Validate the
-Performance declaration with `decodePerformanceCases`, requiring its fixture set, config,
-project and declaration path to equal the authority scope. Validate the committed project
-manifest and accept only explicit, reviewed Conformance command forms and Nx envelopes;
-reject shell indirection, filters, unrecognized syntax and ownership beyond the scope.
-Extract Architecture mappings with the same schema, rule registry, exact rule-file relation
-and unmapped-fixture checks as `architecture-level.ts`, refactored into a pure validator over
-selected bytes and paths rather than invoking its working-tree runner. Validate Manual
-disposition and procedure inventory independently of reports, preserving effective B3
-selector refusals where scenario selection is needed. The authority must name its exact
-inventory boundary so an omitted eligible source refuses instead of appearing reviewed empty.
+`manual` is only `{kind:'reviewed-empty'}` for this exact fixture scope in version 1. This is an
+external assertion, included in the authority byte digest, not an inference from absent reports
+or a B3 procedure inventory. Missing Manual, a committed/nonempty variant or unknown state
+refuses. `conformance` and `architecture` are either explicit reviewed-empty for this scope or
+committed sources. Conformance names the pinned manifest's `test:conformance` target; the only
+supported command form is exact `bun test <one-or-more canonical project-relative .test.ts paths>
+--timeout=<positive decimal integer>` in an `nx:run-commands` envelope with exact project cwd,
+`forwardAllArgs:false`, no dependencies, config or environment overrides. Globs, directories,
+shell indirection, filters, extra flags, duplicate and outside paths refuse. A present unsupported
+target cannot be treated as reviewed empty; a reviewed-empty declaration contradicting a
+present target refuses. Architecture names a committed policy under its project root. Extract
+its schema, registry mapping, exact rule-file relation and nonrecursive unmapped-fixture check
+into pure functions shared by the existing runner and the committed blob reader. Preserve the
+runner's current validation order, error text and report-clearing/execution side effects; stop
+if that cannot be done without a behavioral change.
 
-The facts observation binds candidate, authority digest, all committed source tuples,
-validated membership sets, scope and explicit review debt in a deterministic complete-payload
-digest with `authentication:{kind:'absent'}` and `certifies:false`. It does not call
-`classifyTestFile`, capture a mutable publication or infer repository-wide completeness. A
-later 4.1b.7 can capture one Performance publication once, reconcile its collection against
-these facts, apply the ten-row precedence before target isolation, and bind one immutable
-internal context. It must refuse a higher-precedence fixture collected by the Performance
-target, missing/extra/duplicate cases and changed publication identity. Report-file-derived
-collection cannot prove every candidate test file. Full B4 still needs Tasks 2.1/2.2,
-trusted receipts and reviewed source lineage.
+Capture `readCandidate` once, require committed kind and exact requested SHA (including refusal
+of full-hex tag objects), and hash the selected snapshot. Read each named candidate file from
+its selected regular Git blob; compare exact byte digests with the external pins and reject
+absent/unreadable blobs, symlink/special modes and working-tree-only repairs. Validate the
+committed declaration through `decodePerformanceCases`, its config, fixture files and project
+manifest without executing candidate JavaScript. The facts-only output binds candidate,
+authority digest, scope, selected source tuples and explicit membership source states in a
+complete-payload observation digest with `authentication:{kind:'absent'}` and `certifies:false`.
+It does not call `classifyTestFile`, inspect a mutable publication, grant a test level or emit
+coverage credit. The existing Performance-source v1 output remains unresolved.
 
-Resolve before implementation: the exact authority JSON fields and inventory boundary; which
-committed Manual inventory proves omission; the finite supported Conformance command grammar;
-and whether the Architecture validator can be shared without changing runner behavior. Record
-these in the delta spec and production fixture before making a facts CLI public.
+Implement 4.1b.6 in coherent review slices: (a) strict authority, exact candidate and
+Performance scope, Manual reviewed-empty, with Conformance/Architecture reviewed-empty only;
+(b) committed Conformance grammar and shared Architecture policy extraction. The task stays
+open until both are complete. A later 4.1b.7 can capture one Performance publication once,
+reconcile collection against these facts, apply precedence before target isolation and bind an
+immutable context. It must refuse a higher-precedence fixture collected by Performance and
+missing/extra/duplicate cases or changed publication identity. Report-derived collection alone
+cannot prove candidate-wide completeness. Full B4 still needs Tasks 2.1/2.2, trusted receipts
+and reviewed source lineage.
 
 `libs/shared/domain/test-levels` owns the pure ten-row precedence function. It has no runner or policy imports, and its caller supplies the frontend source root. Burokrat supplies Conformance, Architecture, Performance, Browser, frontend Node and manual membership evidence, then applies that function to the selected candidate. Devsync consumes the same public library for target checks. The shared-domain placement satisfies Nx's existing product and scope rules for the Burokrat application and the product-less devsync tool; Burokrat still owns discovery, thresholds and enforcement.
 

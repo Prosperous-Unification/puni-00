@@ -592,3 +592,38 @@ The read-only `inspect-performance` command SHALL bind a current-success publica
 - **GIVEN** a publication that changes its current pointer after bundle capture
 - **WHEN** inspection rereads that pointer
 - **THEN** it refuses the changed publication
+
+### Requirement: Candidate-bound level facts have explicit authority
+
+For one complete committed Performance declaration, a facts-only diagnostic SHALL require a
+strict version-1 external authority pinning the exact committed revision, candidate identity,
+project root and manifest, declaration, config, Playwright project and every fixture. It SHALL
+read candidate bytes only from selected regular Git blobs and distinguish an explicit
+reviewed-empty Manual, Conformance or Architecture membership from missing or unknown evidence.
+It SHALL preserve legitimate overlap between precedence rows. Its digest SHALL bind the complete
+noncertifying observation; it SHALL NOT classify tests, inspect a publication, issue coverage,
+authenticate a reviewer or change the version-1 source-owner outputs.
+
+#### Scenario: [TEST-AXES-077] Explicit reviewed absence is bound to one Performance scope
+
+- **GIVEN** a complete pinned declaration and explicit reviewed-empty membership for all three earlier rows
+- **WHEN** the facts diagnostic reads the exact committed candidate despite staged replacements
+- **THEN** it emits the selected source tuples, explicit scope and membership states, absent authentication and false certification in a complete-payload digest
+
+#### Scenario: [TEST-AXES-078] Missing or contradictory authority refuses facts
+
+- **GIVEN** a missing Manual state, unsupported Manual form, absent source pin, duplicate fixture, altered pin, scope gap or contradictory membership assertion
+- **WHEN** the facts diagnostic validates external authority
+- **THEN** it refuses by name with no JSON observation
+
+#### Scenario: [TEST-AXES-079] Committed Performance scope resists working repair
+
+- **GIVEN** a selected source that is missing, unreadable, malformed, symlinked or nonregular, even if the working tree has a valid replacement
+- **WHEN** the facts diagnostic reads the scope
+- **THEN** it refuses before producing facts or executing candidate code
+
+#### Scenario: [TEST-AXES-080] Exact committed selection and fact identity resist substitution
+
+- **GIVEN** a symbolic revision, annotated tag object, changed candidate, reordered fixture enumeration or changed authority bytes, source or certification identity
+- **WHEN** the facts diagnostic evaluates the request
+- **THEN** unsupported selections refuse and normalized fixture order retains one facts ordering, while any changed bound byte or fact changes the observation digest

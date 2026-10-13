@@ -19,10 +19,12 @@ test('installed executable dispatches Performance, specification and Manual diag
     expect(help.stdout.toString()).toContain('inspect-performance-sources');
     expect(help.stdout.toString()).toContain('inspect-spec-sources');
     expect(help.stdout.toString()).toContain('inspect-manual-observation');
+    expect(help.stdout.toString()).toContain('inspect-level-facts');
     for (const [command, usage] of [
       ['inspect-performance-sources', 'usage: twilight-burokrat inspect-performance-sources'],
       ['inspect-spec-sources', 'usage: twilight-burokrat inspect-spec-sources'],
       ['inspect-manual-observation', 'usage: twilight-burokrat inspect-manual-observation'],
+      ['inspect-level-facts', 'usage: twilight-burokrat inspect-level-facts'],
     ] as const) {
       const invocation = Bun.spawnSync([process.execPath, executable, command], {
         stdout: 'pipe',

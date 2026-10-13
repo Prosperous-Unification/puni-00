@@ -35,6 +35,9 @@ const validatorCommands = new Set([
   'inspect-test-sources',
   // Proof: removing this documented diagnostic's registration failed the same packaged test.
   'inspect-spec-sources',
+  // Proof: removing this installed registration fails installed-dispatch.test.ts with an
+  // unknown-command refusal instead of the validator's named usage refusal.
+  'inspect-level-facts',
   'template',
   'validate-policy-activation',
 ]);
@@ -47,6 +50,7 @@ commands:
   twilight-burokrat inspect-performance <repository> <committed-sha> <external-rule-policy>
   twilight-burokrat inspect-performance-sources <repository> <committed-sha> <external-rule-policy>
   twilight-burokrat inspect-spec-sources <repository> <committed-sha>
+  twilight-burokrat inspect-level-facts <repository> <committed-sha> <external-authority>
   twilight-burokrat inspect-manual <repository> <committed-sha> <external-rule-policy> <report-path> --now <UTC instant>
   twilight-burokrat inspect-manual-observation <repository> <committed-sha> <external-rule-policy> <report-path> --now <UTC instant>
   twilight-burokrat explain <rule-id> [<repository> <rule-policy-json>]
