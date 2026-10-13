@@ -33,5 +33,23 @@ with the named fault injected; the observed text is the adjacent `Proof:` commen
 - F-018 `Unable to find … heading … "Offline"`; presence slot `expected [ …(3) ] to deeply equal []`.
 - F-019/F-027 `Unable to find role="region" and name "No project open"` (Vitest and browser).
 - F-024 `expected null not to be null`.
-- Toolbar pins re-pinned to 1339.5 / 1637; an extra `Squad` button failed both
-  (`Received: 1406.1875`, `1703.59375`).
+- Toolbar pins re-pinned to 1332.5 / 1630, itemised child by child against origin/main
+  (Export +45.41, icons −18, schedule group ±0). An extra `Squad` button failed both
+  pins at the earlier figures (`Received: 1406.1875`, `1703.59375`).
+
+## After the Fable review (2026-10-13)
+
+- Merged `origin/ui-review/phone` (#399); the toolbar's fragments now serve both
+  faces: the Find count sits in the box on the desktop bar and on its own line in the
+  sheet; the schedule group is the desktop return's; square icon buttons are desktop
+  only; the sheet's in-place panels drop the window cap and the scroll shadow.
+- F-011 test now measures the roster's own section (it measured the Saved plans
+  shelf). With the collapse back at `xl` it failed on `1280: cut local-dev (you)`;
+  the roster now collapses below 1440 and wraps whole names.
+- Escape after Tab-out: a panel closes when the focus leaves it (unit: `expected true
+to be false` without the listener; browser: `Expected: false · Received: true`).
+  One panel at a time: without the toggle listener the keyboard case listed both
+  `Filters` and `Views`.
+- Sheet panels: with the sheet rule's reset taken out, `Received: "640px"`.
+- Import JSON from the No project open card opens the imported project
+  (`e2e/home.spec.ts`).

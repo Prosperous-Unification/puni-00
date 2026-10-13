@@ -2247,6 +2247,25 @@ export function WbsTable({
         Reset layout
       </Button>
     ) : null;
+  /*
+    The chart's own reset, on the phone's sheet only — the desktop bar carries
+    its own copy beside the toolbar. Offered once anything about the chart's
+    layout differs from its default.
+  */
+  const sheetResetLayout = (ganttHeightPx !== null ||
+    ganttDayPx !== DAY_PX ||
+    ganttRungNotice !== null ||
+    !ganttLabelsShown) && (
+    <Button
+      variant="outline"
+      size="sm"
+      type="button"
+      data-hint="Forget the chart height, the day scale and the hidden row names, and lay the Gantt out at its own again"
+      onClick={resetGanttSettings}
+    >
+      Reset layout
+    </Button>
+  );
   const toolbarControls = (
     <PlanToolbar
       // Its urgent Find value belongs to one project. Proof: this key removed,
@@ -2319,6 +2338,12 @@ export function WbsTable({
       setMermaidSectionMode={setMermaidSectionMode}
       startDate={startDate}
       chooseEstimateMethod={chooseEstimateMethod}
+      // The saved-plan shelf, which on a phone lives on the sheet and nowhere
+      // else — the header's project row cannot afford it, and
+      // `SavedPlanShelf` carries the 21.4px that says so. Under Schedule,
+      // beside the start date and the method it records. Above `md` the shelf
+      // is in the app header and the sheet is not rendered at all.
+      sheetExtras={{ view: sheetResetLayout, schedule: savedPlansShelf }}
     />
   );
 
@@ -2406,34 +2431,7 @@ export function WbsTable({
           {viewControls}
           {scheduleCue}
           <PlanToolbarSheet active={planActive}>
-            <div aria-busy={busy} className="flex flex-wrap items-center gap-2">
-              {toolbarControls}
-              {(ganttHeightPx !== null ||
-                ganttDayPx !== DAY_PX ||
-                ganttRungNotice !== null ||
-                !ganttLabelsShown) && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  type="button"
-                  data-hint="Forget the chart height, the day scale and the hidden row names, and lay the Gantt out at its own again"
-                  onClick={resetGanttSettings}
-                >
-                  Reset layout
-                </Button>
-              )}
-              {/*
-                The saved-plan shelf, which on a phone lives here and nowhere
-                else — the header's project row cannot afford it, and
-                `SavedPlanShelf` carries the 21.4px that says so.
-
-                Last in the sheet and not in `toolbarControls`, for that
-                array's own reason turned around: it is rendered by *both*
-                faces, and this control is on this one only. Above `md` the
-                shelf is in the app header, and this arm is not rendered at all.
-              */}
-              {savedPlansShelf}
-            </div>
+            <div aria-busy={busy}>{toolbarControls}</div>
           </PlanToolbarSheet>
         </div>
       ) : (

@@ -67,6 +67,56 @@ test.describe('the toolbar popovers', () => {
     expect(left, 'popovers Escape did not close, or closed without returning focus').toEqual([]);
   });
 
+  test('opening one popover by the keyboard closes the other (F-028)', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openPlan(page);
+    await summaryOf(page, 'Filters').focus();
+    await page.keyboard.press('Enter');
+    await summaryOf(page, 'Views').focus();
+    await page.keyboard.press('Enter');
+    const open = await page.evaluate(() =>
+      [...document.querySelectorAll('details[open] > summary')].map((node) => node.textContent),
+    );
+    // Proof: on 2026-10-13, without the toggle listener in `useClosedOnDismiss`, this failed
+    // listing both Filters and Views.
+    expect(open).toEqual(['Views']);
+  });
+
+  test('a popover the keyboard leaves is closed (F-028)', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openPlan(page);
+    await summaryOf(page, 'Columns').focus();
+    await page.keyboard.press('Enter');
+    await page.getByLabel('Find').focus();
+    const open = await summaryOf(page, 'Columns')
+      .locator('..')
+      .evaluate((node) => (node as HTMLDetailsElement).open);
+    // Proof: on 2026-10-13, without the focusout listener, this failed on `expected false,
+    // received true`.
+    expect(open).toBe(false);
+  });
+
+  test('a popover in the phone sheet is part of the sheet’s scroll (F-030)', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openPlan(page);
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.getByRole('button', { name: 'Plan actions' }).click();
+    await summaryOf(page, 'Filters').click();
+    const panel = page.locator('[data-facets] > div');
+    await expect(panel).toBeVisible();
+    const read = await panel.evaluate((node) => ({
+      maxHeight: getComputedStyle(node).maxHeight,
+      attachment: getComputedStyle(node).backgroundAttachment,
+    }));
+    // Proof: on 2026-10-13, with the sheet rule's `max-height: none` and `background` taken
+    // out, this failed on `Expected: "none" · Received: "640px"`.
+    expect(read.maxHeight).toBe('none');
+    expect(read.attachment).not.toContain('local');
+    await page.screenshot({
+      path: test.info().outputPath('sheet-filters-375.png'),
+    });
+  });
+
   test('Filters and Columns show their whole list at 1440×900 (F-030)', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await openPlan(page);

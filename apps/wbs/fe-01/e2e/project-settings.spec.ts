@@ -60,14 +60,15 @@ const LAID_OUT_BEFORE_AT_1280 = 1445.33;
 // about. The margin is now genuinely gone — the next control to reach this bar
 // has to take width away from something.
 //
-// **Re-pinned from 1306.5 to 1339.5 on 2026-10-13** for the UI review: Export /
-// Import's label is one line in the Filters summaries' shape (F-004, +54px) and
-// Undo, Redo and Keyboard shortcuts are the 32px squares every other icon button
-// on the bar is (−18px); the Find count moved inside the Find box and the
-// schedule controls became one group (F-005, F-016), neither of which adds
-// width. Measured 1339.484375 in Chromium on Linux. `rows` is still 2: at 1280
-// the actions fill row one and the schedule group stands alone on row two.
-const LAID_OUT_NOW_AT_1280 = 1339.5;
+// **Re-pinned from 1306.5 to 1332.5 on 2026-10-13** for the UI review, measured child
+// by child against origin/main in the same Chromium: Export / Import's summary is one
+// line in the Filters summaries' shape, 64 → 109.41px (F-004, +45.41); Undo, Redo and
+// Keyboard shortcuts are the 32px squares the other icon buttons are, 38 → 32 each
+// (−18); Starts and Plan with became one schedule group (F-005), 176.58 + 167.81 + the
+// 6px gap between them = 350.39, which is the group's width, so ±0. Sum 1305.08 +
+// 27.41 = 1332.49, measured 1332.484375. `rows` is still 2: at 1280 the actions fill
+// row one and the schedule group stands alone on row two.
+const LAID_OUT_NOW_AT_1280 = 1332.5;
 const ROWS_BEFORE_AT_1280 = 2;
 
 /** Registers a throwaway account and opens an empty project. */

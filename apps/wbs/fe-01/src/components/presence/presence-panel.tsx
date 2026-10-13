@@ -46,9 +46,13 @@ export interface PresencePanelProps extends Roster {
  * width is structural rather than cosmetic — an unbounded list of names is the
  * one thing in the bar that grows with the world rather than with the layout.
  *
- * **Below `xl` it collapses to the dot and a count** (UI review F-011): at
+ * **Below 1440px it collapses to the dot and a count** (UI review F-011): at
  * 1024 the clipped line was down to the first letter of one name, which says
- * less than a number does. The heading and the list stay in the accessibility
+ * less than a number does, and at 1280 `local-dev (you)` still lost its `)` —
+ * measured 74px of room for 79px of name. From 1440 the line is shown, and it
+ * **wraps rather than clips**: one line tall with the overflow hidden, so a
+ * name that does not fit drops whole onto the hidden second line instead of
+ * being cut mid-word. The heading and the list stay in the accessibility
  * tree (`sr-only`), and the section's fact card (`data-fact`, the app's own
  * card rather than a native `title`) carries the whole roster for a pointer.
  *
@@ -74,22 +78,29 @@ export function PresencePanel({ me, users, connected }: PresencePanelProps) {
           connected ? 'bg-[var(--status-done)]' : 'bg-muted-foreground',
         )}
       />
-      <h2 id={headingId} className="text-muted-foreground shrink-0 font-medium max-xl:sr-only">
+      <h2
+        id={headingId}
+        className="text-muted-foreground shrink-0 font-medium max-[1440px]:sr-only"
+      >
         {state}
       </h2>
       {users.length === 0 ? (
-        <p className="text-muted-foreground max-xl:sr-only">Nobody yet.</p>
+        <p className="text-muted-foreground max-[1440px]:sr-only">Nobody yet.</p>
       ) : (
-        <ul className="m-0 flex max-w-48 list-none gap-2 overflow-hidden p-0 whitespace-nowrap max-xl:sr-only">
+        <ul className="m-0 flex h-4 max-w-48 list-none flex-wrap gap-x-2 overflow-hidden p-0 whitespace-nowrap max-[1440px]:sr-only">
           {users.map((u) => (
-            <li key={u}>
+            <li key={u} className="max-w-full truncate">
               {u}
               {u === me && <span className="text-muted-foreground"> (you)</span>}
             </li>
           ))}
         </ul>
       )}
-      <span aria-hidden="true" data-presence-count className="text-muted-foreground xl:hidden">
+      <span
+        aria-hidden="true"
+        data-presence-count
+        className="text-muted-foreground min-[1440px]:hidden"
+      >
         {users.length}
       </span>
     </section>

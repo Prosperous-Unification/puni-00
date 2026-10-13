@@ -2479,7 +2479,7 @@ describe('names wrap and notes carry markdown', () => {
   };
 
   /**
-   * Proof for the whole of 2.1: `renderFirstLine` taken off the Name column, so
+   * Proof for the whole of 2.1: `renderLine` taken off the Name column, so
    * the cell is the raw string it was before `markdown-work-item-names`.
    * Watched failing, 2026-08-29, on `Error: no rendered name for 010` in all
    * three of `emphasis in a name is rendered`, `a heading marker in a name is

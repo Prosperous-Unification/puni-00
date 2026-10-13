@@ -1,6 +1,7 @@
 import { expect, type Page, test } from '@playwright/test';
 
 import { createProject } from './create-project';
+import { measureInk } from './measure-ink';
 
 /**
  * The plan on a phone, measured by a browser.
@@ -174,6 +175,14 @@ async function seedPlan(page: Page, _account: string): Promise<void> {
     await page.getByRole('button', { name: 'Add work item' }).click();
     await expect(page.getByLabel(`Name of ${number}`)).toBeVisible();
   }
+
+  // The vocabularies went to be-01 behind the page's back, and a card draws
+  // its Tags and Services fields only once its directory holds one — so the
+  // fixture proves its own precondition rather than racing the refresh. Seen
+  // racing in review: `Tags for 010` absent from the 44px sweep, once.
+  await page.reload();
+  await expect(page.locator('[data-card] [data-card-tags-field]')).toHaveCount(2);
+  await expect(page.locator('[data-card] [data-card-service-field]')).toHaveCount(2);
 }
 
 /**
@@ -397,7 +406,12 @@ test.describe('the plan on a phone, measured by a browser', () => {
   });
 
   test('gives every control a finger has to hit at least 44px', async ({ page }) => {
+    // The empty fields are folded behind each card's `Add…` (F-009); a folded
+    // field has no box to measure, so both cards offer theirs first.
+    await unfoldEmptyFields(page, '010');
+    await unfoldEmptyFields(page, '020');
     const controls = [
+      page.getByRole('button', { name: 'Add details to 010' }),
       page.getByRole('button', { name: 'Plan actions' }),
       page.getByLabel('Name of 010'),
       page.getByLabel('Dev estimate for 010'),
@@ -585,6 +599,7 @@ test.describe('the plan on a phone, measured by a browser', () => {
   }) => {
     const team = `Racking crew ${username}`;
     const field = page.getByRole('button', { name: 'Service or team for 010' });
+    await unfoldEmptyFields(page, '010');
 
     // Nothing is claimed yet, which is what stops the assertion at the end
     // passing vacuously: `data-card-team` is the claim, and a row that inherits
@@ -592,7 +607,7 @@ test.describe('the plan on a phone, measured by a browser', () => {
     await expect(field.locator('[data-card-team]')).toHaveCount(0);
 
     await field.click();
-    await expect(page.getByRole('dialog', { name: 'Service or team for 010' })).toBeVisible();
+    await expect(page.getByRole('dialog', { name: 'Teams for 010' })).toBeVisible();
 
     const box = page.getByRole('combobox', { name: 'Service or team for 010' });
     await box.click();
@@ -607,7 +622,7 @@ test.describe('the plan on a phone, measured by a browser', () => {
     await expect(add).toHaveText(`Add “${team}”`);
     await add.click();
 
-    await expect(page.getByRole('dialog', { name: 'Service or team for 010' })).toBeHidden();
+    await expect(page.getByRole('dialog', { name: 'Teams for 010' })).toBeHidden();
     await expect(field.locator('[data-card-team]')).toHaveText(team);
 
     // The plan, not the card: the line above proves only that React heard the
@@ -625,7 +640,7 @@ test.describe('the plan on a phone, measured by a browser', () => {
     // timed out waiting for `Clear Service or team for 010` after the sheet's
     // autofocus changed `typed` to `''`. Watched at 390×844, 2026-08-23.
     await field.click();
-    await expect(page.getByRole('dialog', { name: 'Service or team for 010' })).toBeVisible();
+    await expect(page.getByRole('dialog', { name: 'Teams for 010' })).toBeVisible();
 
     // **The Clear control's box, measured rather than assumed.** TASK-106
     // measured it on dev at 26×44 — reachable by accident of the CSS
@@ -643,11 +658,11 @@ test.describe('the plan on a phone, measured by a browser', () => {
     );
     await clear.click();
 
-    await expect(page.getByRole('dialog', { name: 'Service or team for 010' })).toBeVisible();
+    await expect(page.getByRole('dialog', { name: 'Teams for 010' })).toBeVisible();
     await expect(field.locator('[data-card-team]')).toHaveCount(0);
 
     await page.getByRole('button', { name: 'Close Service or team for 010' }).click();
-    await expect(page.getByRole('dialog', { name: 'Service or team for 010' })).toBeHidden();
+    await expect(page.getByRole('dialog', { name: 'Teams for 010' })).toBeHidden();
 
     await page.reload();
     await expect(field.locator('[data-card-team]')).toHaveCount(0);
@@ -688,8 +703,9 @@ test.describe('the plan on a phone, measured by a browser', () => {
     );
     await page.reload();
 
+    await unfoldEmptyFields(page, '010');
     await page.getByRole('button', { name: 'Service or team for 010' }).click();
-    await expect(page.getByRole('dialog', { name: 'Service or team for 010' })).toBeVisible();
+    await expect(page.getByRole('dialog', { name: 'Teams for 010' })).toBeVisible();
 
     // The shared sheet exposes the search box directly; tapping it opens the
     // whole directory with no key pressed.
@@ -737,6 +753,7 @@ test.describe('the plan on a phone, measured by a browser', () => {
   }) => {
     const reason = 'waiting on the client sign off';
     const field = page.getByRole('button', { name: 'Earliest start for 010' });
+    await unfoldEmptyFields(page, '010');
 
     // Disabled first, and this is not a formality. It is the state every other
     // case in this file finds the field in, it is why chunk 4 could not write
@@ -893,7 +910,7 @@ test.describe('the plan on a phone, measured by a browser', () => {
     {
       name: 'team',
       triggerSelector: '[data-card-team-field]',
-      dialogName: /Service or team for \d+/,
+      dialogName: /Teams for \d+/,
       controlSelector: '[role="combobox"]',
       openDisclosureFirst: false,
     },
@@ -982,6 +999,11 @@ test.describe('the plan on a phone, measured by a browser', () => {
           (el) => !(el.parentElement as HTMLDetailsElement).open,
         );
         if (closed) await summary.click();
+      }
+      // An empty field is folded behind the card's `Add…` (F-009).
+      const add = card.locator('[data-card-add]');
+      if ((await add.count()) > 0 && (await add.getAttribute('aria-expanded')) !== 'true') {
+        await add.click();
       }
       const trigger = card.locator(spec.triggerSelector).first();
       const sheet = page.getByRole('dialog', { name: spec.dialogName });
@@ -1135,6 +1157,7 @@ test.describe('the plan on a phone, measured by a browser', () => {
     // choose. A row cannot wait for itself, and `pickerEntries` does not offer
     // it — so on a two-row plan 010's only candidate is 020.
     const field = page.getByRole('button', { name: 'Depends on for 020' });
+    await unfoldEmptyFields(page, '020');
     await expect(field).toBeEnabled();
     await expect(field.locator('[data-card-waits]')).toHaveCount(0);
 
@@ -1537,5 +1560,345 @@ test.describe('the same dialog on a desktop, where the density is the point', ()
         `the phone’s floor reached the account trigger at ${String(width)}px`,
       ).toBe(32);
     }
+  });
+});
+
+/** The project this page has open, which every API write below is aimed at. */
+async function openProjectId(page: Page): Promise<string> {
+  const projectId = await page.evaluate(() => window.localStorage.getItem('wbs.project'));
+  if (projectId === null) throw new Error('no wbs.project in localStorage');
+  return projectId;
+}
+
+/** One batch of plan commands from outside the page's UI, refused loudly. */
+async function sendCommands(page: Page, commands: readonly unknown[]): Promise<void> {
+  const projectId = await openProjectId(page);
+  const status = await page.evaluate(
+    async ([id, batch]) =>
+      (
+        await fetch(`/api/projects/${id}/commands`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ commands: batch }),
+        })
+      ).status,
+    [projectId, commands] as const,
+  );
+  expect(status, 'be-01 refused the fixture commands').toBe(200);
+}
+
+/** One batch of directory commands, answering the ids it made in order. */
+async function sendDirectoryCommands(
+  page: Page,
+  commands: readonly Record<string, unknown>[],
+): Promise<string[]> {
+  return page.evaluate(async (batch) => {
+    const res = await fetch('/api/directory/commands', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ commands: batch }),
+    });
+    if (res.status !== 200) throw new Error(`directory commands failed: ${String(res.status)}`);
+    const { results } = (await res.json()) as { results: { id?: string }[] };
+    return results.map((each) => {
+      if (each.id === undefined) throw new Error('a directory command made nothing');
+      return each.id;
+    });
+  }, commands);
+}
+
+/** The id of the work item a card draws, read off the card itself. */
+async function workItemIdOf(page: Page, number: string): Promise<string> {
+  const id = await page
+    .locator('[data-card]')
+    .filter({ has: page.getByLabel(`Name of ${number}`, { exact: true }) })
+    .getAttribute('data-card');
+  if (id === null) throw new Error(`no card for ${number}`);
+  return id;
+}
+
+/** Opens a card's folded empty fields — see `PlanCards`' `Add…` control. */
+async function unfoldEmptyFields(page: Page, number: string): Promise<void> {
+  const add = page.getByRole('button', { name: `Add details to ${number}`, exact: true });
+  if ((await add.getAttribute('aria-expanded')) !== 'true') await add.click();
+  await expect(add).toHaveAttribute('aria-expanded', 'true');
+}
+
+/**
+ * The phone review of 2026-10-13 (`puni-plan/ui-review/findings.md`), measured
+ * at the review's own 375×812 rather than this file's 390×844: every finding
+ * below was captured there, so a fix is proved at the width it was found at.
+ */
+test.describe('the phone review, at 375×812', () => {
+  test.use({ viewport: { width: 375, height: 812 } });
+
+  test('reads every priority band chip on a card at 4.5:1, in both palettes (F-008)', async ({
+    page,
+  }) => {
+    const workItemId = await workItemIdOf(page, '010');
+    const chip = page.locator(`[data-card-priority="${workItemId}"]`);
+    const ratios: Record<string, number> = {};
+    for (const scheme of ['light', 'dark'] as const) {
+      await page.emulateMedia({ colorScheme: scheme });
+      await expect(page.locator('html')).toHaveClass(
+        scheme === 'dark' ? /\bdark\b/ : /^(?!.*\bdark\b)/,
+      );
+      for (const priority of [10, 30, 50, 70, 90]) {
+        await sendCommands(page, [{ kind: 'patchWorkItem', workItemId, patch: { priority } }]);
+        await expect(chip).toHaveAttribute(
+          'data-fact',
+          new RegExp(`priority ${String(priority)}$`),
+        );
+        // The palette flip and the band change both fade; read the settled paint.
+        await expect
+          .poll(() =>
+            page.evaluate(
+              () =>
+                document
+                  .getAnimations()
+                  .filter((a) => a.playState !== 'finished' && a.playState !== 'idle').length,
+            ),
+          )
+          .toBe(0);
+        ratios[`${scheme} ${String(priority)}`] = (await measureInk(chip)).contrast;
+      }
+      // The grey blocks: a card's field triggers took the platform's ButtonFace,
+      // because the base layer's transparent button stops at `[data-grid]`.
+      const painted = await page.locator('[data-card] button').evaluateAll((buttons) =>
+        buttons
+          .filter((button) => getComputedStyle(button).backgroundColor !== 'rgba(0, 0, 0, 0)')
+          .filter((button) => !(button.getAttribute('class') ?? '').includes('bg-'))
+          .map((button) => button.getAttribute('aria-label') ?? button.textContent),
+      );
+      expect(painted, `card buttons painted a colour no token names, ${scheme}`).toEqual([]);
+    }
+    for (const [band, contrast] of Object.entries(ratios)) {
+      expect.soft(contrast, `the ${band} chip`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  test('folds a card’s empty fields behind one Add… control (F-009)', async ({ page }) => {
+    const card = page.locator('[data-card]').first();
+    const fields = [
+      ['[data-card-not-before-field]', '+ Earliest start (needs a plan start)'],
+      ['[data-card-deadline-field]', '+ Work item deadline (needs a plan start)'],
+      ['[data-card-waits-field]', '+ Waits for'],
+      ['[data-card-team-field]', '+ Team'],
+      ['[data-card-tags-field]', '+ Tags'],
+      ['[data-card-service-field]', '+ Services'],
+    ] as const;
+    for (const [selector] of fields) {
+      await expect(card.locator(selector), `${selector} is drawn while empty`).toBeHidden();
+    }
+    const add = page.getByRole('button', { name: 'Add details to 010' });
+    await expect(add).toHaveAttribute('aria-expanded', 'false');
+    expect((await add.boundingBox())?.height ?? 0, 'Add… is short').toBeGreaterThanOrEqual(44);
+
+    await add.click();
+    for (const [selector, words] of fields) {
+      const field = card.locator(selector);
+      await expect(field).toBeVisible();
+      await expect(field).toHaveText(words);
+      expect((await field.boundingBox())?.height ?? 0, `${words} is short`).toBeGreaterThanOrEqual(
+        44,
+      );
+    }
+    // One ink for every offer: the two date offers, disabled without a plan
+    // start, read as broken at 60% opacity (review of F-009).
+    const inks = await card
+      .locator(fields.map(([selector]) => selector).join(', '))
+      .evaluateAll((all) =>
+        all.map((each) => `${getComputedStyle(each).color} ${getComputedStyle(each).opacity}`),
+      );
+    expect(new Set(inks).size, `the offers are drawn in ${inks.join(' / ')}`).toBe(1);
+  });
+
+  test('draws a card’s notes as inline markdown, as the table draws a name (F-039)', async ({
+    page,
+  }) => {
+    const workItemId = await workItemIdOf(page, '010');
+    await sendCommands(page, [
+      {
+        kind: 'patchWorkItem',
+        workItemId,
+        patch: { name: 'Onboarding', notes: 'See the [design](https://example.com/design) *now*.' },
+      },
+    ]);
+    const drawn = page.locator(`[data-card="${workItemId}"] [data-cell-rendered]`);
+    await expect(drawn).toContainText('See the design now.');
+    await expect(drawn.locator('a[data-name-link]')).toHaveText('design');
+    await expect(drawn.locator('em')).toHaveText('now');
+  });
+
+  test('gives the o·r·p and Attempts disclosures 44px without growing their words (F-042)', async ({
+    page,
+  }) => {
+    const summaries = await page
+      .locator('[data-card] :is([data-step-detail], [data-step-attempts]) > summary')
+      .evaluateAll((all) =>
+        all
+          .filter((summary) => summary.getClientRects().length > 0)
+          .map((summary) => ({
+            words: summary.textContent.trim(),
+            height: summary.getBoundingClientRect().height,
+            fontSize: Number.parseFloat(getComputedStyle(summary).fontSize),
+          })),
+      );
+    expect(summaries.filter((each) => each.words.includes('o·r·p')).length).toBeGreaterThan(0);
+    expect(summaries.filter((each) => each.words.includes('Attempts')).length).toBeGreaterThan(0);
+    for (const summary of summaries) {
+      expect(summary.height, `${summary.words} is short`).toBeGreaterThanOrEqual(44);
+      expect(summary.fontSize, `${summary.words} grew its words`).toBeLessThanOrEqual(12);
+    }
+    // The words sit under their figure, not ~20px below it in the middle of
+    // the target (review of F-042).
+    const gaps = await page.locator('[data-card] [data-step-disclosures]').evaluateAll((all) =>
+      all
+        .filter((line) => line.getClientRects().length > 0)
+        .map((line) => {
+          const step = line.previousElementSibling;
+          const words = line.querySelector('summary > span');
+          if (step === null || words === null) throw new Error('a disclosure line lost its step');
+          return words.getBoundingClientRect().top - step.getBoundingClientRect().bottom;
+        }),
+    );
+    for (const gap of gaps)
+      expect(gap, 'the o·r·p words float under their figure').toBeLessThan(12);
+  });
+
+  test('lists the Plan actions as labelled full-width rows grouped by purpose (F-045)', async ({
+    page,
+  }) => {
+    await openTheSheet(page);
+    const groups = page.locator('[data-modal-surface] [data-sheet-group]');
+    await expect(groups.locator(':scope > h3')).toHaveText([
+      'View',
+      'Find and filter',
+      'Edit',
+      'Export',
+      'Schedule',
+    ]);
+    const rows = await groups.evaluateAll((all) =>
+      all.flatMap((group) => {
+        const list = group.querySelector('[data-sheet-rows]');
+        if (list === null) throw new Error('a sheet group has no rows');
+        const width = list.getBoundingClientRect().width;
+        return [...list.children]
+          .filter((row) => row.getClientRects().length > 0)
+          .map((row) => {
+            const target = row.matches('details') ? row.querySelector('summary') : row;
+            if (target === null) throw new Error('a disclosure row has no summary');
+            const box = target.getBoundingClientRect();
+            return {
+              // A search box's visible words are its placeholder.
+              words: (target instanceof HTMLInputElement
+                ? target.placeholder
+                : target instanceof HTMLElement
+                  ? target.innerText
+                  : ''
+              ).trim(),
+              height: box.height,
+              short: width - box.width,
+            };
+          });
+      }),
+    );
+    expect(rows.length, 'the sheet has no rows').toBeGreaterThan(10);
+    for (const row of rows) {
+      expect(row.words, 'a row with no label').not.toBe('');
+      expect(row.height, `${row.words} is short`).toBeGreaterThanOrEqual(44);
+      expect(row.short, `${row.words} is not full width`).toBeLessThanOrEqual(1);
+    }
+  });
+
+  test('opens the team sheet titled by its field, chips and search at the top (F-049)', async ({
+    page,
+  }) => {
+    const [teamId] = await sendDirectoryCommands(page, [
+      { kind: 'createTeam', name: `Racking ${crypto.randomUUID().slice(0, 6)}` },
+    ]);
+    const workItemId = await workItemIdOf(page, '010');
+    await sendCommands(page, [{ kind: 'patchWorkItem', workItemId, patch: { teamIds: [teamId] } }]);
+    await page.reload();
+    await page.getByRole('button', { name: 'Service or team for 010' }).click();
+    const sheet = page.getByRole('dialog', { name: /^Teams for 010/ });
+    await expect(sheet).toBeVisible();
+    await expect(sheet.getByRole('heading')).toHaveText(/^Teams for 010/);
+    // One way out, in the corner — not a second, full-width box holding a ×.
+    await expect(sheet.getByRole('button', { name: /^Close/ })).toHaveCount(1);
+    const close = await sheet.getByRole('button', { name: /^Close/ }).boundingBox();
+    expect(close?.width ?? 0, 'the close control is a bar').toBeLessThanOrEqual(48);
+
+    const heading = await sheet.getByRole('heading').boundingBox();
+    const chip = await sheet.locator('[data-reference-chip]').boundingBox();
+    const search = await sheet
+      .getByRole('combobox', { name: 'Service or team for 010' })
+      .boundingBox();
+    const surface = await sheet.boundingBox();
+    if (heading === null || chip === null || search === null || surface === null) {
+      throw new Error('the team sheet is missing its heading, chip or search');
+    }
+    expect(chip.y, 'the chip is not under the heading').toBeGreaterThan(heading.y);
+    expect(search.y, 'the search is not under the chips').toBeGreaterThan(chip.y);
+    expect(search.y - (heading.y + heading.height), 'a blank band above the search').toBeLessThan(
+      140,
+    );
+    expect(search.width, 'the search is squeezed').toBeGreaterThan(surface.width * 0.6);
+
+    // In dark, the search box is the sheet's paper, as Find is — not the
+    // platform's grey field (review of F-049).
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await expect(page.locator('html')).toHaveClass(/\bdark\b/);
+    await expect
+      .poll(
+        () =>
+          sheet.evaluate((surface) => {
+            const box = surface.querySelector('input[role="combobox"]');
+            if (box === null) throw new Error('the sheet has no search box');
+            return (
+              getComputedStyle(box).backgroundColor === getComputedStyle(surface).backgroundColor
+            );
+          }),
+        { message: 'the dark search box is not the sheet’s paper' },
+      )
+      .toBe(true);
+  });
+
+  test('lays the Depends sheet’s rows inline, without bullets (F-050)', async ({ page }) => {
+    await unfoldEmptyFields(page, '020');
+    await page.getByRole('button', { name: 'Depends on for 020' }).click();
+    const list = page.getByRole('list', { name: 'Rows 020 could wait for' });
+    await expect(list).toBeVisible();
+    const rows = await list.locator('li').evaluateAll((items) =>
+      items.map((item) => {
+        const boxes = [...item.querySelectorAll('button')].map((button) =>
+          button.getBoundingClientRect(),
+        );
+        if (boxes.length !== 2) throw new Error('a row lost a button');
+        const [first, second] = boxes as [DOMRect, DOMRect];
+        return {
+          bullet: getComputedStyle(item).listStyleType,
+          centres: Math.abs(first.top + first.height / 2 - (second.top + second.height / 2)),
+        };
+      }),
+    );
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      expect(row.bullet, 'a depends row wears a bullet').toBe('none');
+      expect(row.centres, 'the › and its row are on two lines').toBeLessThanOrEqual(2);
+    }
+  });
+
+  test('gives a person’s name the width to be read on the Directory (F-046)', async ({ page }) => {
+    const name = `Margaret Hamilton ${crypto.randomUUID().slice(0, 4)}`;
+    await sendDirectoryCommands(page, [{ kind: 'createPerson', name }]);
+    await page.goto('/directory');
+    const box = page.getByLabel(`Name of ${name}`);
+    await expect(box).toHaveValue(name);
+    const fit = await box.evaluate((input) => ({
+      scrollWidth: input.scrollWidth,
+      clientWidth: input.clientWidth,
+    }));
+    expect(fit.scrollWidth, 'the name is clipped').toBeLessThanOrEqual(fit.clientWidth);
   });
 });

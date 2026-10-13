@@ -14,8 +14,8 @@ F-018, F-019, F-024, F-027, F-028, F-030, F-031, F-041, F-047).
 
 - The header is one row from 900px and two rows below (pages and account, then
   the project). The picker has a 9rem floor with an ellipsis; below `xl` the
-  project buttons read `Rename` and `New project` and the roster collapses to a
-  dot and a count; below `lg` the brand is visually hidden. Phone project
+  project buttons read `Rename` and `New project`, and below 1440px the roster collapses to
+  a dot and a count; below `lg` the brand is visually hidden. Phone project
   controls are 44px tall. The roster reads Online or Offline.
 - Every toolbar popover closes on Escape and returns the focus to its summary.
   Tall popovers fit the window and show a scroll shadow where more follows.

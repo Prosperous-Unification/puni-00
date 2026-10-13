@@ -460,35 +460,48 @@ test.describe('the header bar, read by eye and measured', () => {
     page,
   }) => {
     await renameSelectedProject(page, LONG_PROJECT_NAME);
+    // The roster: the section that carries the roster as its fact card. Not `header section`
+    // alone — the Saved plans shelf is a section too, and comes first.
+    const roster = page.getByRole('banner').locator('section[data-fact]');
+    await expect(roster).toHaveAttribute('data-fact', /^Online: .*local-dev \(you\)/);
     const read: string[] = [];
-    for (const width of [1280, 1024, 900]) {
+    for (const width of [1440, 1280, 1024, 900]) {
       await page.setViewportSize({ width, height: 800 });
-      const measured = await page.evaluate(() => {
+      const measured = await roster.evaluate((section) => {
         const picker = document.querySelector('[role="combobox"][aria-label="Project"]');
         if (!(picker instanceof HTMLInputElement)) throw new Error('the bar has no picker');
-        const roster = document.querySelector('header section');
-        if (roster === null) throw new Error('the bar has no roster');
-        // Clipped means drawn and cut: an `sr-only` element is clipped by design and is
-        // out of the flow, so only what is laid out in the row is asked.
-        const clipped = [roster, ...roster.querySelectorAll('*')]
-          .filter((node) => getComputedStyle(node).position !== 'absolute')
-          .filter((node) => node.scrollWidth > node.clientWidth + 1)
-          .map((node) => node.tagName.toLowerCase());
+        const list = section.querySelector('ul');
+        // A laid-out list (not the `sr-only` one below 1440): every name on its one visible
+        // line must end inside the list's box; a name that does not fit has dropped whole.
+        const cut =
+          list === null || getComputedStyle(list).position === 'absolute'
+            ? []
+            : [...list.querySelectorAll('li')]
+                .filter((name) => {
+                  const box = name.getBoundingClientRect();
+                  const bound = list.getBoundingClientRect();
+                  const onTheLine = box.top < bound.bottom;
+                  const clipped = name.scrollWidth > name.clientWidth + 1;
+                  return onTheLine && (box.right > bound.right + 0.5 || clipped);
+                })
+                .map((name) => name.textContent);
         return {
           pickerWidth: Math.round(picker.getBoundingClientRect().width),
           ellipsis: getComputedStyle(picker).textOverflow,
-          clipped,
+          listShown: list !== null && getComputedStyle(list).position !== 'absolute',
+          cut,
         };
       });
       if (measured.pickerWidth < 144)
         read.push(`${String(width)}: picker ${String(measured.pickerWidth)}px`);
       if (measured.ellipsis !== 'ellipsis') read.push(`${String(width)}: no ellipsis`);
-      if (measured.clipped.length > 0)
-        read.push(`${String(width)}: clipped ${measured.clipped.join(',')}`);
+      if (measured.cut.length > 0) read.push(`${String(width)}: cut ${measured.cut.join(',')}`);
+      if (width === 1440 && !measured.listShown) read.push('1440: no roster line to measure');
     }
     // Proof: on 2026-10-13, against the bar before this change, this failed on `1280: no
     // ellipsis`, `1024: picker 53px`, `1024: no ellipsis`, `900: picker 26px`, `900: no
-    // ellipsis`.
+    // ellipsis`. With the roster collapse back at `xl` (1280) it failed on `1280: cut
+    // local-dev (you)`, the review's 74px of room for 79px of name.
     expect(read).toEqual([]);
   });
 

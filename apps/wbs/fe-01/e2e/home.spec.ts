@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { importProject, preflightRequest } from '@wbs/contracts';
 
 import { fixtureClient, fixtureSuccess } from './plan-fixture';
 
@@ -54,4 +55,47 @@ test('offers the account’s projects, Create and Import, and remembers the one 
   await page.reload();
   await expect(picker).toHaveValue(name);
   await expect(home).toBeHidden();
+});
+
+test('imports a plan from the card and opens it', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
+  const client = fixtureClient(page);
+  const source = fixtureSuccess(
+    'postApiProjects',
+    await client.postApiProjects({ body: { name: `Home import source ${RUN_TOKEN}` } }),
+  ).body;
+  // A second project, so this fresh browser opens nothing on its own.
+  fixtureSuccess(
+    'postApiProjects',
+    await client.postApiProjects({ body: { name: `Home import sibling ${RUN_TOKEN}` } }),
+  );
+  const exported: unknown = await page.evaluate(
+    async (id) =>
+      (await fetch(`/api/projects/${id}/export?format=json`)).json() as Promise<unknown>,
+    source.project.id,
+  );
+  const checked = await preflightRequest(importProject, { body: exported });
+  if (checked.kind !== 'ready')
+    throw new Error(`export failed preflight: ${JSON.stringify(checked)}`);
+  const importedName = `Imported from home ${RUN_TOKEN}`;
+  const document = {
+    ...checked.input.body,
+    settings: { ...checked.input.body.settings, name: importedName },
+  };
+
+  await page.reload();
+  const home = page.getByRole('region', { name: 'No project open' });
+  await expect(home).toBeVisible();
+  await home.getByLabel('Import JSON').setInputFiles({
+    name: 'plan.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(document)),
+  });
+
+  // Nothing was selected, so the import opens what it made, and the card gives way to it.
+  const picker = page.getByRole('combobox', { name: 'Project' });
+  await expect(picker).toHaveValue(importedName);
+  await expect(home).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Add work item' })).toBeVisible();
 });

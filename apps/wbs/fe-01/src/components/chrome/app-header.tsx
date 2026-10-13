@@ -52,7 +52,7 @@ export interface AppHeaderProps {
  * makes the room by three things that collapse at named breakpoints instead:
  * the brand is visually hidden below `lg` (it stays the page's `h1`), the two
  * project buttons say `Rename` and `New project` below `xl`, and the roster
- * collapses to a dot and a count below `xl`
+ * collapses to a dot and a count below 1440px
  * ({@link import('../presence/presence-panel').PresencePanel}). The fit is
  * measured in `e2e/header.spec.ts` at 1280, 1024 and 900.
  *

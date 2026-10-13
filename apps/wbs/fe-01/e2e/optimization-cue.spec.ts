@@ -37,10 +37,11 @@ import { createProject } from './create-project';
 // are subtracted, matching the cue-less measurement in `project-settings.spec.ts`.
 // `rows` is still 2 below, so nothing wrapped further.
 //
-// **Re-pinned from 1604 to 1637 on 2026-10-13**, for the 33px the cue-less pin in
-// `project-settings.spec.ts` names (one-line Export / Import, square undo, redo
-// and keyboard buttons). Measured 1636.890625; `rows` is still 2.
-const LAID_OUT_WITH_THE_CUE_AT_1280 = 1637;
+// **Re-pinned from 1604 to 1630 on 2026-10-13**, for the +27.41px the cue-less pin in
+// `project-settings.spec.ts` itemises (one-line Export / Import +45.41, square undo,
+// redo and keyboard buttons −18, the schedule group ±0). Measured 1629.890625; `rows`
+// is still 2.
+const LAID_OUT_WITH_THE_CUE_AT_1280 = 1630;
 
 /** How far a measured edge may be from a pinned figure, in CSS px — `project-settings.spec.ts`'s. */
 const NEARLY = 2;

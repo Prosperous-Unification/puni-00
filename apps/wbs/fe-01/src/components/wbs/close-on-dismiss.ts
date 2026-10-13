@@ -56,6 +56,7 @@ export function useClosedOnDismiss(): RefCallback<HTMLDetailsElement> {
 
   useEffect(() => {
     if (panel === null) return undefined;
+    panel.setAttribute(DISMISSIBLE, '');
 
     const closeIfOutside = (event: PointerEvent): void => {
       // Nothing to close, and nothing to read the target for.
@@ -78,6 +79,31 @@ export function useClosedOnDismiss(): RefCallback<HTMLDetailsElement> {
       summaryOf(panel).focus();
     };
 
+    // The keyboard's half of the pointer rule above: Tab out of an open panel and it
+    // closes, so an Escape pressed later never meets a panel it can no longer reach.
+    // A focus going nowhere (`relatedTarget` null — a click on bare page) is left to
+    // the pointer rule, and one going into the panel's own dialog keeps it open.
+    // Proof: on 2026-10-13, without this listener `closes when the focus leaves it by
+    // the keyboard` in `close-on-dismiss.test.tsx` failed on `expected true to be false`.
+    const closeOnFocusOut = (event: FocusEvent): void => {
+      if (!panel.open) return;
+      const next = event.relatedTarget;
+      if (!(next instanceof Element) || panel.contains(next)) return;
+      if (isInsideOwnedDialog(panel, next)) return;
+      panel.open = false;
+    };
+
+    // One panel open at a time, whatever opened it: a summary toggled by Enter fires no
+    // pointerdown, so two keyboard opens used to leave both standing.
+    // Proof: on 2026-10-13, without this listener `opening one popover by the keyboard
+    // closes the other (F-028)` in `e2e/toolbar-panels.spec.ts` failed with both open.
+    const closeTheOthers = (): void => {
+      if (!panel.open) return;
+      for (const other of document.querySelectorAll(`details[${DISMISSIBLE}][open]`)) {
+        if (other !== panel && other instanceof HTMLDetailsElement) other.open = false;
+      }
+    };
+
     document.addEventListener('pointerdown', closeIfOutside, true);
     // Bubble phase, so a control inside the panel that owns Escape (a field
     // that clears on it) is asked first and can say so with preventDefault.
@@ -85,14 +111,21 @@ export function useClosedOnDismiss(): RefCallback<HTMLDetailsElement> {
     // focus back to its summary (F-028)` in `e2e/toolbar-panels.spec.ts` failed listing all five
     // panels as `open=true focused=false`.
     document.addEventListener('keydown', closeOnEscape);
+    panel.addEventListener('focusout', closeOnFocusOut);
+    panel.addEventListener('toggle', closeTheOthers);
     return () => {
       document.removeEventListener('pointerdown', closeIfOutside, true);
       document.removeEventListener('keydown', closeOnEscape);
+      panel.removeEventListener('focusout', closeOnFocusOut);
+      panel.removeEventListener('toggle', closeTheOthers);
     };
   }, [panel]);
 
   return rememberPanel;
 }
+
+/** The mark every panel this hook holds carries, so opening one can close the rest. */
+const DISMISSIBLE = 'data-dismissible';
 
 /**
  * The `<summary>` a panel is opened by.

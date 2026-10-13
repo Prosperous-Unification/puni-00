@@ -20,6 +20,18 @@ export interface PriorityBandStyle {
   ink: string;
   /** The same hue behind text, at an alpha a body font stays readable on. */
   tint: string;
+  /**
+   * {@link ink} pulled toward the page's own `--foreground`, for a band's name
+   * in small type on its own {@link tint} — the card's chip and its sheet.
+   *
+   * `ink` holds all five rungs at one lightness so the ramp reads as nominal,
+   * and that lightness is mid-grey in both palettes: 3.2–4.3:1 on its tint,
+   * under the 4.5:1 a 12px word is owed (F-008, 2026-10-13). Mixing with the
+   * foreground darkens it on a light page and lightens it on a dark one, from
+   * one string, and keeps the hue. The chart's caps and the table's 600-weight
+   * cell (3:1, `priority-ramp.spec.ts`) keep `ink`.
+   */
+  chipInk: string;
   /** One sentence naming the band and the number, for a `title` or an `aria-label`. */
   words: string;
 }
@@ -63,6 +75,17 @@ export interface PriorityBandStyle {
  * behind one function rather than a rule in each renderer: changing them is
  * editing this table, and no face has an opinion of its own to update.
  */
+/**
+ * How much of the band's own ink a chip's word keeps; the rest is the page's
+ * foreground. See {@link PriorityBandStyle.chipInk}.
+ *
+ * Proof: at 100 (the bare ink) `reads every priority band chip on a card at
+ * 4.5:1, in both palettes (F-008)` in `e2e/mobile.spec.ts` failed on every
+ * band, from `the light 30 chip … Received: 3.24` to `the light 10 chip …
+ * Received: 4.28`.
+ */
+const CHIP_INK_SHARE = 70;
+
 const BAND_INKS: readonly { ink: string; tint: string }[] = [
   { ink: 'oklch(0.55 0.21 27)', tint: 'oklch(0.55 0.21 27 / 14%)' },
   { ink: 'oklch(0.62 0.17 52)', tint: 'oklch(0.62 0.17 52 / 14%)' },
@@ -111,6 +134,7 @@ export function priorityBandStyleOf(
     rank,
     ink: paint.ink,
     tint: paint.tint,
+    chipInk: `color-mix(in oklab, ${paint.ink} ${String(CHIP_INK_SHARE)}%, var(--foreground))`,
     words: `${band.label} — priority ${String(priority)}`,
   };
 }
