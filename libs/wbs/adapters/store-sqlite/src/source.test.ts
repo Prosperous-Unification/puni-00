@@ -56,13 +56,27 @@ describe('openSqliteSource', () => {
         [],
         stamp,
       );
+      const peerId = 'blockage-peer';
+      await source.stores.workItems.insert(
+        workItemRow({ id: peerId, projectId: 'blocked-project', position: 20 }),
+        [],
+        stamp,
+      );
       await source.uow.run(async (scope) => {
         const plan = createWorkingPlan(scope, 'blocked-project');
-        expect((await plan.stores.workItems.listByProject('blocked-project'))[0]?.revision).toBe(0);
+        expect(
+          (await plan.stores.workItems.listByProject('blocked-project')).find(
+            ({ id }) => id === fact.workItemId,
+          )?.revision,
+        ).toBe(0);
         expect(await plan.stores.blockages.set(fact, stamp)).toBe('written');
         expect(await plan.stores.blockages.listByProject('blocked-project')).toEqual([fact]);
         // Proof: skipping the wrapper refresh leaves the retained revision at zero after SQLite bumps it.
-        expect((await plan.stores.workItems.listByProject('blocked-project'))[0]?.revision).toBe(1);
+        expect(
+          (await plan.stores.workItems.listByProject('blocked-project')).find(
+            ({ id }) => id === fact.workItemId,
+          )?.revision,
+        ).toBe(1);
         plan.close();
         return { commit: false, value: undefined };
       });
@@ -80,7 +94,26 @@ describe('openSqliteSource', () => {
       });
       expect(await source.stores.blockages.listByProject('blocked-project')).toEqual([fact]);
       expect((await source.stores.workItems.findById(fact.workItemId))?.revision).toBe(1);
-      await source.stores.workItems.remove([fact.workItemId], [], stamp);
+      await source.uow.run(async (scope) => {
+        const plan = createWorkingPlan(scope, 'blocked-project');
+        const before = await plan.stores.workItems.listByProject('blocked-project');
+        expect(before.find(({ id }) => id === fact.workItemId)?.revision).toBe(1);
+        expect(before.find(({ id }) => id === peerId)?.revision).toBe(0);
+        await plan.stores.blockages.moveAll(fact.workItemId, peerId, stamp);
+        expect(await plan.stores.blockages.listByProject('blocked-project')).toEqual([
+          { ...fact, workItemId: peerId },
+        ]);
+        const after = await plan.stores.workItems.listByProject('blocked-project');
+        // Proof: omitting moveAll's retained-row refresh left this owner at revision 1.
+        expect(after.find(({ id }) => id === fact.workItemId)?.revision).toBe(2);
+        expect(after.find(({ id }) => id === peerId)?.revision).toBe(1);
+        plan.close();
+        return { commit: true, value: undefined };
+      });
+      expect(await source.stores.blockages.listByProject('blocked-project')).toEqual([
+        { ...fact, workItemId: peerId },
+      ]);
+      await source.stores.workItems.remove([peerId], [], stamp);
       expect(await source.stores.blockages.listByProject('blocked-project')).toEqual([]);
     } finally {
       await source.close();
