@@ -1156,6 +1156,41 @@ describe('the plan on a calendar', () => {
     expect(await screen.findByRole('tooltip', { name: /^Start of 010 - / })).toBeVisible();
   });
 
+  itDom('does not mark a Start cell that has no explanation', async () => {
+    // The affordance follows the explanation, not the column name: an on-hold
+    // row has no schedule (be-01 sends `schedule: null`), its Start reads `—`,
+    // and there is nothing for hover or focus to reveal. Restored with the
+    // undated sentence (review of PR #409), which explains every other undated
+    // Start. The fake schedules every row, so its read is narrowed here to
+    // what be-01 sends for a held one.
+    // Proof: `undatedDayWords`' `startsWith('day ')` guard dropped, this
+    // failed on `expected '0' to be null` — the `—` cell made focusable for a
+    // sentence about a day that does not exist. Watched 2026-10-14.
+    const api = fakeApi();
+    // A parent, because a parent has no floor sentence of its own either.
+    const held = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Held' });
+    await api.createWorkItem('p1', { parentId: held.id, afterId: null, name: 'Child' });
+    await api.setStatus(held.id, 'on_hold', '2026-10-14');
+    const read = api.tree.bind(api);
+    api.tree = (projectId) =>
+      read(projectId).then((plan) => ({
+        ...plan,
+        workItems: plan.workItems.map((row) =>
+          row.status === 'on_hold' ? { ...row, schedule: null, dates: null } : row,
+        ),
+      }));
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await screen.findByLabelText('Name of 010');
+
+    const cell = rowFor('010').querySelector<HTMLElement>('td[data-column="start"]');
+    const day = cell?.querySelector<HTMLElement>('[data-start]');
+    expect(day?.textContent).toBe('—');
+    expect(saidBy(cell)).toBeNull();
+    expect(cell?.getAttribute('tabindex')).toBeNull();
+    expect(cell?.style.cursor).toBe('');
+    expect(day?.style.textDecoration).toBe('');
+  });
+
   itDom('marks an undated parent’s Start, because it says how to get a date', async () => {
     // A parent has no floor sentence of its own. Without a project calendar it
     // used to have nothing for hover or focus to reveal, and was left unmarked;

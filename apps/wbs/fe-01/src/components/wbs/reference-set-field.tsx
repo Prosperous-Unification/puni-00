@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 
 import {
   Modal,
@@ -276,6 +276,14 @@ export function ReferenceSetStrip({
   'data-fact': fact,
 }: ReferenceSetStripProps) {
   const root = useRef<HTMLSpanElement>(null);
+  const chipLine = useRef<HTMLSpanElement>(null);
+  /**
+   * The chips the resting line wrapped out of sight, by their words — a layout
+   * fact, so measured: every chip whose top is at or below the line's bottom.
+   * Drawn as `+N` beside the line, and the edge fade follows it, so the line
+   * never hides a chip silently (review of PR #409, decision D4).
+   */
+  const [hiddenChips, setHiddenChips] = useState<readonly string[]>([]);
   const ownIds = unique(adapter.ownIds);
   const holdsOne = holdsOneMember(adapter.kind);
   // Proof: forced false and `flags a type conflict, shows every type, and keeps
@@ -306,6 +314,33 @@ export function ReferenceSetStrip({
    * members is editing this cell as much as somebody typing into it.
    */
   const [editing, setEditing] = useState(false);
+  const chipsKey = [...ownIds, ...(adapter.inheritedEntries ?? []).map((entry) => entry.id)].join(
+    '\0',
+  );
+  useLayoutEffect(() => {
+    const line = chipLine.current;
+    // jsdom has no ResizeObserver and lays nothing out, so nothing there can be
+    // measured as hidden; the count is proven in `e2e/plan-table-review.spec.ts`.
+    if (editing || line === null || typeof ResizeObserver === 'undefined') {
+      setHiddenChips((was) => (was.length === 0 ? was : []));
+      return;
+    }
+    const measure = (): void => {
+      const bottom = line.getBoundingClientRect().bottom;
+      const hidden = [
+        ...line.querySelectorAll('[data-reference-chip], [data-reference-inherited-chip]'),
+      ]
+        .filter((chip) => chip.getBoundingClientRect().top >= bottom - 0.5)
+        .map((chip) => chip.textContent.replace(/[×✓]/g, '').trim());
+      setHiddenChips((was) => (was.join('\0') === hidden.join('\0') ? was : hidden));
+    };
+    measure();
+    const watching = new ResizeObserver(measure);
+    watching.observe(line);
+    return () => {
+      watching.disconnect();
+    };
+  }, [editing, chipsKey]);
   /**
    * Whether the pointer is on this cell — which is the same question as "is the
    * hover card open", subject to the two conditions on it below.
@@ -545,7 +580,9 @@ export function ReferenceSetStrip({
           // spilled chips cover the cell, and clicking the box timed out on
           // `<td data-column="tag"> intercepts pointer events`.
           overflow: editing ? 'visible' : 'hidden',
-          ...(editing
+          // Only where a chip was wrapped out of sight: a line that ends on
+          // its last chip has nothing to fade (review of PR #409, D4).
+          ...(editing || hiddenChips.length === 0
             ? {}
             : {
                 WebkitMaskImage: REFERENCE_SET_EDGE_FADE,
@@ -624,6 +661,7 @@ export function ReferenceSetStrip({
           +
         </button>
         <span
+          ref={chipLine}
           data-reference-chips=""
           style={{
             display: 'flex',
@@ -793,6 +831,21 @@ export function ReferenceSetStrip({
             </span>
           ))}
         </span>
+        {/*
+          How many chips the rest line wrapped out of sight — the Depends on
+          cell's count chip, said as `+N` because here it counts what is not
+          shown rather than the whole set. Its `title` names them; the cell's
+          own card lists the whole set, as before.
+        */}
+        {!editing && hiddenChips.length > 0 && (
+          <span
+            data-reference-hidden-count={hiddenChips.length}
+            title={`Also: ${hiddenChips.join(', ')}`}
+            className="text-muted-foreground shrink-0 text-xs"
+          >
+            +{hiddenChips.length}
+          </span>
+        )}
         {/*
           The search box takes what the chips leave, and at rest that is
           allowed to be nothing.

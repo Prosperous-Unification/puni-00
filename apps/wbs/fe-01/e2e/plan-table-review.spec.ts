@@ -86,6 +86,7 @@ async function seedReviewPlan(page: Page, testName: string, worker: number): Pro
   const client = fixtureClient(page);
   const directory = [
     { kind: 'createTeam' as const, ref: 'team', name: `Backend ${suffix}` },
+    { kind: 'createTeam' as const, ref: 'second', name: `Frontend ${suffix}` },
     {
       kind: 'createPerson' as const,
       ref: 'walter',
@@ -114,7 +115,7 @@ async function seedReviewPlan(page: Page, testName: string, worker: number): Pro
     {
       kind: 'patchWorkItem',
       workItemId: row('rate'),
-      patch: { teamIds: [idOf('team')], typeIds: [idOf('feature')] },
+      patch: { teamIds: [idOf('team'), idOf('second')], typeIds: [idOf('feature')] },
     },
     {
       kind: 'addTypedDependency',
@@ -279,7 +280,8 @@ test.describe('the plan table, as the UI review read it', () => {
     // shared observer, or the next resize measures it again and blanks the
     // complaint's text under its red fill.
     // Proof: the `unobserve` taken out of `unwatchTrioFit`, this failed on
-    // `Expected: not "rgba(0, 0, 0, 0)"`. Watched 2026-10-13.
+    // `Expected: not "rgba(0, 0, 0, 0)"` — watched 2026-10-13 with a window
+    // resize, and again 2026-10-14 with the column drag below.
     await page.setViewportSize({ width: 1440, height: 900 });
     await seedReviewPlan(page, 'refused-draft', testInfo.workerIndex);
 
@@ -288,8 +290,27 @@ test.describe('the plan table, as the UI review read it', () => {
     await box.fill('8/3/2');
     await page.mouse.click(2, 890);
     await expect(box).toHaveAttribute('aria-invalid', 'true');
-    await page.setViewportSize({ width: 1300, height: 900 });
-    await page.setViewportSize({ width: 1440, height: 900 });
+    // The QA column's own edge dragged 20px narrower: a column is the one thing
+    // that resizes this box — under `table-layout: fixed` a step column keeps
+    // its declared width whatever the window does, so a window resize would
+    // prove nothing about the observer.
+    const qaColumn = await page
+      .locator('thead th')
+      .filter({ hasText: 'QA' })
+      .first()
+      .getAttribute('data-column');
+    if (qaColumn === null) throw new Error('the QA heading has no column id');
+    const widthBefore = await box.evaluate((input) => input.clientWidth);
+    const handle = page.locator(`thead th[data-column="${qaColumn}"] [data-resize-handle]`);
+    const grip = await handle.boundingBox();
+    if (grip === null) throw new Error('the QA column has no resize handle on screen');
+    await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
+    await page.mouse.down();
+    for (const step of [5, 10, 15, 20]) {
+      await page.mouse.move(grip.x + grip.width / 2 - step, grip.y + grip.height / 2);
+    }
+    await page.mouse.up();
+    expect(await box.evaluate((input) => input.clientWidth)).toBeLessThan(widthBefore);
     // Two frames, so the observer has reported both sizes.
     await page.evaluate(
       () => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))),
@@ -372,6 +393,35 @@ test.describe('the plan table, as the UI review read it', () => {
         }),
       );
     expect(cut).toEqual([]);
+
+    // And the line says what it hid (decision D4): two teams in 120px is one
+    // drawn and `+1` beside it, named in the count's title; the fade only
+    // where something is hidden.
+    // Proof, watched 2026-10-14: the count's render removed, this failed on
+    // `Expected: "+1" · element(s) not found`; the fade made unconditional, on
+    // `a line that hides nothing wears no fade · Received: "linear-gradient(…"`.
+    await showEveryColumn(page);
+    await page.mouse.move(2, 890);
+    const teams = page
+      .locator('tr', { hasText: 'Rate limiting' })
+      .locator('td[data-column="team"]');
+    await expect(teams.locator('[data-reference-hidden-count]')).toHaveText('+1');
+    await expect(teams.locator('[data-reference-hidden-count]')).toHaveAttribute(
+      'title',
+      /^Also: (Backend|Frontend) whole-chips-w\d+$/,
+    );
+    expect(
+      await teams
+        .locator('[data-reference-strip]')
+        .evaluate((strip) => getComputedStyle(strip).maskImage),
+    ).not.toBe('none');
+    const lone = page.locator('tr', { hasText: 'Sign-up form' }).locator('td[data-column="type"]');
+    expect(
+      await lone
+        .locator('[data-reference-strip]')
+        .evaluate((strip) => getComputedStyle(strip).maskImage),
+      'a line that hides nothing wears no fade',
+    ).toBe('none');
   });
 
   test('keeps the dependency list inside the window', async ({ page }, testInfo) => {
