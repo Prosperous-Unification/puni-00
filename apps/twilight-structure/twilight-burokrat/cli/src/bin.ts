@@ -26,8 +26,13 @@ const validatorCommands = new Set([
   'scenario',
   'inspect-manual',
   'inspect-performance',
+  // Proof: removing this registration made the built executable reject the command before
+  // the validator's named usage refusal (installed-dispatch.test.ts).
+  'inspect-performance-sources',
   'inspect-test-reports',
   'inspect-test-sources',
+  // Proof: removing this documented diagnostic's registration failed the same packaged test.
+  'inspect-spec-sources',
   'template',
   'validate-policy-activation',
 ]);
@@ -38,6 +43,8 @@ commands:
   twilight-burokrat validate-record <kind> <json>
   twilight-burokrat check <committed|staged|working> <repository> <revision-or-base> <rule-policy-json> [--rule <rule-id>]
   twilight-burokrat inspect-performance <repository> <committed-sha> <external-rule-policy>
+  twilight-burokrat inspect-performance-sources <repository> <committed-sha> <external-rule-policy>
+  twilight-burokrat inspect-spec-sources <repository> <committed-sha>
   twilight-burokrat inspect-manual <repository> <committed-sha> <external-rule-policy> <report-path> --now <UTC instant>
   twilight-burokrat explain <rule-id> [<repository> <rule-policy-json>]
   twilight-burokrat scenario <import|allocate|validate> <repository> <openspec-spec-path> [--predecessor <id>]
