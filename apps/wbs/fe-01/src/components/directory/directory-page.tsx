@@ -394,7 +394,12 @@ export function DirectoryPage({ directory: management, nav, account, loadOf }: D
     <>
       <AppHeader nav={nav} account={account} />
       <main className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-3">
-        <h2 className="sr-only">Directory</h2>
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl font-semibold">Directory</h1>
+          <p className="text-muted-foreground text-sm">
+            The people, teams, tags, work item types and services every plan here shares.
+          </p>
+        </div>
         {problem !== null && (
           <p role="alert" className="text-destructive text-sm">
             {directoryRefusalSentence(problem)}
@@ -404,9 +409,15 @@ export function DirectoryPage({ directory: management, nav, account, loadOf }: D
           One column below 768px and two at and above it. `md` is Tailwind's 768
           — the same number `app-header.tsx` stops wrapping at and
           `plan-renderer.ts` swaps the renderer at, deliberately the same one.
+
+          Five cards never fill a grid of two or three alone, so two of them
+          span: Services takes both columns of the third row at `md`, and from
+          `xl` (1280) People, the card with the most to show per row, takes two
+          of three beside Teams. F-015 (UI review 2026-10-13): Services sat
+          alone bottom-left with an empty cell beside it.
         */}
-        <div className="grid gap-3 md:grid-cols-2">
-          <Card>
+        <div data-directory-grid className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <Card className="xl:col-span-2">
             <CardHeader>
               <CardTitle>People</CardTitle>
             </CardHeader>
@@ -907,7 +918,7 @@ export function DirectoryPage({ directory: management, nav, account, loadOf }: D
             half), not here: an ownership map drawn on this card would read as a
             property of the service.
           */}
-          <Card>
+          <Card className="md:col-span-2 xl:col-span-1">
             <CardHeader>
               <CardTitle>Services</CardTitle>
             </CardHeader>

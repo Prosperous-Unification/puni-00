@@ -1,7 +1,10 @@
 import { type ReactNode, useState } from 'react';
 
 import { AppHeader } from '@/components/chrome/app-header';
+import { buttonVariants } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
+import { AccessState } from './access-state';
 import { CredentialRefusalState } from './credential-refusal-state';
 import { DomainsPanel } from './domains-panel';
 import { InvitationsPanel } from './invitations-panel';
@@ -57,9 +60,17 @@ export function OrganizationPage({
               <SharingPanel onAccessLost={setLoss} />
             </>
           ) : typeof loss === 'string' ? (
-            <p role="alert" className="text-sm">
-              {lossCopy(loss)}
-            </p>
+            <AccessState
+              {...lossCopy(loss)}
+              action={
+                // A document load rather than a router link: a session that
+                // ended has to meet the startup check again to be asked to
+                // sign in, and the other losses lose nothing by it.
+                <a className={cn(buttonVariants(), 'no-underline')} href="/">
+                  Open the plan
+                </a>
+              }
+            />
           ) : (
             // Proof: 2026-10-12, rendering only the headline sentence here failed
             // `replaces the panels with the company sign-in state and its link wording`.
