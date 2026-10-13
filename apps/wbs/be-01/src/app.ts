@@ -19,6 +19,7 @@ import type {
   SavedPlanService,
   ScimUsers,
   SessionPolicies,
+  SharedPeopleRestoreApprovals,
   SpaceStore,
 } from '@wbs/core';
 import type { Scope, UnitOfWork } from '@wbs/core';
@@ -34,6 +35,7 @@ import { personLoadRoutes } from '@wbs/core/http/person-load.routes';
 import { projectRankRoutes } from '@wbs/core/http/project-rank.routes';
 import { provisioningTokenRoutes } from '@wbs/core/http/provisioning-token.routes';
 import { sessionPolicyRoutes } from '@wbs/core/http/session-policy.routes';
+import { sharedPeopleRestoreRoutes } from '@wbs/core/http/shared-people-restore.routes';
 import { spaceRoutes } from '@wbs/core/http/space.routes';
 import { ssoConnectionRoutes } from '@wbs/core/http/sso-connection.routes';
 import type { LoginThrottle } from '@wbs/core/module/authentication/login-throttle';
@@ -150,6 +152,8 @@ export interface AppOptions {
    * 404 on the membership routes, which reads as a release without them.
    */
   memberships: MembershipAdministration;
+  /** Required personal restore consent boundary; production wires the shared SQLite writer. */
+  sharedPeopleRestoreApprovals: SharedPeopleRestoreApprovals;
   /** Checked policy and transactional challenge storage; omission is a composition error. */
   domains: DomainChallenges;
   /**
@@ -496,6 +500,7 @@ export function mountedEndpoints(
       }),
       opts.organizations,
     ),
+    ...sharedPeopleRestoreRoutes(opts.sharedPeopleRestoreApprovals, opts.organizations, spaceClock),
     ...capacityModeRoutes(
       new CapacityModeResource({
         modes: opts.projectRanks,

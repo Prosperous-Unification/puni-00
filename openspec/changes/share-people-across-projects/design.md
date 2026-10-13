@@ -403,3 +403,15 @@ No persistent push worker, booking table, activation route, mode setter, permiss
 frontend work, scheduler/cache version bump or blue/green cache-policy replacement. Keep
 `capacityModes` exactly `['isolated']` and shared restores refused. UI 7 and mode route 8 remain
 ordered prerequisites to activation. Exact-head gate, CI and publication are separate actions.
+
+## D10. Personal approval precedes shared backup restore
+
+A restore operation has one immutable canonical backup digest. Each changed organization supplies
+an approval by a super-admin acting personally through an authenticated request in that active
+organization. The operator supplies IDs to the restore CLI; an asserted actor or session cannot
+create authority. Approval records retain their actor even if that account disappears. Issuance
+rechecks active organization membership inside one immediate writer transaction and retries
+idempotently only for the same actor, operation and digest. A conflicting binding returns 409.
+Evidence prevents schema rollback. Approval issuance alone grants no runtime capability and does
+not weaken the existing shared restore refusal. The consuming restore owner, durable receipt,
+writer/deploy exclusion and capability activation follow in ordered slices 10.2–10.4.

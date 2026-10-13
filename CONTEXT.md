@@ -1874,3 +1874,15 @@ The name a run gives itself in that queue, from `HEAVY_LOCK_LABEL` — `gate:<sh
 gate, `unlabeled` for a run that names none. It identifies the run to a human reading `status`,
 never to the lock itself.
 _Avoid_: job name, tag, owner
+
+### Shared people recovery
+
+**Restore operation**:
+One intended recovery of saved organization modes and project ranks, identified independently of
+its retries and bound to one canonical backup digest.
+_Avoid_: restore session, operator session
+
+**Restore approval**:
+One organization's personal super-admin authorization for a specific restore operation and
+canonical backup digest.
+_Avoid_: operator assertion, delegated approval

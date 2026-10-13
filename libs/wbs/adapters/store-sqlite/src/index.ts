@@ -56,6 +56,7 @@ export * from './schedule-input-hash';
 export * from './schema';
 export * from './scim-user';
 export * from './session-policy';
+export * from './shared-people-restore-approval';
 export type { OpenSqliteSourceOptions, SqliteSource } from './source';
 export { openSqliteSource } from './source';
 export * from './space';

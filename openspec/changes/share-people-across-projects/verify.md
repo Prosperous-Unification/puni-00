@@ -4434,3 +4434,78 @@ socket (`EPERM`); the rerun with local socket permission passed 11/11 across bot
 
 The exact-head h2puni gate and OpenSpec validation remain the integration gate; no shared-mode
 activation, binding installation, deployment, or push was performed by this prerequisite.
+
+## Personal shared-backup restore approval checkpoint (010.4.16, 2026-10-14)
+
+Base: exact PR #403 head `2fac0c9c8579c627c05e9e55a19ee66b4ea35fd6` in isolated
+`batch-10/shared-restore-activation-sol`. This checkpoint closes 10.1 only. The release still
+advertises isolated capacity only, and existing shared-backup restore still refuses. Canonical
+digest calculation, stopped-writer/deploy exclusion, approval consumption, mode/rank/audit/event
+transaction, operation receipt and receipt retry remain open in 10.2–10.4. No push, merge or deploy.
+The personal approval endpoint is composed in production and both organization harnesses through
+a required port using the existing source writer. Fixture-only applications supply an explicit
+refusing port rather than an optional production default.
+
+### Commands and observed outcomes
+
+All checks below ran on `pop-os`, not h2puni. The canonical h2puni gate and CI have not run;
+this is an approval slice checkpoint, not an activation or whole-repository gate claim.
+
+- Frozen dependencies: `BUN_TMPDIR=/tmp BUN_INSTALL_CACHE_DIR=/tmp/puni-bun-cache bun install --frozen-lockfile`:
+  checked 1573 installs, no changes. The first attempt without those environment overrides refused
+  because Bun's default temporary directory was read-only.
+- `bun test apps/wbs/be-01/src/controller/shared-people-restore-approval.controller.db.test.ts apps/wbs/be-01/src/controller/delegation.controller.db.test.ts apps/wbs/be-01/src/controller/capacity-mode.controller.db.test.ts libs/wbs/adapters/store-sqlite/src/shared-people-restore-approval.db.test.ts libs/wbs/adapters/store-sqlite/src/shared-people-rollback.db.test.ts libs/wbs/adapters/store-sqlite/src/shared-people-audit.db.test.ts apps/wbs/be-01/src/backup-cli.db.test.ts --timeout=30000`:
+  **78 pass, 0 fail, 292 assertions**. The injected approval-insert trigger intentionally logs the
+  unexpected failure while the mounted request returns 500 and both tables remain empty.
+- `bun test apps/wbs/be-01/src/app.routes.test.ts -t 'complete pinned identity and origin policy inventory' --timeout=30000`:
+  **1 pass, 0 fail, 264 assertions**; the new route is covered by authenticated write scope and
+  the session-cookie origin policy. Other tests in that file were filtered out.
+- `NX_DAEMON=false bunx nx run wbs-be-01:typecheck`: **passed**, including module checks.
+  Nx's sandbox-denied socket fallback ran plugins in the main process.
+- `NX_DAEMON=false bunx nx run-many -t typecheck -p wbs-store-sqlite,wbs-core,wbs-contracts --parallel=2`:
+  **passed**, all four tasks including core module checks.
+- `bunx prettier --check <all changed and new .ts/.md paths>` and `git diff --check`:
+  **passed** after formatting the lint-fixed test arrows.
+- `bunx eslint <all changed and new .ts paths>`: **passed** after import sorting and void-arrow
+  fixes. The initial typecheck also exposed the closed refusal inventory and the required port's
+  fixture callers; both are updated. Two rollback regression expectations initially omitted the
+  newest migration; the final run above includes its empty-schema reversal.
+- `BUN_TMPDIR=/tmp BUN_INSTALL_CACHE_DIR=/tmp/puni-bun-cache bunx @fission-ai/openspec@1.12.0 validate --all --json`:
+  **186 passed, 0 failed**.
+- `bun run tools/tool-git-hooks/src/hooks/migration-lint.ts apps/wbs/be-01/drizzle/20261014120000_add_shared_people_restore_approvals/migration.sql`:
+  **exit 0**. Additive tables/index and adjacent guarded `down.sql`.
+- Full Nx gates, build, browser tests, live identity provider and solver-image execution are
+  unverified in this checkpoint. The existing solver prerequisite and activation boundary are
+  outside the changed approval behavior.
+
+### Watched R5 faults
+
+The initial mounted RED run had **0 pass, 7 fail** against the absent route/schema. Each fault
+below was then injected independently into the production path, its named focused test was run
+with `bun test <file> -t <test> --timeout=30000`, and the original source was restored in `finally`.
+Every mutant exited 1 with an assertion failure; none survived. Adjacent `Proof:` comments name
+the observed fault. The tests exercise actual Elysia admission, source gate and SQLite writes.
+
+| Fault                                          | Observed production-path negative                                                                                                    |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Drop delegation guard                          | `refuses delegated restore approval even for a super-admin`: 200 instead of 403                                                      |
+| Drop legacy guard                              | `requires authentication and an activated organization`: 500 instead of 409                                                          |
+| Bypass super-admin role                        | `refuses an admin without storing an operation`: approval admitted                                                                   |
+| Bypass activation read                         | `refuses issuance before organization activation on the writer`: approval admitted                                                   |
+| Drop operation digest comparison               | `refuses a different backup or actor for existing evidence`: changed backup admitted                                                 |
+| Drop approval actor comparison                 | Same mounted binding case: another person's retry admitted                                                                           |
+| Force approval lookup to org-a                 | `binds one operation digest across organizations without leaking a foreign approval`: second organization's valid consent refused    |
+| Replace principal actor with asserted operator | `persists the authenticated actor and active organization, retrying without new evidence`: refused instead of authenticated approval |
+| Drop membership organization predicate         | `requires super-admin membership in the active organization`: foreign super-admin admitted as local viewer                           |
+| Drop membership actor predicate                | Admin-refusal case: another member's super-admin role used                                                                           |
+| Bypass source gate                             | `waits for the composed writer and refuses membership removed while queued`: evidence appeared under held writer                     |
+| Run transaction body directly on db            | `rolls back the operation when approval insertion fails`: operation survived the late trigger fault                                  |
+| Change immediate to deferred                   | `holds the immediate SQLite writer before reading current membership`: rival demotion succeeded instead of locked                    |
+| Replace down-script counts with SELECT 1       | Both `preserves evidence and ledger on rollback` cases failed (operation-only and approval evidence discarded)                       |
+| Remove stored digest CHECK                     | `rejects malformed operation bindings at durable storage`: malformed digest stored                                                   |
+| Remove nonempty operation CHECK                | Same durable-binding case: empty operation stored                                                                                    |
+| Replace UNIQUE with a plain index              | `rejects duplicate consent and foreign or absent parents`: second consent stored                                                     |
+| Remove organization FK                         | Same parent negative: absent organization admitted                                                                                   |
+| Remove operation FK                            | Same parent negative: absent operation admitted                                                                                      |
+| Widen digest request regex                     | `rejects malformed digests and asserted authority at the request boundary`: storage error 500 instead of boundary 400                |
+| Delete undeclared request fields               | Same boundary case: asserted actorId accepted instead of 400                                                                         |

@@ -34,6 +34,7 @@ import {
   refusingDomains,
   refusingEnterpriseConnections,
   refusingMemberships,
+  refusingRestoreApprovals,
 } from './testing/organization-access-fixture';
 import { testPriorityBandService } from './testing/priority-band-fixture';
 import { inMemoryProjects, testProjectService } from './testing/project-fixture';
@@ -49,6 +50,7 @@ function options(): AppOptions {
   return {
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
+    sharedPeopleRestoreApprovals: refusingRestoreApprovals,
     domains: refusingDomains,
     enterpriseConnections: refusingEnterpriseConnections,
     emailVerification: refusingEmailVerification,
@@ -245,6 +247,7 @@ const WRITE_SCOPE_OPERATIONS = [
   'postApiOrganizationProjectsByIdRank',
   'postApiOrganizationProvisioningTokens',
   'postApiOrganizationProvisioningTokensByIdRotate',
+  'postApiOrganizationSharedPeopleRestoreApprovals',
   'postApiOrganizationSso-connections',
   'postApiProjects',
   'postApiProjectsByIdCalendar-markers',
@@ -311,6 +314,7 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'postApiOrganizationProjectsByIdRank',
   'postApiOrganizationProvisioningTokens',
   'postApiOrganizationProvisioningTokensByIdRotate',
+  'postApiOrganizationSharedPeopleRestoreApprovals',
   'postApiOrganizationSso-connections',
   'postApiProjects',
   'postApiProjectsByIdCalendar-markers',

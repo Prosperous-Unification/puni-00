@@ -485,3 +485,17 @@ sequence`, `push failure retains durable event`, `expired replay requires snapsh
       response, missing shared invocation, and Python model ignoring fixed bookings all fail the
       focused checks. Cleanup removes image tags on failure. This prerequisite does not activate
       shared mode; `SUPPORTED_CAPACITY_MODES` remains `['isolated']`.
+
+## 10. Audited shared backup restore activation
+
+- [x] 10.1 Personal approval contract and additive schema: authenticated nondelegated super-admin
+      approves the active organization for one operation ID and canonical backup digest; recheck
+      membership on the immediate writer, preserve immutable bindings, idempotent approval retry,
+      and refuse rollback over evidence. Watch route, role, binding, transaction and rollback faults.
+- [ ] 10.2 Canonical backup digest and stopped-writer/deploy exclusion; CLI accepts operation and
+      approval IDs only, never actor/session assertions. Preserve shared restore refusal until ready.
+- [ ] 10.3 One immediate restore transaction rechecks and consumes every changed organization's
+      personal approval/membership, restores modes/ranks, records per-org audits, all-project durable
+      elsewhere_changed events, receipt and consumption. Fail atomically and retry by receipt.
+- [ ] 10.4 Prove late failures, missing approvals, demotion, foreign bindings, replay and exclusion;
+      update runbook, review and exact-SHA canonical gate before activating supported modes.

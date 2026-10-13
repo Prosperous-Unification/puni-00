@@ -691,3 +691,35 @@ are returned; cycle and calendar-range evidence SHALL retain the chain's existin
 - **GIVEN** a target has cached dates and its organization's stored mode is malformed
 - **WHEN** the target is read again
 - **THEN** the read throws instead of serving cached dates or defaulting to isolated
+
+### Requirement: Restore approvals are personal and bound to one backup
+
+`POST /api/organization/shared-people/restore-approvals` SHALL accept an operation ID and a
+lowercase SHA-256 canonical backup digest. It SHALL derive the actor and active organization
+from the authenticated request, reject delegations, and require current super-admin membership
+inside an immediate SQLite writer transaction. Pre-activation requests SHALL answer 409
+`organization_required`. Invalid or extra request fields SHALL answer 400. Role refusal SHALL
+answer 403. No refusal SHALL write approval or operation state.
+
+One operation ID SHALL bind exactly one digest across organizations. One operation and
+organization SHALL bind exactly one approving actor and durable approval ID. An identical
+personal retry SHALL return the original approval after rechecking membership. Any changed
+digest or approving actor SHALL answer 409 `restore_approval_conflict` without changing evidence.
+Rollback SHALL refuse to discard any restore operation or approval evidence.
+
+#### Scenario: demotion after request admission
+
+- **GIVEN** a personally authenticated super-admin whose request resolves organization access
+- **WHEN** their membership is demoted before approval obtains the writer
+- **THEN** approval returns 403 and stores neither operation nor approval
+
+#### Scenario: one operation is reused with a different backup
+
+- **GIVEN** organization A has approved operation R for digest D
+- **WHEN** a super-admin in organization B approves R for another digest
+- **THEN** the request returns 409 and the original evidence remains unchanged
+
+#### Scenario: delegated super-admin
+
+- **WHEN** a valid delegation for a super-admin requests approval
+- **THEN** it returns 403 insufficient_scope and writes no approval

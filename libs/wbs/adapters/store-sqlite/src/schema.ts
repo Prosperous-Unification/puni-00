@@ -3419,3 +3419,42 @@ export const projectRank = sqliteTable(
     index('project_rank_order').on(t.organizationId, t.position, t.projectId),
   ],
 );
+
+/** One restore intent's immutable backup binding; survives approval retries and actor removal. */
+export const sharedPeopleRestoreOperation = sqliteTable(
+  'shared_people_restore_operation',
+  {
+    id: text('id').primaryKey(),
+    backupDigest: text('backup_digest').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [
+    check('shared_people_restore_operation_id', sql`length(${t.id}) > 0`),
+    check(
+      'shared_people_restore_operation_digest',
+      sql`length(${t.backupDigest}) = 64 AND ${t.backupDigest} NOT GLOB '*[^a-f0-9]*'`,
+    ),
+  ],
+);
+
+/** Personal organization consent. Actor IDs intentionally outlive deleted accounts. */
+export const sharedPeopleRestoreApproval = sqliteTable(
+  'shared_people_restore_approval',
+  {
+    id: text('id').primaryKey(),
+    operationId: text('operation_id')
+      .notNull()
+      .references(() => sharedPeopleRestoreOperation.id),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id),
+    actorId: text('actor_id').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('shared_people_restore_approval_operation_organization').on(
+      t.operationId,
+      t.organizationId,
+    ),
+  ],
+);

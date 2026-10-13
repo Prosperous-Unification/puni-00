@@ -401,6 +401,12 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     kind: 'mutation',
   },
   {
+    operationId: 'postApiOrganizationSharedPeopleRestoreApprovals',
+    method: 'POST',
+    path: '/api/organization/shared-people/restore-approvals',
+    kind: 'mutation',
+  },
+  {
     operationId: 'postApiOrganizationSso-connections',
     method: 'POST',
     path: '/api/organization/sso-connections',

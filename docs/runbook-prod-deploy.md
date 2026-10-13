@@ -329,6 +329,22 @@ when a saved project is no longer owned by its organization or an author is no l
 docker exec be-01-<colour> bun run src/project-rank-rollback-cli.ts restore /data/project-ranks-<date>.json
 ```
 
+## Shared people restore approvals
+
+The approval preparation endpoint is available at
+`POST /api/organization/shared-people/restore-approvals`. A personally authenticated super-admin
+submits `{operationId, backupDigest}` in their active organization. `backupDigest` is the lowercase
+SHA-256 of the canonical shared-people backup; the canonical digest command and consuming restore
+CLI are still pending in `share-people-across-projects` tasks 10.2–10.4. Preparing approval does not
+activate shared capacity or permit the existing CLI to restore a shared backup.
+
+The server supplies the actor and organization from the request identity. Delegations cannot
+approve; neither `actorId` nor `organizationId` is accepted in the body. A retry by the same
+current super-admin for the same operation/digest returns the existing approval. A changed digest
+or approving person returns `409 restore_approval_conflict`; use a fresh operation ID for a new
+restore intent. Keep returned approval IDs for the consuming restore step. Approval evidence is
+retained, and migration rollback refuses once any operation or approval exists.
+
 ## Shared people rollback
 
 The intermediate storage release encodes isolated and shared modes but supports only isolated

@@ -15,6 +15,7 @@ import {
   ProvisioningTokenRepository,
   ScimUserRepository,
   SessionPolicyRepository,
+  SharedPeopleRestoreApprovalRepository,
   SpaceRepository,
   SqliteBrowserAuthLifecycle,
   SqliteBrowserCredentialRevocations,
@@ -317,6 +318,10 @@ export async function bootBe01(
               ...browser,
               projects: services.projects,
               memberships: new OrganizationRepository(db, services.gate),
+              sharedPeopleRestoreApprovals: new SharedPeopleRestoreApprovalRepository(
+                db,
+                services.gate,
+              ),
               domains: new DomainClaimRepository(db, services.gate),
               sessionPolicies: new SessionPolicyRepository(db, services.gate),
               pendingMemberships: new ScimUserRepository(db, services.gate),
