@@ -273,6 +273,32 @@ test.describe('the plan table, as the UI review read it', () => {
       .not.toBe('rgba(0, 0, 0, 0)');
   });
 
+  test('keeps a refused draft’s ink after a resize', async ({ page }, testInfo) => {
+    // Review of PR #409: a box that stopped being a resting trio (here: a
+    // backwards trio be-01 would refuse, which is a complaint) must leave the
+    // shared observer, or the next resize measures it again and blanks the
+    // complaint's text under its red fill.
+    // Proof: the `unobserve` taken out of `unwatchTrioFit`, this failed on
+    // `Expected: not "rgba(0, 0, 0, 0)"`. Watched 2026-10-13.
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await seedReviewPlan(page, 'refused-draft', testInfo.workerIndex);
+
+    const box = page.getByLabel('QA estimate for 010');
+    await box.click();
+    await box.fill('8/3/2');
+    await page.mouse.click(2, 890);
+    await expect(box).toHaveAttribute('aria-invalid', 'true');
+    await page.setViewportSize({ width: 1300, height: 900 });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    // Two frames, so the observer has reported both sizes.
+    await page.evaluate(
+      () => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))),
+    );
+    expect(await box.evaluate((input) => getComputedStyle(input).webkitTextFillColor)).not.toBe(
+      'rgba(0, 0, 0, 0)',
+    );
+  });
+
   test('draws no placeholder in a box too narrow for it', async ({ page }, testInfo) => {
     // F-035 and F-048. Proof, watched 2026-10-13 on the code before this
     // change: failed with 47 lines of cramped boxes — `search, or 010, 020`
@@ -307,6 +333,47 @@ test.describe('the plan table, as the UI review read it', () => {
     expect(cramped).toEqual([]);
   });
 
+  test('ends a resting reference line on a whole chip', async ({ page }, testInfo) => {
+    // Review of PR #409 (F-035/F-048): a second chip was cut mid-word at the
+    // cell edge (`urgent × custo`, `Frontend × Ba`). A chip is drawn whole, or
+    // ends in an ellipsis, or is not drawn at rest at all.
+    // Proof, watched 2026-10-13 on the code before the wrap and `min-w-0`:
+    // failed on `customer-request [plan-table-review/…]× is cut at the edge`.
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await seedReviewPlan(page, 'whole-chips', testInfo.workerIndex);
+    // Two own tags on one row, more than its 120px holds.
+    await page.getByLabel('Tags for 020').click();
+    await page
+      .getByRole('option', { name: /customer-request/ })
+      .first()
+      .click();
+    await page.mouse.click(2, 890);
+    await expect(
+      page.locator('tr', { hasText: 'Rate limiting' }).locator('[data-reference-chip]'),
+    ).toHaveCount(2);
+
+    const cut = await page
+      .locator('[data-grid] tbody [data-reference-chips]')
+      .evaluateAll((groups) =>
+        groups.flatMap((group) => {
+          const line = group.getBoundingClientRect();
+          return [...group.querySelectorAll('[data-reference-chip]')].flatMap((chip) => {
+            const box = chip.getBoundingClientRect();
+            const drawn = box.top < line.bottom && box.left < line.right;
+            const whole = box.right <= line.right + 0.5;
+            const words = chip.querySelector('span');
+            const ellipsised =
+              words !== null &&
+              words.scrollWidth > words.clientWidth &&
+              getComputedStyle(words).textOverflow === 'ellipsis' &&
+              box.right <= line.right + 0.5;
+            return drawn && !whole && !ellipsised ? [`${chip.textContent} is cut at the edge`] : [];
+          });
+        }),
+      );
+    expect(cut).toEqual([]);
+  });
+
   test('keeps the dependency list inside the window', async ({ page }, testInfo) => {
     // F-022. Proof, watched 2026-10-13 with the cap's write removed: failed
     // on `Expected: <= 1024 · Received: 1234.203125`.
@@ -338,7 +405,9 @@ test.describe('the plan table, as the UI review read it', () => {
   test('gives a step card’s actions one size', async ({ page }, testInfo) => {
     // F-044. Proof, watched 2026-10-13 on the code before this change: failed
     // on `not "One number means all three"` — every card a pointer opened
-    // ended on the typing tutorial.
+    // ended on the typing tutorial. And with the `[data-step-card] button`
+    // rule renamed away in `styles.css`, on `Expected: >= 24 · Received: 21`
+    // — the platform buttons' own height.
     await page.setViewportSize({ width: 1440, height: 900 });
     await seedReviewPlan(page, 'step-card', testInfo.workerIndex);
 

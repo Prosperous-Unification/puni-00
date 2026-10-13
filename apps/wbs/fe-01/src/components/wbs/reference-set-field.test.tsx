@@ -394,8 +394,14 @@ describe('the reference strip on one rest line', () => {
 
     // Both, singly. One `nowrap` beside one `wrap` still wraps, so a check
     // that reads either container alone passes with the bug in the other.
+    // Since the review of PR #409 the chip group wraps at rest too — into a
+    // second line it never shows, so a chip that does not fit is not drawn
+    // cut — and it is held to its one line by its height and its clip.
+    // Proof: the `maxHeight` dropped, this failed on `expected '' to be
+    // '18px'`. Watched 2026-10-13.
     expect(getComputedStyle(strip()).flexWrap).toBe('nowrap');
-    expect(getComputedStyle(chipsOf()).flexWrap).toBe('nowrap');
+    expect(chipsOf().style.maxHeight).toBe('18px');
+    expect(chipsOf().style.overflow).toBe('hidden');
   });
 
   itDom('wraps both containers only while a crowded cell is edited', () => {
@@ -728,7 +734,7 @@ describe('the Type cell selects one type', () => {
   itDom('rests a flagged conflict on one line', () => {
     render(<ReferenceSetStrip label="Types" adapter={typed(['type-story', 'type-spike'])} />);
     expect(getComputedStyle(strip()).flexWrap).toBe('nowrap');
-    expect(getComputedStyle(chipsOf()).flexWrap).toBe('nowrap');
+    expect(chipsOf().style.maxHeight).toBe('18px');
   });
 
   itDom('keeps adding to the whole set for a many-member kind', async () => {

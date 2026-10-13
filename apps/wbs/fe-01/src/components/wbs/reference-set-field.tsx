@@ -168,6 +168,9 @@ export const REFERENCE_SET_EDGE_FADE = 'linear-gradient(to left, transparent, #0
  */
 export const REFERENCE_SET_LINE_HEIGHT = 24;
 
+/** The one chip line a resting strip shows; chips that would start a second wrap out of sight. */
+const REST_CHIP_LINE_PX = 18;
+
 /**
  * Where an open panel sits in the stack.
  *
@@ -180,8 +183,11 @@ const REFERENCE_SET_PANEL_LAYER = 10;
 
 export const REFERENCE_SET_ADD_CLASS =
   'shrink-0 border-0 bg-transparent text-xs hover:bg-[color-mix(in_oklab,var(--foreground)_7%,var(--cell-bg))] hover:text-foreground';
+// `min-w-0` so `max-w-full` holds: a flex item's automatic minimum is its
+// content, and a minimum outranks a maximum, so a long chip ran past its line
+// instead of ending in an ellipsis (review of PR #409).
 export const REFERENCE_SET_CHIP_CLASS =
-  'bg-muted inline-flex max-w-full items-center gap-0.5 rounded px-1 text-xs';
+  'bg-muted inline-flex max-w-full min-w-0 items-center gap-0.5 rounded px-1 text-xs';
 export const REFERENCE_SET_REMOVE_CLASS = 'shrink-0 border-0 bg-transparent p-0';
 /**
  * The inherited chip's ink: the own chip's box, dimmed and outlined instead of
@@ -196,7 +202,7 @@ export const REFERENCE_SET_REMOVE_CLASS = 'shrink-0 border-0 bg-transparent p-0'
  * two states.
  */
 export const REFERENCE_SET_INHERITED_CHIP_CLASS =
-  'text-muted-foreground border-muted-foreground/40 inline-flex max-w-full items-center gap-0.5 rounded border border-dashed px-1 text-xs';
+  'text-muted-foreground border-muted-foreground/40 inline-flex max-w-full min-w-0 items-center gap-0.5 rounded border border-dashed px-1 text-xs';
 
 /** One line of {@link ReferenceSetStrip}'s hover card. */
 interface ReferenceSetLine {
@@ -623,9 +629,20 @@ export function ReferenceSetStrip({
             display: 'flex',
             // The strip's rule, said again here because a `nowrap` strip holding
             // a `wrap` group is still a cell that grows a line per chip.
-            flexWrap: wrapping ? 'wrap' : 'nowrap',
+            //
+            // At rest it wraps too, into a line nobody sees (review of PR #409,
+            // F-035/F-048): the row gap pushes every chip that does not fit
+            // whole onto a second line, and `maxHeight` with the `hidden`
+            // overflow below keeps only the first. So the rest line ends on a
+            // whole chip — `Frontend ×` rather than `Frontend × Ba` — and the
+            // first chip alone may still end in an ellipsis (`max-w-full`).
+            // 18px holds a chip's 16px and the inherited chip's dashed border.
+            flexWrap: 'wrap',
             alignItems: 'center',
-            gap: 3,
+            alignContent: 'flex-start',
+            columnGap: 3,
+            rowGap: wrapping ? 3 : REST_CHIP_LINE_PX,
+            ...(wrapping ? {} : { maxHeight: REST_CHIP_LINE_PX }),
             minWidth: 0,
             maxWidth: '100%',
             /*

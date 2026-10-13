@@ -62,3 +62,14 @@ export function watchTrioFit(element: HTMLElement): void {
   watching.unobserve(element);
   watching.observe(element);
 }
+
+/**
+ * Stops measuring a box that is no longer a resting trio beside a result — a
+ * complaint, which is never quiet, or a box that holds the cell's one figure —
+ * and takes the drop off it. Without the `unobserve` the next resize would
+ * measure it again and blank a refused draft under its red fill.
+ */
+export function unwatchTrioFit(element: HTMLElement): void {
+  observer?.unobserve(element);
+  element.removeAttribute(TRIO_CLIPPED);
+}

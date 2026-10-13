@@ -24,7 +24,7 @@ import {
 } from '../plan-render-rows';
 import { READING_CORNER_PX, StepReadingCorner } from '../step-reading';
 import { column } from './column';
-import { TRIO_CLIPPED, watchTrioFit } from './trio-fit';
+import { unwatchTrioFit, watchTrioFit } from './trio-fit';
 
 function estimateReading(row: PlanRenderRow, stepId: string): EstimateReadings {
   const reading = row.readings.estimateReadings.get(stepId);
@@ -524,7 +524,7 @@ export function createEstimatesColumns({
                   }}
                   value={foldedReading(reading, step.id).combinedValue}
                   // The trio beside a drawn result is measured, and dropped
-                  // whole when it does not fit ({@link TRIO_CLIPPED}). Only
+                  // whole when it does not fit (`data-trio-clipped`). Only
                   // there: a box with no result beside it holds the cell's one
                   // figure, and a complaint is never quiet.
                   // Proof: `watchTrioFit` made a no-op, `keeps the initials whole
@@ -533,7 +533,11 @@ export function createEstimatesColumns({
                   // drawn cut`. Watched 2026-10-13.
                   onAttach={(box) => {
                     if (showsResult && problem === null) watchTrioFit(box);
-                    else box.removeAttribute(TRIO_CLIPPED);
+                    // Proof: the `unobserve` taken out of `unwatchTrioFit`,
+                    // `keeps a refused draft’s ink after a resize` in
+                    // `e2e/plan-table-review.spec.ts` failed on `Expected: not
+                    // "rgba(0, 0, 0, 0)"`. Watched 2026-10-13.
+                    else unwatchTrioFit(box);
                   }}
                   commit={(typed, baseline) =>
                     live.current.commitCombinedEstimate(row.original, step.id, typed, baseline)
@@ -564,7 +568,7 @@ export function createEstimatesColumns({
                   ref={(rolled) => {
                     if (rolled === null) return;
                     if (showsResult) watchTrioFit(rolled);
-                    else rolled.removeAttribute(TRIO_CLIPPED);
+                    else unwatchTrioFit(rolled);
                   }}
                   style={{
                     // **The leaf box's width rule, spelled the same way.**
