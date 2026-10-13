@@ -430,3 +430,25 @@ array presentation order carry no authority; all normalized saved facts do.
 The `digest <backup-file>` CLI branch validates one file read and requires no `DB_PATH` or SQLite
 connection. Existing isolated recovery commands remain compatible; shared restoration still
 refuses. Same-process host lock/container fencing is a distinct pending slice 10.2b.
+
+### D10.2 Host recovery fencing
+
+The WBS host CLI runs directly on the database host and owns the canonical
+`/home/puni1/wbs/state/deploy.lock` flock for the complete restore lifetime. It never
+launches a writer child. It retains one file read before inspecting Docker and passes
+that parsed backup to the existing recovery adapter. The CLI fixes the production database
+at `/home/puni1/wbs/data/wbs.db`; test IO supplies isolated paths and a Docker executable.
+
+A full `docker ps --all --quiet` inventory followed by inspection must contain both
+`be-01-blue` and `be-01-green`. Their unique DB_PATH must resolve through a writable bind
+mount to the same existing physical database as the host owner. Every container with a
+writable mount covering that database must be stopped, including containers outside the
+blue/green names. Missing or malformed inventory, inaccessible paths, ambiguous identity,
+inspection failure and lock contention refuse before opening the writer.
+
+Optional operation/approval IDs check persisted bindings on a read-only snapshot using the
+retained backup's canonical digest. They are diagnostic references, never asserted personal
+authority. A shared backup requires diagnostic evidence for every saved organization changed
+by shared mode or a rank, and still reaches the existing unsupported-mode refusal. Consumption,
+receipt, transactional membership recheck and shared writes remain 10.3; runtime activation
+remains 10.4. The existing container-local isolated CLI is preserved.

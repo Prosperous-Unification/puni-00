@@ -496,7 +496,7 @@ sequence`, `push failure retains durable event`, `expired replay requires snapsh
       ordinal ID ordering, lowercase SHA-256, complete rank-to-organization relation, and an offline
       `digest <backup-file>` CLI branch that requires and opens no database. Preserve the existing
       isolated `save|remove|restore` contract and shared-backup refusal.
-- [ ] 10.2b Same-process host restore entrypoint under the canonical deploy lock; inspect blue/green
+- [x] 10.2b Same-process host restore entrypoint under the canonical deploy lock; inspect blue/green
       database identity, mounts and every writable container stopped, retain one parsed backup read,
       optional operation/approval IDs for read-only binding diagnostics. Prove lock lifetime,
       process-death rollback, inspection failures and no writes on refusal. No authority assertions.
@@ -505,3 +505,14 @@ sequence`, `push failure retains durable event`, `expired replay requires snapsh
       elsewhere_changed events, receipt and consumption. Fail atomically and retry by receipt.
 - [ ] 10.4 Prove late failures, missing approvals, demotion, foreign bindings, replay and exclusion;
       update runbook, review and exact-SHA canonical gate before activating supported modes.
+
+### 10.2b implementation slices
+
+- [x] Host preflight RED: isolated restore, running colours/extra writer, missing/malformed
+      inventory, mount/DB_PATH disagreement, retained backup replacement, diagnostic bindings.
+- [x] Implement WBS host recovery owner and hardcoded production CLI; hold flock while reading,
+      inspecting, diagnosing and restoring in the same process.
+- [x] Process proofs: a rival flock refuses while inspection/SQLite writer is held; SIGKILL of
+      that owner rolls back SQLite and releases the canonical inode; a replacement caller succeeds.
+- [x] Watch production check removals fail those negatives; record proof comments and exact
+      focused checks in verify.md. Commit the isolated checkpoint for review without publishing.

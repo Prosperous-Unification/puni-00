@@ -4754,3 +4754,87 @@ focused fault runs exited 1 with failed assertions, followed by the green regres
 | Open DB_PATH in digest branch                                                                                   | Poisoned-database process case failed                                                          |
 | Require DB_PATH in digest branch                                                                                | No-database process case failed                                                                |
 | Omit projectId, organizationId, position, createdAt, updatedAt or createdBy from rank normalization, separately | Six independent fixed-byte golden failures                                                     |
+
+## Host shared-restore preflight checkpoint (10.2b, 2026-10-14)
+
+Base: exact `6030f9872ab25af4ede435207ed76fb8c27db09a` (published draft #427).
+Isolated branch: `batch-10/shared-restore-host-preflight-sol`; published #427 is untouched.
+This checkpoint closes the host preflight only. Shared consumption/receipts and runtime activation
+remain 10.3–10.4; no capability changes, personal-authority assertions or child writers were added.
+
+The host CLI owns the canonical deploy flock in the same process that retains one parsed backup,
+inspects the full Docker inventory, diagnoses optional stored references read-only, and invokes the
+existing isolated restore adapter. Both colours must physically identify the canonical host database;
+every container with a writable mount over it must be stopped. Shared backups still refuse before
+a writable opener, including a backup with valid diagnostic references.
+
+### Fresh local checks
+
+- `bun test apps/wbs/be-01/src/shared-people-host-restore.test.ts apps/wbs/be-01/src/shared-people-backup-cli.test.ts libs/wbs/adapters/store-sqlite/src/shared-people-backup.test.ts libs/wbs/adapters/store-sqlite/src/shared-people-rollback.db.test.ts`:
+  **49 pass, 1 explicit real-Docker skip, 0 fail**, 299 assertions in
+  `/tmp/shared-restore-10.2b-regression.log`. The skipped case was run separately below.
+- `WBS_HOST_RESTORE_REAL_DOCKER=1 WBS_HOST_RESTORE_PROOF_IMAGE=wbs-be-01:f8-v1 bun test apps/wbs/be-01/src/shared-people-host-restore.test.ts`:
+  **15 pass, 0 fail**, 152 assertions, `/tmp/shared-restore-10.2b-docker.log`.
+  Actual temporary blue/green containers and an additional mounted writer were created on the local
+  daemon. The third writer running refused without ranks; stopping it admitted isolated restore.
+  Exact created IDs were removed; the final Docker inventory contained only the pre-existing buildx
+  container. A label-filtered Docker wrapper isolates this test's inventory; container state and
+  mount facts are real Docker inspection, while production always requests the full inventory.
+- `bunx eslint apps/wbs/be-01/src/shared-people-host-restore{,-cli,.test}.ts libs/wbs/adapters/store-sqlite/src/shared-people-restore-diagnostics.ts`:
+  no diagnostics after building the Nx graph; `/tmp/shared-restore-10.2b-lint.log`.
+- `bunx tsc --build apps/wbs/be-01/tsconfig.json --pretty false`: no diagnostics,
+  `/tmp/shared-restore-10.2b-types.log`.
+- `bun build apps/wbs/be-01/src/shared-people-host-restore-cli.ts --target=bun --outfile=/tmp/shared-restore-10.2b-host-cli.js`:
+  281 modules bundled, 0.63 MB; `/tmp/shared-restore-10.2b-build.log`.
+- `bunx @fission-ai/openspec@1.12.0 validate share-people-across-projects --json`:
+  one change passed, zero issues; `/tmp/shared-restore-10.2b-openspec.log`.
+
+### Watched production-path faults
+
+Each mutation was restored before the final GREEN runs. Adjacent production `Proof:` comments
+name these observations. Logs use `/tmp/shared-restore-10.2b-<fault>-red.log`.
+
+| Fault removed/injected                                                                                                                              | Observed RED                                                                                                            |
+| --------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `flock`, `active-writer`                                                                                                                            | Rival admitted while actual SQLite owner held its writer; live colours/third writer restored ranks.                     |
+| `database-file`, `inventory-shape`, `required-colour`, `empty-inventory`, `inventory-complete`, `container-shape`, `container-state`, `mount-shape` | Named boundary refusal lost for directory DB, object/empty/duplicate inventory, missing colour or malformed inspection. |
+| `identity`, `db-path`, `mount-writable`, `mount-ambiguity`                                                                                          | Distinct existing DB inode, noncanonical DB_PATH, readonly/duplicate mapping admitted.                                  |
+| `inspection-exit`, `retained-read`                                                                                                                  | Exit-17 Docker refusal lost; replaced malformed backup pathname reread by writer.                                       |
+| `shared-before-writer`, `readonly-diagnostics`                                                                                                      | Valid-reference shared refusal changed journal mode from DELETE to WAL.                                                 |
+| `references`, `operation-digest`, `approval-operation`, `approval-organization`, `approval-duplicates`, `approval-complete`                         | Missing/duplicate IDs, foreign digest/operation/organization or incomplete consent lost their named diagnostic refusal. |
+| `cli-arguments`                                                                                                                                     | Missing backup, asserted actor, empty/duplicate operation flags lost usage refusal.                                     |
+| `transaction` (existing restore transaction bypassed)                                                                                               | SIGKILL left the first organization's `updated_at` committed instead of null.                                           |
+
+The process-death proof reaches the second organization's restore update, spills more than 1 MB
+of uncommitted WAL bytes from its trigger, observes a real rival flock refusal, then SIGKILLs the
+owner. Organization audit state and probe rows roll back, the same lock inode is immediately
+available, and the successor restore succeeds. A separate process proof kills the owner during a
+live Docker inspection child: the inspector remains alive while the flock is released, proving
+that the child does not inherit the writer owner's lock.
+
+### Read-only h2puni receipt and remaining host constraints
+
+Docker and SSH initially required sandbox escalation; approved read-only access succeeded.
+The bundled production CLI was transported to a temporary host file and run with a temporary
+shared diagnostic backup carrying no approval references. That backup cannot admit a writer even
+if fencing passes. Temporary host files were removed. The real canonical-lock preflight refused:
+
+`database identity differs: /be-01-blue`
+
+Fresh inspection explains the refusal: both colours configure `DB_PATH=/data/wbs.db`, but stopped
+blue binds `/srv/wbs/data` while running green binds `/home/puni1/wbs/data`. The canonical host
+file is `/home/puni1/wbs/data/wbs.db`. Logs:
+`/tmp/shared-restore-10.2b-host-refusal.log`, `/tmp/shared-restore-10.2b-host-identity.log`.
+Fresh symlink-resolved physical evidence (both paths resolve to themselves):
+
+| Colour | Running/status | DB_PATH        | Writable bind source   | Physical DB device/inode        |
+| ------ | -------------- | -------------- | ---------------------- | ------------------------------- |
+| blue   | false / exited | `/data/wbs.db` | `/srv/wbs/data`        | 2049 / 260105 (root, mode 644)  |
+| green  | true / running | `/data/wbs.db` | `/home/puni1/wbs/data` | 2049 / 422761 (puni1, mode 644) |
+
+No production container was stopped/started, no database was written and no lock contents were
+changed. An attended successful production restore remains unverified and blocked by the physical
+colour mismatch and live green writer. They require operator correction/maintenance, not bypasses.
+
+The canonical exact-SHA h2puni gate, full CI and Astra review are pending; this local checkpoint
+claims no host gate or activation. Publication is deliberately deferred until Astra review.
