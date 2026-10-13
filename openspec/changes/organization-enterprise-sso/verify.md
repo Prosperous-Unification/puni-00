@@ -75,3 +75,64 @@ the check. Dates are 2026-10-12.
 - `browser-lifecycle.mounted-process.db.test.ts` worker tests and one
   `organization-selection.controller.db.test.ts` subprocess test timed out in some intermediate
   runs under host load (also on the base); the final run above passed them.
+
+## Task 3.2 company-link completion — 2026-10-13 (WBS 010.5.7)
+
+Isolated branch `feat/sso-company-link` starts at verified remote `main`
+`860b492a14749fecc50109a7a6c37728b23c419c`. The existing backend lockout guard,
+locked membership entry, and shared sign-in/refusal presentation are retained.
+This slice completes the missing company-link action and consumes the two
+enterprise callback outcomes. The Auth0 endpoint and contract are unchanged.
+Task 4.6 remains open for Dany's live IdP proof; task 5.4 remains open for the
+orchestrator's canonical exact-SHA gate and overall verification closure.
+
+### Test-first observations
+
+The two new callback cases first failed because `OnboardingScreen` rendered no
+status for `sso_prefix_mismatch` or `sso_connection_taken`. The company component's
+eight initial cases failed against its empty scaffold. The shared refusal suite
+then failed its new slug-source case and six malformed login-path cases before
+wiring the company link. The tests pass after implementation.
+
+### Company-link failure proofs
+
+Each fault was independently injected into production code and restored after
+the named test failed. Each run exited 1 with assertion failures, rather than a
+compile or import error. Temporary logs live outside the repository.
+
+| Injected fault                                             | Production-path test that failed                                                  | Observed failures                                                                          |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Remove the pending ref admission guard                     | `prevents repeated form submissions while a request is pending`                   | 1; two requests instead of one                                                             |
+| Skip the current-sign-in choice check                      | `requires an explicit current sign-in choice before posting`                      | 1; request sent instead of choice message                                                  |
+| Skip the fresh-password check                              | `requires a fresh password for a WBS password sign-in`                            | 1; empty password sent                                                                     |
+| Retain the password when changing sign-in mode             | `posts the password with the company slug and clears it when choosing a provider` | 1; password remains on returning to password mode                                          |
+| Include password in provider mode                          | `posts only the company slug for a provider sign-in and leaves for Auth0`         | 1; request leaks an unwanted password field                                                |
+| Remove the company query validation condition              | six `refuses a malformed company login path` cases                                | 6; missing, empty, malformed, duplicate, method and reauthentication hints render the form |
+| Use `refusal.organizationId` instead of the extracted slug | `links the company slug selected by the server instead of its organization id`    | 1; wrong organization submitted                                                            |
+| Remove the shared HTTPS authorization target check         | `refuses an insecure authorization target through the fault boundary`             | 1; navigation occurs instead of the fault boundary                                         |
+
+### Commands and observed results
+
+- `BUN_TMPDIR=/tmp bun install --frozen-lockfile`: checked 1573 installs across 1447 packages, exit 0.
+- Focused Vitest command for `credential-refusal-state`, `company-sign-in-link`, `auth0-link`, `spaces-page`, `space-page`, `membership-choices`, `organization-page`, and `onboarding-screen`, with `--no-file-parallelism --maxWorkers=1`: 8 files, 82 tests passed, exit 0. This covers every shared refusal caller and the switcher regression.
+- `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck`: frontend and module typechecks passed, exit 0.
+- `NX_DAEMON=false bunx nx run wbs-fe-01:build`: 1076 modules transformed; frontend build passed, exit 0.
+- `BUN_TMPDIR=/tmp BUN_INSTALL_CACHE_DIR=/tmp/puni-sso-company-link/.bun-cache bunx @fission-ai/openspec@1.12.0 validate --all --json`: 184 items passed, 0 failed, exit 0.
+
+Nx reports its sandbox socket fallback; Vitest reports the existing Vite native
+config warning for `__dirname`. The first full frontend lint returned nonzero
+without ESLint diagnostics; focused lint exposed four fixable test-style errors
+(import order and void arrow expressions), subsequently corrected. Final lint
+and format results are recorded below before the branch is handed off.
+
+Not run by this worker: canonical host gate, full repository suite, live Auth0
+customer proof, deploy, and WBS updates. The orchestrator owns the canonical gate.
+
+Final observations after restoring all faults and correcting test style:
+
+- Focused frontend regression rerun: 8 files, 82 tests passed, exit 0.
+- `NX_DAEMON=false NX_NO_CLOUD=true bunx nx run wbs-fe-01:lint`: full frontend lint passed, exit 0 (65 seconds).
+- Focused ESLint on all six touched frontend files: exit 0.
+- `NX_DAEMON=false NX_NO_CLOUD=true bunx nx run wbs-fe-01:typecheck`: frontend and module typechecks passed again, exit 0.
+- Prettier check on all ten touched files and `git diff --check`: clean.
+- OpenSpec validation rerun after task/spec/design/verify edits: 184 passed, 0 failed, exit 0.
