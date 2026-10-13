@@ -1,0 +1,1 @@
+{"schemaVersion":1,"candidate":"37eb8482273159c6589b485940e01571f5613f70e7828f4cbce981c5294c199d","policy":"rules.puni-00.v1","allowed":false,"ruleIds":["PERF-THRESHOLD"],"findings":[],"unevaluated":[{"ruleId":"PERF-THRESHOLD","reason":"Performance config content differs from reviewed authority"}],"certifies":false}

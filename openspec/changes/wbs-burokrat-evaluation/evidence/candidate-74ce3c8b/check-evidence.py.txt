@@ -1,0 +1,25 @@
+import pathlib,json,hashlib
+folder=pathlib.Path.cwd()/'openspec/changes/wbs-burokrat-evaluation/evidence/candidate-74ce3c8b'
+identity=json.loads((folder/'identity.json').read_text())
+assert identity['candidateSha']=='74ce3c8bf3a0070b7af73198d75cdcebae385f14'
+for name,filename in [('originalPolicy','original-policy.json.txt'),('diagnosticPolicy','diagnostic-policy.json.txt'),('exploratory19ConfigPolicy','exploratory-19-configs-policy.json.txt')]:
+ assert hashlib.sha256((folder/filename).read_bytes()).hexdigest()==identity['sha256'][name],name
+verdict=json.loads((folder/'full.stdout.txt').read_text()); inventory=json.loads((folder/'inventory.json').read_text())
+assert len(verdict['ruleIds'])==14 and len(verdict['unevaluated'])==10
+assert len(verdict['findings'])==42 and verdict['allowed'] is False and verdict['certifies'] is False
+assert inventory['candidateDigest']==verdict['candidate']
+for wbs in ['090','100']:
+ projection=json.loads((folder/('wbs-'+wbs+'.json')).read_text())
+ assert projection['globalUnevaluated']==verdict['unevaluated']
+ assert projection['certifies'] is False and projection['independentScopedVerdict'] is False
+ assert projection['candidateSha']==identity['candidateSha']
+for path in folder.glob('rule-*.command.json'):
+ command=json.loads(path.read_text()); rule=command['argv'][-1]
+ stream=folder/(path.name.replace('.command.json','.stdout.txt'))
+ if not stream.exists():stream=stream.with_suffix('.json')
+ observed=json.loads(stream.read_text())
+ assert observed['ruleIds']==[rule] and observed['candidate']==verdict['candidate']
+ assert observed['certifies'] is False
+ assert observed['unevaluated']==[entry for entry in verdict['unevaluated'] if entry['ruleId']==rule]
+ assert observed['findings']==[entry for entry in verdict['findings'] if entry['ruleId']==rule]
+print('Evidence identities, policy byte digests, global refusals, counts and current per-rule parity checked.')

@@ -1,0 +1,18 @@
+{
+  "argv": [
+    "bun",
+    "apps/twilight-structure/twilight-burokrat/cli/src/cli.ts",
+    "check",
+    "committed",
+    "/home/df/wd/puni/puni-00/.worktrees/wbs-090-100-diagnostics",
+    "a61ce440dcbe0880559bc6d97e584e055cf7e23d",
+    "/tmp/wbs-burokrat-a61ce440/diagnostic-policy.json",
+    "--rule",
+    "MOD-LAYOUT"
+  ],
+  "environment": {
+    "TOOL_WIKI_TRUSTED_NODE_MODULES": "/home/df/wd/puni/puni-00/.worktrees/wbs-090-100-runtime-modules"
+  },
+  "exitCode": 0,
+  "durationSeconds": 2.4677536487579346
+}

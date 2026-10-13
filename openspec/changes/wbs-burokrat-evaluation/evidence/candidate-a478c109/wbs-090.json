@@ -1,0 +1,361 @@
+{
+  "schemaVersion": 1,
+  "kind": "projection-of-global-diagnostic",
+  "wbs": "090",
+  "candidateSha": "a478c109d13233ffb61df874adf90c23fc583e75",
+  "candidateDigest": "057b559aa29ca676c28b71dc31dad53c96b45b1c71db7632ceea94dff83417cc",
+  "policySha256": "ffc33d5b91dcfae0e622294936f732c366c501d202fc53d15c6a744d266f2690",
+  "prefixes": [
+    "apps/wbs/be-01/",
+    "apps/wbs/gw-01/",
+    "apps/wbs/mcp-01/",
+    "libs/wbs/",
+    "libs/shared/"
+  ],
+  "allowed": false,
+  "certifies": false,
+  "independentScopedVerdict": false,
+  "globalRuleInventory": [
+    {
+      "ruleId": "F1",
+      "status": "unevaluated",
+      "prerequisiteStatus": "refused",
+      "reason": "TypeScript compiler failed: Invalid module name in augmentation, module '@tanstack/table-core' cannot be found.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Property 'spokenHeading' does not exist on type 'ColumnMeta<{ rowExpandingFeature: TableFeature; expandedRowModel: (table: Table<any, any>) => () => RowModel<any, any>; }, PlanRenderRow, unknown>'.; Property 'spokenHeading' does not exist on type 'ColumnMeta<{ rowExpandingFeature: TableFeature; expandedRowModel: (table: Table<any, any>) => () => RowModel<any, any>; }, PlanRenderRow, unknown>'.; Property 'isEditable' does not exist on type 'ColumnMeta<{ rowExpandingFeature: TableFeature; expandedRowModel: (table: Table<any, any>) => () => RowModel<any, any>; }, PlanRenderRow, unknown>'.",
+      "refusalEffectCount": 0
+    },
+    {
+      "ruleId": "F7",
+      "status": "evaluated-debt",
+      "prerequisiteStatus": "evaluated",
+      "reason": null,
+      "refusalEffectCount": 0
+    },
+    {
+      "ruleId": "INV-CLASSIFY",
+      "status": "unevaluated",
+      "prerequisiteStatus": "refused",
+      "reason": "undeclared binary content at apps/website/fe-01/public/apple-touch-icon.png",
+      "refusalEffectCount": 0
+    },
+    {
+      "ruleId": "K2",
+      "status": "unevaluated",
+      "prerequisiteStatus": "refused",
+      "reason": "TypeScript compiler failed: Invalid module name in augmentation, module '@tanstack/table-core' cannot be found.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Property 'spokenHeading' does not exist on type 'ColumnMeta<{ rowExpandingFeature: TableFeature; expandedRowModel: (table: Table<any, any>) => () => RowModel<any, any>; }, PlanRenderRow, unknown>'.; Property 'spokenHeading' does not exist on type 'ColumnMeta<{ rowExpandingFeature: TableFeature; expandedRowModel: (table: Table<any, any>) => () => RowModel<any, any>; }, PlanRenderRow, unknown>'.; Property 'isEditable' does not exist on type 'ColumnMeta<{ rowExpandingFeature: TableFeature; expandedRowModel: (table: Table<any, any>) => () => RowModel<any, any>; }, PlanRenderRow, unknown>'.",
+      "refusalEffectCount": 0
+    },
+    {
+      "ruleId": "K3",
+      "status": "unevaluated",
+      "prerequisiteStatus": "refused",
+      "reason": "TypeScript compiler failed: Invalid module name in augmentation, module '@tanstack/table-core' cannot be found.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Property 'spokenHeading' does not exist on type 'ColumnMeta<{ rowExpandingFeature: TableFeature; expandedRowModel: (table: Table<any, any>) => () => RowModel<any, any>; }, PlanRenderRow, unknown>'.; Property 'spokenHeading' does not exist on type 'ColumnMeta<{ rowExpandingFeature: TableFeature; expandedRowModel: (table: Table<any, any>) => () => RowModel<any, any>; }, PlanRenderRow, unknown>'.; Property 'isEditable' does not exist on type 'ColumnMeta<{ rowExpandingFeature: TableFeature; expandedRowModel: (table: Table<any, any>) => () => RowModel<any, any>; }, PlanRenderRow, unknown>'.",
+      "refusalEffectCount": 0
+    },
+    {
+      "ruleId": "K4",
+      "status": "unevaluated",
+      "prerequisiteStatus": "refused",
+      "reason": "TypeScript compiler failed: Invalid module name in augmentation, module '@tanstack/table-core' cannot be found.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Property 'spokenHeading' does not exist on type 'ColumnMeta<{ rowExpandingFeature: TableFeature; expandedRowModel: (table: Table<any, any>) => () => RowModel<any, any>; }, PlanRenderRow, unknown>'.; Property 'spokenHeading' does not exist on type 'ColumnMeta<{ rowExpandingFeature: TableFeature; expandedRowModel: (table: Table<any, any>) => () => RowModel<any, any>; }, PlanRenderRow, unknown>'.; Property 'isEditable' does not exist on type 'ColumnMeta<{ rowExpandingFeature: TableFeature; expandedRowModel: (table: Table<any, any>) => () => RowModel<any, any>; }, PlanRenderRow, unknown>'.",
+      "refusalEffectCount": 0
+    },
+    {
+      "ruleId": "K5",
+      "status": "unevaluated",
+      "prerequisiteStatus": "refused",
+      "reason": "TypeScript compiler failed: Invalid module name in augmentation, module '@tanstack/table-core' cannot be found.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Property 'spokenHeading' does not exist on type 'ColumnMeta<{ rowExpandingFeature: TableFeature; expandedRowModel: (table: Table<any, any>) => () => RowModel<any, any>; }, PlanRenderRow, unknown>'.; Property 'spokenHeading' does not exist on type 'ColumnMeta<{ rowExpandingFeature: TableFeature; expandedRowModel: (table: Table<any, any>) => () => RowModel<any, any>; }, PlanRenderRow, unknown>'.; Property 'isEditable' does not exist on type 'ColumnMeta<{ rowExpandingFeature: TableFeature; expandedRowModel: (table: Table<any, any>) => () => RowModel<any, any>; }, PlanRenderRow, unknown>'.",
+      "refusalEffectCount": 0
+    },
+    {
+      "ruleId": "K6",
+      "status": "unevaluated",
+      "prerequisiteStatus": "refused",
+      "reason": "TypeScript compiler failed: Invalid module name in augmentation, module '@tanstack/table-core' cannot be found.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Property 'spokenHeading' does not exist on type 'ColumnMeta<{ rowExpandingFeature: TableFeature; expandedRowModel: (table: Table<any, any>) => () => RowModel<any, any>; }, PlanRenderRow, unknown>'.; Property 'spokenHeading' does not exist on type 'ColumnMeta<{ rowExpandingFeature: TableFeature; expandedRowModel: (table: Table<any, any>) => () => RowModel<any, any>; }, PlanRenderRow, unknown>'.; Property 'isEditable' does not exist on type 'ColumnMeta<{ rowExpandingFeature: TableFeature; expandedRowModel: (table: Table<any, any>) => () => RowModel<any, any>; }, PlanRenderRow, unknown>'.",
+      "refusalEffectCount": 0
+    },
+    {
+      "ruleId": "MOD-DIRECT-ENTRIES",
+      "status": "evaluated-clean",
+      "prerequisiteStatus": "evaluated",
+      "reason": null,
+      "refusalEffectCount": 0
+    },
+    {
+      "ruleId": "MOD-INDEX",
+      "status": "evaluated-clean",
+      "prerequisiteStatus": "evaluated",
+      "reason": null,
+      "refusalEffectCount": 0
+    },
+    {
+      "ruleId": "MOD-LAYOUT",
+      "status": "evaluated-debt",
+      "prerequisiteStatus": "evaluated",
+      "reason": null,
+      "refusalEffectCount": 0
+    },
+    {
+      "ruleId": "PERF-THRESHOLD",
+      "status": "unevaluated",
+      "prerequisiteStatus": "refused",
+      "reason": "Performance config content differs from reviewed authority",
+      "refusalEffectCount": 0
+    },
+    {
+      "ruleId": "REL-EXTRACT",
+      "status": "unevaluated",
+      "prerequisiteStatus": "refused",
+      "reason": "TypeScript compiler failed: Invalid module name in augmentation, module '@tanstack/table-core' cannot be found.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Property 'spokenHeading' does not exist on type 'ColumnMeta<{ rowExpandingFeature: TableFeature; expandedRowModel: (table: Table<any, any>) => () => RowModel<any, any>; }, PlanRenderRow, unknown>'.; Property 'spokenHeading' does not exist on type 'ColumnMeta<{ rowExpandingFeature: TableFeature; expandedRowModel: (table: Table<any, any>) => () => RowModel<any, any>; }, PlanRenderRow, unknown>'.; Property 'isEditable' does not exist on type 'ColumnMeta<{ rowExpandingFeature: TableFeature; expandedRowModel: (table: Table<any, any>) => () => RowModel<any, any>; }, PlanRenderRow, unknown>'.",
+      "refusalEffectCount": 0
+    },
+    {
+      "ruleId": "SPEC-SCENARIOS",
+      "status": "unevaluated",
+      "prerequisiteStatus": "refused",
+      "reason": "competing overlay operation: wbs-domain: A leaf's status folds its progress, hold, readiness and predecessors",
+      "refusalEffectCount": 0
+    }
+  ],
+  "globalUnevaluated": [
+    {
+      "ruleId": "F1",
+      "reason": "TypeScript compiler failed: Invalid module name in augmentation, module '@tanstack/table-core' cannot be found.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Property 'spokenHeading' does not exist on type 'ColumnMeta<{ rowExpandingFeature: TableFeature; expandedRowModel: (table: Table<any, any>) => () => RowModel<any, any>; }, PlanRenderRow, unknown>'.; Property 'spokenHeading' does not exist on type 'ColumnMeta<{ rowExpandingFeature: TableFeature; expandedRowModel: (table: Table<any, any>) => () => RowModel<any, any>; }, PlanRenderRow, unknown>'.; Property 'isEditable' does not exist on type 'ColumnMeta<{ rowExpandingFeature: TableFeature; expandedRowModel: (table: Table<any, any>) => () => RowModel<any, any>; }, PlanRenderRow, unknown>'."
+    },
+    {
+      "ruleId": "INV-CLASSIFY",
+      "reason": "undeclared binary content at apps/website/fe-01/public/apple-touch-icon.png"
+    },
+    {
+      "ruleId": "K2",
+      "reason": "TypeScript compiler failed: Invalid module name in augmentation, module '@tanstack/table-core' cannot be found.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Property 'spokenHeading' does not exist on type 'ColumnMeta<{ rowExpandingFeature: TableFeature; expandedRowModel: (table: Table<any, any>) => () => RowModel<any, any>; }, PlanRenderRow, unknown>'.; Property 'spokenHeading' does not exist on type 'ColumnMeta<{ rowExpandingFeature: TableFeature; expandedRowModel: (table: Table<any, any>) => () => RowModel<any, any>; }, PlanRenderRow, unknown>'.; Property 'isEditable' does not exist on type 'ColumnMeta<{ rowExpandingFeature: TableFeature; expandedRowModel: (table: Table<any, any>) => () => RowModel<any, any>; }, PlanRenderRow, unknown>'."
+    },
+    {
+      "ruleId": "K3",
+      "reason": "TypeScript compiler failed: Invalid module name in augmentation, module '@tanstack/table-core' cannot be found.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Property 'spokenHeading' does not exist on type 'ColumnMeta<{ rowExpandingFeature: TableFeature; expandedRowModel: (table: Table<any, any>) => () => RowModel<any, any>; }, PlanRenderRow, unknown>'.; Property 'spokenHeading' does not exist on type 'ColumnMeta<{ rowExpandingFeature: TableFeature; expandedRowModel: (table: Table<any, any>) => () => RowModel<any, any>; }, PlanRenderRow, unknown>'.; Property 'isEditable' does not exist on type 'ColumnMeta<{ rowExpandingFeature: TableFeature; expandedRowModel: (table: Table<any, any>) => () => RowModel<any, any>; }, PlanRenderRow, unknown>'."
+    },
+    {
+      "ruleId": "K4",
+      "reason": "TypeScript compiler failed: Invalid module name in augmentation, module '@tanstack/table-core' cannot be found.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Property 'spokenHeading' does not exist on type 'ColumnMeta<{ rowExpandingFeature: TableFeature; expandedRowModel: (table: Table<any, any>) => () => RowModel<any, any>; }, PlanRenderRow, unknown>'.; Property 'spokenHeading' does not exist on type 'ColumnMeta<{ rowExpandingFeature: TableFeature; expandedRowModel: (table: Table<any, any>) => () => RowModel<any, any>; }, PlanRenderRow, unknown>'.; Property 'isEditable' does not exist on type 'ColumnMeta<{ rowExpandingFeature: TableFeature; expandedRowModel: (table: Table<any, any>) => () => RowModel<any, any>; }, PlanRenderRow, unknown>'."
+    },
+    {
+      "ruleId": "K5",
+      "reason": "TypeScript compiler failed: Invalid module name in augmentation, module '@tanstack/table-core' cannot be found.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Property 'spokenHeading' does not exist on type 'ColumnMeta<{ rowExpandingFeature: TableFeature; expandedRowModel: (table: Table<any, any>) => () => RowModel<any, any>; }, PlanRenderRow, unknown>'.; Property 'spokenHeading' does not exist on type 'ColumnMeta<{ rowExpandingFeature: TableFeature; expandedRowModel: (table: Table<any, any>) => () => RowModel<any, any>; }, PlanRenderRow, unknown>'.; Property 'isEditable' does not exist on type 'ColumnMeta<{ rowExpandingFeature: TableFeature; expandedRowModel: (table: Table<any, any>) => () => RowModel<any, any>; }, PlanRenderRow, unknown>'."
+    },
+    {
+      "ruleId": "K6",
+      "reason": "TypeScript compiler failed: Invalid module name in augmentation, module '@tanstack/table-core' cannot be found.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Property 'spokenHeading' does not exist on type 'ColumnMeta<{ rowExpandingFeature: TableFeature; expandedRowModel: (table: Table<any, any>) => () => RowModel<any, any>; }, PlanRenderRow, unknown>'.; Property 'spokenHeading' does not exist on type 'ColumnMeta<{ rowExpandingFeature: TableFeature; expandedRowModel: (table: Table<any, any>) => () => RowModel<any, any>; }, PlanRenderRow, unknown>'.; Property 'isEditable' does not exist on type 'ColumnMeta<{ rowExpandingFeature: TableFeature; expandedRowModel: (table: Table<any, any>) => () => RowModel<any, any>; }, PlanRenderRow, unknown>'."
+    },
+    {
+      "ruleId": "PERF-THRESHOLD",
+      "reason": "Performance config content differs from reviewed authority"
+    },
+    {
+      "ruleId": "REL-EXTRACT",
+      "reason": "TypeScript compiler failed: Invalid module name in augmentation, module '@tanstack/table-core' cannot be found.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Parameter 'row' implicitly has an 'any' type.; Property 'spokenHeading' does not exist on type 'ColumnMeta<{ rowExpandingFeature: TableFeature; expandedRowModel: (table: Table<any, any>) => () => RowModel<any, any>; }, PlanRenderRow, unknown>'.; Property 'spokenHeading' does not exist on type 'ColumnMeta<{ rowExpandingFeature: TableFeature; expandedRowModel: (table: Table<any, any>) => () => RowModel<any, any>; }, PlanRenderRow, unknown>'.; Property 'isEditable' does not exist on type 'ColumnMeta<{ rowExpandingFeature: TableFeature; expandedRowModel: (table: Table<any, any>) => () => RowModel<any, any>; }, PlanRenderRow, unknown>'."
+    },
+    {
+      "ruleId": "SPEC-SCENARIOS",
+      "reason": "competing overlay operation: wbs-domain: A leaf's status folds its progress, hold, readiness and predecessors"
+    }
+  ],
+  "projectedFindings": [
+    {
+      "ruleId": "F7",
+      "path": "apps/wbs/be-01/src/controller/auth-oidc-endpoints.ts",
+      "message": "1241 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "apps/wbs/be-01/src/testing/organization-harness.ts",
+      "message": "874 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "apps/wbs/mcp-01/src/oauth.ts",
+      "message": "1299 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "libs/wbs/adapters/store-memory/src/source.ts",
+      "message": "998 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "libs/wbs/adapters/store-sqlite/src/directory.ts",
+      "message": "1831 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "libs/wbs/adapters/store-sqlite/src/domain-claim.ts",
+      "message": "847 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "libs/wbs/adapters/store-sqlite/src/optimized-schedule-cache.ts",
+      "message": "991 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "libs/wbs/adapters/store-sqlite/src/project.ts",
+      "message": "1396 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "libs/wbs/adapters/store-sqlite/src/schema.ts",
+      "message": "3421 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "libs/wbs/adapters/store-sqlite/src/work-item.ts",
+      "message": "1242 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "libs/wbs/application/conformance/src/stores/saved-plan-capture.ts",
+      "message": "882 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "libs/wbs/application/core/src/module/directory/directory.resource.ts",
+      "message": "1365 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts",
+      "message": "847 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "libs/wbs/application/core/src/module/plan-import/prepare-import.ts",
+      "message": "945 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+      "message": "7129 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "libs/wbs/application/core/src/service/command-normalizers.ts",
+      "message": "1006 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "libs/wbs/application/core/src/service/compensating.ts",
+      "message": "863 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "libs/wbs/application/core/src/testing/import-service-source-contract.ts",
+      "message": "1743 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "libs/wbs/domain/contracts/src/http/work-item-shapes.ts",
+      "message": "898 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "libs/wbs/domain/domain/src/schedule.ts",
+      "message": "3883 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "MOD-LAYOUT",
+      "path": "apps/wbs/be-01/src/service",
+      "message": "module directory declares no wiki index",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "MOD-LAYOUT",
+      "path": "apps/wbs/be-01/src/service",
+      "message": "module directory declares no contract file",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "MOD-LAYOUT",
+      "path": "libs/wbs/application/core/src/service",
+      "message": "module directory declares no wiki index",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "MOD-LAYOUT",
+      "path": "libs/wbs/application/core/src/service",
+      "message": "module directory declares no contract file",
+      "effect": "debt"
+    }
+  ],
+  "projectedFindingCounts": {
+    "F7": 20,
+    "MOD-LAYOUT": 4
+  },
+  "unimplementedObligations": [
+    {
+      "obligationId": "K1",
+      "status": "unimplemented-obligation",
+      "reason": "Exact service-kind coverage is not exposed as a registered rule; kind resolution is only a prerequisite.",
+      "implementationClaim": "No dedicated registered rule verdict; partial internal checks are not complete obligation evaluation."
+    },
+    {
+      "obligationId": "K7",
+      "status": "unimplemented-obligation",
+      "reason": "Transaction ownership is not exposed as a registered rule.",
+      "implementationClaim": "No dedicated registered rule verdict; partial internal checks are not complete obligation evaluation."
+    },
+    {
+      "obligationId": "K8",
+      "status": "unimplemented-obligation",
+      "reason": "Exclusive table/resource-module ownership is not exposed as a registered rule.",
+      "implementationClaim": "No dedicated registered rule verdict; partial internal checks are not complete obligation evaluation."
+    },
+    {
+      "obligationId": "K9",
+      "status": "unimplemented-obligation",
+      "reason": "Capability/glossary metadata completeness is not exposed as a registered rule; inventory validation is partial.",
+      "implementationClaim": "No dedicated registered rule verdict; partial internal checks are not complete obligation evaluation."
+    },
+    {
+      "obligationId": "F2",
+      "status": "unimplemented-obligation",
+      "reason": "Stable store snapshot/subscribe contract is not exposed as a registered rule.",
+      "implementationClaim": "No dedicated registered rule verdict; partial internal checks are not complete obligation evaluation."
+    },
+    {
+      "obligationId": "F3",
+      "status": "unimplemented-obligation",
+      "reason": "Application primitives/vendor UI boundary is not exposed as a registered rule.",
+      "implementationClaim": "No dedicated registered rule verdict; partial internal checks are not complete obligation evaluation."
+    },
+    {
+      "obligationId": "T1",
+      "status": "unimplemented-obligation",
+      "reason": "Full test level/module ledger obligation has no complete registered rule; test-axes 4.1 remains open.",
+      "implementationClaim": "No dedicated registered rule verdict; partial internal checks are not complete obligation evaluation."
+    },
+    {
+      "obligationId": "T2",
+      "status": "unimplemented-obligation",
+      "reason": "Both complete coverage ledgers and required coverage enforcement have no registered rule; test-axes 4.1 remains open.",
+      "implementationClaim": "No dedicated registered rule verdict; partial internal checks are not complete obligation evaluation."
+    }
+  ],
+  "overlap": "Domain and shared libraries appear in both projections; counts must not be added."
+}

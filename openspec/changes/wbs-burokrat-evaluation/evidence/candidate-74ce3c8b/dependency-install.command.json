@@ -1,0 +1,5 @@
+{
+  "argv": ["bun", "install", "--frozen-lockfile", "--ignore-scripts"],
+  "exitCode": 0,
+  "durationSeconds": 0.1826632022857666
+}
