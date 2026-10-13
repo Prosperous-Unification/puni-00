@@ -10,8 +10,10 @@ the anchor-slice reach's choice of first **estimated** slice.
 
 An unestimated slice's bar SHALL continue to be painted as a guess — its dotted
 outline and its translucent fill unchanged — and SHALL say so in words: its
-on-bar label SHALL read `no estimate` where the phrase fits legibly, and
-nothing otherwise. It SHALL NOT repeat the row's number or lead with `?`.
+on-bar label SHALL open with the row's number, as every bar label does, and
+read `<number> · no estimate` where the number and a legible start of the
+phrase fit, `no estimate` where only the phrase fits, and nothing otherwise.
+It SHALL NOT lead with `?`, and SHALL write the number at most once.
 
 #### Scenario: an unestimated item still reports no estimate
 
@@ -49,7 +51,7 @@ draws an empty track.
 With the switch on, a parent's row SHALL draw the translucent ghost of a bar
 across its projection, or a tick where that projection has no days; and an
 unestimated slice SHALL draw a bar two workdays wide,
-translucent and dashed, labelled `no estimate` to say its width is nobody's
+translucent and dashed, labelled `<number> · no estimate` to say its width is nobody's
 estimate, findable as `data-assumed`.
 
 In **both** states the row SHALL stay on the chart at its own index and the row
@@ -121,12 +123,16 @@ the stronger of its two inks, and a done bar SHALL be drawn opaque.
 At the Weeks and Months rungs, where the axis prints only Mondays, the first
 day of each month SHALL carry the month's name (`Oct 2026`) above the day
 numbers, with a boundary down the axis, the chart and the exported SVG. The
-Days rung SHALL be unchanged.
+Days axis SHALL print what it printed before.
 
 When the schedule is narrower than the chart's panel, the calendar SHALL run
 on to the panel's edge without passing it. Every bar with a positive span
 SHALL be painted at least 4px wide at every rung; its scheduled span is
-unchanged.
+unchanged. A done bar narrower than 8px SHALL NOT wear the 2px green outline
+or the tick; its accessible name still says done.
+
+A label on a bar hatched as blocked by proxy SHALL sit on a patch of the bar's
+own ground, so the hatch does not run under its glyphs.
 
 On the chart's control strip, a toggle that is off SHALL be drawn plain, never
 struck through or dashed, and a pressed toggle SHALL be drawn filled.
@@ -135,13 +141,13 @@ struck through or dashed, and a pressed toggle SHALL be drawn filled.
 
 - **GIVEN** a leaf whose two steps are both unestimated
 - **WHEN** the chart draws its two placeholders in two lanes
-- **THEN** each reads `no estimate` inside its own lane and the two labels do
-  not overlap
+- **THEN** each reads `no estimate` (after its number where that fits) inside
+  its own lane and the two labels do not overlap
 
 #### Scenario: every bar colour, light and dark
 
 - **GIVEN** bars in each of the ten person colours, the unassigned grey, a done
-  bar and a placeholder
+  bar, a placeholder and a bar hatched as blocked by proxy
 - **THEN** every label measures at least 4.5:1 on its bar in both themes
 
 #### Scenario: a quarter at Months

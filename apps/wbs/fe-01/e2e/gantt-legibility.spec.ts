@@ -29,8 +29,9 @@ const PLAN_START = '2026-09-21';
 /**
  * A plan that wears every bar colour the chart has: ten rows each on one of
  * ten people (the whole palette, handed out top-down), a row on nobody (the
- * unassigned grey), one done row, and one row nobody estimated — whose two
- * placeholders share an instant and so share their row in lanes.
+ * unassigned grey), one done row, one row nobody estimated — whose two
+ * placeholders share an instant and so share their row in lanes — and an
+ * on-hold row with a row waiting on it, hatched as blocked by proxy.
  */
 async function seedEveryBarColour(page: Page): Promise<void> {
   await page.goto('/');
@@ -66,32 +67,57 @@ async function seedEveryBarColour(page: Page): Promise<void> {
     return id;
   });
 
-  const refs = [...people.map((_, at) => `p${String(at)}`), 'nobody', 'done', 'guess'];
+  const refs = [
+    ...people.map((_, at) => `p${String(at)}`),
+    'nobody',
+    'done',
+    'guess',
+    'held',
+    'proxy',
+  ];
   const days = { optimistic: 2, realistic: 3, pessimistic: 4 };
+  const seeded = await jsonSend<{ results: { ref?: string; id?: string }[] }>(
+    page,
+    'POST',
+    `/api/projects/${projectId}/commands`,
+    {
+      commands: [
+        ...refs.map((ref, at) => ({
+          kind: 'createWorkItem',
+          ref,
+          parentId: null,
+          ...(at === 0 ? { afterId: null } : { afterRef: refs[at - 1] }),
+          name: `Row ${ref}`,
+        })),
+        ...refs
+          .filter((ref) => ref !== 'guess')
+          .flatMap((ref) => [
+            { kind: 'setEstimate', workItemRef: ref, stepId: dev, days },
+            { kind: 'setEstimate', workItemRef: ref, stepId: qa, days },
+          ]),
+        ...personIds.map((personId, at) => ({
+          kind: 'setAssignee',
+          workItemRef: `p${String(at)}`,
+          stepId: dev,
+          personId,
+        })),
+        { kind: 'setAssignee', workItemRef: 'done', stepId: dev, personId: personIds[0] },
+        { kind: 'setStatus', workItemRef: 'done', status: 'done', on: '2026-09-25' },
+        // Orange, a dark-ink colour: the hatch's red stripes are the worst
+        // ground a dark label can cross.
+        { kind: 'setAssignee', workItemRef: 'proxy', stepId: dev, personId: personIds[1] },
+        { kind: 'setStatus', workItemRef: 'held', status: 'on_hold' },
+      ],
+    },
+  );
+  const idOf = (ref: string): string => {
+    const id = seeded.results.find((answer) => answer.ref === ref)?.id;
+    if (id === undefined) throw new Error(`the seed answered no id for ${ref}`);
+    return id;
+  };
+  // Waiting on a held row is what hatches a bar as blocked by proxy.
   await jsonSend(page, 'POST', `/api/projects/${projectId}/commands`, {
-    commands: [
-      ...refs.map((ref, at) => ({
-        kind: 'createWorkItem',
-        ref,
-        parentId: null,
-        ...(at === 0 ? { afterId: null } : { afterRef: refs[at - 1] }),
-        name: `Row ${ref}`,
-      })),
-      ...refs
-        .filter((ref) => ref !== 'guess')
-        .flatMap((ref) => [
-          { kind: 'setEstimate', workItemRef: ref, stepId: dev, days },
-          { kind: 'setEstimate', workItemRef: ref, stepId: qa, days },
-        ]),
-      ...personIds.map((personId, at) => ({
-        kind: 'setAssignee',
-        workItemRef: `p${String(at)}`,
-        stepId: dev,
-        personId,
-      })),
-      { kind: 'setAssignee', workItemRef: 'done', stepId: dev, personId: personIds[0] },
-      { kind: 'setStatus', workItemRef: 'done', status: 'done', on: '2026-09-25' },
-    ],
+    commands: [{ kind: 'addDependency', workItemId: idOf('proxy'), predecessorId: idOf('held') }],
   });
   await page.reload();
   await page.getByRole('button', { name: 'Gantt', exact: true }).click();
@@ -147,6 +173,11 @@ async function labelContrasts(page: Page): Promise<Record<string, number>> {
       context.clearRect(0, 0, 1, 1);
       paint(groundOf(bar));
       paint(barStyle.fill, Number(barStyle.fillOpacity));
+      // A hatched bar's red stripes cross the label too: unless the label
+      // carries its own ground, measure it against a stripe, its worst case.
+      const own = label.querySelector('[data-gantt-label-ground]');
+      if (own !== null) paint(getComputedStyle(own).backgroundColor);
+      else if (bar.getAttribute('data-blocked-by-proxy') === 'true') paint('#dc2626');
       const ground = luminance(pixel());
       context.clearRect(0, 0, 1, 1);
       paint(getComputedStyle(label).color);
@@ -172,7 +203,12 @@ test.describe('Gantt legibility (ui-review 2026-10-13)', () => {
       });
       // Ten people, the unassigned grey, a done bar and a placeholder: every
       // kind of fill a label sits on.
-      expect(Object.keys(ratios).length).toBeGreaterThanOrEqual(14);
+      expect(Object.keys(ratios).length).toBeGreaterThanOrEqual(15);
+      expect(
+        await page.locator('[data-gantt-bar][data-blocked-by-proxy="true"]').count(),
+        'no hatched bar to measure',
+      ).toBeGreaterThan(0);
+      await expect(page.locator('[data-gantt-held]')).not.toHaveCount(0);
       // Proof: with `gantt-geometry.ts` as on main (tab10, a 0.35 luminance
       // threshold) and done bars at `[fill-opacity:0.75]`, this failed in both
       // schemes on the green bar's label, `rgb(44, 160, 44)` at

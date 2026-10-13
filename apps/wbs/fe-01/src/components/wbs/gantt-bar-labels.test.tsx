@@ -63,7 +63,7 @@ function barBox(sliceId: string): { top: number; bottom: number } {
  */
 const lanedRow = (): GanttPlan =>
   planOf({
-    rows: [rowAt('trim', 0, 3), rowAt('sand', 3, 6)],
+    rows: [rowAt('trim', 0, 3), rowAt('sand', 3, 6, { name: 'Sanding' })],
     slices: [
       sliceAt('trim-dev', 'trim', 0, 3),
       sliceAt('sand-plan', 'sand', 3, 3, { stepId: 'plan', estimated: false, duration: 0 }),
@@ -112,13 +112,11 @@ describe('the words on the bars (ui-review F-012, F-037)', () => {
         ).toBe(false);
       }
     }
-    // The row's number is written once on the row, by its estimated bar.
-    const sandWords = labels
-      .filter((label) => label.dataset['ganttBarLabel']?.startsWith('sand-'))
-      .map((label) => label.textContent);
-    expect(sandWords.filter((words) => words.includes('sand ·') || words === 'sand')).toHaveLength(
-      1,
-    );
+    // Each bar writes the row's number at most once: two lanes' words over
+    // each other were what read `01010.3.0606`.
+    for (const label of labels) {
+      expect(label.textContent.split('sand').length - 1, label.textContent).toBeLessThanOrEqual(1);
+    }
   });
 
   itDom('a one-day bar carries exactly one label', () => {
@@ -134,19 +132,26 @@ describe('the words on the bars (ui-review F-012, F-037)', () => {
     expect(labels[0].textContent).toBe('010');
   });
 
-  itDom('names a placeholder for what it is, and never repeats the number on it', () => {
-    // Proof: `leadOf` given back its `? · number` lead, and this failed on
-    // `expected '? · 010 · Strip' to be 'no estimate'`; watched 2026-10-13.
+  itDom('names a placeholder for what it is, and writes its number once per bar', () => {
+    // The number leads, as it does on every bar (Dany, 2026-09-13: "every
+    // title to start from the item number - and it must always be visible");
+    // the `?` is gone (ui-review F-037). Number and words where both fit,
+    // the words alone where only they do, nothing below that.
+    //
+    // Proof: on main this failed on `expected '? · 010 · KB · Strip' to be
+    // '010 · no estimate'`; with the number dropped (the first F-037 cut), on
+    // `expected 'no estimate' to be '010 · no estimate'`. Watched 2026-10-14.
     const assumed = (span: number) =>
       labelRoomFor('010', span, DAY_PX, { done: false, estimated: false });
-    expect(barText('KB', 'Strip', assumed(4))).toBe('no estimate');
+    expect(barText('KB', 'Strip', assumed(4))).toBe('010 · no estimate');
+    expect(barText(null, 'Strip', assumed(3))).toBe('010 · no estimate');
     expect(barText(null, 'Strip', assumed(2))).toBe('no estimate');
     // Too narrow for the words: nothing, and the dashed outline still says so.
     expect(barText('KB', 'Strip', assumed(1))).toBeNull();
 
     drawPlan(lanedRow());
     const placeholder = document.querySelector('[data-gantt-bar-label="sand-qa"]');
-    expect(placeholder?.textContent).toBe('no estimate');
+    expect(placeholder?.textContent).toMatch(/^(sand · )?no estimate$/);
     expect(document.body.textContent).not.toContain('? ·');
   });
 });

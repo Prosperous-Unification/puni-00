@@ -616,6 +616,17 @@ const PRIORITY_CAP_PX = 3;
 const DONE_MARK_PX = 12;
 
 /**
+ * The narrowest a done bar is drawn with its 2px green outline, in CSS pixels.
+ *
+ * At Months a one-workday done bar is 4px, and two pixels of green either side
+ * of it read as a box rather than a bar (ui-review F-026). Narrower than this,
+ * a done bar wears its own colour's 1px edge like any bar, and its accessible
+ * name and hover card still say done; the tick already needs
+ * `DONE_MARK_PX + 6`.
+ */
+const DONE_OUTLINE_MIN_PX = 8;
+
+/**
  * A dependency arrow's approach and its head, in CSS pixels — turned into the
  * user space's two units where they are used.
  *
@@ -1000,8 +1011,8 @@ function labelPadRightPx(done: boolean, drawnPx: number): number {
  * number or **is** it (Dany: "every title to start from the item number - and
  * it must always be visible"), so nothing about the label can be decided
  * without knowing how much of the box the number will take. `estimated` rides
- * with it because an assumed bar writes {@link PLACEHOLDER_WORDS} instead of
- * the number, and that is a different fit.
+ * with it because an assumed bar writes {@link PLACEHOLDER_WORDS} after the
+ * number instead of a name, and that is a different fit.
  */
 export interface LabelRoom {
   readonly px: number;
@@ -1037,12 +1048,12 @@ export function labelRoomFor(
 }
 
 /**
- * What every label on an estimated bar opens with: the row's number.
+ * What every label opens with: the row's number (Dany, 2026-09-13: "every
+ * title to start from the item number - and it must always be visible").
  *
  * An assumed bar no longer leads with `? · number` (ui-review F-037,
- * 2026-10-13): the `?` read as an error, and the number repeated what the
- * row's estimated bar beside it already says. An assumed bar says what it is
- * instead — {@link PLACEHOLDER_WORDS}, in {@link barText} — and the dashed
+ * 2026-10-13): the `?` read as an error. It keeps the number and says what it
+ * is after it — {@link PLACEHOLDER_WORDS}, in {@link barText} — and the dashed
  * translucent outline ({@link ASSUMED_BAR_CLASSES}) still says "a guess".
  */
 function leadOf(room: LabelRoom): string {
@@ -1050,9 +1061,8 @@ function leadOf(room: LabelRoom): string {
 }
 
 /**
- * What a placeholder bar writes on itself: the fact that nobody estimated it,
- * once, and nothing else — not the row number, which the label column and the
- * row's estimated bars carry, and not the assignee, whom the fill names.
+ * What a placeholder bar writes after its number: the fact that nobody
+ * estimated it — never a `?`, and not the assignee, whom the fill names.
  */
 const PLACEHOLDER_WORDS = 'no estimate';
 
@@ -1453,8 +1463,9 @@ export function poolLabelFor(
  * 3. `lead` alone where only the lead fits — nothing follows, so no mark is
  *    drawn and nothing eats into it.
  *
- * An assumed bar is none of these: it writes {@link PLACEHOLDER_WORDS} where
- * enough of the phrase fits to read, and nothing otherwise (ui-review F-037).
+ * An assumed bar writes `number · `{@link PLACEHOLDER_WORDS} where the number
+ * and a legible start of the phrase fit, the phrase alone where only that
+ * fits, and nothing otherwise (ui-review F-037).
  *
  * And nothing where the number itself does not fit: half a number is the
  * misreading this exists to remove, and a label box over a 5px bar is a stray
@@ -1474,9 +1485,17 @@ export function poolLabelFor(
  */
 export function barText(who: string | null, name: string, room: LabelRoom): string | null {
   if (!room.estimated) {
-    return room.px >= PLACEHOLDER_LEGIBLE_CHARS * LABEL_CHAR_PX + ELLIPSIS_PX
-      ? PLACEHOLDER_WORDS
-      : null;
+    // Number first, as on every bar; the words may crop, the number may not.
+    // Proof: the number arm removed (the first F-037 cut), and `names a
+    // placeholder for what it is, and writes its number once per bar` failed
+    // on `expected 'no estimate' to be '010 · no estimate'`; watched
+    // 2026-10-14.
+    const legiblePx = PLACEHOLDER_LEGIBLE_CHARS * LABEL_CHAR_PX + ELLIPSIS_PX;
+    const leadPx = (room.number.length + LABEL_SEPARATOR.length) * LABEL_CHAR_PX;
+    if (room.px >= leadPx + legiblePx) {
+      return [room.number, PLACEHOLDER_WORDS].join(LABEL_SEPARATOR);
+    }
+    return room.px >= legiblePx ? PLACEHOLDER_WORDS : null;
   }
   const lead = leadOf(room);
   const words = nameWords(name);
@@ -5394,6 +5413,9 @@ export function GanttRenderer({
 
         {drawnBars.map(({ bar, x, width }) => {
           const surface = placeBarSurface(x, width, rung);
+          // The green done outline only where it frames a bar — see
+          // {@link DONE_OUTLINE_MIN_PX}.
+          const doneOutlined = bar.done && surface.width * dayPx >= DONE_OUTLINE_MIN_PX;
           const middle = bar.rowIndex + BAR_INSET + ((bar.lane + 0.5) * BAR_HEIGHT) / bar.lanes;
           const hitHeight = Math.max(BAR_HEIGHT / bar.lanes, 18 / ROW_PX);
           const hoverMark = (pointer: ReactPointerEvent<SVGGElement>): void => {
@@ -5606,16 +5628,23 @@ export function GanttRenderer({
                 // A blocked bar wears the blocked red as its outline, the done
                 // bar's green's way (`add-work-item-statuses`).
                 stroke={
-                  bar.done
+                  doneOutlined
                     ? DONE_BAR_STROKE
-                    : bar.stop === 'blocked'
-                      ? BLOCKED_STROKE
-                      : bar.critical
-                        ? undefined
-                        : bar.personColor
+                    : bar.done
+                      ? bar.personColor
+                      : bar.stop === 'blocked'
+                        ? BLOCKED_STROKE
+                        : bar.critical
+                          ? undefined
+                          : bar.personColor
                 }
                 className={cn(
-                  barClasses(bar.critical, bar.estimated, bar.done, bar.stop === 'blocked'),
+                  barClasses(
+                    bar.critical && !bar.done,
+                    bar.estimated,
+                    doneOutlined,
+                    bar.stop === 'blocked',
+                  ),
                   'data-[dependency-lit=true]:stroke-foreground data-[dependency-lit=true]:[stroke-width:2]',
                 )}
                 vectorEffect="non-scaling-stroke"
@@ -5886,8 +5915,8 @@ export function GanttRenderer({
             */}
         {drawnBars.map(({ bar, x, width }) => {
           // The row's number first, then who is on the bar, then its name —
-          // see {@link barText}; an unestimated bar says `no estimate`
-          // instead ({@link PLACEHOLDER_WORDS}). The room is the **drawn**
+          // see {@link barText}; an unestimated bar says `number · no
+          // estimate` ({@link PLACEHOLDER_WORDS}). The room is the **drawn**
           // width, weekend cells included: a bar stretched over a Saturday has
           // those pixels to write in. The name is cropped by the box, not the
           // string. Nobody named and a team on the row: the bar says whose
@@ -5938,7 +5967,28 @@ export function GanttRenderer({
                 paddingRight: labelPadRightPx(bar.done, width * dayPx),
               }}
             >
-              {shown}
+              {bar.stop === 'blocked_by_proxy' ? (
+                // The hatch's red stripes run across the whole bar, and a dark
+                // label crossing them fell to 3.70:1 against a stripe. The
+                // words sit on a patch of the bar's own fill instead, so the
+                // ink is read against the colour `inkOn` chose it for, and
+                // the hatch shows everywhere else on the bar.
+                //
+                // Proof: without this ground, `every bar label clears 4.5:1
+                // on its bar` failed in both schemes on the hatched orange
+                // bar at 3.6966327586007055; watched 2026-10-14.
+                // An assumed bar's words are the page's ink, so their patch
+                // is the page's ground.
+                <span
+                  data-gantt-label-ground
+                  className={cn('rounded-sm px-0.5', bar.estimated ? '' : 'bg-background')}
+                  style={bar.estimated ? { backgroundColor: bar.personColor } : undefined}
+                >
+                  {shown}
+                </span>
+              ) : (
+                shown
+              )}
             </span>
           );
         })}

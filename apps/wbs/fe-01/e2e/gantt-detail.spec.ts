@@ -84,7 +84,8 @@ test.describe('what the chart’s detail switch hides, in a browser', () => {
     });
     expect(painted.dash, 'the assumed bar is not dashed').not.toBe('none');
     expect(Number(painted.fill)).toBeLessThan(1);
-    // `no estimate` since ui-review F-037, where it used to lead with `?`.
+    // `number · no estimate` (or `no estimate` on a narrow bar) since
+    // ui-review F-037, where it used to lead with `?`.
     await expect(
       page.locator('[data-gantt-bar-label]').filter({ hasText: 'no estimate' }),
     ).not.toHaveCount(0);

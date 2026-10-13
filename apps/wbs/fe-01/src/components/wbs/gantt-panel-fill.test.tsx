@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 
 import { MONDAY_START, planOf, pointedAtRow, rowAt, sliceAt } from './gantt-fixtures';
+import { DONE_BAR_STROKE } from './gantt-geometry';
 import { CHART_PAD_PX, GanttPanel, LABEL_COLUMN_PX } from './gantt-panel';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
@@ -68,5 +69,43 @@ describe('a short plan at a coarse rung (ui-review F-026)', () => {
     // Proof: the 4px floor scoped back to sub-day rungs, and this failed on
     // `expected 1 to be greater than or equal to 4`; watched 2026-10-13.
     expect(Number(bar?.getAttribute('width')) * 4).toBeGreaterThanOrEqual(4);
+  });
+
+  itDom('draws a done sliver as a bar, not as a green box with a tick', () => {
+    // At Months a one-workday done bar is 4px, and its 2px green outline made
+    // it a box wider than the bar inside it (ui-review F-026). Below 8px the
+    // done bar wears its own colour's 1px edge and no tick; its accessible
+    // name still says done.
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [
+            rowAt('wide', 0, 10, { status: 'done', factEndStop: 10 }),
+            rowAt('tiny', 10, 11, { status: 'done', factEndStop: 11 }),
+          ],
+          slices: [sliceAt('wide-dev', 'wide', 0, 10), sliceAt('tiny-dev', 'tiny', 10, 11)],
+        })}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        dayPx={4}
+        onPickDayPx={() => undefined}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointed={pointedAtRow(null)}
+      />,
+    );
+    const tiny = document.querySelector('[data-gantt-bar="tiny-dev"]');
+    const wide = document.querySelector('[data-gantt-bar="wide-dev"]');
+    // Proof: the width floor removed, and this failed on `expected '#16a34a'
+    // not to be '#16a34a'`; watched 2026-10-14.
+    expect(tiny?.getAttribute('stroke')).not.toBe(DONE_BAR_STROKE);
+    expect((tiny?.getAttribute('class') ?? '').split(' ')).not.toContain('[stroke-width:2]');
+    expect(tiny?.getAttribute('aria-label') ?? '').toMatch(/done/i);
+    expect(document.querySelector('[data-done-mark="tiny-dev"]')).toBeNull();
+    // A wide done bar keeps the outline and the tick.
+    expect(wide?.getAttribute('stroke')).toBe(DONE_BAR_STROKE);
+    expect(document.querySelector('[data-done-mark="wide-dev"]')).not.toBeNull();
   });
 });

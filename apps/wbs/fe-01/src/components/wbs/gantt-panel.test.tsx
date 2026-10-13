@@ -1194,8 +1194,8 @@ describe('the chart is drawn in calendar days', () => {
     // _"with details disabled you still have to show the unestimated slices"_.
     expect(barFor('sand-dev')).not.toBeNull();
     expect(document.querySelectorAll('[data-assumed]')).toHaveLength(1);
-    expect(document.querySelector('[data-gantt-bar-label="sand-dev"]')?.textContent).toBe(
-      'no estimate',
+    expect(document.querySelector('[data-gantt-bar-label="sand-dev"]')?.textContent).toMatch(
+      /^(sand · )?no estimate$/,
     );
     // Two bars on a two-slice chart, counted rather than named: the count is
     // what would fall to 1 if the switch started hiding these again.
@@ -1223,8 +1223,8 @@ describe('the chart is drawn in calendar days', () => {
     expect(Math.floor(assumed.y)).toBe(1);
     expect(barFor('sand-dev')?.getAttribute('data-assumed')).toBe('true');
     expect(barFor('sand-dev')?.getAttribute('class')).toContain('[fill-opacity:0.35]');
-    expect(document.querySelector('[data-gantt-bar-label="sand-dev"]')?.textContent).toBe(
-      'no estimate',
+    expect(document.querySelector('[data-gantt-bar-label="sand-dev"]')?.textContent).toMatch(
+      /^(sand · )?no estimate$/,
     );
     // And it says so in words as well as in paint: the width is a guess, and
     // the sentence that says so is a line of its own rather than a word tucked
@@ -1365,8 +1365,8 @@ describe('the chart is drawn in calendar days', () => {
     expect(bar?.getAttribute('data-assumed')).toBe('true');
     expect(bar?.getAttribute('class')).toContain('[fill-opacity:0.35]');
     expect(bar?.getAttribute('class')).toContain('stroke-dasharray');
-    expect(document.querySelector('[data-gantt-bar-label="sand-dev"]')?.textContent).toBe(
-      'no estimate',
+    expect(document.querySelector('[data-gantt-bar-label="sand-dev"]')?.textContent).toMatch(
+      /^(sand · )?no estimate$/,
     );
     // In words as well as in paint: the sentence names the guess, the span it
     // is drawn across, and that the schedule does not spend it.
@@ -3270,12 +3270,12 @@ describe('the words on the bars are HTML over the chart', () => {
     ).toBe('010 · Strip');
   });
 
-  itDom('writes on an assumed bar only that nobody estimated it', () => {
-    // The `?` lead (Dany, 2026-09-13) read as an error and repeated the number
-    // the row's estimated bar already carries (ui-review F-037, 2026-10-13).
-    // Four and two workdays hold the phrase; one holds too little of it to
-    // read, and the dashed outline is what still says "a guess".
-    expect(barText('KB', 'Strip', assumedRoomAt(4, '010'))).toBe('no estimate');
+  itDom('writes on an assumed bar its number and that nobody estimated it', () => {
+    // The `?` lead read as an error (ui-review F-037, 2026-10-13); the number
+    // stays first, by the 2026-09-13 rule every bar label keeps. Four
+    // workdays hold both; two hold only the phrase; one holds too little of
+    // it to read, and the dashed outline is what still says "a guess".
+    expect(barText('KB', 'Strip', assumedRoomAt(4, '010'))).toBe('010 · no estimate');
     expect(barText('KB', 'Strip', assumedRoomAt(2, '010'))).toBe('no estimate');
     expect(barText(null, 'Strip', assumedRoomAt(2, '010'))).toBe('no estimate');
     expect(barText('KB', 'Strip', assumedRoomAt(1, '010'))).toBeNull();

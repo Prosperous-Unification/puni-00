@@ -14,7 +14,9 @@ read as disabled (F-013).
 
 ## What Changes
 
-- Labels take their own lane; placeholders say `no estimate`.
+- Labels take their own lane; placeholders say `<number> · no estimate`.
+- A hatched bar's label sits on its own fill; done slivers under 8px drop the
+  green outline and tick.
 - Four palette entries move along OKLab lightness; the ink is the stronger of
   two; done bars are opaque.
 - Compressed rungs name months at their first day, with boundaries.
@@ -24,9 +26,11 @@ read as disabled (F-013).
 
 ## Non-goals
 
-No change to scheduling, dates, the Days axis, or any API.
+No change to scheduling, dates or any API. The Days axis prints as before;
+the panel-fill horizon applies at every rung, Days included.
 
 ## Constraints
 
-The `?` lead was Dany's 2026-09-13 choice; the review's F-037 supersedes it
-(lane assumption recorded in the lane record).
+Dany's 2026-09-13 rule (commit 755f8213e): every bar title starts from the
+item number and it must always be visible. F-037 removes the `?` lead only;
+the number is kept, first, on placeholders as on every other bar.

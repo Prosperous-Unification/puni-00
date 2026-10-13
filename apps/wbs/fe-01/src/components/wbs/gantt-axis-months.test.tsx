@@ -1,4 +1,4 @@
-import { cleanup } from '@testing-library/react';
+import { cleanup, fireEvent } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
@@ -71,5 +71,46 @@ describe('month names on a compressed axis (ui-review F-023)', () => {
     drawAt(28);
     expect(monthWordsOnAxis()).toEqual([]);
     expect(document.querySelector('[data-gantt-month-boundary]')).toBeNull();
+  });
+
+  itDom('carries the month names and boundaries into the downloaded SVG', async () => {
+    const blobs: Blob[] = [];
+    const urls = URL as unknown as {
+      createObjectURL: (blob: Blob) => string;
+      revokeObjectURL: (url: string) => void;
+    };
+    urls.createObjectURL = (blob: Blob) => {
+      blobs.push(blob);
+      return `blob:gantt-${String(blobs.length)}`;
+    };
+    urls.revokeObjectURL = () => undefined;
+    HTMLAnchorElement.prototype.click = () => undefined;
+    try {
+      drawAt(12);
+      const button = document.querySelector('[data-gantt-svg-download]');
+      if (!(button instanceof HTMLElement)) throw new Error('no download control on the panel');
+      fireEvent.click(button);
+      const text = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (typeof reader.result === 'string') resolve(reader.result);
+          else reject(new Error('the downloaded blob read back as something other than text'));
+        };
+        reader.readAsText(blobs[0]);
+      });
+      const doc = new DOMParser().parseFromString(text, 'image/svg+xml');
+      const words = [...doc.querySelectorAll('text')].map((word) => word.textContent);
+      // Proof: the export's month arm removed (`axisMonthWords` unused there),
+      // and this failed on `expected [ 'Sep 2026', 'hull - hull', …(83) ] to
+      // include 'Oct 2026'`; watched
+      // 2026-10-14.
+      expect(words).toContain('Oct 2026');
+      // The boundary down the body travels in the cloned chart.
+      expect(doc.querySelector('[data-gantt-month-boundary="2026-11-01"]')).not.toBeNull();
+    } finally {
+      Reflect.deleteProperty(URL, 'createObjectURL');
+      Reflect.deleteProperty(URL, 'revokeObjectURL');
+      Reflect.deleteProperty(HTMLAnchorElement.prototype, 'click');
+    }
   });
 });
