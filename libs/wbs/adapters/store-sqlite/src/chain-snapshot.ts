@@ -412,6 +412,8 @@ async function readLiveAggregateIn(
         steps: await projects.stepsOf(project.id),
         workItems: await new WorkItemRepository(db, OPEN).listByProject(project.id),
         attempts: await new StepNodeAttemptRepository(db, OPEN).listByProject(project.id),
+        // Proof: replacing only this aggregate capture with [] failed
+        // `captures persisted blockage facts in the aggregate entry`; watched 2026-10-13.
         blockages: await new StepBlockageRepository(db, OPEN).listByProject(project.id),
         seq: await new DrizzleEventLogStore(db, OPEN).latestSeq(`project:${project.id}`),
       },

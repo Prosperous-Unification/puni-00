@@ -686,12 +686,30 @@ describe('persisted step blockage on the live work-item read', () => {
         await populate();
         h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
       }
+      const created = await batch([
+        { kind: 'createWorkItem', parentId: null, afterId: strip, name: 'Successor' },
+      ]);
+      if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
+      const successor = (created.body as { results?: { id?: string }[] }).results?.[0]?.id;
+      if (successor === undefined) throw new Error('missing successor');
       const estimated = await batch([
         {
           kind: 'setEstimate',
           workItemId: strip,
           stepId: dev,
           days: { optimistic: 1, realistic: 2, pessimistic: 3 },
+        },
+        {
+          kind: 'setEstimate',
+          workItemId: successor,
+          stepId: dev,
+          days: { optimistic: 1, realistic: 2, pessimistic: 3 },
+        },
+        {
+          kind: 'addTypedDependency',
+          predecessor: { scope: 'node', workItemId: strip, stepId: dev },
+          successor: { scope: 'node', workItemId: successor, stepId: dev },
+          type: 'FS',
         },
       ]);
       expect(estimated.status).toBe(200);
@@ -731,7 +749,7 @@ describe('persisted step blockage on the live work-item read', () => {
           };
         };
         const baseline = await capture();
-        expect(baseline.tree.slices.length).toBeGreaterThan(0);
+        expect(baseline.tree.slices.length).toBeGreaterThan(1);
         h.sqlite.run(
           'INSERT INTO step_blockage (work_item_id, step_id, blocked_at) VALUES (?, ?, ?)',
           [strip, dev, 123456],
@@ -739,6 +757,9 @@ describe('persisted step blockage on the live work-item read', () => {
         const blocked = await capture();
         expect(blocked.tree.workItems.find((row) => row.id === strip)?.nodeReadings[dev]).toBe(
           'blocked',
+        );
+        expect(blocked.tree.workItems.find((row) => row.id === successor)?.nodeReadings[dev]).toBe(
+          'blocked_by_proxy',
         );
         h.sqlite.run('DELETE FROM step_blockage WHERE work_item_id = ? AND step_id = ?', [
           strip,
