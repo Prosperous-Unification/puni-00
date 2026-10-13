@@ -169,3 +169,11 @@ None of this activates anything. The routes are inert until organization activat
 
 1. **Decided (Fable A29, 2026-10-11):** enforcement trusts `{strategy}|{connection}|` only after a super-admin's routed proof sign-in has returned that prefix, as designed here. The switch to an Auth0 post-login Action adding a connection claim is triggered only when a proof sign-in returns a subject with no connection name (scenario "Proof sign-in without a connection name" in `organization-sso`). Configuring that Action is Dany-only, because it is a tenant change.
 2. Does the first customer's IdP need SCIM `PUT` or discovery endpoints? Task 4.6 answers this against Dany's test IdP tenant.
+
+### Browser company-link action (task 3.2)
+
+The shared credential-refusal state owns the server-selected login target. For `sso_required` it validates that target, extracts exactly one valid `organization` slug without competing login hints, and gives the slug to `CompanySignInLink`. It never derives the slug from `organizationId`. The original sign-in anchor retains the whole server URL.
+
+`/api/auth/me` deliberately exposes no credential kind. The form therefore asks whether the current sign-in used an identity provider or a WBS password. Provider mode sends `{organization}`; password mode sends `{organization,password}` after fresh entry. The existing link endpoint verifies the current credential and the choice. An immediate ref blocks duplicate form submissions while awaiting the response and navigation. Mode changes clear the entered password. Shared Auth0 response handling validates the HTTPS target and renders typed refusals, including 429, or transport failure. An unexpected trusted answer reaches the fault boundary.
+
+The link callback remains separate from sign-in. Its existing `auth_link` outcome is displayed and consumed by `OnboardingScreen`, with company-specific copy for prefix mismatch and a taken connection. No client state grants organization access or upgrades the authenticating credential after a link.
