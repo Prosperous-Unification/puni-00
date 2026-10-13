@@ -624,6 +624,30 @@
       "id": "TEST-AXES-056",
       "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
       "title": "Invalid active source parsing refuses inventory"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-057",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Stable Performance publication is a noncertifying observation"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-058",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Invalid Performance publication refuses inspection"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-059",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Semantic Performance conflicts refuse despite matching digests"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-060",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Performance publication changes during inspection"
     }
   ]
 }

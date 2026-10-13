@@ -290,3 +290,5 @@ export function compareThreshold(input: {
     ? input.observation <= input.threshold
     : input.observation >= input.threshold;
 }
+
+export { decodePlaywrightReport, performanceAttachmentName } from './performance-playwright';

@@ -19,11 +19,11 @@ import {
   compareThreshold,
   decodePerformanceCases,
   decodePerformanceSelectionEnvironment,
+  decodePlaywrightReport,
   digestPerformanceDeclaration,
 } from '@shared/test-evidence';
 import { dlopen } from 'bun:ffi';
 
-import { decodePlaywrightReport } from './performance-playwright';
 import {
   createPerformanceProcessOwner,
   type PerformanceProcessOwner,

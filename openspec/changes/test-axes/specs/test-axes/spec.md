@@ -450,3 +450,31 @@ The committed `inspect-spec-sources` diagnostic SHALL inventory every parsed act
 - **GIVEN** a malformed active requirement or rename pair, absent committed object, unreadable selected blob or invalid UTF-8
 - **WHEN** the diagnostic reads or parses that source
 - **THEN** it refuses at the responsible shared reader or parser boundary without emitting an inventory
+
+### Requirement: Performance publication inspection reconciles immutable evidence
+
+The read-only `inspect-performance` command SHALL bind a current-success publication to an exact full committed SHA and external policy. It SHALL validate exact identities, normalized regular paths and artifact digests, independently decode discovery and execution through the shared collector parser, reconcile exact measured cases with committed declarations and policy, recompute thresholds, and reconcile normalized JUnit. It SHALL reread the pointer and refuse a changed publication. Its deterministic complete-payload observation digest SHALL bind authentication absent and `certifies:false`. Historical failures SHALL remain diagnostics and SHALL NOT become success publications.
+
+#### Scenario: [TEST-AXES-057] Stable Performance publication is a noncertifying observation
+
+- **GIVEN** a stable passing publication bound to committed sources and external policy
+- **WHEN** the production command inspects it despite staged replacements
+- **THEN** it emits deterministic observations binding exact source and artifact identities with authentication absent and certifies false
+
+#### Scenario: [TEST-AXES-058] Invalid Performance publication refuses inspection
+
+- **GIVEN** foreign identities, missing or unreadable files, malformed encodings, unsafe paths, symlinks, special files or altered artifact digests
+- **WHEN** the production command inspects the current pointer
+- **THEN** it refuses at the responsible boundary
+
+#### Scenario: [TEST-AXES-059] Semantic Performance conflicts refuse despite matching digests
+
+- **GIVEN** duplicate, missing, extra or disagreeing raw cases, conflicting evidence, changed thresholds, skipped or failed execution, breached thresholds or forged JUnit semantics with updated digests
+- **WHEN** the production command independently reconciles the publication
+- **THEN** it refuses without emitting an observation
+
+#### Scenario: [TEST-AXES-060] Performance publication changes during inspection
+
+- **GIVEN** a publication that changes its current pointer after bundle capture
+- **WHEN** inspection rereads that pointer
+- **THEN** it refuses the changed publication
