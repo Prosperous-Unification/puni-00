@@ -193,7 +193,11 @@ export function inspectLevelFacts(repository: string, revision: string, authorit
       (target.inputs?.length === 3 && scope.projectRoot !== 'libs/wbs/adapters/store-sqlite')
     )
       throw new Error('level facts Conformance target is unsupported');
-    const pathPattern = '(?:[A-Za-z0-9_][A-Za-z0-9._-]*/)*[A-Za-z0-9_][A-Za-z0-9._-]*\\.test\\.ts';
+    // Proof: restoring bare-filter parsing and literal binding let [TEST-AXES-083]'s
+    // nested-decoy case emit incomplete facts. Removing prefix normalization failed
+    // [TEST-AXES-081]'s successful literal-source inspection assertion.
+    const pathPattern =
+      '\\./(?:[A-Za-z0-9_][A-Za-z0-9._-]*/)*[A-Za-z0-9_][A-Za-z0-9._-]*\\.test\\.ts';
     const commandPattern = new RegExp(
       `^bun test (${pathPattern}(?: ${pathPattern})*) --timeout=[1-9][0-9]*(?![\\s\\S])`,
     );
@@ -208,7 +212,7 @@ export function inspectLevelFacts(repository: string, revision: string, authorit
     // Proof: removing this sort reversed the two committed overlaps and failed [TEST-AXES-081].
     const files = selectors
       .split(' ')
-      .map((path) => `${scope.projectRoot}/${path}`)
+      .map((path) => `${scope.projectRoot}/${path.slice(2)}`)
       .sort(compareCanonicalText);
     // Proof: removing this comparison let duplicate selectors emit facts in [TEST-AXES-083].
     if (new Set(files).size !== files.length)

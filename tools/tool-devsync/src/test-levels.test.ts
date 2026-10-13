@@ -1864,3 +1864,11 @@ describe('the report a declared level target wrote', () => {
     }).toThrow('did not collect src/other.test.ts');
   });
 });
+
+it('normalizes explicit Conformance operands to project-relative source identity', () => {
+  const files = conformanceFilesIn(
+    'bun test ./src/testing/source-conformance.test.ts --timeout=10000',
+  );
+  expect(files).toEqual(['src/testing/source-conformance.test.ts']);
+  expect(levelOf('src/testing/source-conformance.test.ts', files)).toBe('conformance');
+});

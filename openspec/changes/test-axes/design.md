@@ -118,7 +118,7 @@ external assertion, included in the authority byte digest, not an inference from
 or a B3 procedure inventory. Missing Manual, a committed/nonempty variant or unknown state
 refuses. `conformance` and `architecture` are either explicit reviewed-empty for this scope or
 committed sources. Conformance names the pinned manifest's `test:conformance` target; the only
-supported command form is exact `bun test <one-or-more canonical project-relative .test.ts paths>
+supported command form is exact `bun test <one-or-more ./canonical-project-relative.test.ts paths>
 --timeout=<positive decimal integer>` in an `nx:run-commands` envelope with exact project cwd,
 `forwardAllArgs:false`, no task dependencies (`dependsOn`), config or environment overrides.
 The target and options have closed keys. The only optional target keys are `cache:false` and
@@ -129,6 +129,11 @@ fixtures. These input tuples are dependency metadata, not test selectors; no dri
 read or added to source membership. Command-selected tests alone form the complete Conformance
 source set. Canonical selectors use ASCII letters, digits, underscore, period and hyphen,
 with every segment beginning with a letter, digit or underscore, and end in `.test.ts`.
+Each operand requires exactly one literal `./` prefix, which alone is stripped for selected
+Git identity. Bare operands are Bun path filters and refuse: a file's presence does not prove
+the absence of matching nested paths. Both Memory and SQLite Conformance commands adopt
+explicit `./src/testing/...` operands. Devsync removes that syntactic prefix when comparing
+the same source identities; its manifest discovery assertions pin the explicit commands.
 The timeout is a nonzero decimal integer with no leading zeros. A true end constraint rejects
 all trailing input, including newlines. Globs, directories,
 shell indirection, filters, extra flags, duplicate and outside paths refuse. A present unsupported

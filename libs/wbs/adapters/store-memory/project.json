@@ -30,7 +30,7 @@
       "cache": false,
       "inputs": ["default", "^production"],
       "options": {
-        "command": "bun test src/testing/source-conformance.test.ts --timeout=10000",
+        "command": "bun test ./src/testing/source-conformance.test.ts --timeout=10000",
         "cwd": "libs/wbs/adapters/store-memory",
         "forwardAllArgs": false
       }

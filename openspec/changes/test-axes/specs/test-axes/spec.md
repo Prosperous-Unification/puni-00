@@ -637,8 +637,12 @@ and options `command`, `cwd` equal to the project root and `forwardAllArgs:false
 `["default","^production","{workspaceRoot}/apps/wbs/be-01/drizzle"]` tuple only for project
 root and cwd `libs/wbs/adapters/store-sqlite`. These inputs are dependency metadata and SHALL
 NOT select test sources. Task dependencies and other target/options keys SHALL be refused. The command SHALL be
-`bun test <path>... --timeout=<positive decimal>` with single ASCII spaces and unique safe
-project-relative `.test.ts` paths, without flags, shell syntax, globs or traversal. Every selected
+`bun test ./<path>... --timeout=<positive decimal>` with single ASCII spaces and unique safe
+project-relative `.test.ts` paths, each prefixed by exactly one literal `./`, without flags,
+shell syntax, globs or traversal. Bare Bun filter operands SHALL be refused even if an exact
+file exists. Only the required leading `./` SHALL be stripped when binding selected Git paths.
+The Memory and SQLite `test:conformance` commands SHALL use explicit `./` file operands.
+Every selected
 path SHALL be a regular selected Git blob, including paths outside the Performance fixture set.
 The observation SHALL bind every selected source tuple and emit committed Conformance path,
 digest and sorted workspace-relative files intersecting the Performance fixtures. Legitimate
@@ -651,6 +655,7 @@ Manual remains reviewed-empty and committed Architecture remains unsupported.
 - **WHEN** the facts command inspects the exact candidate despite working replacements
 - **THEN** it binds all selected source tuples and emits the sorted intersection, with absent authentication and false certification
 - **AND** selecting only tests outside the fixture set emits an explicit empty committed membership
+- **AND** an explicit file operand selects only that literal committed path despite a nested matching decoy
 
 #### Scenario: [TEST-AXES-082] Unsupported committed Conformance authority and target refuse
 
@@ -660,6 +665,6 @@ Manual remains reviewed-empty and committed Architecture remains unsupported.
 
 #### Scenario: [TEST-AXES-083] Unsafe or incomplete Conformance selection refuses
 
-- **GIVEN** a command with flags, shell syntax, globs, traversal, duplicates, whitespace variants, invalid timeout, or a selected file that is missing, nonregular or unreadable even outside the fixture intersection
+- **GIVEN** a command with bare filters (including one with an exact file and a nested matching decoy), flags, shell syntax, globs, traversal, duplicates, whitespace variants, invalid timeout, or a selected file that is missing, nonregular or unreadable even outside the fixture intersection
 - **WHEN** the facts command validates the complete committed selection
 - **THEN** it refuses by name despite a working-tree repair

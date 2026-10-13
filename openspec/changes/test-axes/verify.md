@@ -2863,3 +2863,53 @@ and printed usage, then the full invocation returned `{"unidentified":[]}`. The 
 canonical host gate, CI and publishing; none is claimed by this worker. Parent 4.1b.6,
 Architecture extraction and Tasks 2.1/2.2/4.1 remain open. No classification, source sync,
 archive, authentication or coverage credit is produced.
+
+### Astra correction: Bun filters are not explicit file operands
+
+Astra rejected local candidate `16a94b863508cb50cb97abfd1dd74566bd6113af` before publication:
+its bare `src/...test.ts` operands are Bun path filters, so treating them as complete literal
+selection can omit nested matching files. The prior scoped success and mutation receipts
+above prove the earlier checks only; they did not establish Bun's selector semantics.
+
+A bounded disposable runtime probe on Bun 1.4.2 created `src/foo.test.ts` and
+`nested/src/foo.test.ts`, each with a distinct passing title. Running
+`bun test src/foo.test.ts --timeout=1000` executed both files (two tests), while
+`bun test ./src/foo.test.ts --timeout=1000` executed only the literal file (one test).
+Receipt: `/tmp/puni-conformance-bun-selector-probe.log`. The [Bun test runner documentation](https://bun.com/docs/test)
+also distinguishes positional filters from explicit `./` or absolute file operands.
+
+Before production changes, new production CLI tests committed a literal file and a nested
+matching decoy: the bare-filter refusal assertion failed on exit zero, and the explicit-file
+acceptance assertion failed on exit one (`/tmp/puni-conformance-filter-red.log`). The devsync
+canonical identity test first failed because it returned `./src/...` rather than `src/...`
+(`/tmp/puni-conformance-devsync-red.log`). The final grammar requires exactly one leading
+`./` on every file operand and strips only that prefix when binding regular selected Git
+blobs. Bare filters, repeated prefixes and unsafe paths refuse. Both real Memory and SQLite
+`test:conformance` commands now use explicit `./src/testing/...` operands. Devsync's existing
+command-membership reader normalizes the same syntactic prefix, and its manifest discovery
+oracle pins the changed commands. No other target was changed.
+
+Watched correction faults were restored after observation:
+
+- Restoring bare-filter parsing together with its old literal binding made the nested-decoy
+  production CLI refusal fail on successful incomplete facts:
+  `/tmp/puni-conformance-r5-bare-filter.log`.
+- Removing adapter prefix normalization made explicit-file inspection fail at selected-source
+  lookup: `/tmp/puni-conformance-r5-explicit-prefix.log`.
+- Removing devsync prefix normalization made the real
+  `bun tools/tool-devsync/src/verify-test-levels-cli.ts` exit one naming
+  `wbs-store-sqlite:test aggregate members differ from declaration`:
+  `/tmp/puni-conformance-r5-devsync-prefix.log`. Restored production verification printed
+  `Verified declared test collections` and exited zero.
+
+The corrected source facts, installed executable dispatch, devsync level and workspace-target
+suites passed 142/142 with 675 assertions across four files
+(`/tmp/puni-conformance-explicit-final-tests.log`). Uncached Nx `typecheck` passed for
+`twilight-burokrat` and `tool-devsync`; changed-source ESLint passed; strict pinned OpenSpec
+1.12.0 validation returned one valid change and zero issues; scenario validation returned
+`{"unidentified":[]}`. The actual updated uncached Nx `wbs-store-memory:test:conformance`
+and `wbs-store-sqlite:test:conformance` targets each ran 73 tests with zero failures, in
+4.0 and 35.5 seconds respectively (`/tmp/puni-conformance-explicit-{memory,sqlite}.log`).
+These focused target runs remain operational and noncertifying. Final changed-file format
+and diff checks precede the correction commit. The coordinator owns final parent restacking,
+exact-head review, host gate and publishing; no push or host gate was performed here.

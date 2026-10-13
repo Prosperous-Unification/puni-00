@@ -65,7 +65,7 @@ function fixture(
             'test:conformance': {
               executor: 'nx:run-commands',
               options: {
-                command: 'bun test src/example.test.ts --timeout=1000',
+                command: 'bun test ./src/example.test.ts --timeout=1000',
                 cwd: projectRoot,
                 forwardAllArgs: false,
               },
@@ -444,7 +444,7 @@ test('[TEST-AXES-080] authority byte identity changes the digest without promoti
 });
 
 function conformanceTarget(
-  command = 'bun test e2e-performance/cells.perf.test.ts src/other.test.ts --timeout=1000',
+  command = 'bun test ./e2e-performance/cells.perf.test.ts ./src/other.test.ts --timeout=1000',
 ) {
   return {
     executor: 'nx:run-commands',
@@ -514,7 +514,7 @@ test('[TEST-AXES-081] committed Conformance binds complete selected sources and 
   expect(observationDigest).toBe(hashCanonical(payload));
   const reordered = committedConformance(
     conformanceTarget(
-      'bun test src/other.test.ts e2e-performance/cells.perf.test.ts --timeout=1000',
+      'bun test ./src/other.test.ts ./e2e-performance/cells.perf.test.ts --timeout=1000',
     ),
   );
   const second = JSON.parse((await reordered.inspectCommitted()).stdout) as ReturnType<
@@ -531,7 +531,9 @@ test('[TEST-AXES-081] committed Conformance binds complete selected sources and 
 });
 
 test('[TEST-AXES-081] committed Conformance empty intersection is explicit and optional metadata can be absent', async () => {
-  const { cache, inputs, ...target } = conformanceTarget('bun test src/other.test.ts --timeout=1');
+  const { cache, inputs, ...target } = conformanceTarget(
+    'bun test ./src/other.test.ts --timeout=1',
+  );
   const selected = committedConformance(target);
   const invocation = await selected.inspectCommitted();
   expect(invocation.exitCode).toBe(0);
@@ -602,27 +604,28 @@ test('[TEST-AXES-082] committed Conformance requires the exact supported target 
 test('[TEST-AXES-083] Conformance command rejects unsafe grammar and duplicate selectors', async () => {
   for (const command of [
     'bun test --timeout=1000',
-    'bun test src/other.test.ts --timeout=0',
-    'bun test src/other.test.ts --timeout=01',
-    'bun test src/other.test.ts --timeout=1.5',
-    'bun test src/other.test.ts --timeout=+1',
-    'bun test src/other.test.ts --timeout=1 extra',
-    'bun test src/other.test.ts --coverage --timeout=1000',
-    'bun test src/other.test.ts src/other.test.ts --timeout=1000',
+    'bun test ./src/other.test.ts --timeout=0',
+    'bun test ./src/other.test.ts --timeout=01',
+    'bun test ./src/other.test.ts --timeout=1.5',
+    'bun test ./src/other.test.ts --timeout=+1',
+    'bun test ./src/other.test.ts --timeout=1 extra',
+    'bun test ./src/other.test.ts --coverage --timeout=1000',
+    'bun test ./src/other.test.ts ./src/other.test.ts --timeout=1000',
     'bun test ../other.test.ts --timeout=1000',
-    'bun test ./src/other.test.ts --timeout=1000',
+    'bun test src/other.test.ts --timeout=1000',
+    'bun test ././src/other.test.ts --timeout=1000',
     'bun test /src/other.test.ts --timeout=1000',
-    'bun test src//other.test.ts --timeout=1000',
-    'bun test src/../other.test.ts --timeout=1000',
-    'bun test src/*.test.ts --timeout=1000',
+    'bun test ./src//other.test.ts --timeout=1000',
+    'bun test ./src/../other.test.ts --timeout=1000',
+    'bun test ./src/*.test.ts --timeout=1000',
     'bun test "src/other.test.ts" --timeout=1000',
-    'bun test src/other.test.ts;echo --timeout=1000',
-    'bun test src/$(whoami).test.ts --timeout=1000',
+    'bun test ./src/other.test.ts;echo --timeout=1000',
+    'bun test ./src/$(whoami).test.ts --timeout=1000',
     'bun test -other.test.ts --timeout=1000',
-    'bun test src/other.spec.ts --timeout=1000',
-    'bun  test src/other.test.ts --timeout=1000',
-    'bun test src/other.test.ts\t--timeout=1000',
-    'bun test src/other.test.ts --timeout=1000\n',
+    'bun test ./src/other.spec.ts --timeout=1000',
+    'bun  test ./src/other.test.ts --timeout=1000',
+    'bun test ./src/other.test.ts\t--timeout=1000',
+    'bun test ./src/other.test.ts --timeout=1000\n',
   ]) {
     const selected = committedConformance(conformanceTarget(command));
     const invocation = await selected.inspectCommitted();
@@ -691,7 +694,7 @@ test('[TEST-AXES-081] multiple committed overlaps have canonical order and uniqu
   const alphaPath = `${projectRoot}/e2e-performance/alpha.perf.test.ts`;
   const selected = committedConformance(
     conformanceTarget(
-      'bun test e2e-performance/cells.perf.test.ts src/other.test.ts e2e-performance/alpha.perf.test.ts --timeout=1000',
+      'bun test ./e2e-performance/cells.perf.test.ts ./src/other.test.ts ./e2e-performance/alpha.perf.test.ts --timeout=1000',
     ),
   );
   file(selected.repository, alphaPath, 'throw new Error("alpha candidate executed");');
@@ -740,7 +743,7 @@ test('[TEST-AXES-081] exact Memory and SQLite target envelopes preserve command-
       cache: false,
       inputs: root === sqliteRoot ? sqliteInputs : ['default', '^production'],
       options: {
-        command: `bun test ${relative} --timeout=${String(timeout)}`,
+        command: `bun test ./${relative} --timeout=${String(timeout)}`,
         cwd: root,
         forwardAllArgs: false,
       },
@@ -772,7 +775,7 @@ test('[TEST-AXES-082] SQLite dependency inputs require the exact tuple and exact
     [sqliteRoot, [...sqliteInputs, 'extra']],
     [sqliteRoot, ['default', '^production', { fileset: '{workspaceRoot}/apps/wbs/be-01/drizzle' }]],
   ] as const) {
-    const target = conformanceTarget('bun test src/other.test.ts --timeout=1000');
+    const target = conformanceTarget('bun test ./src/other.test.ts --timeout=1000');
     const selected = committedConformance(
       { ...target, inputs, options: { ...target.options, cwd: root } },
       root,
@@ -787,11 +790,46 @@ test('[TEST-AXES-082] SQLite dependency inputs require the exact tuple and exact
 test('[TEST-AXES-083] Conformance true end constraint refuses trailing newlines and suffixes', async () => {
   for (const suffix of ['\n', '\r\n', ' extra']) {
     const selected = committedConformance(
-      conformanceTarget(`bun test src/other.test.ts --timeout=1000${suffix}`),
+      conformanceTarget(`bun test ./src/other.test.ts --timeout=1000${suffix}`),
     );
     const invocation = await selected.inspectCommitted();
     expect(invocation.exitCode).toBe(1);
     expect(invocation.stdout).toBe('');
     expect(invocation.stderr).toContain('Conformance command is unsupported');
   }
+});
+
+test('[TEST-AXES-083] bare Conformance filters refuse despite an exact file and a nested matching decoy', async () => {
+  const selected = committedConformance(
+    conformanceTarget('bun test src/other.test.ts --timeout=1000'),
+  );
+  const revision = recommit(
+    selected,
+    `${projectRoot}/nested/src/other.test.ts`,
+    'throw new Error("decoy executed");',
+  );
+  selected.writeCommitted();
+  const invocation = await selected.inspect(revision);
+  expect(invocation.exitCode).toBe(1);
+  expect(invocation.stdout).toBe('');
+  expect(invocation.stderr).toContain('Conformance command is unsupported');
+});
+
+test('[TEST-AXES-081] explicit Conformance file operand binds only the literal committed path despite a nested decoy', async () => {
+  const selected = committedConformance(
+    conformanceTarget('bun test ./src/other.test.ts --timeout=1000'),
+  );
+  const revision = recommit(
+    selected,
+    `${projectRoot}/nested/src/other.test.ts`,
+    'throw new Error("decoy executed");',
+  );
+  selected.writeCommitted();
+  const invocation = await selected.inspect(revision);
+  expect(invocation.exitCode).toBe(0);
+  const observation = JSON.parse(invocation.stdout) as ReturnType<typeof inspectLevelFacts>;
+  expect(observation.sources.map((source) => source.path)).toContain(
+    `${projectRoot}/src/other.test.ts`,
+  );
+  expect(observation.sources.some((source) => source.path.includes('/nested/'))).toBe(false);
 });
