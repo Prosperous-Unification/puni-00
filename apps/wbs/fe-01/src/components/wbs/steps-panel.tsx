@@ -481,7 +481,7 @@ export function StepsPanel({
                   <div className="col-span-2 flex flex-wrap items-center gap-x-4 gap-y-2 sm:contents">
                     {/* Proof: removing the estimate-count disabled arm failed blocks the unit control over estimates; watched 2026-10-12. */}
                     <fieldset
-                      className="flex items-center gap-3 whitespace-nowrap"
+                      className="m-0 flex items-center gap-3 border-0 p-0 whitespace-nowrap"
                       title={`${String(estimateCount(step.id))} ${estimateCount(step.id) === 1 ? 'estimate' : 'estimates'}`}
                       disabled={section.busy || estimateCount(step.id) > 0}
                     >
@@ -575,7 +575,7 @@ export function StepsPanel({
                 />
               </div>
               <fieldset
-                className="col-span-2 flex items-center gap-3 whitespace-nowrap sm:col-span-1"
+                className="col-span-2 m-0 flex items-center gap-3 border-0 p-0 whitespace-nowrap sm:col-span-1"
                 disabled={section.busy}
               >
                 <legend className="sr-only">New step estimate unit</legend>
