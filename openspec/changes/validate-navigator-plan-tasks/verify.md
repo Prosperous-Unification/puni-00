@@ -80,3 +80,36 @@ canonical package build test now generates real Navigator v8 output, then invoke
 - `bunx tsc --build --force apps/twilight-structure/twilight-burokrat/cli/tsconfig.json`, scoped
   ESLint over the three changed TypeScript files, formatting, `git diff --check` and pinned
   OpenSpec validation all exited 0. Full host gate and push remain delegated to the coordinator.
+
+## Cached test input repair (2026-10-14)
+
+CI's workspace-target oracle found that the real Navigator subprocesses in the contract and
+package-build tests read outside Burokrat without a declared Nx input. The test target now
+names `apps/twilight-structure/twilight-navigator/cli/src/**/*`, covering the entrypoint,
+its transitive source modules and versioned fixtures. No check logic changed.
+
+- `BUN_TMPDIR=/tmp bun install --frozen-lockfile`: exit 0. The default temporary directory
+  was read-only; the first install exited 1 before the explicit temporary directory was set.
+- Before the repair, `bun test ./tools/tool-devsync/src/workspace-targets.test.ts
+--test-name-pattern 'names every file a suite reads from outside its own project'
+--timeout=30000`: 0 passed, 1 failed, naming Navigator's `entrypoint.ts`, `src/fixtures`
+  and `plan-export.v8.json`, matching CI. The oracle carries the adjacent observed proof.
+- After the repair, the same focused command with `NX_ISOLATE_PLUGINS=false`: 1 passed,
+  0 failed. Nx plugin isolation is disabled only in the verification environment because
+  the sandbox refused Unix sockets; the initial failing run used Nx's in-process fallback.
+- `NX_ISOLATE_PLUGINS=false bun test ./tools/tool-devsync/src/workspace-targets.test.ts
+--timeout=30000`: 22 passed, 0 failed, 80 assertions.
+- `bun test --preload ./tools/test/scratch/preload.ts --timeout=60000
+./apps/twilight-structure/twilight-navigator/cli/src
+./apps/twilight-structure/twilight-burokrat/cli/src/contracts/plan-tasks.test.ts`:
+  85 passed, 0 failed, 396 assertions across four source files.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many --targets=lint,typecheck
+--projects=twilight-navigator,tool-devsync --parallel=2`: exit 0, all four tasks executed
+  with zero cache hits.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many --targets=lint:source,typecheck
+--projects=twilight-burokrat --parallel=2`: exit 0, both tasks executed with zero cache hits.
+- Scoped Prettier check over the three changed files and `git diff --check`: exit 0 after
+  formatting this verification record.
+
+Full host gate, full repository tests, full build and the package-build suite remain with
+the coordinator; this repair changes only cache declarations and verification documentation.

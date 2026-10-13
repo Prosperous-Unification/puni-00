@@ -806,6 +806,8 @@ describe('every cached target declares what it reads', () => {
         }
       }
     }
+    // Proof: omitting Burokrat's Navigator source input failed this production oracle on
+    // entrypoint.ts, the fixtures directory and plan-export.v8.json (2026-10-14).
     expect(undeclared).toBeEmpty();
   });
 });
