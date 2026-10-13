@@ -581,6 +581,53 @@ describe('node readings on the work-item read', () => {
     });
   }
 
+  for (const mode of ['isolated', 'shared'] as const) {
+    for (const hasHold of [false, true]) {
+      it(`reads a stored dependency cycle with downstream nodes, hold=${String(hasHold)} (${mode})`, async () => {
+        if (mode === 'shared') {
+          h.close();
+          h = OrganizationHarness.openComposedWith({
+            supportedCapacityModes: ['isolated', 'shared'],
+          });
+          await populate();
+          h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
+        }
+        const other = await leaf('Other');
+        const downstream = await leaf('Downstream');
+        if (hasHold) await run([{ kind: 'setStatus', workItemId: strip, status: 'blocked' }]);
+        h.sqlite.run(
+          'INSERT INTO dependency (id, project_id, predecessor_id, successor_id) VALUES (?, ?, ?, ?), (?, ?, ?, ?), (?, ?, ?, ?)',
+          [
+            crypto.randomUUID(),
+            project,
+            strip,
+            other,
+            crypto.randomUUID(),
+            project,
+            other,
+            strip,
+            crypto.randomUUID(),
+            project,
+            other,
+            downstream,
+          ],
+        );
+        const read = await h.call('ada', 'GET', `/api/projects/${project}/work-items`);
+        expect(read.status).toBe(200);
+        const tree = read.body as {
+          scheduleError: string;
+          workItems: { id: string; nodeReadings: Readings }[];
+        };
+        expect(tree.scheduleError).toBe('cycle');
+        expect(tree.workItems).toHaveLength(3);
+        for (const row of tree.workItems) {
+          const reading = hasHold ? (row.id === strip ? 'blocked' : 'blocked_by_proxy') : 'unknown';
+          expect(row.nodeReadings).toEqual({ [dev]: reading, [qa]: reading });
+        }
+      });
+    }
+  }
+
   it('a first node is unknown', async () => {
     expect((await readingsByName()).get('Strip')).toEqual({ [dev]: 'unknown', [qa]: 'unknown' });
   });

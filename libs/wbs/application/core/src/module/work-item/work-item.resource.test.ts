@@ -501,7 +501,9 @@ describe('dependencies', () => {
     expect(a).toBeDefined();
   });
 
-  it('does not report a predecessor that is not in the project', async () => {
+  // Proof: resolveDependencyGraph's legacy endpoint guard removed made this
+  // live-tree caller resolve instead of refusing malformed state; watched 2026-10-13.
+  it('refuses a stored legacy predecessor absent from the project', async () => {
     const a = await add('Strip');
     await dependencies.add(
       {
@@ -513,9 +515,7 @@ describe('dependencies', () => {
       WROTE,
     );
 
-    const tree = await service.tree(projectId);
-
-    expect(tree?.workItems.find((w) => w.id === a)?.dependsOn).toEqual([]);
+    expect(service.tree(projectId)).rejects.toThrow(/legacy dependency names absent work item/);
   });
 
   it('reports no schedule error for a project that schedules', async () => {

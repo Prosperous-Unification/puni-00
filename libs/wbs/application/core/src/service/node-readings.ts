@@ -1,6 +1,7 @@
 import {
   formatStepNodeId,
   type Hold,
+  type NodeFacts,
   type NodeReading,
   nodeReadingOf,
   type SliceEdgeEnd,
@@ -60,7 +61,10 @@ export function nodeReadingsOf(
  * their order is bytewise and does not depend on edge insertion order.
  *
  * @throws for duplicate nodes, absent edge endpoints, absent row facts, direct
- * blockage outside the step graph or a cycle: each is malformed trusted state.
+ * blockage outside the step graph: each is malformed trusted state. Stored
+ * cycles converge over the finite root set; the schedule reports its existing
+ * cycle refusal while the plan remains readable. Write-time cycle guards remain
+ * in `DependencyGraphGuard`.
  */
 export function projectNodeReadings({
   graph,
@@ -100,20 +104,6 @@ export function projectNodeReadings({
     blockedIds.add(identity);
   }
 
-  const predecessorsOf = new Map<string, { readonly key: string; readonly isLegacy: boolean }[]>();
-  for (const edge of graph.edges) {
-    for (const endpoint of [edge.predecessor, edge.successor]) {
-      const key = formatKey(endpoint);
-      // Proof: endpoint guard removed; absent successor never traversed and
-      // the absent-successor negative did not throw; watched 2026-10-13.
-      if (!nodes.has(key)) throw new Error(`a step-node edge names ${key}, which is no step node`);
-    }
-    const into = formatKey(edge.successor);
-    predecessorsOf.set(into, [
-      ...(predecessorsOf.get(into) ?? []),
-      { key: formatKey(edge.predecessor), isLegacy: edge.provenance === 'legacy' },
-    ]);
-  }
   const stepIds = new Set(
     graph.nodes.flatMap((node) => (node.kind === 'step' ? [node.ref.stepId] : [])),
   );
@@ -134,22 +124,15 @@ export function projectNodeReadings({
   const statementOf = new Map(stated.map((said) => [formatStepNodeId(said), said.state]));
   const runningIds = new Set(running.map(formatStepNodeId));
   interface ProjectedNode {
-    readonly reading: NodeReading;
-    readonly roots: readonly BlockageRoot[];
+    readonly node: StepNodeGraphNode;
+    readonly facts: NodeFacts;
+    readonly intrinsic: NodeReading;
+    readonly roots: Map<string, BlockageRoot>;
+    readonly successors: ProjectedNode[];
+    readonly predecessors: ProjectedNode[];
   }
   const projected = new Map<string, ProjectedNode>();
-  const asking = new Set<string>();
-  const formatRoot = (root: BlockageRoot): string =>
-    root.kind === 'step' ? root.nodeId : `work-item.${root.workItemId}`;
-  const projectNode = (key: string): ProjectedNode => {
-    const known = projected.get(key);
-    if (known !== undefined) return known;
-    const node = nodes.get(key);
-    if (node === undefined) throw new Error(`a step-node edge names ${key}, which is no step node`);
-    // Proof: cycle guard removed; circle negative received Maximum call stack
-    // size exceeded instead of the named circle; watched 2026-10-13.
-    if (asking.has(key)) throw new Error(`the step-node graph runs in a circle through ${key}`);
-    asking.add(key);
+  for (const node of nodes.values()) {
     const leafId = node.kind === 'step' ? node.ref.workItemId : node.workItemId;
     const rowHold = holdOf.get(leafId);
     const rowStatus = statusOf.get(leafId);
@@ -158,16 +141,8 @@ export function projectNodeReadings({
     if (rowHold === undefined || rowStatus === undefined) {
       throw new Error(`leaf ${leafId} has a step node and no row on this plan`);
     }
-    const incoming = (predecessorsOf.get(key) ?? []).map((predecessor) => ({
-      ...predecessor,
-      projection: projectNode(predecessor.key),
-    }));
-    const roots = new Map<string, BlockageRoot>();
-    for (const predecessor of incoming) {
-      for (const root of predecessor.projection.roots) roots.set(formatRoot(root), root);
-    }
     const identity = node.kind === 'step' ? formatStepNodeId(node.ref) : null;
-    const reading = nodeReadingOf({
+    const facts: NodeFacts = {
       participation: null,
       statement:
         identity === null
@@ -180,44 +155,86 @@ export function projectNodeReadings({
       // Proof: attempt lookup replaced with false; running barrier negative
       // read blocked_by_proxy instead of in_progress; watched 2026-10-13.
       runningAttempt: identity !== null && runningIds.has(identity),
-      // Proof: OR rowStatus === blocked_by_proxy added; both live read modes
-      // incorrectly proxied a done sibling endpoint's successor; watched 2026-10-13.
-      blockedByProxy: roots.size > 0,
-      // Proof: legacy filter removed; legacy predecessor negative read
-      // waiting instead of unknown; watched 2026-10-13.
-      predecessors: incoming
-        .filter((predecessor) => !predecessor.isLegacy)
-        .map((predecessor) => predecessor.projection.reading),
-    });
-    let ownRoots: readonly BlockageRoot[] = [];
-    if (reading === 'blocked' || reading === 'on_hold') {
-      ownRoots = [
+      blockedByProxy: false,
+      predecessors: [],
+    };
+    const intrinsic = nodeReadingOf(facts);
+    const roots = new Map<string, BlockageRoot>();
+    if (intrinsic === 'blocked' || intrinsic === 'on_hold') {
+      const root: BlockageRoot =
         identity === null
           ? { kind: 'work-item', workItemId: leafId }
-          : { kind: 'step', nodeId: identity },
-      ];
-    } else if (reading === 'blocked_by_proxy') {
-      ownRoots = [...roots]
-        .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
-        .map(([, root]) => root);
+          : { kind: 'step', nodeId: identity };
+      roots.set(identity ?? `work-item.${leafId}`, root);
     }
-    asking.delete(key);
-    const projection = { reading, roots: ownRoots };
-    projected.set(key, projection);
-    return projection;
-  };
+    projected.set(keyOf(node), { node, facts, intrinsic, roots, successors: [], predecessors: [] });
+  }
+  for (const edge of graph.edges) {
+    const predecessorKey = formatKey(edge.predecessor);
+    const successorKey = formatKey(edge.successor);
+    const predecessor = projected.get(predecessorKey);
+    const successor = projected.get(successorKey);
+    // Proof: predecessor guard removed; absent-predecessor negative received
+    // a TypeError instead of the named missing-node refusal; watched 2026-10-13.
+    if (predecessor === undefined) {
+      throw new Error(`a step-node edge names ${predecessorKey}, which is no step node`);
+    }
+    // Proof: successor guard removed; absent-successor negative received
+    // a TypeError instead of the named missing-node refusal; watched 2026-10-13.
+    if (successor === undefined) {
+      throw new Error(`a step-node edge names ${successorKey}, which is no step node`);
+    }
+    predecessor.successors.push(successor);
+    // Proof: legacy filter removed; legacy predecessor negative read
+    // waiting instead of unknown; watched 2026-10-13.
+    if (edge.provenance !== 'legacy') successor.predecessors.push(predecessor);
+  }
+
+  // A stored cycle is a modeled unschedulable plan, not an unreadable one.
+  // Each root enters each silent node at most once. Requeue only after a new
+  // root, so even cyclic topology converges in at most nodes × roots additions.
+  // Intrinsic done/running/held/blocked readings never accept incoming roots.
+  // Proof: a cycle refusal reintroduced made the main tree caller throw
+  // instead of returning its readable unscheduled plan; watched 2026-10-13.
+  const pending = [...projected.values()].filter((projection) => projection.roots.size > 0);
+  for (const predecessor of pending) {
+    for (const successor of predecessor.successors) {
+      if (successor.intrinsic !== 'unknown') continue;
+      let changed = false;
+      for (const [identity, root] of predecessor.roots) {
+        // Proof: this deduplication removed; external-root silent-cycle test
+        // did not terminate within 5s and its process was killed; watched 2026-10-13.
+        if (successor.roots.has(identity)) continue;
+        successor.roots.set(identity, root);
+        changed = true;
+      }
+      // Proof: forwarding removed; direct-hold and external-root cycle tests
+      // lost downstream causes and failed; watched 2026-10-13.
+      if (changed) pending.push(successor);
+    }
+  }
 
   const byLeaf = new Map<string, Record<string, NodeReading>>();
   const causesByLeaf = new Map<string, Record<string, readonly BlockageRoot[]>>();
-  for (const node of graph.nodes) {
+  for (const projection of projected.values()) {
+    const { node, facts, roots } = projection;
     const leafId = node.kind === 'step' ? node.ref.workItemId : node.workItemId;
     const own = byLeaf.get(leafId) ?? {};
     const ownCauses = causesByLeaf.get(leafId) ?? {};
-    const key = keyOf(node);
-    const { reading, roots } = projectNode(key);
+    const reading = nodeReadingOf({
+      ...facts,
+      // Proof: OR rowStatus === blocked_by_proxy added; both live read modes
+      // incorrectly proxied a done sibling endpoint's successor; watched 2026-10-13.
+      blockedByProxy: roots.size > 0,
+      // Only intrinsic done can make a predecessor done; waiting and proxy
+      // cannot. Reading these fixed facts avoids recursion even in a cycle.
+      predecessors: projection.predecessors.map((predecessor) => predecessor.intrinsic),
+    });
     if (node.kind === 'step') {
       own[node.ref.stepId] = reading;
-      ownCauses[node.ref.stepId] = roots;
+      ownCauses[node.ref.stepId] = [...roots]
+        .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+        .map(([, root]) => root);
     }
     byLeaf.set(leafId, own);
     causesByLeaf.set(leafId, ownCauses);

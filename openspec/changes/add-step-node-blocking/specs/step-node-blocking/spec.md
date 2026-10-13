@@ -185,3 +185,19 @@ Moving unrelated work beneath a leaf SHALL clear and journal the destination's p
 - **GIVEN** moving or deleting the last child makes a parent a leaf and another actor then states progress on it
 - **WHEN** the original actor undoes the move or deletion
 - **THEN** replay refuses without changing the tree or overwriting the newer progress
+
+### Requirement: Stored cycles preserve readable unscheduled plans
+
+A stored dependency cycle SHALL preserve the existing readable plan and modeled schedule error. Node roots SHALL converge over the complete graph without inventing roots or dropping edges, while progress and running barriers retain precedence. Write-time dependency cycle refusal SHALL remain unchanged. A missing legacy endpoint SHALL still be refused as malformed trusted state.
+
+#### Scenario: A stored cycle remains readable
+
+- **GIVEN** a stored dependency cycle that cannot be scheduled
+- **WHEN** isolated or shared plan reads project canonical node readings
+- **THEN** the plan remains readable with `scheduleError: 'cycle'`, and silent nodes without roots remain unknown
+
+#### Scenario: An explicit root converges around a stored cycle
+
+- **GIVEN** a cycle containing one directly blocked node
+- **WHEN** node roots are projected
+- **THEN** each reachable silent node names that root exactly once, and running or done nodes stop incoming propagation

@@ -74,19 +74,104 @@ describe('nodeReadingsOf', () => {
     expect(read).toEqual(new Map([['a', {}]]));
   });
 
-  /**
-   * Proof: the `asking` guard removed and this failed on `Maximum call stack
-   * size exceeded` instead of the named circle; watched 2026-10-12.
-   */
-  it('throws on a circle the workflow and authored edges close', () => {
+  it('projects a stored authored cycle without inventing a proxy root', () => {
     const back: StepNodeGraphEdge = {
       ...edge(['a', 1], ['a', 0], 'workflow'),
       type: 'FS',
       provenance: 'authored',
       relationshipId: 'r1',
     };
+    expect(nodeReadingsOf(inputs([back], { stated: [] })).get('a')).toEqual({
+      dev: 'unknown',
+      qa: 'unknown',
+    });
+  });
 
-    expect(() => nodeReadingsOf(inputs([back]))).toThrow(/runs in a circle/);
+  it('converges roots around a stored legacy cycle and preserves running barriers', () => {
+    const cycle = [edge(['a', 1], ['b', 0], 'legacy'), edge(['b', 1], ['a', 0], 'legacy')];
+    const projection = projectNodeReadings(
+      inputs(cycle, {
+        stated: [],
+        blocked: [{ workItemId: 'a', stepId: 'dev' }],
+      }),
+    );
+    expect(projection.readings.get('a')).toEqual({ dev: 'blocked', qa: 'blocked_by_proxy' });
+    expect(projection.readings.get('b')).toEqual({
+      dev: 'blocked_by_proxy',
+      qa: 'blocked_by_proxy',
+    });
+    expect(projection.causes.get('b')?.['qa']).toEqual([{ kind: 'step', nodeId: 'sn1.a.dev' }]);
+    expect(
+      projectNodeReadings(
+        inputs(cycle, {
+          stated: [],
+          blocked: [{ workItemId: 'a', stepId: 'dev' }],
+          running: [{ workItemId: 'b', stepId: 'dev' }],
+        }),
+      ).readings.get('b'),
+    ).toEqual({ dev: 'in_progress', qa: 'unknown' });
+  });
+
+  it('propagates a direct row hold around a cycle and into downstream nodes', () => {
+    const original = inputs();
+    const projection = projectNodeReadings({
+      ...original,
+      stated: [],
+      graph: {
+        nodes: [...original.graph.nodes, stepNode('c', 'dev', 0)],
+        edges: [
+          ...original.graph.edges,
+          edge(['a', 1], ['b', 0], 'legacy'),
+          edge(['b', 1], ['a', 0], 'legacy'),
+          edge(['b', 1], ['c', 0], 'legacy'),
+        ],
+      },
+      holdOf: new Map([
+        ['a', 'blocked'],
+        ['b', null],
+        ['c', null],
+      ]),
+      statusOf: new Map([
+        ['a', 'blocked'],
+        ['b', 'blocked_by_proxy'],
+        ['c', 'blocked_by_proxy'],
+      ]),
+    });
+    expect(projection.readings.get('c')).toEqual({ dev: 'blocked_by_proxy' });
+    expect(projection.causes.get('c')?.['dev']).toEqual([{ kind: 'step', nodeId: 'sn1.a.qa' }]);
+  });
+
+  it('converges an external root through a silent cycle and into downstream work', () => {
+    const original = inputs();
+    const projection = projectNodeReadings({
+      ...original,
+      stated: [],
+      blocked: [{ workItemId: 'c', stepId: 'dev' }],
+      graph: {
+        nodes: [...original.graph.nodes, stepNode('c', 'dev', 0), stepNode('d', 'dev', 0)],
+        edges: [
+          ...original.graph.edges,
+          edge(['c', 0], ['a', 0], 'legacy'),
+          edge(['a', 1], ['b', 0], 'legacy'),
+          edge(['b', 1], ['a', 0], 'legacy'),
+          edge(['b', 1], ['d', 0], 'legacy'),
+        ],
+      },
+      holdOf: new Map([
+        ['a', null],
+        ['b', null],
+        ['c', null],
+        ['d', null],
+      ]),
+      statusOf: new Map([
+        ['a', 'blocked_by_proxy'],
+        ['b', 'blocked_by_proxy'],
+        ['c', 'unknown'],
+        ['d', 'blocked_by_proxy'],
+      ]),
+    });
+    expect(projection.readings.get('d')).toEqual({ dev: 'blocked_by_proxy' });
+    expect(projection.causes.get('d')?.['dev']).toEqual([{ kind: 'step', nodeId: 'sn1.c.dev' }]);
   });
 
   it('throws on an edge naming a node the graph does not hold', () => {

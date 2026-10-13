@@ -72,7 +72,9 @@ export function resolveDependencyGraph(state: DependencyGraphState): StepNodeGra
   const rowIds = new Set(state.rows.map((row) => row.id));
   // Proof: this endpoint validation absent and `refuses legacy endpoints absent
   // from the full tree before expanding to leaves` returned a graph rather than
-  // throwing for both missing predecessor and successor; watched 2026-10-13.
+  // throwing for both missing predecessor and successor. Removing it also
+  // made the main live-tree caller resolve instead of refusing its absent
+  // predecessor; both watched 2026-10-13.
   for (const dependency of state.legacy) {
     for (const endpoint of [dependency.predecessorId, dependency.successorId]) {
       if (!rowIds.has(endpoint))

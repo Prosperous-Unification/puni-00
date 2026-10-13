@@ -26,6 +26,18 @@
 - Node proxy causes can be wrong if graph expansion omits a supported endpoint scope or relationship type. Tests must compare the derived node graph against explicit multi-step examples and distinguish `A.dev` from `A.qa`.
 - Import/export and rollback version allocation can collide with unintegrated branches. Recheck the actual integration head before assigning versions or migration timestamp.
 
+## Stored cycles stay readable
+
+The complete graph can contain a stored cycle despite write-time guards, as the existing
+read contract models a cycle with an unscheduled tree and `scheduleError: 'cycle'`.
+Projection must not recursively throw on that modeled state. Compute intrinsic readings
+first, then propagate the finite root sets monotonically over every validated edge.
+A root is added to each silent node at most once; done, running and directly held/blocked
+nodes remain barriers to incoming roots. Derive waiting only from intrinsic done
+predecessors on nonlegacy edges: done cannot arise from propagation. This preserves all
+edges and terminates even around stored cycles. The dependency write guard still refuses
+new cycles, and malformed endpoints still throw.
+
 ## Historical progress compatibility and structural replay
 
 Historical versions can leave `step_progress` on rows that later gained children.
