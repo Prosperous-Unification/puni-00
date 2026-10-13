@@ -422,95 +422,189 @@ export function StepsPanel({
 
       {confirming === null ? (
         <>
-          <ul className="flex flex-col gap-2">
-            {steps.map((step) => (
-              <li key={step.id} className="flex items-end gap-2">
-                <form
-                  className="flex flex-1 flex-col gap-1"
-                  onSubmit={(event) => {
-                    submitRename(event, step);
-                  }}
+          {/*
+            One grid for every step and the row that adds one, so the name
+            boxes, the unit choices, the allowances and the buttons stand in
+            columns. F-020 (UI review 2026-10-13): as one flex row per step the
+            name box was the only child allowed to shrink, and three steps
+            read "|", "" and "Rev". The name column is `minmax(9rem, 1fr)` and
+            every other column is as wide as its widest cell, which `subgrid`
+            shares across the rows; under `sm` a row is two lines instead —
+            name and remove, then unit and allowance — because four columns
+            do not fit a phone. The labels the cells are found by stay whole
+            for a screen reader and are drawn once, as the header.
+          */}
+          <div className="flex flex-col gap-2 sm:grid sm:grid-cols-[minmax(9rem,1fr)_auto_auto_auto] sm:items-center sm:gap-x-3">
+            <div
+              aria-hidden="true"
+              className="text-muted-foreground hidden text-xs font-medium sm:col-span-4 sm:grid sm:grid-cols-subgrid"
+            >
+              <span>Step</span>
+              <span>Estimate unit</span>
+              <span>Allowance</span>
+              <span />
+            </div>
+            <ul className="contents">
+              {steps.map((step) => (
+                <li
+                  key={step.id}
+                  data-step-row
+                  className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 sm:col-span-4 sm:grid-cols-subgrid"
                 >
-                  <Label htmlFor={`step-${step.id}`}>{step.name}</Label>
-                  <Input
-                    id={`step-${step.id}`}
-                    value={nameShown(step)}
-                    disabled={section.busy}
-                    onChange={(event) => {
-                      const typed = event.currentTarget.value;
-                      setRenamed((current) => ({ ...current, [step.id]: typed }));
+                  <form
+                    className="min-w-0"
+                    onSubmit={(event) => {
+                      submitRename(event, step);
                     }}
-                    onBlur={() => {
-                      commitRename(step);
-                    }}
-                    onKeyDown={onChord}
-                  />
-                  <button type="submit" className="sr-only">
-                    Rename {step.name}
-                  </button>
-                </form>
-                {/* Proof: removing the estimate-count disabled arm failed blocks the unit control over estimates; watched 2026-10-12. */}
-                <fieldset
-                  title={`${String(estimateCount(step.id))} ${estimateCount(step.id) === 1 ? 'estimate' : 'estimates'}`}
-                  disabled={section.busy || estimateCount(step.id) > 0}
-                >
-                  <legend>{step.name} estimate unit</legend>
-                  {(['workdays', 'minutes'] as const).map((unit) => (
-                    <label key={unit}>
-                      <input
-                        type="radio"
-                        name={`unit-${step.id}`}
-                        aria-label={`${step.name} ${unit}`}
-                        checked={step.estimateUnit === unit}
-                        onChange={() => {
-                          void attempt(async () => {
-                            await setStepUnit(step.id, unit);
-                          });
+                  >
+                    <Label htmlFor={`step-${step.id}`} className="sr-only">
+                      {step.name}
+                    </Label>
+                    <Input
+                      id={`step-${step.id}`}
+                      value={nameShown(step)}
+                      title={nameShown(step)}
+                      disabled={section.busy}
+                      onChange={(event) => {
+                        const typed = event.currentTarget.value;
+                        setRenamed((current) => ({ ...current, [step.id]: typed }));
+                      }}
+                      onBlur={() => {
+                        commitRename(step);
+                      }}
+                      onKeyDown={onChord}
+                    />
+                    <button type="submit" className="sr-only">
+                      Rename {step.name}
+                    </button>
+                  </form>
+                  <div className="col-span-2 flex flex-wrap items-center gap-x-4 gap-y-2 sm:contents">
+                    {/* Proof: removing the estimate-count disabled arm failed blocks the unit control over estimates; watched 2026-10-12. */}
+                    <fieldset
+                      className="flex items-center gap-3 whitespace-nowrap"
+                      title={`${String(estimateCount(step.id))} ${estimateCount(step.id) === 1 ? 'estimate' : 'estimates'}`}
+                      disabled={section.busy || estimateCount(step.id) > 0}
+                    >
+                      <legend className="sr-only">{step.name} estimate unit</legend>
+                      {(['workdays', 'minutes'] as const).map((unit) => (
+                        <label key={unit} className="inline-flex items-center gap-1.5 text-sm">
+                          <input
+                            type="radio"
+                            name={`unit-${step.id}`}
+                            aria-label={`${step.name} ${unit}`}
+                            checked={step.estimateUnit === unit}
+                            onChange={() => {
+                              void attempt(async () => {
+                                await setStepUnit(step.id, unit);
+                              });
+                            }}
+                          />
+                          {unit}
+                        </label>
+                      ))}
+                    </fieldset>
+                    <div className="flex items-center gap-1.5 text-sm">
+                      <span aria-hidden="true" className="text-muted-foreground sm:hidden">
+                        Allowance
+                      </span>
+                      <Label htmlFor={`allowance-${step.id}`} className="sr-only">
+                        {step.name} allowance (%)
+                      </Label>
+                      <Input
+                        id={`allowance-${step.id}`}
+                        className="w-20"
+                        type="number"
+                        min={0}
+                        max={1000}
+                        step={0.01}
+                        value={allowances[step.id] ?? String(step.allowancePercent)}
+                        disabled={section.busy}
+                        onChange={(event) => {
+                          const typed = event.currentTarget.value;
+                          setAllowances((current) => ({ ...current, [step.id]: typed }));
+                        }}
+                        onBlur={() => {
+                          commitAllowance(step);
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            event.preventDefault();
+                            commitAllowance(step);
+                          }
                         }}
                       />
-                      {unit}
-                    </label>
-                  ))}
-                </fieldset>
-                <div className="flex flex-col gap-1">
-                  <Label htmlFor={`allowance-${step.id}`}>{step.name} allowance (%)</Label>
-                  <Input
-                    id={`allowance-${step.id}`}
-                    type="number"
-                    min={0}
-                    max={1000}
-                    step={0.01}
-                    value={allowances[step.id] ?? String(step.allowancePercent)}
+                      <span aria-hidden="true">%</span>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="col-start-2 row-start-1 sm:col-start-auto sm:row-start-auto"
+                    // The word the button shows, and which step it removes: one
+                    // column of "Remove" is unambiguous to the eye, not to a reader.
+                    aria-label={`Remove ${step.name}`}
                     disabled={section.busy}
-                    onChange={(event) => {
-                      const typed = event.currentTarget.value;
-                      setAllowances((current) => ({ ...current, [step.id]: typed }));
+                    onClick={() => {
+                      askToRemove(step);
                     }}
-                    onBlur={() => {
-                      commitAllowance(step);
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter') {
-                        event.preventDefault();
-                        commitAllowance(step);
-                      }
-                    }}
-                  />
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
+                  >
+                    Remove
+                  </Button>
+                </li>
+              ))}
+            </ul>
+
+            <form
+              className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 border-t pt-3 sm:col-span-4 sm:grid-cols-subgrid"
+              onSubmit={submitNew}
+            >
+              <div className="min-w-0">
+                <Label htmlFor="step-new" className="sr-only">
+                  New step
+                </Label>
+                <Input
+                  id="step-new"
+                  placeholder="New step"
+                  value={newName}
                   disabled={section.busy}
-                  onClick={() => {
-                    askToRemove(step);
+                  onChange={(event) => {
+                    setNewName(event.currentTarget.value);
                   }}
-                >
-                  Remove {step.name}
-                </Button>
-              </li>
-            ))}
-          </ul>
+                  onKeyDown={onChord}
+                />
+              </div>
+              <fieldset
+                className="col-span-2 flex items-center gap-3 whitespace-nowrap sm:col-span-1"
+                disabled={section.busy}
+              >
+                <legend className="sr-only">New step estimate unit</legend>
+                {(['workdays', 'minutes'] as const).map((unit) => (
+                  <label key={unit} className="inline-flex items-center gap-1.5 text-sm">
+                    <input
+                      type="radio"
+                      name="new-step-unit"
+                      aria-label={`New step ${unit}`}
+                      checked={newUnit === unit}
+                      onChange={() => {
+                        setNewUnit(unit);
+                      }}
+                    />
+                    {unit}
+                  </label>
+                ))}
+              </fieldset>
+              <span aria-hidden="true" className="hidden sm:block" />
+              <Button
+                type="submit"
+                size="sm"
+                className="col-start-2 row-start-1 sm:col-start-auto sm:row-start-auto"
+                disabled={section.busy}
+              >
+                Add step
+              </Button>
+            </form>
+          </div>
 
           {/*
               How far a dependency reaches, here rather than in a dialog of its
@@ -546,41 +640,6 @@ export function StepsPanel({
               </Label>
             ))}
           </fieldset>
-
-          <form className="flex items-end gap-2" onSubmit={submitNew}>
-            <div className="flex flex-1 flex-col gap-1">
-              <Label htmlFor="step-new">New step</Label>
-              <Input
-                id="step-new"
-                value={newName}
-                disabled={section.busy}
-                onChange={(event) => {
-                  setNewName(event.currentTarget.value);
-                }}
-                onKeyDown={onChord}
-              />
-            </div>
-            <fieldset disabled={section.busy}>
-              <legend>New step estimate unit</legend>
-              {(['workdays', 'minutes'] as const).map((unit) => (
-                <label key={unit}>
-                  <input
-                    type="radio"
-                    name="new-step-unit"
-                    aria-label={`New step ${unit}`}
-                    checked={newUnit === unit}
-                    onChange={() => {
-                      setNewUnit(unit);
-                    }}
-                  />
-                  {unit}
-                </label>
-              ))}
-            </fieldset>
-            <Button type="submit" size="sm" disabled={section.busy}>
-              Add step
-            </Button>
-          </form>
 
           {/*
             The arithmetic, said out loud where the decision is made. Somebody

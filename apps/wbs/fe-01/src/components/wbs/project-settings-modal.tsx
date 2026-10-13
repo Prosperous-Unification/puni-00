@@ -393,7 +393,13 @@ export function ProjectSettingsModal({
         </Button>
       </ModalTrigger>
       <ModalContent
-        className="sm:max-w-2xl"
+        // One frame for every section. F-021 (UI review 2026-10-13): sized by
+        // its contents the surface was 346px on Teams and 538px on Priorities,
+        // and re-centred on every tab, so the tab list jumped under the
+        // pointer. A fixed height keeps the tabs where they were clicked; the
+        // tallest section scrolls inside it rather than growing it. Wider than
+        // `2xl` so the Steps grid has room for a readable name column (F-020).
+        className="h-[min(46rem,90vh)] sm:max-w-3xl"
         // Radix performs the dismissal itself unless the event is prevented, so
         // a refused close has to be said here and not only in `onOpenChange`.
         onEscapeKeyDown={(event) => {
