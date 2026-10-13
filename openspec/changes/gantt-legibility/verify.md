@@ -30,3 +30,22 @@ pointed-row-offscreen live-caret mobile` — first run 159 passed, 3 failed (str
   toolbar's `text-xs` at the old height alone brought `gantt.spec.ts:3883`'s marker-rule body
   ink back (delta 40, columns 122–124) in 2/10 local runs against 10/10 green on the base.
   With the strip's metrics restored: 20/20 across both, repeated 10 times.
+
+## Review round (Fable, 2026-10-14)
+
+- F-037 number kept: `gantt-bar-labels.test.tsx` "writes its number once per bar" failed with
+  the number arm absent on `expected 'no estimate' to be '010 · no estimate'`.
+- Hatched label ground: the browser contrast spec, now seeding an on-hold row and a row waiting on
+  it, failed in both schemes on the hatched orange bar at 3.6966327586007055 before the ground.
+- Done slivers: `gantt-panel-fill.test.tsx` failed without the 8px floor on
+  `expected '#16a34a' not to be '#16a34a'`.
+- Export months: `gantt-axis-months.test.tsx` failed with the export's month arm removed on
+  `expected [ 'Sep 2026', 'hull - hull', …(83) ] to include 'Oct 2026'`. The body boundary
+  travels in the cloned chart and is asserted there.
+- Playwright on a298b8622: 153/153 passed across gantt.spec, gantt-legibility, gantt-detail,
+  gantt-attempts, status, dark-mode, plan-surface, pointed-row-offscreen, scroll-stability,
+  mobile and hover-cards.
+- CI correction: the red `gate twilight` on 589f18d8c was a `twilight-dash:test` flake
+  (`review-selection-objects.test.ts:868`, leftover `.pending-*`), not twilight-burokrat and not
+  a timeout. Rerun requested; superseded by the CI run on the new head.
+- `nx run wbs-fe-01:test` 925 + 3877 + 5 passed; `typecheck` and `lint:fast` successful.
