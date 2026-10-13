@@ -449,7 +449,7 @@ export function StepsPanel({
                 <li
                   key={step.id}
                   data-step-row
-                  className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 sm:col-span-4 sm:grid-cols-subgrid"
+                  className="border-border grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 border-b pb-3 last:border-b-0 sm:col-span-4 sm:grid-cols-subgrid sm:border-b-0 sm:pb-0"
                 >
                   <form
                     className="min-w-0"
