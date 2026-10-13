@@ -4547,15 +4547,16 @@ describe('forecast mark pointer geometry', () => {
       hitWidth: 18 / rung.pxPerWorkday,
     });
   });
-  it.each(AXIS_RUNGS)('a positive mark under 4 px is floored only at sub-day rung $id', (rung) => {
-    const surface = placeBarSurface(0, 2 / 480, rung);
-    expect(surface.width * rung.pxPerWorkday).toBeCloseTo(
-      rung.cellsPerWorkday > 1 ? 4 : (2 / 480) * rung.pxPerWorkday,
-    );
-    expect(surface.tick).toBe(rung.cellsPerWorkday > 1);
-    expect(surface.hitWidth * rung.pxPerWorkday).toBeCloseTo(18);
-    expect(surface.hitX + surface.hitWidth / 2).toBeCloseTo(surface.x + surface.width / 2);
-  });
+  it.each(AXIS_RUNGS)(
+    'a positive mark under 4 px is floored at rung $id, a tick only sub-day',
+    (rung) => {
+      const surface = placeBarSurface(0, 2 / 480, rung);
+      expect(surface.width * rung.pxPerWorkday).toBeCloseTo(4);
+      expect(surface.tick).toBe(rung.cellsPerWorkday > 1);
+      expect(surface.hitWidth * rung.pxPerWorkday).toBeCloseTo(18);
+      expect(surface.hitX + surface.hitWidth / 2).toBeCloseTo(surface.x + surface.width / 2);
+    },
+  );
   it('leaves an exactly 4 px bar untagged and gives a wide mark its whole pointer surface', () => {
     expect(placeBarSurface(3, 4 / 896, AXIS_RUNGS[5]).tick).toBe(false);
     expect(placeBarSurface(3, 1, AXIS_RUNGS[5]).hitWidth).toBe(1);

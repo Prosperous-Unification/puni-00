@@ -3546,6 +3546,9 @@ export function projectAttemptMarks(
   };
 }
 
+/** The narrowest a positive bar is painted, in CSS pixels; its scheduled span is unchanged. */
+export const MIN_MARK_PX = 4;
+
 /** Paint and pointer bounds in chart units; scheduled endpoints remain in {@link PlacedBar}. */
 export function placeBarSurface(
   x: number,
@@ -3558,10 +3561,17 @@ export function placeBarSurface(
   hitX: number;
   hitWidth: number;
 } {
-  const tick = rung.cellsPerWorkday > 1 && width > 0 && width * rung.pxPerWorkday < 4;
+  // Every positive mark is painted at least {@link MIN_MARK_PX} wide, at every
+  // rung: at Months a quarter-day slice was a 1px sliver under its own 2px
+  // outline (ui-review F-026). Only the sub-day rungs call it a tick, which is
+  // what their clock axis draws differently.
+  const floored = width > 0 && width * rung.pxPerWorkday < MIN_MARK_PX;
+  const tick = rung.cellsPerWorkday > 1 && floored;
   // Proof: replacing this floor by width failed the production panel's two-minute
-  // tick case at 3.733px instead of 4px (subday2-proof-floor, 2026-10-12).
-  const paintedWidth = tick ? 4 / rung.pxPerWorkday : width;
+  // tick case at 3.733px instead of 4px (subday2-proof-floor, 2026-10-12); scoped
+  // back to the sub-day rungs, `paints a quarter-day bar no narrower than 4px`
+  // failed on `expected 1 to be greater than or equal to 4` (2026-10-13).
+  const paintedWidth = floored ? MIN_MARK_PX / rung.pxPerWorkday : width;
   // Proof: removing the 18px floor failed the same panel case at 4px instead
   // of 18px (subday2-proof-hit, 2026-10-12).
   const hitWidth = Math.max(paintedWidth, 18 / rung.pxPerWorkday);

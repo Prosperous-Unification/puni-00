@@ -208,6 +208,31 @@ export function axisNumberShown(day: { shown: string; heavy: boolean }, dayPx: n
 }
 
 /**
+ * The month a compressed axis names at this cell, or null.
+ *
+ * At {@link AXIS_NUMBER_PX} and wider every cell prints its date and the strip's
+ * caption names the month in view, which is the axis as it was. Below it —
+ * Weeks and Months — only Mondays print, as bare day numbers, and a quarter
+ * of `21 28 05 12` said nothing about where October began (ui-review F-023).
+ * So the first of each month carries its name, on a line of its own above the
+ * numbers, and a boundary down the axis and the chart under it.
+ *
+ * The first cell is **not** named unless it is the first of a month: the
+ * strip's caption already names the month at the left edge as it scrolls, and
+ * a second name there would collide with October's whenever the plan starts
+ * late in September.
+ */
+export function axisMonthWords(day: { date: IsoDate | null }, dayPx: number): string | null {
+  if (dayPx >= AXIS_NUMBER_PX || day.date === null || !isMonthStart(day)) return null;
+  return monthWords(day.date);
+}
+
+/** Whether a dated axis cell is the first day of its month. */
+export function isMonthStart(day: { date: IsoDate | null }): boolean {
+  return day.date?.endsWith('-01') ?? false;
+}
+
+/**
  * How tall one row of the chart is, in CSS pixels.
  *
  * The SVG's y unit is one row, so this is both the height of a label in the
@@ -497,58 +522,36 @@ const NOT_BEFORE_CLEARANCE = 0.03;
 const BAR_RADIUS_PX = 3;
 
 /**
- * One chip on the chart's own toolbar — `Names`, `Detail`, `Full`, `⇩`.
+ * One control on the chart's own strip — `Names`, `Detail`, `Full`, `⇩` — in
+ * the plan toolbar's vocabulary: `Button`'s `outline` variant at `size="sm"`,
+ * the size the toolbar's own `Gantt` toggle is drawn at.
  *
- * Through `buttonVariants` rather than a hand-rolled border, for the reason
- * that table's own note gives: this app's reset leaves every `<button>` its
- * platform box, so a chrome control that does not go through the variants gets
- * the platform's idea of one. Three things were measured wrong before this
- * existed, at 900px in Chromium:
+ * Through `buttonVariants` rather than a hand-rolled border: this app's reset
+ * leaves every `<button>` its platform box, so a chrome control that does not
+ * go through the variants gets the platform's idea of one (and the browser's
+ * focus ring rather than the app's).
  *
- * - keyboard focus drew the **browser's** ring, not the app's. A chip with the
- *   old class string, appended to this same bar and arrived at by `Tab`, read
- *   `outline: auto 1px rgb(0, 95, 204)` with no ring in its `box-shadow`;
- *   every other focusable control in this app answers with `ring-ring`. That
- *   blue `auto` outline is what Dany called ugly on the sign-in form's reveal,
- *   which had the same cause.
- * - `⇩` stood 19px tall where its four neighbours and the scale `<select>`
- *   stood 16px, because the glyph's line box is taller than the words'.
- *   `leading-none` and a stated height are what make the row one row.
- * - every chip carried `ml-1` **and** sat in a `gap-1` row, so the gaps were
- *   8px between chips and 4px after the caption.
+ * **The toolbar's size since ui-review F-013** (2026-10-13). The strip had
+ * grown its own smaller dialect — 16px chips of 10px uppercase words — and a
+ * toggle switched off was dashed and struck through, which the review read as
+ * a disabled control. A toggle that is off is not disabled: it is drawn plain,
+ * and `aria-pressed` is drawn as a filled chip ({@link CHART_TOGGLE_PRESSED}).
  *
- * The ring is `ring-1 ring-offset-1` rather than the variants' `ring-2
- * ring-offset-2`: on a 16px chip in a 21px bar the wider ring is clipped by
- * the panel's own top border, which reads as a broken box rather than focus.
- *
- * `cn` wraps the variants rather than `buttonVariants({ className })` taking
- * the overrides, and that is not a style choice. `cva` **appends** `className`
- * without merging it, so `size: 'default'`'s `h-9` and the base's `ring-2`
- * both survived alongside `h-4` and `ring-1`, and the stylesheet's order
- * decided: the first cut drew four 36px chips beside a 16px `<select>`. `cn`
- * is `tailwind-merge`, which drops the losing half — but only where the two
- * halves collide, which is why `py-0` is spelled out below. Every number here
- * was read off `getBoundingClientRect` in Chromium at 900px, and two guesses
- * at this paragraph were wrong before it: `h-9` was blamed for a height
- * `py-2` was making, and `box-border` was added for a `box-sizing` that was
- * already `border-box`.
+ * `cn` (`tailwind-merge`) over the variants rather than `buttonVariants({
+ * className })`, because `cva` appends without merging and the losing half of
+ * a conflict would survive to be decided by stylesheet order.
  */
 const chartChip = (extra?: string): string =>
-  cn(
-    buttonVariants({ variant: 'outline' }),
-    // `py-0` is load-bearing. `tailwind-merge` resolves a conflict, and
-    // `size: 'default'`'s `py-2` conflicts with nothing here — so it survived,
-    // put 8px above and below a 10px word, and the chips measured 18px against
-    // the scale `<select>`'s 16px. `border-border` for the same reason in the
-    // other direction: `variant: 'outline'` brings `border-input`, and this
-    // bar's border is `border-border`.
-    'h-4 rounded border-border px-1.5 py-0 text-[10px] leading-none font-semibold tracking-wide normal-case',
-    'focus-visible:ring-1 focus-visible:ring-offset-1',
-    extra,
-  );
+  // `px-2` rather than `sm`'s `px-3`: the five controls fit one row of a
+  // 375px phone at the 44px floor with it, and wrap without it.
+  cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'px-2', CHART_TOGGLE_PRESSED, extra);
 
-/** What a chart chip looks like when the thing it names is switched off. */
-const CHART_CHIP_OFF = 'border-dashed text-muted-foreground/60 line-through';
+/**
+ * How a pressed toggle on the strip is drawn: filled in the accent, so on and
+ * off differ by more than a word, and neither looks like a disabled control.
+ */
+const CHART_TOGGLE_PRESSED =
+  'aria-pressed:bg-accent aria-pressed:text-accent-foreground aria-pressed:border-ring/60';
 
 /**
  * How wide the priority cap at a bar's left edge is drawn, in px.
@@ -2665,10 +2668,21 @@ function buildStandaloneGanttSvg(input: StandaloneGanttSvgInput): SVGSVGElement 
     // The same gate the live axis prints under: a downloaded chart of a
     // compressed plan is a picture somebody looks at, and 91 two-digit numbers
     // in 366px is a grey smear there for exactly the reason it is one on screen.
+    const monthName = axisMonthWords(day, dayPx);
+    if (monthName !== null) {
+      root.appendChild(svgLine(cellX, 0, cellX, ROW_PX, theme.foreground));
+      root.appendChild(
+        svgText(cellX + 2, 10, monthName, {
+          fontSize: 9,
+          fontWeight: '600',
+          fill: theme.foreground,
+        }),
+      );
+    }
     root.appendChild(
       svgText(
         cellX + dayPx / 2,
-        rung.cellsPerWorkday === 1 ? ROW_PX / 2 + 3 : 10,
+        rung.cellsPerWorkday === 1 ? (dayPx < AXIS_NUMBER_PX ? 24 : ROW_PX / 2 + 3) : 10,
         axisNumberShown(day, dayPx),
         {
           fontSize: 9,
@@ -4260,12 +4274,29 @@ export function GanttRenderer({
         : placed.notBeforeFlags.filter((flag) => drawn.rowIndexes.has(flag.rowIndex)),
     [detailShown, drawn, placed],
   );
+  /**
+   * How many days the chart draws: the schedule's own horizon, or as many as
+   * fill the panel when the schedule is shorter than it is wide.
+   *
+   * At Months a quarter's plan filled under half a 1440px panel and the rest
+   * was blank page (ui-review F-026). The calendar now runs on to the panel's
+   * edge — axis, gridlines and weekends with nothing scheduled on them — the
+   * way a wall planner does not stop where the work does. Floored so the
+   * chart stops short of the edge rather than past it, which would be a
+   * scrollbar for nothing. jsdom measures 0 and keeps the schedule's horizon.
+   */
+  const horizon = Math.max(
+    placed.horizon,
+    Math.floor(
+      (viewportPx - (labelsShown ? LABEL_COLUMN_PX : 0) - 2 * CHART_PAD_PX) / chart.pxPerWorkday,
+    ),
+  );
   const axis = useMemo(
     () =>
       startDate === null
-        ? workdayAxis(placed.horizon)
-        : calendarAxis(startDate, placed.horizon, projection.rangeStart),
-    [placed, startDate, projection.rangeStart],
+        ? workdayAxis(horizon)
+        : calendarAxis(startDate, horizon, projection.rangeStart),
+    [horizon, startDate, projection.rangeStart],
   );
   /**
    * This project's markers grouped by the day they stand on, in the order
@@ -4787,6 +4818,26 @@ export function GanttRenderer({
             />
           )),
         )}
+        {/*
+          The month boundaries down the chart, on the compressed axis that
+          names them ({@link axisMonthWords}): over the day gridlines, in the
+          axis boundary's own ink.
+        */}
+        {dayPx < AXIS_NUMBER_PX &&
+          axis
+            .filter(isMonthStart)
+            .map((day) => (
+              <line
+                key={`month-${String(day.offset)}`}
+                data-gantt-month-boundary={day.date}
+                x1={day.offset}
+                y1={0}
+                x2={day.offset}
+                y2={rowCount}
+                className="stroke-foreground/30"
+                vectorEffect="non-scaling-stroke"
+              />
+            ))}
 
         {/*
                 The leading edge of today, over the gridlines and under every
@@ -4923,7 +4974,7 @@ export function GanttRenderer({
             data-gantt-row-line={label.rowIndex}
             x={-pad}
             y={label.rowIndex}
-            width={placed.horizon + 2 * pad}
+            width={horizon + 2 * pad}
             height={1}
             fill="none"
             // **`fill` and not `all`, and the difference is three rows
@@ -5713,6 +5764,7 @@ export function GanttRenderer({
       drawnLinks,
       drawnPoolWaits,
       endTouchPress,
+      horizon,
       markersByDate,
       onPickRow,
       pad,
@@ -5821,8 +5873,11 @@ export function GanttRenderer({
                   ? 'pointer-events-none absolute overflow-hidden text-[9px] font-semibold text-ellipsis whitespace-nowrap'
                   : // The page's own ink on an assumed bar: `inkOn` picks a
                     // colour to be read on a **solid** fill, and this one is
-                    // 35% of that colour over whatever the page is.
-                    'text-foreground pointer-events-none absolute overflow-hidden text-[9px] font-semibold text-ellipsis whitespace-nowrap'
+                    // 35% of that colour over whatever the page is. Italic and
+                    // regular, the voice `On hold` speaks in: a note about the
+                    // bar rather than its name, and narrow enough that `no
+                    // estimate` is whole on a two-day placeholder at Days.
+                    'text-foreground pointer-events-none absolute overflow-hidden text-[9px] font-normal text-ellipsis whitespace-nowrap italic'
               }
               style={{
                 // Dark ink on the three light entries of the palette and
@@ -6152,6 +6207,7 @@ export function GanttRenderer({
                   // monochrome display gets. `date` and not `true` because the
                   // cell **is** the date — the value HTML defines for it.
                   {...(day.offset === todayAt ? { 'aria-current': 'date' } : {})}
+                  {...(isMonthStart(day) ? { 'data-axis-month-start': 'true' } : {})}
                   // No native `title`: one hint, and it is the card the pointer
                   // opens below — the browser's own tooltip would race it after
                   // a delay nobody chose (`instant-hovers`' rule, and Dany's
@@ -6254,6 +6310,11 @@ export function GanttRenderer({
                   // like the column beneath it.
                   className={[
                     'shrink-0 text-center text-[10px] leading-7',
+                    // The month boundary on a compressed axis — see
+                    // {@link axisMonthWords}.
+                    dayPx < AXIS_NUMBER_PX && isMonthStart(day)
+                      ? 'border-foreground/50 border-l'
+                      : '',
                     // The house focus ring (`button.tsx:34`, `input.tsx:29`),
                     // and it is owed here more than anywhere: §6 gave every
                     // axis cell a tab stop, so a reader walking the calendar
@@ -6284,8 +6345,21 @@ export function GanttRenderer({
                     .join(' ')}
                   style={{ width: dayPx }}
                 >
-                  {rung.cellsPerWorkday === 1 ? (
+                  {rung.cellsPerWorkday === 1 && dayPx >= AXIS_NUMBER_PX ? (
                     axisNumberShown(day, dayPx)
+                  ) : rung.cellsPerWorkday === 1 ? (
+                    // Two lines on a compressed axis: the month's name where
+                    // one begins, running right into the blank cells after it,
+                    // over the Mondays' numbers.
+                    <>
+                      <span
+                        className="text-foreground block h-3 text-left leading-3 font-semibold whitespace-nowrap"
+                        {...(axisMonthWords(day, dayPx) === null ? {} : { 'data-axis-month': '' })}
+                      >
+                        {axisMonthWords(day, dayPx)}
+                      </span>
+                      <span className="block leading-4">{axisNumberShown(day, dayPx)}</span>
+                    </>
                   ) : (
                     <>
                       <span className="block leading-3">{day.shown}</span>
@@ -6458,9 +6532,9 @@ export function GanttRenderer({
                 // The schedule band is the **horizon** the marks were placed
                 // against, so one user unit is exactly {@link DAY_PX} however
                 // fractional the last day is.
-                viewBox={`${String(-pad)} 0 ${String(placed.horizon + 2 * pad)} ${String(rowCount)}`}
+                viewBox={`${String(-pad)} 0 ${String(horizon + 2 * pad)} ${String(rowCount)}`}
                 preserveAspectRatio="none"
-                width={placed.horizon * chart.pxPerWorkday + 2 * CHART_PAD_PX}
+                width={horizon * chart.pxPerWorkday + 2 * CHART_PAD_PX}
                 height={rowCount * ROW_PX}
                 style={{ display: 'block' }}
                 // What ends the chart's pointing: leaving the chart. The row
@@ -7149,9 +7223,15 @@ export function GanttRenderer({
         ))}
       <div
         data-gantt-controls
-        className="border-border text-muted-foreground flex flex-wrap items-center gap-1 border-t px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase"
+        className="border-border flex flex-wrap items-center gap-1 border-t px-2 py-1"
       >
-        <span data-gantt-month>
+        <span
+          data-gantt-month
+          // A line of its own on a phone: the five controls fill one row of
+          // 343px at the 44px floor, and the caption beside them pushed the
+          // last onto a second row by itself.
+          className="text-muted-foreground text-xs font-semibold tracking-wide uppercase max-md:basis-full"
+        >
           {(() => {
             if (startDate === null) return 'Workday';
             // The nullish arm is the workday axis's cells, which a dated
@@ -7187,7 +7267,7 @@ export function GanttRenderer({
               ? 'Hide the row names and give their 176px to the chart'
               : 'Show the row names beside the chart again'
           }
-          className={labelsShown ? chartChip() : chartChip(CHART_CHIP_OFF)}
+          className={chartChip()}
           onClick={() => {
             onPickLabelsShown(!labelsShown);
           }}
@@ -7218,7 +7298,7 @@ export function GanttRenderer({
               ? 'Hide the arrows and the parent bars'
               : 'Show the arrows and the parent bars'
           }
-          className={detailShown ? chartChip() : chartChip(CHART_CHIP_OFF)}
+          className={chartChip()}
           onClick={() => {
             // The next answer worked out here, beside the write, and the
             // setter given a value rather than a function: a state updater
@@ -7263,7 +7343,9 @@ export function GanttRenderer({
           // chevron this corner has no room to redraw. So the four classes the
           // bar is made of are stated here instead, and the height is the same
           // `h-4` the chips take.
-          className="border-border hover:bg-accent focus-visible:ring-ring focus-visible:ring-offset-background h-4 rounded border bg-transparent px-1 text-[10px] leading-none font-semibold tracking-wide normal-case transition-colors focus-visible:ring-1 focus-visible:ring-offset-1 focus-visible:outline-none"
+          // The toolbar's select, in the strip's button size: the `Plan with`
+          // select's border and ground, `h-8` and `text-xs` like `size="sm"`.
+          className="border-input bg-background hover:bg-accent focus-visible:ring-ring focus-visible:ring-offset-background h-8 rounded-md border px-2 text-xs font-medium shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
           value={dayPx}
           onChange={(pick) => {
             const asked = Number(pick.currentTarget.value);

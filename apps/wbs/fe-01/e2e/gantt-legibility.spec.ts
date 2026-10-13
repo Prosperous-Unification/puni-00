@@ -184,4 +184,100 @@ test.describe('Gantt legibility (ui-review 2026-10-13)', () => {
       }
     });
   }
+
+  test("the chart strip speaks the toolbar's control vocabulary (F-013)", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await seedEveryBarColour(page);
+    const toolbarGantt = page.getByRole('button', { name: 'Gantt', exact: true });
+    const toolbar = await toolbarGantt.evaluate((button) => {
+      const style = getComputedStyle(button);
+      return { height: button.getBoundingClientRect().height, fontSize: style.fontSize };
+    });
+    // Both toggles off, the state the review read as "disabled".
+    for (const toggle of ['[data-gantt-labels-toggle]', '[data-gantt-detail-toggle]']) {
+      if ((await page.locator(toggle).getAttribute('aria-pressed')) === 'true') {
+        await page.locator(toggle).click();
+      }
+      await expect(page.locator(toggle)).toHaveAttribute('aria-pressed', 'false');
+    }
+    const strip = await page.locator('[data-gantt-controls]').evaluate((row) =>
+      [...row.querySelectorAll<HTMLElement>('button, select')].map((control) => {
+        const style = getComputedStyle(control);
+        return {
+          name: control.getAttribute('aria-label') ?? control.textContent.trim(),
+          height: control.getBoundingClientRect().height,
+          fontSize: style.fontSize,
+          struck: style.textDecorationLine.includes('line-through'),
+          dashed: style.borderTopStyle === 'dashed',
+        };
+      }),
+    );
+    // Proof: on main, where the strip's chips were `h-4 text-[10px]` and the
+    // off toggles `line-through border-dashed`, this failed on `Names height`,
+    // expected 32, received 16; watched 2026-10-13.
+    for (const control of strip) {
+      expect(control.height, `${control.name} height`).toBe(toolbar.height);
+      expect(control.fontSize, `${control.name} font size`).toBe(toolbar.fontSize);
+      expect(control.struck, `${control.name} struck through`).toBe(false);
+      expect(control.dashed, `${control.name} dashed`).toBe(false);
+    }
+  });
+
+  test('labels never overlap one another on the chart (F-012)', async ({ page }) => {
+    await seedEveryBarColour(page);
+    const boxes = await page.locator('[data-gantt-bar-label]').evaluateAll((labels) =>
+      labels.map((label) => {
+        const box = label.getBoundingClientRect();
+        return {
+          id: label.textContent,
+          left: box.left,
+          right: box.right,
+          top: box.top,
+          bottom: box.bottom,
+        };
+      }),
+    );
+    expect(boxes.length).toBeGreaterThan(10);
+    // Proof: on main, whose labels took the whole bar band in every lane,
+    // this failed on the `guess` row's two placeholders, `? · 130 · Row guess
+    // over ? · 130 · Row guess`, expected false, received true; watched
+    // 2026-10-13.
+    for (const [at, first] of boxes.entries()) {
+      for (const second of boxes.slice(at + 1)) {
+        const overlap =
+          first.left < second.right - 0.5 &&
+          second.left < first.right - 0.5 &&
+          first.top < second.bottom - 0.5 &&
+          second.top < first.bottom - 0.5;
+        expect(overlap, `${first.id} over ${second.id}`).toBe(false);
+      }
+    }
+  });
+
+  test('a compressed axis names its months and the chart fills the panel (F-023, F-026)', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await seedEveryBarColour(page);
+    await page.locator('[data-gantt-day-scale]').selectOption('4');
+    await expect(page.locator('[data-gantt-axis] [data-axis-month]').first()).toHaveText(
+      'Oct 2026',
+    );
+    const fit = await page.evaluate(() => {
+      const panel = document.querySelector('[data-gantt-panel]');
+      const chart = document.querySelector('[data-gantt-chart]');
+      if (panel === null || chart === null) throw new Error('the chart is not on the page');
+      return {
+        panelRight: panel.getBoundingClientRect().right,
+        chartRight: chart.getBoundingClientRect().right,
+        scrolls: panel.scrollWidth > panel.clientWidth,
+      };
+    });
+    // Proof: on main the month name was never drawn and the first assertion
+    // failed (`element(s) not found` for `[data-axis-month]`); with the names
+    // kept and the horizon put back to the schedule's own, this failed on the
+    // chart's right edge, expected > 1404, received 260. Watched 2026-10-13.
+    expect(fit.chartRight).toBeGreaterThan(fit.panelRight - 20);
+    expect(fit.scrolls).toBe(false);
+  });
 });
