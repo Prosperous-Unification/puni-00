@@ -140,3 +140,39 @@ collection enabled and checks the expanded hashed files, without modifying sourc
 
 Full host gate, full repository tests, full build and the package-build suite remain delegated
 to the coordinator.
+
+## Composition with public main (2026-10-14)
+
+Rebased the four PR-only commits onto exact public main
+`f5db65113063ea33ae2a21e7b3f2ab86cefa18b6`, which already contains the Navigator export parent
+commit `a5750895f33e04f2bca029da87ee7463665fa540`. The single conflict was the unknown-command
+usage string in Burokrat's `src/cli.ts`: main's Performance inspector added `inspect-performance`
+while this change added `validate-plan-tasks`. The resolution advertises both commands.
+
+- `git range-diff a5750895f..3abf516f f5db651..HEAD` preserved all four intended patches;
+  the feature patch differs only by keeping `inspect-performance` in the usage string, the
+  launcher patch has updated context, and both cache fixes are identical.
+- The diff against exact main contains only the validator, launcher route, shared task-schema
+  move and its import/test updates, OpenSpec artifacts and reviewed cache repair. An explicit
+  `git diff --exit-code f5db651 HEAD` scoped to Navigator fixtures/README, the export parent's
+  OpenSpec directory, WBS contracts and the Twilight glossary exited 0.
+- `BUN_TMPDIR=/tmp bun install --frozen-lockfile`: exit 0, no changes.
+- `NX_ISOLATE_PLUGINS=false bun test ./tools/tool-devsync/src/workspace-targets.test.ts
+--timeout=30000`: 23 passed, 0 failed, 81 assertions.
+- `bun test --preload ./tools/test/scratch/preload.ts --timeout=60000
+./apps/twilight-structure/twilight-navigator/cli/src
+./apps/twilight-structure/twilight-burokrat/cli/src/contracts/plan-tasks.test.ts
+./apps/twilight-structure/twilight-burokrat/cli/src/evidence/performance.test.ts`:
+  106 passed, 0 failed, 566 assertions across five files.
+- Repeated both scoped Nx command groups from the cache-input repair: all six lint/typecheck
+  tasks passed with zero cache hits.
+- `bun test --preload ./tools/test/scratch/preload.ts --timeout=180000
+./apps/twilight-structure/twilight-burokrat/cli/src/packaging/build.test.ts`:
+  2 passed, 0 failed, 62 assertions. The canonical bundled executable validates real Navigator
+  output outside the repository and refuses tampered tasks.
+- `BUN_TMPDIR=/tmp bunx @fission-ai/openspec@1.12.0 validate validate-navigator-plan-tasks --json`:
+  1 passed, 0 failed, no issues.
+- Scoped formatting over the final diff and `git diff --check`: exit 0.
+
+Full host gate, full repository tests and full repository build remain delegated to the
+coordinator. The focused package-build suite was rerun on the composed branch as recorded above.
