@@ -6,7 +6,7 @@ import { expect, test } from 'bun:test';
 
 import { buildPackage } from './build';
 
-test('installed executable dispatches Performance and specification source diagnostics', async () => {
+test('installed executable dispatches Performance, specification and Manual diagnostics', async () => {
   const packageRoot = mkdtempSync(join(tmpdir(), 'burokrat-installed-dispatch-'));
   try {
     await buildPackage(packageRoot);
@@ -18,9 +18,11 @@ test('installed executable dispatches Performance and specification source diagn
     expect(help.exitCode).toBe(0);
     expect(help.stdout.toString()).toContain('inspect-performance-sources');
     expect(help.stdout.toString()).toContain('inspect-spec-sources');
+    expect(help.stdout.toString()).toContain('inspect-manual-observation');
     for (const [command, usage] of [
       ['inspect-performance-sources', 'usage: twilight-burokrat inspect-performance-sources'],
       ['inspect-spec-sources', 'usage: twilight-burokrat inspect-spec-sources'],
+      ['inspect-manual-observation', 'usage: twilight-burokrat inspect-manual-observation'],
     ] as const) {
       const invocation = Bun.spawnSync([process.execPath, executable, command], {
         stdout: 'pipe',

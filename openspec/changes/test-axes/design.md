@@ -138,6 +138,15 @@ Selector version 3 recognizes exact active main and change spec paths and ignore
 
 ## Manual evidence validator
 
+Task 4.1b.4 wraps the existing `inspectManual` result without filtering its fields. The adapter
+selects one exact full committed SHA, hashes its selected tuple, invokes the real inspector at
+the caller's decoded UTC instant, and requires the returned revision to match. Its version-1
+envelope carries the selected revision, candidate identity, canonical `evaluatedAt`, complete
+`manual` result, absent authentication, false certification and canonical digest of every preceding
+field. The CLI retains the Manual exit convention: evaluated noncurrent states emit JSON and exit
+one; invalid evidence and unresolved B3 selection refuse with no JSON. The package executable
+dispatches the same command. This observation grants no Manual level or coverage claim.
+
 Implement a standalone committed-candidate inspector in Burokrat evidence code before integrating Manual outcomes into B4. It consumes candidate disposition and procedure files plus an externally selected `RulePolicy.manual` that pins exact reviewed disposition and report digests. Use the existing stable external-artifact reader for policy, approvals, reports and environment observations. Missing, unreadable, malformed, ambiguous, unsupported, or escaping inputs refuse. The CLI captures UTC time once; the pure evaluator receives that instant for deterministic checks. Git identity strings, report claims, file ownership and mtimes never establish reviewer or operator authority.
 
 Candidate dispositions identify a canonical scenario, a nonblank manual reason, a procedure path, and a nonempty unique set of touched module IDs. A versioned procedure record binds its scenario and title to ordered nonempty steps with unique IDs, instructions and expected observations. External review approvals bind the complete disposition and procedure digests, reviewed requirement/source scope, reviewer identity/reference, and `reviewedAt`/`reviewBy`. A report binds its run ID, scenario/title, disposition/procedure digests, source revision and full reviewed source scope, operator, ordered step observations, outcome, and a separately observed environment identity/digest. A second external approval binds the exact report and environment observation digests, run/operator/times, and accepting reviewer/reference. Unknown or duplicate records refuse. Success requires exactly one passing observation per declared step and an aggregate outcome that agrees.

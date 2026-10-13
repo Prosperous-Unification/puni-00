@@ -684,6 +684,42 @@
       "id": "TEST-AXES-066",
       "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
       "title": "Performance source diagnosis grants no coverage"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-067",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A current Manual report is wrapped intact"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-068",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Noncurrent Manual judgments remain noncurrent"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-069",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "The Manual review deadline uses the caller instant"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-070",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Manual observation refuses invalid selection and evidence"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-071",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Manual observation retains B3 and immutable selection"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-072",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Manual observation identity and installed dispatch are complete"
     }
   ]
 }

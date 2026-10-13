@@ -25,6 +25,8 @@ const validatorCommands = new Set([
   'check',
   'scenario',
   'inspect-manual',
+  // Proof: removing registration made the installed executable reject the documented command.
+  'inspect-manual-observation',
   'inspect-performance',
   // Proof: removing this registration made the built executable reject the command before
   // the validator's named usage refusal (installed-dispatch.test.ts).
@@ -46,6 +48,7 @@ commands:
   twilight-burokrat inspect-performance-sources <repository> <committed-sha> <external-rule-policy>
   twilight-burokrat inspect-spec-sources <repository> <committed-sha>
   twilight-burokrat inspect-manual <repository> <committed-sha> <external-rule-policy> <report-path> --now <UTC instant>
+  twilight-burokrat inspect-manual-observation <repository> <committed-sha> <external-rule-policy> <report-path> --now <UTC instant>
   twilight-burokrat explain <rule-id> [<repository> <rule-policy-json>]
   twilight-burokrat scenario <import|allocate|validate> <repository> <openspec-spec-path> [--predecessor <id>]
   twilight-burokrat template <list|show <id>|verify <id> <committed|staged|working> <repository> <revision-or-base> <subject>>

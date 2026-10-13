@@ -410,6 +410,30 @@ export function runCli(argv: readonly string[]): Promise<void> | void {
       if (observation.state !== 'current') process.exitCode = 1;
     });
   }
+  if (args[0] === 'inspect-manual-observation') {
+    // Proof: removing this refusal made the production CLI extra-operand assertion fail.
+    if (args.length !== 7 || args[5] !== '--now')
+      throw new Error(
+        'usage: twilight-burokrat inspect-manual-observation <repository> <committed-sha> <external-rule-policy> <report-path> --now <UTC instant>',
+      );
+    return import('./evidence/manual').then(({ readEvaluationInstant }) => {
+      // Proof: the exact deadline instants and malformed UTC production calls fail if the
+      // supplied instant is replaced with a sampled clock or accepted without decoding.
+      const evaluatedAt = readEvaluationInstant(args[6]);
+      return import('./evidence/manual-observation').then(({ inspectManualObservation }) => {
+        const observation = inspectManualObservation(
+          args[1],
+          args[2],
+          args[3],
+          args[4],
+          evaluatedAt,
+        );
+        process.stdout.write(`${JSON.stringify(observation)}\n`);
+        // Proof: disabling this exit mapping made evaluated stale, failed and overdue CLI cases exit zero.
+        if (observation.manual.state !== 'current') process.exitCode = 1;
+      });
+    });
+  }
   if (args[0] === 'inspect-performance') {
     // Proof: removing arity refusal made the extra-operand production CLI assertion fail.
     if (args.length !== 4)
@@ -498,7 +522,7 @@ export function runCli(argv: readonly string[]): Promise<void> | void {
   // re-adding its route above failed `submit-admission is an unknown command` (cli.test.ts) and
   // `the validator bundle carries no authority store` (packaging/bundle.test.ts) (2026-10-11).
   throw new Error(
-    `unknown command: ${args[0] ?? '<missing>'}\nusage: twilight-burokrat <validate-record|read-candidate|candidate-identity|inspect-performance|inspect-performance-sources|inspect-browser|inspect-test-reports|inspect-test-sources|inspect-spec-sources|inspect-manual|classify-candidate|content-manifest|validate-artifacts|extract-relationships|check-indexes|check-root-migration|validate-review-provenance|freeze-exhaustive|verify-exhaustive|evaluate-exhaustive-coverage|lint-local|lint-ci|check|explain|scenario|template|validate-policy-activation> ...`,
+    `unknown command: ${args[0] ?? '<missing>'}\nusage: twilight-burokrat <validate-record|read-candidate|candidate-identity|inspect-performance|inspect-performance-sources|inspect-browser|inspect-test-reports|inspect-test-sources|inspect-spec-sources|inspect-manual|inspect-manual-observation|classify-candidate|content-manifest|validate-artifacts|extract-relationships|check-indexes|check-root-migration|validate-review-provenance|freeze-exhaustive|verify-exhaustive|evaluate-exhaustive-coverage|lint-local|lint-ci|check|explain|scenario|template|validate-policy-activation> ...`,
   );
 }
 

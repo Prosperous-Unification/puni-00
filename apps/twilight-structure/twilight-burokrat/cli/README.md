@@ -89,6 +89,13 @@ publication and index identities, and index review debt. Every case has an unres
 the observation has absent authentication, `certifies:false`, and no tested-module, coverage or
 admission claim. A refused Performance publication remains a refusal.
 
+`inspect-manual-observation <repository> <committed-sha> <external-rule-policy> <report-path> --now <UTC instant>`
+wraps the complete `inspect-manual` result with the exact committed candidate identity and
+canonical evaluation instant. The digest binds the entire envelope, including the nested Manual
+verdict, absent authentication and `certifies:false`. Current, stale, failed and overdue results
+all emit JSON; only current exits zero. Invalid evidence and unresolved scenario selection refuse
+without JSON. The command grants no Manual-level, coverage, admission or human-authentication claim.
+
 ## Diagnostic specification sources
 
 `inspect-spec-sources <repository> <committed-sha>` inventories every parsed active canonical

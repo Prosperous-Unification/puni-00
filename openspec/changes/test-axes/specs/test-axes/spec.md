@@ -252,6 +252,47 @@ The version-1 observation SHALL bind revision, candidate, publication observatio
 - **THEN** it SHALL keep authentication absent, certification false and level unresolved
 - **AND** it SHALL make no test-level, tested-module, service-kind, coverage or admission claim
 
+### Requirement: Manual observation preserves the inspected verdict without certification
+
+`inspect-manual-observation <repository> <full-committed-sha> <external-policy> <report-path> --now <UTC instant>` SHALL call the real Manual inspector for one exact committed candidate and caller-supplied instant. Its version-1 envelope SHALL contain the selected revision and candidate identity, canonical `evaluatedAt`, the complete nested Manual inspector result, `authentication:{kind:'absent'}`, `certifies:false`, and an observation digest over the complete envelope before the digest field. It SHALL preserve the Manual `current`, `stale`, `failed` and `overdue` judgments and emit JSON for each evaluated result, exiting zero only for `current`. Missing, unreadable, malformed or untrusted inputs and unresolved B3 selection SHALL refuse with a named error and no success JSON. It SHALL NOT grant a Manual level, coverage, admission or trusted human identity.
+
+#### Scenario: [TEST-AXES-067] A current Manual report is wrapped intact
+
+- **GIVEN** a valid committed candidate and exact external approval chain
+- **WHEN** the command inspects the supplied UTC instant
+- **THEN** it SHALL bind the complete Manual result, candidate, time and noncertifying markers in one digest
+
+#### Scenario: [TEST-AXES-068] Noncurrent Manual judgments remain noncurrent
+
+- **GIVEN** a valid stale, failed or overdue Manual result
+- **WHEN** the adapter emits its observation
+- **THEN** it SHALL retain the exact nested judgment and exit nonzero with JSON
+
+#### Scenario: [TEST-AXES-069] The Manual review deadline uses the caller instant
+
+- **GIVEN** a review deadline date and canonical UTC evaluation instants at its end and next day's start
+- **WHEN** the command inspects each instant
+- **THEN** it SHALL return current through the deadline and overdue immediately after it
+
+#### Scenario: [TEST-AXES-070] Manual observation refuses invalid selection and evidence
+
+- **GIVEN** a symbolic SHA, staged reader fault, mismatched inspector revision or missing external report
+- **WHEN** the command attempts observation
+- **THEN** it SHALL refuse with a named error and no JSON
+
+#### Scenario: [TEST-AXES-071] Manual observation retains B3 and immutable selection
+
+- **GIVEN** staged source repair or unresolved effective scenario selection
+- **WHEN** the adapter invokes the Manual inspector on the committed candidate
+- **THEN** staging SHALL NOT change the observation and B3 refusal SHALL remain a refusal
+
+#### Scenario: [TEST-AXES-072] Manual observation identity and installed dispatch are complete
+
+- **GIVEN** a valid observation and installed package executable
+- **WHEN** an envelope or nested field changes or the packaged command is invoked
+- **THEN** every changed field SHALL change the digest and the installed command SHALL reach the validator
+- **AND** authentication SHALL remain absent and certification false
+
 ### Requirement: Tests live inside their modules
 
 A test SHALL live inside the module it tests, resolved from the module index.
