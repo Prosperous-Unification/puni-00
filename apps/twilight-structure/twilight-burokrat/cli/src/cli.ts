@@ -384,6 +384,14 @@ export function runCli(argv: readonly string[]): Promise<void> | void {
       writeCandidateIdentityCommand(args);
     });
   }
+  if (args[0] === 'inspect-spec-sources') {
+    // Proof: removing arity refusal made TEST-AXES-056's extra-argument CLI call succeed.
+    if (args.length !== 3)
+      throw new Error('usage: twilight-burokrat inspect-spec-sources <repository> <committed-sha>');
+    return import('./evidence/spec-sources').then(({ inspectSpecSources }) => {
+      process.stdout.write(`${JSON.stringify(inspectSpecSources(args[1], args[2]))}\n`);
+    });
+  }
   if (args[0] === 'inspect-manual') {
     // Proof: disabling this arity refusal made the production CLI usage assertion fail.
     if (!(args.length === 5 || (args.length === 7 && args[5] === '--now')))
@@ -467,7 +475,7 @@ export function runCli(argv: readonly string[]): Promise<void> | void {
   // re-adding its route above failed `submit-admission is an unknown command` (cli.test.ts) and
   // `the validator bundle carries no authority store` (packaging/bundle.test.ts) (2026-10-11).
   throw new Error(
-    `unknown command: ${args[0] ?? '<missing>'}\nusage: twilight-burokrat <validate-record|read-candidate|candidate-identity|inspect-browser|inspect-test-reports|inspect-test-sources|inspect-manual|classify-candidate|content-manifest|validate-artifacts|extract-relationships|check-indexes|check-root-migration|validate-review-provenance|freeze-exhaustive|verify-exhaustive|evaluate-exhaustive-coverage|lint-local|lint-ci|check|explain|scenario|template|validate-policy-activation> ...`,
+    `unknown command: ${args[0] ?? '<missing>'}\nusage: twilight-burokrat <validate-record|read-candidate|candidate-identity|inspect-browser|inspect-test-reports|inspect-test-sources|inspect-spec-sources|inspect-manual|classify-candidate|content-manifest|validate-artifacts|extract-relationships|check-indexes|check-root-migration|validate-review-provenance|freeze-exhaustive|verify-exhaustive|evaluate-exhaustive-coverage|lint-local|lint-ci|check|explain|scenario|template|validate-policy-activation> ...`,
   );
 }
 

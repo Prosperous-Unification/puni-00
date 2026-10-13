@@ -1,4 +1,14 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 
@@ -1399,7 +1409,7 @@ test('reads static Nx configuration without executing candidate plugins', async 
   ]);
 });
 
-test('reads static Nx configuration without executing a candidate-local wrapper', async () => {
+test('refuses candidate-local Nx modules before executing their wrapper', async () => {
   const repository = createRepository();
   const sentinel = join(repository, '..', `${basename(repository)}.local-nx-executed`);
   pathsToRemove.push(sentinel);
@@ -1423,11 +1433,10 @@ test('reads static Nx configuration without executing a candidate-local wrapper'
   // Proof: executing the candidate-local wrapper from the production extractor wrote this sentinel
   // and failed the assertion before static extraction could report the declared projects.
   expect(existsSync(sentinel)).toBe(false);
-  expect(report(invocation).nx.projects.map(({ name }) => name)).toEqual([
-    'consumer',
-    'minimal',
-    'provider',
-  ]);
+  expect(invocation.exitCode).toBe(1);
+  expect(output(invocation)).toContain(
+    'relationship candidate may not supply trusted runtime modules',
+  );
 });
 
 test('uses trusted Nx when candidate root package metadata claims its package name', async () => {
@@ -1595,4 +1604,358 @@ for (const ambientUse of ['keyof', 'generic default'] as const) {
       initial.typescript.publicDeclarations[0].identity,
     );
   }, 30_000);
+}
+
+function createVendorFixture(): { repository: string; modules: string; request: string } {
+  const repository = createRepository();
+  const runtime = mkdtempSync(join(tmpdir(), 'tool-wiki-vendors-'));
+  pathsToRemove.push(runtime);
+  const modules = join(runtime, 'trusted-node-modules');
+  write(
+    runtime,
+    'trusted-node-modules/typescript/package.json',
+    readFileSync(join(trustedNodeModules, 'typescript/package.json'), 'utf8'),
+  );
+  write(
+    runtime,
+    'trusted-node-modules/vendor-a/package.json',
+    JSON.stringify({ name: 'vendor-a', version: '1.0.0', types: 'index.d.ts' }),
+  );
+  write(
+    runtime,
+    'trusted-node-modules/vendor-a/index.d.ts',
+    "import type { Base } from 'vendor-b';\nexport interface Shape extends Base {}\n",
+  );
+  write(
+    runtime,
+    'trusted-node-modules/vendor-b/package.json',
+    JSON.stringify({ name: 'vendor-b', version: '1.0.0', types: 'index.d.ts' }),
+  );
+  write(
+    runtime,
+    'trusted-node-modules/vendor-b/index.d.ts',
+    'export interface Base { value: string }\n',
+  );
+  write(
+    runtime,
+    'node_modules/vendor-b/package.json',
+    JSON.stringify({ name: 'vendor-b', version: '9.0.0', types: 'index.d.ts' }),
+  );
+  write(runtime, 'node_modules/vendor-b/index.d.ts', 'export interface Base { wrong: number }\n');
+  write(
+    repository,
+    'vendor.ts',
+    "import type { Shape } from 'vendor-a';\nexport const value = (shape: Shape): string => shape.value + shape.augmented;\n",
+  );
+  write(
+    repository,
+    'augmentation.d.ts',
+    "import 'vendor-b';\ndeclare module 'vendor-b' { interface Base { augmented: string } }\n",
+  );
+  write(
+    repository,
+    'vendor-config.json',
+    JSON.stringify({
+      compilerOptions: {
+        strict: true,
+        types: [],
+        target: 'ES2022',
+        module: 'ESNext',
+        moduleResolution: 'Bundler',
+      },
+      files: ['vendor.ts', 'augmentation.d.ts'],
+    }),
+  );
+  const request = writeRequestInput(repository, {
+    schemaVersion: 1,
+    typescript: { configPaths: ['vendor-config.json'], publicEntrypoints: ['vendor.ts'] },
+  });
+  return { repository, modules, request };
+}
+
+test('resolves transitive trusted vendors under an arbitrary modules basename with augmentation', async () => {
+  const fixture = createVendorFixture();
+  const invocation = await invoke(
+    fixture.repository,
+    commitAll(fixture.repository, 'trusted vendor closure'),
+    fixture.request,
+    { TOOL_WIKI_TRUSTED_NODE_MODULES: fixture.modules },
+  );
+  expect(invocation.exitCode, output(invocation)).toBe(0);
+  expect(
+    report(invocation).typescript.publicDeclarations[0].declarations.some(
+      ({ sourcePath }) => sourcePath === 'vendor.ts',
+    ),
+  ).toBe(true);
+}, 20_000);
+
+for (const decoy of [true, false]) {
+  test(`refuses missing transitive trusted vendor with ancestor decoy ${String(decoy)}`, async () => {
+    const fixture = createVendorFixture();
+    rmSync(join(fixture.modules, 'vendor-b'), { recursive: true });
+    write(fixture.repository, 'augmentation.d.ts', '');
+    write(
+      fixture.repository,
+      'vendor.ts',
+      "import type { Shape } from 'vendor-a';\nexport const value = (shape: Shape): string => shape.value;\n",
+    );
+    if (!decoy) rmSync(join(dirname(fixture.modules), 'node_modules'), { recursive: true });
+    else
+      write(
+        dirname(fixture.modules),
+        'node_modules/vendor-b/index.d.ts',
+        'export interface Base { value: string }\n',
+      );
+    const invocation = await invoke(
+      fixture.repository,
+      commitAll(fixture.repository, 'missing trusted vendor'),
+      fixture.request,
+      { TOOL_WIKI_TRUSTED_NODE_MODULES: fixture.modules },
+    );
+    expect(invocation.exitCode, output(invocation)).toBe(1);
+    expect(output(invocation)).toContain('TypeScript');
+  }, 20_000);
+}
+
+for (const fault of ['unreadable', 'escape', 'copy failure', 'cycle', 'special'] as const) {
+  test(`refuses trusted package ${fault} and cleans the materialized candidate`, async () => {
+    const fixture = createVendorFixture();
+    const source = join(fixture.modules, 'vendor-b/index.d.ts');
+    if (fault === 'escape')
+      write(
+        dirname(fixture.modules),
+        'node_modules/vendor-b/index.d.ts',
+        'export interface Base { value: string }\n',
+      );
+    if (fault === 'unreadable') chmodSync(source, 0o000);
+    else {
+      rmSync(source);
+      if (fault === 'special') {
+        const made = Bun.spawnSync(['mkfifo', source], { stdout: 'pipe', stderr: 'pipe' });
+        expect(made.exitCode, made.stderr.toString()).toBe(0);
+      } else
+        symlinkSync(
+          fault === 'escape'
+            ? '../../node_modules/vendor-b/index.d.ts'
+            : fault === 'cycle'
+              ? '.'
+              : './absent',
+          source,
+        );
+    }
+    const scratch = join(dirname(fixture.modules), 'scratch');
+    mkdirSync(scratch);
+    const invocation = await invoke(
+      fixture.repository,
+      commitAll(fixture.repository, fault),
+      fixture.request,
+      { TOOL_WIKI_TRUSTED_NODE_MODULES: fixture.modules, TMPDIR: scratch },
+    );
+    expect(invocation.exitCode, output(invocation)).toBe(1);
+    if (fault === 'unreadable')
+      expect(output(invocation)).toContain('trusted runtime path unreadable');
+    if (fault === 'escape')
+      expect(output(invocation)).toContain('trusted runtime symlink escapes closure');
+    if (fault === 'cycle') expect(output(invocation)).toContain('trusted runtime symlink cycle');
+    if (fault === 'special')
+      expect(output(invocation)).toContain('not a regular file or directory');
+    expect(readdirSync(scratch)).toEqual([]);
+  }, 20_000);
+}
+
+test('preserves scoped package config inheritance and nested vendor topology', async () => {
+  const fixture = createVendorFixture();
+  const runtime = dirname(fixture.modules);
+  write(
+    runtime,
+    'trusted-node-modules/@fixture/config/package.json',
+    JSON.stringify({
+      name: '@fixture/config',
+      version: '1.0.0',
+      tsconfig: 'tsconfig.json',
+    }),
+  );
+  write(
+    runtime,
+    'trusted-node-modules/@fixture/config/tsconfig.json',
+    JSON.stringify({
+      compilerOptions: {
+        strict: true,
+        types: [],
+        target: 'ES2022',
+        module: 'ESNext',
+        moduleResolution: 'Bundler',
+      },
+    }),
+  );
+  write(
+    runtime,
+    'trusted-node-modules/vendor-a/node_modules/vendor-b/package.json',
+    JSON.stringify({
+      name: 'vendor-b',
+      version: '2.0.0',
+      types: 'index.d.ts',
+    }),
+  );
+  write(
+    runtime,
+    'trusted-node-modules/vendor-a/node_modules/vendor-b/index.d.ts',
+    'export interface Base { value: string; nested: true }\n',
+  );
+  write(
+    fixture.repository,
+    'vendor-config.json',
+    JSON.stringify({
+      extends: '@fixture/config',
+      files: ['vendor.ts', 'augmentation.d.ts'],
+    }),
+  );
+  write(
+    fixture.repository,
+    'vendor.ts',
+    "import type { Shape } from 'vendor-a';\nexport const value = (shape: Shape): true => shape.nested;\n",
+  );
+  const invocation = await invoke(
+    fixture.repository,
+    commitAll(fixture.repository, 'scoped nested closure'),
+    fixture.request,
+    { TOOL_WIKI_TRUSTED_NODE_MODULES: fixture.modules },
+  );
+  expect(invocation.exitCode, output(invocation)).toBe(0);
+}, 20_000);
+
+test('refuses absolute compiler inputs outside the candidate and trusted closure', async () => {
+  const fixture = createVendorFixture();
+  const outside = join(dirname(fixture.modules), 'outside.ts');
+  writeFileSync(outside, 'export interface Outside { value: string }\n');
+  write(
+    fixture.repository,
+    'vendor.ts',
+    `import type { Outside } from '${outside}';\nexport type Public = Outside;\n`,
+  );
+  const invocation = await invoke(
+    fixture.repository,
+    commitAll(fixture.repository, 'outside import'),
+    fixture.request,
+    { TOOL_WIKI_TRUSTED_NODE_MODULES: fixture.modules },
+  );
+  expect(invocation.exitCode, output(invocation)).toBe(1);
+  expect(output(invocation)).toContain('TypeScript import unresolved');
+}, 20_000);
+
+test('continues to refuse candidate-supplied runtime modules', async () => {
+  const fixture = createVendorFixture();
+  write(
+    fixture.repository,
+    'node_modules/vendor-b/index.d.ts',
+    'export interface Base { value: string }\n',
+  );
+  const invocation = await invoke(
+    fixture.repository,
+    commitAll(fixture.repository, 'candidate modules'),
+    fixture.request,
+    { TOOL_WIKI_TRUSTED_NODE_MODULES: fixture.modules },
+  );
+  expect(invocation.exitCode).toBe(1);
+  expect(output(invocation)).toContain(
+    'relationship candidate may not supply trusted runtime modules',
+  );
+});
+
+test('cleans a candidate rejected during snapshot symlink materialization', async () => {
+  const fixture = createVendorFixture();
+  symlinkSync('../outside', join(fixture.repository, 'escape'));
+  const scratch = join(dirname(fixture.modules), 'scratch');
+  mkdirSync(scratch);
+  const invocation = await invoke(
+    fixture.repository,
+    commitAll(fixture.repository, 'candidate escape cleanup'),
+    fixture.request,
+    { TOOL_WIKI_TRUSTED_NODE_MODULES: fixture.modules, TMPDIR: scratch },
+  );
+  expect(invocation.exitCode).toBe(1);
+  expect(output(invocation)).toContain('escapes the materialized candidate');
+  expect(readdirSync(scratch)).toEqual([]);
+});
+
+test('refuses an outside declaration named directly by compiler configuration', async () => {
+  const fixture = createVendorFixture();
+  const outside = join(dirname(fixture.modules), 'outside.d.ts');
+  writeFileSync(outside, 'interface UnadmittedGlobal { value: string }\n');
+  write(
+    fixture.repository,
+    'vendor-config.json',
+    JSON.stringify({
+      compilerOptions: {
+        strict: true,
+        types: [],
+        target: 'ES2022',
+        module: 'ESNext',
+        moduleResolution: 'Bundler',
+      },
+      files: ['vendor.ts', 'augmentation.d.ts', outside],
+    }),
+  );
+  const invocation = await invoke(
+    fixture.repository,
+    commitAll(fixture.repository, 'outside configured declaration'),
+    fixture.request,
+    { TOOL_WIKI_TRUSTED_NODE_MODULES: fixture.modules },
+  );
+  expect(invocation.exitCode, output(invocation)).toBe(1);
+});
+
+for (const alias of [false, true]) {
+  test(`refuses candidate nested modules with symlink alias ${String(alias)}`, async () => {
+    const repository = createRepository();
+    const packageRoot = alias ? 'src/dependencies' : 'src/node_modules';
+    write(
+      repository,
+      `${packageRoot}/hidden/package.json`,
+      JSON.stringify({
+        name: 'hidden',
+        version: '1.0.0',
+        types: 'index.d.ts',
+      }),
+    );
+    write(
+      repository,
+      `${packageRoot}/hidden/index.d.ts`,
+      'export interface Hidden { value: string }\n',
+    );
+    if (alias) symlinkSync('dependencies', join(repository, 'src/node_modules'));
+    write(
+      repository,
+      'src/main.ts',
+      "import type { Hidden } from 'hidden';\nexport type Public = Hidden;\n",
+    );
+    write(
+      repository,
+      'nested-config.json',
+      JSON.stringify({
+        compilerOptions: {
+          strict: true,
+          types: [],
+          target: 'ES2022',
+          module: 'ESNext',
+          moduleResolution: 'Bundler',
+        },
+        files: ['src/main.ts'],
+      }),
+    );
+    const request = writeRequestInput(repository, {
+      schemaVersion: 1,
+      typescript: { configPaths: ['nested-config.json'], publicEntrypoints: ['src/main.ts'] },
+    });
+    const invocation = await invoke(
+      repository,
+      commitAll(repository, 'candidate nested module'),
+      request,
+    );
+    expect(invocation.exitCode, output(invocation)).toBe(1);
+    if (!alias)
+      expect(output(invocation)).toContain(
+        'relationship candidate may not supply trusted runtime modules',
+      );
+  });
 }

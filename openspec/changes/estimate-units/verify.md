@@ -366,6 +366,53 @@ Full host gate, full frontend suite, full historical Gantt browser shard and bro
 backend/domain suites have not been run by this worker. The final exact-SHA host gate
 is queued by the PM after the preceding integration merges; task 8.1 stays open.
 
+## Next WBS integration verification — 2026-10-13
+
+The isolated `integrate/next-wbs-release` branch started at exact #380 head
+`54328f32a40ba86ba39c9a30e0f593e4c6fdd0f3`, then merged reviewed #381
+`34edec068dc9a4e5bd4189981e0b1149db2433fa` and #382
+`1d40e4b1ee17ebafe54fe509f4797fe0df011769` with normal merge commits and no conflicts.
+All source histories and existing verification notes remain present.
+
+Additional migration coverage exposed a historical capacity-oracle test that had not
+accounted for this change's new `estimateUnit` and `charged` wire fields. Exact #380
+reproduced the failure independently: 2 passed, 1 failed. Test-only correction
+`164b993a0fe8fce164f2c27e344d3bf400e2237c` asserts legacy steps remain `workdays`
+and that every native charge equals the corresponding workday `finalDays` value;
+the prior whole-document oracle still pins every historical value. The corrected
+focused suite passed 3/3 with 3,531 assertions. Returning empty `charged` from the
+production `finalsOf` dependency failed the new assertion (2 passed, 1 failed);
+restoring the dependency passed 3/3 again. No production correction was required.
+
+Fresh combined checks:
+
+- `BUN_TMPDIR=/tmp bun install --frozen-lockfile`: 1,573 installs checked across
+  1,447 packages, no dependency changes. The first install without `BUN_TMPDIR`
+  failed because the default temporary directory was read-only.
+- `bun test apps/wbs/mcp-01/src/oauth.test.ts apps/wbs/mcp-01/src/session-store.test.ts apps/wbs/mcp-01/src/store-migrations.test.ts`:
+  207 passed, 0 failed, 607 assertions, 9.58 seconds.
+- `bun test apps/wbs/be-01/src/service/optimization-coordinator.model.db.test.ts apps/wbs/be-01/src/controller/capacity-mode.controller.db.test.ts`:
+  28 passed, 0 failed, 27,270 assertions, 59.01 seconds.
+- `bun test apps/wbs/be-01/src/migrate.test.ts apps/wbs/be-01/src/migration-cli.db.test.ts apps/wbs/be-01/src/service/capacity-migration-identity.db.test.ts`:
+  54 passed, 0 failed, 3,978 assertions, 21.38 seconds after the oracle correction.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx --no-install nx graph --file=/tmp/next-wbs-graph.json`:
+  produced a nonempty graph artifact.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx --no-install nx run-many -t typecheck -p wbs-mcp-01,wbs-be-01 --skip-nx-cache`:
+  both typechecks and the backend module typecheck passed.
+- Focused ESLint on changed OAuth, OAuth tests, model tests and capacity-oracle tests
+  passed with the generated graph available. Prettier on changed files and
+  `git diff --check` passed. Correction commit hooks passed.
+- Migration inventory: 69 unique backend stamps and 2 unique MCP stamps within their
+  respective databases; every migration has `down.sql`. Neither merged PR adds a
+  migration. `SUPPORTED_CAPACITY_MODES` remains `['isolated']`; no credential-epoch
+  write or production shared-mode activation is introduced.
+
+OpenSpec CLI validation is unavailable locally: no `openspec` on PATH or in the
+local dependency bin directory. Frontend typecheck was not run because this stacked
+diff changes no frontend file. The canonical host gate, full builds, browser checks,
+merge, publication, activation and deployment are reserved for the release coordinator;
+this focused integration verification does not claim those checks.
+
 ### PR #380 field-group gate correction — 2026-10-13
 
 Base: `743e0a508905027d8ab9c513e5fe42e73bf1cff8`. This restores the existing
@@ -422,3 +469,31 @@ run-many -t lint:fast,typecheck -p wbs-store-sqlite`: both targets pass, no cach
 
 Full host gate, full SQLite suite, repository build and OpenSpec validation were
 not run by this worker; the PM owns the final exact-SHA host gate.
+
+### Next WBS merge of corrected #380 head — 2026-10-13
+
+Merged exact #380 head `a61ce440dcbe0880559bc6d97e584e055cf7e23d` into
+#383 head `fb881b53a95687337883150733fd8c281bec64b2` with a normal merge.
+The sole conflict appended independent evidence to this file; both sections were
+retained. All nine incoming source and test files match #380 exactly after the
+merge. Existing #381 OAuth and #382 SwitchMode histories remain intact.
+
+Fresh checks on the combined tree:
+
+- Focused field groups, page projection, mounted rows, MCP OpenAPI, historical
+  migrations, activation and WorkingPlan tests: 114 pass, 0 fail across 9 files,
+  622 assertions, 17.99 seconds.
+- OAuth, session store, MCP migrations, coordinator model and capacity-mode
+  controller tests: 235 pass, 0 fail across 5 files, 27,877 assertions, 71.01 seconds.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx --no-install nx run-many -t typecheck,lint:fast -p wbs-contracts,wbs-core,wbs-store-sqlite,wbs-be-01,wbs-mcp-01 --skip-nx-cache`:
+  all 12 tasks passed, including two module dependencies; no Nx cache used.
+- `BUN_TMPDIR=/tmp bunx --no-install @fission-ai/openspec validate --all --json`:
+  185 passed (167 changes and 18 specs), 0 failed, exit 0. The cached Bun CLI is
+  available despite no standalone `openspec` on PATH.
+- Changed-file Prettier and `git diff --check` passed after formatting the merged
+  verification log. `SUPPORTED_CAPACITY_MODES` remains `['isolated']`.
+
+No new production behavior or safety checks were introduced by conflict resolution.
+Full host gate, repository build, full suites and browser checks were not run by
+this worker; the release coordinator owns the exact-SHA host gate. This local
+merge does not publish, activate MCP or enable shared capacity.

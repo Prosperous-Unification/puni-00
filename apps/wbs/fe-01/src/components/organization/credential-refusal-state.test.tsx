@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AppFaultBoundary } from '@/components/chrome/app-fault';
@@ -50,6 +50,24 @@ describe('the organization page refused by enforced SSO', () => {
       within(state).getByText('Link your company sign-in, then sign in via SSO.'),
     ).toBeDefined();
     expect(screen.queryByRole('heading', { name: 'Members' })).toBeNull();
+  });
+
+  it('links the company slug selected by the server instead of its organization id', async () => {
+    const sent = refuseEveryPanel(SSO_REQUIRED);
+    renderPage();
+    fireEvent.change(await screen.findByLabelText('How did you sign in to WBS?'), {
+      target: { value: 'provider' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Link your company sign-in' }));
+    await vi.waitFor(() => {
+      expect(sent.some((request) => request.route === 'POST /api/auth/link/auth0')).toBe(true);
+    });
+    expect(sent.find((request) => request.route === 'POST /api/auth/link/auth0')?.body).toEqual({
+      organization: 'acme-eu-2',
+    });
+    expect(
+      screen.getByRole('link', { name: 'Sign in with your company' }).getAttribute('href'),
+    ).toBe(SSO_REQUIRED.login);
   });
 
   it('links the company sign-in to the exact path the refusal names', async () => {
@@ -119,6 +137,29 @@ describe('the credential refusal state', () => {
       login: '/api/auth/login?reauthenticate=org_7f3a',
     } as unknown as CredentialRefusal);
     expect(screen.getByRole('alert').hasAttribute('data-app-fault')).toBe(true);
+  });
+
+  it.each([
+    '/api/auth/login?email=a@acme.test',
+    '/api/auth/login?organization=',
+    '/api/auth/login?organization=ACME',
+    '/api/auth/login?organization=acme&organization=other',
+    '/api/auth/login?organization=acme&method=google',
+    '/api/auth/login?organization=acme&reauthenticate=org_7f3a',
+  ])('refuses a malformed company login path %s', (login) => {
+    renderGuarded({ ...SSO_REQUIRED, login });
+    expect(screen.getByRole('alert').hasAttribute('data-app-fault')).toBe(true);
+    expect(screen.queryByRole('button', { name: 'Link your company sign-in' })).toBeNull();
+  });
+
+  it('offers no company link for a session-policy refusal', () => {
+    renderGuarded({
+      error: 'reauthentication_required',
+      organizationId: 'org_7f3a',
+      login: '/api/auth/login?reauthenticate=org_7f3a',
+      reason: 'max_session',
+    });
+    expect(screen.queryByRole('button', { name: 'Link your company sign-in' })).toBeNull();
   });
 
   it('refuses a sign-in path that leaves be-01’s login start', () => {

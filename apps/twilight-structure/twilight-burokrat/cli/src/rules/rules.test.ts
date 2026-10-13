@@ -1,6 +1,7 @@
 import { Buffer } from 'node:buffer';
 import {
   chmodSync,
+  cpSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -304,9 +305,12 @@ function createKindedCandidate(sources: Record<string, string>): {
  */
 function createTrustedModules(): string {
   const modules = scratch('twilight-rules-modules-');
-  symlinkSync(
+  // Proof: the former outside-root symlink made the scoped React CLI case refuse with
+  // 'trusted TypeScript compiler identity is unreadable' instead of reporting its F1 finding.
+  cpSync(
     join(import.meta.dir, '..', '..', '..', '..', '..', '..', 'node_modules', 'typescript'),
     join(modules, 'typescript'),
+    { recursive: true, dereference: true },
   );
   mkdirSync(join(modules, '@tanstack', 'react-query'), { recursive: true });
   writeFileSync(
@@ -1237,7 +1241,7 @@ describe('K2, K5, K6 and F1', () => {
       policyPath,
       { TOOL_WIKI_TRUSTED_NODE_MODULES: createTrustedModules() },
     );
-    expect(invocation.exitCode, stderrOf(invocation)).toBe(0);
+    expect(invocation.exitCode, `${stderrOf(invocation)}${stdoutOf(invocation)}`).toBe(0);
     expect(verdictOf(invocation).findings).toHaveLength(1);
     expect(verdictOf(invocation).findings[0]).toMatchObject({
       subject: 'external:@tanstack/react-query',

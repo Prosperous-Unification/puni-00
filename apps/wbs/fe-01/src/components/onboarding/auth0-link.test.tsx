@@ -94,6 +94,14 @@ describe('Auth0 link start', () => {
 describe('Auth0 link outcome on return', () => {
   it.each([
     ['linked', 'Your Auth0 account is linked.'],
+    [
+      'sso_prefix_mismatch',
+      'Your company sign-in could not be verified. Contact your organization administrator.',
+    ],
+    [
+      'sso_connection_taken',
+      'That company sign-in is already assigned to another organization. Contact your organization administrator.',
+    ],
     ['collision', 'That Auth0 account or its email already belongs to another WBS account.'],
     ['refused', 'Linking was refused or expired. Start again.'],
   ])('renders %s and strips the parameter', async (outcome, copy) => {
