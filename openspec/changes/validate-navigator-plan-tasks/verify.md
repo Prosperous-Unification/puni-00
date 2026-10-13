@@ -113,3 +113,30 @@ its transitive source modules and versioned fixtures. No check logic changed.
 
 Full host gate, full repository tests, full build and the package-build suite remain with
 the coordinator; this repair changes only cache declarations and verification documentation.
+
+## Subprocess dependency closure review repair (2026-10-14)
+
+Review identified that the Navigator source input alone omitted the runtime WBS contract
+import in `plan-reference.ts`. Burokrat now declares `wbs-contracts` as an implicit dependency;
+its existing `^production` input includes that project's production dependency closure through
+`wbs-validation` and `shared-validation`. This adds no Burokrat-to-Navigator cycle. The explicit
+Navigator source input remains necessary for the subprocess source and fixtures.
+
+The new workspace-target regression invokes Nx's real in-process task hasher with input
+collection enabled and checks the expanded hashed files, without modifying source files:
+
+- Removing the `wbs-contracts` implicit dependency made the focused test fail because
+  `libs/wbs/domain/contracts/src/http/plan-document-shapes.ts` was absent from the hash inputs.
+- Removing `^production` made it fail on that contract and both validation entrypoints,
+  `libs/wbs/domain/validation/src/index.ts` and `libs/shared/domain/validation/src/index.ts`.
+  Both mutations were restored; the assertion carries the adjacent observed proof.
+- `NX_ISOLATE_PLUGINS=false bun test ./tools/tool-devsync/src/workspace-targets.test.ts
+--timeout=30000`: 23 passed, 0 failed, 81 assertions, including the original outside-read
+  oracle and the new production hash-input oracle.
+- Repeated the Navigator and plan-task source command from the cache-input repair:
+  85 passed, 0 failed, 396 assertions across four files.
+- Repeated both scoped Nx command groups from the cache-input repair: all six lint/typecheck
+  tasks passed, with zero cache hits. Scoped Prettier and `git diff --check` exited 0.
+
+Full host gate, full repository tests, full build and the package-build suite remain delegated
+to the coordinator.
