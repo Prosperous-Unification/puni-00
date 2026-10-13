@@ -229,12 +229,6 @@
     },
     {
       "file": "vitest.view-level.test.ts"
-    },
-    {
-      "file": "src/runtime/organization-context.model.test.ts"
-    },
-    {
-      "file": "src/runtime/organization-owner.model.test.ts"
     }
   ]
 }
