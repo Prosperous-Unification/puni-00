@@ -473,3 +473,15 @@ sequence`, `push failure retains durable event`, `expired replay requires snapsh
       Evidence and seven production-path mutation proofs: verify.md "SwitchMode model (010.4.16)".
 - [x] 8.2 Negative: policy removed → an admin gets 200, not 403. Evidence with the other route,
       storage and owner faults: verify.md "Mode route 8 port (batch 10)".
+
+## 9. Solver image prerequisite for WBS 010.4.16
+
+- [x] 9.1 The digest-packaged, authenticated solver image smoke sends a small target plan through
+      the production request builder with Ana booked by a higher-ranked project on days
+      `[0, 1.01)`. It requires a publishing feasible answer and revalidates that answer against
+      the exact sent request. The earlier quantised baseline smoke still runs. Evidence:
+      verify.md "Shared-person solver image prerequisite (010.4.16)".
+- [x] 9.2 Negative: dropped person/calendar, overlapping feasible answer, unknown/infeasible
+      response, missing shared invocation, and Python model ignoring fixed bookings all fail the
+      focused checks. Cleanup removes image tags on failure. This prerequisite does not activate
+      shared mode; `SUPPORTED_CAPACITY_MODES` remains `['isolated']`.
