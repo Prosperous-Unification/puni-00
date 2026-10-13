@@ -49,8 +49,8 @@ export interface PresencePanelProps extends Roster {
  * **Below `xl` it collapses to the dot and a count** (UI review F-011): at
  * 1024 the clipped line was down to the first letter of one name, which says
  * less than a number does. The heading and the list stay in the accessibility
- * tree (`sr-only`), and the section's `title` carries the whole roster for a
- * pointer.
+ * tree (`sr-only`), and the section's fact card (`data-fact`, the app's own
+ * card rather than a native `title`) carries the whole roster for a pointer.
  *
  * **Online or Offline, not the channel's state** (F-018). The heading read
  * `Online (open)`: `open` is the socket's word, and to a reader it meant
@@ -64,7 +64,7 @@ export function PresencePanel({ me, users, connected }: PresencePanelProps) {
   return (
     <section
       aria-labelledby={headingId}
-      title={users.length === 0 ? `${state}: nobody yet` : `${state}: ${roster}`}
+      data-fact={users.length === 0 ? `${state}: nobody yet` : `${state}: ${roster}`}
       className="flex min-w-0 items-center gap-1.5 text-xs"
     >
       <span

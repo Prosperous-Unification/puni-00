@@ -189,10 +189,18 @@ test.describe('the toolbar rows', () => {
     await openPlan(page);
     // Proof: on 2026-10-13, before the overlay, this failed on `element(s) not found` — only
     // the native `09/19/2026` was on screen.
+    // At rest: the words show only while the field does not hold the focus, and the commit
+    // in `openPlan` may leave it there.
+    await page.getByLabel('Project start date').blur();
+    await expect(page.locator('[data-start-day]')).toBeVisible();
     await expect(page.locator('[data-start-day]')).toHaveText('19 Sep 2026');
     const ink = await page
       .getByLabel('Project start date')
       .evaluate((node) => getComputedStyle(node).color);
     expect(ink, 'the native date text shows under the overlay').toBe('rgba(0, 0, 0, 0)');
+
+    // Focused, the native field is the one on screen, for typing a day.
+    await page.getByLabel('Project start date').focus();
+    await expect(page.locator('[data-start-day]')).toBeHidden();
   });
 });

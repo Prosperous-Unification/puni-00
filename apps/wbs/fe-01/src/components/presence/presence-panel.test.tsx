@@ -42,11 +42,11 @@ describe('the presence panel', () => {
     expect(screen.queryByText(/\(open\)|\(closed\)/)).toBeNull();
   });
 
-  itDom('carries the whole roster in its title, for the collapsed dot and count', () => {
+  itDom('carries the whole roster in its fact card, for the collapsed dot and count', () => {
     render(<PresencePanel me="kat" users={['kat', 'sam']} connected />);
 
     const panel = screen.getByRole('region', { name: 'Online' });
-    expect(panel.getAttribute('title')).toBe('Online: kat (you), sam');
+    expect(panel.getAttribute('data-fact')).toBe('Online: kat (you), sam');
     expect(panel.querySelector('[data-presence-count]')?.textContent).toBe('2');
   });
 

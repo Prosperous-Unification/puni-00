@@ -1112,14 +1112,15 @@ export function ProjectPage({
           {/*
             A floor of 9rem with an ellipsis (UI review F-011): with no floor the
             picker was the bar's only give, and it gave down to `PUN` at 1024,
-            0px at 900 and an un-ellipsed `PUNI platfor` on a phone. The title
-            carries the whole name while the box clips it.
+            0px at 900 and an un-ellipsed `PUNI platfor` on a phone. The fact
+            card carries the whole name while the box clips it — the app's own
+            card, not a native `title` (`e2e/hints.spec.ts` sweeps for those).
           */}
           <span className="relative inline-block max-w-72 min-w-36 flex-1">
             <Input
               ref={pickerBox}
               className="h-8 w-full text-ellipsis max-md:h-11"
-              title={search === null ? selectedProject?.name : undefined}
+              data-fact={search === null ? selectedProject?.name : undefined}
               aria-label="Project"
               role="combobox"
               // At rest the box is the label of what is open, and a label is

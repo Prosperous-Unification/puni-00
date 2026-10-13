@@ -6,9 +6,9 @@ The signed-in header SHALL lay out on one row at widths of 900px and above and
 on two rows below 900px, the second holding the project controls. On a page with
 no project controls the header SHALL be one row at every width. The project
 picker SHALL be at least 144px wide wherever it is shown, SHALL truncate a long
-name with an ellipsis and SHALL carry the whole name in its title. No text in
+name with an ellipsis and SHALL carry the whole name in its hover card. No text in
 the roster SHALL be clipped mid-word: below 1280px the roster SHALL collapse to
-a connection dot and a count whose title names everyone present. On a phone the
+a connection dot and a count whose hover card names everyone present. On a phone the
 picker, Rename project and Create new project SHALL be at least 44px tall. The
 roster's heading SHALL read `Online` while connected and `Offline` while not,
 and SHALL NOT be shown while no project is chosen.

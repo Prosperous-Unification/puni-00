@@ -1903,7 +1903,7 @@ describe('what the plan is still missing', () => {
     // not to be null` — nothing on the page said where the caret had gone.
     const notice = document.querySelector('[data-gap-notice]');
     expect(notice).not.toBeNull();
-    expect(notice?.getAttribute('role')).toBe('status');
+    expect(notice?.getAttribute('aria-live')).toBe('polite');
     expect(notice?.textContent).toMatch(/^Unestimated 1 of 2: 010 .*, QA$/);
 
     fireEvent.click(theBadge());

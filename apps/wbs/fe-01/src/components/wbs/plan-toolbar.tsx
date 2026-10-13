@@ -1169,7 +1169,9 @@ export function PlanToolbar({
         out loud (UI review F-024): the walk opens branches, scrolls and moves
         the focus, and nothing on screen names which of the gaps this is. The
         region is visually hidden — the focused cell is the visual answer — and
-        polite, so it follows the focus move. In the badge's own box rather than
+        polite, so it follows the focus move. A bare live region rather than
+        `role="status"`: the schedule cue is this table's one status, and two
+        would leave neither findable by its role. In the badge's own box rather than
         a toolbar child of its own: an `sr-only` child is still a flex item with
         a top of its own, and it read as a third toolbar row in the 1280 budget.
       */}
@@ -1191,7 +1193,7 @@ export function PlanToolbar({
           >
             {gaps.leaves.length} unestimated
           </Button>
-          <span role="status" aria-live="polite" className="sr-only" data-gap-notice>
+          <span aria-live="polite" aria-atomic="true" className="sr-only" data-gap-notice>
             {gapNotice}
           </span>
         </span>
@@ -1405,7 +1407,7 @@ export function PlanToolbar({
             >
               Download JSON
             </Button>
-            <hr className="border-border my-1" />
+            <div role="separator" className="bg-border my-1 h-px shrink-0" />
             <label
               aria-disabled={importBusy}
               data-import-file
@@ -1449,7 +1451,7 @@ export function PlanToolbar({
             that dismissed the sheet before the export it configures could be
             reached would be a setting nobody can spend.
           */}
-            <hr className="border-border my-1" />
+            <div role="separator" className="bg-border my-1 h-px shrink-0" />
             <label className="flex items-center justify-between gap-1 px-3 text-xs">
               Mermaid lanes
               <select

@@ -539,6 +539,7 @@ test.describe('the header bar, read by eye and measured', () => {
       if (menu === null) throw new Error('Log out is in no menu');
       return {
         outline: style.outlineStyle,
+        border: style.borderTopWidth,
         lit: style.backgroundColor !== 'rgba(0, 0, 0, 0)',
         textLeft: Math.round(
           node.getBoundingClientRect().left + Number.parseFloat(style.paddingLeft),
@@ -547,8 +548,19 @@ test.describe('the header bar, read by eye and measured', () => {
       };
     });
     // Proof: on 2026-10-13, before this change, this failed on `lit: false` — the focused
-    // Log out had no fill, only the bordered box the capture shows.
-    expect({ outline: read.outline, lit: read.lit }).toEqual({ outline: 'none', lit: true });
+    // Log out had no fill, only the bordered box the capture shows. With `border-0` dropped
+    // from the row it failed on `border: "2px"` (the platform's button border).
+    expect({ outline: read.outline, border: read.border, lit: read.lit }).toEqual({
+      outline: 'none',
+      border: '0px',
+      lit: true,
+    });
+    // The Theme answers are one segmented control: no answer wears a border of its own.
+    const themeBorders = await page
+      .getByRole('group', { name: 'Theme' })
+      .getByRole('menuitemradio')
+      .evaluateAll((items) => items.map((item) => getComputedStyle(item).borderTopWidth));
+    expect(themeBorders).toEqual(['0px', '0px', '0px']);
     const signedInLeft = await page
       .getByRole('menu')
       .locator('p')

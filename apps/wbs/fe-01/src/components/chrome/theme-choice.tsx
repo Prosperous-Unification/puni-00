@@ -100,8 +100,8 @@ export function ThemeChoiceItems({
             // absence, and saying it here keeps all three reading as one control.
             className={
               offered === choice
-                ? 'bg-accent text-accent-foreground focus-visible:ring-ring cursor-pointer rounded-sm px-2 py-0.5 text-xs outline-none focus-visible:ring-2'
-                : 'hover:bg-accent hover:text-accent-foreground text-muted-foreground focus-visible:ring-ring cursor-pointer rounded-sm bg-transparent px-2 py-0.5 text-xs outline-none focus-visible:ring-2'
+                ? 'bg-accent text-accent-foreground focus-visible:ring-ring cursor-pointer rounded-sm border-0 px-2 py-0.5 text-xs outline-none focus-visible:ring-2'
+                : 'hover:bg-accent hover:text-accent-foreground text-muted-foreground focus-visible:ring-ring cursor-pointer rounded-sm border-0 bg-transparent px-2 py-0.5 text-xs outline-none focus-visible:ring-2'
             }
             onClick={() => {
               onChoose(offered);

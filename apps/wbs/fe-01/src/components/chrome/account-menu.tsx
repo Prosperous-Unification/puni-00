@@ -37,11 +37,13 @@ const FIRST_ADD_AT = THEME_CHOICES.length;
  * from the left edge at the same inset as the "Signed in as" line and the
  * Theme label — and lit with the accent while it holds the focus rather than
  * ringed by the platform's outline. The menu moves the focus onto `Log out`
- * as it opens, and that outline drew a bordered box beside a segmented Theme
- * control: two control styles in one small menu (UI review F-017).
+ * as it opens, and that row — with the platform's own button border, which the
+ * scoped reset in `styles.css` leaves on a `<button>` — drew a bordered box
+ * beside a segmented Theme control: two control styles in one small menu (UI
+ * review F-017). `border-0` is the half of the fix that removes the box.
  */
 const MENU_ROW =
-  'hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground w-full cursor-pointer rounded-sm bg-transparent px-2 py-1.5 text-left outline-none';
+  'hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground w-full cursor-pointer rounded-sm border-0 bg-transparent px-2 py-1.5 text-left outline-none';
 
 /**
  * Who is signed in, the palette, and the way out — one button in the header bar
@@ -281,7 +283,7 @@ export function AccountMenu({
               {addMessage}
             </p>
           )}
-          <hr role="none" className="border-border my-1" />
+          <div role="separator" className="bg-border my-1 h-px" />
           <button
             type="button"
             role="menuitem"

@@ -60,7 +60,11 @@ async function signIn(page: Page): Promise<void> {
  * at all. `header.spec.ts` learned this; it is the same bar.
  */
 async function openPicker(page: Page): Promise<void> {
-  await page.getByRole('heading', { name: 'WBS tool v2' }).click();
+  // Blurred directly rather than by clicking the brand: below 1024 the brand is visually
+  // hidden (`AppHeader`), and a click aimed at it lands on the header instead.
+  await picker(page).evaluate((node) => {
+    if (node instanceof HTMLElement) node.blur();
+  });
   await picker(page).click();
   await expect(page.getByRole('listbox', { name: 'Projects' })).toBeVisible();
 }

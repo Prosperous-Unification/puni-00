@@ -1656,7 +1656,10 @@ describe('the chart height this browser has dragged', () => {
     await openTheChart();
 
     const reset = screen.getByRole('button', { name: 'Reset layout' });
-    expect(reset.parentElement?.hasAttribute('data-toolbar')).toBe(true);
+    // Since UI review F-005 it ends the schedule group (Starts, Plan with), which is
+    // itself a child of the toolbar row.
+    expect(reset.parentElement?.hasAttribute('data-schedule')).toBe(true);
+    expect(reset.parentElement?.parentElement?.hasAttribute('data-toolbar')).toBe(true);
     expect(document.querySelector('[data-width-controls]')).toBeNull();
   });
 });
