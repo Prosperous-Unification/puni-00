@@ -254,3 +254,23 @@ Follow-up validation after restoring all three faults:
 - OpenSpec: **186 passed, 0 failed**, exit 0.
 - No push, PR creation, canonical gate, merge, deploy or live IdP proof was attempted in this follow-up.
 - `NX_DAEMON=false NX_NO_CLOUD=true bunx nx format:check --all`: **passed**, exit 0; touched-file Prettier and `git diff --check` also passed.
+
+### Session policy administration panel (WBS010.5.7)
+
+Implemented in an isolated clone of `feat/org-context-c2` at `b3249f5d42ff05d9b2331e776ee57deab6940542`; this entry concerns the new organization-page UI only. The mounted panel suite exercised GET and PUT through the typed scoped client; its first run failed because the component import did not exist. The page composition test failed until the panel was mounted.
+
+Fault injection used the production source and the mounted panel tests. Each fault was restored before final verification; logs are `/tmp/session-policy-fault-*.log`.
+
+| Injected fault                                   | Observed failure                                                                |
+| ------------------------------------------------ | ------------------------------------------------------------------------------- |
+| Accept a bound below 300                         | Invalid-bound test sent a PUT instead of refusing locally                       |
+| Keep controls after write-time `forbidden`       | Authority-loss test found Save controls instead of the refusal state            |
+| Remove both pending admission guards             | Forced submit during a held PUT sent a second PUT                               |
+| Change the captured expected-organization header | Scoped read/write test received `wrong-org` instead of `org-a` on both requests |
+| Display submitted bounds after successful PUT    | Reconciliation test did not display the server's 7200-second value              |
+
+The C2 resource client's late-response cancellation and the panel's mounted late-read case cover previous-organization data after runtime withdrawal. Browser/host-gate execution and final exact-head checks are recorded by the integration owner.
+
+Final worker checks on the restored UI source: the two affected mounted Vitest suites passed **37/37** (exit 0); `bunx tsc --build --force apps/wbs/fe-01/tsconfig.json` passed (exit 0); `bunx @fission-ai/openspec@1.13.0 validate --all --json` passed **187/187** (exit 0); `bunx nx format:check --all`, touched-file Prettier and `git diff --check` passed (exit 0). The first full frontend lint run exited 1 with its diagnostics suppressed by Nx; direct ESLint identified two test-only style errors, which were fixed before the final rerun. No browser run was made for this panel: the committed browser fixtures do not yet exercise session-policy setup. No host gate was run by this worker; root owns the exact-head gate and integration review.
+
+After the final test style correction, `NX_DAEMON=false NX_NO_CLOUD=true bunx nx run wbs-fe-01:lint` passed (exit 0, 1m 23s). The focused mounted suites passed 37/37 and frontend TypeScript compilation passed again (both exit 0). The lint output's Nx plugin-socket fallback was a warning; it did not suppress the successful lint result.

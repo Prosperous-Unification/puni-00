@@ -92,3 +92,35 @@ Times SHALL be compared in milliseconds using the evaluating service's injected 
 - **GIVEN** A's policy was cleared
 - **WHEN** M, whose sign-in is older than the former bounds, selects A
 - **THEN** selection succeeds
+
+### Requirement: A super-admin can review and change session bounds from organization administration
+
+The organization page SHALL read the current organization's policy through its captured resource scope. It SHALL show loading, absent, configured, read failure and authority refusal as distinct states. A current super-admin SHALL be able to set either optional bound or clear both; empty fields SHALL send null. Before sending, the form SHALL refuse values outside the inclusive 300–2,592,000 second integer range and a reauthentication bound greater than a present maximum. A pending mutation SHALL exclude another mutation. The page SHALL use the server's returned policy as the displayed value and SHALL withdraw organization controls when a context or credential refusal takes away access. A delayed response for an organization whose runtime has been withdrawn SHALL reveal no policy.
+
+#### Scenario: Set, clear and read back
+
+- **GIVEN** the super-admin opens organization administration and the policy is absent
+- **WHEN** they set 28800 seconds as maximum and leave reauthentication empty
+- **THEN** the request sends `{maxSessionSeconds: 28800, reauthenticateAfterSeconds: null}` and the returned policy is displayed
+- **WHEN** they clear the policy
+- **THEN** both fields are sent as null and the returned absent state is displayed
+
+#### Scenario: Form validation and pending mutation
+
+- **GIVEN** the policy form is ready
+- **WHEN** either field is fractional or outside 300–2,592,000, or reauthentication exceeds a present maximum
+- **THEN** the form names the invalid bound and sends no mutation
+- **WHEN** a valid mutation is pending and another submission arrives
+- **THEN** the second submission sends no request
+
+#### Scenario: Read or mutation withdraws access
+
+- **GIVEN** an organization resource request answers with a context or credential refusal
+- **WHEN** the panel receives that response
+- **THEN** organization administration withdraws its controls and renders the page-level refusal state
+
+#### Scenario: Late previous-organization response
+
+- **GIVEN** a policy read for A is pending
+- **WHEN** the owning organization runtime is withdrawn before that response arrives
+- **THEN** the response cannot publish A's policy to the page
