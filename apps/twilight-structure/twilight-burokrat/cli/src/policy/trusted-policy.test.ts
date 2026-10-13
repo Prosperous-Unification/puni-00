@@ -1472,7 +1472,7 @@ describe('trusted policy production CLI', () => {
     });
   }, 30_000);
 
-  test('preserved enforce launcher ignores a candidate-local Nx wrapper', () => {
+  test('preserved enforce launcher refuses candidate-local Nx modules before wrapper execution', () => {
     const fixture = createFixture('enforce');
     const sentinel = join(
       fixture.repository,
@@ -1584,14 +1584,12 @@ describe('trusted policy production CLI', () => {
     );
 
     const output = outputOf(invocation);
-    // Proof: executing the candidate-local wrapper from relationship extraction wrote this sentinel
-    // and failed the assertion before trusted lint could accept the static project declarations.
+    // Proof: restoring root-only candidate module admission made this preserved launcher accept
+    // the nested Nx installation; the expected refusal failed with exit 0 instead of 1.
     expect(existsSync(sentinel)).toBe(false);
-    expect(invocation.exitCode, output).toBe(0);
-    expect(JSON.parse(invocation.stdout)).toMatchObject({
-      accepted: true,
-      certified: true,
-    });
+    expect(invocation.exitCode, output).toBe(1);
+    expect(output).toContain('relationship candidate may not supply trusted runtime modules');
+    expect(invocation.stdout).toBe('');
   }, 30_000);
 
   test('preserved enforce launcher pins Nx outside candidate package self-reference', () => {

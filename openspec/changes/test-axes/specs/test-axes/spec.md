@@ -426,3 +426,27 @@ A manual disposition SHALL be reviewed again on a schedule and SHALL become a re
 - **GIVEN** a manual disposition with a review date
 - **WHEN** that date has passed
 - **THEN** the verdict refuses it and names the scenario and date
+
+### Requirement: Active source inventory precedes reviewed lineage reconciliation
+
+The committed `inspect-spec-sources` diagnostic SHALL inventory every parsed active canonical requirement and overlay operation before effective lineage selection. It SHALL bind the exact committed revision, candidate identity, every source path and byte digest, canonical requirement and operation fragment digests, scenarios and explicit rename endpoints in a deterministic complete-payload observation digest. It SHALL emit `certifies:false`. It SHALL ignore archive paths, refuse malformed or unreadable active sources, and preserve the selector's refusal of unresolved lineage. Inventory membership SHALL NOT establish accepted predecessors or authorize source synchronization or archive.
+
+#### Scenario: [TEST-AXES-054] Competing groups remain visible without selecting lineage
+
+- **GIVEN** multiple active groups containing competing modifications and rename endpoints
+- **WHEN** the committed diagnostic runs
+- **THEN** all parsed operations and canonical requirements remain visible with exact source and fragment identities
+- **AND** effective selection still refuses the competing lineage
+
+#### Scenario: [TEST-AXES-055] Committed source identity resists staging and ordering
+
+- **GIVEN** a full committed revision with staged replacements and archived specifications
+- **WHEN** its sources are inventoried in any input enumeration order
+- **THEN** only committed active bytes contribute and canonical output and its complete-payload digest are identical
+- **AND** changing any identity or the noncertifying marker changes that digest
+
+#### Scenario: [TEST-AXES-056] Invalid active source parsing refuses inventory
+
+- **GIVEN** a malformed active requirement or rename pair, absent committed object, unreadable selected blob or invalid UTF-8
+- **WHEN** the diagnostic reads or parses that source
+- **THEN** it refuses at the responsible shared reader or parser boundary without emitting an inventory

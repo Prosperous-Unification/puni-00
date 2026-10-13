@@ -4323,3 +4323,87 @@ the switch admits`; the role widened to admins failed four capacity-mode cases; 
   again (proof: the re-read removed failed `stops offering a switch the server refused`).
   The e2e pixel suite was not extended: `/organization` needs an activated organization with a
   bound super-admin, which the browser gate's fixtures do not seed.
+
+## SwitchMode model (010.4.16)
+
+2026-10-13, bounded test-only completion of the standing model-command prerequisite in 8.1.
+`SwitchMode` calls the installed `services.projectRanks.switchCapacityMode` with a seeded
+super-admin. Production owners, `SUPPORTED_CAPACITY_MODES`, activation and restore paths are
+unchanged. A/B expected `elsewhere_changed` messages form independent ordered ledgers: changed
+switches add one null-cause event per project and one exact audit row; repeats add neither.
+Ordinary optimizer display changes add B's A-cause event only while shared. The full raw streams
+retain contiguous sequences, matching counters and push-to-durable equality, including unrelated
+optimizer outcome events. Borrowed display comparison remains a secondary witness.
+
+Fixed traces cover shared → isolated → shared with same-mode repeats, selected outcomes and
+generation eviction while isolated, selected cache/generation preservation across switches,
+committed audit/events plus second-writer acquisition during held delivery, a switch queued
+behind a committed demotion, and rollback when B's event insert fails after A's insert. Store
+and eviction reachability is asserted in both modes. Generated histories use seed `20261011`,
+100 runs and at most 20 commands; counters require shared and isolated switches, no-ops, held
+delivery, demotion, rollback, selected storage/eviction and the existing held writer command.
+
+The fixture controls real optimizer edit debounce sleeps through the existing test-only private
+options seam. Automatic edit jobs remain held while model commands explicitly drive observation
+and admission; their scheduling is not modeled by this bounded slice. Cleanup disables admission,
+releases the sleeps and recipient transport, kills children, awaits optimizer stop, and asserts
+that no debounce, held transport or live child remains. Mode-aware inputs are re-captured after
+switches; historic input hashes retain their corresponding inputs without resetting optimizer
+state by fiat.
+
+Fresh checks:
+
+- `bun test apps/wbs/be-01/src/service/optimization-coordinator.model.db.test.ts apps/wbs/be-01/src/controller/capacity-mode.controller.db.test.ts`
+  — **25 passed, 0 failed**, 27,259 assertions, 57.57 seconds. Includes the production
+  isolated-only route refusal.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx --no-install nx graph --file=/tmp/switch-mode-graph.json`
+  — graph artifact produced. The initial default Nx invocation exited zero after socket denials
+  without producing a graph; that invocation is not treated as successful validation.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx --no-install eslint apps/wbs/be-01/src/service/optimization-coordinator.model.db.test.ts`
+  — **passed**, with the generated graph available. Earlier direct invocations skipped module
+  boundary enforcement while no graph existed; those runs are not the final lint evidence.
+- `bunx --no-install tsc --build --force apps/wbs/be-01/tsconfig.json` — **passed**.
+- Prettier check on the changed TypeScript and OpenSpec artifacts — **passed**.
+- `git diff --check` — **passed**.
+
+Observed production-path negative proofs, all temporary faults restored:
+
+| Injected fault                                               | Observed failure                                                              |
+| ------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| Empty the switch's recipient loop                            | Round trip: `SwitchMode(isolated): durable A rows`                            |
+| Substitute A for the switch's null cause                     | Round trip: `SwitchMode(isolated): durable A rows`                            |
+| Remove both repository and owner same-mode suppression       | Round trip: received changed true for the initial same-mode switch            |
+| Bypass the writer's fresh membership refusal                 | Queued demotion: received successful switch instead of forbidden              |
+| Defer borrowed event recording until after mode/audit commit | Rollback: `FailSwitchEvent: durable A rows` after B's injected insert failure |
+| Deliver inside the switch writer                             | Held delivery: `display capture waited for a held writer`                     |
+| Stop awaiting post-commit switch delivery                    | Held delivery: `switch answered before held delivery settled`                 |
+
+The restored held-delivery trace also passed after the final delivery-await fault. Adjacent
+`Proof:` comments identify these observations in the fixed tests.
+
+Local OpenSpec status/instructions/validation were unavailable: no `openspec` executable on PATH
+or in `node_modules/.bin`. No local OpenSpec pass is claimed. The canonical exact-head h2puni gate
+(format, tests, lint, typecheck, build and `openspec validate --all --json`) remains pending for
+integration. No raw full Nx gate, merge, image publication, activation or deployment ran here.
+
+### SwitchMode harness review corrections
+
+Astra's review of `8caa20fe5e9be5e60aa2de4d9b14b5c65993784a` identified two failure-path leaks.
+The held-transport wait now aborts and joins its polling task in `finally`, including timeout.
+The queued-demotion probe releases and joins its suspended writer in `finally`, including an
+early switch answer, rejection or assertion failure. Its settlement observer consumes both
+promise outcomes so a rejected switch cannot leave a detached rejected promise.
+
+Both regressions were observed before the fixes: after timeout the polling count advanced from
+5 to 14 rather than stopping, and an injected early answer left SQLite `inTransaction: true`
+after the queued-switch assertion threw. New regressions check that polling stops and that both
+early answers and rejections release the writer and allow another borrowed display capture.
+The three regressions passed after the fixes. Task 8.1 now correctly names seven production
+mutation proofs; the two harness reproductions are additional test-harness evidence.
+
+The full model/controller run passed **28/28**, 27,270 assertions, 54.09 seconds. After final lint
+adjustments to the cancellation signal and writer cleanup, the installed shared-owner suite was
+rerun with its 100 generated histories: **12/12**, 8,796 assertions, 34.31 seconds. Focused
+ESLint (with graph), forced be-01 TypeScript
+build, Prettier and diff checks were rerun. No production file changed, and local OpenSpec and
+the canonical host gate remain unrun as documented above.

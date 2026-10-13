@@ -606,6 +606,24 @@
       "id": "TEST-AXES-053",
       "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
       "title": "Source ownership does not determine test level or coverage"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-054",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Competing groups remain visible without selecting lineage"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-055",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Committed source identity resists staging and ordering"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-056",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Invalid active source parsing refuses inventory"
     }
   ]
 }

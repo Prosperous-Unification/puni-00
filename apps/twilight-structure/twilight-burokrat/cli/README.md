@@ -72,6 +72,16 @@ an explicitly unresolved test level. Source ownership does not establish the mod
 case. The observation remains unauthenticated, noncertifying, and carries no coverage or admission
 credit.
 
+## Diagnostic specification sources
+
+`inspect-spec-sources <repository> <committed-sha>` inventories every parsed active canonical
+requirement and overlay operation in one committed selection. It binds source bytes, raw
+requirement and rename fragments, explicit rename endpoints, scenarios and candidate identity in
+a deterministic observation digest. Competing valid operations remain visible together; the
+production selector continues to refuse unresolved lineage. Malformed or unreadable active
+sources refuse. The diagnostic emits `certifies:false`; predecessor acceptance and source
+synchronization require reviewed reconciliation evidence.
+
 ## Trust boundary
 
 Candidate changes can propose future validator or policy bytes, but they cannot select the

@@ -110,6 +110,21 @@ describe('the credential rules', () => {
       ).toMatchObject({ reason: 'reauthenticate_after' });
     });
 
+    it('uses only explicitly trusted delegation lifecycle evidence', () => {
+      expect(
+        credentialRuleRefusal(
+          'org-a',
+          fresh,
+          {
+            ...browser,
+            delegated: true,
+            delegationLifecycle: fresh.lifecycle,
+          },
+          OPENED + 28_800_000,
+        ),
+      ).toBeNull();
+    });
+
     it('refuses a delegation, which carries no authentication time yet', () => {
       expect(
         credentialRuleRefusal('org-a', fresh, { ...browser, delegated: true }, OPENED + 1)?.refusal,

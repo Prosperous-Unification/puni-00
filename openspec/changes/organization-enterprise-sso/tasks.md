@@ -55,9 +55,11 @@
 
   Fault: replace the prefix check with a membership-only check and observe the mounted selection test fail. Then check any linked pair of the user instead of the authenticating pair, and observe the linked-pair test fail. Restore and add `Proof:`.
 
-- [ ] 3.2 Add the lockout guard `enforcement_would_lock_out_actor`, and render `sso_required` in fe-01 as a state with SSO sign-in and link actions, plus a locked entry in the switcher.
+- [x] 3.2 Add the lockout guard `enforcement_would_lock_out_actor`, and render `sso_required` in fe-01 as a state with SSO sign-in and link actions, plus a locked entry in the switcher.
 
-  Red: the guard refusal. fe-01 component tests cover the refusal state, the locked switcher entry and a failed membership read.
+  Red: the guard refusal. fe-01 component tests cover the refusal state, the locked switcher entry and a failed membership read. The company-link form explicitly selects provider or WBS password, posts the refusal URL's slug with a password only for password sign-in, prevents duplicate starts, and renders callback company outcomes without granting SSO authority.
+
+  Fault (company link): remove pending admission, current-sign-in selection, fresh-password or URL-query checks; use organization id instead of slug; leak a password into provider mode; retain the password across mode changes; accept an insecure authorization target. Observe each production component negative fail before restoring it.
 
   Fault: drop the guard and observe the guard test fail. Restore and add `Proof:`.
 

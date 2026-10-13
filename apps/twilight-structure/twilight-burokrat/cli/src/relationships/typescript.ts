@@ -1,5 +1,5 @@
 import { Buffer } from 'node:buffer';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { isBuiltin } from 'node:module';
 import { basename, dirname, extname, isAbsolute, relative, resolve } from 'node:path';
 
@@ -7,6 +7,7 @@ import ts from 'typescript';
 
 import type { RelationshipRequest } from '../contracts/records';
 import { hashCanonical } from '../evidence/content-manifest';
+import { createTrustedSystem, type TrustedSystem } from './trusted-files';
 
 export interface ExtractorIdentity {
   extractorId: string;
@@ -63,6 +64,7 @@ export interface TypeScriptRelationships {
 }
 
 interface ParsedProject {
+  system: TrustedSystem;
   configPath: string;
   configurationIdentity: string;
   options: ts.CompilerOptions;
@@ -117,12 +119,12 @@ function normalizedCompilerValue(value: unknown, workspace: string): unknown {
   return normalized;
 }
 
-function parseProject(workspace: string, configPath: string): ParsedProject {
+function parseProject(workspace: string, configPath: string, system: TrustedSystem): ParsedProject {
   const absoluteConfig = resolve(workspace, configPath);
   // Proof: removing this boundary made the production CLI report the absent
   // `missing-tsconfig.json` as unreadable; the exact absent assertion failed.
   if (!existsSync(absoluteConfig)) throw new Error(`TypeScript config absent: ${configPath}`);
-  const config = ts.readConfigFile(absoluteConfig, (path) => ts.sys.readFile(path));
+  const config = ts.readConfigFile(absoluteConfig, (path) => system.readFile(path));
   if (config.error !== undefined) {
     // Proof: removing this branch made the directory supplied as config exit 0; the production
     // unreadable-config oracle expected exit 1 and failed before the malformed case.
@@ -130,9 +132,11 @@ function parseProject(workspace: string, configPath: string): ParsedProject {
     const failure = config.error.code === 5083 ? 'unreadable' : 'malformed';
     throw new Error(`TypeScript config ${failure}: ${configPath}: ${detail}`);
   }
+  // Proof: substituting ts.sys here made the scoped-config CLI fixture report the trusted
+  // @fixture/config package absent; its expected-success assertion failed.
   const parsed = ts.parseJsonConfigFileContent(
     config.config,
-    ts.sys,
+    system,
     dirname(absoluteConfig),
     {},
     absoluteConfig,
@@ -149,11 +153,47 @@ function parseProject(workspace: string, configPath: string): ParsedProject {
     emitDeclarationOnly: true,
     noEmit: false,
   };
+  const host = ts.createCompilerHost(options);
+  host.fileExists = system.fileExists.bind(system);
+  host.readFile = system.readFile.bind(system);
+  host.directoryExists = system.directoryExists.bind(system);
+  host.getDirectories = system.getDirectories.bind(system);
+  host.realpath = system.realpath.bind(system);
+  host.getCurrentDirectory = system.getCurrentDirectory.bind(system);
+  host.getSourceFile = (path, languageVersion) => {
+    const source = system.readFile(path);
+    return source === undefined ? undefined : ts.createSourceFile(path, source, languageVersion);
+  };
   const program = ts.createProgram({
+    host,
     rootNames: parsed.fileNames,
     options,
     projectReferences: parsed.projectReferences,
   });
+  // Proof: with filesystem admission deliberately bypassed, this guard still refused an
+  // outside config-listed declaration. Removing it then made that production CLI exit 0.
+  for (const sourceFile of program.getSourceFiles()) {
+    const canonical = system.realpath(sourceFile.fileName);
+    // Proof: bypassing nested-module materialization rejection still refused the symlink-alias
+    // CLI fixture here. Removing this guard then admitted external:hidden and exited 0.
+    if (
+      !program.isSourceFileDefaultLibrary(sourceFile) &&
+      program.isSourceFileFromExternalLibrary(sourceFile) &&
+      workspacePath(resolve(workspace, 'node_modules'), canonical) === undefined
+    ) {
+      throw new Error(
+        `compiler external declaration outside trusted copied closure: ${sourceFile.fileName}`,
+      );
+    }
+    if (
+      workspacePath(workspace, canonical) === undefined &&
+      !program.isSourceFileDefaultLibrary(sourceFile)
+    ) {
+      throw new Error(
+        `compiler declaration outside trusted copied closure: ${sourceFile.fileName}`,
+      );
+    }
+  }
   const configurationIdentity = hashCanonical({
     configPath,
     fileNames: parsed.fileNames
@@ -163,6 +203,7 @@ function parseProject(workspace: string, configPath: string): ParsedProject {
     options: normalizedCompilerValue(options, workspace),
   });
   return {
+    system,
     configPath,
     configurationIdentity,
     options,
@@ -337,7 +378,7 @@ function resolveDependency(
       site.specifier,
       sourceFile.fileName,
       project.options,
-      ts.sys,
+      project.system,
     ).resolvedTypeReferenceDirective;
     if (resolved?.resolvedFileName === undefined) {
       const source = workspacePath(workspace, sourceFile.fileName) ?? sourceFile.fileName;
@@ -394,7 +435,7 @@ function resolveDependency(
     site.specifier,
     sourceFile.fileName,
     project.options,
-    ts.sys,
+    project.system,
   ).resolvedModule;
   // Proof: treating the unresolved import as external made the production CLI report only
   // `Cannot find module './absent'`; the exact source/specifier assertion failed.
@@ -711,11 +752,13 @@ function publicDeclaration(
   return { ...selector, identity: hashCanonical(selector) };
 }
 
-function readCompilerIdentity(workspace: string): ExtractorIdentity {
+function readCompilerIdentity(workspace: string, system: TrustedSystem): ExtractorIdentity {
   if (ts.version.length === 0) throw new Error('TypeScript compiler version unavailable');
   let packageBytes: Uint8Array;
   try {
-    packageBytes = readFileSync(resolve(workspace, 'node_modules/typescript/package.json'));
+    const source = system.readFile(resolve(workspace, 'node_modules/typescript/package.json'));
+    if (source === undefined) throw new Error('trusted compiler package absent');
+    packageBytes = Buffer.from(source);
   } catch (cause) {
     throw new Error('trusted TypeScript compiler identity is unreadable', { cause });
   }
@@ -734,9 +777,13 @@ function readCompilerIdentity(workspace: string): ExtractorIdentity {
 export function extractTypeScriptRelationships(
   workspace: string,
   request: RelationshipRequest['typescript'],
+  trustedModules: string,
 ): { extractor: ExtractorIdentity; relationships: TypeScriptRelationships } {
-  const extractor = readCompilerIdentity(workspace);
-  const projects = request.configPaths.map((configPath) => parseProject(workspace, configPath));
+  const system = createTrustedSystem(workspace, trustedModules);
+  const extractor = readCompilerIdentity(workspace, system);
+  const projects = request.configPaths.map((configPath) =>
+    parseProject(workspace, configPath, system),
+  );
   const importsByIdentity = new Map<string, TypeScriptImportSelector>();
   for (const project of projects) {
     for (const sourceFile of project.program.getSourceFiles()) {

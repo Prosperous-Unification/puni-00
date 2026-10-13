@@ -2,6 +2,7 @@ import { buttonVariants } from '@/components/ui/button';
 import { unreachable } from '@/lib/http';
 import { cn } from '@/lib/utils';
 
+import { CompanySignInLink } from './company-sign-in-link';
 import { type CredentialRefusal } from './organization-access';
 
 /** The one route a refusal's `login` may name: be-01's browser sign-in start. */
@@ -25,8 +26,8 @@ export function signInPath(login: string): string {
 /**
  * The state a page shows in place of an organization it can no longer read
  * because the organization's rules refuse this sign-in: its company sign-in
- * (enforced SSO) or a fresh sign-in (session policy). The only action is the
- * refusal's own login path.
+ * (enforced SSO) or a fresh sign-in (session policy). SSO also offers an
+ * explicit company identity link; sign-in uses the refusal's own login path.
  *
  * @throws for a refusal code or reason this page does not know, so the fault
  *   boundary answers instead of an empty state.
@@ -37,6 +38,10 @@ export function CredentialRefusalState({
   refusal: CredentialRefusal;
 }): React.JSX.Element {
   const copy = refusalCopy(refusal);
+  const login = signInPath(refusal.login);
+  // Proof: 2026-10-13, using refusal.organizationId here failed `links the
+  // company slug selected by the server instead of its organization id`.
+  const organization = refusal.error === 'sso_required' ? companyLoginSlug(login) : null;
   return (
     <section
       role="alert"
@@ -50,9 +55,10 @@ export function CredentialRefusalState({
        * with `/api/auth/login?organization=org_7f3a`. `cn` lets the variant's
        * `bg-primary` replace the base's `bg-transparent`, as `<Button>` does.
        */}
-      <a className={cn(buttonVariants(), 'no-underline')} href={signInPath(refusal.login)}>
+      <a className={cn(buttonVariants(), 'no-underline')} href={login}>
         {copy.action}
       </a>
+      {organization !== null && <CompanySignInLink organization={organization} />}
     </section>
   );
 }
@@ -106,4 +112,26 @@ function reauthenticationCopy(
     default:
       return unreachable(reason);
   }
+}
+
+/**
+ * Extracts the enterprise slug from be-01's selected sign-in path.
+ * @throws when the trusted SSO refusal has no single valid company routing hint.
+ */
+function companyLoginSlug(login: string): string {
+  const query = new URLSearchParams(login.slice(SIGN_IN_START.length));
+  const organization = query.get('organization');
+  // Proof: 2026-10-13, removing this condition failed all six production
+  // `refuses a malformed company login path` cases: missing, empty, malformed,
+  // duplicate and conflicting company hints reached the form.
+  if (
+    organization === null ||
+    !/^[a-z0-9-]{3,63}$/.test(organization) ||
+    query.getAll('organization').length !== 1 ||
+    query.has('email') ||
+    query.has('method') ||
+    query.has('reauthenticate')
+  )
+    throw new Error('Unexpected company sign-in query in an organization refusal');
+  return organization;
 }

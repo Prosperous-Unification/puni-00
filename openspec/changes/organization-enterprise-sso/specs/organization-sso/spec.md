@@ -183,3 +183,25 @@ In an organization whose proven connection is enforced, the organization context
 - **GIVEN** super-admin S of A is signed in with `google-oauth2|1`, and A's connection is proven
 - **WHEN** S sets the connection enforced
 - **THEN** WBS answers `409 enforcement_would_lock_out_actor` and enforcement stays off
+
+#### Scenario: Refused browser explicitly links its company identity
+
+- **GIVEN** a signed-in browser receives `sso_required` with `/api/auth/login?organization=acme-eu-2`, whose slug differs from the organization id
+- **WHEN** the person chooses their current sign-in kind and starts the company link
+- **THEN** fe-01 posts `organization=acme-eu-2` to the existing Auth0 link endpoint, with the fresh password only for WBS password sign-in
+- **AND** no request starts before the choice or required password is supplied; repeated pending submissions start one request
+- **AND** a validated HTTPS authorization location opens the company proof; modeled refusals, rate limits and transport failures render a retryable state
+- **AND** the original server-selected company sign-in remains available unchanged; linking never promotes the current credential to SSO
+
+#### Scenario: Malformed company sign-in refusal fails visibly
+
+- **GIVEN** an SSO refusal has no single well-formed company slug, a competing routing hint, or a login target outside WBS's login start
+- **WHEN** fe-01 renders that refusal
+- **THEN** the fault boundary renders instead of a company-link action
+
+#### Scenario: Company-link callback outcomes are consumed
+
+- **GIVEN** the callback returns `auth_link=sso_prefix_mismatch` or `auth_link=sso_connection_taken`
+- **WHEN** the signed-in page renders
+- **THEN** it explains the failed company proof or already assigned connection and directs the person to their organization administrator
+- **AND** it removes the outcome parameter while preserving other URL state
