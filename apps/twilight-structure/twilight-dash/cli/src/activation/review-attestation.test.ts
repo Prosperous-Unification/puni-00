@@ -440,39 +440,99 @@ test('pinned runner terminates the descendant process rather than only cancellin
 test('pinned runner cancels readers when an escaped harmless child retains the pipe', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'review-attestation-reader-test-'));
   const childPath = join(directory, 'child.pid');
+  const cancellation = new AbortController();
+  let childPid: number | undefined;
+  let settlement: Promise<unknown> | undefined;
+  let settlementTimer: ReturnType<typeof setTimeout> | undefined;
+  const failures: unknown[] = [];
   try {
     const executablePath = join(directory, 'fake-gh');
     writeFileSync(
       executablePath,
-      `#!/bin/sh\n/usr/bin/setsid /bin/sh -c 'echo $$ > "${childPath}"; exec /bin/sleep 1' & wait\n`,
+      `#!/bin/sh\n/usr/bin/setsid /bin/sh -c 'echo $$ > "${childPath}.ready"; /bin/mv "${childPath}.ready" "${childPath}"; exec /bin/sleep 10' & wait\n`,
     );
     chmodSync(executablePath, 0o700);
-    const started = performance.now();
-    await expectFailure(
-      runPinnedOfflineGh(
-        {
-          executablePath,
-          argv: [],
-          env: {},
-          manifestBytes: '{}',
-          bundleBytes: '{}',
-          maximumOutputBytes: 100,
-          maximumDurationMs: 30,
-        },
-        monotonicClock(),
-      ),
-      'review verifier process timed out',
+    settlement = runPinnedOfflineGh(
+      {
+        executablePath,
+        argv: [],
+        env: {},
+        manifestBytes: '{}',
+        bundleBytes: '{}',
+        maximumOutputBytes: 100,
+        maximumDurationMs: 5000,
+      },
+      monotonicClock(),
+      cancellation.signal,
+    ).then(
+      () => undefined,
+      (cause: unknown) => cause,
     );
-    expect(performance.now() - started).toBeLessThan(250);
-  } finally {
-    try {
-      const childPid = Number(readFileSync(childPath, 'utf8').trim());
-      process.kill(childPid, 9);
-    } catch (cause) {
-      expect(cause instanceof Error && 'code' in cause && cause.code === 'ESRCH').toBe(true);
+    const readinessDeadline = performance.now() + 2000;
+    while (childPid === undefined) {
+      try {
+        const pidText = readFileSync(childPath, 'utf8').trim();
+        if (!/^[1-9]\d*$/.test(pidText)) throw new Error('escaped child PID is malformed');
+        const parsedPid = Number(pidText);
+        if (!Number.isSafeInteger(parsedPid) || parsedPid <= 1)
+          throw new Error('escaped child PID is unsafe');
+        process.kill(parsedPid, 0);
+        childPid = parsedPid;
+      } catch (cause) {
+        if (!(cause instanceof Error && 'code' in cause && cause.code === 'ENOENT')) throw cause;
+      }
+      if (childPid === undefined) {
+        if (performance.now() >= readinessDeadline)
+          throw new Error('escaped child did not become ready');
+        await Bun.sleep(10);
+      }
     }
-    rmSync(directory, { recursive: true, force: true });
+    // Proof: removing readBoundedOutput's abort listener made this settlement
+    // deadline fail while the ready escaped child retained the output pipe.
+    cancellation.abort();
+    const failure = await Promise.race([
+      settlement,
+      new Promise<never>((_resolve, reject) => {
+        settlementTimer = setTimeout(() => {
+          reject(new Error('reader cancellation did not settle within 2000 ms'));
+        }, 2000);
+      }),
+    ]);
+    expect(failure).toBeInstanceOf(Error);
+    if (failure instanceof Error)
+      expect(failure.message).toContain('review verifier process cancelled');
+    process.kill(childPid, 0);
+  } catch (cause) {
+    failures.push(cause);
+  } finally {
+    if (settlementTimer !== undefined) clearTimeout(settlementTimer);
+    cancellation.abort();
+    try {
+      if (childPid !== undefined) {
+        try {
+          process.kill(childPid, 9);
+        } catch (cause) {
+          if (!(cause instanceof Error && 'code' in cause && cause.code === 'ESRCH'))
+            failures.push(cause);
+        }
+      }
+    } catch (cause) {
+      failures.push(cause);
+    } finally {
+      try {
+        if (settlement !== undefined) await settlement;
+      } finally {
+        try {
+          rmSync(directory, { recursive: true, force: true });
+        } catch (cause) {
+          failures.push(cause);
+        }
+      }
+    }
   }
+  if (failures.length === 1) throw failures[0];
+  if (failures.length > 1)
+    throw new AggregateError(failures, 'escaped child test and cleanup failed');
 });
 
 test('pinned runner retains a stream-cancellation error with the timeout failure', async () => {
