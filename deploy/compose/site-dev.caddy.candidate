@@ -5,9 +5,22 @@ dev.wbs.bulletpoints.club {
 
 	# Keep the public MCP resource and OAuth paths byte-exact. handle_path is
 	# forbidden because mcp-01 routes /mcp and /mcp/oauth/* itself.
+	# Match the resource's SDK byte limit without widening anonymous OAuth.
+	# Proof: real Caddy boundary tests reject restored 64KB and removed/raised caps.
+	handle /mcp {
+		request_body {
+			max_size 4194304
+		}
+		reverse_proxy wbs-dev-src:3300 {
+			# Proof: removing this forwards a spoofed hop under trusted_proxies.
+			header_up X-Forwarded-For {remote_host}
+		}
+	}
+
 	handle /mcp* {
 		# DCR and token endpoints are anonymous by protocol. Bound request memory
-		# before a body reaches Bun; normal MCP JSON requests are far smaller.
+		# before a body reaches Bun, including unknown MCP-prefixed paths.
+		# Proof: widening this to 4MiB makes the OAuth overflow tests fail.
 		request_body {
 			max_size 64KB
 		}
