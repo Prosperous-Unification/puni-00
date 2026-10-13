@@ -410,6 +410,18 @@ export function runCli(argv: readonly string[]): Promise<void> | void {
       if (observation.state !== 'current') process.exitCode = 1;
     });
   }
+  if (args[0] === 'inspect-performance') {
+    // Proof: removing arity refusal made the extra-operand production CLI assertion fail.
+    if (args.length !== 4)
+      throw new Error(
+        'usage: twilight-burokrat inspect-performance <repository> <committed-sha> <external-rule-policy>',
+      );
+    return import('./evidence/performance-bundle').then(({ inspectPerformanceBundle }) => {
+      process.stdout.write(
+        `${JSON.stringify(inspectPerformanceBundle(args[1], args[2], args[3]))}\n`,
+      );
+    });
+  }
   if (args[0] === 'inspect-browser') {
     if (args.length !== 5 || !['ordinary', 'packaged', 'portable'].includes(args[4] ?? ''))
       throw new Error(
@@ -475,7 +487,7 @@ export function runCli(argv: readonly string[]): Promise<void> | void {
   // re-adding its route above failed `submit-admission is an unknown command` (cli.test.ts) and
   // `the validator bundle carries no authority store` (packaging/bundle.test.ts) (2026-10-11).
   throw new Error(
-    `unknown command: ${args[0] ?? '<missing>'}\nusage: twilight-burokrat <validate-record|read-candidate|candidate-identity|inspect-browser|inspect-test-reports|inspect-test-sources|inspect-spec-sources|inspect-manual|classify-candidate|content-manifest|validate-artifacts|extract-relationships|check-indexes|check-root-migration|validate-review-provenance|freeze-exhaustive|verify-exhaustive|evaluate-exhaustive-coverage|lint-local|lint-ci|check|explain|scenario|template|validate-policy-activation> ...`,
+    `unknown command: ${args[0] ?? '<missing>'}\nusage: twilight-burokrat <validate-record|read-candidate|candidate-identity|inspect-performance|inspect-browser|inspect-test-reports|inspect-test-sources|inspect-spec-sources|inspect-manual|classify-candidate|content-manifest|validate-artifacts|extract-relationships|check-indexes|check-root-migration|validate-review-provenance|freeze-exhaustive|verify-exhaustive|evaluate-exhaustive-coverage|lint-local|lint-ci|check|explain|scenario|template|validate-policy-activation> ...`,
   );
 }
 

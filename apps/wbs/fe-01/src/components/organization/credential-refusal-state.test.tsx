@@ -26,6 +26,7 @@ const SSO_REQUIRED = {
 /** Every panel's first read answers `refusal`, as one credential rule refuses them all. */
 function refuseEveryPanel(refusal: object) {
   return stubServer({
+    'GET /api/organization/sso-connections': [() => answer(403, refusal)],
     'GET /api/organization/members': [() => answer(403, refusal)],
     'GET /api/organization/invitations': [() => answer(403, refusal)],
     'GET /api/organization/join-requests': [() => answer(403, refusal)],

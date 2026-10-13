@@ -1713,3 +1713,11 @@ A complete local backend run also exposed the tier inventory omitting `Organizat
 - `bunx @fission-ai/openspec@1.12.0 validate organization-ownership-and-access --json`: **valid**, no issues (`/tmp/c1-repair-openspec.log`).
 - Prettier applied to the three changed TypeScript files; normal commit hooks remain required.
 - The full local backend run remains **pending at this commit**; its earlier tier audit failure is resolved by the targeted restored run. The manager requested the scoped repair be pushed now so GitHub CI can run the new exact head. No full-suite or canonical host-gate success is claimed here.
+
+### C1 CI merge-base SSO correction — 2026-10-13
+
+PR #396's CI run 38446983935 merged C1 `4eaf398c7d4e8cda4b26d589495543c725247b29` with a newer main and found three frontend typecheck reports at `sso-connections-panel.tsx:442`: the new `organization_context_changed` refusal reached `unreachable`. That panel was added to main after C1 branched. The repair checkout merged current main `db78a3244fa74fdc34e0e89317bbb261457d712d` onto the exact C1 commit before changing the panel, preserving C1 ancestry and testing the same combined shape as CI.
+
+Production-path red: add a 409 `organization_context_changed` to both the SSO connection read and create cases, then run `bunx vitest run src/components/organization/sso-connections-panel.test.tsx -t 'authority loss' --no-file-parallelism --maxWorkers=1` from `apps/wbs/fe-01`. It failed 2/8 selected cases: the page loss callback had zero calls in each, and both paths raised `Unexpected response variant: object` through `setupRefusal`. The restored `setupRefusal` maps the code through existing `lostAccess`, with its adjacent `Proof:` comment. The full panel file then passed 27/27.
+
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-fe-01:typecheck --outputStyle=static` passed both the module and application typechecks against the merged tree. Direct ESLint and Prettier checks of the two changed SSO panel files passed. `bunx @fission-ai/openspec@1.12.0 validate organization-ownership-and-access --json` reported one valid change, zero issues. Normal commit hooks, the new exact-SHA gate, CI and live provider acceptance are pending at this record.
