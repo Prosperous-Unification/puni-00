@@ -804,6 +804,30 @@
       "id": "TEST-AXES-086",
       "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
       "title": "Architecture immediate children and reviewed empty contradictions refuse"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-087",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Complete Performance joins classify only the recorded fixture scope"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-088",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Performance facts and publication substitutions refuse joins"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-089",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Higher precedence membership yields typed Performance isolation failure"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-090",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Performance level dispatch preserves inherited refusals and bounded inputs"
     }
   ]
 }

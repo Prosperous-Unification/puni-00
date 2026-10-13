@@ -38,6 +38,8 @@ const validatorCommands = new Set([
   // Proof: removing this installed registration fails installed-dispatch.test.ts with an
   // unknown-command refusal instead of the validator's named usage refusal.
   'inspect-level-facts',
+  // Proof: removing this registration failed [TEST-AXES-090]'s packaged executable success.
+  'inspect-performance-levels',
   'template',
   'validate-policy-activation',
 ]);
@@ -50,6 +52,7 @@ commands:
   twilight-burokrat inspect-performance <repository> <committed-sha> <external-rule-policy>
   twilight-burokrat inspect-performance-sources <repository> <committed-sha> <external-rule-policy>
   twilight-burokrat inspect-spec-sources <repository> <committed-sha>
+  twilight-burokrat inspect-performance-levels <repository> <committed-sha> <external-facts-authority> <external-rule-policy>
   twilight-burokrat inspect-level-facts <repository> <committed-sha> <external-authority>
   twilight-burokrat inspect-manual <repository> <committed-sha> <external-rule-policy> <report-path> --now <UTC instant>
   twilight-burokrat inspect-manual-observation <repository> <committed-sha> <external-rule-policy> <report-path> --now <UTC instant>
