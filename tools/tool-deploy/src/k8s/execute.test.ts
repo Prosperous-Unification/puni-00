@@ -140,6 +140,9 @@ describe('executeRelease', () => {
       'closeWrites',
       'drainGateway',
       'stopWriter',
+      'observeReplayInventory',
+      'observeReplayCapabilities',
+      'observeReplayCapabilities',
       'capture',
       'migrate',
       'rolloutBackend',
@@ -360,7 +363,7 @@ describe('executeRelease', () => {
     const journal = memoryJournal();
     const release = request();
     journal.stored = JSON.stringify({
-      schemaVersion: 2,
+      schemaVersion: 3,
       request: release,
       state: { ...initialState(release), phase: 'migrated', capture: null },
       history: [{ phase: 'migrated', at: '2026-10-06T00:00:00.000Z' }],

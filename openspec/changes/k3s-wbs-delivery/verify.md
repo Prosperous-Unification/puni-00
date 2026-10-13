@@ -541,3 +541,74 @@ forward/rollback/resume compatibility integration ran in this slice. F11.1 stays
 open until coordinator evidence is durable and validated under the writer fence
 and Lease, rollback refuses before tier rollout/reopening, and the restore guard
 and live acceptance proofs are complete.
+
+## F11.1b Kubernetes replay coordinator — 2026-10-14
+
+Based on exact published #428 head `6ca34e08a2fcc337ef6a5eb41e3ac807fad519d8`,
+in isolated branch `feat/k8s-step-replay-coordinator-sol`. Forward receipts are
+durable at `replay-checked` before capture/migrate; fresh rollback receipts are
+durable at `rollback-replay-checked` before tier restoration and reopening.
+Schema 3 validates original receipt bytes, projections, target, transaction,
+direction, kind/count inventory and exact image observations before resume
+mutates either journal or cluster. Schema 1/2 use the explicit prior-executor/
+manual-recovery refusal. Failure reports include receipt digests, the failed
+replay step and required kind/image, plus the manual command. Restore/cutover
+activation remains outside this slice.
+
+Fresh verification:
+
+- TDD RED: 13 new coordinator tests failed against the base before implementation
+  (`/tmp/k8s-coordinator-initial-red.log`). A separate reused-Job RED accepted
+  foreign image/command output before manifest validation was added
+  (`/tmp/k8s-replay-job-red.log`). Early-abort restart RED exposed a missing
+  distinction between pre-fence abort and guarded rollback; the restored fixture
+  passes (`/tmp/k8s-coordinator-early-abort-red.log`).
+- `BUN_TMPDIR=/tmp bun install --frozen-lockfile`: 1573 installs across 1447
+  packages checked, no changes. The first install attempt hit the sandbox's
+  read-only default temporary directory; the explicit writable temporary path
+  succeeded. Dependencies are installed inside this worktree.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run tool-deploy:test`:
+  **384 pass, 0 fail, 1359 assertions** across 23 files
+  (`/tmp/k8s-coordinator-final-test.log`). Local registry/Git listeners require
+  the authorized unrestricted fixture run. The earlier sandbox run's listener
+  refusals are not counted as validation.
+- Scoped Nx `tool-deploy:lint`, `tool-deploy:typecheck` and `tool-deploy:build`:
+  passed. Build ran the final ShellCheck target and 7 dependency tasks, 5 from
+  cache. Its first attempt exposed missing `@noble/hashes` in the reused shared
+  dependency directory; the worktree's frozen install fixed that setup failure.
+  Nx subsequently printed a historical flaky-task notice for that same dependency
+  build; the final build exited successfully.
+- Scoped Nx `format:check --files=<all changed paths>` and strict OpenSpec
+  `validate k3s-wbs-delivery --strict`: passed. The OpenSpec executable is
+  `/tmp/bunx-1000-@fission-ai/openspec@latest/node_modules/@fission-ai/openspec/bin/openspec.js`.
+
+Twenty-three watched production-path faults each produced RED followed by
+restored GREEN. Logs are `/tmp/k8s-coordinator-proof-<fault>-{red,green}.log`;
+adjacent `Proof:` comments identify the injected check and corresponding fixture.
+
+| Fault                                                                    | Observed RED                                                                                                   |
+| ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| `receipt-object`, `inventory-array`, `inventory-rows`                    | Missing receipts or null/object/zero/fractional/unknown/duplicate inventories escaped the required refusal     |
+| `capability-image-shape`, `support`                                      | Invalid/foreign image vocabularies or unsupported guarded history reached promotion                            |
+| `receipt-digest`, `receipt-json`, `receipt-identity`, `receipt-envelope` | Changed bytes, resealed invalid JSON, foreign identities or altered projections escaped resume preflight       |
+| `forward-phase`, `rollback-phase`                                        | Missing phase-required receipts reached cluster work                                                           |
+| `inventory-stability`                                                    | Changed fenced inventory permitted rollback restoration                                                        |
+| `before-capture`, `before-restore`, `before-reopen`                      | In-process receipt loss reached capture, previous tier rollout or reopening                                    |
+| `resume`, `disk-read`                                                    | Corrupted progress escaped coordinator preflight or disk parsing                                               |
+| `fence-boundary`                                                         | An interrupted closed write path skipped stopped-writer replay admission                                       |
+| `job-manifest`, `job-mount`                                              | A successful reused Job with foreign image/command/PVC output was accepted                                     |
+| `nested-inverse`, `precondition-marker`                                  | Removing generated traversal markers lost inverse-only/precondition-only guarded history and permitted capture |
+| `legacy-schema2`                                                         | A legacy schema 2 journal lost its required prior-executor/manual-recovery diagnostic                          |
+
+Inventory stability compares compatibility kinds/counts, not a checksum of all
+command-journal rows; writers remain fenced and stopped while inventory evidence
+is taken. Malformed inventory and missing image CLI observations are attempted
+once in forward admission and once during abort; failed rollback parks the Lease
+without restoration/reopening. Fixtures also cover a capability change between
+successful forward evidence and rollback, crash/resume around the new phases,
+legacy journals, independent nested markers, and corruption during a live run.
+
+No live Kubernetes/container execution, h4 rollout, restore/cutover import,
+staging/GitHub Actions acceptance, canonical `h2puni-gate.sh` or full workspace gate
+ran. This is a scoped review candidate; F11.1 remains open for the cutover guard
+and live acceptance. No push or deployment was performed.

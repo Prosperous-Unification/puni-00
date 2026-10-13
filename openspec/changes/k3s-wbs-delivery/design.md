@@ -118,3 +118,34 @@ Recorded under the "make reasonable assumptions and record them" instruction.
 - **Edge.** Staging and prod overlays add Traefik Ingress objects (one per namespace, since
   `/api` lives in `wbs-solver`); prod names `letsencrypt-production`, which does not exist yet
   and is a cutover prerequisite.
+
+## F11.1b replay coordinator
+
+The fenced coordinator stops all writer Pods and inventories retained command history
+before `capture-state`. Both the candidate and previous backend images execute their
+own capability CLI as bounded, writer-labelled Jobs. The coordinator records a
+`replay-checked` phase with a SHA-256 sealed receipt binding the inventory, both
+vocabularies and exact images, database target, transaction and direction. Forward
+admission requires both images to understand every retained replay kind.
+
+Rollback stops the writer whenever closing the write path may have begun, restores
+any captured schema set, then observes fresh history and both image vocabularies.
+It requires the previous image to understand that history and refuses changed
+kind/count inventory under the fence. `rollback-replay-checked` persists the rollback
+receipt before restoring tiers; reopening also validates the corresponding receipt.
+A failed observation or compatibility decision makes one forward attempt and one
+rollback attempt at most; rollback refusal parks the Lease and records the failing
+step, required replay kind/image and manual completion command.
+
+Journal schema 3 requires these receipts at their recorded phases, validates their
+original bytes and projected fields before claiming the Lease, and refuses legacy
+schema 1/2 journals with the prior-executor/manual-recovery route. A recovery request
+validates old evidence against its original request and takes fresh evidence for its
+new transaction. A resumed pre-smoke transaction rolls back; proven transactions
+finish with their durable receipt. Replay Job reuse additionally compares every
+requested manifest field against the observed Job before reading its output.
+
+Inventory is a compatibility kind/count summary, not a digest of all journal rows.
+The writer fence and stopped writer are the authority for its stability. Restore
+and first cutover admission, h4 rollout, staging acceptance and the host gate remain
+separate prerequisites under F11.1.

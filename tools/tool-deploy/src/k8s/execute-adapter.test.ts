@@ -740,3 +740,67 @@ describe('backend rollouts through the kubectl adapter', () => {
     );
   });
 });
+
+describe('replay Jobs through kubectl', () => {
+  for (const fault of ['none', 'image', 'command', 'mount', 'status'] as const) {
+    it(`binds reused replay Job output to its image and command: ${fault}`, async () => {
+      const root = scratchSync('wbs-replay-job-');
+      roots.push(root);
+      const image = `be@sha256:${'1'.repeat(64)}`;
+      const kubectl = join(root, 'kubectl');
+      const command = (await import('./replay-capability')).buildReplayCapabilitiesCommand();
+      const observed: Record<string, unknown> = {
+        ...backendTaskJob(
+          { namespaces: { app: 'wbs', backend: 'wbs-solver' } },
+          jobName('replay-kinds', 'tx'),
+          image,
+          {},
+          command,
+        ),
+        status: fault === 'status' ? { failed: 1 } : { succeeded: 1 },
+      };
+      const pod = (
+        observed['spec'] as {
+          template: {
+            spec: {
+              containers: { image: string; command: readonly string[] }[];
+              volumes: { persistentVolumeClaim: { claimName: string } }[];
+            };
+          };
+        }
+      ).template.spec;
+      if (fault === 'image') pod.containers[0].image = `be@sha256:${'2'.repeat(64)}`;
+      if (fault === 'command') pod.containers[0].command = ['echo', '[]'];
+      if (fault === 'mount') pod.volumes[0].persistentVolumeClaim.claimName = 'foreign-database';
+      writeFileSync(join(root, 'observed.json'), JSON.stringify(observed));
+      writeFileSync(
+        kubectl,
+        `#!/usr/bin/env bash\ncase "$*" in\n*"get job"*"-o name"*) echo job/reused ;;\n*"get job"*) cat '${root}/observed.json' ;;\n*"logs"*) echo '[]' ;;\n*) echo "unexpected $*" >&2; exit 1 ;;\nesac\n`,
+      );
+      chmodSync(kubectl, 0o755);
+      const effects = kubectlEffects({
+        kubectl,
+        kubeconfig: null,
+        context: 'lab',
+        namespaces: { app: 'wbs', backend: 'wbs-solver' },
+        stateDir: root,
+        overlay: root,
+        anonymousProjectsStatus: 200,
+        rolloutTimeoutSeconds: 1,
+        jobTimeoutSeconds: 1,
+        drainTimeoutMs: 1000,
+        leaseDurationSeconds: 20,
+        log: () => undefined,
+      });
+      if (fault === 'none')
+        expect(await effects.observeReplayCapabilities('tx', image)).toEqual({
+          image,
+          capabilities: [],
+        });
+      else
+        expect(await rejection(effects.observeReplayCapabilities('tx', image))).toContain(
+          fault === 'status' ? 'failed' : 'replay Job',
+        );
+    });
+  }
+});
