@@ -265,6 +265,7 @@ The Company sign-in panel SHALL offer enable only for a server-proven connection
 
 - **WHEN** create, proof start, enforcement PATCH or refresh is pending
 - **THEN** conflicting controls and forced handlers admit no second mutation or proof start
+- **AND** a proof form already open before enforcement or refresh begins checks the owner's current admission state before posting, including clicks in one React render
 - **AND** a delayed earlier read, including a StrictMode mount GET, cannot replace the outcome of a later PATCH or authority refusal
 - **AND** a reply after runtime withdrawal or effect cleanup cannot publish rows or trigger access loss
 

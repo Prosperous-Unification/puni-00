@@ -541,6 +541,10 @@ export function SsoConnectionsPanel({
                 // Proof: 2026-10-13, omitting this prop failed `blocks the
                 // selected proof form while a create request is held`.
                 disabled={sending}
+                // The child can submit before the disabled prop rerenders.
+                // Proof: removing this admission failed both same-render
+                // Enable→proof and Refresh→proof mounted tests (2026-10-13).
+                canStart={() => !pending.current && !readPending.current && !proofPending.current}
                 onPendingChange={(active) => {
                   proofPending.current = active;
                   // Proof: 2026-10-13, forcing this false failed `freezes the

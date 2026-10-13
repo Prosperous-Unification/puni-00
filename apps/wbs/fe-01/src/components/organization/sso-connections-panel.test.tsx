@@ -262,6 +262,66 @@ describe('company sign-in enforcement', () => {
     ).toHaveLength(0);
   });
 
+  it('blocks a same-render proof submit after enforcement begins', async () => {
+    stubPanel({
+      'GET /api/organization/sso-connections': [
+        () => answer(200, { connections: [connection('two', { provenAt: 1 })] }),
+      ],
+      'POST /api/auth/link/auth0': [() => answer(401, { error: 'invalid_credentials' })],
+      'PATCH /api/organization/sso-connections/connection-two': [
+        () => answer(200, { connection: connection('two', { provenAt: 1, enforced: true }) }),
+      ],
+    });
+    holdFirstRoute('/api/organization/sso-connections/connection-two', 'PATCH');
+    renderPanel();
+    fireEvent.click(await screen.findByRole('button', { name: 'Start proof for two.test' }));
+    fireEvent.change(screen.getByLabelText('How did you sign in to WBS?'), {
+      target: { value: 'provider' },
+    });
+    const form = screen.getByRole('button', { name: 'Link your company sign-in' }).closest('form');
+    if (form === null) throw new Error('Missing company proof form');
+    const enable = screen.getByRole('button', { name: 'Enable enforcement for two.test' });
+    await act(async () => {
+      fireEvent.click(enable);
+      fireEvent.submit(form);
+      await Promise.resolve();
+    });
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.filter(([url]) => url === '/api/organization/sso-connections/connection-two'),
+    ).toHaveLength(1);
+    expect(
+      vi.mocked(fetch).mock.calls.filter(([url]) => url === '/api/auth/link/auth0'),
+    ).toHaveLength(0);
+  });
+
+  it('blocks a same-render proof submit after refresh begins', async () => {
+    stubPanel({
+      'GET /api/organization/sso-connections': [
+        () => answer(200, { connections: [connection('two', { provenAt: 1 })] }),
+      ],
+      'POST /api/auth/link/auth0': [() => answer(401, { error: 'invalid_credentials' })],
+    });
+    renderPanel();
+    fireEvent.click(await screen.findByRole('button', { name: 'Start proof for two.test' }));
+    fireEvent.change(screen.getByLabelText('How did you sign in to WBS?'), {
+      target: { value: 'provider' },
+    });
+    const form = screen.getByRole('button', { name: 'Link your company sign-in' }).closest('form');
+    if (form === null) throw new Error('Missing company proof form');
+    const refresh = screen.getByRole('button', { name: 'Refresh company sign-in' });
+    holdFirstRoute('/api/organization/sso-connections', 'GET');
+    await act(async () => {
+      fireEvent.click(refresh);
+      fireEvent.submit(form);
+      await Promise.resolve();
+    });
+    expect(
+      vi.mocked(fetch).mock.calls.filter(([url]) => url === '/api/auth/link/auth0'),
+    ).toHaveLength(0);
+  });
+
   it('blocks enforcement while create is pending', async () => {
     stubPanel({
       'GET /api/organization/sso-connections': [

@@ -55,9 +55,9 @@
 
 - [x] 2.7 Add Company sign-in enforcement controls for proven/enforced rows using typed PATCH `{enforced}`. Serialize setup, proof, refresh and enforcement; render server state, modeled refusals and the lockout login link. Fence stale reads after mutation and effect cleanup.
 
-  Red: mounted selected-id/body/header, unproven gating, pending, refusal and StrictMode delayed-GET cases. Browser 1280/375px controls and keyboard traversal.
+  Red: mounted selected-id/body/header, unproven gating, pending, refusal and StrictMode delayed-GET cases, plus same-render Enable→proof and Refresh→proof submissions. Browser 1280/375px controls and keyboard traversal.
 
-  Fault: replace selected id, boolean or scoped client; bypass proof or pending guard; remove read generation, cleanup or mutation admission; retain controls on forbidden or publish stale rows. Watch each mounted negative fail and record `Proof:` beside the check and in `verify.md`.
+  Fault: replace selected id, boolean or scoped client; bypass proof or pending guard, including the open child form's synchronous owner check; remove read generation, cleanup or mutation admission; retain controls on forbidden or publish stale rows. Watch each mounted negative fail and record `Proof:` beside the check and in `verify.md`.
 
 ## 3. Enforcement
 
