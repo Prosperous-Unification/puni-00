@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-blockage.db.test.ts:
+115 |     expect(blockages.listByProject('p')).rejects.toThrow(/invalid step reference/);
+116 |     connection.db.run("UPDATE step_blockage SET step_id='dev'");
+117 |     connection.db.run(
+118 |       "INSERT INTO work_item (id,project_id,parent_id,name,position,revision) VALUES ('child','p','a','Child',1,0)",
+119 |     );
+120 |     expect(blockages.listByProject('p')).rejects.toThrow(/not a leaf/);
+                                                       ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-step-blockage-rebuild/libs/wbs/adapters/store-sqlite/src/step-blockage.db.test.ts:120:50)
+(fail) StepBlockageRepository > refuses corrupted owner/step membership and parent-owned facts on reads [139.52ms]
+
+ 0 pass
+ 6 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [338.00ms]

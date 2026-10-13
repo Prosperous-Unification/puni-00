@@ -453,3 +453,46 @@ DB_PATH=/data/wbs.db bun run src/estimate-unit-rollback-cli.ts restore /data/est
 Restoration writes the saved units and estimate columns verbatim, in one transaction,
 and refuses missing steps, new estimates on those steps, or a malformed save. Saved minute
 trios must be finite, ordered whole minutes within the unit maximum, validated before writes.
+
+## Step blockage rollback
+
+Direct blockage is a sparse audited fact on a leaf step node (ADR 0053). The swap
+compares `step-blockage-kinds-cli.ts` with the stored fact inventory before migration
+and again after the outgoing colour stops. A release without that CLI understands
+no direct blockage; it may serve an empty inventory, but any retained blockage
+refuses the swap and names the lossless recovery procedure below. Missing or
+unreadable source/database state refuses the check.
+
+Migration `20261013140000_add_step_node_blockages` is additive. Its paired `down.sql`
+refuses while any blockage remains, preserving the table and migration ledger.
+Stop writers before recovery, then save and remove the facts:
+
+```sh
+DB_PATH=/data/wbs.db bun run src/step-blockage-rollback-cli.ts save /data/step-blockages-<date>.json
+DB_PATH=/data/wbs.db bun run src/step-blockage-rollback-cli.ts remove /data/step-blockages-<date>.json
+DB_PATH=/data/wbs.db bun run src/migrate-down-cli.ts --to=20261012130000_add_step_estimate_unit
+```
+
+The version-1 save contains every column, including original blocked time and audit
+columns, ordered by node identity. Recovery requires an existing readable database;
+it never creates a missing database. `remove` refuses a stale save before deleting
+anything. Keep the save until restoration has been verified. After applying the
+forward migration on a compatible release:
+
+```sh
+DB_PATH=/data/wbs.db bun run src/step-blockage-rollback-cli.ts restore /data/step-blockages-<date>.json
+```
+
+`restore` requires an empty blockage table, including when the saved and existing
+facts address disjoint nodes. It validates the file before opening a transaction,
+and foreign keys and ownership triggers refuse removed work items, removed steps,
+parents and project mismatches. The whole restoration commits or none of it does.
+Any failed recovery must be completed with the relevant command above before
+repeating the deploy; do not drop the guarded table manually.
+
+Before enabling the feature, inventory historical parent-owned `step_progress`,
+retain those statements in compatible reads, and repair affected plans explicitly.
+Drain incompatible writers before enabling blockage writes: older structural writers
+can invalidate node ownership during a blue/green overlap. New blockage command
+history must also be covered by rollback compatibility when that command family is
+enabled; the persistence checkpoint alone is not a deployable feature.

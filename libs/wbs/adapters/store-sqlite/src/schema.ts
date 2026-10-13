@@ -3419,3 +3419,31 @@ export const projectRank = sqliteTable(
     index('project_rank_order').on(t.organizationId, t.position, t.projectId),
   ],
 );
+
+/**
+ * Direct step blockage (ADR 0053), keyed like progress but stored independently.
+ * The additive migration's insert/update triggers enforce shared project and
+ * leaf ownership. Work-item deletion cascades for old-writer compatibility;
+ * step deletion is restrictive until the command accounts for these facts.
+ */
+export const stepBlockage = sqliteTable(
+  'step_blockage',
+  {
+    workItemId: text('work_item_id')
+      .notNull()
+      .references(() => workItem.id, { onDelete: 'cascade' }),
+    stepId: text('step_id')
+      .notNull()
+      .references(() => step.id),
+    blockedAt: integer('blocked_at').notNull(),
+    ...auditColumns(),
+  },
+  (columns) => [
+    primaryKey({ columns: [columns.workItemId, columns.stepId] }),
+    index('step_blockage_by_step').on(columns.stepId),
+    check(
+      'step_blockage_time',
+      sql`typeof(${columns.blockedAt}) = 'integer' AND ${columns.blockedAt} BETWEEN -9007199254740991 AND 9007199254740991`,
+    ),
+  ],
+);

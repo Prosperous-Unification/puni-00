@@ -54,12 +54,14 @@ import {
   revokeAliasCommands,
   ROOT,
   SHARED_ENV_PATH,
+  stepBlockageKindsCommand,
   storedAttemptOutcomesCommand,
   storedCapacityModesCommand,
   storedEstimateUnitsCommand,
   storedHoldsCommand,
   storedReadinessesCommand,
   storedRelationshipTypesCommand,
+  storedStepBlockagesCommand,
   tierComposeContext,
   tierComposeFile,
   tierEnvFiles,
@@ -655,6 +657,16 @@ const ATTEMPT_OUTCOMES_VOCABULARY: StoredVocabulary = {
   runbookAnchor: 'step-node-attempt-rollback',
 };
 
+/** Direct sparse blockage is unreadable to older images even when progress is unchanged. */
+const STEP_BLOCKAGE_VOCABULARY: StoredVocabulary = {
+  name: 'step blockage kinds',
+  key: 'kind',
+  supportedCommand: stepBlockageKindsCommand,
+  storedCommand: storedStepBlockagesCommand,
+  recoveryCli: 'step-blockage-rollback-cli.ts',
+  runbookAnchor: 'step-blockage-rollback',
+};
+
 /** A prior image would interpret stored minutes as days; refuse before either migration boundary (ADR 0042). */
 const ESTIMATE_UNITS_VOCABULARY: StoredVocabulary = {
   name: 'estimate units',
@@ -684,6 +696,8 @@ const STORED_VOCABULARIES: readonly StoredVocabulary[] = [
   // blue stops` went on to migrate and commit, and `passes an image without the
   // outcomes CLI over no attempts` never read the stored outcomes; watched 2026-10-12.
   ATTEMPT_OUTCOMES_VOCABULARY,
+  // Proof: entry omitted; before-migration, empty-inventory and post-stop blockage cases failed; watched 2026-10-13.
+  STEP_BLOCKAGE_VOCABULARY,
   // Proof: omitting this entry failed all three minute swap cases; watched 2026-10-12.
   ESTIMATE_UNITS_VOCABULARY,
 ];

@@ -13,12 +13,14 @@ import {
   holdKindsCommand,
   readinessKindsCommand,
   relationshipTypesCommand,
+  stepBlockageKindsCommand,
   storedAttemptOutcomesCommand,
   storedCapacityModesCommand,
   storedEstimateUnitsCommand,
   storedHoldsCommand,
   storedReadinessesCommand,
   storedRelationshipTypesCommand,
+  storedStepBlockagesCommand,
 } from './lib/docker';
 import { drain } from './lib/drain';
 import { type EnvLayout, envLayout } from './lib/env';
@@ -63,11 +65,22 @@ async function failureMessage(operation: Promise<unknown>): Promise<string> {
   }
 }
 
-function withCapturedMigrationIo(io: SwapExecutionIo): SwapExecutionIo {
+function withCapturedMigrationIo(
+  io: SwapExecutionIo,
+  blockages: { supported: string; stored: (read: number) => string } = {
+    supported: '["blocked"]',
+    stored: () => '[]',
+  },
+): SwapExecutionIo {
+  let blockageReads = 0;
   const captures = new Map<string, string>();
   return {
     ...io,
     sh: async (args) => {
+      if (JSON.stringify(args) === JSON.stringify(stepBlockageKindsCommand('be-01-green')))
+        return blockages.supported;
+      if (JSON.stringify(args) === JSON.stringify(storedStepBlockagesCommand('be-01-green')))
+        return blockages.stored(++blockageReads);
       if (args[0] === 'exec' && args[2] === 'printenv' && args[3] === 'DB_PATH') {
         return '/data/wbs.db\n';
       }
@@ -957,6 +970,11 @@ describe('execute, stored vocabulary rollback guard', () => {
       supported: '["workdays","minutes"]',
       stored: () => '[]',
     },
+    blockages: { supported: string; stored: (read: number) => string } = {
+      supported: '["blocked"]',
+      stored: () => '[]',
+    },
+    afterStop = false,
   ) {
     const ran: string[][] = [];
     const phases: string[] = [];
@@ -1020,16 +1038,85 @@ describe('execute, stored vocabulary rollback guard', () => {
     let caught: unknown;
     try {
       await execute(
-        { tier: 'be', from: 'blue', to: 'green', steps: ['stored-vocabularies', 'migrate'] },
+        {
+          tier: 'be',
+          from: 'blue',
+          to: 'green',
+          steps: afterStop
+            ? ['stored-vocabularies', 'migrate', 'stop-blue', 'stored-vocabularies-after-stop']
+            : ['stored-vocabularies', 'migrate'],
+        },
         'registry/be-01@sha256:abc',
         'deadbeef',
-        withCapturedMigrationIo(io),
+        withCapturedMigrationIo(io, blockages),
       );
     } catch (error) {
       caught = error;
     }
     return { ran, phases, caught };
   }
+
+  it('refuses an image without step blockage support before migration', async () => {
+    const attempt = await runGuard(
+      '["FS"]',
+      '[]',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { supported: '[]', stored: () => '[{"kind":"blocked","count":2}]' },
+    );
+    expect(attempt.caught).toHaveProperty(
+      'message',
+      expect.stringMatching(/blocked \(2\).*step-blockage-rollback-cli.ts/is),
+    );
+    expect(attempt.ran.some((args) => args.includes('src/migrate-cli.ts'))).toBe(false);
+    expect(attempt.ran.at(-1)).toEqual(['stop', 'be-01-green']);
+  });
+
+  it('allows an older image over no step blockage and checks inventory', async () => {
+    let reads = 0;
+    const attempt = await runGuard(
+      '["FS"]',
+      '[]',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      {
+        supported: '[]',
+        stored: () => {
+          reads++;
+          return '[]';
+        },
+      },
+    );
+    expect(attempt.caught).toBeUndefined();
+    expect(reads).toBe(1);
+  });
+
+  it('refuses a step blockage written after the first check once blue stops', async () => {
+    let reads = 0;
+    const attempt = await runGuard(
+      '["FS"]',
+      '[]',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { supported: '[]', stored: () => (++reads === 1 ? '[]' : '[{"kind":"blocked","count":1}]') },
+      true,
+    );
+    expect(attempt.caught).toHaveProperty(
+      'message',
+      expect.stringContaining('step-blockage-rollback-cli.ts'),
+    );
+    expect(reads).toBe(2);
+    expect(attempt.phases).toContain('old-stopped');
+  });
 
   it('refuses FS-only code with stored FF before migration and stops green', async () => {
     const attempt = await runGuard('["FS"]', '[{"type":"FF","count":2}]');

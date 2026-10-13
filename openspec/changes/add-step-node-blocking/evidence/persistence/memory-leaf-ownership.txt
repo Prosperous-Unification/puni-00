@@ -1,0 +1,37 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-memory/src/step-blockage-fixture.test.ts:
+40 |   );
+41 |   expect(blockages.set({ workItemId: 'a', stepId: 'dev', blockedAt: 1.5 }, stamp)).rejects.toThrow(
+42 |     /invalid blocked time/,
+43 |   );
+44 |   await workItems.insert(workItemRow({ id: 'child', projectId: 'p', parentId: 'a' }), [], stamp);
+45 |   expect(blockages.set({ workItemId: 'a', stepId: 'dev', blockedAt: 1 }, stamp)).rejects.toThrow(
+                                                                                              ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-step-blockage-rebuild/libs/wbs/adapters/store-memory/src/step-blockage-fixture.test.ts:45:90)
+(fail) refuses missing steps, malformed timestamps and parent owners [1.16ms]
+69 |   await blockages.set({ workItemId: 'b', stepId: 'dev', blockedAt: 2 }, stamp);
+70 |   const before = await blockages.listByProject('p');
+71 |   expect(blockages.moveAll('a', 'b', stamp)).rejects.toThrow(/duplicate step blockage/);
+72 |   expect(await blockages.listByProject('p')).toEqual(before);
+73 |   await workItems.insert(workItemRow({ id: 'child', projectId: 'p', parentId: 'a' }), [], stamp);
+74 |   expect(blockages.listByProject('p')).rejects.toThrow(/not a leaf/);
+                                                    ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-step-blockage-rebuild/libs/wbs/adapters/store-memory/src/step-blockage-fixture.test.ts:74:48)
+(fail) refuses duplicate transfers atomically and reads parent-owned corruption loudly [1.19ms]
+
+ 0 pass
+ 2 filtered out
+ 2 fail
+ 6 expect() calls
+Ran 2 tests across 1 file. [203.00ms]

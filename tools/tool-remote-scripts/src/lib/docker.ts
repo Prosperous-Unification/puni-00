@@ -1161,3 +1161,42 @@ try {
 } finally { db.close(); }`,
   ];
 }
+
+/**
+ * Direct blockage kinds supported by an image. Only an absent CLI under a
+ * readable source directory identifies an older release; malformed/unreadable
+ * paths refuse instead of advertising an empty vocabulary (ADR 0053).
+ */
+export function stepBlockageKindsCommand(container: string): string[] {
+  // Proof: directory availability/readability and dangling-path checks removed
+  // independently; reader-path negatives failed; watched 2026-10-13.
+  const cli = 'src/step-blockage-kinds-cli.ts';
+  return [
+    'exec',
+    container,
+    'sh',
+    '-c',
+    `if test -f ${cli}; then bun run ${cli}; elif test -e ${cli} || test -L ${cli}; then exit 73; elif test -d src && test -r src && test -x src; then printf '[]\\n'; else exit 74; fi`,
+  ];
+}
+
+/** Counts sparse blockage without importing image code; table absence models the older schema. */
+export function storedStepBlockagesCommand(container: string): string[] {
+  // Proof: inventory replaced with [], or DB_PATH guard removed; stored-fact
+  // inventory negative failed in each case; watched 2026-10-13.
+  return [
+    'exec',
+    container,
+    'bun',
+    '-e',
+    `import { Database } from 'bun:sqlite';
+const path=process.env.DB_PATH;
+if (!path) throw new Error('DB_PATH must be set');
+const db=new Database(path,{readonly:true,create:false});
+try {
+  const exists=db.query("SELECT name FROM sqlite_master WHERE type='table' AND name='step_blockage'").get();
+  const rows=exists===null?[]:db.query("SELECT 'blocked' AS kind,count(*) AS count FROM step_blockage HAVING count(*)>0").all();
+  console.log(JSON.stringify(rows));
+} finally {db.close();}`,
+  ];
+}

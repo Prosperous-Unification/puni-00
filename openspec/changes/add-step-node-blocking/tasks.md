@@ -12,10 +12,10 @@
 
 ## 2. Persistent blockage facts
 
-- [ ] 2.1 Red: add migration walk, SQLite constraint, repository round-trip, and rollback save/remove/restore tests. Include absent table, unreadable DB, malformed owner/step, duplicate fact and fact remaining during `down.sql`.
-- [ ] 2.2 Add the additive `step_blockage` table beside the step-progress repository, with project/work-item/step constraints and indexes needed by its project reads.
-- [ ] 2.3 Add guarded `down.sql` and a rollback CLI that saves, removes and restores exact blockage facts; extend swap compatibility discovery to refuse an old image if blockage facts would be lost.
-- [ ] 2.4 Watch the production rollback guard fail with a fact present and the swap check fail when the blockage inventory is omitted. Add adjacent `Proof:` comments naming the injected faults.
+- [x] 2.1 Red: add migration walk, SQLite constraint, repository round-trip, and rollback save/remove/restore tests. Include absent table, unreadable DB, malformed owner/step, duplicate fact and fact remaining during `down.sql`.
+- [x] 2.2 Add the additive `step_blockage` table beside the step-progress repository, with project/work-item/step constraints and indexes needed by its project reads.
+- [x] 2.3 Add guarded `down.sql` and a rollback CLI that saves, removes and restores exact blockage facts; extend swap compatibility discovery to refuse an old image if blockage facts would be lost.
+- [x] 2.4 Watch the production rollback guard fail with a fact present and the swap check fail when the blockage inventory is omitted. Add adjacent `Proof:` comments naming the injected faults.
 
 ## 3. Command journal and structural edits
 

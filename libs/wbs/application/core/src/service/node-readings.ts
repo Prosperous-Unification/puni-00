@@ -180,7 +180,7 @@ export function projectNodeReadings({
       throw new Error(`a step-node edge names ${predecessorKey}, which is no step node`);
     }
     // Proof: successor guard removed; absent-successor negative received
-    // a TypeError instead of the named missing-node refusal; watched 2026-10-13.
+    // function did not throw instead of the named refusal; watched 2026-10-13.
     if (successor === undefined) {
       throw new Error(`a step-node edge names ${successorKey}, which is no step node`);
     }

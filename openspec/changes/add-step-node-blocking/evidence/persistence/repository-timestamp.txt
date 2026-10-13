@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-blockage.db.test.ts:
+ 98 |     expect(await blockages.listByProject('p')).toEqual(before);
+ 99 |     expect(connection.db.all('SELECT id,revision FROM work_item ORDER BY id')).toEqual(revisions);
+100 |   });
+101 |
+102 |   it('refuses fractional writes and malformed stored timestamp reads', async () => {
+103 |     expect(set('a', 'dev', 1.5)).rejects.toThrow(/invalid blocked time/);
+                                               ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /invalid blocked time/
+Received message: "Failed query: insert into \"step_blockage\" (\"work_item_id\", \"step_id\", \"blocked_at\", \"created_at\", \"updated_at\", \"created_by\") values (?, ?, ?, ?, ?, ?) on conflict (\"step_blockage\".\"work_item_id\", \"step_blockage\".\"step_id\") do update set \"blocked_at\" = ?, \"updated_at\" = ?\nparams: a,dev,1.5,10,10,u,1.5,10"
+
+      at <anonymous> (/tmp/puni-step-blockage-rebuild/libs/wbs/adapters/store-sqlite/src/step-blockage.db.test.ts:103:42)
+(fail) StepBlockageRepository > refuses fractional writes and malformed stored timestamp reads [204.16ms]
+
+ 0 pass
+ 6 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [645.00ms]

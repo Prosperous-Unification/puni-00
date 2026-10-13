@@ -305,7 +305,7 @@ describe('migration deploy entrypoints', () => {
     cpSync(MIGRATIONS, migrations, { recursive: true });
     runMigrations(dbPath, MIGRATIONS);
     const baselineLedger = migrationLedgerAt(dbPath);
-    expect(baselineLedger.at(-1)?.name).toBe('20261012130000_add_step_estimate_unit');
+    expect(baselineLedger.at(-1)?.name).toBe('20261013140000_add_step_node_blockages');
     const baselineSchema = schemaAt(dbPath);
     const sqlite = openDatabase(dbPath);
     try {

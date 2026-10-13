@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-memory/src/step-blockage-fixture.test.ts:
+44 |   await workItems.insert(workItemRow({ id: 'child', projectId: 'p', parentId: 'a' }), [], stamp);
+45 |   expect(blockages.set({ workItemId: 'a', stepId: 'dev', blockedAt: 1 }, stamp)).rejects.toThrow(
+46 |     /not a leaf/,
+47 |   );
+48 |   table.rows.push({ workItemId: 'gone', stepId: 'dev', blockedAt: 1 });
+49 |   expect(blockages.listByProject('p')).rejects.toThrow(/invalid work-item reference/);
+                                                    ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /invalid work-item reference/
+Received message: "null is not an object (evaluating 'owner.projectId')"
+
+      at <anonymous> (/tmp/puni-step-blockage-rebuild/libs/wbs/adapters/store-memory/src/step-blockage-fixture.test.ts:49:48)
+(fail) refuses missing steps, malformed timestamps and parent owners [1.74ms]
+(pass) refuses cross-project steps, corrupted read facts and invalid transfer destinations [0.53ms]
+
+ 1 pass
+ 2 filtered out
+ 1 fail
+ 9 expect() calls
+Ran 2 tests across 1 file. [158.00ms]

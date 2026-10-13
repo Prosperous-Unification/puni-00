@@ -65,3 +65,24 @@ Deploy the additive table with compatible readers and replay guards. Drain incom
 
 - Allocate migration timestamp, plan-document version and saved-plan schema version against the exact integration head; reserved candidates against `0ea6a1166242edf694294d1ed6e715fb7e1aed60` are migration `20261013140000`, plan document v9 and saved-plan input schema v7; scheduler schema stays v16, but unmerged branches may move these.
 - Current `resolveStepNodeGraph` covers legacy and typed FS/SS/FF endpoints. Do not repeat the historical graph extraction or introduce historical `stepReadings`.
+
+## Persistent fact and recovery shape
+
+`step_blockage` holds `(work_item_id, step_id, blocked_at)` and the usual audit
+columns. Its pair key and foreign keys protect identity; a safe-integer timestamp
+constraint and insert/update triggers enforce valid time, common project and leaf
+ownership. Work-item deletion cascades for old-writer compatibility; step deletion
+remains restrictive until the structural command explicitly accounts for its facts.
+Repository reads validate left-joined references so corrupted state is never hidden
+by an inner join, including missing owner/step, crossed project and parent ownership.
+
+Recovery file version 1 preserves all columns. The decoder rejects malformed
+columns, timestamps, versions and duplicate identities. `remove` compares the current
+capture with the file in one transaction, while `restore` requires an empty table
+and relies on schema reference/ownership checks in the same transaction as inserts.
+The CLI opens existing databases with the usual verified pragmas and explicit
+readwrite permission; absence never creates a new database. Swap compatibility uses
+an image vocabulary plus an independent database inventory at both existing guard
+phases. Missing source/database state refuses; only genuine older CLI/table absence
+has the modeled empty vocabulary/inventory. Command-history compatibility remains
+an explicit prerequisite when new journal variants are enabled in the command slice.

@@ -44,12 +44,14 @@ import {
   SHARED_ENV_PATH,
   SOLVER_SUPERVISOR_CONTAINER_DIRECTORY,
   SOLVER_SUPERVISOR_HOST_DIRECTORY,
+  stepBlockageKindsCommand,
   storedAttemptOutcomesCommand,
   storedCapacityModesCommand,
   storedEstimateUnitsCommand,
   storedHoldsCommand,
   storedReadinessesCommand,
   storedRelationshipTypesCommand,
+  storedStepBlockagesCommand,
   tierComposeContext,
   tierComposeFile,
   tierEnvFiles,
@@ -1659,6 +1661,102 @@ describe('estimate unit commands', () => {
       });
       expect(await unset.exited).not.toBe(0);
     } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('step blockage compatibility commands', () => {
+  it('reads a present release CLI, models an older release, and refuses unavailable source', async () => {
+    const directory = scratchSync('wbs-blockage-reader-');
+    try {
+      const command = stepBlockageKindsCommand('be-01-green').slice(2);
+      const absent = Bun.spawn(command, { cwd: directory });
+      expect(await absent.exited).toBe(74);
+      mkdirSync(join(directory, 'src'));
+      chmodSync(join(directory, 'src'), 0);
+      try {
+        expect(await Bun.spawn(command, { cwd: directory }).exited).toBe(74);
+      } finally {
+        chmodSync(join(directory, 'src'), 0o700);
+      }
+      const legacy = Bun.spawn(command, { cwd: directory, stdout: 'pipe' });
+      expect(await legacy.exited).toBe(0);
+      expect(await new Response(legacy.stdout).text()).toBe('[]\n');
+      writeFileSync(
+        join(directory, 'src/step-blockage-kinds-cli.ts'),
+        'console.log(JSON.stringify(["blocked"]));',
+      );
+      const present = Bun.spawn(command, { cwd: directory, stdout: 'pipe' });
+      expect(await present.exited).toBe(0);
+      expect(JSON.parse(await new Response(present.stdout).text())).toEqual(['blocked']);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses nonregular, dangling and unreadable reader paths', async () => {
+    const directory = scratchSync('wbs-blockage-reader-path-');
+    const path = join(directory, 'src/step-blockage-kinds-cli.ts');
+    try {
+      mkdirSync(path, { recursive: true });
+      expect(
+        await Bun.spawn(stepBlockageKindsCommand('green').slice(2), { cwd: directory }).exited,
+      ).toBe(73);
+      rmSync(path, { recursive: true });
+      symlinkSync('missing.ts', path);
+      expect(
+        await Bun.spawn(stepBlockageKindsCommand('green').slice(2), { cwd: directory }).exited,
+      ).toBe(73);
+      rmSync(path);
+      writeFileSync(path, 'console.log([])');
+      chmodSync(path, 0);
+      expect(
+        await Bun.spawn(stepBlockageKindsCommand('green').slice(2), {
+          cwd: directory,
+          stderr: 'pipe',
+        }).exited,
+      ).not.toBe(0);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('counts every stored fact and distinguishes an older schema from an unavailable database', async () => {
+    const directory = scratchSync('wbs-blockage-inventory-');
+    const path = join(directory, 'plan.db');
+    const db = new Database(path);
+    try {
+      const command = storedStepBlockagesCommand('green').slice(2);
+      const read = async (dbPath = path) => {
+        const child = Bun.spawn(command, {
+          env: { ...process.env, DB_PATH: dbPath },
+          stdout: 'pipe',
+          stderr: 'pipe',
+        });
+        const [exitCode, stdout] = await Promise.all([
+          child.exited,
+          new Response(child.stdout).text(),
+        ]);
+        return { exitCode, stdout };
+      };
+      expect(await read()).toEqual({ exitCode: 0, stdout: '[]\n' });
+      db.run('CREATE TABLE step_blockage (work_item_id text,step_id text)');
+      db.run("INSERT INTO step_blockage VALUES ('a','dev'),('b','qa')");
+      expect(await read()).toEqual({ exitCode: 0, stdout: '[{"kind":"blocked","count":2}]\n' });
+      expect((await read(join(directory, 'absent.db'))).exitCode).not.toBe(0);
+      const { DB_PATH: _path, ...environment } = process.env;
+      const unset = Bun.spawn(command, { env: environment, stdout: 'pipe', stderr: 'pipe' });
+      expect(await unset.exited).not.toBe(0);
+      expect(await new Response(unset.stderr).text()).toContain('DB_PATH must be set');
+      chmodSync(path, 0);
+      try {
+        expect((await read()).exitCode).not.toBe(0);
+      } finally {
+        chmodSync(path, 0o600);
+      }
+    } finally {
+      db.close();
       rmSync(directory, { recursive: true, force: true });
     }
   });

@@ -61,6 +61,7 @@ export { openSqliteSource } from './source';
 export * from './space';
 export * from './sqlite-unit-of-work';
 export * from './step';
+export * from './step-blockage';
 export * from './step-measure';
 export * from './step-node-attempt';
 export * from './step-progress';

@@ -1,0 +1,30 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-blockage-migration.db.test.ts:
+109 |   });
+110 |
+111 |   it('refuses fractional and unsafe blocked timestamps', () => {
+112 |     withDatabase((sqlite) => {
+113 |       for (const at of [1.5, Number.MAX_SAFE_INTEGER + 1])
+114 |         expect(() => insert(sqlite, 'a', 'dev', at)).toThrow(/step_blockage_time/);
+                                                           ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /step_blockage_time/
+
+Received function did not throw
+Received value: {
+  changes: 1,
+  lastInsertRowid: 1,
+}
+
+      at <anonymous> (/tmp/puni-step-blockage-rebuild/libs/wbs/adapters/store-sqlite/src/step-blockage-migration.db.test.ts:114:54)
+      at withDatabase (/tmp/puni-step-blockage-rebuild/libs/wbs/adapters/store-sqlite/src/step-blockage-migration.db.test.ts:44:12)
+      at <anonymous> (/tmp/puni-step-blockage-rebuild/libs/wbs/adapters/store-sqlite/src/step-blockage-migration.db.test.ts:112:5)
+(fail) 20261013140000_add_step_node_blockages > refuses fractional and unsafe blocked timestamps [149.45ms]
+
+ 0 pass
+ 5 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [185.00ms]
