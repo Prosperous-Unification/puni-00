@@ -175,6 +175,14 @@ async function seedPlan(page: Page, _account: string): Promise<void> {
     await page.getByRole('button', { name: 'Add work item' }).click();
     await expect(page.getByLabel(`Name of ${number}`)).toBeVisible();
   }
+
+  // The vocabularies went to be-01 behind the page's back, and a card draws
+  // its Tags and Services fields only once its directory holds one — so the
+  // fixture proves its own precondition rather than racing the refresh. Seen
+  // racing in review: `Tags for 010` absent from the 44px sweep, once.
+  await page.reload();
+  await expect(page.locator('[data-card] [data-card-tags-field]')).toHaveCount(2);
+  await expect(page.locator('[data-card] [data-card-service-field]')).toHaveCount(2);
 }
 
 /**
@@ -1672,8 +1680,8 @@ test.describe('the phone review, at 375×812', () => {
   test('folds a card’s empty fields behind one Add… control (F-009)', async ({ page }) => {
     const card = page.locator('[data-card]').first();
     const fields = [
-      ['[data-card-not-before-field]', '+ Earliest start'],
-      ['[data-card-deadline-field]', '+ Work item deadline'],
+      ['[data-card-not-before-field]', '+ Earliest start (needs a plan start)'],
+      ['[data-card-deadline-field]', '+ Work item deadline (needs a plan start)'],
       ['[data-card-waits-field]', '+ Waits for'],
       ['[data-card-team-field]', '+ Team'],
       ['[data-card-tags-field]', '+ Tags'],
@@ -1695,6 +1703,14 @@ test.describe('the phone review, at 375×812', () => {
         44,
       );
     }
+    // One ink for every offer: the two date offers, disabled without a plan
+    // start, read as broken at 60% opacity (review of F-009).
+    const inks = await card
+      .locator(fields.map(([selector]) => selector).join(', '))
+      .evaluateAll((all) =>
+        all.map((each) => `${getComputedStyle(each).color} ${getComputedStyle(each).opacity}`),
+      );
+    expect(new Set(inks).size, `the offers are drawn in ${inks.join(' / ')}`).toBe(1);
   });
 
   test('draws a card’s notes as inline markdown, as the table draws a name (F-039)', async ({
@@ -1734,6 +1750,20 @@ test.describe('the phone review, at 375×812', () => {
       expect(summary.height, `${summary.words} is short`).toBeGreaterThanOrEqual(44);
       expect(summary.fontSize, `${summary.words} grew its words`).toBeLessThanOrEqual(12);
     }
+    // The words sit under their figure, not ~20px below it in the middle of
+    // the target (review of F-042).
+    const gaps = await page.locator('[data-card] [data-step-disclosures]').evaluateAll((all) =>
+      all
+        .filter((line) => line.getClientRects().length > 0)
+        .map((line) => {
+          const step = line.previousElementSibling;
+          const words = line.querySelector('summary > span');
+          if (step === null || words === null) throw new Error('a disclosure line lost its step');
+          return words.getBoundingClientRect().top - step.getBoundingClientRect().bottom;
+        }),
+    );
+    for (const gap of gaps)
+      expect(gap, 'the o·r·p words float under their figure').toBeLessThan(12);
   });
 
   test('lists the Plan actions as labelled full-width rows grouped by purpose (F-045)', async ({
@@ -1814,6 +1844,24 @@ test.describe('the phone review, at 375×812', () => {
       140,
     );
     expect(search.width, 'the search is squeezed').toBeGreaterThan(surface.width * 0.6);
+
+    // In dark, the search box is the sheet's paper, as Find is — not the
+    // platform's grey field (review of F-049).
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await expect(page.locator('html')).toHaveClass(/\bdark\b/);
+    await expect
+      .poll(
+        () =>
+          sheet.evaluate((surface) => {
+            const box = surface.querySelector('input[role="combobox"]');
+            if (box === null) throw new Error('the sheet has no search box');
+            return (
+              getComputedStyle(box).backgroundColor === getComputedStyle(surface).backgroundColor
+            );
+          }),
+        { message: 'the dark search box is not the sheet’s paper' },
+      )
+      .toBe(true);
   });
 
   test('lays the Depends sheet’s rows inline, without bullets (F-050)', async ({ page }) => {

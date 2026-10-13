@@ -770,9 +770,17 @@ const TAP = 'min-h-11';
  * 12px of a footnote. `list-none` and the WebKit marker rule take the user
  * agent's triangle off, because a `flex` summary drops it in Chromium and keeps
  * it in Safari; the `▸` each summary draws is the one triangle on every engine.
+ *
+ * The words sit at the **top** of the 44px box (`items-start`), so they read
+ * as a footnote to the figure above them and the rest of the target is the
+ * space before the next step — centred, they floated ~20px under their figure.
+ *
+ * Proof: centred (`items-center`), `gives the o·r·p and Attempts disclosures
+ * 44px without growing their words (F-042)` failed on `the o·r·p words float
+ * under their figure … Received: 22`.
  */
 const DISCLOSURE_SUMMARY =
-  'flex min-h-11 w-fit cursor-pointer list-none items-center gap-1 select-none [&::-webkit-details-marker]:hidden';
+  'flex min-h-11 w-fit cursor-pointer list-none items-start gap-1 select-none [&::-webkit-details-marker]:hidden';
 
 /**
  * How a card field's trigger looks, by whether the row holds a value for it.
@@ -790,7 +798,13 @@ const DISCLOSURE_SUMMARY =
 function fieldTriggerClass(empty: boolean, foldsWhenEmpty: boolean): string {
   if (empty && foldsWhenEmpty) return 'hidden';
   if (empty) {
-    return `${TAP} text-muted-foreground border-border order-2 inline-flex items-center rounded-md border px-3 disabled:opacity-60`;
+    // One ink for every offer, disabled or not: a faded offer read as broken
+    // (review of F-009). A date field that cannot be set yet says why in its
+    // own words — `(needs a plan start)` — rather than in a lighter grey.
+    // Proof: with `disabled:opacity-60` back on this branch, `folds a card's
+    // empty fields behind one Add… control (F-009)` failed on `the offers are
+    // drawn in … 0.6 / … 0.6 / … 1 …`.
+    return `${TAP} text-muted-foreground border-border order-2 inline-flex items-center rounded-md border px-3 text-left`;
   }
   return `${TAP} text-muted-foreground inline-flex max-w-full min-w-0 items-center gap-1 text-left underline decoration-dotted underline-offset-2 disabled:no-underline disabled:opacity-60`;
 }
@@ -1226,7 +1240,7 @@ function CardNotBeforeField({
           {day === null ? (
             // No `data-card-not-before`: this row constrains nothing, and the
             // attribute is the constraint. What is drawn is the invitation.
-            <span>+ Earliest start</span>
+            <span>+ Earliest start{hasCalendar ? '' : ' (needs a plan start)'}</span>
           ) : (
             <span data-card-not-before data-fact={title}>
               not before {shortIsoDate(day, new Date())}
@@ -1439,7 +1453,7 @@ function CardDeadlineField({
           {day === null ? (
             // No `data-card-deadline`: this row owes nothing by any day, and the
             // attribute is the claim. What is drawn is the invitation.
-            <span>+ Work item deadline</span>
+            <span>+ Work item deadline{hasCalendar ? '' : ' (needs a plan start)'}</span>
           ) : (
             <>
               <span data-card-deadline data-fact={title}>
@@ -2370,7 +2384,7 @@ function CardDependsField({
               placeholder="search by number or name"
               data-cell={cellKey(row.id, 'depends')}
               data-card-depends-input
-              className={`${TAP} box-border w-full rounded-md border p-2 text-base`}
+              className={`${TAP} border-input bg-background box-border w-full rounded-md border p-2 text-base`}
               value={typed}
               onChange={(event) => {
                 setTyped(event.target.value);
@@ -2836,9 +2850,10 @@ export function PlanCards({
               rows={2}
               maxRestRows={8}
               // The same rendering the table's Name cell gets, from the same
-              // function — see {@link renderName}. The notes under it are drawn
-              // as the text they are: this face shows them at rest, and a note
-              // is read here rather than in a hover a phone does not have.
+              // function — see {@link renderName} — for the name and, a line at
+              // a time, for the notes under it: this face shows them at rest,
+              // and a note is read here rather than in a hover a phone does
+              // not have (F-039).
               renderLine={renderName}
               className={`${TAP} box-border w-full rounded-md border p-2 text-base`}
               value={composeNameCell(row.name, row.notes)}

@@ -1576,6 +1576,24 @@
     border-style: solid;
     border-color: var(--border);
   }
+
+  /*
+   * A picker's search box outside the grid — the phone sheets' and the
+   * Directory's `Add a team…` — on the app's input tokens, as `<Input>` (Find)
+   * is. `CreatablePicker` styles nothing but its font, so outside the grid the
+   * box was the platform's field: a grey block on a dark sheet. Inside the grid
+   * the cell's own rules draw it.
+   *
+   * Proof: this rule deleted, `opens the team sheet titled by its field, chips
+   * and search at the top (F-049)` failed on `the dark search box is not the
+   * sheet's paper`.
+   */
+  input[role='combobox']:not([data-grid] *) {
+    background-color: var(--background);
+    border: 1px solid var(--input);
+    border-radius: var(--radius-md);
+    padding-inline: 8px;
+  }
 }
 
 /*

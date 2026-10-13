@@ -947,6 +947,10 @@ describe('the plan on a phone', () => {
     // Proof: `renderLine` taken off this card's `CellInput`, so the card
     // is the raw string it was before `markdown-work-item-names`. Watched
     // failing, 2026-08-29, on `Error: the card for 010 draws no rendered name`.
+    // That proof is the name's. The notes half (two `em`s) was rewritten for
+    // F-039 and its watched failure is the browser case `draws a card's notes
+    // as inline markdown, as the table draws a name (F-039)` in
+    // `e2e/mobile.spec.ts`, red on the raw `[design](…)` before the change.
     const api = fakeApi();
     widthIs(PHONE);
     render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
