@@ -6,6 +6,7 @@ import {
   estimateStepsOf,
   readCommand,
   readPreconditions,
+  referencesOf,
   subjectOf,
   touchedBy,
 } from './compensating';
@@ -39,6 +40,36 @@ it('reads typed compensating commands and names both touched endpoints and the s
   expect(touchedBy(commands[2])).toEqual(['a', 'b', 'c']);
   for (const command of commands)
     expect(subjectOf(command)).toEqual({ workItemId: 'b', stepId: null });
+});
+
+describe('conditional blockage replay vocabulary', () => {
+  const replace = {
+    do: 'replace_blockage',
+    workItemId: 'leaf',
+    stepId: 'dev',
+    expectedBlockedAt: 123,
+    replacementBlockedAt: null,
+  } as const;
+
+  it('decodes nested commands and carries their owner and step through every index', () => {
+    const nested = readCommand({ do: 'batch', steps: [{ do: 'batch', steps: [replace] }] });
+    expect(touchedBy(nested)).toEqual(['leaf']);
+    expect(referencesOf(nested).workItems).toEqual(['leaf']);
+    expect(referencesOf(nested).steps).toEqual(['dev']);
+    expect(subjectOf(nested)).toEqual({ workItemId: 'leaf', stepId: 'dev' });
+    expect(readCommand(replace)).toEqual(replace);
+  });
+
+  it('refuses unknown nested commands and malformed blockage times', () => {
+    // Proof: skipping recursive batch decoding returned the unknown nested command unchanged.
+    expect(() => readCommand({ do: 'batch', steps: [{ do: 'newer_command' }] })).toThrow(
+      /cannot apply/,
+    );
+    // Proof: bypassing blockage field validation admitted an undefined expected time.
+    for (const expectedBlockedAt of [undefined, 1.5, Number.MAX_SAFE_INTEGER + 1, '123']) {
+      expect(() => readCommand({ ...replace, expectedBlockedAt })).toThrow(/blockage/);
+    }
+  });
 });
 
 describe('a batch as one compensating command', () => {

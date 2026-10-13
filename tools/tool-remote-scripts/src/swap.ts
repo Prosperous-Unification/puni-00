@@ -55,12 +55,14 @@ import {
   ROOT,
   SHARED_ENV_PATH,
   stepBlockageKindsCommand,
+  stepBlockageReplayKindsCommand,
   storedAttemptOutcomesCommand,
   storedCapacityModesCommand,
   storedEstimateUnitsCommand,
   storedHoldsCommand,
   storedReadinessesCommand,
   storedRelationshipTypesCommand,
+  storedStepBlockageReplayKindsCommand,
   storedStepBlockagesCommand,
   tierComposeContext,
   tierComposeFile,
@@ -589,7 +591,7 @@ interface StoredVocabulary {
   key: 'type' | 'kind' | 'mode' | 'outcome' | 'unit';
   supportedCommand: (container: string) => string[];
   storedCommand: (container: string) => string[];
-  recoveryCli: string;
+  recoveryCli?: string;
   runbookAnchor: string;
 }
 
@@ -667,6 +669,15 @@ const STEP_BLOCKAGE_VOCABULARY: StoredVocabulary = {
   runbookAnchor: 'step-blockage-rollback',
 };
 
+/** A table with no current facts can still hold undo/redo commands an older image cannot apply. */
+const STEP_BLOCKAGE_REPLAY_VOCABULARY: StoredVocabulary = {
+  name: 'step blockage replay commands',
+  key: 'kind',
+  supportedCommand: stepBlockageReplayKindsCommand,
+  storedCommand: storedStepBlockageReplayKindsCommand,
+  runbookAnchor: 'step-blockage-rollback',
+};
+
 /** A prior image would interpret stored minutes as days; refuse before either migration boundary (ADR 0042). */
 const ESTIMATE_UNITS_VOCABULARY: StoredVocabulary = {
   name: 'estimate units',
@@ -698,6 +709,7 @@ const STORED_VOCABULARIES: readonly StoredVocabulary[] = [
   ATTEMPT_OUTCOMES_VOCABULARY,
   // Proof: entry omitted; before-migration, empty-inventory and post-stop blockage cases failed; watched 2026-10-13.
   STEP_BLOCKAGE_VOCABULARY,
+  STEP_BLOCKAGE_REPLAY_VOCABULARY,
   // Proof: omitting this entry failed all three minute swap cases; watched 2026-10-12.
   ESTIMATE_UNITS_VOCABULARY,
 ];
@@ -765,6 +777,12 @@ async function assertSupported(
 
   const values = unsupported.map((row) => `${row.value} (${String(row.count)})`).join(', ');
   const runbook = `docs/runbook-prod-deploy.md#${vocabulary.runbookAnchor}`;
+  if (vocabulary.recoveryCli === undefined) {
+    throw new Error(
+      `stored ${vocabulary.name} unsupported by ${container}${afterStop ? ' after the outgoing colour stopped' : ''}: ${values}. ` +
+        `This journal history cannot be removed by the fact rollback CLI; use a compatible image or drain it through normal journal retention. See ${runbook}`,
+    );
+  }
   if (afterStop) {
     throw new Error(
       `stored ${vocabulary.name} unsupported by ${container} after the outgoing colour stopped: ${values}. ` +

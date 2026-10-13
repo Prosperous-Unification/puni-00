@@ -72,6 +72,14 @@ export type CompensatingCommand =
    */
   | { do: 'set_progress'; workItemId: string; stepId: string; state: StepState }
   | { do: 'clear_progress'; workItemId: string; stepId: string }
+  /** Conditional sparse fact replay; the original blocked time survives redo and undo. */
+  | {
+      do: 'replace_blockage';
+      workItemId: string;
+      stepId: string;
+      expectedBlockedAt: number | null;
+      replacementBlockedAt: number | null;
+    }
   | { do: 'assign'; workItemId: string; stepId: string; personId: string | null }
   /**
    * One attempt written back **verbatim** under its own number, its instants,
@@ -384,6 +392,8 @@ export interface Preconditions {
   from: Revisions;
 }
 
+export const STEP_BLOCKAGE_REPLAY_KINDS = ['replace_blockage'] as const;
+
 const COMMANDS = [
   'patch',
   'set_estimate',
@@ -394,6 +404,7 @@ const COMMANDS = [
   'clear_measure',
   'set_progress',
   'clear_progress',
+  ...STEP_BLOCKAGE_REPLAY_KINDS,
   'assign',
   'restore_attempt',
   'remove_attempt',
@@ -414,14 +425,12 @@ const COMMANDS = [
 /**
  * A stored command, checked far enough to be dispatched on.
  *
- * **What is checked and what is not.** The discriminator is checked because it
- * is the one thing that can genuinely be wrong: a release that removed a
- * command kind would find rows written by the release before it, and
- * dispatching on a value no branch handles is how a silent no-op reaches a
- * user who asked for their work back. The fields are not checked. They were
- * written by this process from typed values one statement earlier, and a
- * second schema for them would be a second definition of every command — the
- * honest limit is that a hand-edited row fails inside `apply` rather than here.
+ * The discriminator is checked recursively through batches so an older
+ * release cannot silently skip a nested command. The conditional blockage
+ * variant also validates its pair and nullable safe-integer times before
+ * replay; malformed trusted history must not read as an absent fact. Other
+ * fields were written by this process from typed values one statement earlier,
+ * and a second schema for every legacy command would be a second definition.
  *
  * @throws when the value is not an object, or names a command this release has no branch for.
  */
@@ -434,8 +443,29 @@ export function readCommand(value: unknown): CompensatingCommand {
   if (typeof named !== 'string' || !(COMMANDS as readonly string[]).includes(named)) {
     throw new Error(`a journal entry names a command this release cannot apply: ${String(named)}`);
   }
-  // The one cast in this file, and the boundary it crosses is named above: the
-  // discriminator has been checked, the fields are this process's own writing.
+  if (named === 'batch') {
+    if (!('steps' in value) || !Array.isArray(value.steps))
+      throw new Error('a journal batch has no steps');
+    for (const step of value.steps) readCommand(step);
+  }
+  if (named === 'replace_blockage') {
+    const blockedTime = (time: unknown): boolean =>
+      time === null || (typeof time === 'number' && Number.isSafeInteger(time));
+    if (
+      !('workItemId' in value) ||
+      typeof value.workItemId !== 'string' ||
+      !('stepId' in value) ||
+      typeof value.stepId !== 'string' ||
+      !('expectedBlockedAt' in value) ||
+      !blockedTime(value.expectedBlockedAt) ||
+      !('replacementBlockedAt' in value) ||
+      !blockedTime(value.replacementBlockedAt)
+    )
+      throw new Error('a journal blockage replacement is malformed');
+  }
+  // The one cast in this file: known discriminators and nested commands have
+  // been checked, and the new conditional blockage fields have their boundary
+  // validation. Legacy fields remain this process's own writing.
   return value as CompensatingCommand;
 }
 
@@ -554,6 +584,7 @@ export function touchedBy(command: CompensatingCommand): string[] {
     case 'clear_measure':
     case 'set_progress':
     case 'clear_progress':
+    case 'replace_blockage':
     case 'assign':
     case 'remove_attempt':
       // Proof: omitting assignment owners made the SQLite assignment-only redo
@@ -691,6 +722,7 @@ function collectReferences(command: CompensatingCommand, found: CompensatingRefe
     case 'clear_measure':
     case 'set_progress':
     case 'clear_progress':
+    case 'replace_blockage':
       onStep(command);
       return;
     case 'assign':
@@ -800,6 +832,7 @@ export function subjectOf(command: CompensatingCommand): CommandSubject {
     case 'clear_measure':
     case 'set_progress':
     case 'clear_progress':
+    case 'replace_blockage':
     case 'assign':
     case 'remove_attempt':
       return { workItemId: command.workItemId, stepId: command.stepId };

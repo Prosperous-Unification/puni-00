@@ -1200,3 +1200,52 @@ try {
 } finally {db.close();}`,
   ];
 }
+
+/** New blockage journal variants readable by an incoming image; absent CLI means the prior vocabulary. */
+export function stepBlockageReplayKindsCommand(container: string): string[] {
+  const cli = 'src/step-blockage-replay-kinds-cli.ts';
+  return [
+    'exec',
+    container,
+    'sh',
+    '-c',
+    `if test -f ${cli}; then bun run ${cli}; elif test -e ${cli} || test -L ${cli}; then exit 73; elif test -d src && test -r src && test -x src; then printf '[]\n'; else exit 74; fi`,
+  ];
+}
+
+/** Counts new replay variants recursively in both persisted directions, independent of image code. */
+export function storedStepBlockageReplayKindsCommand(container: string): string[] {
+  return [
+    'exec',
+    container,
+    'bun',
+    '-e',
+    `import { Database } from 'bun:sqlite';
+const path=process.env.DB_PATH;
+if (!path) throw new Error('DB_PATH must be set');
+const db=new Database(path,{readonly:true,create:false});
+try {
+  const exists=db.query("SELECT name FROM sqlite_master WHERE type='table' AND name='command_journal'").get();
+  if (exists===null) throw new Error('command journal table is missing');
+  let count=0;
+  const legacy=new Set('patch set_estimate clear_estimate set_actual clear_actual set_measure clear_measure set_progress clear_progress assign restore_attempt remove_attempt add_dependency remove_dependency add_typed_dependency remove_typed_dependency update_typed_dependency move set_frozen set_step_allowance set_positions delete_subtree restore_subtree'.split(' '));
+  function visit(command) {
+    if (typeof command!=='object'||command===null||Array.isArray(command)||typeof command.do!=='string') throw new Error('journal command is malformed');
+    if (command.do==='replace_blockage') { count++; return; }
+    if (command.do==='batch') {
+      if (!Array.isArray(command.steps)) throw new Error('journal batch is malformed');
+      for (const step of command.steps) visit(step);
+      return;
+    }
+    if (!legacy.has(command.do)) throw new Error('journal command kind is unknown');
+  }
+  for (const row of db.query('SELECT payload,inverse FROM command_journal').all()) {
+    const payload=JSON.parse(row.payload);
+    if (typeof payload!=='object'||payload===null||Array.isArray(payload)||!Object.hasOwn(payload,'forward')) throw new Error('journal payload is malformed');
+    visit(payload.forward);
+    visit(JSON.parse(row.inverse));
+  }
+  console.log(JSON.stringify(count===0?[]:[{kind:'replace_blockage',count}]));
+} finally {db.close();}`,
+  ];
+}

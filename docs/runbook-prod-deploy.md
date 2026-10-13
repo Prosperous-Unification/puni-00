@@ -463,6 +463,14 @@ no direct blockage; it may serve an empty inventory, but any retained blockage
 refuses the swap and names the lossless recovery procedure below. Missing or
 unreadable source/database state refuses the check.
 
+The swap also checks the incoming image's `replace_blockage` journal replay
+vocabulary against both `payload.forward` and `inverse`, walking nested batches.
+An empty blockage table does not make older code safe while a stored undo or redo
+still names the new command. The fact rollback CLI does not remove journal
+history. Use a compatible image or let the normal bounded journal retention
+drain those entries before switching to an older image; do not delete history
+by hand to bypass this refusal.
+
 Migration `20261013140000_add_step_node_blockages` is additive. Its paired `down.sql`
 refuses while any blockage remains, preserving the table and migration ledger.
 Stop writers before recovery, then save and remove the facts:
