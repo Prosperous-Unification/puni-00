@@ -1,0 +1,12 @@
+{
+  "argv": [
+    "bunx",
+    "prettier",
+    "--check",
+    "openspec/changes/wbs-burokrat-evaluation/verify.md",
+    "openspec/changes/wbs-burokrat-evaluation/.openspec.yaml",
+    "openspec/changes/wbs-burokrat-evaluation/evidence/candidate-a478c109/*.json"
+  ],
+  "exitCode": 0,
+  "durationSeconds": 0.3092625141143799
+}

@@ -1,0 +1,42 @@
+{
+  "candidateSha": "a61ce440dcbe0880559bc6d97e584e055cf7e23d",
+  "candidateTree": "b73cfbd755b74e52ebb67fe7e7470d47135dfb06",
+  "toolSha": "a61ce440dcbe0880559bc6d97e584e055cf7e23d",
+  "toolTree": "b73cfbd755b74e52ebb67fe7e7470d47135dfb06",
+  "toolSourceTree": "1d64759dd7e1ebe6b7497fe4d3862ed6a1b68ae0",
+  "toolEntry": "apps/twilight-structure/twilight-burokrat/cli/src/cli.ts",
+  "bunVersion": "1.4.2",
+  "bunRevision": "1.4.2+744846f84",
+  "bunExecutable": "/home/df/.bun/bin/bun",
+  "trustedModules": "/home/df/wd/puni/puni-00/.worktrees/wbs-090-100-runtime-modules",
+  "typescriptVersion": "6.0.2",
+  "configurationCount": 21,
+  "publicEntrypointCount": 21,
+  "plainSelectorCount": 442,
+  "policyAdditions": ["relationshipRequest", "plainTypeScriptPaths", "sizeCeilings", "adoptedSet"],
+  "adoption": "explicit empty diagnostic set; no adoption inferred",
+  "certifies": false,
+  "sha256": {
+    "originalPolicy": "2c9030ba3cb737cc6d3f48bdfd54a90c25aff89cee06bc27d3b467a47dfe8a05",
+    "diagnosticPolicy": "ffc33d5b91dcfae0e622294936f732c366c501d202fc53d15c6a744d266f2690",
+    "bunLock": "15651c976776d7c1ab3a87935b53dae67e73939c6f7d06dec12ed10598cfe80c",
+    "bunExecutable": "a83d263767d839e4d2649ca8e35d07159c7afc99afdc96d731ced29e056dda0c",
+    "toolEntry": "91c1fcb9f690704a8c36170fa142aea89aea65155a8a0a939340a896c7af09f4",
+    "typescriptPackage": "d9b8fb53c67c947fece83bcb73fa8512227ea6a12b110e096fdab8ecdc02b655",
+    "typescriptCompiler": "d3f3cd2b04b7f466f4484df921b744223f7bd1f3e353ec9110bdf52695b983d5",
+    "exploratory19ConfigPolicy": "66c22730a6f494e0019680190c0895ef08acc73de6892539b55251b776ef2038"
+  },
+  "initialTrustedModules": "/home/df/wd/puni/puni-00/node_modules",
+  "dependencyPreparation": {
+    "command": ["bun", "install", "--frozen-lockfile", "--ignore-scripts"],
+    "exitCode": 0,
+    "packagesInstalled": 1292,
+    "runtimeCopy": "cp -al node_modules ../wbs-090-100-runtime-modules",
+    "runtimeCopyExitCode": 0,
+    "failedCopyAttempt": "cross-device hard-link copy to /tmp refused; not used"
+  },
+  "typescriptClosureSha256": "9b8fd045ffd49c76a4b8f503b4f2a8ad76e9bc8f91b60cd5a4f9ceac8a705275",
+  "executionCheckoutSha": "2867b16c41f83cb1225828fec9ce277266faf2ee",
+  "previousCandidateSha": "74ce3c8bf3a0070b7af73198d75cdcebae385f14",
+  "policySelection": "Identical external final21-config diagnostic policy bytes from previous survey; no authority additions."
+}
