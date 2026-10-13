@@ -634,6 +634,29 @@ function readRevisions(value: unknown): Revisions {
   return out;
 }
 
+/** Exact progress pairs written by this command, including explicit structural rows and nested batches. */
+export function progressKeysOf(command: CompensatingCommand): ProgressKey[] {
+  switch (command.do) {
+    case 'set_progress':
+    case 'clear_progress':
+      return [{ workItemId: command.workItemId, stepId: command.stepId }];
+    case 'restore_subtree':
+      // Proof: omitting removedProgress failed exact structural write attribution; watched 2026-10-14.
+      return [...command.progress, ...command.removedProgress].map(({ workItemId, stepId }) => ({
+        workItemId,
+        stepId,
+      }));
+    case 'delete_subtree':
+      // Proof: omitting these writes failed exact delete progress attribution; watched 2026-10-14.
+      return command.setProgress.map(({ workItemId, stepId }) => ({ workItemId, stepId }));
+    case 'batch':
+      // Proof: skipping nested keys failed the nested progress attribution case; watched 2026-10-14.
+      return command.steps.flatMap(progressKeysOf);
+    default:
+      return [];
+  }
+}
+
 /**
  * Every work item a command writes or whose historical progress it promises to preserve.
  *

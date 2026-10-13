@@ -128,9 +128,16 @@ boundary; owners and steps participate in scope checks. Collected command batche
 retain these owners and capture the final committed set.
 
 Undo continues restamping restored destination progress. Successful flip captures
-that actual current set for the next direction. Neighboring replay refreshes a
-move snapshot only for owners passing the existing revision-equality rebase
-condition; mismatched revisions retain stale snapshots and refuse. This is
+that actual current set for the next direction. Neighboring replay retains the
+existing revision-equality condition and captures guarded owner sets before the
+selected command applies. Its exact progress write pairs come only from that
+selected direction, recursively including batches and explicit structural rows.
+The complete captured set outside those pairs must match the recorded set,
+including absence; a mismatch retains the full stale snapshot. On a match, only
+written pairs take their actual post-replay values, and unwritten pairs retain
+their recorded values. Rename has no progress write pairs and cannot accept a
+silent step change. A Dev write can restamp Dev without accepting a changed,
+added or removed QA fact. No owner-wide write permission is inferred. This is
 separate from the inverse move's unchanged historical-parent allowance.
 
 The existing candidate CLI now advertises replay capabilities

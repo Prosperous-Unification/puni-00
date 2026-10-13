@@ -318,3 +318,34 @@ lacking the capability. Malformed trusted preconditions SHALL refuse inventory.
 - **GIVEN** the first inventory is empty and the incoming image lacks `move_progress_v1`
 - **WHEN** nested inverse or precondition snapshot history appears before the after-stop inventory
 - **THEN** the swap refuses after the outgoing writer stops and never commits the candidate
+
+### Requirement: Progress snapshot rebase follows exact replay writes
+
+A guarded move snapshot SHALL refresh only for exact progress pairs written by the
+actual selected replay command, recursively through batches and explicit
+structural progress rows. Before replay, the system SHALL capture guarded owner
+sets. Existing revision eligibility SHALL remain required. Captured and recorded
+facts outside the replay's write pairs SHALL match completely, including absence;
+a mismatch SHALL preserve the full stale snapshot. On a match, written pairs
+SHALL use actual post-replay facts while unwritten pairs retain recorded facts.
+The system SHALL NOT infer progress write permission from a row rename or a write
+to another step on that owner.
+
+#### Scenario: Rename cannot accept a silently changed destination fact
+
+- **GIVEN** undo restored a guarded move destination and its Dev state/time then changed without an owner revision
+- **WHEN** a neighboring rename is undone and redone
+- **THEN** the move snapshot remains stale and move redo refuses without changing current facts
+
+#### Scenario: Dev replay cannot accept unrelated QA changes
+
+- **GIVEN** a guarded move snapshot records destination Dev and QA
+- **WHEN** QA changes or disappears without a revision while a neighboring Dev progress command, optionally batched with rename, is undone and redone
+- **THEN** the complete stale snapshot remains unchanged and move redo refuses atomically
+- **AND** an added QA fact is equally refused even if no QA was originally recorded
+
+#### Scenario: Unchanged QA survives a valid Dev timestamp chain
+
+- **GIVEN** a guarded move destination's QA fact is unchanged
+- **WHEN** the neighboring Dev progress command is undone and redone through matching revisions
+- **THEN** only Dev's snapshot changes, QA's stored columns remain unchanged, and move redo succeeds

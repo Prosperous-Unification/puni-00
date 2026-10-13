@@ -5,6 +5,7 @@ import {
   type CompensatingCommand,
   estimateStepsOf,
   expectedProgressOwnersOf,
+  progressKeysOf,
   readCommand,
   readPreconditions,
   referencesOf,
@@ -205,4 +206,38 @@ describe('move destination progress preconditions', () => {
 it('advertises move safety metadata without accepting its capability as a command', () => {
   expect(STEP_BLOCKAGE_REPLAY_CAPABILITIES).toEqual(['replace_blockage', 'move_progress_v1']);
   expect(() => readCommand({ do: 'move_progress_v1' })).toThrow(/cannot apply/);
+});
+
+it('attributes exact progress writes to the selected command through nested and structural replay', () => {
+  const progress = { workItemId: 'parent', stepId: 'dev', state: 'done', statedAt: 123 };
+  const restore = readCommand({
+    do: 'restore_subtree',
+    progress: [progress],
+    removedProgress: [{ workItemId: 'child', stepId: 'qa' }],
+  });
+  const deleted = readCommand({
+    do: 'delete_subtree',
+    setProgress: [{ ...progress, stepId: 'qa' }],
+  });
+  expect(
+    progressKeysOf({
+      do: 'batch',
+      steps: [
+        rename,
+        {
+          do: 'batch',
+          steps: [restore, deleted, { do: 'clear_progress', workItemId: 'leaf', stepId: 'ops' }],
+        },
+      ],
+    }),
+  ).toEqual([
+    { workItemId: 'parent', stepId: 'dev' },
+    { workItemId: 'child', stepId: 'qa' },
+    { workItemId: 'parent', stepId: 'qa' },
+    { workItemId: 'leaf', stepId: 'ops' },
+  ]);
+  expect(progressKeysOf(rename)).toEqual([]);
+  expect(
+    progressKeysOf({ do: 'set_progress', workItemId: 'parent', stepId: 'dev', state: 'done' }),
+  ).toEqual([{ workItemId: 'parent', stepId: 'dev' }]);
 });

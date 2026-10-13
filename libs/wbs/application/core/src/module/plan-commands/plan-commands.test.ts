@@ -2460,4 +2460,52 @@ describe('transactional memory move blockage closure', () => {
       }
     },
   );
+  it.each(['rename', 'progress'] as const)(
+    'does not launder stale destination facts through memory %s replay',
+    async (kind) => {
+      const { source, graph, projectId, stepId, snapshot } = await seeded();
+      try {
+        const qa = (await source.stores.projects.stepsOf(projectId)).find(
+          ({ id }) => id !== stepId,
+        );
+        if (qa === undefined) throw new Error('memory project has no second step');
+        await source.stores.steps.add(
+          { id: qa.id, projectId, name: qa.name, allowancePercent: 0, estimateUnit: 'workdays' },
+          { at: 1, by: OWNER },
+        );
+        await source.stores.progress.set(
+          { workItemId: 'destination', stepId: qa.id, state: 'done', statedAt: 123 },
+          { at: 1, by: OWNER },
+        );
+        const runner = runnerOver(source, graph);
+        const previous: PlanCommand =
+          kind === 'rename'
+            ? { kind: 'patchWorkItem', workItemId: 'destination', patch: { name: 'Renamed' } }
+            : { kind: 'setProgress', workItemId: 'destination', stepId, state: 'in_progress' };
+        expect(await runner.run(projectId, OWNER, [previous])).toMatchObject({ ok: true });
+        expect(
+          await runner.run(projectId, OWNER, [
+            { kind: 'moveWorkItem', workItemId: 'moving', parentId: 'destination', afterId: null },
+          ]),
+        ).toMatchObject({ ok: true });
+        expect(await runner.undo(projectId, OWNER)).toMatchObject({ ok: true });
+        await source.stores.progress.set(
+          {
+            workItemId: 'destination',
+            stepId: kind === 'rename' ? stepId : qa.id,
+            state: 'in_progress',
+            statedAt: 456,
+          },
+          { at: 2, by: OWNER },
+        );
+        expect(await runner.undo(projectId, OWNER)).toMatchObject({ ok: true });
+        expect(await runner.redo(projectId, OWNER)).toMatchObject({ ok: true });
+        const before = await snapshot();
+        expect(await runner.redo(projectId, OWNER)).toMatchObject({ ok: false });
+        expect(await snapshot()).toEqual(before);
+      } finally {
+        await source.close();
+      }
+    },
+  );
 });

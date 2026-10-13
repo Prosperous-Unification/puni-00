@@ -144,6 +144,8 @@ import {
   type CompensatingReferences,
   estimateStepsOf,
   expectedProgressOwnersOf,
+  type Preconditions,
+  progressKeysOf,
   quoteName,
   readCommand,
   readPayload,
@@ -1650,6 +1652,12 @@ function comparedWithFast(
 interface BatchCollector {
   recordings: CollectedRecording[];
   dirty: boolean;
+}
+
+interface ReplayNeighbor {
+  entry: JournalEntry;
+  preconditions: Preconditions;
+  progress: { owner: string; expected: StoredProgress[]; before: StoredProgress[] }[];
 }
 
 export interface Recording {
@@ -5618,6 +5626,11 @@ export class WorkItemService {
         };
       }
     }
+    const neighbors = await this.captureReplayNeighbors(stack, entry, direction, projectId);
+    // Proof: broadening these pairs to all owner facts accepted stale mounted/memory replay; watched 2026-10-14.
+    const written = new Set(
+      progressKeysOf(command).map(({ workItemId, stepId }) => progressKey(workItemId, stepId)),
+    );
     // The act is the application, past every refusal above it: a stale entry is
     // discarded and never stamped. Nothing is appended to the journal here — an
     // undo is not itself journalled — so this stamp is spent only on the rows
@@ -5672,9 +5685,37 @@ export class WorkItemService {
       // Proof: dropping this binding made chained minute redo refuse 409 instead of 200 (mounted unit replay, 2026-10-12).
       estimateUnits: bindings,
     });
-    await this.rebase(stack, entry, direction, preconditions.from, now);
+    await this.rebase(neighbors, entry, preconditions.from, now, written);
     await this.announceTree(projectId);
     return { ok: true, value: { done: payload.label, detail: applied.detail } };
+  }
+
+  /** Captures guarded neighbor facts before this replay can change any progress. */
+  private async captureReplayNeighbors(
+    stack: readonly JournalEntry[],
+    selected: JournalEntry,
+    direction: 'undo' | 'redo',
+    projectId: string,
+  ): Promise<ReplayNeighbor[]> {
+    const neighbors: ReplayNeighbor[] = [];
+    for (const entry of stack) {
+      if (entry.id === selected.id) continue;
+      const ahead = direction === 'undo' ? entry.seq < selected.seq : entry.seq > selected.seq;
+      if (!ahead) continue;
+      const preconditions = readPreconditions(entry.preconditions);
+      neighbors.push({
+        entry,
+        preconditions,
+        progress: await Promise.all(
+          Object.entries(preconditions.moveProgress ?? {}).map(async ([owner, expected]) => ({
+            owner,
+            expected,
+            before: await this.opts.progress.listByWorkItems(projectId, [owner]),
+          })),
+        ),
+      });
+    }
+    return neighbors;
   }
 
   /**
@@ -5694,21 +5735,23 @@ export class WorkItemService {
    * numbers do not match, nothing is re-stamped, and that entry refuses when
    * it is reached — which is the entire point of the feature.
    *
+   * Guarded progress changes only for exact pairs this replay writes. Every
+   * other fact and absence captured before replay must match the neighbor's
+   * snapshot; a mismatch preserves the stale snapshot. Unwritten pairs retain
+   * their recorded values rather than absorbing the owner's current whole set.
+   *
    * Only the side being walked toward is touched: undoing carries the live
    * entries below, redoing carries the undone ones above.
    */
   private async rebase(
-    stack: readonly JournalEntry[],
+    neighbors: readonly ReplayNeighbor[],
     applied: JournalEntry,
-    direction: 'undo' | 'redo',
     startedFrom: Revisions,
     now: Revisions,
+    written: ReadonlySet<string>,
   ): Promise<void> {
-    for (const other of stack) {
-      if (other.id === applied.id) continue;
-      const ahead = direction === 'undo' ? other.seq < applied.seq : other.seq > applied.seq;
-      if (!ahead) continue;
-      const their = readPreconditions(other.preconditions);
+    for (const neighbor of neighbors) {
+      const { entry: other, preconditions: their } = neighbor;
       let changed = false;
       const expected: Revisions = { ...their.expected };
       const moveProgress = their.moveProgress === undefined ? undefined : { ...their.moveProgress };
@@ -5722,9 +5765,26 @@ export class WorkItemService {
         // Proof: bypassing this equality refreshed a stale move destination snapshot in the neighboring-replay case; watched 2026-10-14.
         if (their.expected[id] !== startedFrom[id]) continue;
         expected[id] = reached;
-        if (moveProgress !== undefined && Object.hasOwn(moveProgress, id)) {
-          // Proof: omitting refresh refused valid neighboring progress undo/redo after restamping; watched 2026-10-14.
-          moveProgress[id] = await this.opts.progress.listByWorkItems(applied.projectId, [id]);
+        if (moveProgress !== undefined) {
+          for (const captured of neighbor.progress) {
+            if (captured.owner !== id) continue;
+            const unchanged = captured.expected.filter(
+              (fact) => !written.has(progressKey(fact.workItemId, fact.stepId)),
+            );
+            const before = captured.before.filter(
+              (fact) => !written.has(progressKey(fact.workItemId, fact.stepId)),
+            );
+            // Proof: bypassing outside-pair equality changed stale QA snapshots through Dev replay; watched 2026-10-14.
+            if (matchesProgress(before, unchanged)) {
+              const after = await this.opts.progress.listByWorkItems(applied.projectId, [id]);
+              // Proof: omitting refresh refused valid neighboring progress undo/redo after restamping; watched 2026-10-14.
+              moveProgress[id] = [
+                ...unchanged,
+                // Proof: including unwritten post-replay rows duplicated QA and refused the valid Dev/QA chain; watched 2026-10-14.
+                ...after.filter((fact) => written.has(progressKey(fact.workItemId, fact.stepId))),
+              ];
+            }
+          }
         }
         changed = true;
       }

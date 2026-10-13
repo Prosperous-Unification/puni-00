@@ -1834,6 +1834,114 @@ describe('move blockage closure', () => {
     expect(snapshot(true)).toEqual(before);
   });
 
+  it('preserves stale move progress through an unrelated rename undo redo', async () => {
+    const moving = await create('Incoming');
+    expect(
+      (await batch([{ kind: 'setProgress', workItemId: strip, stepId: dev, state: 'done' }]))
+        .status,
+    ).toBe(200);
+    expect(
+      (await batch([{ kind: 'patchWorkItem', workItemId: strip, patch: { name: 'Renamed' } }]))
+        .status,
+    ).toBe(200);
+    expect((await move(moving, strip)).status).toBe(200);
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+    h.sqlite.run(
+      "UPDATE step_progress SET state = 'in_progress', stated_at = 456 WHERE work_item_id = ? AND step_id = ?",
+      [strip, dev],
+    );
+    const facts = h.sqlite.query('SELECT * FROM step_progress ORDER BY rowid').all();
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/redo`)).status).toBe(200);
+    expect(h.sqlite.query('SELECT * FROM step_progress ORDER BY rowid').all()).toEqual(facts);
+    const before = snapshot();
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/redo`)).status).toBe(409);
+    expect(snapshot()).toEqual(before);
+  });
+
+  it.each(['state', 'time', 'missing', 'extra', 'batch'] as const)(
+    'preserves unrelated QA %s through neighboring Dev progress undo redo',
+    async (fault) => {
+      const moving = await create('Incoming');
+      if (fault !== 'extra')
+        h.sqlite.run(
+          'INSERT INTO step_progress (work_item_id, step_id, state, stated_at) VALUES (?, ?, ?, ?)',
+          [strip, qa, 'done', 123],
+        );
+      expect(
+        (
+          await batch([
+            { kind: 'setProgress', workItemId: strip, stepId: dev, state: 'done' },
+            ...(fault === 'batch'
+              ? [{ kind: 'patchWorkItem', workItemId: strip, patch: { name: 'Renamed' } }]
+              : []),
+          ])
+        ).status,
+      ).toBe(200);
+      expect((await move(moving, strip)).status).toBe(200);
+      expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+      const guarded = () =>
+        h.sqlite
+          .query<{ snapshot: string }, []>(
+            "SELECT json_extract(preconditions, '$.moveProgress') AS snapshot FROM command_journal WHERE kind = 'move'",
+          )
+          .get()?.snapshot;
+      const expected = guarded();
+      expect(expected).toBeDefined();
+      if (fault === 'state' || fault === 'batch')
+        h.sqlite.run(
+          "UPDATE step_progress SET state = 'in_progress' WHERE work_item_id = ? AND step_id = ?",
+          [strip, qa],
+        );
+      if (fault === 'time')
+        h.sqlite.run(
+          'UPDATE step_progress SET stated_at = 456 WHERE work_item_id = ? AND step_id = ?',
+          [strip, qa],
+        );
+      if (fault === 'missing')
+        h.sqlite.run('DELETE FROM step_progress WHERE work_item_id = ? AND step_id = ?', [
+          strip,
+          qa,
+        ]);
+      if (fault === 'extra')
+        h.sqlite.run(
+          'INSERT INTO step_progress (work_item_id, step_id, state, stated_at) VALUES (?, ?, ?, ?)',
+          [strip, qa, 'in_progress', 456],
+        );
+      expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+      expect((await h.call('ada', 'POST', `/api/projects/${project}/redo`)).status).toBe(200);
+      expect(guarded()).toBe(expected);
+      const before = snapshot();
+      expect((await h.call('ada', 'POST', `/api/projects/${project}/redo`)).status).toBe(409);
+      expect(snapshot()).toEqual(before);
+    },
+  );
+
+  it('rebases Dev writes while preserving untouched QA snapshots', async () => {
+    const moving = await create('Incoming');
+    h.sqlite.run(
+      'INSERT INTO step_progress (work_item_id, step_id, state, stated_at) VALUES (?, ?, ?, ?)',
+      [strip, qa, 'done', 123],
+    );
+    expect(
+      (await batch([{ kind: 'setProgress', workItemId: strip, stepId: dev, state: 'done' }]))
+        .status,
+    ).toBe(200);
+    expect((await move(moving, strip)).status).toBe(200);
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+    const qaRows = () =>
+      h.sqlite
+        .query('SELECT * FROM step_progress WHERE work_item_id = ? AND step_id = ?')
+        .all(strip, qa);
+    const untouched = qaRows();
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+    expect(qaRows()).toEqual(untouched);
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/redo`)).status).toBe(200);
+    expect(qaRows()).toEqual(untouched);
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/redo`)).status).toBe(200);
+    expect(qaRows()).toEqual([]);
+  });
+
   it('rolls back earlier replay steps when a later destination replacement refuses', async () => {
     const { moving, destination } = await arranged();
     expect((await move(moving, destination)).status).toBe(200);
