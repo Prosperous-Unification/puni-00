@@ -26,6 +26,7 @@ const offer = (id: string, email: string, fields: Record<string, unknown> = {}) 
 /** Stubs the page's requests, answering every panel not under test with an empty list. */
 function stubPage(routes: Parameters<typeof stubServer>[0]) {
   return stubServer({
+    'GET /api/organization/sso-connections': [() => answer(200, { connections: [] })],
     'GET /api/organization/join-requests': [() => answer(200, { requests: [] })],
     'GET /api/organization/domains': [() => answer(200, { domains: [] })],
     'GET /api/organization/members': [() => answer(200, { members: [] })],
@@ -41,6 +42,12 @@ function renderPage() {
 }
 
 describe('organization page', () => {
+  it('composes company sign-in setup on the organization page', async () => {
+    stubPage({ 'GET /api/organization/invitations': [() => answer(200, { invitations: [] })] });
+    renderPage();
+    expect(await screen.findByRole('region', { name: 'Company sign-in' })).toBeDefined();
+  });
+
   it('shows whether the organization shares its people', async () => {
     stubPage({ 'GET /api/organization/invitations': [() => answer(200, { invitations: [] })] });
     renderPage();
@@ -122,7 +129,14 @@ describe('organization page drawing', () => {
   it('draws each panel as a card named by its heading', async () => {
     stubEveryPanel();
     renderPage();
-    for (const name of ['Members', 'Invitations', 'Join requests', 'Domains', 'Shared people']) {
+    for (const name of [
+      'Members',
+      'Invitations',
+      'Join requests',
+      'Domains',
+      'Company sign-in',
+      'Shared people',
+    ]) {
       const region = await screen.findByRole('region', { name });
       expect(region.querySelector('.rounded-lg.border')).not.toBeNull();
     }
@@ -292,6 +306,7 @@ describe('organization invitations', () => {
 
   it('drops every panel when another panel loses access', async () => {
     stubServer({
+      'GET /api/organization/sso-connections': [() => answer(200, { connections: [] })],
       'GET /api/organization/invitations': [
         () => answer(200, { invitations: [offer('a', 'ada@acme.test')] }),
       ],
