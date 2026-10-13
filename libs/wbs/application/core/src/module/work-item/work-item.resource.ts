@@ -1242,6 +1242,25 @@ function statusSentence(status: SettableStatus, name: string): string {
 /** The pair a statement is keyed by, as one map key. */
 const progressKey = (workItemId: string, stepId: string): string => `${workItemId}\u0000${stepId}`;
 
+/** Compares complete sparse progress sets without treating order as part of identity. */
+function matchesProgress(
+  current: readonly StoredProgress[],
+  expected: readonly StoredProgress[],
+): boolean {
+  return (
+    current.length === expected.length &&
+    expected.every((before) =>
+      current.some(
+        (now) =>
+          now.workItemId === before.workItemId &&
+          now.stepId === before.stepId &&
+          now.state === before.state &&
+          now.statedAt === before.statedAt,
+      ),
+    )
+  );
+}
+
 /** `rootId` and everything beneath it. */
 function subtreeOf(rows: readonly WorkItem[], rootId: string): string[] {
   const childrenOf = new Map<string | null, WorkItem[]>();
@@ -1656,6 +1675,8 @@ export interface Recording {
    * a command that writes no step.
    */
   stepsBefore?: Revisions;
+  /** Cleared move destinations whose complete progress needs a pre-batch replay guard. */
+  moveProgressOwners?: string[];
 }
 
 export class WorkItemService {
@@ -3238,6 +3259,7 @@ export class WorkItemService {
         ...(becomesParent === undefined ? [] : [becomesParent.id]),
         ...(leftParentId === null ? [] : [leftParentId]),
       ],
+      moveProgressOwners: [...new Set(destinationProgress.map(({ workItemId }) => workItemId))],
       before: rows,
     });
     return { ok: true, value: null };
@@ -5542,6 +5564,13 @@ export class WorkItemService {
       readCommand(entry.inverse),
     ]);
 
+    const replayReferences = referencesOf(command);
+    for (const [owner, facts] of Object.entries(preconditions.moveProgress ?? {})) {
+      // Proof: omitting owners with empty snapshots admitted foreign-project metadata; watched 2026-10-14.
+      replayReferences.workItems.push(owner);
+      // Proof: omitting snapshot step references changed scoped metadata refusal from 404 to 409; watched 2026-10-14.
+      replayReferences.steps.push(...facts.map(({ stepId }) => stepId));
+    }
     // Proof: disabling this check made `command-organization.controller.db.test.ts`
     // answer 200 instead of 404 for `refuses an undo whose entry names another
     // project's row`, for the nested foreign label and for the restored row of
@@ -5549,7 +5578,7 @@ export class WorkItemService {
     // of another project; watched 2026-09-27.
     if (
       access.kind === 'scoped' &&
-      (await this.namesOutside(projectId, access.scope.organizationId, referencesOf(command)))
+      (await this.namesOutside(projectId, access.scope.organizationId, replayReferences))
     ) {
       return { ok: false, reason: 'not_found', detail: null };
     }
@@ -5576,6 +5605,19 @@ export class WorkItemService {
       return { ok: false, reason: 'stale_undo', detail: moved, entryId: entry.id };
     }
 
+    for (const [owner, expected] of Object.entries(preconditions.moveProgress ?? {})) {
+      const current = await this.opts.progress.listByWorkItems(projectId, [owner]);
+      // Proof: bypassing this pre-batch comparison deleted changed recorded destination facts during mounted/memory redo; watched 2026-10-14.
+      if (!matchesProgress(current, expected)) {
+        await this.opts.journal.discard(entry.id);
+        return {
+          ok: false,
+          reason: 'stale_undo',
+          detail: 'move destination progress changed since this command.',
+          entryId: entry.id,
+        };
+      }
+    }
     // The act is the application, past every refusal above it: a stale entry is
     // discarded and never stamped. Nothing is appended to the journal here — an
     // undo is not itself journalled — so this stamp is spent only on the rows
@@ -5618,6 +5660,15 @@ export class WorkItemService {
     await this.opts.journal.flip(entry.id, direction === 'undo', {
       expected: now,
       from: preconditions.expected,
+      // Proof: dropping flip snapshots made changed known-step redo succeed; watched 2026-10-14.
+      ...(preconditions.moveProgress === undefined
+        ? {}
+        : {
+            moveProgress: await this.captureMoveProgress(
+              projectId,
+              Object.keys(preconditions.moveProgress),
+            ),
+          }),
       // Proof: dropping this binding made chained minute redo refuse 409 instead of 200 (mounted unit replay, 2026-10-12).
       estimateUnits: bindings,
     });
@@ -5660,6 +5711,7 @@ export class WorkItemService {
       const their = readPreconditions(other.preconditions);
       let changed = false;
       const expected: Revisions = { ...their.expected };
+      const moveProgress = their.moveProgress === undefined ? undefined : { ...their.moveProgress };
       for (const [id, reached] of Object.entries(now)) {
         // Only where this neighbour has an opinion about the entity at all,
         // and where that opinion is exactly the revision the applied command
@@ -5667,12 +5719,37 @@ export class WorkItemService {
         // from being invented for a row the neighbour never touched, and the
         // second is what somebody else's write in between fails.
         if (!Object.hasOwn(their.expected, id)) continue;
+        // Proof: bypassing this equality refreshed a stale move destination snapshot in the neighboring-replay case; watched 2026-10-14.
         if (their.expected[id] !== startedFrom[id]) continue;
         expected[id] = reached;
+        if (moveProgress !== undefined && Object.hasOwn(moveProgress, id)) {
+          // Proof: omitting refresh refused valid neighboring progress undo/redo after restamping; watched 2026-10-14.
+          moveProgress[id] = await this.opts.progress.listByWorkItems(applied.projectId, [id]);
+        }
         changed = true;
       }
-      if (changed) await this.opts.journal.restamp(other.id, { ...their, expected });
+      if (changed)
+        await this.opts.journal.restamp(other.id, {
+          ...their,
+          expected,
+          ...(moveProgress === undefined ? {} : { moveProgress }),
+        });
     }
+  }
+
+  /** Captures the current complete set for each destination, including empty sets after clearing. */
+  private async captureMoveProgress(
+    projectId: string,
+    owners: readonly string[],
+  ): Promise<Record<string, StoredProgress[]>> {
+    return Object.fromEntries(
+      await Promise.all(
+        owners.map(async (owner): Promise<[string, StoredProgress[]]> => [
+          owner,
+          await this.opts.progress.listByWorkItems(projectId, [owner]),
+        ]),
+      ),
+    );
   }
 
   /**
@@ -6152,19 +6229,7 @@ export class WorkItemService {
       if (parentId !== null && !rows.some((row) => row.parentId === parentId)) {
         // Proof: bypassing snapshot equality accepted changed state/time, extra and missing facts in mounted and memory runner cases; watched 2026-10-14.
         const currentProgress = await this.opts.progress.listByWorkItems(projectId, [parentId]);
-        if (
-          currentProgress.length !== expectedProgress.length ||
-          expectedProgress.some(
-            (expected) =>
-              !currentProgress.some(
-                (current) =>
-                  current.workItemId === expected.workItemId &&
-                  current.stepId === expected.stepId &&
-                  current.state === expected.state &&
-                  current.statedAt === expected.statedAt,
-              ),
-          )
-        ) {
+        if (!matchesProgress(currentProgress, expectedProgress)) {
           return { ok: false, detail: 'the destination leaf progress changed since this move.' };
         }
         // Proof: bypassing this guard returned 500 in mounted other-step blockage undo/redo; watched 2026-10-14.
@@ -6557,6 +6622,10 @@ export class WorkItemService {
         steps: recordings.map((each) => each.recording.inverse).reverse(),
       },
       touched: [...new Set(recordings.flatMap((each) => each.recording.touched))],
+      // Proof: omitting collected owners let a collected move redo delete changed progress; watched 2026-10-14.
+      moveProgressOwners: [
+        ...new Set(recordings.flatMap((each) => each.recording.moveProgressOwners ?? [])),
+      ],
       before: only.recording.before,
       // The first step to write each step is the one whose before-state the
       // batch started from, so later steps never overwrite it.
@@ -6617,6 +6686,14 @@ export class WorkItemService {
         inverse: recording.inverse,
         preconditions: {
           estimateUnits,
+          ...((recording.moveProgressOwners?.length ?? 0) === 0
+            ? {}
+            : {
+                moveProgress: await this.captureMoveProgress(
+                  projectId,
+                  recording.moveProgressOwners ?? [],
+                ),
+              }),
           expected: await this.revisionsOf(projectId, recording.touched),
           // The same entities as they were before the mutation, read off the row
           // list the mutation's own guard produced. Nothing is checked against

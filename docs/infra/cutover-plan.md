@@ -37,6 +37,11 @@ authorization. Commands below reference inputs as shell variables.
 
 ## Prerequisites (all must be checked before authorization)
 
+- [ ] Before guarded journal history is imported or any first rollout, F11 enforces
+      the [replay capability prerequisite](../../openspec/changes/add-step-node-blocking/design.md#kubernetes-pre-cutover-obligation)
+      for incoming and rollback image digests, with watched refusal proofs. The
+      prepared Kubernetes path currently has no such guard.
+
 - [ ] Production platform cluster exists and passes `tool-fleet:check`, and the hcloud
       inventories carry `network:` (the check's `ansible-inventory` family fails today).
 - [ ] A WBS Flux unit exists: `GitRepository flux-system/wbs-deploy` over the deploy repository

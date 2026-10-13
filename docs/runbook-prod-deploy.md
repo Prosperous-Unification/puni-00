@@ -463,8 +463,11 @@ no direct blockage; it may serve an empty inventory, but any retained blockage
 refuses the swap and names the lossless recovery procedure below. Missing or
 unreadable source/database state refuses the check.
 
-The swap also checks the incoming image's `replace_blockage` journal replay
-vocabulary against both `payload.forward` and `inverse`, walking nested batches.
+The swap also checks the incoming image's replay capabilities against both
+`payload.forward` and `inverse`, walking nested batches, and the stored preconditions.
+`replace_blockage` requires its command capability. `move.expectedProgress` and
+`Preconditions.moveProgress` require `move_progress_v1`, including empty snapshots;
+the capability is counted once per journal entry, independently of live facts.
 An empty blockage table does not make older code safe while a stored undo or redo
 still names the new command. The fact rollback CLI does not remove journal
 history. Use a compatible image or let the normal bounded journal retention

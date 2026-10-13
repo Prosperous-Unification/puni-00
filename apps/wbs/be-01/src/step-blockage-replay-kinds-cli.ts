@@ -1,3 +1,3 @@
-import { STEP_BLOCKAGE_REPLAY_KINDS } from '@wbs/core';
+import { STEP_BLOCKAGE_REPLAY_CAPABILITIES } from '@wbs/core';
 
-console.log(JSON.stringify(STEP_BLOCKAGE_REPLAY_KINDS));
+console.log(JSON.stringify(STEP_BLOCKAGE_REPLAY_CAPABILITIES));

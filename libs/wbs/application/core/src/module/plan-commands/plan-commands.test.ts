@@ -2425,4 +2425,39 @@ describe('transactional memory move blockage closure', () => {
       }
     },
   );
+  it.each(['state', 'time', 'missing'] as const)(
+    'refuses known destination progress %s before the memory redo clears it',
+    async (fault) => {
+      const { source, graph, projectId, stepId, snapshot } = await seeded();
+      try {
+        const runner = runnerOver(source, graph);
+        expect(
+          await runner.run(projectId, OWNER, [
+            { kind: 'moveWorkItem', workItemId: 'moving', parentId: 'destination', afterId: null },
+          ]),
+        ).toMatchObject({ ok: true });
+        expect(await runner.undo(projectId, OWNER)).toMatchObject({ ok: true });
+        const previous = (
+          await source.stores.progress.listByWorkItems(projectId, ['destination'])
+        ).at(0);
+        if (previous === undefined) throw new Error('restored destination progress missing');
+        if (fault === 'missing')
+          await source.stores.progress.remove('destination', stepId, { at: 2, by: OWNER });
+        else
+          await source.stores.progress.set(
+            {
+              ...previous,
+              state: fault === 'state' ? 'in_progress' : previous.state,
+              statedAt: fault === 'time' ? 456 : previous.statedAt,
+            },
+            { at: 2, by: OWNER },
+          );
+        const before = await snapshot();
+        expect(await runner.redo(projectId, OWNER)).toMatchObject({ ok: false });
+        expect(await snapshot()).toEqual(before);
+      } finally {
+        await source.close();
+      }
+    },
+  );
 });

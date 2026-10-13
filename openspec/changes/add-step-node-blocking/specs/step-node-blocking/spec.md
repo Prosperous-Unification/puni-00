@@ -272,3 +272,49 @@ undo without adding unrelated owners.
 - **GIVEN** an inverse move captured the old parent's historical progress
 - **WHEN** a fact changes state or stated time, a different step is added, or a captured fact is removed without changing owner revisions
 - **THEN** undo refuses atomically and preserves the current tree and all current facts
+
+### Requirement: Move replay checks destination progress before clearing any recorded step
+
+A move that clears destination progress SHALL journal a complete progress snapshot
+for that owner in replay preconditions. Undo and redo SHALL compare the complete
+current owner/step/state/stated-time set before applying any batch step. Changed,
+added or removed progress SHALL refuse atomically even when owner revisions do not
+change. Successful replay SHALL capture the actual restored timestamps for the
+next direction. Neighboring replay SHALL refresh a destination snapshot only
+where the existing revision-equality rebase condition holds. Snapshot owners and
+steps SHALL participate in scope checks; malformed metadata SHALL refuse as
+trusted-state corruption rather than default to absence.
+
+#### Scenario: Redo preserves a changed recorded destination step
+
+- **GIVEN** destination Dev was done before an unrelated move and undo restored it
+- **WHEN** its state or stated time changes, or the fact is removed, without changing owner revisions
+- **THEN** redo refuses before clearing Dev and preserves every current tree/fact/event row
+
+#### Scenario: Neighboring progress replay restamps a valid destination snapshot
+
+- **GIVEN** a progress command precedes a move that clears that destination
+- **WHEN** both commands are undone and redone through matching owner revisions
+- **THEN** the move uses the newly restored progress timestamp and replays successfully
+- **AND** mismatched owner revisions retain the stale snapshot and refuse
+
+### Requirement: Compose admits guarded move history only to capable images
+
+The incoming image SHALL advertise `move_progress_v1` independently of command
+discriminators. An independent database inventory SHALL require this capability
+once per journal row containing `move.expectedProgress` in either direction or
+`Preconditions.moveProgress`, including nested commands and empty arrays/maps.
+Both the pre-migration and after-writer-stop Compose checks SHALL refuse images
+lacking the capability. Malformed trusted preconditions SHALL refuse inventory.
+
+#### Scenario: Prior blockage support cannot admit guarded move history
+
+- **GIVEN** the database has only guarded move history and no blockage facts or replacement commands
+- **WHEN** an image advertises no replay capabilities or only `replace_blockage`
+- **THEN** Compose refuses before migration and stops the candidate
+
+#### Scenario: Guarded move history appears before the outgoing writer stops
+
+- **GIVEN** the first inventory is empty and the incoming image lacks `move_progress_v1`
+- **WHEN** nested inverse or precondition snapshot history appears before the after-stop inventory
+- **THEN** the swap refuses after the outgoing writer stops and never commits the candidate

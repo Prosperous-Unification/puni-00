@@ -1587,6 +1587,23 @@ describe('move blockage closure', () => {
     }
   });
 
+  it('refuses a guarded historical move snapshot without a destination', async () => {
+    const moving = await historicalMove();
+    h.sqlite.run('UPDATE command_journal SET inverse = ? WHERE kind = ?', [
+      JSON.stringify({
+        do: 'move',
+        workItemId: moving,
+        parentId: null,
+        afterId: null,
+        expectedProgress: [],
+      }),
+      'move',
+    ]);
+    const before = snapshot(true);
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(500);
+    expect(snapshot(true)).toEqual(before);
+  });
+
   it('tracks the historical owner revision after redo before the second undo', async () => {
     await historicalMove();
     expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
@@ -1656,6 +1673,167 @@ describe('move blockage closure', () => {
   );
 
   /** Proof: bypassing exact comparison or committing a refused SQLite UOW failed the second-fact refusal and snapshot; watched 2026-10-14. */
+  it.each(['state', 'time', 'missing'] as const)(
+    'refuses a changed recorded destination progress %s before redo clears it',
+    async (fault) => {
+      const { moving, destination } = await arranged();
+      expect((await move(moving, destination)).status).toBe(200);
+      expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+      if (fault === 'state')
+        h.sqlite.run(
+          "UPDATE step_progress SET state = 'in_progress' WHERE work_item_id = ? AND step_id = ?",
+          [destination, dev],
+        );
+      if (fault === 'time')
+        h.sqlite.run(
+          'UPDATE step_progress SET stated_at = 456 WHERE work_item_id = ? AND step_id = ?',
+          [destination, dev],
+        );
+      if (fault === 'missing')
+        h.sqlite.run('DELETE FROM step_progress WHERE work_item_id = ? AND step_id = ?', [
+          destination,
+          dev,
+        ]);
+      const before = snapshot();
+      expect((await h.call('ada', 'POST', `/api/projects/${project}/redo`)).status).toBe(409);
+      expect(snapshot()).toEqual(before);
+    },
+  );
+
+  it('rebases cleared destination progress timestamps through neighboring progress undo redo', async () => {
+    const moving = await create('Incoming');
+    expect(
+      (await batch([{ kind: 'setProgress', workItemId: strip, stepId: dev, state: 'done' }]))
+        .status,
+    ).toBe(200);
+    expect((await move(moving, strip)).status).toBe(200);
+    for (const direction of ['undo', 'undo', 'redo', 'redo'] as const) {
+      expect((await h.call('ada', 'POST', `/api/projects/${project}/${direction}`)).status).toBe(
+        200,
+      );
+    }
+    expect(h.sqlite.query('SELECT * FROM step_progress WHERE work_item_id = ?').all(strip)).toEqual(
+      [],
+    );
+  });
+
+  function replaceMoveProgress(moveProgress: unknown): void {
+    const row = h.sqlite
+      .query<{ id: string; preconditions: string }, []>(
+        "SELECT id, preconditions FROM command_journal WHERE kind = 'move' ORDER BY seq DESC LIMIT 1",
+      )
+      .get();
+    if (row === null) throw new Error('move history missing');
+    const preconditions = JSON.parse(row.preconditions) as Record<string, unknown>;
+    h.sqlite.run('UPDATE command_journal SET preconditions = ? WHERE id = ?', [
+      JSON.stringify({ ...preconditions, moveProgress }),
+      row.id,
+    ]);
+  }
+
+  it.each(['map', 'owner', 'duplicate'] as const)(
+    'refuses malformed persisted destination progress preconditions (%s)',
+    async (fault) => {
+      const { moving, destination } = await arranged();
+      expect((await move(moving, destination)).status).toBe(200);
+      const fact = { workItemId: destination, stepId: dev, state: 'done', statedAt: 123 };
+      replaceMoveProgress(
+        fault === 'map'
+          ? null
+          : { [destination]: fault === 'owner' ? [{ ...fact, workItemId: moving }] : [fact, fact] },
+      );
+      const before = snapshot(true);
+      expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(500);
+      expect(snapshot(true)).toEqual(before);
+    },
+  );
+
+  it('scopes destination progress metadata step references before replay', async () => {
+    const { moving, destination } = await arranged();
+    expect((await move(moving, destination)).status).toBe(200);
+    replaceMoveProgress({
+      [destination]: [
+        { workItemId: destination, stepId: 'foreign-step', state: 'done', statedAt: 123 },
+      ],
+    });
+    const before = snapshot(true);
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(404);
+    expect(snapshot(true)).toEqual(before);
+  });
+
+  it('preserves stale destination snapshots when neighboring replay revisions do not match', async () => {
+    const moving = await create('Incoming');
+    expect(
+      (await batch([{ kind: 'setProgress', workItemId: strip, stepId: dev, state: 'done' }]))
+        .status,
+    ).toBe(200);
+    expect((await move(moving, strip)).status).toBe(200);
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+    const path = `$.expected."${strip}"`;
+    h.sqlite.run(
+      "UPDATE command_journal SET preconditions = json_set(preconditions, ?, json_extract(preconditions, ?) - 1) WHERE kind = 'move'",
+      [path, path],
+    );
+    const guarded = () =>
+      h.sqlite
+        .query<{ snapshot: string }, []>(
+          "SELECT json_extract(preconditions, '$.moveProgress') AS snapshot FROM command_journal WHERE kind = 'move'",
+        )
+        .get()?.snapshot;
+    const expected = guarded();
+    expect(expected).toBeDefined();
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/redo`)).status).toBe(200);
+    expect(guarded()).toBe(expected);
+    const before = snapshot();
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/redo`)).status).toBe(409);
+    expect(snapshot()).toEqual(before);
+  });
+
+  it('guards destination progress before a collected move replay batch', async () => {
+    const { moving, destination } = await arranged();
+    expect(
+      (
+        await batch([
+          { kind: 'moveWorkItem', workItemId: moving, parentId: destination, afterId: null },
+          {
+            kind: 'patchWorkItem',
+            workItemId: destination,
+            patch: { name: 'Renamed destination' },
+          },
+        ])
+      ).status,
+    ).toBe(200);
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+    h.sqlite.run(
+      "UPDATE step_progress SET state = 'in_progress' WHERE work_item_id = ? AND step_id = ?",
+      [destination, dev],
+    );
+    const before = snapshot();
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/redo`)).status).toBe(409);
+    expect(snapshot()).toEqual(before);
+  });
+
+  it('scopes empty destination progress metadata owners before replay', async () => {
+    const { moving, destination } = await arranged();
+    expect((await move(moving, destination)).status).toBe(200);
+    const foreignProject = await h.call('ada', 'POST', '/api/projects', { name: 'Other plan' });
+    expect(foreignProject.status).toBe(200);
+    const foreignId = (foreignProject.body as { project: { id: string } }).project.id;
+    const created = await h.call('ada', 'POST', `/api/projects/${foreignId}/commands`, {
+      commands: [
+        { kind: 'createWorkItem', parentId: null, afterId: null, name: 'Other destination' },
+      ],
+    });
+    expect(created.status).toBe(200);
+    const owner = (created.body as { results: { id: string }[] }).results.at(0)?.id;
+    if (owner === undefined) throw new Error('foreign metadata fixture missing');
+    replaceMoveProgress({ [owner]: [] });
+    const before = snapshot(true);
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(404);
+    expect(snapshot(true)).toEqual(before);
+  });
+
   it('rolls back earlier replay steps when a later destination replacement refuses', async () => {
     const { moving, destination } = await arranged();
     expect((await move(moving, destination)).status).toBe(200);

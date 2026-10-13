@@ -397,6 +397,8 @@ export function stepOfRevisionKey(key: string): string | null {
  * refuses. See `openspec/changes/conditional-undo/design.md`.
  */
 export interface Preconditions {
+  /** Exact destination progress sets checked before any move replay batch can clear them. */
+  moveProgress?: Record<string, StoredProgress[]>;
   /** Immutable units from the original write; absent only in legacy workday-only journals. */
   estimateUnits?: Record<string, EstimateUnit>;
   expected: Revisions;
@@ -404,6 +406,9 @@ export interface Preconditions {
 }
 
 export const STEP_BLOCKAGE_REPLAY_KINDS = ['replace_blockage'] as const;
+
+/** Persisted replay semantics understood by this image, distinct from command discriminators. */
+export const STEP_BLOCKAGE_REPLAY_CAPABILITIES = ['replace_blockage', 'move_progress_v1'] as const;
 
 const COMMANDS = [
   'patch',
@@ -444,7 +449,7 @@ const COMMANDS = [
  * fields were written by this process from typed values one statement earlier,
  * and a second schema for every legacy command would be a second definition.
  *
- * @throws when the value is not an object, or names a command this release has no branch for.
+ * @throws for missing/unknown commands or malformed conditional blockage/progress metadata.
  */
 export function readCommand(value: unknown): CompensatingCommand {
   if (typeof value !== 'object' || value === null || !('do' in value)) {
@@ -476,40 +481,59 @@ export function readCommand(value: unknown): CompensatingCommand {
       throw new Error('a journal blockage replacement is malformed');
   }
   if (named === 'move' && 'expectedProgress' in value) {
-    // Proof: bypassing array validation changed malformed-history refusal to a raw iteration failure; watched 2026-10-14.
-    if (!Array.isArray(value.expectedProgress))
-      throw new Error('a journal move progress snapshot is not an array');
-    const facts: readonly unknown[] = value.expectedProgress;
-    const steps = new Set<string>();
-    for (const fact of facts) {
-      // Proof: skipping field validation returned modeled 409/404 instead of trusted-state 500 in mounted malformed snapshot cases; watched 2026-10-14.
-      if (
-        typeof fact !== 'object' ||
-        fact === null ||
-        !('parentId' in value) ||
-        typeof value.parentId !== 'string' ||
-        !('workItemId' in fact) ||
-        fact.workItemId !== value.parentId ||
-        !('stepId' in fact) ||
-        typeof fact.stepId !== 'string' ||
-        fact.stepId.length === 0 ||
-        !('state' in fact) ||
-        (fact.state !== 'done' && fact.state !== 'in_progress') ||
-        !('statedAt' in fact) ||
-        typeof fact.statedAt !== 'number' ||
-        !Number.isSafeInteger(fact.statedAt)
-      )
-        throw new Error('a journal move progress snapshot is malformed');
-      // Proof: accepting duplicate steps returned 409 instead of 500 in the mounted duplicate-snapshot case; watched 2026-10-14.
-      if (steps.has(fact.stepId))
-        throw new Error('a journal move progress snapshot repeats a step');
-      steps.add(fact.stepId);
-    }
+    // Proof: removing this boundary admitted a mounted guarded move with no destination; watched 2026-10-14.
+    if (!('parentId' in value) || typeof value.parentId !== 'string')
+      throw new Error('a journal move progress snapshot has no destination');
+    readMoveProgress(value.expectedProgress, value.parentId);
   }
   // The one cast in this file: known discriminators and nested commands have
   // been checked, and conditional blockage/move progress fields have their boundary
   // validation. Legacy fields remain this process's own writing.
   return value as CompensatingCommand;
+}
+
+/** Validates one complete sparse progress set bound to its recorded owner. */
+function readMoveProgress(value: unknown, owner: string): StoredProgress[] {
+  // Proof: bypassing array validation changed named refusal to a raw iteration failure; watched 2026-10-14.
+  if (!Array.isArray(value)) throw new Error('a journal move progress snapshot is not an array');
+  const facts: readonly unknown[] = value;
+  const steps = new Set<string>();
+  return facts.map((fact) => {
+    // Proof: skipping field validation admitted malformed persisted snapshot fields; watched 2026-10-14.
+    if (
+      typeof fact !== 'object' ||
+      fact === null ||
+      !('workItemId' in fact) ||
+      fact.workItemId !== owner ||
+      !('stepId' in fact) ||
+      typeof fact.stepId !== 'string' ||
+      fact.stepId.length === 0 ||
+      !('state' in fact) ||
+      (fact.state !== 'done' && fact.state !== 'in_progress') ||
+      !('statedAt' in fact) ||
+      typeof fact.statedAt !== 'number' ||
+      !Number.isSafeInteger(fact.statedAt)
+    )
+      throw new Error('a journal move progress snapshot is malformed');
+    // Proof: accepting duplicate steps failed the mounted duplicate-snapshot case; watched 2026-10-14.
+    if (steps.has(fact.stepId)) throw new Error('a journal move progress snapshot repeats a step');
+    steps.add(fact.stepId);
+    return { workItemId: owner, stepId: fact.stepId, state: fact.state, statedAt: fact.statedAt };
+  });
+}
+
+/** Validates snapshot owner keys as well as each complete owner-bound progress set. */
+function readMoveProgressOwners(value: unknown): Record<string, StoredProgress[]> {
+  // Proof: bypassing map validation changed named trusted-history refusal to a raw error; watched 2026-10-14.
+  if (typeof value !== 'object' || value === null || Array.isArray(value))
+    throw new Error('journal move progress owners are not a map');
+  return Object.fromEntries(
+    Object.entries(value).map(([owner, facts]) => {
+      // Proof: skipping owner validation admitted an empty owner key; watched 2026-10-14.
+      if (owner.length === 0) throw new Error('journal move progress has an empty owner');
+      return [owner, readMoveProgress(facts, owner)];
+    }),
+  );
 }
 
 /** The `{label, forward}` a journal entry's payload is, checked the same far and no further. */
@@ -522,7 +546,7 @@ export function readPayload(value: unknown): JournalPayload {
   return { label, forward: readCommand(forward) };
 }
 
-/** The two revision maps a journal entry's preconditions are. */
+/** Stored replay preconditions, validating revisions and optional unit/progress metadata. */
 export function readPreconditions(value: unknown): Preconditions {
   if (typeof value !== 'object' || value === null || !('expected' in value) || !('from' in value)) {
     throw new Error(`a journal entry holds no preconditions: ${JSON.stringify(value)}`);
@@ -530,6 +554,9 @@ export function readPreconditions(value: unknown): Preconditions {
   return {
     expected: readRevisions(value.expected),
     from: readRevisions(value.from),
+    ...('moveProgress' in value
+      ? { moveProgress: readMoveProgressOwners(value.moveProgress) }
+      : {}),
     ...('estimateUnits' in value ? { estimateUnits: readEstimateUnits(value.estimateUnits) } : {}),
   };
 }

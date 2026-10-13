@@ -115,3 +115,41 @@ journal directions through `expectedProgressOwnersOf`; other command owner track
 is unchanged. Same-parent
 reorder and existing-parent progress history are preserved. Work-item deletion,
 project-step deletion and the public blockage setter remain separate slices.
+
+## Destination progress preconditions and release compatibility
+
+A replay leaf guard runs after recorded destination clear commands, so it cannot
+protect a known step that those commands would already have deleted. A move that
+clears destination progress records its destination owners in optional
+`Preconditions.moveProgress`. The full owner/step/state/stated-time set is checked
+before any batch step, preserving added, removed or changed facts on refusal.
+Owner keys, owner-bound rows and unique steps are validated at the journal read
+boundary; owners and steps participate in scope checks. Collected command batches
+retain these owners and capture the final committed set.
+
+Undo continues restamping restored destination progress. Successful flip captures
+that actual current set for the next direction. Neighboring replay refreshes a
+move snapshot only for owners passing the existing revision-equality rebase
+condition; mismatched revisions retain stale snapshots and refuse. This is
+separate from the inverse move's unchanged historical-parent allowance.
+
+The existing candidate CLI now advertises replay capabilities
+`replace_blockage` and `move_progress_v1` separately from decoder discriminators.
+Compose's independent database probe inventories nested forward/inverse move
+snapshot fields and precondition snapshot metadata, including empty arrays/maps,
+requiring `move_progress_v1` once per journal row. Both existing swap phases refuse
+an older or prior image lacking the token even with no blockage facts/commands.
+Malformed trusted preconditions refuse the inventory. Fact recovery cannot erase
+journal compatibility obligations.
+
+### Kubernetes pre-cutover obligation
+
+Compose is the currently enabled release path. The prepared Kubernetes delivery
+path does not yet enforce this replay capability check. Before importing guarded
+history or the first Kubernetes rollout, F11 must compare an independent database
+replay inventory with incoming/previous image digest capabilities after the writer
+stops and before capture/migrate. Rollback must check before `rolloutTiers` or
+`reopenWrites`; refusal must retain the fence and lease. Required proofs cover
+nested inverse/precondition markers and watched omissions. Migration capability
+capture/restore alone is insufficient. This slice implements Compose protection
+and records the Kubernetes prerequisite without claiming it is protected.

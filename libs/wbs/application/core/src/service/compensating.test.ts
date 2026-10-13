@@ -8,6 +8,7 @@ import {
   readCommand,
   readPreconditions,
   referencesOf,
+  STEP_BLOCKAGE_REPLAY_CAPABILITIES,
   subjectOf,
   touchedBy,
 } from './compensating';
@@ -179,4 +180,29 @@ describe('move historical progress snapshots', () => {
       expect(() => readCommand({ ...legacy, expectedProgress })).toThrow(/move progress/);
     }
   });
+});
+
+describe('move destination progress preconditions', () => {
+  const fact = { workItemId: 'destination', stepId: 'dev', state: 'done' as const, statedAt: 123 };
+  const base = { expected: {}, from: {} };
+  it('reads empty and populated destination snapshots without defaulting malformed metadata', () => {
+    expect(
+      readPreconditions({ ...base, moveProgress: { destination: [fact], empty: [] } }),
+    ).toEqual({ ...base, moveProgress: { destination: [fact], empty: [] } });
+    for (const moveProgress of [
+      null,
+      [],
+      { destination: null },
+      { destination: [{ ...fact, workItemId: 'foreign' }] },
+      { destination: [fact, fact] },
+      { '': [] },
+    ]) {
+      expect(() => readPreconditions({ ...base, moveProgress })).toThrow(/move progress/);
+    }
+  });
+});
+
+it('advertises move safety metadata without accepting its capability as a command', () => {
+  expect(STEP_BLOCKAGE_REPLAY_CAPABILITIES).toEqual(['replace_blockage', 'move_progress_v1']);
+  expect(() => readCommand({ do: 'move_progress_v1' })).toThrow(/cannot apply/);
 });

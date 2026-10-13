@@ -33,6 +33,7 @@
         (verify.md, 2026-09-27). Before staging: provision the production SOPS Secret and
         prove a Dagger MCP publish.
 - [ ] F11 — Wire package admission, immutable image promotion, CI/CD separation, staging proof, and the concrete production cutover plan per [F11](../../../docs/superpowers/plans/2026-09-17-k3s-fleet.md#f11--wire-cicd-and-stage-the-production-cutover).
+- [ ] F11.1 — Before guarded-history import or first rollout, implement the [Kubernetes replay capability prerequisite](../add-step-node-blocking/design.md#kubernetes-pre-cutover-obligation), including rollback refusal before writer reopening and watched nested-marker omission proofs.
   - [x] `tool-fleet:check`: schema, strict YAML, Ansible syntax and real hcloud inventory
         plugin against a fixture API, kustomize and helm rendering, shellcheck, actionlint,
         executable ownership; locked tools; `check:faults` fails each family on the real command.
