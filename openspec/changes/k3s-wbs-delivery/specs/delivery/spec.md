@@ -59,3 +59,22 @@ The Compose-to-k3s cutover SHALL record old/new digests, database integrity, app
 - **GIVEN** a staged release without the concrete production operation plan or authorization
 - **WHEN** production delivery is requested
 - **THEN** implementation artifacts remain ready and no production mutation occurs
+
+### Requirement: Replay compatibility observations are independent and immutable
+
+The infrastructure replay inventory SHALL inspect both journal directions recursively through batches, independently of image application code and live blockage facts. It SHALL refuse missing, unreadable or malformed trusted state and unknown command kinds. Image capability observations SHALL execute image-owned code and bind validated output to the exact image digest.
+
+#### Scenario: Empty live facts with nested guarded history
+
+- **GIVEN** no live blockage facts and nested inverse moves or precondition metadata containing empty snapshot markers
+- **WHEN** the infrastructure inventory executes against the database
+- **THEN** it reports `move_progress_v1` once per affected journal row for own move `expectedProgress` or own precondition `moveProgress` properties, including empty arrays/maps
+- **AND** it counts every nested `replace_blockage` command in both directions
+
+#### Scenario: Each immutable image owns its vocabulary
+
+- **GIVEN** an exact SHA-256 backend image reference
+- **WHEN** capability observation runs
+- **THEN** it executes that image's own `src/step-blockage-replay-kinds-cli.ts` and binds the validated string vocabulary to the same image reference
+- **AND** only a genuinely absent CLI under a readable/searchable source directory yields the prior empty vocabulary
+- **AND** missing/unreadable source directories, dangling/nonregular CLI paths, unreadable CLI files, failed execution, malformed output or mutable image references refuse observation

@@ -486,3 +486,58 @@ migrations never ran the rehearsal.
 A rerun right after the failed run, reusing `tmp/puni-f8-lab`, failed before `validate`
 because the failed run left its `health-failure.json` journal behind. Removing the lab state
 directory fixed it. CI runners always start from a clean state.
+
+## F11.1a replay observation foundation — 2026-10-14
+
+Based on exact #424 head `3813d3c8b17b640ac541b8d73202ff8efa97550b`.
+`tools/tool-deploy/src/k8s/replay-capability.ts` provides generated read-only SQLite
+inventory argv and digest-bound image capability observation. This slice adds no
+release coordinator call, deployment command, manifest application or activation.
+The existing project-wide Nx source inputs already include both new files; no
+additional cache input is required. The deployment runbook indexes the helpers.
+
+Fresh verification in the isolated worktree:
+
+- Initial TDD RED: focused Bun test failed to import the missing helper
+  (`/tmp/k8s-replay-initial-red.log`).
+- Focused Bun generated-script fixtures: 9 pass, 0 fail. Fixtures cover nested
+  forward/inverse batches, precondition-only and empty markers, mixed histories,
+  per-row marker reset, replacement counts, empty journals, malformed state,
+  missing/unreadable database/journal, prior/current image CLI roots and all bad
+  CLI path/execution/output cases.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run tool-deploy:test`:
+  334 pass, 0 fail, 1012 assertions (`/tmp/k8s-replay-nx-test-unrestricted.log`).
+  The first sandbox run failed only on local registry/Git fixture listeners
+  (`EPERM`); rerunning with authorized local-listener permissions passed.
+- The same Nx environment with `tool-deploy:lint` and `tool-deploy:typecheck`:
+  passed. The initial default Nx invocation printed socket refusal without
+  executing its target; it is not counted as validation.
+- Strict OpenSpec validation passed through the already cached executable:
+  `bun /tmp/bunx-1000-@fission-ai/openspec@latest/node_modules/@fission-ai/openspec/bin/openspec.js validate k3s-wbs-delivery --strict`.
+  `bunx openspec` was not an executable package; the corrected cached package is
+  `@fission-ai/openspec`.
+
+Watched R5 faults each produced RED followed immediately by restored GREEN,
+with logs `/tmp/k8s-replay-proof-<fault>-{red,green}.log`. Adjacent `Proof:`
+comments name the corresponding fixture/fault:
+
+| Fault                                                                             | Observed failure                                                             |
+| --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `forward`, `inverse`, `move-marker`                                               | Nested marker inventory lost required capability                             |
+| `precondition-marker`, `row-reset`                                                | Precondition/empty map capability missing or counted in plain following row  |
+| `replacement`                                                                     | Replacement count lost                                                       |
+| `precondition-shape`, `unknown-kind`                                              | Malformed trusted history accepted                                           |
+| `command-shape`, `batch-shape`, `payload-shape`                                   | Required named malformed-state diagnostic lost                               |
+| `journal-missing`, `db-path`                                                      | Missing required state incorrectly became empty history                      |
+| `cli-path`, `source-permissions`, `source-read`, `source-search`, `cli-execution` | Invalid or unreadable image root incorrectly advertised old empty vocabulary |
+| `exit-status`                                                                     | CLI printing valid `[]` then exiting 1 incorrectly accepted                  |
+| `digest`                                                                          | Mutable image reference reached observation                                  |
+| `capability-shape`                                                                | Object/numeric/duplicate vocabulary accepted                                 |
+
+Permission fixtures also injected unreadable database and CLI files using
+`chmod 000` under a nonprivileged runner and observed refusal. No live container,
+Kubernetes cluster, h4 proof, canonical host gate, CI, restore/cutover, or
+forward/rollback/resume compatibility integration ran in this slice. F11.1 stays
+open until coordinator evidence is durable and validated under the writer fence
+and Lease, rollback refuses before tier rollout/reopening, and the restore guard
+and live acceptance proofs are complete.

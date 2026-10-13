@@ -224,3 +224,17 @@ suspend and resume against a live source, or OIDC auth. F11 adds unit and workfl
 proofs for the descriptor, admission, promotion and publish guards, and a live Compose → k3d
 cutover rehearsal; no staging or production run has happened, so the workflows themselves,
 the protected environment and the deploy runner are unexercised.
+
+### Replay capability prerequisite
+
+The infrastructure helpers in [`replay-capability.ts`](../../tools/tool-deploy/src/k8s/replay-capability.ts)
+provide coordinator-owned SQLite journal traversal and an image-owned capability command bound to
+an exact SHA-256 image reference. The image runner must execute the supplied command inside that
+image; the inventory runner must supply `DB_PATH` for the fenced database. Both refuse missing,
+unreadable or malformed required state. Neither consults the live blockage table for replay safety.
+
+These are observation primitives only. F11.1 remains open: the release coordinator must persist and
+validate forward/rollback/resume evidence under the writer fence and Lease; rollback must refuse
+before tier rollout or writer reopening. The Compose-to-Kubernetes restore/cutover guard and live h4
+proof also remain open. Do not import guarded history or activate Kubernetes delivery using these
+helpers alone. See the [pre-cutover obligation](../../openspec/changes/add-step-node-blocking/design.md#kubernetes-pre-cutover-obligation).
