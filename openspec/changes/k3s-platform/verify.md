@@ -346,3 +346,118 @@ absent tool` received the spawn ENOENT; restored, it names `k3d v5.9.0` and `K3D
 Checks after the fixes: `tool-fleet:test` 338 pass, `tool-deploy:test` 256 pass,
 `tool-devsync:test` 263 pass; lint and typecheck for `tool-fleet` and `tool-deploy` exit 0;
 `bunx nx format:check --all` exit 0.
+
+## WBS 070.14 forge namespace admission prerequisite (2026-10-13)
+
+Initially implemented in an isolated clone based on `d5ab46d17b2e3844a30d883dae75495c706a1f62`,
+then cherry-picked onto current main `16eaa121fc28cf1b06bc3d2576bb2c56ce8fc92c`. Contract: preserve `puni-forge`, reserve
+validated `puni-forge-<slug>` identities, and apply every existing source admission restriction
+in each. Namespace creation/update requires the correct trusted label; unknown values and
+changes/removal are rejected. The namespace grammar matches `dev-environment.ts` exactly.
+
+The disposable `puni-forge-admission` cluster used the locked k3s image
+`docker.io/rancher/k3s:v1.36.4-k3s1@sha256:edad48e12bf81c3a09ac1c05c0c0ffaaa22145980b989d6fae84543a76b83657`.
+It had one server, no agents or load balancer, and a dedicated `/tmp` kubeconfig; it never
+changed the user's current context. [The local runbook](../../../docs/infra/local.md#forge-namespace-admission-prerequisite)
+contains the repeatable setup and check commands.
+
+Commands and results:
+
+- `bun infra/platform/conformance/admission/forge-namespace-check.mjs` with explicit
+  `KUBECTL`, `KUBECONFIG` and `KUBE_CONTEXT`: 87 server-side assertions passed. Approved Pods
+  passed in original, alpha and beta forge namespaces; exact-path, image, SA, controller, node,
+  isolation, host-port, AppArmor and probe negatives were denied in each. Init and ephemeral
+  image/security negatives used the actual Pod and `pods/ephemeralcontainers` admission paths.
+- Namespace missing/wrong/unknown source labels and removal/change were denied. Valid suffix
+  lengths 1 and 20 and a hyphen/digit suffix passed; invalid but structurally valid Kubernetes
+  suffixes (leading digit and 21 characters) were denied even without the trusted label.
+- Deleting the shared parameter ConfigMap denied all three forge identities and the solver;
+  the ordinary Restricted Pod still passed. The script restored the ConfigMap in `finally`.
+  Ordinary privileged and solver path/image negatives were denied; candidate/rollback solver
+  fixtures remained admitted.
+- `bun test --preload ./tools/test/scratch/preload.ts tools/tool-fleet/src/platform.test.ts
+--test-name-pattern 'trusted policy|namespace source|unknown trusted'`: four mutation tests
+  initially failed because validation resolved; after the validator change, 4 passed, 0 failed.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run tool-fleet:test --skip-nx-cache`:
+  the sandbox run had 384 passed and 8 failed (six local listener `EPERM` failures and two
+  QEMU hub socket startup timeouts). Rerun with loopback socket access: 392 passed, 0 failed,
+  1364 assertions across 32 files (28.41 seconds).
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run tool-fleet:lint --skip-nx-cache`
+  and `... tool-fleet:typecheck --skip-nx-cache`: passed.
+- `bunx @fission-ai/openspec@1.12.0 validate k3s-platform --type change --json`: valid,
+  no issues. The required CLI was installed in a task-owned temporary Bun cache.
+
+| Check                               | Injected fault                                                                                                                    | Production-path probe                                                                                                                                                                   | Observed result                                                                                                                    |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Forge family scope                  | Restored original literal namespace gates on the disposable API                                                                   | `puni-forge-alpha` nested path, image, SA, controller, node, privilege, host port, AppArmor, legacy AppArmor, probe host, init image/privilege and ephemeral image/privilege assertions | All 14 negatives failed with API exit 0 (unsafe requests admitted); the restored policy denied every request                       |
+| Reserved namespace label            | Deleted the namespace-policy binding                                                                                              | Alpha Namespace create with missing/wrong label and update with removed/wrong label                                                                                                     | All four negatives failed with API exit 0; restored binding denied them                                                            |
+| Malformed reserved suffix           | Deleted the namespace-policy binding                                                                                              | Unlabelled `puni-forge-1bad` and `puni-forge-` plus 21 letters                                                                                                                          | Both were admitted without the binding; the restored policy denied them                                                            |
+| Unknown or misplaced trusted labels | Replaced only the second namespace validation with `true`                                                                         | Arbitrary namespaces carrying source, solver or unknown                                                                                                                                 | All three negatives failed with API exit 0; restored validation denied them                                                        |
+| Existing namespace label mismatch   | Disabled namespace-label enforcement and set alpha's label to unknown, then replaced only the Pod identity validation with `true` | Otherwise approved alpha Pod, server-side dry-run                                                                                                                                       | Fixed Pod guard denied the existing mismatch; removed guard admitted the Pod. Correct source label and both policies were restored |
+| Rendered identity contract          | Validator absent before implementation                                                                                            | `validatePlatform` excluded-family, removed namespace-label guard, literal security scope and removed unknown-label guard mutations                                                     | All four resolved and failed their assertions; the validator restored denial                                                       |
+
+Verification repeated after integration onto `16eaa121`:
+
+- `bun test --preload ./tools/test/scratch/preload.ts tools/tool-fleet/src/platform.test.ts`:
+  56 passed, 0 failed, 120 assertions.
+- Reapplied the policy from the integrated checkout and reran
+  `bun infra/platform/conformance/admission/forge-namespace-check.mjs`: 87 passed.
+- Repeated focused fleet lint and typecheck: both passed. Prettier checked every changed file;
+  OpenSpec validated the changed contract with no issues.
+- Normal commits ran the installed lefthook checks. The disposable cluster and its kubeconfig
+  were deleted after the final admission run.
+
+The API converts the legacy AppArmor annotation into a profile before admission on this locked
+Kubernetes release, so that negative accepts either policy denial message. It still failed
+with the forge scope reverted; a Kubernetes schema rejection is never counted as a policy proof.
+The privileged fixtures explicitly allow escalation to avoid Kubernetes rejecting the
+inconsistent `privileged=true`/`allowPrivilegeEscalation=false` combination before admission.
+
+This proves admission only. The test Pods remain unscheduled, and no host mount or application
+runtime claim is made. No workload migration, live-host, Flux, credential or RBAC change is
+included. The full h2puni gate remains with the coordinating agent; WBS 070.14 and its workload
+namespace lifecycle task remain in progress.
+
+### Review repair: pre-existing unlabelled reserved namespace
+
+Astra review identified that the label selector bypassed the workload policy for reserved
+namespaces created before the namespace policy. The repair adds a parameter-free Pod identity
+policy without a namespace selector. Upgrade probes create valid and malformed unlabelled
+reserved namespaces plus approved/unsafe Pods before installation. Pod CREATE/UPDATE and
+ephemeral requests must then deny independently of parameters. No existing namespace is
+repaired or migrated by this slice.
+
+Fresh locked-image k3d upgrade rehearsal, starting with no policy installed:
+
+1. `bun infra/platform/conformance/admission/forge-namespace-upgrade-check.mjs --prepare`
+   created `puni-forge-upgrade` and `puni-forge-1upgrade` without trusted labels, plus approved
+   and privileged Pods in each. They remained unscheduled on the single server.
+2. Installed the prior policy: the first otherwise-approved Pod create was admitted (API exit
+   0), so the upgrade assertion failed. This reproduced the review finding.
+3. Installed the independent `puni-reserved-forge-pod` policy/binding without parameters or a
+   namespace selector. `bun infra/platform/conformance/admission/forge-namespace-upgrade-check.mjs`
+   passed all 24 assertions: both namespace identities × approved/unsafe × Pod create, Pod
+   update and ephemeral update, once with parameters present and again with parameters absent.
+   The check restored the parameter ConfigMap in `finally`.
+4. `bun infra/platform/conformance/admission/forge-namespace-check.mjs` passed all 88 assertions,
+   retaining the prior 87 and adding a kube-system Pod admitted with trusted parameters absent.
+5. `bun test --preload ./tools/test/scratch/preload.ts tools/tool-fleet/src/platform.test.ts`:
+   61 passed, 0 failed, 130 assertions. Focused `tool-fleet:lint` and `tool-fleet:typecheck`
+   (uncached) passed after correcting the static validator's array indexing for ESLint; both
+   conformance scripts also passed explicit ESLint. The first commit attempt was stopped by
+   lefthook on those indexing diagnostics; no hook was bypassed.
+
+| Check                                     | Injected fault                                                            | Production-path probe                                                                                                                         | Observed result                                                                                             |
+| ----------------------------------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Pre-existing reserved namespace admission | Replaced only the new parameter-free identity expression with `true`      | Every approved/unsafe Pod CREATE, Pod UPDATE and ephemeral UPDATE in both unlabelled valid/malformed identities                               | All 12 negatives failed with API exit 0; the restored guard denied all 24 present/absent-parameter requests |
+| Required independent identity graph       | Removed `assertReservedForgePods` from the production validator call path | Five independent `validatePlatform` mutations: missing policy, namespace selector, parameters, missing binding, missing ephemeral subresource | All five resolved and failed their denial assertions; restoring the call made all five pass                 |
+
+The API observed newly installed admission bindings asynchronously. The initial immediate
+post-install probe still admitted a request; a later complete run verified the active guard.
+Only complete successful runs are counted. Pod updates patch metadata on existing approved
+or unsafe Pods, avoiding immutable-spec schema rejection; ephemeral updates use the actual
+subresource. The proof requires the independent policy's specific denial message.
+
+Changed-file format and OpenSpec validation passed. The fresh disposable cluster and its
+kubeconfig were removed after the final runs. The full h2puni gate remains with the root agent;
+no live namespace, workload migration, Flux, credential or RBAC change was made.

@@ -20,18 +20,34 @@ spec:
         apiVersions: [v1]
         operations: [CREATE, UPDATE]
         resources: [pods, pods/ephemeralcontainers]
+  variables:
+    - name: isForge
+      expression: >-
+        object.metadata.namespace == 'puni-forge' ||
+        object.metadata.namespace.matches('^puni-forge-[a-z]([a-z0-9-]{0,18}[a-z0-9])?$')
+    - name: isTrusted
+      expression: object.metadata.namespace == 'wbs-solver' || variables.isForge
   validations:
+    # Proof: the per-environment source identity, path and security negatives were admitted
+    # by the original literal-name guards on disposable k3d on 2026-10-13.
+    # Proof: with namespace-label enforcement disabled, an existing unknown label was denied
+    # here; replacing this expression with true admitted that Pod on the same disposable API.
+    - expression: >-
+        variables.isTrusted &&
+        namespaceObject.metadata.labels['puni.dev/trusted-hostpath'] ==
+          (variables.isForge ? 'source' : 'solver')
+      message: trusted workloads require a reserved namespace with its correct trusted label
     # Proof: replacing exact membership with a path-prefix check admitted
     # /srv/puni/worktrees/puni-00/subdirectory in a live server-side dry-run on 2026-09-17.
     - expression: >-
-        !(object.metadata.namespace in ['wbs-solver', 'puni-forge']) ||
+        !variables.isTrusted ||
         (!has(object.spec.volumes) || object.spec.volumes.all(volume,
           has(volume.configMap) || has(volume.csi) || has(volume.downwardAPI) ||
           has(volume.emptyDir) || has(volume.ephemeral) || has(volume.persistentVolumeClaim) ||
           has(volume.projected) || has(volume.secret) ||
           (has(volume.hostPath) && volume.hostPath.type == 'Directory' &&
            ((object.metadata.namespace == 'wbs-solver' && volume.hostPath.path == '/run/puni/solver') ||
-            (object.metadata.namespace == 'puni-forge' &&
+            (variables.isForge &&
              volume.hostPath.path in params.data.forgeWorktreeRoots.split(','))))))
       message: trusted workloads may use only Restricted volume types or their exact directory root
     - expression: >-
@@ -63,7 +79,7 @@ spec:
           object.spec.ephemeralContainers.all(container, container.image in params.data.solverImages.split(','))))
       message: solver workloads require an approved backend image digest for every container
     - expression: >-
-        object.metadata.namespace != 'puni-forge' ||
+        !variables.isForge ||
         (object.spec.serviceAccountName == 'dev-environment-controller' &&
          object.metadata.labels['puni.dev/controller'] == 'dev-environment' &&
          object.spec.nodeSelector['puni.dev/capability-forge'] == 'true' &&
@@ -80,7 +96,7 @@ spec:
     # Kubernetes requires hostNetwork for Windows HostProcess Pods, so rejecting hostNetwork
     # also excludes pod-level and container-level windowsOptions.hostProcess.
     - expression: >-
-        !(object.metadata.namespace in ['wbs-solver', 'puni-forge']) ||
+        !variables.isTrusted ||
         (has(object.spec.automountServiceAccountToken) &&
          !object.spec.automountServiceAccountToken &&
          (!has(object.spec.hostNetwork) || !object.spec.hostNetwork) &&
@@ -137,7 +153,7 @@ spec:
     # Proof: hostPort 18080 was accepted by the live API before this Baseline control was added
     # for every applicable container type on 2026-09-17.
     - expression: >-
-        !(object.metadata.namespace in ['wbs-solver', 'puni-forge']) ||
+        !variables.isTrusted ||
         (object.spec.containers.all(container,
            !has(container.ports) || container.ports.all(port, !has(port.hostPort) || port.hostPort == 0)) &&
          (!has(object.spec.initContainers) || object.spec.initContainers.all(container,
@@ -148,7 +164,7 @@ spec:
     # Proof: pod and container Unconfined AppArmor, unsafe SELinux labels, pod-level root and
     # Unconfined seccomp, and Unmasked procMount were accepted before this guard on 2026-09-17.
     - expression: >-
-        !(object.metadata.namespace in ['wbs-solver', 'puni-forge']) ||
+        !variables.isTrusted ||
         ((!has(object.spec.securityContext) ||
           ((!has(object.spec.securityContext.appArmorProfile) ||
             object.spec.securityContext.appArmorProfile.type in ['RuntimeDefault', 'Localhost']) &&
@@ -203,7 +219,7 @@ spec:
     # Proof: the deprecated Unconfined AppArmor annotation was accepted by the live API before
     # annotation values were restricted to runtime/default or localhost profiles on 2026-09-17.
     - expression: >-
-        !(object.metadata.namespace in ['wbs-solver', 'puni-forge']) ||
+        !variables.isTrusted ||
         !has(object.metadata.annotations) || object.metadata.annotations.all(key,
           !key.startsWith('container.apparmor.security.beta.kubernetes.io/') ||
           object.metadata.annotations[key] == 'runtime/default' ||
@@ -212,7 +228,7 @@ spec:
     # Proof: loopback HTTP hosts in a liveness probe and preStop hook were accepted by the live
     # API before every current probe and lifecycle host field was checked on 2026-09-17.
     - expression: >-
-        !(object.metadata.namespace in ['wbs-solver', 'puni-forge']) ||
+        !variables.isTrusted ||
         (object.spec.containers.all(container,
            (!has(container.livenessProbe) ||
             ((!has(container.livenessProbe.httpGet) || !has(container.livenessProbe.httpGet.host) ||
@@ -281,10 +297,8 @@ spec:
     parameterNotFoundAction: Deny
   validationActions: [Deny, Audit]
 ---
-# The trusted policy above selects namespaces by label, so removing the label from a trusted
-# namespace would silently exempt it. This policy keeps the label on both namespaces.
-# Proof: with this binding deleted, removing the wbs-solver label succeeded on a live k3d cluster
-# on 2026-09-18; with it, the removal and a wrong puni-forge value were denied.
+# Proof: deleting this binding admitted missing/wrong source labels and label removal on
+# reserved forge namespaces; the restored binding denied them on disposable k3d (2026-10-13).
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicy
 metadata:
@@ -297,14 +311,33 @@ spec:
         apiVersions: [v1]
         operations: [CREATE, UPDATE]
         resources: [namespaces]
+  variables:
+    - name: isForge
+      expression: >-
+        object.metadata.name == 'puni-forge' ||
+        object.metadata.name.matches('^puni-forge-[a-z]([a-z0-9-]{0,18}[a-z0-9])?$')
+    - name: isReserved
+      expression: >-
+        object.metadata.name == 'wbs-solver' || object.metadata.name == 'puni-forge' ||
+        object.metadata.name.startsWith('puni-forge-')
   validations:
     - expression: >-
-        !(object.metadata.name in ['wbs-solver', 'puni-forge']) ||
-        (has(object.metadata.labels) &&
+        !variables.isReserved ||
+        ((object.metadata.name == 'wbs-solver' || variables.isForge) &&
+         has(object.metadata.labels) &&
          'puni.dev/trusted-hostpath' in object.metadata.labels &&
          object.metadata.labels['puni.dev/trusted-hostpath'] ==
            (object.metadata.name == 'wbs-solver' ? 'solver' : 'source'))
-      message: trusted namespaces must keep their puni.dev/trusted-hostpath label
+      message: trusted namespaces must keep their puni.dev/trusted-hostpath label and valid identity
+    # Proof: without this validation, arbitrary namespaces with source/solver/unknown labels
+    # were accepted; the restored validation denied each on disposable k3d (2026-10-13).
+    - expression: >-
+        !has(object.metadata.labels) ||
+        !('puni.dev/trusted-hostpath' in object.metadata.labels) ||
+        ((object.metadata.name == 'wbs-solver' &&
+          object.metadata.labels['puni.dev/trusted-hostpath'] == 'solver') ||
+         (variables.isForge && object.metadata.labels['puni.dev/trusted-hostpath'] == 'source'))
+      message: trusted namespaces must use only their reserved solver or source label
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicyBinding
@@ -312,4 +345,43 @@ metadata:
   name: puni-trusted-namespace-label
 spec:
   policyName: puni-trusted-namespace-label
+  validationActions: [Deny]
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: puni-reserved-forge-pod
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ['']
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods, pods/ephemeralcontainers]
+  variables:
+    - name: isForge
+      expression: >-
+        object.metadata.namespace == 'puni-forge' ||
+        object.metadata.namespace.matches('^puni-forge-[a-z]([a-z0-9-]{0,18}[a-z0-9])?$')
+    - name: isReserved
+      expression: >-
+        object.metadata.namespace == 'puni-forge' ||
+        object.metadata.namespace.startsWith('puni-forge-')
+  validations:
+    # Proof: replacing this guard with true admitted approved/unsafe Pod creates, updates and
+    # ephemeral requests in both pre-existing unlabelled valid/malformed namespaces on k3d.
+    - expression: >-
+        !variables.isReserved ||
+        (variables.isForge && has(namespaceObject.metadata.labels) &&
+         'puni.dev/trusted-hostpath' in namespaceObject.metadata.labels &&
+         namespaceObject.metadata.labels['puni.dev/trusted-hostpath'] == 'source')
+      message: reserved forge namespaces require their source label before Pod admission
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: puni-reserved-forge-pod
+spec:
+  policyName: puni-reserved-forge-pod
   validationActions: [Deny]

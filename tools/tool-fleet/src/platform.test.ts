@@ -636,6 +636,105 @@ describe('validatePlatform', () => {
     expect(validatePlatform(root)).rejects.toThrow(/must match only namespaces labelled/);
   });
 
+  it('rejects a trusted policy whose forge identity excludes environment namespaces', async () => {
+    const root = await mutablePlatform();
+    await replaceManifestText(
+      root,
+      'infra/platform/policy/trusted-workloads.yaml',
+      "object.metadata.namespace.matches('^puni-forge-[a-z]([a-z0-9-]{0,18}[a-z0-9])?$')",
+      "object.metadata.namespace == 'puni-forge'",
+    );
+    expect(validatePlatform(root)).rejects.toThrow(/trusted namespace identity/);
+  });
+
+  it('rejects removal of namespace source-label protection', async () => {
+    const root = await mutablePlatform();
+    await replaceManifestText(
+      root,
+      'infra/platform/policy/trusted-workloads.yaml',
+      '!variables.isReserved ||',
+      'true ||',
+    );
+    expect(validatePlatform(root)).rejects.toThrow(/trusted namespace identity/);
+  });
+
+  it('rejects a trusted policy that skips security outside the original forge namespace', async () => {
+    const root = await mutablePlatform();
+    await replaceManifestText(
+      root,
+      'infra/platform/policy/trusted-workloads.yaml',
+      '!variables.isTrusted ||',
+      "!(object.metadata.namespace in ['wbs-solver', 'puni-forge']) ||",
+    );
+    expect(validatePlatform(root)).rejects.toThrow(/trusted namespace identity/);
+  });
+
+  it('rejects removal of the unknown trusted-label guard', async () => {
+    const root = await mutablePlatform();
+    await replaceManifestText(
+      root,
+      'infra/platform/policy/trusted-workloads.yaml',
+      "!('puni.dev/trusted-hostpath' in object.metadata.labels) ||",
+      'true ||',
+    );
+    expect(validatePlatform(root)).rejects.toThrow(/trusted namespace identity/);
+  });
+
+  it('requires a reserved Pod identity policy even when namespaces lack trusted labels', async () => {
+    const root = await mutablePlatform();
+    await replaceManifestText(
+      root,
+      'infra/platform/policy/trusted-workloads.yaml',
+      'name: puni-reserved-forge-pod',
+      'name: absent-reserved-forge-pod',
+    );
+    expect(validatePlatform(root)).rejects.toThrow(/reserved Pod identity/);
+  });
+
+  it.each([
+    [
+      'namespace labels',
+      '  matchConstraints:\n    namespaceSelector: { matchLabels: { puni.dev/trusted-hostpath: source } }\n',
+    ],
+    ['parameters', '  paramKind: { apiVersion: v1, kind: ConfigMap }\n  matchConstraints:\n'],
+  ])('rejects a reserved Pod identity policy restricted by %s', async (_restriction, insertion) => {
+    const root = await mutablePlatform();
+    await replaceManifestText(
+      root,
+      'infra/platform/policy/trusted-workloads.yaml',
+      'name: puni-reserved-forge-pod\nspec:\n  failurePolicy: Fail\n  matchConstraints:\n',
+      'name: puni-reserved-forge-pod\nspec:\n  failurePolicy: Fail\n' + insertion,
+    );
+    expect(validatePlatform(root)).rejects.toThrow(/reserved Pod identity/);
+  });
+
+  it('requires the reserved Pod identity binding', async () => {
+    const root = await mutablePlatform();
+    await replaceManifestText(
+      root,
+      'infra/platform/policy/trusted-workloads.yaml',
+      'policyName: puni-reserved-forge-pod',
+      'policyName: absent-reserved-forge-pod',
+    );
+    expect(validatePlatform(root)).rejects.toThrow(/reserved Pod identity/);
+  });
+
+  it('requires the reserved Pod identity ephemeral subresource', async () => {
+    const subresourceRoot = await mutablePlatform();
+    const path = join(subresourceRoot, 'infra/platform/policy/trusted-workloads.yaml');
+    const source = await readFile(path, 'utf8');
+    const start = source.indexOf('name: puni-reserved-forge-pod');
+    expect(start).toBeGreaterThan(0);
+    await writeFile(
+      path,
+      source.slice(0, start) +
+        source
+          .slice(start)
+          .replace('resources: [pods, pods/ephemeralcontainers]', 'resources: [pods]'),
+    );
+    expect(validatePlatform(subresourceRoot)).rejects.toThrow(/reserved Pod identity/);
+  });
+
   it('rejects Traefik host ports other than 80 and 443', async () => {
     for (const [before, after] of [
       ['        port: 80\n', '        port: 8000\n'],
