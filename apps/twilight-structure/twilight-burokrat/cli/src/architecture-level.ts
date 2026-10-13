@@ -11,6 +11,7 @@ import {
 
 /**
  * Runs the explicitly adopted rule negatives as an isolated Architecture level and writes JUnit.
+ * Bun receives literal relative file operands; policy and JUnit identities stay canonical bare paths.
  * A mapping covers an adopted rule, not the full registry; Task 2.1 still needs the other rules.
  * @throws when the policy, selector, fixture, runner or report cannot establish a real run.
  */
@@ -56,7 +57,9 @@ export function runArchitectureLevel(root: string, report: string): void {
     [
       process.execPath,
       'test',
-      ...[...selected].sort(),
+      // Proof: removing the ./ prefix made [TEST-AXES-091] execute nested failing decoys
+      // and leave their markers for both one and two mapped files.
+      ...[...selected].sort().map((file) => `./${file}`),
       '--reporter=junit',
       `--reporter-outfile=${resolve(report)}`,
       '--timeout=60000',

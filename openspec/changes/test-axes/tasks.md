@@ -13,6 +13,7 @@
 - [x] 2.1f Add and allocate one real WBS rendering Performance case with an evidence-backed mounted-cell threshold; specify real stack startup, readiness, shifted-port and process-group cleanup before implementation.
 - [x] 2.1g Implement and prove the Performance case and runner lifecycle with production-path negatives: threshold breach retains failing diagnostics but no success pointer; missing readiness and occupied shifted port refuse safely; verified Linux child-subreaper/pidfd ownership kills and reaps orphaned separate-session descendants without signaling unrelated processes; two sequential runs publish fresh reports and release owned listeners.
 - [x] 2.1h Run the Performance target uncached twice on the exact committed candidate, inspect fresh discovery/run/JUnit/binding outputs and actual mounted-cell count, and record its noncertifying status. Keep Task 2.1 open until trusted evidence/admission and remaining level obligations are complete.
+- [x] 2.1i Preserve Architecture policy authority and runner validation/report behavior while executing every sorted selected Bun operand with exactly one `./` prefix. Prove real nested matching decoys never execute for one and two mappings; retain canonical policy/JUnit identities and watch prefix removal fail.
       Follow-up, not done here (recorded 2026-10-11 from the 080.34 review): level target names
       have drifted — `test:api` and `test:unit` beside `test:conformance:level` and
       `test:unit:level`, and three Browser level targets in fe-01
