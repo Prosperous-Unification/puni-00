@@ -1,6 +1,8 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { ResourceScope } from '@/lib/organization-context';
+import { OrganizationResourcesProvider } from '@/runtime/organization-resources';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@/testing/organization-render';
 import { answerJson as answer, stubServer } from '@/testing/stub-server';
 
 import { type AccessLoss } from './organization-access';
@@ -43,6 +45,16 @@ function stubPanel(routes: Parameters<typeof stubServer>[0] = {}) {
 function renderPanel(onAccessLost: (loss: AccessLoss) => void = () => undefined) {
   render(<SsoConnectionsPanel onAccessLost={onAccessLost} />);
 }
+function renderScopedPanel(
+  scope: ResourceScope,
+  onAccessLost: (loss: AccessLoss) => void = () => undefined,
+) {
+  render(
+    <OrganizationResourcesProvider scope={scope}>
+      <SsoConnectionsPanel onAccessLost={onAccessLost} />
+    </OrganizationResourcesProvider>,
+  );
+}
 async function fillCreate() {
   fireEvent.change(await screen.findByLabelText('Verified domain'), {
     target: { value: 'available' },
@@ -55,6 +67,80 @@ async function fillCreate() {
 }
 
 describe('company sign-in connection setup', () => {
+  it('sends the captured organization on both reads and create', async () => {
+    stubPanel({
+      'POST /api/organization/sso-connections': [
+        () => answer(201, { connection: connection('available') }),
+      ],
+    });
+    renderScopedPanel({
+      organization: { kind: 'active', organizationId: 'org-a' },
+      isCurrent: () => true,
+      refuse: () => undefined,
+    });
+    await fillCreate();
+    fireEvent.click(screen.getByRole('button', { name: 'Create connection' }));
+    await screen.findByText(
+      'Connection recorded. Start a proof sign-in to verify its identity prefix.',
+    );
+    const requests = vi
+      .mocked(fetch)
+      .mock.calls.filter(
+        ([url]) => typeof url === 'string' && url.startsWith('/api/organization/'),
+      );
+    expect(
+      requests.map(([, init]) => new Headers(init?.headers).get('X-WBS-Expected-Organization')),
+    ).toEqual(['org-a', 'org-a', 'org-a', 'org-a', 'org-a']);
+  });
+
+  it('withdraws the owning runtime when an SSO read refuses its organization', async () => {
+    const refuse = vi.fn();
+    const onAccessLost = vi.fn();
+    stubPanel({
+      'GET /api/organization/sso-connections': [
+        () => answer(409, { error: 'organization_context_changed' }),
+      ],
+    });
+    renderScopedPanel(
+      {
+        organization: { kind: 'active', organizationId: 'org-a' },
+        isCurrent: () => true,
+        refuse,
+      },
+      onAccessLost,
+    );
+    await waitFor(() => {
+      expect(refuse).toHaveBeenCalledWith({ error: 'organization_context_changed' });
+    });
+    expect(onAccessLost).toHaveBeenCalledWith('no_organization');
+  });
+
+  it('cannot publish a late SSO row after its runtime is withdrawn', async () => {
+    stubPanel();
+    let finish: ((response: Response) => void) | undefined;
+    vi.mocked(fetch).mockImplementationOnce(
+      () =>
+        new Promise<Response>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    let current = true;
+    renderScopedPanel({
+      organization: { kind: 'active', organizationId: 'org-a' },
+      isCurrent: () => current,
+      refuse: () => undefined,
+    });
+    await waitFor(() => {
+      expect(finish).toBeDefined();
+    });
+    current = false;
+    finish!(answer(200, { connections: [connection('stale-b')] }));
+    await waitFor(() => {
+      expect(screen.queryByText('Loading company sign-in…')).toBeNull();
+    });
+    expect(screen.queryByText('stale-b-saml')).toBeNull();
+  });
+
   it('shows loading, empty connections and no eligible domain state', async () => {
     stubPanel({ 'GET /api/organization/domains': [() => answer(200, { domains: [] })] });
     renderPanel();

@@ -1,7 +1,7 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AppFaultBoundary } from '@/components/chrome/app-fault';
+import { cleanup, fireEvent, render, screen, within } from '@/testing/organization-render';
 import { answerJson as answer, stubServer } from '@/testing/stub-server';
 
 import { CredentialRefusalState } from './credential-refusal-state';

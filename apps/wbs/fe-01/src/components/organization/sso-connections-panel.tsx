@@ -8,7 +8,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { browserClient, failureMessage, unreachable } from '@/lib/http';
+import { failureMessage, unreachable } from '@/lib/http';
+import { useResourceClient } from '@/runtime/organization-resources';
 
 import { CompanySignInLink } from './company-sign-in-link';
 import {
@@ -30,7 +31,7 @@ import {
   STATUS_CLASS,
 } from './organization-section';
 
-const settings = browserClient([listSsoConnections, listOrganizationDomains, createSsoConnection]);
+const SSO_SHAPES = [listSsoConnections, listOrganizationDomains, createSsoConnection] as const;
 type Connection = Extract<
   ClientReply<typeof listSsoConnections>,
   { kind: 'success' }
@@ -55,6 +56,9 @@ export function SsoConnectionsPanel({
 }: {
   onAccessLost: (loss: AccessLoss) => void;
 }): React.JSX.Element {
+  // Proof: an unscoped client failed the captured-header, runtime-refusal and
+  // late-row SSO tests; reads and create now share the owning runtime's scope.
+  const settings = useResourceClient(SSO_SHAPES);
   const [view, setView] = useState<View>({ kind: 'loading' });
   const [domainClaimId, setDomainClaimId] = useState('');
   const [auth0Connection, setAuth0Connection] = useState('');
@@ -110,7 +114,7 @@ export function SsoConnectionsPanel({
       claims: domains.body.domains,
     });
     setDomainClaimId('');
-  }, [onAccessLost]);
+  }, [settings, onAccessLost]);
 
   useEffect(() => {
     void refresh().catch((cause: unknown) => {
