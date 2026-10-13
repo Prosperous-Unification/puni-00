@@ -2783,3 +2783,18 @@ Dependent Performance-source/judge suites initially hit Bun's default five-secon
 one existing digest test during the combined run (38 passed, 1 timed out). Re-running the same
 two suites with `--timeout 60000` passed 39/39 tests and 251 assertions. The timeout was a
 harness deadline, not an assertion failure; the longer run is the scoped regression evidence.
+
+## 4.1b.6a UTF-8 and JSON R5 review repair — 2026-10-13
+
+An otherwise valid pinned committed project manifest had one `0xff` byte inside its `name`
+JSON string. The fixture recomputed the manifest digest, committed revision and candidate pin.
+The real `inspect-level-facts` CLI exited 1 with empty stdout and named `project manifest is
+not UTF-8`. Removing only `fatal:true` from `TextDecoder` made that same test fail because the
+CLI emitted success JSON with exit zero; raw fault log:
+`/tmp/puni-level-facts-r5-utf8-fatal.log`. Replacing the neighboring `JSON.parse` with an empty
+record made the malformed external authority test fail its named JSON-refusal assertion on a
+later schema error; raw fault log: `/tmp/puni-level-facts-r5-json-malformed.log`. Both faults
+were restored. Adjacent `Proof:` comments now name the injected faults and observed failures.
+After restoration, the owning facts suite passed 14/14 tests with 71 assertions. Uncached
+typecheck, focused ESLint, changed-file Prettier, `git diff --check` and strict OpenSpec
+validation passed. Normal Lefthook hooks run on the repair commit.

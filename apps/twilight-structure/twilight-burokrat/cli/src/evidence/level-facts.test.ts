@@ -24,7 +24,7 @@ function git(repository: string, ...args: string[]): string {
   if (invocation.exitCode !== 0) throw new Error(invocation.stderr.toString());
   return invocation.stdout.toString().trim();
 }
-function file(repository: string, path: string, source: string): void {
+function file(repository: string, path: string, source: string | Uint8Array): void {
   const absolute = join(repository, path);
   mkdirSync(dirname(absolute), { recursive: true });
   writeFileSync(absolute, source);
@@ -120,7 +120,7 @@ function fixture(
     invokeCli(['inspect-level-facts', repository, requested, authorityPath]);
   return { repository, revision, authority, authorityPath, writeAuthority, inspect };
 }
-function recommit(selected: ReturnType<typeof fixture>, path: string, source: string) {
+function recommit(selected: ReturnType<typeof fixture>, path: string, source: string | Uint8Array) {
   file(selected.repository, path, source);
   git(selected.repository, 'add', '.');
   git(selected.repository, 'commit', '-m', 'changed source');
@@ -306,6 +306,20 @@ test('[TEST-AXES-079] malformed committed manifest and declaration mismatch refu
   const revised = recommit(mismatch, declarationPath, altered);
   invocation = await mismatch.inspect(revised);
   expect(invocation.stderr).toContain('Performance declaration differs');
+});
+
+test('[TEST-AXES-079] invalid UTF-8 inside a pinned committed manifest refuses by name', async () => {
+  const selected = fixture();
+  const invalidManifest = Uint8Array.from([
+    ...new TextEncoder().encode('{"targets":{},"name":"'),
+    0xff,
+    ...new TextEncoder().encode('"}'),
+  ]);
+  const revision = recommit(selected, manifestPath, invalidManifest);
+  const invocation = await selected.inspect(revision);
+  expect(invocation.exitCode).toBe(1);
+  expect(invocation.stdout).toBe('');
+  expect(invocation.stderr).toContain('level facts project manifest is not UTF-8');
 });
 
 test('[TEST-AXES-078] a declaration omitting an authority fixture refuses completeness', async () => {

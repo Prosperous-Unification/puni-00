@@ -42,11 +42,15 @@ const Authority = type({
 function decodeJson(bytes: Uint8Array, subject: string): unknown {
   let source: string;
   try {
+    // Proof: [TEST-AXES-079] commits 0xff inside an otherwise valid JSON string with all pins
+    // updated; removing fatal decoding made the production CLI emit success facts (exit zero).
     source = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
   } catch (cause) {
     throw new Error(`${subject} is not UTF-8`, { cause });
   }
   try {
+    // Proof: replacing parse with an empty record made [TEST-AXES-078]'s malformed external
+    // authority test lose its named JSON refusal and fail on later schema errors.
     return JSON.parse(source) as unknown;
   } catch (cause) {
     throw new Error(`${subject} JSON is malformed`, { cause });
