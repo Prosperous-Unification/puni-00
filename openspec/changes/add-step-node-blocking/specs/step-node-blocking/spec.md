@@ -147,3 +147,41 @@ The step blockage migration SHALL be additive and ship beside a guarded `down.sq
 - **GIVEN** a database containing a step blockage fact
 - **WHEN** the rollback guard finds no safe preservation path
 - **THEN** rollback refuses before dropping the table and prints the manual completion command
+
+### Requirement: Historical parent progress remains readable without becoming a step node
+
+The system SHALL preserve historical parent-owned progress in storage and the existing row fold while excluding it from public leaf node readings. Unknown work-item and unknown step references SHALL still be refused. Deployment SHALL inventory historical parent progress and provide explicit repair without making compatible reads depend on repair.
+
+#### Scenario: Migrated parent progress preserves the existing row fold
+
+- **GIVEN** a migrated plan with progress on a known parent and a known project step
+- **WHEN** isolated or shared live reads project its nodes
+- **THEN** the row fold retains its existing meaning, parent progress remains stored, and only leaf nodes expose readings
+
+#### Scenario: Unknown progress references remain invalid
+
+- **GIVEN** progress referring to a missing work item or project step
+- **WHEN** node readings are projected
+- **THEN** the read refuses malformed trusted state rather than treating it as historical parent progress
+
+### Requirement: Structural commands preserve progress ownership and refuse stale replay
+
+Moving unrelated work beneath a leaf SHALL clear and journal the destination's progress before the store move, preserve incoming progress, restore destination progress after inverse movement, and clear it before redo. Last-child moves SHALL NOT add progress hand-up. Move and delete undo SHALL refuse atomically when the destination parent gained newer progress, preserving the newer facts and tree even if ordinary revision checks do not detect the change.
+
+#### Scenario: Destination progress is cleared before move and restored after undo
+
+- **GIVEN** destination Dev is done and incoming Dev is in progress, with or without retained blockage
+- **WHEN** the incoming row moves beneath the destination, is undone, and is redone
+- **THEN** destination progress is cleared before each forward move, restored after undo, and incoming progress is preserved throughout
+
+#### Scenario: Blockage retained through completed progress survives structural replay
+
+- **GIVEN** a blocked step later marked done on a leaf
+- **WHEN** another row moves beneath it, then the move is undone and redone
+- **THEN** the leaf facts are restored exactly on undo and cleared before redo without changing progress hand-up rules
+
+#### Scenario: Stale last-child move and delete undo preserve newer progress
+
+- **GIVEN** moving or deleting the last child makes a parent a leaf and another actor then states progress on it
+- **WHEN** the original actor undoes the move or deletion
+- **THEN** replay refuses without changing the tree or overwriting the newer progress

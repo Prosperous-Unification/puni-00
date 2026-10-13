@@ -26,9 +26,28 @@
 - Node proxy causes can be wrong if graph expansion omits a supported endpoint scope or relationship type. Tests must compare the derived node graph against explicit multi-step examples and distinguish `A.dev` from `A.qa`.
 - Import/export and rollback version allocation can collide with unintegrated branches. Recheck the actual integration head before assigning versions or migration timestamp.
 
+## Historical progress compatibility and structural replay
+
+Historical versions can leave `step_progress` on rows that later gained children.
+Preserve these statements in the existing row fold and stored/exported facts; exclude
+only known parent-owned progress from the leaf node projection. Unknown work-item or
+step references still throw. A migrated-state regression must prove both live read
+modes remain readable without changing their row fold. Inventory and explicit repair
+remain release obligations; do not silently delete legacy statements or require their
+repair before a compatible read can open the plan.
+
+When unrelated work moves beneath a leaf, capture and clear destination progress
+before the store move, preserve incoming progress, and journal restoration after the
+inverse move. Redo clears before moving again. Include the cleared destination in
+`touched`. Do not add progress hand-up when a last child moves away. Replay guards
+must refuse move/delete undo atomically if the newly leaf parent acquired newer
+progress, even when revision checks are bypassed by the test fixture. Restore neither
+the tree nor stale facts over that newer statement. Structural blockage restore retains
+its timestamp; progress replay retains the existing replay timestamp semantics.
+
 ## Migration Plan
 
-Deploy the additive table first; old code ignores it and new code treats missing rows as no blockage. The new runtime reads and writes the table, while swap checks record whether it contains facts. On rollback, save and remove those facts before an older image starts, and restore them only after the new schema is re-applied. The guarded `down.sql` refuses while facts remain. Plan document and saved-plan readers upgrade older bodies with empty blockage collections.
+Deploy the additive table with compatible readers and replay guards. Drain incompatible writers before enabling blockage writes: old binaries can invalidate node ownership during the blue/green overlap. Inventory existing parent progress and document explicit repair while compatible reads continue preserving it. The new runtime reads and writes the table, while swap checks record whether it contains facts. On rollback, save and remove those facts before an older image starts, and restore them only after the new schema is re-applied. The guarded `down.sql` refuses while facts remain. Plan document and saved-plan readers upgrade older bodies with empty blockage collections.
 
 ## Open Questions
 

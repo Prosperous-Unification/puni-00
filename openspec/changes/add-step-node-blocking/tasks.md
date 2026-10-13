@@ -5,10 +5,10 @@
 
 ## 1. Domain reading
 
-- [ ] 1.1 Red: add tests for direct blockage, work-item hold precedence, `done` precedence, in-progress precedence, unknown, direct causes, transitive causes, cycles, and node endpoint precision (`A.dev` is not `A.qa`).
-- [ ] 1.2 Extend canonical `nodeReadingsOf` and `nodeReadingOf` with direct blockage and precise roots over all graph edges; retain waiting/skipped, stop proxy at running attempts, and keep boundary nodes internal. Reuse existing `resolveDependencyGraph` without a second extraction. Keep `StepState`, `blockedByProxyOf` and `withoutHeldSubtrees` unchanged.
+- [x] 1.1 Red: add tests for direct blockage, work-item hold precedence, `done` precedence, in-progress precedence, unknown, direct causes, transitive causes, cycles, and node endpoint precision (`A.dev` is not `A.qa`).
+- [x] 1.2 Extend canonical `nodeReadingsOf` and `nodeReadingOf` with direct blockage and precise roots over all graph edges; retain waiting/skipped, stop proxy at running attempts, and keep boundary nodes internal. Reuse existing `resolveDependencyGraph` without a second extraction. Keep `StepState`, `blockedByProxyOf` and `withoutHeldSubtrees` unchanged.
 - [ ] 1.3 Add schedule-neutrality tests proving the canonical input and full Fast schedule are byte-identical when blockage facts and projections are present. Watch a mutation that filters blocked nodes fail this test.
-- [ ] 1.4 Add production-path negatives for missing node progress/owner data and dependencies with absent typed/legacy endpoints, duplicate graph node identities and missing edge endpoints; disable each validation in turn and observe its test fail. Add adjacent `Proof:` comments.
+- [ ] 1.4 Add production-path negatives for unknown work-item/step progress references (except known historical parent-owned progress, retained by the row fold and excluded only from leaf projection) and dependencies with absent typed/legacy endpoints, duplicate graph node identities and missing edge endpoints; disable each validation in turn and observe its test fail. Add adjacent `Proof:` comments.
 
 ## 2. Persistent blockage facts
 
@@ -21,8 +21,8 @@
 
 - [ ] 3.1 Red: test `setStepBlocked` ownership, unknown work item/step, parent refusal, done refusal, no-op behavior, event append, retained read, and command batch atomicity.
 - [ ] 3.2 Implement `setStepBlocked` through the project command registry, write coordinator and command journal. Undo/redo must conditionally restore the prior fact and refuse stale state.
-- [ ] 3.3 Red: test hand-down, moving another row beneath a leaf, delete/undo, duplicate, last-child hand-up agreement, and concurrent stale undo.
-- [ ] 3.4 Implement structural fact handling alongside step progress at each existing mutation seam. Watch skipped hand-down and copied blockage faults fail their targeted tests; add `Proof:` comments.
+- [ ] 3.3 Red: include migrated parent progress compatibility across memory/SQLite retained reads; pre-store-move destination done/incoming in-progress clear/undo/redo with and without blockage; block→done→move→undo→redo; last-child move/delete→peer progress→undo refusals with revision checks bypassed. Test no new progress hand-up. Then test test hand-down, moving another row beneath a leaf, delete/undo, duplicate, last-child hand-up agreement, and concurrent stale undo.
+- [ ] 3.4 Clear destination progress before moving, journal its restoration after inverse movement, include destination in touched, and add stale move/delete replay guards. Watch each guard removed fail atomicity negatives. Implement structural fact handling alongside step progress at each existing mutation seam. Watch skipped hand-down and copied blockage faults fail their targeted tests; add `Proof:` comments.
 
 ## 4. Read and transfer contracts
 
@@ -41,4 +41,4 @@
 
 - [ ] 6.1 Run focused domain, adapter, command, import, saved-plan and browser tests; run touched-project lint/typecheck, Prettier, strict OpenSpec validation and `git diff --check`.
 - [ ] 6.2 Review every introduced safety check against an observed production-path negative and document fault, test and output in `verify.md`.
-- [ ] 6.3 Run `bin/h2puni-gate.sh <sha>` on the exact candidate when the shared gate checkout is clean; capture exact-SHA CI and migration-lint evidence before integration. Do not mark the WBS parent complete while unrelated gate dirt remains.
+- [ ] 6.3 Document historical parent-progress inventory/explicit repair and incompatible-writer overlap release obligations. Run `bin/h2puni-gate.sh <sha>` on the exact candidate when the shared gate checkout is clean; capture exact-SHA CI and migration-lint evidence before integration. Do not mark the WBS parent complete while unrelated gate dirt remains.
