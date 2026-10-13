@@ -119,10 +119,18 @@ describe('Navigator record kinds', () => {
     expect(() => decodeRecord('plan-reference', planReference({ planDocumentVersion: 5 }))).toThrow(
       /planDocumentVersion/,
     );
-    expect(() => decodeRecord('plan-reference', planReference({ planDocumentVersion: 8 }))).toThrow(
+    expect(() => decodeRecord('plan-reference', planReference({ planDocumentVersion: 9 }))).toThrow(
       /planDocumentVersion/,
     );
   });
+
+  test.each([6, 7, 8])(
+    'decodes a version-%s plan reference without rewriting its digest',
+    (version) => {
+      const record = planReference({ planDocumentVersion: version });
+      expect(record as unknown).toEqual(decodeRecord('plan-reference', record));
+    },
+  );
 
   test('refuses a non-hex digest and a short Git object id', () => {
     expect(() =>
