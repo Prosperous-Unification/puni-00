@@ -129,7 +129,7 @@ export function createNameColumn({ live }: { live: PlanLive }) {
             // all four faces — see {@link InlineMarkdown} — and the box
             // under it still holds the raw source, which is what a reader
             // gets back the moment they write in the cell.
-            renderFirstLine={renderName}
+            renderLine={renderName}
             rows={1}
             style={{
               // The cell's width, not a width of its own: `22em` was one of

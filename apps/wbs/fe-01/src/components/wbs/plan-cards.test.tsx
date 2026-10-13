@@ -937,43 +937,46 @@ describe('the plan on a phone', () => {
     });
   });
 
-  itDom(
-    'renders a card’s name as inline markdown, with its notes as the text they are',
-    async () => {
-      // The third of the four faces, through the same component as the other
-      // three — `inline-markdown.tsx`. The notes under the name are **not** put
-      // through it: this face shows them at rest, and a note is a note.
-      //
-      // Proof: `renderFirstLine` taken off this card's `CellInput`, so the card
-      // is the raw string it was before `markdown-work-item-names`. Watched
-      // failing, 2026-08-29, on `Error: the card for 010 draws no rendered name`.
-      const api = fakeApi();
-      widthIs(PHONE);
-      render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
-      await addAWorkItem();
+  itDom('renders a card’s name and its notes as inline markdown', async () => {
+    // The third of the four faces, through the same component as the other
+    // three — `inline-markdown.tsx`. Since the 2026-10-13 phone review
+    // (F-039) the notes under the name go through it too, a line at a time:
+    // this face shows them at rest, and `[design](https://…)` printed raw on
+    // a phone is the source rather than the note.
+    //
+    // Proof: `renderLine` taken off this card's `CellInput`, so the card
+    // is the raw string it was before `markdown-work-item-names`. Watched
+    // failing, 2026-08-29, on `Error: the card for 010 draws no rendered name`.
+    // That proof is the name's. The notes half (two `em`s) was rewritten for
+    // F-039 and its watched failure is the browser case `draws a card's notes
+    // as inline markdown, as the table draws a name (F-039)` in
+    // `e2e/mobile.spec.ts`, red on the raw `[design](…)` before the change.
+    const api = fakeApi();
+    widthIs(PHONE);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await addAWorkItem();
 
-      const box = screen.getByLabelText<HTMLTextAreaElement>('Name of 010');
-      // Focused, typed into and left — the sequence the rendered box is written
-      // from. A `fireEvent.change` on its own is a value nobody has finished
-      // typing, and the rendered reading deliberately does not follow a keystroke.
-      box.focus();
-      fireEvent.change(box, { target: { value: 'Ship *now*\nthe fuse box is *old*' } });
-      box.blur();
+    const box = screen.getByLabelText<HTMLTextAreaElement>('Name of 010');
+    // Focused, typed into and left — the sequence the rendered box is written
+    // from. A `fireEvent.change` on its own is a value nobody has finished
+    // typing, and the rendered reading deliberately does not follow a keystroke.
+    box.focus();
+    fireEvent.change(box, { target: { value: 'Ship *now*\nthe fuse box is *old*' } });
+    box.blur();
 
-      const rendered = box.parentElement?.querySelector('[data-cell-rendered]');
-      if (!(rendered instanceof HTMLElement)) {
-        throw new Error('the card for 010 draws no rendered name');
-      }
-      await waitFor(() => {
-        expect(rendered.querySelector('em')?.textContent).toBe('now');
-      });
-      // One `em`, from the name: the note's own asterisks are shown, not parsed.
-      expect(rendered.querySelectorAll('em')).toHaveLength(1);
-      expect(rendered.textContent).toBe('Ship now\nthe fuse box is *old*');
-      // And the box under it still holds what somebody typed.
-      expect(box.value).toBe('Ship *now*\nthe fuse box is *old*');
-    },
-  );
+    const rendered = box.parentElement?.querySelector('[data-cell-rendered]');
+    if (!(rendered instanceof HTMLElement)) {
+      throw new Error('the card for 010 draws no rendered name');
+    }
+    await waitFor(() => {
+      expect(rendered.querySelector('em')?.textContent).toBe('now');
+    });
+    // Two `em`s, one from the name and one from the note.
+    expect(rendered.querySelectorAll('em')).toHaveLength(2);
+    expect(rendered.textContent).toBe('Ship now\nthe fuse box is old');
+    // And the box under it still holds what somebody typed.
+    expect(box.value).toBe('Ship *now*\nthe fuse box is *old*');
+  });
 
   itDom('keeps a card’s notes on show at rest, capped at eight lines', async () => {
     // The card face is the one place a note is readable without editing it: a

@@ -1546,6 +1546,54 @@
   [data-refs-card-line]:hover {
     background: var(--accent);
   }
+
+  /*
+   * A card's buttons take the card's paper, as every button outside the grid
+   * takes the page's (the base layer's `background-color: transparent`).
+   *
+   * The cards carry `data-grid` so `editable-grid.ts` can find them, and that
+   * attribute is exactly where the base reset stops — so every raw `<button>`
+   * on a card kept the user agent's `ButtonFace`: a light grey box around each
+   * field in the light palette and `rgb(107, 107, 107)` in the dark one, under
+   * the priority chip's own tint (F-008 of the 2026-10-13 phone review). A
+   * button that names its own `bg-*` utility still wins, the utilities layer
+   * being last.
+   *
+   * The border goes with it, for the same reason: a button with no `border`
+   * utility kept the user agent's 2px outset frame (the priority chip sat in a
+   * black box once its grey was gone), and one with the utility drew it in
+   * `currentColor`. Width 0 here and `--border` for the colour, so the
+   * `border` utility a control asks for still draws 1px — in the palette's
+   * own line colour.
+   *
+   * Proof: this rule deleted, `reads every priority band chip on a card at
+   * 4.5:1, in both palettes (F-008)` in `e2e/mobile.spec.ts` failed on `card
+   * buttons painted a colour no token names, light` with 22 buttons listed.
+   */
+  [data-plan-cards] button {
+    background-color: transparent;
+    border-width: 0;
+    border-style: solid;
+    border-color: var(--border);
+  }
+
+  /*
+   * A picker's search box outside the grid — the phone sheets' and the
+   * Directory's `Add a team…` — on the app's input tokens, as `<Input>` (Find)
+   * is. `CreatablePicker` styles nothing but its font, so outside the grid the
+   * box was the platform's field: a grey block on a dark sheet. Inside the grid
+   * the cell's own rules draw it.
+   *
+   * Proof: this rule deleted, `opens the team sheet titled by its field, chips
+   * and search at the top (F-049)` failed on `the dark search box is not the
+   * sheet's paper`.
+   */
+  input[role='combobox']:not([data-grid] *) {
+    background-color: var(--background);
+    border: 1px solid var(--input);
+    border-radius: var(--radius-md);
+    padding-inline: 8px;
+  }
 }
 
 /*
@@ -1786,4 +1834,97 @@
   .typed-dependency-card-entry button {
     min-height: 44px;
   }
+}
+
+/*
+ * The `Plan actions` sheet's rows (`PlanSheetGroup`): every control a
+ * full-width, left-aligned, 44px row with its words in one type size, whatever
+ * size the desktop bar gives the same element (F-045, 2026-10-13).
+ *
+ * **Unlayered**, for the 44px floor's reason above: the controls are the
+ * desktop bar's own elements and carry its utilities — `size="square"`'s
+ * `size-8`, the Export summary's `w-16 h-8 text-xs`, Find's `w-32` — and a
+ * utility beats anything in a layer. These selectors only exist on the sheet,
+ * so the desktop bar keeps its density untouched.
+ *
+ * Disclosure panels open **in the list** rather than over it: an `absolute`
+ * panel on a full-width row covered the rows below it, which on a phone are
+ * the controls a reader came for next.
+ *
+ * Proof: this block deleted, `lists the Plan actions as labelled full-width
+ * rows grouped by purpose (F-045)` in `e2e/mobile.spec.ts` failed on
+ * `Collapse all is not full width … Expected: <= 1, Received: 283`.
+ */
+[data-sheet-rows] > *,
+[data-sheet-rows] > span > button,
+[data-sheet-rows] > details > summary {
+  width: 100%;
+  margin-left: 0;
+}
+
+[data-sheet-rows] > button,
+[data-sheet-rows] > span > button,
+[data-sheet-rows] > details > summary {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  height: auto;
+  min-height: 44px;
+  padding-inline: 12px;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  text-align: left;
+}
+
+[data-sheet-rows] > input {
+  height: auto;
+  min-height: 44px;
+  font-size: 1rem;
+}
+
+[data-sheet-rows] > label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 44px;
+  font-size: 0.875rem;
+}
+
+[data-sheet-rows] > label > :is(input, select) {
+  flex: 0 1 60%;
+  min-width: 0;
+  height: auto;
+  min-height: 44px;
+}
+
+[data-sheet-rows] > details > :not(summary) {
+  position: static;
+  width: auto;
+  margin-top: 4px;
+  box-shadow: none;
+}
+
+/*
+ * A `flex` summary loses the user agent's disclosure triangle in Chromium, and
+ * a row that opens in place should still say that it does — so the sheet draws
+ * its own at the row's far end, turned while the row is open.
+ */
+[data-sheet-rows] > details > summary {
+  list-style: none;
+}
+
+[data-sheet-rows] > details > summary::-webkit-details-marker {
+  display: none;
+}
+
+[data-sheet-rows] > details > summary::after {
+  content: '▸';
+  margin-left: auto;
+  transition: transform 150ms;
+}
+
+[data-sheet-rows] > details[open] > summary::after {
+  transform: rotate(90deg);
 }
