@@ -5790,6 +5790,41 @@ export class WorkItemService {
       case 'clear_progress':
         await this.opts.progress.remove(command.workItemId, command.stepId, stamp);
         return { ok: true, detail: null };
+      case 'replace_blockage': {
+        const rows = await this.opts.workItems.listByProject(projectId);
+        if (
+          !rows.some(({ id }) => id === command.workItemId) ||
+          rows.some(({ parentId }) => parentId === command.workItemId)
+        ) {
+          return { ok: false, detail: 'that work item is no longer a leaf in this project.' };
+        }
+        if (!(await this.holdsStep(projectId, command.stepId))) {
+          return { ok: false, detail: 'that step is no longer in this project.' };
+        }
+        const current =
+          (await this.opts.blockages.listByWorkItems(projectId, [command.workItemId])).find(
+            ({ workItemId, stepId }) =>
+              workItemId === command.workItemId && stepId === command.stepId,
+          )?.blockedAt ?? null;
+        if (current !== command.expectedBlockedAt) {
+          return { ok: false, detail: 'that step blockage changed since this command.' };
+        }
+        if (command.replacementBlockedAt === null) {
+          await this.opts.blockages.remove(command.workItemId, command.stepId, stamp);
+          return { ok: true, detail: null };
+        }
+        const written = await this.opts.blockages.set(
+          {
+            workItemId: command.workItemId,
+            stepId: command.stepId,
+            blockedAt: command.replacementBlockedAt,
+          },
+          stamp,
+        );
+        return written === 'written'
+          ? { ok: true, detail: null }
+          : { ok: false, detail: 'that step is no longer in this project.' };
+      }
       case 'assign':
         if (command.personId !== null && !(await this.holdsStep(projectId, command.stepId))) {
           return { ok: false, detail: 'that step is no longer in this project.' };

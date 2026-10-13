@@ -14,12 +14,14 @@ import {
   readinessKindsCommand,
   relationshipTypesCommand,
   stepBlockageKindsCommand,
+  stepBlockageReplayKindsCommand,
   storedAttemptOutcomesCommand,
   storedCapacityModesCommand,
   storedEstimateUnitsCommand,
   storedHoldsCommand,
   storedReadinessesCommand,
   storedRelationshipTypesCommand,
+  storedStepBlockageReplayKindsCommand,
   storedStepBlockagesCommand,
 } from './lib/docker';
 import { drain } from './lib/drain';
@@ -71,8 +73,13 @@ function withCapturedMigrationIo(
     supported: '["blocked"]',
     stored: () => '[]',
   },
+  replay: { supported: string; stored: (read: number) => string } = {
+    supported: '["replace_blockage"]',
+    stored: () => '[]',
+  },
 ): SwapExecutionIo {
   let blockageReads = 0;
+  let replayReads = 0;
   const captures = new Map<string, string>();
   return {
     ...io,
@@ -81,6 +88,12 @@ function withCapturedMigrationIo(
         return blockages.supported;
       if (JSON.stringify(args) === JSON.stringify(storedStepBlockagesCommand('be-01-green')))
         return blockages.stored(++blockageReads);
+      if (JSON.stringify(args) === JSON.stringify(stepBlockageReplayKindsCommand('be-01-green')))
+        return replay.supported;
+      if (
+        JSON.stringify(args) === JSON.stringify(storedStepBlockageReplayKindsCommand('be-01-green'))
+      )
+        return replay.stored(++replayReads);
       if (args[0] === 'exec' && args[2] === 'printenv' && args[3] === 'DB_PATH') {
         return '/data/wbs.db\n';
       }
@@ -975,6 +988,10 @@ describe('execute, stored vocabulary rollback guard', () => {
       stored: () => '[]',
     },
     afterStop = false,
+    replay: { supported: string; stored: (read: number) => string } = {
+      supported: '["replace_blockage"]',
+      stored: () => '[]',
+    },
   ) {
     const ran: string[][] = [];
     const phases: string[] = [];
@@ -1048,7 +1065,7 @@ describe('execute, stored vocabulary rollback guard', () => {
         },
         'registry/be-01@sha256:abc',
         'deadbeef',
-        withCapturedMigrationIo(io, blockages),
+        withCapturedMigrationIo(io, blockages, replay),
       );
     } catch (error) {
       caught = error;
@@ -1095,6 +1112,27 @@ describe('execute, stored vocabulary rollback guard', () => {
     );
     expect(attempt.caught).toBeUndefined();
     expect(reads).toBe(1);
+  });
+
+  it('refuses an older image over blockage replay history even when the fact table is empty', async () => {
+    const attempt = await runGuard(
+      '["FS"]',
+      '[]',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { supported: '[]', stored: () => '[]' },
+      false,
+      { supported: '[]', stored: () => '[{"kind":"replace_blockage","count":2}]' },
+    );
+    // Proof: removing the journal vocabulary let this empty-fact swap reach migration.
+    expect(attempt.caught).toHaveProperty(
+      'message',
+      expect.stringMatching(/replace_blockage \(2\)/),
+    );
+    expect(attempt.ran.some((args) => args.includes('src/migrate-cli.ts'))).toBe(false);
   });
 
   it('refuses a step blockage written after the first check once blue stops', async () => {
