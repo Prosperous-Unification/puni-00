@@ -2798,3 +2798,68 @@ were restored. Adjacent `Proof:` comments now name the injected faults and obser
 After restoration, the owning facts suite passed 14/14 tests with 71 assertions. Uncached
 typecheck, focused ESLint, changed-file Prettier, `git diff --check` and strict OpenSpec
 validation passed. Normal Lefthook hooks run on the repair commit.
+
+## 4.1b.6b.1 committed Conformance membership — 2026-10-14
+
+Worker source is isolated `/tmp/puni-conformance-facts-sol`, based on exact draft #414 commit
+`ba9b90e9b8221aacee6759cee7fb38767524b34d`. This increment implements committed Conformance
+membership only. The external version-1 authority pins the same manifest path and digest as
+scope; only `test:conformance` is parsed. Exact command-selected regular Git blobs form the
+complete source set, including files outside the Performance scope; only the sorted fixture
+intersection appears in the committed membership's `files`. Shared fixtures appear once in
+source tuples, and an empty committed intersection remains explicit. Manual stays reviewed-empty,
+committed Architecture still refuses, authentication stays absent and certification stays false.
+
+The production allocator command
+`bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts scenario allocate . openspec/changes/test-axes/specs/test-axes/spec.md`
+issued TEST-AXES-081 through TEST-AXES-083. Before applying its proposed spec and journal,
+the entire old journal event sequence was checked equal to the new journal prefix. Proposal:
+`/tmp/puni-conformance-allocation.json`. No IDs were assigned by hand.
+
+Initial production CLI tests failed against the unsupported adapter: 13 passed and seven
+failed with the old unsupported-Conformance refusal or changed named pin expectation, recorded
+in `/tmp/puni-conformance-red.log`. After implementation the facts suite passed 20/20 with
+201 assertions. Adding the SQLite acceptance test first produced a separate RED at its
+success assertion, `/tmp/puni-conformance-sqlite-red.log`; the exact reviewed tuple amendment
+then passed. Tests load the actual store-memory and store-sqlite `test:conformance` manifests,
+copy their exact target envelopes into committed fixture candidates, and inspect them through
+the production CLI. Candidate config/test sentinels throw if executed. Working replacements
+cannot repair selected sources. Packaged accepted-path coverage builds the package to scratch
+and invokes `dist/bin.mjs inspect-level-facts` with a committed overlap candidate.
+
+Architecture review found SQLite's real third input
+`{workspaceRoot}/apps/wbs/be-01/drizzle`, used by its migration fixtures. The exact three-entry
+tuple is allowed only at project root/cwd `libs/wbs/adapters/store-sqlite`; the generic exact
+two-entry tuple remains allowed. Inputs are dependency metadata and add no test sources.
+Wrong paths, order, extra entries, object inputs and the third tuple at other roots refuse.
+No task dependency, configuration or environment override is accepted.
+
+R5 watched faults each caused a named production assertion failure, then source was restored:
+removing pin path/digest comparisons; widening executor/cache/inputs/forwarding schemas;
+removing target/options closed-key constraints, required target shape, cwd comparison or
+SQLite root restriction; disabling command grammar, removing its true end constraint or
+allowing duplicate selectors; omitting complete selected-source reads; removing overlap
+deduplication, returning the entire selection instead of its intersection, or removing
+membership sorting. Logs are `/tmp/puni-conformance-r5-{pin-path,pin-digest,target-executor,target-cache,target-inputs,target-forward,target-options-keys,target-keys,target-cwd,target-required,command,command-end,sqlite-root,duplicates,complete-sources,source-dedup,intersection,order}.log`.
+The dedicated `/tmp/puni-conformance-r5-newline.log` watched removal of the true end constraint
+make a newline-suffixed command exit zero, failing its required-refusal assertion. Selected
+outside-intersection missing and symlinked files and deletion of their committed blob each
+refused despite working repairs. Existing regular-blob and selected-reader guards are reused.
+
+An initial redundant match-length guard was removed after its guard-off fault escaped: Bun
+1.4.2's `new RegExp('^a$').exec('a\\n')` returned null. The final grammar uses a true end
+constraint with the separate watched newline proof above. This escaped preliminary mutation
+is not counted as a proof. Mutation logs were inspected for assertion failures rather than
+compiler or parse failures.
+
+Focused final validation: source facts plus installed-dispatch suites passed 26/26 with
+269 assertions (`/tmp/puni-conformance-final-tests.log`); uncached
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_SOCKET_DIR=/tmp/puni-conformance-nx bunx nx run twilight-burokrat:typecheck --skip-nx-cache`
+exited zero, as did changed-source ESLint, changed-file Prettier,
+`openspec@1.12.0 validate test-axes --strict --json` (one valid change, zero issues),
+scenario provenance validation and `git diff --check`. Initial lint/typecheck reported test-helper typing/import issues, fixed
+before the final runs; one scenario validation invocation omitted the required spec operand
+and printed usage, then the full invocation returned `{"unidentified":[]}`. The coordinator owns the
+canonical host gate, CI and publishing; none is claimed by this worker. Parent 4.1b.6,
+Architecture extraction and Tasks 2.1/2.2/4.1 remain open. No classification, source sync,
+archive, authentication or coverage credit is produced.

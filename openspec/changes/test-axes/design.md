@@ -120,7 +120,17 @@ refuses. `conformance` and `architecture` are either explicit reviewed-empty for
 committed sources. Conformance names the pinned manifest's `test:conformance` target; the only
 supported command form is exact `bun test <one-or-more canonical project-relative .test.ts paths>
 --timeout=<positive decimal integer>` in an `nx:run-commands` envelope with exact project cwd,
-`forwardAllArgs:false`, no dependencies, config or environment overrides. Globs, directories,
+`forwardAllArgs:false`, no task dependencies (`dependsOn`), config or environment overrides.
+The target and options have closed keys. The only optional target keys are `cache:false` and
+`inputs:["default","^production"]`. The exact third input
+`"{workspaceRoot}/apps/wbs/be-01/drizzle"` is additionally permitted, in that order, only when
+project root and cwd are `libs/wbs/adapters/store-sqlite`: the SQLite test imports its migration
+fixtures. These input tuples are dependency metadata, not test selectors; no drizzle files are
+read or added to source membership. Command-selected tests alone form the complete Conformance
+source set. Canonical selectors use ASCII letters, digits, underscore, period and hyphen,
+with every segment beginning with a letter, digit or underscore, and end in `.test.ts`.
+The timeout is a nonzero decimal integer with no leading zeros. A true end constraint rejects
+all trailing input, including newlines. Globs, directories,
 shell indirection, filters, extra flags, duplicate and outside paths refuse. A present unsupported
 target cannot be treated as reviewed empty; a reviewed-empty declaration contradicting a
 present target refuses. Architecture names a committed policy under its project root. Extract
@@ -142,7 +152,12 @@ coverage credit. The existing Performance-source v1 output remains unresolved.
 
 Implement 4.1b.6 in coherent review slices: (a) strict authority, exact candidate and
 Performance scope, Manual reviewed-empty, with Conformance/Architecture reviewed-empty only;
-(b) committed Conformance grammar and shared Architecture policy extraction. The task stays
+(b.1) committed Conformance grammar and complete source membership;
+(b.2) shared Architecture policy extraction. The Conformance authority path and digest must
+equal the scope project manifest pin. Its emitted committed state adds sorted workspace-relative
+`files` intersecting Performance fixtures, while the source tuples retain every command-selected
+regular Git blob even outside that intersection. Performance overlap and an empty committed
+intersection remain valid facts. The task stays
 open until both are complete. A later 4.1b.7 can capture one Performance publication once,
 reconcile collection against these facts, apply precedence before target isolation and bind an
 immutable context. It must refuse a higher-precedence fixture collected by Performance and

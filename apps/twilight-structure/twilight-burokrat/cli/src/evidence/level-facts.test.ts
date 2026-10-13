@@ -1,11 +1,21 @@
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
+import { decodePerformanceCases } from '@shared/test-evidence';
 import { afterEach, expect, test } from 'bun:test';
 
 import { readCandidate } from '../inventory/read-candidate';
 import { invokeCli } from '../invoke-cli';
+import { buildPackage } from '../packaging/build';
 import { hashBytes, hashCanonical } from './content-manifest';
 import type { inspectLevelFacts } from './level-facts';
 
@@ -14,7 +24,7 @@ const projectRoot = 'apps/example';
 const manifestPath = `${projectRoot}/project.json`;
 const declarationPath = `${projectRoot}/playwright.performance.cases.json`;
 const configPath = `${projectRoot}/playwright.performance.config.ts`;
-const fixturePath = `${projectRoot}/e2e-performance/cells.perf.spec.ts`;
+const fixturePath = `${projectRoot}/e2e-performance/cells.perf.test.ts`;
 
 function git(repository: string, ...args: string[]): string {
   const invocation = Bun.spawnSync(['git', '-C', repository, ...args], {
@@ -32,7 +42,13 @@ function file(repository: string, path: string, source: string | Uint8Array): vo
 function fixture(
   conformanceTarget = false,
   fixtureKind: 'regular' | 'symlink' | 'missing' = 'regular',
+  fixtureRoot = projectRoot,
 ) {
+  const projectRoot = fixtureRoot;
+  const manifestPath = `${projectRoot}/project.json`;
+  const declarationPath = `${projectRoot}/playwright.performance.cases.json`;
+  const configPath = `${projectRoot}/playwright.performance.config.ts`;
+  const fixturePath = `${projectRoot}/e2e-performance/cells.perf.test.ts`;
   const base = mkdtempSync(join(tmpdir(), 'level-facts-'));
   scratch.push(base);
   const repository = join(base, 'candidate');
@@ -94,7 +110,7 @@ function fixture(
     entries: selected.entries,
     untracked: selected.untracked,
   });
-  const pin = (path: keyof typeof sources) => ({ path, digest: hashBytes(sources[path]) });
+  const pin = (path: string) => ({ path, digest: hashBytes(sources[path]) });
   const authority = {
     schemaVersion: 1,
     revision,
@@ -275,7 +291,7 @@ test('[TEST-AXES-078] source and scope mismatches refuse before facts', async ()
     }),
   );
   invocation = await selected.inspect();
-  expect(invocation.stderr).toContain('committed Conformance source is unsupported');
+  expect(invocation.stderr).toContain('Conformance pin differs from project manifest');
 });
 
 test('[TEST-AXES-079] malformed committed manifest and declaration mismatch refuse', async () => {
@@ -425,4 +441,357 @@ test('[TEST-AXES-080] authority byte identity changes the digest without promoti
   expect(changed.observationDigest).not.toBe(original.observationDigest);
   expect(changed.certifies).toBe(false);
   expect(changed).not.toHaveProperty('coverage');
+});
+
+function conformanceTarget(
+  command = 'bun test e2e-performance/cells.perf.test.ts src/other.test.ts --timeout=1000',
+) {
+  return {
+    executor: 'nx:run-commands',
+    cache: false,
+    inputs: ['default', '^production'],
+    options: { command, cwd: projectRoot, forwardAllArgs: false },
+  };
+}
+function committedConformance(target: unknown = conformanceTarget(), projectRoot = 'apps/example') {
+  const manifestPath = `${projectRoot}/project.json`;
+  const selected = fixture(false, 'regular', projectRoot);
+  file(
+    selected.repository,
+    `${projectRoot}/src/other.test.ts`,
+    'throw new Error("candidate executed");\n',
+  );
+  const revision = recommit(
+    selected,
+    manifestPath,
+    JSON.stringify({
+      targets: { 'test:conformance': target, 'test:conformance:level': { executor: 'ignored' } },
+    }),
+  );
+  const committed = { kind: 'committed', ...selected.authority.scope.projectManifest };
+  const writeCommitted = (pin = committed) => {
+    writeFileSync(
+      selected.authorityPath,
+      JSON.stringify({
+        ...selected.authority,
+        conformance: pin,
+      }),
+    );
+  };
+  writeCommitted();
+  return { ...selected, writeCommitted, inspectCommitted: () => selected.inspect(revision) };
+}
+
+test('[TEST-AXES-081] committed Conformance binds complete selected sources and preserves Performance overlap', async () => {
+  const selected = committedConformance();
+  file(selected.repository, `${projectRoot}/src/other.test.ts`, 'working replacement');
+  const invocation = await selected.inspectCommitted();
+  expect(invocation.exitCode).toBe(0);
+  expect(invocation.stderr).toBe('');
+  const observation = JSON.parse(invocation.stdout) as ReturnType<typeof inspectLevelFacts>;
+  expect(observation.memberships.conformance).toEqual({
+    kind: 'committed',
+    ...selected.authority.scope.projectManifest,
+    files: [fixturePath],
+  });
+  expect(observation.memberships.performance).toEqual([fixturePath]);
+  expect(observation.sources.map((source) => source.path)).toEqual(
+    [
+      fixturePath,
+      declarationPath,
+      configPath,
+      manifestPath,
+      `${projectRoot}/src/other.test.ts`,
+    ].sort(),
+  );
+  expect(
+    observation.sources.find((source) => source.path.endsWith('other.test.ts'))?.contentDigest,
+  ).toBe(hashBytes('throw new Error("candidate executed");\n'));
+  expect(observation.authentication).toEqual({ kind: 'absent' });
+  expect(observation.certifies).toBe(false);
+  expect(observation).not.toHaveProperty('coverage');
+  const { observationDigest, ...payload } = observation;
+  expect(observationDigest).toBe(hashCanonical(payload));
+  const reordered = committedConformance(
+    conformanceTarget(
+      'bun test src/other.test.ts e2e-performance/cells.perf.test.ts --timeout=1000',
+    ),
+  );
+  const second = JSON.parse((await reordered.inspectCommitted()).stdout) as ReturnType<
+    typeof inspectLevelFacts
+  >;
+  expect(second.memberships.conformance).toEqual({
+    kind: 'committed',
+    ...reordered.authority.scope.projectManifest,
+    files: [fixturePath],
+  });
+  expect(second.sources.map((source) => source.path)).toEqual(
+    observation.sources.map((source) => source.path),
+  );
+});
+
+test('[TEST-AXES-081] committed Conformance empty intersection is explicit and optional metadata can be absent', async () => {
+  const { cache, inputs, ...target } = conformanceTarget('bun test src/other.test.ts --timeout=1');
+  const selected = committedConformance(target);
+  const invocation = await selected.inspectCommitted();
+  expect(invocation.exitCode).toBe(0);
+  const observation = JSON.parse(invocation.stdout) as ReturnType<typeof inspectLevelFacts>;
+  expect(observation.memberships.conformance).toEqual({
+    kind: 'committed',
+    ...selected.authority.scope.projectManifest,
+    files: [],
+  });
+  expect(observation.sources.some((source) => source.path.endsWith('other.test.ts'))).toBe(true);
+});
+
+test('[TEST-AXES-082] committed Conformance pin must equal the scope manifest', async () => {
+  const selected = committedConformance();
+  for (const pin of [
+    {
+      kind: 'committed',
+      path: configPath,
+      digest: selected.authority.scope.projectManifest.digest,
+    },
+    { kind: 'committed', path: manifestPath, digest: '0'.repeat(64) },
+  ]) {
+    selected.writeCommitted(pin);
+    const invocation = await selected.inspectCommitted();
+    expect(invocation.exitCode).toBe(1);
+    expect(invocation.stdout).toBe('');
+    expect(invocation.stderr).toContain('Conformance pin differs from project manifest');
+  }
+});
+
+test('[TEST-AXES-082] committed Conformance requires the exact supported target shape', async () => {
+  const target = conformanceTarget();
+  for (const malformed of [
+    undefined,
+    [],
+    null,
+    { ...target, executor: 'foreign:executor' },
+    { ...target, cache: true },
+    { ...target, inputs: ['default'] },
+    { ...target, inputs: ['default', '^production', 'extra'] },
+    { ...target, configurations: {} },
+    { ...target, dependsOn: ['test'] },
+    { ...target, options: { ...target.options, cwd: '.' } },
+    { ...target, options: { ...target.options, forwardAllArgs: true } },
+    { ...target, options: { ...target.options, env: {} } },
+    { ...target, options: { cwd: projectRoot, forwardAllArgs: false } },
+  ]) {
+    const selected = committedConformance(malformed);
+    // Explicit undefined removes the key rather than invoking the helper default.
+    if (malformed === undefined) {
+      const revision = recommit(
+        selected,
+        manifestPath,
+        '{"targets":{"test:conformance:level":{}}}',
+      );
+      selected.writeCommitted({ kind: 'committed', ...selected.authority.scope.projectManifest });
+      const invocation = await selected.inspect(revision);
+      expect(invocation.stderr).toContain('Conformance target is unsupported');
+      continue;
+    }
+    const invocation = await selected.inspectCommitted();
+    expect(invocation.exitCode).toBe(1);
+    expect(invocation.stdout).toBe('');
+    expect(invocation.stderr).toContain('Conformance target is unsupported');
+  }
+});
+
+test('[TEST-AXES-083] Conformance command rejects unsafe grammar and duplicate selectors', async () => {
+  for (const command of [
+    'bun test --timeout=1000',
+    'bun test src/other.test.ts --timeout=0',
+    'bun test src/other.test.ts --timeout=01',
+    'bun test src/other.test.ts --timeout=1.5',
+    'bun test src/other.test.ts --timeout=+1',
+    'bun test src/other.test.ts --timeout=1 extra',
+    'bun test src/other.test.ts --coverage --timeout=1000',
+    'bun test src/other.test.ts src/other.test.ts --timeout=1000',
+    'bun test ../other.test.ts --timeout=1000',
+    'bun test ./src/other.test.ts --timeout=1000',
+    'bun test /src/other.test.ts --timeout=1000',
+    'bun test src//other.test.ts --timeout=1000',
+    'bun test src/../other.test.ts --timeout=1000',
+    'bun test src/*.test.ts --timeout=1000',
+    'bun test "src/other.test.ts" --timeout=1000',
+    'bun test src/other.test.ts;echo --timeout=1000',
+    'bun test src/$(whoami).test.ts --timeout=1000',
+    'bun test -other.test.ts --timeout=1000',
+    'bun test src/other.spec.ts --timeout=1000',
+    'bun  test src/other.test.ts --timeout=1000',
+    'bun test src/other.test.ts\t--timeout=1000',
+    'bun test src/other.test.ts --timeout=1000\n',
+  ]) {
+    const selected = committedConformance(conformanceTarget(command));
+    const invocation = await selected.inspectCommitted();
+    expect(invocation.exitCode).toBe(1);
+    expect(invocation.stdout).toBe('');
+    expect(invocation.stderr).toContain('Conformance command is unsupported');
+  }
+});
+
+test('[TEST-AXES-083] Conformance files outside the intersection must be selected regular readable blobs', async () => {
+  for (const kind of ['missing', 'symlink', 'unreadable'] as const) {
+    const selected = committedConformance();
+    const path = `${projectRoot}/src/other.test.ts`;
+    let revision = selected.authority.revision;
+    if (kind === 'unreadable') {
+      const blob = git(selected.repository, 'rev-parse', `${revision}:${path}`);
+      unlinkSync(join(selected.repository, '.git/objects', blob.slice(0, 2), blob.slice(2)));
+    } else {
+      unlinkSync(join(selected.repository, path));
+      if (kind === 'symlink')
+        symlinkSync('../playwright.performance.config.ts', join(selected.repository, path));
+      revision = recommit(selected, configPath, 'changed sentinel');
+      selected.writeCommitted({ kind: 'committed', ...selected.authority.scope.projectManifest });
+    }
+    if (kind === 'symlink') unlinkSync(join(selected.repository, path));
+    file(selected.repository, path, 'working repair');
+    const invocation = await selected.inspect(revision);
+    expect(invocation.exitCode).toBe(1);
+    expect(invocation.stdout).toBe('');
+    expect(invocation.stderr).toContain(
+      kind === 'unreadable' ? 'cannot read selected blob' : 'not a selected regular blob',
+    );
+  }
+});
+
+test('[TEST-AXES-081] installed executable accepts committed Conformance facts without candidate execution', async () => {
+  const selected = committedConformance();
+  const packageRoot = mkdtempSync(join(tmpdir(), 'level-facts-package-'));
+  scratch.push(packageRoot);
+  await buildPackage(packageRoot);
+  const invocation = Bun.spawnSync(
+    [
+      process.execPath,
+      join(packageRoot, 'dist/bin.mjs'),
+      'inspect-level-facts',
+      selected.repository,
+      selected.authority.revision,
+      selected.authorityPath,
+    ],
+    { stdout: 'pipe', stderr: 'pipe' },
+  );
+  expect(invocation.exitCode).toBe(0);
+  expect(invocation.stderr.toString()).toBe('');
+  const observation = JSON.parse(invocation.stdout.toString()) as ReturnType<
+    typeof inspectLevelFacts
+  >;
+  expect(observation.memberships.conformance).toEqual({
+    kind: 'committed',
+    ...selected.authority.scope.projectManifest,
+    files: [fixturePath],
+  });
+  expect(observation.certifies).toBe(false);
+}, 120_000);
+
+test('[TEST-AXES-081] multiple committed overlaps have canonical order and unique complete source tuples', async () => {
+  const alphaPath = `${projectRoot}/e2e-performance/alpha.perf.test.ts`;
+  const selected = committedConformance(
+    conformanceTarget(
+      'bun test e2e-performance/cells.perf.test.ts src/other.test.ts e2e-performance/alpha.perf.test.ts --timeout=1000',
+    ),
+  );
+  file(selected.repository, alphaPath, 'throw new Error("alpha candidate executed");');
+  const declaration = decodePerformanceCases(
+    JSON.parse(readFileSync(join(selected.repository, declarationPath), 'utf8')) as unknown,
+  );
+  declaration.cases.push({
+    ...declaration.cases[0],
+    caseId: 'alpha',
+    fixture: alphaPath,
+    titlePath: ['alpha'],
+  });
+  selected.authority.scope.fixtures = [fixturePath, alphaPath];
+  const revision = recommit(selected, declarationPath, JSON.stringify(declaration));
+  selected.writeCommitted();
+  const invocation = await selected.inspect(revision);
+  expect(invocation.exitCode).toBe(0);
+  const observation = JSON.parse(invocation.stdout) as ReturnType<typeof inspectLevelFacts>;
+  expect(observation.memberships.conformance).toEqual({
+    kind: 'committed',
+    ...selected.authority.scope.projectManifest,
+    files: [alphaPath, fixturePath],
+  });
+  expect(observation.memberships.performance).toEqual([alphaPath, fixturePath]);
+  const paths = observation.sources.map((source) => source.path);
+  expect(paths).toEqual([...new Set(paths)].sort());
+  expect(paths).toHaveLength(6);
+});
+
+const sqliteRoot = 'libs/wbs/adapters/store-sqlite';
+const sqliteInputs = ['default', '^production', '{workspaceRoot}/apps/wbs/be-01/drizzle'];
+
+test('[TEST-AXES-081] exact Memory and SQLite target envelopes preserve command-only membership', async () => {
+  for (const root of ['libs/wbs/adapters/store-memory', sqliteRoot]) {
+    const relative =
+      root === sqliteRoot
+        ? 'src/testing/source-conformance.db.test.ts'
+        : 'src/testing/source-conformance.test.ts';
+    const timeout = root === sqliteRoot ? 30000 : 10000;
+    const manifest = JSON.parse(
+      readFileSync(new URL(`../../../../../../${root}/project.json`, import.meta.url), 'utf8'),
+    ) as { targets: Record<string, unknown> };
+    const target = manifest.targets['test:conformance'];
+    expect(target).toEqual({
+      executor: 'nx:run-commands',
+      cache: false,
+      inputs: root === sqliteRoot ? sqliteInputs : ['default', '^production'],
+      options: {
+        command: `bun test ${relative} --timeout=${String(timeout)}`,
+        cwd: root,
+        forwardAllArgs: false,
+      },
+    });
+    const selected = committedConformance(target, root);
+    const path = `${root}/${relative}`;
+    const revision = recommit(selected, path, 'throw new Error("committed source executed");');
+    selected.writeCommitted();
+    const invocation = await selected.inspect(revision);
+    expect(invocation.exitCode).toBe(0);
+    const observation = JSON.parse(invocation.stdout) as ReturnType<typeof inspectLevelFacts>;
+    expect(observation.memberships.conformance).toEqual({
+      kind: 'committed',
+      ...selected.authority.scope.projectManifest,
+      files: [],
+    });
+    expect(observation.sources.map((source) => source.path)).toContain(path);
+    expect(observation.sources).toHaveLength(5);
+    expect(observation.sources.some((source) => source.path.includes('drizzle'))).toBe(false);
+  }
+});
+
+test('[TEST-AXES-082] SQLite dependency inputs require the exact tuple and exact SQLite project root', async () => {
+  for (const [root, inputs] of [
+    [projectRoot, sqliteInputs],
+    ['libs/wbs/adapters/store-memory', sqliteInputs],
+    [sqliteRoot, ['default', '^production', '{workspaceRoot}/apps/wbs/be-01/drizzle/']],
+    [sqliteRoot, ['default', '{workspaceRoot}/apps/wbs/be-01/drizzle', '^production']],
+    [sqliteRoot, [...sqliteInputs, 'extra']],
+    [sqliteRoot, ['default', '^production', { fileset: '{workspaceRoot}/apps/wbs/be-01/drizzle' }]],
+  ] as const) {
+    const target = conformanceTarget('bun test src/other.test.ts --timeout=1000');
+    const selected = committedConformance(
+      { ...target, inputs, options: { ...target.options, cwd: root } },
+      root,
+    );
+    const invocation = await selected.inspectCommitted();
+    expect(invocation.exitCode).toBe(1);
+    expect(invocation.stdout).toBe('');
+    expect(invocation.stderr).toContain('Conformance target is unsupported');
+  }
+});
+
+test('[TEST-AXES-083] Conformance true end constraint refuses trailing newlines and suffixes', async () => {
+  for (const suffix of ['\n', '\r\n', ' extra']) {
+    const selected = committedConformance(
+      conformanceTarget(`bun test src/other.test.ts --timeout=1000${suffix}`),
+    );
+    const invocation = await selected.inspectCommitted();
+    expect(invocation.exitCode).toBe(1);
+    expect(invocation.stdout).toBe('');
+    expect(invocation.stderr).toContain('Conformance command is unsupported');
+  }
 });

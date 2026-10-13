@@ -768,6 +768,24 @@
       "id": "TEST-AXES-080",
       "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
       "title": "Exact committed selection and fact identity resist substitution"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-081",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Complete committed Conformance membership preserves overlap"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-082",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Unsupported committed Conformance authority and target refuse"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-083",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Unsafe or incomplete Conformance selection refuses"
     }
   ]
 }

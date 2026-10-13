@@ -39,6 +39,17 @@ const Authority = type({
   architecture: Empty.or(Committed),
 }).onUndeclaredKey('reject');
 
+const ConformanceTarget = type({
+  executor: "'nx:run-commands'",
+  'cache?': 'false',
+  'inputs?': type(["'default'", "'^production'"]).or(
+    type(["'default'", "'^production'", "'{workspaceRoot}/apps/wbs/be-01/drizzle'"]),
+  ),
+  options: type({ command: 'string', cwd: 'string', forwardAllArgs: 'false' }).onUndeclaredKey(
+    'reject',
+  ),
+}).onUndeclaredKey('reject');
+
 function decodeJson(bytes: Uint8Array, subject: string): unknown {
   let source: string;
   try {
@@ -75,7 +86,8 @@ function sourceFromCandidate(repository: string, selected: CandidateSnapshot, pa
 }
 
 /**
- * Inspect one externally reviewed Performance fixture scope from exact committed Git objects.
+ * Inspect one externally reviewed Performance fixture scope and bounded Conformance selection.
+ * Candidate source bytes come only from exact committed Git objects.
  * This facts-only observation is unauthenticated and never classifies a test or awards coverage.
  */
 export function inspectLevelFacts(repository: string, revision: string, authorityPath: string) {
@@ -161,6 +173,60 @@ export function inspectLevelFacts(repository: string, revision: string, authorit
     Object.hasOwn(manifest.targets, 'test:conformance')
   )
     throw new Error('level facts Conformance reviewed-empty contradicts committed target');
+  const conformance = (() => {
+    if (authority.conformance.kind === 'reviewed-empty') return authority.conformance;
+    // Proof: removing either pin comparison made [TEST-AXES-082] emit facts for a foreign
+    // path or digest; both production CLI assertions failed.
+    if (
+      authority.conformance.path !== scope.projectManifest.path ||
+      authority.conformance.digest !== scope.projectManifest.digest
+    )
+      throw new Error('level facts Conformance pin differs from project manifest');
+    const target =
+      'test:conformance' in manifest.targets ? manifest.targets['test:conformance'] : undefined;
+    // Proof: [TEST-AXES-082] failed when executor/cache/inputs/forwarding schemas were widened,
+    // either closed-key rule or the required-shape check was removed, or cwd/root checks
+    // were disabled. Invalid envelopes emitted facts or lost the named target refusal.
+    if (
+      !ConformanceTarget.allows(target) ||
+      target.options.cwd !== scope.projectRoot ||
+      (target.inputs?.length === 3 && scope.projectRoot !== 'libs/wbs/adapters/store-sqlite')
+    )
+      throw new Error('level facts Conformance target is unsupported');
+    const pathPattern = '(?:[A-Za-z0-9_][A-Za-z0-9._-]*/)*[A-Za-z0-9_][A-Za-z0-9._-]*\\.test\\.ts';
+    const commandPattern = new RegExp(
+      `^bun test (${pathPattern}(?: ${pathPattern})*) --timeout=[1-9][0-9]*(?![\\s\\S])`,
+    );
+    const command = commandPattern.exec(target.options.command);
+    // Proof: disabling this guard lost [TEST-AXES-083]'s named command refusal; removing
+    // the true end constraint let a trailing timeout suffix and a newline emit facts.
+    if (command === null) throw new Error('level facts Conformance command is unsupported');
+    const selectors = target.options.command.slice(
+      'bun test '.length,
+      target.options.command.lastIndexOf(' --timeout='),
+    );
+    // Proof: removing this sort reversed the two committed overlaps and failed [TEST-AXES-081].
+    const files = selectors
+      .split(' ')
+      .map((path) => `${scope.projectRoot}/${path}`)
+      .sort(compareCanonicalText);
+    // Proof: removing this comparison let duplicate selectors emit facts in [TEST-AXES-083].
+    if (new Set(files).size !== files.length)
+      throw new Error('level facts Conformance command is unsupported');
+    // Complete selection is validated before intersection; shared Performance sources appear once.
+    // Proof: omitting selected-source reads made [TEST-AXES-083]'s outside-intersection
+    // missing/symlink/unreadable refusal fail; removing deduplication duplicated the shared
+    // source tuples and failed [TEST-AXES-081].
+    for (const path of files) {
+      if (!sources.some((entry) => entry.path === path))
+        sources.push(sourceFromCandidate(root, selected, path));
+    }
+    return {
+      ...authority.conformance,
+      // Proof: returning all selected files failed [TEST-AXES-081]'s exact intersection.
+      files: files.filter((path) => scope.fixtures.includes(path)),
+    };
+  })();
   const declaration = decodePerformanceCases(
     decodeJson(source(scope.declaration.path).bytes, 'level facts declaration'),
   );
@@ -175,11 +241,6 @@ export function inspectLevelFacts(repository: string, revision: string, authorit
   // Proof: disabling this guard let [TEST-AXES-078]'s omitted authority fixture pass.
   if (JSON.stringify(declaredFixtures) !== JSON.stringify(reviewedFixtures))
     throw new Error('level facts Performance fixtures differ from complete declaration');
-  // A committed Conformance/Architecture adapter is the separate 4.1b.6b slice. It cannot
-  // silently turn an unparsed source into an empty membership set.
-  // Proof: disabling this guard made [TEST-AXES-078] accept unparsed committed Conformance.
-  if (authority.conformance.kind !== 'reviewed-empty')
-    throw new Error('level facts committed Conformance source is unsupported in this slice');
   // Proof: disabling this guard made [TEST-AXES-078] accept unparsed committed Architecture.
   if (authority.architecture.kind !== 'reviewed-empty')
     throw new Error('level facts committed Architecture source is unsupported in this slice');
@@ -191,7 +252,7 @@ export function inspectLevelFacts(repository: string, revision: string, authorit
     scope: { ...scope, fixtures: reviewedFixtures },
     memberships: {
       manual: authority.manual,
-      conformance: authority.conformance,
+      conformance,
       architecture: authority.architecture,
       performance: reviewedFixtures,
     },
