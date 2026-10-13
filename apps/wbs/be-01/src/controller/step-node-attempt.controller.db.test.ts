@@ -1,6 +1,9 @@
-import { formatStepNodeId } from '@wbs/domain';
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import type { ScheduleRead } from '@wbs/core';
+import { formatStepNodeId, serializeSchedule } from '@wbs/domain';
+import { canonicalScheduleInput } from '@wbs/domain/canonical-schedule-input';
+import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 
+import { fastScheduler } from '../service/optimizer-wiring';
 import { type Answer, OrganizationHarness } from '../testing/organization-harness';
 
 /**
@@ -670,6 +673,264 @@ describe('node readings on the work-item read', () => {
     );
     expect(every.has('skipped')).toBe(false);
   });
+});
+
+describe('persisted step blockage on the live work-item read', () => {
+  for (const mode of ['isolated', 'shared'] as const) {
+    it(`keeps the actual Fast request, full result and displayed schedule byte-identical (${mode})`, async () => {
+      if (mode === 'shared') {
+        h.close();
+        h = OrganizationHarness.openComposedWith({
+          supportedCapacityModes: ['isolated', 'shared'],
+        });
+        await populate();
+        h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
+      }
+      const created = await batch([
+        { kind: 'createWorkItem', parentId: null, afterId: strip, name: 'Successor' },
+      ]);
+      if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
+      const successor = (created.body as { results?: { id?: string }[] }).results?.[0]?.id;
+      if (successor === undefined) throw new Error('missing successor');
+      const estimated = await batch([
+        {
+          kind: 'setEstimate',
+          workItemId: strip,
+          stepId: dev,
+          days: { optimistic: 1, realistic: 2, pessimistic: 3 },
+        },
+        {
+          kind: 'setEstimate',
+          workItemId: successor,
+          stepId: dev,
+          days: { optimistic: 1, realistic: 2, pessimistic: 3 },
+        },
+        {
+          kind: 'addTypedDependency',
+          predecessor: { scope: 'node', workItemId: strip, stepId: dev },
+          successor: { scope: 'node', workItemId: successor, stepId: dev },
+          type: 'FS',
+        },
+      ]);
+      expect(estimated.status).toBe(200);
+      const observed = spyOn(fastScheduler, 'read');
+      try {
+        const capture = async () => {
+          const beforeCalls = observed.mock.calls.length;
+          const answer = await h.call('ada', 'GET', `/api/projects/${project}/work-items`);
+          if (answer.status !== 200) throw new Error(`read refused: ${JSON.stringify(answer)}`);
+          const call = observed.mock.calls
+            .slice(beforeCalls)
+            .find(([ask]) => ask.projectId === project);
+          if (call === undefined) throw new Error('live Fast scheduler request was not captured');
+          const index = observed.mock.calls.indexOf(call);
+          // Bun spy metadata loses the scheduler overload's return type at this test boundary.
+          const returned = (await Promise.resolve(observed.mock.results[index]?.value)) as
+            ScheduleRead | undefined;
+          if (returned?.kind !== 'scheduled')
+            throw new Error('live Fast scheduler did not return a schedule');
+          const tree = answer.body as {
+            workItems: {
+              id: string;
+              schedule: unknown;
+              dates: unknown;
+              nodeReadings: Record<string, string>;
+            }[];
+            slices: unknown[];
+          };
+          return {
+            input: canonicalScheduleInput(call[0].input),
+            fast: JSON.stringify(serializeSchedule(returned.fast)),
+            displayed: JSON.stringify({
+              rows: tree.workItems.map(({ id, schedule, dates }) => ({ id, schedule, dates })),
+              slices: tree.slices,
+            }),
+            tree,
+          };
+        };
+        const baseline = await capture();
+        expect(baseline.tree.slices.length).toBeGreaterThan(1);
+        h.sqlite.run(
+          'INSERT INTO step_blockage (work_item_id, step_id, blocked_at) VALUES (?, ?, ?)',
+          [strip, dev, 123456],
+        );
+        const blocked = await capture();
+        expect(blocked.tree.workItems.find((row) => row.id === strip)?.nodeReadings[dev]).toBe(
+          'blocked',
+        );
+        expect(blocked.tree.workItems.find((row) => row.id === successor)?.nodeReadings[dev]).toBe(
+          'blocked_by_proxy',
+        );
+        h.sqlite.run('DELETE FROM step_blockage WHERE work_item_id = ? AND step_id = ?', [
+          strip,
+          dev,
+        ]);
+        const cleared = await capture();
+        // Proof: removing the isolated/shared fact read left the blocked reading `unknown`;
+        // filtering blocked nodes before Fast or its displayed projection must fail these bytes.
+        expect([blocked.input, cleared.input]).toEqual([baseline.input, baseline.input]);
+        expect([blocked.fast, cleared.fast]).toEqual([baseline.fast, baseline.fast]);
+        expect([blocked.displayed, cleared.displayed]).toEqual([
+          baseline.displayed,
+          baseline.displayed,
+        ]);
+      } finally {
+        observed.mockRestore();
+      }
+    });
+  }
+  for (const mode of ['isolated', 'shared'] as const) {
+    it(`reads a direct timestamp and the exact downstream root (${mode})`, async () => {
+      if (mode === 'shared') {
+        h.close();
+        h = OrganizationHarness.openComposedWith({
+          supportedCapacityModes: ['isolated', 'shared'],
+        });
+        await populate();
+        h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
+      }
+      const created = await batch([
+        { kind: 'createWorkItem', parentId: null, afterId: strip, name: 'Successor' },
+      ]);
+      if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
+      const successor = (created.body as { results?: { id?: string }[] }).results?.[0]?.id;
+      if (successor === undefined) throw new Error('missing successor');
+      const linked = await batch([
+        {
+          kind: 'addTypedDependency',
+          predecessor: { scope: 'node', workItemId: strip, stepId: qa },
+          successor: { scope: 'node', workItemId: successor, stepId: dev },
+          type: 'FS',
+        },
+      ]);
+      expect(linked.status).toBe(200);
+      const read = async () => {
+        const answer = await h.call('ada', 'GET', `/api/projects/${project}/work-items`);
+        if (answer.status !== 200) throw new Error(`read refused: ${JSON.stringify(answer)}`);
+        return (
+          answer.body as {
+            workItems: {
+              id: string;
+              status: string;
+              nodeReadings: Record<string, string>;
+              blockages?: Record<string, { blockedAt: number }>;
+              blockageCauses?: Record<string, { kind: string; nodeId?: string }[]>;
+            }[];
+          }
+        ).workItems;
+      };
+      const baseline = await read();
+      h.sqlite.run(
+        'INSERT INTO step_blockage (work_item_id, step_id, blocked_at) VALUES (?, ?, ?)',
+        [strip, qa, 123456],
+      );
+      const blocked = await read();
+      expect(blocked.find((row) => row.id === strip)?.blockages).toEqual({
+        [qa]: { blockedAt: 123456 },
+      });
+      expect(blocked.find((row) => row.id === strip)?.nodeReadings[qa]).toBe('blocked');
+      expect(blocked.find((row) => row.id === successor)?.nodeReadings[dev]).toBe(
+        'blocked_by_proxy',
+      );
+      expect(blocked.find((row) => row.id === successor)?.blockageCauses?.[dev]).toEqual([
+        { kind: 'step', nodeId: formatStepNodeId({ workItemId: strip, stepId: qa }) },
+      ]);
+      expect(blocked.map((row) => [row.id, row.status])).toEqual(
+        baseline.map((row) => [row.id, row.status]),
+      );
+      h.sqlite.run('DELETE FROM step_blockage WHERE work_item_id = ? AND step_id = ?', [strip, qa]);
+      const cleared = await read();
+      expect(cleared.find((row) => row.id === strip)?.blockages).toEqual({});
+      expect(cleared.find((row) => row.id === successor)?.nodeReadings[dev]).toBe(
+        baseline.find((row) => row.id === successor)?.nodeReadings[dev],
+      );
+    });
+  }
+  for (const mode of ['isolated', 'shared'] as const) {
+    it(`keeps parent metadata absent and done and running nodes ahead of blockage (${mode})`, async () => {
+      if (mode === 'shared') {
+        h.close();
+        h = OrganizationHarness.openComposedWith({
+          supportedCapacityModes: ['isolated', 'shared'],
+        });
+        await populate();
+        h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
+      }
+      const created = await batch([
+        { kind: 'createWorkItem', parentId: strip, afterId: null, name: 'Child' },
+      ]);
+      expect(created.status).toBe(200);
+      const child = (created.body as { results?: { id?: string }[] }).results?.[0]?.id;
+      if (child === undefined) throw new Error('missing child');
+      const progressed = await batch([
+        { kind: 'setProgress', workItemId: child, stepId: dev, state: 'done' },
+      ]);
+      expect(progressed.status).toBe(200);
+      h.sqlite.run(
+        'INSERT INTO step_blockage (work_item_id, step_id, blocked_at) VALUES (?, ?, ?)',
+        [child, dev, 111],
+      );
+      const read = async () => {
+        const answer = await h.call('ada', 'GET', `/api/projects/${project}/work-items`);
+        if (answer.status !== 200) throw new Error(`read refused: ${JSON.stringify(answer)}`);
+        return (
+          answer.body as {
+            workItems: {
+              id: string;
+              status: string;
+              nodeReadings?: Record<string, string>;
+              blockages?: Record<string, { blockedAt: number }>;
+              blockageCauses?: Record<string, unknown[]>;
+            }[];
+          }
+        ).workItems;
+      };
+      const done = await read();
+      expect(done.find((row) => row.id === strip)?.blockages).toBeUndefined();
+      expect(done.find((row) => row.id === strip)?.blockageCauses).toBeUndefined();
+      expect(done.find((row) => row.id === child)?.nodeReadings?.[dev]).toBe('done');
+      expect(done.find((row) => row.id === child)?.blockages?.[dev]).toEqual({ blockedAt: 111 });
+      h.sqlite.run('DELETE FROM step_blockage WHERE work_item_id = ? AND step_id = ?', [
+        child,
+        dev,
+      ]);
+      const reopened = await batch([
+        { kind: 'setProgress', workItemId: child, stepId: dev, state: 'in_progress' },
+      ]);
+      expect(reopened.status).toBe(200);
+      const started = await batch([{ kind: 'startAttempt', workItemId: child, stepId: dev }]);
+      expect(started.status).toBe(200);
+      const siblingCreated = await batch([
+        { kind: 'createWorkItem', parentId: null, afterId: strip, name: 'Sibling' },
+      ]);
+      expect(siblingCreated.status).toBe(200);
+      const sibling = (siblingCreated.body as { results?: { id?: string }[] }).results?.[0]?.id;
+      if (sibling === undefined) throw new Error('missing sibling');
+      const linked = await batch([
+        {
+          kind: 'addTypedDependency',
+          predecessor: { scope: 'node', workItemId: sibling, stepId: qa },
+          successor: { scope: 'node', workItemId: child, stepId: dev },
+          type: 'FS',
+        },
+      ]);
+      expect(linked.status).toBe(200);
+      const unblockedRunning = await read();
+      h.sqlite.run(
+        'INSERT INTO step_blockage (work_item_id, step_id, blocked_at) VALUES (?, ?, ?)',
+        [sibling, qa, 222],
+      );
+      const running = await read();
+      expect(running.find((row) => row.id === child)?.nodeReadings?.[dev]).toBe('in_progress');
+      expect(running.find((row) => row.id === child)?.blockageCauses?.[dev]).toEqual([]);
+      expect(running.find((row) => row.id === sibling)?.blockages?.[qa]).toEqual({
+        blockedAt: 222,
+      });
+      expect(running.map((row) => [row.id, row.status])).toEqual(
+        unblockedRunning.map((row) => [row.id, row.status]),
+      );
+    });
+  }
 });
 
 describe('the plan document carries the zone and the attempts', () => {

@@ -118,6 +118,7 @@ import type {
   LivePlanRead,
   PlanDocumentReads,
 } from '../../ports/shared-people-values';
+import type { StepBlockageStore, StoredStepBlockage } from '../../ports/step-blockage-store';
 import type {
   RunningStoredAttempt,
   StepNodeAttemptStore,
@@ -154,7 +155,7 @@ import {
   touchedBy,
 } from '../../service/compensating';
 import { DependencyGraphGuard, resolveDependencyGraph } from '../../service/dependency-graph';
-import { nodeReadingsOf } from '../../service/node-readings';
+import { projectNodeReadings } from '../../service/node-readings';
 import type { NumberedWorkItem } from '../../service/numbered-work-item';
 import { workItemStatusesOf } from '../../service/work-item-statuses';
 
@@ -1078,6 +1079,8 @@ export interface WorkItemServiceOptions {
    * parent at the hand-down, invisible to every reader.
    */
   attempts: StepNodeAttemptStore;
+  /** Direct node blockage facts used only by the live tree projection. */
+  blockages: StepBlockageStore;
   directory: DirectoryStore;
   /**
    * How many of each team this project may have at work at once — C1's `slotsOf`
@@ -2302,6 +2305,8 @@ export class WorkItemService {
     const priorityBands = await this.opts.priorityBands.listFor(projectId);
     const canonical = canonicalScheduleParts(
       project,
+      // Proof: removing owners with a direct blockage from this Fast input made
+      // `keeps the actual Fast request... (isolated)` fail; watched 2026-10-13.
       rows,
       stored,
       edges,
@@ -2341,6 +2346,9 @@ export class WorkItemService {
         assignedPeople,
         // Read for the payload alone, like the actuals above: no engine sees it.
         attempts: await this.opts.attempts.listByProject(projectId),
+        // Proof: replacing this read with [] failed `reads a direct timestamp
+        // and the exact downstream root (isolated)`; watched 2026-10-13.
+        blockages: await this.opts.blockages.listByProject(projectId),
         seq,
         steps,
         slotsOf,
@@ -6667,6 +6675,7 @@ interface TreeReads {
   assignedPeople: { id: string; name: string }[];
   /** Every attempt in the project, read beside the statements and handed to no engine. */
   attempts: readonly StoredAttempt[];
+  blockages: readonly StoredStepBlockage[];
   seq: number;
   steps: Step[];
   slotsOf: ReadonlyMap<string, number>;
@@ -6714,6 +6723,9 @@ function projectSharedTree(
       // node and leaf (shared)` read no attempts (`received value must be a
       // non-null object`) while the isolated case passed; watched 2026-10-12.
       attempts: captured.attempts,
+      // Proof: forwarding [] failed `reads a direct timestamp and the exact
+      // downstream root (shared)`; watched 2026-10-13.
+      blockages: captured.blockages,
       slotsOf: reads.capacity,
       priorityBands: [...reads.priorityBands],
       elsewhereHolders: chain.kind === 'scheduled' ? chain.holders : [],
@@ -6739,6 +6751,7 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
     assigned,
     assignedPeople,
     attempts,
+    blockages,
     seq,
     steps,
     slotsOf,
@@ -6786,7 +6799,7 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
   // Canonical readings use complete topology for blockage propagation and
   // workflow/authored predecessors for waiting (ADR 0053). Row proxy remains
   // independent; it cannot turn a sibling endpoint into a node predecessor.
-  const readingsOf = nodeReadingsOf({
+  const nodeProjection = projectNodeReadings({
     graph: resolveDependencyGraph({
       rows,
       steps,
@@ -6799,7 +6812,7 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
     statusOf: itemStatuses,
     stated,
     running,
-    blocked: [],
+    blocked: blockages,
   });
   // The write path refuses an edge that would close a cycle, but two clients
   // drawing conflicting edges at the same instant are each checked against the
@@ -6973,6 +6986,8 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
       // `undefined`; the hand-off a person link is drawn from would have been
       // absent from the payload with nothing to say it ever existed; watched
       // 2026-08-09.
+      // Proof: dropping every displayed slice only while a direct blockage exists
+      // failed the mounted Fast byte comparison in both modes; watched 2026-10-13.
       scheduledSlices = [...planned.slices].map(([id, placed]) => ({ id, ...placed }));
     }
   } catch (err) {
@@ -7057,7 +7072,19 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
       ...assignmentFieldsOf(assigneesOf.get(row.id) ?? {}),
       ...attemptFieldsOf(attemptsOf.get(row.id) ?? [], steps),
       // A leaf's node readings by step id; a parent has no nodes and no key.
-      ...readingFieldsOf(readingsOf.get(row.id)),
+      ...readingFieldsOf(nodeProjection.readings.get(row.id)),
+      ...(nodeProjection.readings.has(row.id)
+        ? {
+            blockages: Object.fromEntries(
+              blockages
+                .filter((fact) => fact.workItemId === row.id)
+                .map((fact) => [fact.stepId, { blockedAt: fact.blockedAt }]),
+            ),
+            // Proof: forwarding {} failed the exact downstream root assertion
+            // in the isolated mounted read; watched 2026-10-13.
+            blockageCauses: nodeProjection.causes.get(row.id) ?? {},
+          }
+        : {}),
       // A row the hold reduction took out has no schedule and no dates: it
       // takes no part in the plan, and a placeholder span would draw it.
       // Proof: the placeholder kept here made `lets a successor start at day

@@ -480,6 +480,10 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
     measures: retainedMeasures,
     progress: retainedProgress,
     attempts,
+    get blockages() {
+      assertOpen();
+      return scope.stores.blockages;
+    },
     dependencies: retainedDependencies,
     typedDependencies,
     subtrees: retainedSubtrees,

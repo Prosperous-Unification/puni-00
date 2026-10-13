@@ -21,7 +21,7 @@ export function memoryStepBlockageTable(): MemoryStepBlockageTable {
  */
 export function inMemoryStepBlockages(
   workItems: WorkItemStore,
-  steps: StepStore,
+  steps: Pick<StepStore, 'findById'>,
   table = memoryStepBlockageTable(),
 ): StepBlockageStore {
   const { rows } = table;

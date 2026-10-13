@@ -7,7 +7,7 @@
 
 - [x] 1.1 Red: add tests for direct blockage, work-item hold precedence, `done` precedence, in-progress precedence, unknown, direct causes, transitive causes, cycles, and node endpoint precision (`A.dev` is not `A.qa`).
 - [x] 1.2 Extend canonical `nodeReadingsOf` and `nodeReadingOf` with direct blockage and precise roots over all graph edges; retain waiting/skipped, stop proxy at running attempts, and keep boundary nodes internal. Reuse existing `resolveDependencyGraph` without a second extraction. Keep `StepState`, `blockedByProxyOf` and `withoutHeldSubtrees` unchanged.
-- [ ] 1.3 Add schedule-neutrality tests proving the canonical input and full Fast schedule are byte-identical when blockage facts and projections are present. Watch a mutation that filters blocked nodes fail this test.
+- [x] 1.3 Add schedule-neutrality tests proving the canonical input and full Fast schedule are byte-identical when blockage facts and projections are present. Watch a mutation that filters blocked nodes fail this test.
 - [x] 1.4 Add production-path negatives for unknown work-item/step progress references (except known historical parent-owned progress, retained by the row fold and excluded only from leaf projection) and dependencies with absent typed/legacy endpoints, duplicate graph node identities and missing edge endpoints; disable each validation in turn and observe its test fail. Add adjacent `Proof:` comments.
 
 ## 2. Persistent blockage facts
