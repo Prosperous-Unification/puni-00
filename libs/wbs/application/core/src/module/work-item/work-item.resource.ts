@@ -2363,6 +2363,8 @@ export class WorkItemService {
   /**
    * Creates a work item. When a leaf gains its first child, moves its step facts
    * and assignments to that child and returns the node mapping in project step order.
+   * Blockage keeps its original time through create, undo and redo; conditional
+   * replacements refuse newer facts inside the structural command transaction.
    * The mapping is internal to the application; command responses still return
    * the created work item ID alone.
    */
@@ -2470,7 +2472,60 @@ export class WorkItemService {
       const handed = await this.apply(projectId, statementsHandedDown.forward, stamp);
       if (!handed.ok) throw new Error(`cannot hand statements down: ${handed.detail}`);
     }
+    const blockedHandedDown =
+      firstChildOf === undefined
+        ? []
+        : await this.opts.blockages.listByWorkItems(projectId, [firstChildOf.id]);
+    const clearParentBlockages: CompensatingCommand[] = blockedHandedDown.map(
+      ({ workItemId, stepId, blockedAt }) => ({
+        do: 'replace_blockage',
+        workItemId,
+        stepId,
+        expectedBlockedAt: blockedAt,
+        replacementBlockedAt: null,
+      }),
+    );
+    const restoreParentBlockages: CompensatingCommand[] = blockedHandedDown.map(
+      ({ workItemId, stepId, blockedAt }) => ({
+        do: 'replace_blockage',
+        workItemId,
+        stepId,
+        expectedBlockedAt: null,
+        replacementBlockedAt: blockedAt,
+      }),
+    );
+    const setChildBlockages: CompensatingCommand[] = blockedHandedDown.map(
+      ({ stepId, blockedAt }) => ({
+        do: 'replace_blockage',
+        workItemId: workItem.id,
+        stepId,
+        expectedBlockedAt: null,
+        replacementBlockedAt: blockedAt,
+      }),
+    );
+    const clearChildBlockages: CompensatingCommand[] = blockedHandedDown.map(
+      ({ stepId, blockedAt }) => ({
+        do: 'replace_blockage',
+        workItemId: workItem.id,
+        stepId,
+        expectedBlockedAt: blockedAt,
+        replacementBlockedAt: null,
+      }),
+    );
+    // The repository validates leaf ownership even while clearing; capture and clear
+    // before insertion, then restore only after undo has removed the child.
+    for (const command of clearParentBlockages) {
+      const cleared = await this.apply(projectId, command, stamp);
+      // Proof: removing this guard failed the refused parent-clear test on its expected error; watched 2026-10-14.
+      if (!cleared.ok) throw new Error(`cannot clear first-child blockage: ${cleared.detail}`);
+    }
     await this.opts.workItems.insert(workItem, placed.renumbered, stamp);
+    // Proof: skipping these writes failed exact blockage preservation in memory and mounted SQLite; watched 2026-10-14.
+    for (const command of setChildBlockages) {
+      const written = await this.apply(projectId, command, stamp);
+      // Proof: removing this guard let the refused child write resolve; watched 2026-10-14.
+      if (!written.ok) throw new Error(`cannot hand blockage to first child: ${written.detail}`);
+    }
     // A work item that had an estimate and now has a child no longer holds one:
     // the estimate described the work, and the work is the child now. Moving it
     // down keeps the total identical, which is what makes this safe to do
@@ -2694,7 +2749,10 @@ export class WorkItemService {
         dependency: original,
       })),
       ...(statementsHandedDown === undefined ? [] : [statementsHandedDown.forward]),
+      ...clearParentBlockages,
       forward,
+      // Proof: omitting these replay writes failed both exact blockage redo tests; watched 2026-10-14.
+      ...setChildBlockages,
       ...assignedHandedDown.map(({ workItemId, stepId }) => ({
         do: 'assign' as const,
         workItemId,
@@ -2711,7 +2769,10 @@ export class WorkItemService {
         do: 'remove_typed_dependency' as const,
         dependency: remapped,
       })),
+      ...clearChildBlockages,
       inverse,
+      // Proof: omitting these replay writes failed both exact blockage undo tests; watched 2026-10-14.
+      ...restoreParentBlockages,
       ...(statementsHandedDown === undefined ? [] : [statementsHandedDown.inverse]),
       ...assignedHandedDown.map(({ workItemId, stepId, personId }) => ({
         do: 'assign' as const,

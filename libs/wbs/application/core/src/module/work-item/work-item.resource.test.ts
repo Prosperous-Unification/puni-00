@@ -265,6 +265,73 @@ describe('creating work items', () => {
     });
   });
 
+  it('preserves exact blockage and progress through first-child create undo redo', async () => {
+    const parent = await add('Strip');
+    const blockages = serviceOptions.blockages;
+    await blockages.set({ workItemId: parent, stepId, blockedAt: 123 }, WROTE);
+    await progress.set({ workItemId: parent, stepId, state: 'in_progress', statedAt: 100 }, WROTE);
+    const child = await add('Back boxes', parent);
+    const facts = () => blockages.listByProject(projectId);
+    expect(await facts()).toEqual([{ workItemId: child, stepId, blockedAt: 123 }]);
+    expect(
+      (await progress.listByProject(projectId)).map(({ workItemId, state }) => ({
+        workItemId,
+        state,
+      })),
+    ).toEqual([{ workItemId: child, state: 'in_progress' }]);
+    expect((await service.undo(projectId, OWNER)).ok).toBe(true);
+    expect(await workItems.findById(child)).toBeNull();
+    expect(await facts()).toEqual([{ workItemId: parent, stepId, blockedAt: 123 }]);
+    expect(
+      (await progress.listByProject(projectId)).map(({ workItemId, state }) => ({
+        workItemId,
+        state,
+      })),
+    ).toEqual([{ workItemId: parent, state: 'in_progress' }]);
+    expect((await service.redo(projectId, OWNER)).ok).toBe(true);
+    expect(await facts()).toEqual([{ workItemId: child, stepId, blockedAt: 123 }]);
+  });
+
+  it('reports a refused first-child blockage write', async () => {
+    const parent = await add('Strip');
+    await serviceOptions.blockages.set({ workItemId: parent, stepId, blockedAt: 123 }, WROTE);
+    const refused = new WorkItemService({
+      ...serviceOptions,
+      blockages: { ...serviceOptions.blockages, set: () => Promise.resolve('unknown_step') },
+    });
+    const refusal = await refused
+      .create(projectId, OWNER, { parentId: parent, afterId: null })
+      .then(
+        () => '(resolved without throwing)',
+        (cause: unknown) => String(cause),
+      );
+    expect(refusal).toContain('cannot hand blockage to first child');
+  });
+
+  it('reports a refused parent blockage clear before inserting a first child', async () => {
+    const parent = await add('Strip');
+    await serviceOptions.blockages.set({ workItemId: parent, stepId, blockedAt: 123 }, WROTE);
+    let reads = 0;
+    const refused = new WorkItemService({
+      ...serviceOptions,
+      blockages: {
+        ...serviceOptions.blockages,
+        listByWorkItems: async (...parameters) => {
+          reads += 1;
+          return reads === 1 ? serviceOptions.blockages.listByWorkItems(...parameters) : [];
+        },
+      },
+    });
+    const refusal = await refused
+      .create(projectId, OWNER, { parentId: parent, afterId: null })
+      .then(
+        () => '(resolved without throwing)',
+        (cause: unknown) => String(cause),
+      );
+    expect(refusal).toContain('cannot clear first-child blockage');
+    expect((await workItems.listByProject(projectId)).map(({ id }) => id)).toEqual([parent]);
+  });
+
   it('accepts an empty name', async () => {
     await add('');
     expect(await numbered()).toEqual({ '010': '' });

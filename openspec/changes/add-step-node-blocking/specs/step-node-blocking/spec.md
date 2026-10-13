@@ -76,6 +76,20 @@ Step blockage SHALL follow the step node when its leaf moves. A step on a parent
 - **WHEN** a child is created beneath it
 - **THEN** the parent has no blockage and the step's prior blockage is handed to the child that represents the former work
 
+#### Scenario: First-child history preserves exact blockage in one action
+
+- **GIVEN** a leaf with blockage timestamps on multiple project steps and retained progress
+- **WHEN** its first child is created, the create is undone once, and redone once
+- **THEN** each blockage keeps its step and original timestamp, belongs only to the child after create and redo, and belongs only to the parent after undo
+- **AND** progress follows the same work without changing its state
+- **AND** a changed blockage refuses undo or redo atomically even when the owner revision is unchanged
+
+#### Scenario: A failed first-child insert restores the parent blockage
+
+- **GIVEN** a blocked leaf
+- **WHEN** first-child creation clears its blockage and insertion then fails
+- **THEN** the transaction restores the original tree, blockage, progress, revisions, journal and event rows
+
 #### Scenario: A duplicate does not inherit blockage
 
 - **GIVEN** a subtree containing a blocked step
