@@ -1699,3 +1699,17 @@ bunx vitest run src/modules/plan-writer/plan-writer.test.ts src/modules/saved-pl
 ```
 
 Observed: exit 0, 4 files passed, 52 tests passed, 0 failed. Canonical gate, C2 and deployment obligations remain as recorded above.
+
+### C1 CI fixture correction — 2026-10-13
+
+PR #396's full CI backend run exposed two older selected-cookie setup writes that omitted the now-required expected organization. The gateway fixture now supplies an explicit organization ID with each project creation; the SCIM removal fixture supplies `org-a` and asserts its setup creation succeeds before decoding the project. Production enforcement is unchanged.
+
+A complete local backend run also exposed the tier inventory omitting `OrganizationHarness.openComposedWith`. The opener inventory now recognizes this real SQLite composition. Its adjacent Proof names the observed failure; no suite is excluded from the audit.
+
+- Baseline: `bun test apps/wbs/be-01/src/controller/gateway-browser-selection.controller.db.test.ts apps/wbs/be-01/src/controller/scim-deprovisioning.controller.db.test.ts --timeout=10000`: **6 pass, 9 fail**, with setup `organization_context_changed` refusals (`/tmp/c1-repair-red.log`).
+- Restored targeted run plus `apps/wbs/be-01/src/test-tiers.test.ts`: **17 pass, 0 fail**, 67 expectations (`/tmp/c1-repair-green.log`). The full backend run independently observed the missing-opener audit failure before the inventory correction (`/tmp/c1-repair-backend.log`).
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-be-01:lint`: **pass**, 56.9 s (`/tmp/c1-repair-nx-lint.log`).
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-be-01:typecheck`: **pass**, including isolated modules, 18.2 s (`/tmp/c1-repair-types.log`).
+- `bunx @fission-ai/openspec@1.12.0 validate organization-ownership-and-access --json`: **valid**, no issues (`/tmp/c1-repair-openspec.log`).
+- Prettier applied to the three changed TypeScript files; normal commit hooks remain required.
+- The full local backend run remains **pending at this commit**; its earlier tier audit failure is resolved by the targeted restored run. The manager requested the scoped repair be pushed now so GitHub CI can run the new exact head. No full-suite or canonical host-gate success is claimed here.
