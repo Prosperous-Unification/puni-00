@@ -381,6 +381,9 @@ export function SsoConnectionsPanel({
                 key={proof.id}
                 // Proof: 2026-10-13, using proof.id failed `uses server proof and enforcement labels and each row slug for proof`.
                 organization={proof.loginSlug}
+                // Proof: 2026-10-13, omitting this prop failed `blocks the
+                // selected proof form while a create request is held`.
+                disabled={sending}
                 onPendingChange={(active) => {
                   proofPending.current = active;
                   // Proof: 2026-10-13, forcing this false failed `freezes the

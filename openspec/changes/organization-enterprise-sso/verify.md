@@ -228,3 +228,29 @@ Final verification after restoring every injected fault:
 - `NX_DAEMON=false NX_NO_CLOUD=true bunx nx run wbs-fe-01:build`: **passed**, exit 0, 1079 modules transformed.
 - `bunx @fission-ai/openspec@1.13.0 validate --all --json`: **186 passed, 0 failed**, exit 0.
 - Prettier checks on touched files and `git diff --check`: clean. Full Nx format result is recorded in the handoff.
+
+### Astra review follow-up: create starts before proof
+
+Review of `598ce7f6441d4369215aaf18b602a3128fde3a72` found the opposite pending order was not excluded: an idle selected proof form remained enabled while create was held, so its link could start before create's refresh unmounted it. The new production test `blocks the selected proof form while a create request is held` first failed on the enabled sign-in selector.
+
+The parent now passes its create-pending state as the company's optional `disabled` prop. The form disables its selector, password and submit control, and separately guards the submit path so a forced form event cannot post. The regression releases a conflicting create, reselects proof and proves it can start afterward. Browser fixtures cover this create-first ordering at 1280px and 375px.
+
+Three independent production faults were watched failing with assertion failures, then restored:
+
+| Injected fault                           | Observed failure in the new component test  |
+| ---------------------------------------- | ------------------------------------------- |
+| Omit the parent's disabled prop          | Sign-in selector enabled during held create |
+| Ignore disabled in link submit admission | Forced form event sends a fourth request    |
+| Ignore disabled on link controls         | Sign-in selector enabled during held create |
+
+Logs: `/tmp/sso-mutation-create-proof-{prop,submit,controls}.log`. No remote action is authorized in this follow-up; root owns the separately requested push approval and exact-head review.
+
+Follow-up validation after restoring all three faults:
+
+- Four affected component suites: **69 passed**, exit 0.
+- The same isolated browser fixture command: **10 passed**, exit 0, including both held-request orders at both widths.
+- Full frontend lint: **passed**, exit 0 (75 seconds).
+- Module/frontend typecheck and frontend build: **passed**, exit 0; 1079 modules transformed.
+- OpenSpec: **186 passed, 0 failed**, exit 0.
+- No push, PR creation, canonical gate, merge, deploy or live IdP proof was attempted in this follow-up.
+- `NX_DAEMON=false NX_NO_CLOUD=true bunx nx format:check --all`: **passed**, exit 0; touched-file Prettier and `git diff --check` also passed.

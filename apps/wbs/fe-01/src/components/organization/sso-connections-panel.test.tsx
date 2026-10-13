@@ -343,6 +343,53 @@ describe('company sign-in connection setup', () => {
     });
   });
 
+  it('blocks the selected proof form while a create request is held', async () => {
+    const sent = stubPanel({
+      'GET /api/organization/sso-connections': [
+        () => answer(200, { connections: [connection('one')] }),
+      ],
+      'POST /api/auth/link/auth0': [() => answer(401, { error: 'invalid_credentials' })],
+    });
+    renderPanel();
+    await fillCreate();
+    fireEvent.click(screen.getByRole('button', { name: 'Start proof for one.test' }));
+    fireEvent.change(screen.getByLabelText('How did you sign in to WBS?'), {
+      target: { value: 'password' },
+    });
+    fireEvent.change(screen.getByLabelText('Your WBS password'), {
+      target: { value: 'fresh-password' },
+    });
+    let finish: ((response: Response) => void) | undefined;
+    vi.mocked(fetch).mockImplementationOnce(
+      () =>
+        new Promise<Response>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Create connection' }));
+    expect(screen.getByLabelText('How did you sign in to WBS?')).toHaveProperty('disabled', true);
+    expect(screen.getByLabelText('Your WBS password')).toHaveProperty('disabled', true);
+    const link = screen.getByRole('button', { name: 'Link your company sign-in' });
+    expect(link).toHaveProperty('disabled', true);
+    // A form event can bypass disabled controls; admission must still refuse it.
+    fireEvent.submit(link.closest('form')!);
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(3);
+    expect(sent.some((request) => request.route === 'POST /api/auth/link/auth0')).toBe(false);
+    finish!(answer(409, { error: 'login_slug_taken' }));
+    await screen.findByText('That login slug is already in use. Choose another.');
+    const proof = await screen.findByRole('button', { name: 'Start proof for one.test' });
+    expect(proof).toHaveProperty('disabled', false);
+    fireEvent.click(proof);
+    fireEvent.change(screen.getByLabelText('How did you sign in to WBS?'), {
+      target: { value: 'provider' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Link your company sign-in' }));
+    await screen.findByRole('alert');
+    expect(sent.find((request) => request.route === 'POST /api/auth/link/auth0')?.body).toEqual({
+      organization: 'route-one',
+    });
+  });
+
   it('freezes the only proof target while its start request is held', async () => {
     stubPanel({
       'GET /api/organization/sso-connections': [

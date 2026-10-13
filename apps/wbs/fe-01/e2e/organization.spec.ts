@@ -20,7 +20,7 @@ const DAY = 86_400_000;
 
 async function answerAsSuperAdmin(
   page: Page,
-  mode: 'ready' | 'denied' | 'held' = 'ready',
+  mode: 'ready' | 'denied' | 'held' | 'create-held' = 'ready',
 ): Promise<void> {
   const now = Date.now();
   await page.route('**/api/**', async (route) => {
@@ -92,6 +92,16 @@ async function answerAsSuperAdmin(
             },
           ],
         });
+      case 'POST /api/organization/sso-connections':
+        if (mode === 'create-held') {
+          await new Promise<void>((resolve) => {
+            page.once('close', () => {
+              resolve();
+            });
+          });
+          return;
+        }
+        return json({ error: 'login_slug_taken' }, 409);
       case 'POST /api/auth/link/auth0':
         if (mode === 'held') {
           await new Promise<void>((resolve) => {
@@ -211,6 +221,30 @@ for (const width of [1280, 375]) {
       ).toBeDisabled();
       await expect(page.getByRole('button', { name: 'Refresh company sign-in' })).toBeDisabled();
       await expect(page.getByLabel('How did you sign in to WBS?')).toHaveCount(1);
+      await expect(page.getByRole('group', { name: 'Prove other.example' })).toBeVisible();
+    });
+
+    test('disables the selected proof form while create is held', async ({ page }) => {
+      await answerAsSuperAdmin(page, 'create-held');
+      await page.goto('/organization');
+      await page.getByLabel('Verified domain').selectOption('available');
+      await page.getByLabel('Auth0 connection name').fill('new-company-oidc');
+      await page.getByLabel('Strategy', { exact: true }).selectOption('oidc');
+      await page.getByLabel('Login slug').fill('new-company-login');
+      await page.getByRole('button', { name: 'Start proof for other.example' }).click();
+      await page.getByLabel('How did you sign in to WBS?').selectOption('password');
+      await page.getByLabel('Your WBS password').fill('fresh-password');
+      const requested = page.waitForRequest('**/api/organization/sso-connections');
+      await page.getByRole('button', { name: 'Create connection' }).click();
+      expect((await requested).postDataJSON()).toEqual({
+        domainClaimId: 'available',
+        auth0Connection: 'new-company-oidc',
+        strategy: 'oidc',
+        loginSlug: 'new-company-login',
+      });
+      await expect(page.getByLabel('How did you sign in to WBS?')).toBeDisabled();
+      await expect(page.getByLabel('Your WBS password')).toBeDisabled();
+      await expect(page.getByRole('button', { name: 'Link your company sign-in' })).toBeDisabled();
       await expect(page.getByRole('group', { name: 'Prove other.example' })).toBeVisible();
     });
 

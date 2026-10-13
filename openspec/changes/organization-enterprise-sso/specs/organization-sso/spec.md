@@ -240,6 +240,7 @@ The panel SHALL show each connection's domain, Auth0 name, strategy, login slug,
 - **WHEN** a super-admin selects a proof and starts the existing explicit company link
 - **THEN** the request carries that connection's login slug rather than its id
 - **AND** only one proof form exists, its target and refresh are frozen until the start is refused or navigation begins
+- **AND** if create starts first, the selected proof form disables its controls and refuses submission until create ends
 - **AND** proof and enforcement labels remain server state until refreshed after returning
 
 #### Scenario: Company setup fits a phone and supports keyboard navigation
