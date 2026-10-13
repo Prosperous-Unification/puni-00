@@ -10,6 +10,7 @@ const stamp = { at: 1, by: 'owner' };
 const STORE_BINDINGS = [
   'actuals',
   'attempts',
+  'blockages',
   'calendarMarkers',
   'capacity',
   'dependencies',
@@ -96,6 +97,34 @@ async function seededSource() {
   );
   return source;
 }
+
+it('commits and rolls back project-seeded blockage facts and cascades removed owners', async () => {
+  const source = await seededSource();
+  await source.stores.workItems.insert(
+    workItemRow({ id: 'wi-blocked', projectId: 'p1' }),
+    [],
+    stamp,
+  );
+  const fact = { workItemId: 'wi-blocked', stepId: 'st-1', blockedAt: 123 };
+  expect(await source.stores.blockages.set(fact, stamp)).toBe('written');
+  expect(await source.stores.blockages.listByProject('p1')).toEqual([fact]);
+  await source.uow.run(async (scope) => {
+    await scope.stores.blockages.remove(fact.workItemId, fact.stepId, stamp);
+    return { commit: false, value: undefined };
+  });
+  // Proof: omitting the table copy from MemoryState.replaceWith made the committed
+  // remove below leave the original fact; watched 2026-10-13.
+  expect(await source.stores.blockages.listByProject('p1')).toEqual([fact]);
+  await source.uow.run(async (scope) => {
+    await scope.stores.blockages.remove(fact.workItemId, fact.stepId, stamp);
+    return { commit: true, value: undefined };
+  });
+  expect(await source.stores.blockages.listByProject('p1')).toEqual([]);
+  expect(await source.stores.blockages.set(fact, stamp)).toBe('written');
+  await source.stores.workItems.remove([fact.workItemId], [], stamp);
+  expect(await source.stores.blockages.listByProject('p1')).toEqual([]);
+  await source.close();
+});
 
 function mutateReturned(value: unknown): boolean {
   if (Array.isArray(value)) return value.length > 0 && mutateReturned(value[0]);

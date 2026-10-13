@@ -16,6 +16,7 @@ import { PriorityBandRepository } from './priority-band';
 import { ProjectRepository } from './project';
 import { ProjectRankRepository } from './project-rank';
 import { StepRepository } from './step';
+import { StepBlockageRepository } from './step-blockage';
 import { StepMeasureRepository } from './step-measure';
 import { StepNodeAttemptRepository } from './step-node-attempt';
 import { StepProgressRepository } from './step-progress';
@@ -47,6 +48,7 @@ export function buildStores(
     actuals: new ActualRepository(db, gate),
     measures: new StepMeasureRepository(db, gate),
     progress: new StepProgressRepository(db, gate),
+    blockages: new StepBlockageRepository(db, gate),
     attempts: new StepNodeAttemptRepository(db, gate),
     dependencies: new DependencyRepository(db, gate),
     typedDependencies: new TypedDependencyRepository(db, gate),

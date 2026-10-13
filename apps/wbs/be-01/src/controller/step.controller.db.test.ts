@@ -9,6 +9,7 @@ import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { StepService } from '@wbs/core/module/step/step.resource';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
 import { AuthService } from '@wbs/core/service/auth.service';
+import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
@@ -182,6 +183,7 @@ beforeEach(async () => {
       measures,
       progress: progressStore,
       attempts: new StepNodeAttemptRepository(db, OPEN),
+      blockages: new StepBlockageRepository(db, OPEN),
       dependencies: new DependencyRepository(db, OPEN),
       typedDependencies: new TypedDependencyRepository(db, OPEN),
       directory,

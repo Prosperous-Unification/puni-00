@@ -841,6 +841,7 @@ const openers: ExistingStoreOpeners = {
   measures: (caseId) => openMemoryCase('measures', caseId),
   progress: (caseId) => openMemoryCase('progress', caseId),
   attempts: (caseId) => openMemoryCase('attempts', caseId),
+  blockages: (caseId) => openMemoryCase('blockages', caseId),
   dependencies: (caseId) => openMemoryCase('dependencies', caseId),
   typedDependencies: (caseId) => openMemoryCase('typedDependencies', caseId),
   directory: (caseId) => openMemoryCase('directory', caseId),
@@ -981,6 +982,7 @@ const declaration: SourceDeclaration = {
     measures: { kind: 'offered', gaps: [measureUnknownStepGap], open: openers.measures },
     progress: { kind: 'offered', gaps: [progressUnknownStepGap], open: openers.progress },
     attempts: { kind: 'offered', gaps: [], open: openers.attempts },
+    blockages: { kind: 'offered', gaps: [], open: openers.blockages },
     dependencies: { kind: 'offered', gaps: [], open: openers.dependencies },
     typedDependencies: { kind: 'offered', gaps: [], open: openers.typedDependencies },
     directory: { kind: 'offered', gaps: [], open: openers.directory },
@@ -4272,6 +4274,7 @@ async function proveFault(
         measures: (caseId) => takeFixture('measures', caseId),
         progress: (caseId) => takeFixture('progress', caseId),
         attempts: (caseId) => takeFixture('attempts', caseId),
+        blockages: (caseId) => takeFixture('blockages', caseId),
         dependencies: (caseId) => takeFixture('dependencies', caseId),
         typedDependencies: (caseId) => takeFixture('typedDependencies', caseId),
         directory: (caseId) => takeFixture('directory', caseId),
@@ -5685,6 +5688,13 @@ describe('memory existing source conformance', () => {
     expect(Bun.stripANSI(priorityBands.failure)).toContain(
       priorityMissingProjectGap.evidence.observedFailure,
     );
+  });
+
+  it('certifies the persisted blockage port', async () => {
+    const report = await runCases(existingStoreRegistrations(openers), {
+      focus: ['blockages.set:read-remove'],
+    });
+    expect(report.cases.map(({ status }) => status)).toEqual(['passed']);
   });
 
   it('runs every offered existing case and reports the exact known gaps', async () => {

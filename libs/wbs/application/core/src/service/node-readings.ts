@@ -1,4 +1,5 @@
 import {
+  type BlockageRoot,
   formatStepNodeId,
   type Hold,
   type NodeFacts,
@@ -27,11 +28,6 @@ export interface NodeReadingInputs {
   /** Sparse direct blockage facts, independent of progress (ADR 0053). */
   readonly blocked: readonly StepNodeRef[];
 }
-
-/** A root of informational stoppage; a stepless hold has no fabricated step identity. */
-export type BlockageRoot =
-  | { readonly kind: 'step'; readonly nodeId: string }
-  | { readonly kind: 'work-item'; readonly workItemId: string };
 
 /** Canonical readings and their deduplicated roots, keyed by leaf and project step. */
 export interface NodeReadingProjection {
