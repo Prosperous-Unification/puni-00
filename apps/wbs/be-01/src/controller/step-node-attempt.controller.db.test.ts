@@ -1161,3 +1161,141 @@ describe('the plan document carries the zone and the attempts', () => {
     expect(projectCount()).toBe(before);
   });
 });
+
+describe('first-child blockage preservation', () => {
+  const facts = () =>
+    h.sqlite
+      .query<{ workItemId: string; stepId: string; blockedAt: number }, []>(
+        'SELECT work_item_id AS workItemId, step_id AS stepId, blocked_at AS blockedAt FROM step_blockage ORDER BY blocked_at',
+      )
+      .all();
+
+  it('preserves exact blockage and progress through mounted first-child create undo redo', async () => {
+    expect(
+      (await batch([{ kind: 'setProgress', workItemId: strip, stepId: dev, state: 'in_progress' }]))
+        .status,
+    ).toBe(200);
+    h.sqlite.run('INSERT INTO step_blockage (work_item_id, step_id, blocked_at) VALUES (?, ?, ?)', [
+      strip,
+      dev,
+      123,
+    ]);
+    h.sqlite.run('INSERT INTO step_blockage (work_item_id, step_id, blocked_at) VALUES (?, ?, ?)', [
+      strip,
+      qa,
+      789,
+    ]);
+    const created = await batch([
+      { kind: 'createWorkItem', parentId: strip, afterId: null, name: 'Back boxes' },
+    ]);
+    expect(created.status).toBe(200);
+    const child = (created.body as { results: { id: string }[] }).results.at(0)?.id;
+    expect(child).toBeDefined();
+    if (child === undefined) throw new Error('first child missing');
+    expect(facts()).toEqual([
+      { workItemId: child, stepId: dev, blockedAt: 123 },
+      { workItemId: child, stepId: qa, blockedAt: 789 },
+    ]);
+    const owners = () =>
+      h.sqlite
+        .query<{ work_item_id: string; state: string }, []>(
+          'SELECT work_item_id, state FROM step_progress',
+        )
+        .all();
+    expect(owners()).toEqual([{ work_item_id: child, state: 'in_progress' }]);
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+    expect(facts()).toEqual([
+      { workItemId: strip, stepId: dev, blockedAt: 123 },
+      { workItemId: strip, stepId: qa, blockedAt: 789 },
+    ]);
+    expect(owners()).toEqual([{ work_item_id: strip, state: 'in_progress' }]);
+    expect(
+      h.sqlite
+        .query<{ count: number }, [string]>(
+          'SELECT count(*) AS count FROM work_item WHERE parent_id = ?',
+        )
+        .get(strip)?.count,
+    ).toBe(0);
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/redo`)).status).toBe(200);
+    expect(facts()).toEqual([
+      { workItemId: child, stepId: dev, blockedAt: 123 },
+      { workItemId: child, stepId: qa, blockedAt: 789 },
+    ]);
+    expect(owners()).toEqual([{ work_item_id: child, state: 'in_progress' }]);
+  });
+
+  /**
+   * Proof: bypassing exact-fact comparison returned 200 in both directions.
+   * Committing a refused UOW lost the first step fact before the second refused.
+   * Both faults failed these tests; watched 2026-10-14.
+   */
+  it.each(['undo', 'redo'] as const)(
+    'refuses changed blockage atomically during first-child %s',
+    async (direction) => {
+      h.sqlite.run(
+        'INSERT INTO step_blockage (work_item_id, step_id, blocked_at) VALUES (?, ?, ?)',
+        [strip, dev, 123],
+      );
+      h.sqlite.run(
+        'INSERT INTO step_blockage (work_item_id, step_id, blocked_at) VALUES (?, ?, ?)',
+        [strip, qa, 789],
+      );
+      const created = await batch([
+        { kind: 'createWorkItem', parentId: strip, afterId: null, name: 'Back boxes' },
+      ]);
+      expect(created.status).toBe(200);
+      const child = (created.body as { results: { id: string }[] }).results.at(0)?.id;
+      if (child === undefined) throw new Error('first child missing');
+      if (direction === 'redo')
+        expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+      const owner = direction === 'undo' ? child : strip;
+      // Direct SQL changes no owner revision: the conditional fact comparison must refuse.
+      h.sqlite.run(
+        'UPDATE step_blockage SET blocked_at = 456 WHERE work_item_id = ? AND step_id = ?',
+        [owner, qa],
+      );
+      const snapshot = () =>
+        ['work_item', 'step_progress', 'step_blockage', 'event_log', 'event_sequencer'].map(
+          (table) => h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all(),
+        );
+      const before = snapshot();
+      expect((await h.call('ada', 'POST', `/api/projects/${project}/${direction}`)).status).toBe(
+        409,
+      );
+      expect(snapshot()).toEqual(before);
+      expect(facts()).toEqual([
+        { workItemId: owner, stepId: dev, blockedAt: 123 },
+        { workItemId: owner, stepId: qa, blockedAt: 456 },
+      ]);
+    },
+  );
+
+  /** Proof: committing the failed UOW preserved the parent clear and failed the parent-fact assertion; watched 2026-10-14. */
+  it('rolls back the cleared parent blockage when the first child insert fails', async () => {
+    h.sqlite.run('INSERT INTO step_blockage (work_item_id, step_id, blocked_at) VALUES (?, ?, ?)', [
+      strip,
+      dev,
+      123,
+    ]);
+    const snapshot = () =>
+      [
+        'work_item',
+        'step_progress',
+        'step_blockage',
+        'command_journal',
+        'event_log',
+        'event_sequencer',
+      ].map((table) => h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all());
+    const before = snapshot();
+    h.sqlite.run(
+      "CREATE TRIGGER refuse_child BEFORE INSERT ON work_item WHEN NEW.parent_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM step_blockage WHERE work_item_id = NEW.parent_id) BEGIN SELECT RAISE(ABORT, 'injected child failure'); END",
+    );
+    const created = await batch([
+      { kind: 'createWorkItem', parentId: strip, afterId: null, name: 'Back boxes' },
+    ]);
+    expect(created.status).toBe(500);
+    h.sqlite.run('DROP TRIGGER refuse_child');
+    expect(facts()).toEqual([{ workItemId: strip, stepId: dev, blockedAt: 123 }]);
+    expect(snapshot()).toEqual(before);
+  });
+});
