@@ -1035,14 +1035,14 @@ describe('the plan on a phone', () => {
     await addAWorkItem();
 
     const onCard = document.querySelector('[data-card-span]');
-    expect(onCard?.textContent).toBe('0 → 0');
+    expect(onCard?.textContent).toBe('day 0 → day 0');
     // Nothing fuller to say, so nothing said: a `title` repeating the cell is
     // noise a screen reader has to read out.
     expect(onCard?.getAttribute('data-fact')).toBe(null);
 
     resizeTo(LAPTOP);
 
-    expect(document.querySelector('[data-start]')?.textContent).toBe('0');
+    expect(document.querySelector('[data-start]')?.textContent).toBe('day 0');
   });
 
   itDom('offers nothing to drag a card by', async () => {

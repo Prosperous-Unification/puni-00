@@ -86,7 +86,7 @@ export const PICKER_PANEL_STYLE = {
   background: 'var(--popover)',
   border: '1px solid var(--border)',
   borderRadius: 'var(--radius-md)',
-  boxShadow: '0 4px 12px oklch(0 0 0 / 12%)',
+  boxShadow: 'var(--popover-shadow)',
   overflow: 'hidden',
   maxHeight: 200,
   overflowY: 'auto',

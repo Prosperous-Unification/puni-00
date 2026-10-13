@@ -985,10 +985,14 @@ describe('the plan on a calendar', () => {
     return api;
   }
 
-  itDom('shows day offsets until the project has a start date', async () => {
+  itDom('shows day offsets until the project has a start date, labelled as days', async () => {
+    // F-032: a bare `0`, `6`, `14` under Start and End read as broken data.
+    // Proof: `showSchedule` put back to the bare figure, this failed on
+    // `expected '0' to be 'day 0'`. Watched 2026-10-13.
     await oneRow();
 
-    expect(rowFor('010').querySelector('[data-start]')?.textContent).toBe('0');
+    expect(rowFor('010').querySelector('[data-start]')?.textContent).toBe('day 0');
+    expect(rowFor('010').querySelector('[data-finish]')?.textContent).toMatch(/^day 0/);
   });
 
   itDom('shows dates once the project starts on a day, as somebody reads one', async () => {
@@ -1051,7 +1055,7 @@ describe('the plan on a calendar', () => {
     // it is the one thing this cell can say on a plan with no dates at all.
     await oneRow();
 
-    expect(rowFor('010').querySelector('[data-start]')?.textContent).toBe('0');
+    expect(rowFor('010').querySelector('[data-start]')?.textContent).toBe('day 0');
     expect(
       rowFor('010').querySelector('td[data-column="start"]')?.getAttribute('data-start-said'),
     ).toBe('Starts with the project');
@@ -1660,15 +1664,14 @@ describe('the order of the columns', () => {
     // it used to be lives in the `title`.
     // No Notes column: a work item's notes are typed under its name, in the
     // Name cell, and the column they had is gone.
-    // `Not bef.`, not `Not before`: the column is 84px at its widest and 56 at
-    // its narrowest, and the sentence it used to be is in the heading's
-    // `title`.
+    // `Not before` whole since the UI review of 2026-10-13 (F-006): headers
+    // are sentence case now, and the narrow column is 60px to hold it.
     // The Work item deadline column is hidden here alongside the other three,
     // which is where this project's reader left it: `work-item-deadline` 9.1
     // ships it in {@link INITIAL_HIDDEN_COLUMNS} because the folded table at
-    // 1280 has no 84px to give it. Shown, it sits between `Not bef.` and
+    // 1280 has no 84px to give it. Shown, it sits between `Not before` and
     // `Start` — the two days a planner states, then the days be-01 worked out.
-    expect(headers.slice(-5)).toEqual(['Not bef.', 'Start', 'End', 'Slack', '']);
+    expect(headers.slice(-5)).toEqual(['Not before', 'Start', 'End', 'Slack', '']);
     expect(headers).not.toContain('Notes');
   });
 

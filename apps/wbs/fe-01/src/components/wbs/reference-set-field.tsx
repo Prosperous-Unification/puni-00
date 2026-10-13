@@ -831,7 +831,20 @@ export function ReferenceSetStrip({
             }
             closeWhen={(outcome) => outcome === 'landed' || outcome === 'landed-unread'}
             disabled={pending}
-            placeholder={placeholder ?? `Search ${label.toLowerCase()}`}
+            // No placeholder beside a chip at rest: the box is what the chips
+            // leave, often a few pixels, and those pixels drew `ad`, `se`,
+            // `cha` — a word cut mid-letter (UI review F-035/F-048,
+            // 2026-10-13). The `+` says "add" there; the words come back with
+            // the box's 72px floor the moment it is entered.
+            // Proof: on the code before this, `draws no placeholder in a box
+            // too narrow for it` (`e2e/plan-table-review.spec.ts`) failed with
+            // `add` and `search or add` cramped beside chips. Watched
+            // 2026-10-13.
+            placeholder={
+              !editing && (own.length > 0 || inherited.length > 0)
+                ? ''
+                : (placeholder ?? `Search ${label.toLowerCase()}`)
+            }
             data-hint={hint}
             data-fact={fact}
             dataCell={dataCell}

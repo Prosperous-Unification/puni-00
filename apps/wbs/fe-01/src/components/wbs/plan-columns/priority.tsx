@@ -9,12 +9,11 @@ export function createPriorityColumn({ live }: { live: PlanLive }) {
   return column.display({
     id: 'priority',
     meta: { isEditable: () => true },
-    // `Prio`, not `Priority` and not `PRIORITY`: the column is 48px and the
-    // header row is 10px all-caps, in which the full word wraps to two
-    // lines and takes the whole header row with it. The sentence is on the
-    // `<th>` (`column-hints.ts`), which is the bargain Days, Not bef.,
-    // Start, End and Slack already make.
-    header: () => <span>Prio</span>,
+    // `Priority`, whole, since the UI review of 2026-10-13 (F-006): the
+    // header row is sentence case with no tracking now, where `PRIORITY`
+    // in 10px all-caps wrapped, and the column is 44px to hold it. The
+    // sentence is on the `<th>` (`column-hints.ts`).
+    header: () => <span>Priority</span>,
     cell: ({ row }) => (
       /*
             The box, the band list under it, and the colour the number is drawn

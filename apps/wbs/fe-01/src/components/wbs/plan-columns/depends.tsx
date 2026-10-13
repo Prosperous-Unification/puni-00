@@ -19,6 +19,18 @@ import {
 import { dependencyWords, endpointText, TypedDependencyEditor } from '../typed-dependency-editor';
 import { column } from './column';
 
+/**
+ * The most a chip may take of its strip at rest: everything but the `+` before
+ * it (15.02px in Chromium, so 16) and the 2px gap. One chip therefore never runs past the cell — it is
+ * whole, or its words end in an ellipsis with the rest in its `title` or the
+ * cell's card — and a second chip is what the edge fade is for.
+ */
+const ONE_CHIP_ROOM = 'calc(100% - 18px)';
+
+/** What the dependency list keeps clear of the window's right edge, in px. */
+const LIST_EDGE_GAP = 8;
+const ONE_CHIP_STYLE = { maxWidth: ONE_CHIP_ROOM, flexShrink: 0 } as const;
+
 /** Builds the depends column family against the stable live cell contract.
  * Tab and Shift+Tab keep the grid walk. Home in an empty search focuses the
  * first typed chip; ArrowDown/ArrowUp move between typed chips, Enter edits,
@@ -78,6 +90,15 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
           ? undefined
           : pickable.find((entry) => entry.id === picker.highlightId);
       const open = picker !== null && entries.length > 0;
+      // How many chips the strip draws. One chip is held inside the strip
+      // whole or with an ellipsis ({@link ONE_CHIP_ROOM}), so only a second
+      // one can run past the edge — and only then is there a cut to fade
+      // (UI review F-033, 2026-10-13).
+      // Proof: the `chipCount > 1` condition dropped, `keeps the truncation
+      // fade on the rested strip, and off the open one` failed on `expected
+      // 'linear-gradient(to left, transparent,…' to be ''`. Watched 2026-10-13.
+      const chipCount = waitingFor.length + typedDependencies.length;
+      const resting = picker === null;
       // Nothing to expand where nothing is waited for, and the picker owns
       // the cell while it is open: both boxes hang off the bottom edge of
       // one 110px cell, and the one somebody is typing into is the one they
@@ -208,7 +229,7 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
               // right edge — the app is LTR-only today, and a
               // logical-direction gradient is not portable syntax.
               direction: 'ltr',
-              ...(picker === null
+              ...(resting && chipCount > 1
                 ? { WebkitMaskImage: DEP_EDGE_FADE, maskImage: DEP_EDGE_FADE }
                 : {}),
             }}
@@ -387,6 +408,7 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                 type="button"
                 data-reference-chip={id}
                 className={`${REFERENCE_SET_CHIP_CLASS} border-0`}
+                style={ONE_CHIP_STYLE}
                 aria-label={`Stop ${row.original.number} waiting for ${number}`}
                 // No hint here for the count's reason above: the cell's
                 // own card owns this hover, and the ✕ already answers to
@@ -496,7 +518,7 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                   );
                 }}
               >
-                {number} ✕
+                <span className="truncate">{number}</span> ✕
               </button>
             ))}
             {typedDependencies.map((dependency) => {
@@ -521,6 +543,7 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                   key={dependency.id}
                   type="button"
                   className={`${REFERENCE_SET_CHIP_CLASS} border-0`}
+                  style={ONE_CHIP_STYLE}
                   aria-label={`${wholeWait ? `Stop ${row.original.number} waiting for ${predecessorNumber}. ` : 'Edit dependency: '}${words.label}. Enter to edit. Delete to remove. Escape to return to dependency search.`}
                   title={`${words.label}. Enter to edit.`}
                   aria-keyshortcuts="Enter Delete"
@@ -611,7 +634,13 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                     });
                   }}
                 >
-                  {wholeWait ? `${predecessorNumber} ✕` : words.chip}
+                  {wholeWait ? (
+                    <>
+                      <span className="truncate">{predecessorNumber}</span> ✕
+                    </>
+                  ) : (
+                    <span className="truncate">{words.chip}</span>
+                  )}
                 </button>
               );
             })}
@@ -625,7 +654,13 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
               }
               aria-autocomplete="list"
               aria-describedby={waitingFor.length > 0 ? waitsForId : undefined}
-              placeholder="search, or 010, 020"
+              // `search`, and only on a strip with no chip or while the picker
+              // owns the cell (UI review F-035, 2026-10-13). `search, or 010,
+              // 020` never fitted the cell and read `search, o`; beside a chip
+              // at rest what room the box had left drew a sliver of it. The
+              // `+` is the cue there. Numbers typed in are the column hint's
+              // sentence now (`column-hints.ts`).
+              placeholder={resting && chipCount > 0 ? '' : 'search'}
               // No hint on this box, for the count chip's reason above:
               // the Depends on cell draws its own card over these pixels,
               // and a second surface saying how to type into the box is
@@ -892,6 +927,19 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                 // either way — see `opensAPopover`.
                 minWidth: DEP_LIST_WIDTH,
               }}
+              // Never past the window's right edge (UI review F-022): the list
+              // opens at its cell's left, and a long name ran it off screen
+              // with the rest of the row unreadable. The room is measured
+              // because the cell's left is a layout fact; a row too long for
+              // it ends in an ellipsis and says itself whole in its `title`.
+              // Proof: this cap's write removed, `keeps the dependency list
+              // inside the window` in `e2e/plan-table-review.spec.ts` failed on
+              // `Expected: <= 1024 · Received: 1234.203125`. Watched 2026-10-13.
+              ref={(list) => {
+                if (list === null) return;
+                const room = window.innerWidth - list.getBoundingClientRect().left - LIST_EDGE_GAP;
+                list.style.maxWidth = `${String(Math.max(DEP_LIST_WIDTH, room))}px`;
+              }}
             >
               {entries.map((entry) => (
                 // The ARIA combobox pattern is the boundary that makes this
@@ -938,10 +986,15 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                         element.scrollIntoView({ block: 'nearest' });
                       }
                     }}
+                    title={`${entry.number} - ${entry.name}${entry.refusal === undefined ? '' : ` — ${REFUSAL_SUFFIX[entry.refusal]}`}`}
                     style={{
                       padding: '2px 6px',
                       cursor: entry.refusal === undefined ? 'pointer' : 'default',
                       whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      minWidth: 0,
+                      flex: '0 1 auto',
                       color: entry.refusal === undefined ? undefined : 'var(--muted-foreground)',
                       // A finished predecessor wears the status strip here as on
                       // the card (`statusStripStyle`); the border replaces the
