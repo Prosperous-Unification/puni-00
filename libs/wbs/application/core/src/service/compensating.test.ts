@@ -4,6 +4,7 @@ import {
   boundEstimateUnits,
   type CompensatingCommand,
   estimateStepsOf,
+  expectedProgressOwnersOf,
   readCommand,
   readPreconditions,
   referencesOf,
@@ -136,5 +137,46 @@ describe('journal estimate unit bindings', () => {
         estimate,
       ]),
     ).toThrow('no binding for step r1');
+  });
+});
+
+describe('move historical progress snapshots', () => {
+  const legacy = { do: 'move' as const, workItemId: 'child', parentId: 'parent', afterId: null };
+  const historical = { workItemId: 'parent', stepId: 'dev', state: 'done' as const, statedAt: 123 };
+  const move = { ...legacy, expectedProgress: [historical] };
+
+  it('reads exact move snapshots through nested journal commands and keeps legacy moves absent', () => {
+    expect(readCommand({ do: 'batch', steps: [move] })).toEqual({ do: 'batch', steps: [move] });
+    expect(readCommand(legacy)).toEqual(legacy);
+    expect(touchedBy(move)).toEqual(['child', 'parent']);
+    expect(referencesOf(move).steps).toEqual(['dev']);
+  });
+
+  it('tracks only explicit snapshot owners across nested directions', () => {
+    const plain = { ...legacy, parentId: 'unrelated-parent', afterId: 'unrelated-sibling' };
+    expect(touchedBy(plain)).toEqual(['child']);
+    expect(expectedProgressOwnersOf(plain)).toEqual([]);
+    expect(
+      expectedProgressOwnersOf({
+        do: 'batch',
+        steps: [plain, rename, { do: 'batch', steps: [move, move] }],
+      }),
+    ).toEqual(['parent']);
+  });
+
+  it('refuses malformed present snapshots instead of treating them as empty history', () => {
+    for (const expectedProgress of [
+      null,
+      {},
+      undefined,
+      [null],
+      [{ ...historical, workItemId: 'foreign' }],
+      [{ ...historical, stepId: 1 }],
+      [{ ...historical, state: 'unknown' }],
+      [{ ...historical, statedAt: 1.5 }],
+      [historical, historical],
+    ]) {
+      expect(() => readCommand({ ...legacy, expectedProgress })).toThrow(/move progress/);
+    }
   });
 });

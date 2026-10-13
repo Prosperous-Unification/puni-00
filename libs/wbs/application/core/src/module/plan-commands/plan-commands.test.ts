@@ -2374,4 +2374,55 @@ describe('transactional memory move blockage closure', () => {
       await source.close();
     }
   });
+  it.each(['state', 'time', 'extra', 'missing'] as const)(
+    'rolls back %s historical progress refusal through the memory runner',
+    async (fault) => {
+      const { source, graph, projectId, stepId, snapshot } = await seeded();
+      try {
+        await source.stores.progress.set(
+          { workItemId: 'parent', stepId, state: 'done', statedAt: 123 },
+          { at: 1, by: OWNER },
+        );
+        const runner = runnerOver(source, graph);
+        expect(
+          await runner.run(projectId, OWNER, [
+            { kind: 'moveWorkItem', workItemId: 'moving', parentId: 'destination', afterId: null },
+          ]),
+        ).toMatchObject({ ok: true });
+        if (fault === 'state' || fault === 'time')
+          await source.stores.progress.set(
+            {
+              workItemId: 'parent',
+              stepId,
+              state: fault === 'state' ? 'in_progress' : 'done',
+              statedAt: fault === 'time' ? 456 : 123,
+            },
+            { at: 2, by: OWNER },
+          );
+        if (fault === 'extra') {
+          await source.stores.steps.add(
+            {
+              id: 'extra-step',
+              projectId,
+              name: 'QA',
+              allowancePercent: 0,
+              estimateUnit: 'workdays',
+            },
+            { at: 2, by: OWNER },
+          );
+          await source.stores.progress.set(
+            { workItemId: 'parent', stepId: 'extra-step', state: 'done', statedAt: 456 },
+            { at: 2, by: OWNER },
+          );
+        }
+        if (fault === 'missing')
+          await source.stores.progress.remove('parent', stepId, { at: 2, by: OWNER });
+        const before = await snapshot();
+        expect(await runner.undo(projectId, OWNER)).toMatchObject({ ok: false });
+        expect(await snapshot()).toEqual(before);
+      } finally {
+        await source.close();
+      }
+    },
+  );
 });

@@ -100,7 +100,18 @@ export type CompensatingCommand =
   | { do: 'add_typed_dependency'; dependency: StoredTypedDependency }
   | { do: 'remove_typed_dependency'; dependency: StoredTypedDependency }
   | { do: 'update_typed_dependency'; from: StoredTypedDependency; to: StoredTypedDependency }
-  | { do: 'move'; workItemId: string; parentId: string | null; afterId: string | null }
+  /**
+   * Historical destination progress may remain in place through inverse reparenting
+   * only when the complete snapshot still matches. Absence requires no progress.
+   * These are comparison facts, never progress writes or new statement timestamps.
+   */
+  | {
+      do: 'move';
+      workItemId: string;
+      parentId: string | null;
+      afterId: string | null;
+      expectedProgress?: StoredProgress[];
+    }
   /**
    * One press of `Arrange by schedule`: every work item of every sibling group
    * whose order changed, at the position it now holds.
@@ -427,7 +438,8 @@ const COMMANDS = [
  *
  * The discriminator is checked recursively through batches so an older
  * release cannot silently skip a nested command. The conditional blockage
- * variant also validates its pair and nullable safe-integer times before
+ * variant validates its pair and nullable safe-integer times, and move snapshots
+ * validate exact destination ownership, stored state/time and unique steps before
  * replay; malformed trusted history must not read as an absent fact. Other
  * fields were written by this process from typed values one statement earlier,
  * and a second schema for every legacy command would be a second definition.
@@ -463,8 +475,39 @@ export function readCommand(value: unknown): CompensatingCommand {
     )
       throw new Error('a journal blockage replacement is malformed');
   }
+  if (named === 'move' && 'expectedProgress' in value) {
+    // Proof: bypassing array validation changed malformed-history refusal to a raw iteration failure; watched 2026-10-14.
+    if (!Array.isArray(value.expectedProgress))
+      throw new Error('a journal move progress snapshot is not an array');
+    const facts: readonly unknown[] = value.expectedProgress;
+    const steps = new Set<string>();
+    for (const fact of facts) {
+      // Proof: skipping field validation returned modeled 409/404 instead of trusted-state 500 in mounted malformed snapshot cases; watched 2026-10-14.
+      if (
+        typeof fact !== 'object' ||
+        fact === null ||
+        !('parentId' in value) ||
+        typeof value.parentId !== 'string' ||
+        !('workItemId' in fact) ||
+        fact.workItemId !== value.parentId ||
+        !('stepId' in fact) ||
+        typeof fact.stepId !== 'string' ||
+        fact.stepId.length === 0 ||
+        !('state' in fact) ||
+        (fact.state !== 'done' && fact.state !== 'in_progress') ||
+        !('statedAt' in fact) ||
+        typeof fact.statedAt !== 'number' ||
+        !Number.isSafeInteger(fact.statedAt)
+      )
+        throw new Error('a journal move progress snapshot is malformed');
+      // Proof: accepting duplicate steps returned 409 instead of 500 in the mounted duplicate-snapshot case; watched 2026-10-14.
+      if (steps.has(fact.stepId))
+        throw new Error('a journal move progress snapshot repeats a step');
+      steps.add(fact.stepId);
+    }
+  }
   // The one cast in this file: known discriminators and nested commands have
-  // been checked, and the new conditional blockage fields have their boundary
+  // been checked, and conditional blockage/move progress fields have their boundary
   // validation. Legacy fields remain this process's own writing.
   return value as CompensatingCommand;
 }
@@ -565,7 +608,7 @@ function readRevisions(value: unknown): Revisions {
 }
 
 /**
- * Every work item a command will have written to once it has been applied.
+ * Every work item a command writes or whose historical progress it promises to preserve.
  *
  * This is what the **next** set of preconditions is read from, so it has to
  * name everything and may name rows that will not exist afterwards — the ones
@@ -608,7 +651,7 @@ export function touchedBy(command: CompensatingCommand): string[] {
         ]),
       ];
     case 'move':
-      return [command.workItemId];
+      return [...new Set([command.workItemId, ...expectedProgressOwnersOf(command)])];
     case 'set_frozen':
       return command.updates.map((each) => each.id);
     case 'set_step_allowance':
@@ -644,6 +687,18 @@ export function touchedBy(command: CompensatingCommand): string[] {
       // undo would overwrite without checking its revision.
       return [...new Set(command.steps.flatMap(touchedBy))];
   }
+}
+
+/**
+ * Owners whose unchanged historical progress a move promises to retain. Both
+ * journal directions must track them across flip/rebase even when only the
+ * inverse move carries the snapshot. Other command owners are excluded.
+ */
+export function expectedProgressOwnersOf(command: CompensatingCommand): string[] {
+  if (command.do === 'batch') return [...new Set(command.steps.flatMap(expectedProgressOwnersOf))];
+  return command.do === 'move'
+    ? [...new Set((command.expectedProgress ?? []).map(({ workItemId }) => workItemId))]
+    : [];
 }
 
 /**
@@ -741,6 +796,8 @@ function collectReferences(command: CompensatingCommand, found: CompensatingRefe
       return;
     case 'move':
       rows(command.workItemId, command.parentId, command.afterId);
+      // Proof: omitting snapshot references returned 409 instead of scoped 404 for a foreign step; watched 2026-10-14.
+      (command.expectedProgress ?? []).forEach(onStep);
       return;
     case 'set_positions':
       command.placements.forEach(placed);

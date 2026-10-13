@@ -234,9 +234,14 @@ When a move removes a parent's last child, the parent SHALL receive a direct
 blockage for a step only if every former leaf has a direct fact for that step.
 Its blocked time SHALL be the maximum original blocked time, including negative
 timestamps and facts retained beneath done progress. Such a move SHALL NOT hand
-up progress. Replay SHALL refuse atomically when a current destination leaf has
-residual progress or blockage, including another project step, even if revisions
-remain unchanged.
+up progress. Replay SHALL allow historical destination progress only when its complete set
+exactly matches the predeparture snapshot by owner, step, state and stated time,
+independently of order. These historical rows SHALL remain unchanged in place.
+Absent snapshot SHALL require empty destination progress. Replay SHALL refuse
+atomically for added, removed or changed progress and for any residual blockage,
+including another project step, even if revisions remain unchanged. Captured
+historical owners SHALL remain revision-tracked across undo, redo and subsequent
+undo without adding unrelated owners.
 
 #### Scenario: Last-child move hands up only complete direct agreement
 
@@ -255,3 +260,15 @@ remain unchanged.
 - **GIVEN** a blocked leaf or a subtree containing blocked descendants
 - **WHEN** that leaf or subtree is duplicated
 - **THEN** the originals retain their exact facts and the copies have no blockage
+
+#### Scenario: Historical parent progress survives an immediate move undo
+
+- **GIVEN** a known parent holds historical Dev done progress at stated time 123 and has one child
+- **WHEN** that child moves to a root, the move is undone and redone
+- **THEN** the historical progress and every stored column remain unchanged, and immediate undo succeeds
+
+#### Scenario: Historical move replay refuses a changed complete snapshot
+
+- **GIVEN** an inverse move captured the old parent's historical progress
+- **WHEN** a fact changes state or stated time, a different step is added, or a captured fact is removed without changing owner revisions
+- **THEN** undo refuses atomically and preserves the current tree and all current facts

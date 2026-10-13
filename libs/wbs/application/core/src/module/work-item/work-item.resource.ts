@@ -143,6 +143,7 @@ import {
   type CompensatingCommand,
   type CompensatingReferences,
   estimateStepsOf,
+  expectedProgressOwnersOf,
   quoteName,
   readCommand,
   readPayload,
@@ -2969,7 +2970,9 @@ export class WorkItemService {
    * the store move. Incoming facts stay with their owners. A last-child departure
    * hands up direct blockage only when every former leaf has that step fact,
    * using the latest blocked time even when negative or retained beneath done.
-   * Progress is never handed up. Undo restores destination progress through
+   * Progress is never handed up. Exact preexisting old-parent progress remains
+   * in place across replay; changed or missing snapshot facts refuse undo.
+   * Undo restores destination progress through
    * the existing statement replay and restores blockage timestamps exactly.
    */
   async move(id: string, actorId: string, input: MoveWorkItem): Promise<WorkItemOutcome<null>> {
@@ -3113,6 +3116,11 @@ export class WorkItemService {
             },
           }
         : undefined;
+    // Proof: omitting the captured allowance refused immediate mounted historical undo; watched 2026-10-14.
+    const leftProgress =
+      leftParentId === null
+        ? undefined
+        : await this.opts.progress.listByWorkItems(workItem.projectId, [leftParentId]);
     const destinationProgress =
       becomesParent === undefined
         ? []
@@ -3209,7 +3217,13 @@ export class WorkItemService {
     const inverseSteps: CompensatingCommand[] = [
       ...clearHandedBlockages,
       ...(statementsHandedUp === undefined ? [] : [statementsHandedUp.inverse]),
-      { do: 'move', workItemId: id, parentId: workItem.parentId, afterId: wasAfter?.id ?? null },
+      {
+        do: 'move',
+        workItemId: id,
+        parentId: workItem.parentId,
+        afterId: wasAfter?.id ?? null,
+        ...(leftProgress === undefined ? {} : { expectedProgress: leftProgress }),
+      },
       ...restoreDestinationProgress,
       // Proof: omitting restoration failed mounted exact move undo; watched 2026-10-14.
       ...restoreDestinationBlockages,
@@ -5595,7 +5609,12 @@ export class WorkItemService {
     // this application left and remembers the ones it started from. Nothing is
     // appended: an undo that was itself journalled would be undoable, and the
     // key would toggle one change forever instead of walking back through two.
-    const now = await this.revisionsOf(projectId, touchedBy(command));
+    const now = await this.revisionsOf(projectId, [
+      ...touchedBy(command),
+      // Proof: omitting both direction owners let the second undo ignore a changed parent revision; watched 2026-10-14.
+      ...expectedProgressOwnersOf(payload.forward),
+      ...expectedProgressOwnersOf(readCommand(entry.inverse)),
+    ]);
     await this.opts.journal.flip(entry.id, direction === 'undo', {
       expected: now,
       from: preconditions.expected,
@@ -6058,6 +6077,7 @@ export class WorkItemService {
           command.parentId,
           command.afterId,
           stamp,
+          command.expectedProgress,
         );
       case 'set_positions':
         return this.applySetPositions(projectId, command.placements, command.moved, stamp);
@@ -6113,6 +6133,7 @@ export class WorkItemService {
     parentId: string | null,
     afterId: string | null,
     stamp: WriteStamp,
+    expectedProgress: readonly StoredProgress[] = [],
   ): Promise<ApplyOutcome> {
     const rows = await this.opts.workItems.listByProject(projectId);
     const moving = rows.find((row) => row.id === id);
@@ -6129,9 +6150,22 @@ export class WorkItemService {
     }
     if (moving.parentId !== parentId) {
       if (parentId !== null && !rows.some((row) => row.parentId === parentId)) {
-        // Proof: bypassing this guard returned 200 in mounted residual-progress undo/redo; watched 2026-10-14.
-        if ((await this.opts.progress.listByWorkItems(projectId, [parentId])).length > 0) {
-          return { ok: false, detail: 'the destination leaf has progress stated since this move.' };
+        // Proof: bypassing snapshot equality accepted changed state/time, extra and missing facts in mounted and memory runner cases; watched 2026-10-14.
+        const currentProgress = await this.opts.progress.listByWorkItems(projectId, [parentId]);
+        if (
+          currentProgress.length !== expectedProgress.length ||
+          expectedProgress.some(
+            (expected) =>
+              !currentProgress.some(
+                (current) =>
+                  current.workItemId === expected.workItemId &&
+                  current.stepId === expected.stepId &&
+                  current.state === expected.state &&
+                  current.statedAt === expected.statedAt,
+              ),
+          )
+        ) {
+          return { ok: false, detail: 'the destination leaf progress changed since this move.' };
         }
         // Proof: bypassing this guard returned 500 in mounted other-step blockage undo/redo; watched 2026-10-14.
         if ((await this.opts.blockages.listByWorkItems(projectId, [parentId])).length > 0) {

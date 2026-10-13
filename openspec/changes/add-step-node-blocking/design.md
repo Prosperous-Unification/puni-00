@@ -103,7 +103,15 @@ Blockage agreement is per project step over every former leaf in the moved
 subtree: each must hold a direct fact, including facts retained on done nodes.
 The old parent's blocked time is the maximum of those timestamps, with no zero
 seed so negative timestamps remain valid. Incoming subtree facts are preserved.
-Replay into a current leaf refuses any residual progress or blockage after the
-recorded clear steps, even when revisions were forged unchanged. Same-parent
+Replay into a current leaf compares its complete progress set against an explicit
+optional `expectedProgress` snapshot captured on the old parent before its last
+child departed. Equality is order-independent over owner, step, state and stated
+time; absent snapshot means an empty set. Exact historical rows survive in place,
+including audit columns, because clearing and restating them would change their
+provenance. Added, removed or changed progress refuses replay even when revisions
+were forged unchanged. Any residual blockage still refuses unconditionally after
+the recorded clears. Move snapshot owners remain revision-tracked across both
+journal directions through `expectedProgressOwnersOf`; other command owner tracking
+is unchanged. Same-parent
 reorder and existing-parent progress history are preserved. Work-item deletion,
 project-step deletion and the public blockage setter remain separate slices.

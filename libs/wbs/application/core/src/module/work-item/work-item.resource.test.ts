@@ -498,6 +498,22 @@ describe('moving work items', () => {
     expect(await serviceOptions.blockages.listByWorkItems(projectId, [parent])).toEqual([]);
   });
 
+  it('preserves unchanged historical parent progress through last-child move undo redo', async () => {
+    const parent = await add('Parent');
+    const child = await add('Child', parent);
+    const historical = { workItemId: parent, stepId, state: 'done' as const, statedAt: 123 };
+    await progress.set(historical, WROTE);
+    expect((await service.move(child, OWNER, { parentId: null, afterId: parent })).ok).toBe(true);
+    expect(await progress.listByProject(projectId)).toEqual([historical]);
+    expect((await service.undo(projectId, OWNER)).ok).toBe(true);
+    expect((await workItems.findById(child))?.parentId).toBe(parent);
+    expect(await progress.listByProject(projectId)).toEqual([historical]);
+    expect((await service.redo(projectId, OWNER)).ok).toBe(true);
+    expect(await progress.listByProject(projectId)).toEqual([historical]);
+    expect((await service.undo(projectId, OWNER)).ok).toBe(true);
+    expect(await progress.listByProject(projectId)).toEqual([historical]);
+  });
+
   it('preserves historical parent progress during same-parent reorder and reparent into an existing parent', async () => {
     const parent = await add('Parent');
     const child = await add('Child', parent);
