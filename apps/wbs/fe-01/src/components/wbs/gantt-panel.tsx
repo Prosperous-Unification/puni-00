@@ -542,9 +542,15 @@ const BAR_RADIUS_PX = 3;
  * a conflict would survive to be decided by stylesheet order.
  */
 const chartChip = (extra?: string): string =>
-  // `px-2` rather than `sm`'s `px-3`: the five controls fit one row of a
-  // 375px phone at the 44px floor with it, and wrap without it.
-  cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'px-2', CHART_TOGGLE_PRESSED, extra);
+  // `px-2` rather than `sm`'s `px-3`, and `px-1.5` on a phone: the caption and
+  // five controls fit one row of a 375px phone at the 44px floor with them,
+  // and the last control wraps onto a row of its own without.
+  cn(
+    buttonVariants({ variant: 'outline', size: 'sm' }),
+    'px-2 max-md:px-1.5',
+    CHART_TOGGLE_PRESSED,
+    extra,
+  );
 
 /**
  * How a pressed toggle on the strip is drawn: filled in the accent, so on and
@@ -7223,14 +7229,13 @@ export function GanttRenderer({
         ))}
       <div
         data-gantt-controls
-        className="border-border flex flex-wrap items-center gap-1 border-t px-2 py-1"
+        className="border-border flex flex-wrap items-center gap-1 border-t px-2 py-0.5"
       >
         <span
           data-gantt-month
-          // A line of its own on a phone: the five controls fill one row of
-          // 343px at the 44px floor, and the caption beside them pushed the
-          // last onto a second row by itself.
-          className="text-muted-foreground text-xs font-semibold tracking-wide uppercase max-md:basis-full"
+          // Smaller on a phone, where the caption and five controls at the
+          // 44px floor have to share one row of 343px.
+          className="text-muted-foreground text-xs font-semibold tracking-wide uppercase max-md:text-[10px] max-md:tracking-normal"
         >
           {(() => {
             if (startDate === null) return 'Workday';
@@ -7345,7 +7350,7 @@ export function GanttRenderer({
           // `h-4` the chips take.
           // The toolbar's select, in the strip's button size: the `Plan with`
           // select's border and ground, `h-8` and `text-xs` like `size="sm"`.
-          className="border-input bg-background hover:bg-accent focus-visible:ring-ring focus-visible:ring-offset-background h-8 rounded-md border px-2 text-xs font-medium shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+          className="border-input bg-background hover:bg-accent focus-visible:ring-ring focus-visible:ring-offset-background h-8 rounded-md border px-2 text-xs font-medium shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none max-md:px-1"
           value={dayPx}
           onChange={(pick) => {
             const asked = Number(pick.currentTarget.value);
