@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { PlanTasks } from './plan-tasks';
 import { runTwin, runTwinInProcess, scratchDirectory, type TwinRun } from './testing/run-twin';
 
-const FIXTURE = join(import.meta.dir, 'fixtures', 'plan-export.v7.json');
+const FIXTURE = join(import.meta.dir, 'fixtures', 'plan-export.v8.json');
 const RECORDS_TASK = '00000000-0000-4000-8000-000000000007';
 const DOCS_TASK = '00000000-0000-4000-8000-000000000013';
 const DEV_STEP = '00000000-0000-4000-8000-000000000002';
@@ -21,14 +21,18 @@ let output: string;
 let reference: PlanReferenceRecord;
 
 /** A plan reference and task export written by the real `plan-reference` command. */
-async function writePlanReference(directory: string, change: string): Promise<void> {
+async function writePlanReference(
+  directory: string,
+  change: string,
+  fixture = FIXTURE,
+): Promise<void> {
   mkdirSync(directory);
   const requirements = join(scratch.path, 'spec.md');
   writeFileSync(requirements, '## ADDED Requirements\n');
   const run = await runTwinInProcess([
     'plan-reference',
     '--export',
-    FIXTURE,
+    fixture,
     '--repository',
     'https://github.com/Prosperous-Unification/puni-00',
     '--change',
@@ -139,6 +143,65 @@ describe('twin receipt-to-commands', () => {
         { kind: 'setProgress', workItemId: DOCS_TASK, stepId: QA_STEP, state: 'in_progress' },
       ],
     });
+  });
+
+  test('historical task export keeps its digest and emits the same commands', async () => {
+    const directory = join(scratch.path, 'historical');
+    await writePlanReference(
+      directory,
+      reference.planRef.change,
+      join(import.meta.dir, 'fixtures', 'plan-export.v7.json'),
+    );
+    tasksPath = join(directory, 'tasks.json');
+    referencePath = join(directory, 'plan-reference.json');
+    const historical = JSON.parse(readFileSync(tasksPath, 'utf8')) as unknown;
+    const decoded = PlanTasks.assert(historical);
+    expect(decoded.schemaVersion).toBe(1);
+    expect(historical).toEqual(decoded);
+    const bound = PlanReferenceRecord.assert(JSON.parse(readFileSync(referencePath, 'utf8')));
+    expect(digestOf(decoded)).toBe(bound.tasksDigest);
+    writeReceipt(receiptBody());
+    const run = await runTwinInProcess(receiptToCommands());
+    expect(run.exitCode).toBe(0);
+    expect(
+      (JSON.parse(readFileSync(output, 'utf8')) as { commands: unknown[] }).commands[0],
+    ).toEqual({
+      kind: 'setProgress',
+      workItemId: RECORDS_TASK,
+      stepId: DEV_STEP,
+      state: 'done',
+    });
+  });
+
+  test.each(['missing unit', 'unknown key', 'future schema'])(
+    'refuses a current task export with %s',
+    async (fault) => {
+      writeReceipt(receiptBody());
+      const tasks = JSON.parse(readFileSync(tasksPath, 'utf8')) as {
+        schemaVersion: number;
+        tasks: { estimates: Record<string, unknown>[] }[];
+      };
+      if (fault === 'missing unit') delete tasks.tasks[0].estimates[0]['unit'];
+      if (fault === 'unknown key') tasks.tasks[0].estimates[0]['extra'] = 1;
+      if (fault === 'future schema') tasks.schemaVersion = 3;
+      writeFileSync(tasksPath, JSON.stringify(tasks));
+      expectRefusal(await runTwinInProcess(receiptToCommands()), /task export is malformed/);
+    },
+  );
+
+  test.each(['unit', 'value'])('refuses a tampered native estimate %s', async (fault) => {
+    writeReceipt(receiptBody());
+    const tasks = JSON.parse(readFileSync(tasksPath, 'utf8')) as {
+      schemaVersion: number;
+      tasks: { estimates: Record<string, unknown>[] }[];
+    };
+    if (fault === 'unit') tasks.tasks[0].estimates[0]['unit'] = 'minutes';
+    if (fault === 'value') tasks.tasks[0].estimates[0]['realistic'] = 99;
+    writeFileSync(tasksPath, JSON.stringify(tasks));
+    expectRefusal(
+      await runTwinInProcess(receiptToCommands()),
+      /does not match the plan reference tasksDigest/,
+    );
   });
 
   test('the emitted batch validates against the WBS command endpoint', async () => {

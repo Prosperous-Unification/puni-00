@@ -27,13 +27,8 @@ export const PLAN_REFERENCE_FLAGS = [
 
 type PlanReferenceFlag = (typeof PLAN_REFERENCE_FLAGS)[number];
 
-/**
- * The one WBS plan document version Navigator reads, pinned here rather than imported so a WBS
- * bump is refused until Navigator, the `planDocumentVersion` literal in Burokrat's
- * `PlanReferenceRecord`, and the fixture move together. Moved to 7 with `step-node-attempts`
- * (settings.timezone, leaf attempts), 2026-10-12.
- */
-const NAVIGATOR_PLAN_DOCUMENT_VERSION = 7;
+/** Explicit supported wire versions; a future WBS bump requires contract review here. */
+const NAVIGATOR_PLAN_DOCUMENT_VERSIONS = [7, 8] as const;
 
 const EXPORT_ROLE = 'plan export';
 const REQUIREMENTS_ROLE = 'requirements file';
@@ -44,9 +39,9 @@ const PlanDocumentHeader = type({
 /**
  * Navigator's v7 wire contract: steps predate estimate units and always carry workdays.
  * WBS's current document schema supplies the unchanged fields; the versioned header and
- * step and work-item shapes stay pinned here until Navigator supports native minute estimates.
+ * step and work-item shapes retain the historical wire contract.
  */
-const StrictPlanDocument = planDocument
+const HistoricalPlanDocument = planDocument
   .omit('document', 'steps', 'workItems')
   .and({
     document: {
@@ -61,6 +56,16 @@ const StrictPlanDocument = planDocument
   // estimateUnit/charged refusal cases exit 0 instead of 1 (plan-reference.test.ts, 2026-10-13).
   .onDeepUndeclaredKey('reject');
 
+/** Current wire contract; nested unknown keys remain a refused input. */
+// Proof: ignoring deep unknown keys made both current-export unknown-key tests exit 0.
+// Injecting a workday default before this decode made the missing-unit test exit 0 (2026-10-13).
+const CurrentPlanDocument = planDocument.onDeepUndeclaredKey('reject');
+
+interface DecodedPlanExport {
+  document: PlanDocument;
+  wireVersion: 7 | 8;
+}
+
 function sha256Hex(bytes: Uint8Array): string {
   return createHash('sha256').update(bytes).digest('hex');
 }
@@ -68,31 +73,34 @@ function sha256Hex(bytes: Uint8Array): string {
 /**
  * Reads and validates one WBS plan export.
  *
- * @throws when the document is not a WBS plan, is not version {@link NAVIGATOR_PLAN_DOCUMENT_VERSION},
+ * @throws when the document is not a WBS plan, names no version in {@link NAVIGATOR_PLAN_DOCUMENT_VERSIONS},
  * or fails the export contract with any undeclared key.
  */
-function decodePlanExport(bytes: Uint8Array, path: string): PlanDocument {
+function decodePlanExport(bytes: Uint8Array, path: string): DecodedPlanExport {
   const parsed = parseRequiredJson(bytes, EXPORT_ROLE, path);
   const header = PlanDocumentHeader(parsed);
   if (header instanceof type.errors) {
     throw new Error(`${EXPORT_ROLE} is malformed: ${path} is not a WBS plan (${header.summary})`);
   }
-  // Proof: removing this check failed `refuses a version-5 document before writing`. Comparing
-  // to WBS's imported PLAN_DOCUMENT_VERSION, bumped to 7 in libs/wbs, failed `refuses a version-7
-  // document before writing` (received `plan export is malformed`) (2026-10-11). With the pin at 7
-  // (2026-10-12) the same pair is `refuses a version-6 document` and `refuses a version-8 document`;
-  // the unbumped pin failed every case reading the v7 fixture on `plan export is malformed` (CI, PR #355).
-  if (header.document.version !== NAVIGATOR_PLAN_DOCUMENT_VERSION) {
+  // Proof: restoring the v7 pin failed the mixed-unit v8 test; removing this guard
+  // failed the version-9 refusal diagnostic (plan-reference.test.ts, 2026-10-13).
+  if (header.document.version !== 7 && header.document.version !== 8) {
     throw new Error(
-      `${EXPORT_ROLE} ${path} has version ${String(header.document.version)}; twin reads version ${String(NAVIGATOR_PLAN_DOCUMENT_VERSION)} only`,
+      `${EXPORT_ROLE} ${path} has version ${String(header.document.version)}; twin reads versions ${NAVIGATOR_PLAN_DOCUMENT_VERSIONS.join(' and ')} only`,
     );
   }
   try {
-    const document = parseOrThrow(StrictPlanDocument, parsed);
+    if (header.document.version === 8) {
+      return { document: parseOrThrow(CurrentPlanDocument, parsed), wireVersion: 8 };
+    }
+    const document = parseOrThrow(HistoricalPlanDocument, parsed);
     return {
-      ...document,
-      document: { ...document.document, version: 8 },
-      steps: document.steps.map((step) => ({ ...step, estimateUnit: 'workdays' })),
+      wireVersion: 7,
+      document: {
+        ...document,
+        document: { ...document.document, version: 8 },
+        steps: document.steps.map((step) => ({ ...step, estimateUnit: 'workdays' })),
+      },
     };
   } catch (failure) {
     throw new Error(`${EXPORT_ROLE} is malformed: ${path}`, { cause: failure });
@@ -100,17 +108,22 @@ function decodePlanExport(bytes: Uint8Array, path: string): PlanDocument {
 }
 
 /**
- * The leaf work items of a plan in export order, with their ancestry, per-step estimates in
- * days keyed by step code, and the dependencies that end on them.
+ * The leaf work items of a plan in export order, with their ancestry, per-step native estimates
+ * keyed by step code, and the dependencies that end on them.
  *
  * @throws when a parent, an estimate's step or a step code is missing or repeated, since the
  * export would then not describe one tree.
  */
-export function derivePlanTasks(document: PlanDocument): PlanTasks {
+export function derivePlanTasks(document: PlanDocument, wireVersion: 7 | 8): PlanTasks {
   const steps = [...document.steps]
     .sort((left, right) => left.position - right.position || left.id.localeCompare(right.id))
-    .map((step) => ({ id: step.id, code: step.code, name: step.name }));
-  const stepById = new Map(steps.map((step) => [step.id, step]));
+    .map((step) => ({
+      id: step.id,
+      code: step.code,
+      name: step.name,
+      estimateUnit: step.estimateUnit,
+    }));
+  const stepById = new Map(document.steps.map((step) => [step.id, step]));
   if (new Set(steps.map((step) => step.code)).size !== steps.length) {
     throw new Error('plan export repeats a step code');
   }
@@ -145,12 +158,13 @@ export function derivePlanTasks(document: PlanDocument): PlanTasks {
         number: workItem.number,
         name: workItem.name,
         ancestors: ancestorsOf(workItem.id),
-        estimateDays: steps
+        estimates: steps
           .filter((step) => Object.hasOwn(workItem.estimates, step.id))
           .map((step) => {
             const trio = workItem.estimates[step.id];
             return {
               stepCode: step.code,
+              unit: step.estimateUnit,
               optimistic: trio.optimistic,
               realistic: trio.realistic,
               pessimistic: trio.pessimistic,
@@ -169,11 +183,17 @@ export function derivePlanTasks(document: PlanDocument): PlanTasks {
     });
 
   return parseOrThrow(PlanTasks, {
-    schemaVersion: 1,
+    schemaVersion: wireVersion === 7 ? 1 : 2,
     kind: 'plan-tasks',
     plan: document.project.id,
-    steps,
-    tasks,
+    steps: steps.map(({ id, code, name }) => ({ id, code, name })),
+    tasks:
+      wireVersion === 7
+        ? tasks.map(({ estimates, ...task }) => ({
+            ...task,
+            estimateDays: estimates.map(({ unit: _unit, ...estimate }) => estimate),
+          }))
+        : tasks,
   });
 }
 
@@ -194,8 +214,8 @@ export async function runPlanReference(request: FlagValues<PlanReferenceFlag>): 
   // Proof: removing this decode failed `refuses a missing, unreadable or malformed requirements
   // file` at its empty-file case (2026-10-11).
   decodeRequiredText(requirementsBytes, REQUIREMENTS_ROLE, requirementsPath);
-  const document = decodePlanExport(exportBytes, exportPath);
-  const tasks = derivePlanTasks(document);
+  const { document, wireVersion } = decodePlanExport(exportBytes, exportPath);
+  const tasks = derivePlanTasks(document, wireVersion);
 
   const planRef: PlanRef = {
     repository: request('--repository'),
@@ -209,7 +229,7 @@ export async function runPlanReference(request: FlagValues<PlanReferenceFlag>): 
     schemaVersion: 1,
     kind: 'plan-reference',
     planRef,
-    planDocumentVersion: NAVIGATOR_PLAN_DOCUMENT_VERSION,
+    planDocumentVersion: wireVersion,
     exportDigest: sha256Hex(exportBytes),
     tasksDigest: digestOf(tasks),
     taskCount: tasks.tasks.length,
