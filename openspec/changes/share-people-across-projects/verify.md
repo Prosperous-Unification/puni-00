@@ -4896,3 +4896,27 @@ These are attended-operation blockers in addition to the physical blue/green mis
 green recorded above. No production container was stopped or changed, and no production database
 was written. The broad maintenance cost is explicit for Astra's assessment; the preflight does
 not bypass unknown state. Astra rereview and the canonical exact-SHA gate remain pending.
+
+## Host preflight delta-spec completion (10.2b, 2026-10-14)
+
+Astra's rereview of `22614906c5f60e3a3af4291c70f0322089c81e67` found no remaining P0/P1 in the
+hardlink repair but identified the missing R4 delta-spec contract. The new "Host restore excludes
+writers before opening the database for recovery" requirement in
+`specs/shared-people-mode/spec.md` states testable lock, owner-death rollback, physical colour
+identity/shutdown, additional same-device directory, inspection failure, retained-read and
+read-only-diagnostic scenarios. It references the existing canonical digest and combined backup
+requirements instead of replacing their contracts. No implementation or test behavior changed.
+The unchanged proposal remains 393 words, below the 400-word intent limit.
+
+Fresh validation: `bunx @fission-ai/openspec@1.12.0 validate share-people-across-projects --strict --json`
+passed with one valid change and zero issues; `/tmp/shared-restore-10.2b-spec-strict.json`.
+`bun test apps/wbs/be-01/src/shared-people-host-restore.test.ts` passed the local host scenarios;
+`/tmp/shared-restore-10.2b-spec-tests.log`. Its real-Docker case is explicitly skipped in this
+local run; the separate 17-pass real-Docker receipt above remains the latest container proof.
+Formatting and normal commit hooks were repeated for the documentation amendment.
+
+For WBS 010.4.16, successful actual h2puni recovery/activation remains blocked by the six extra
+running same-device containers, six unreadable volume sources, physical colour mismatch and live
+green recorded above. Stopping containers alone does not make unreadable sources inspectable.
+This amendment performed no production action and does not authorize bypassing these blockers.
+Canonical exact-SHA gate, publication and activation remain pending.

@@ -762,3 +762,103 @@ backups SHALL remain refused by bare restore.
 
 - **WHEN** a backup rank names an organization absent from its organizations array
 - **THEN** digest and recovery validation refuse it before any output or write
+
+### Requirement: Host restore excludes writers before opening the database for recovery
+
+The host recovery entrypoint SHALL own a nonblocking exclusive flock on
+`/home/puni1/wbs/state/deploy.lock` in the same process that restores
+`/home/puni1/wbs/data/wbs.db`. It SHALL hold that lock from before the backup read through
+inspection, diagnostics, transaction completion and connection closure. Contention SHALL refuse
+before a writable database connection opens. It SHALL NOT launch a child writer or pass the
+lock's lifetime to an inspection child. Owner death SHALL release the flock and roll back any
+uncommitted recovery changes, including organization audit fields.
+
+The entrypoint SHALL inspect the full Docker container inventory, including stopped containers.
+Both `be-01-blue` and `be-01-green` SHALL exist, be stopped unconditionally and have an unambiguous
+writable DB_PATH mount resolving to the canonical database's physical device and inode. Every
+additional running container with a writable mount covering that database or naming its physical
+file SHALL refuse recovery. An additional running container with a writable directory on the
+same device SHALL also refuse, since path disjointness or a directory scan cannot exclude a
+hardlink. Missing, unreadable, malformed, incomplete or ambiguous inspection facts SHALL refuse
+before the writable opener; unknown state SHALL NOT establish writer exclusion.
+
+The entrypoint SHALL read the backup file exactly once, retain its validated contents and use the
+canonical digest defined by "Shared people backups have a canonical offline digest" for any
+operation/approval reference diagnostics. Those diagnostics SHALL use a physically read-only
+snapshot, reject inconsistent operation/digest/organization bindings and incomplete references
+for saved shared changes, and SHALL NOT assert an actor, consume consent or grant restore
+authority. The intermediate-release refusal in "Combined backup preserves every mode and rank" SHALL also apply to this host entrypoint, before its writable opener, even when references
+are valid. The host entrypoint SHALL NOT start containers or activate runtime capability.
+
+#### Scenario: deploy contention during backup inspection
+
+- **GIVEN** a host restore owns the canonical deploy flock and a Docker inspection child is still running
+- **WHEN** another deploy or host restore attempts that flock
+- **THEN** the rival refuses while the recovery owner retains the lock
+- **AND** no rival writable recovery connection opens
+
+#### Scenario: owner dies while its inspector survives
+
+- **GIVEN** the recovery owner holds the canonical deploy flock while its inspection child runs
+- **WHEN** the owner is killed and the inspection child remains alive
+- **THEN** another process can acquire the same lock inode
+- **AND** no detached writer continues recovery
+
+#### Scenario: owner dies after partial SQLite writes
+
+- **GIVEN** the locked recovery owner has written organization audit state and spilled uncommitted SQLite pages during a later restore update
+- **WHEN** the owner is killed before commit
+- **THEN** prior modes, ranks and organization audit fields remain unchanged after recovery
+- **AND** the same flock becomes available and a successor isolated restore can complete
+
+#### Scenario: the colours name different physical databases
+
+- **GIVEN** both colours configure the same container DB_PATH but their writable mounts resolve to different database inodes
+- **WHEN** host restore inspects those colours
+- **THEN** it refuses before the writable opener instead of accepting matching path strings
+
+#### Scenario: a running colour names the canonical database through a hardlink
+
+- **GIVEN** green is running and its alternate mount directory contains a hardlink to the canonical database
+- **WHEN** host restore verifies that green's database has the canonical device and inode
+- **THEN** it still refuses because green is running
+- **AND** ranks remain absent and the database journal mode is unchanged
+
+#### Scenario: an additional running writer has a disjoint same-device directory
+
+- **GIVEN** both verified colours are stopped and another running container has a writable directory on the canonical database's device
+- **WHEN** host restore inspects that container, including when the directory contains a database hardlink under an alternate pathname
+- **THEN** it refuses even though the directory path does not contain the canonical database path
+- **AND** ranks remain absent and the database journal mode is unchanged
+
+#### Scenario: required inspection facts cannot establish exclusion
+
+- **GIVEN** Docker inspection fails, a required colour is missing, or inventory, state, DB_PATH or mount facts are malformed, incomplete or ambiguous
+- **WHEN** host restore attempts preflight
+- **THEN** it refuses before opening a writable database connection
+- **AND** no saved mode, rank or organization audit field changes
+
+#### Scenario: a physical mount source is unreadable
+
+- **GIVEN** a required inspected writable mount source exists but the recovery owner cannot read its physical identity
+- **WHEN** host restore attempts to establish writer exclusion
+- **THEN** it refuses before the writable opener rather than treating unreadability as absence
+
+#### Scenario: the backup pathname changes during inspection
+
+- **GIVEN** host restore has read and validated an isolated backup under its flock
+- **WHEN** the inspection subprocess replaces that pathname with malformed bytes
+- **THEN** restore uses the retained original contents without rereading the pathname
+
+#### Scenario: diagnostic references do not match the retained backup
+
+- **GIVEN** supplied references have a foreign canonical digest, operation or saved organization, or omit an approval required for saved shared changes
+- **WHEN** the host entrypoint checks those references
+- **THEN** it refuses without changing approval evidence, ranks, modes or database journal mode
+
+#### Scenario: valid diagnostic consent cannot enable shared restoration
+
+- **GIVEN** a shared backup has valid operation and approval reference bindings
+- **WHEN** the intermediate host entrypoint completes read-only diagnostics
+- **THEN** the existing unsupported-shared-mode refusal occurs before a writable connection opens
+- **AND** approval evidence and database journal mode remain unchanged
