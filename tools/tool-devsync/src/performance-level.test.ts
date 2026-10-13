@@ -1,5 +1,6 @@
 import { closeSync, constants, openSync } from 'node:fs';
 import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { get } from 'node:http';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -485,6 +486,23 @@ async function cancelSupervisor(supervisor: Bun.Subprocess): Promise<void> {
   } finally {
     if (timeout !== undefined) clearTimeout(timeout);
   }
+}
+
+/** Observes fixture readiness without owning a port the supervisor must claim. */
+async function isServiceReady(port: number): Promise<boolean> {
+  return new Promise<boolean>((resolve, reject) => {
+    const request = get(`http://127.0.0.1:${String(port)}`, (response) => {
+      response.resume();
+      resolve(response.statusCode === 200);
+    });
+    request.once('error', (cause: NodeJS.ErrnoException) => {
+      if (cause.code === 'ECONNREFUSED') resolve(false);
+      else reject(cause);
+    });
+    request.setTimeout(750, () => {
+      request.destroy(new Error(`Fixture service on port ${String(port)} did not respond`));
+    });
+  });
 }
 
 async function isPortFree(port: number): Promise<boolean> {
@@ -1273,9 +1291,22 @@ describe('Performance level target production boundary', () => {
     );
     const started = Date.now();
     let ready = false;
+    // Proof: holding the old readiness probe's bind for 1000 ms made the production
+    // preflight refuse occupied port 9100; this test then failed ready=false at 60 s.
+    // The HTTP observer passed with the same 1000 ms pause before returning.
+    // HTTP observation leaves the supervisor's ports available throughout startup.
     while (!ready && Date.now() - started < 60_000) {
-      ready = !(await isPortFree(9100)) && !(await isPortFree(9200)) && !(await isPortFree(10200));
-      if (!ready) await Bun.sleep(200);
+      ready = (await Promise.all([9100, 9200, 10200].map(isServiceReady))).every(Boolean);
+      if (!ready) {
+        // Proof: a foreign listener on 10200 surfaced the production occupied-port
+        // refusal here in 241 ms, rather than reaching the readiness deadline.
+        const completed = await Promise.race([run, Promise.resolve(undefined)]);
+        if (completed !== undefined)
+          throw new Error('Performance fixture supervisor exited before readiness', {
+            cause: completed,
+          });
+        await Bun.sleep(200);
+      }
     }
     expect(ready).toBe(true);
     const [supervisor] = [...supervisors];
