@@ -94,3 +94,45 @@ Both guards restored: nested direct, symlink alias and candidate-local Nx tests 
 Correction checks: fresh scoped Nx source lint passed in 17.0 seconds; scoped Nx typecheck passed in 1.3 seconds; all 186 OpenSpec items validated with zero failures; changed-file Prettier and git diff checks passed. Nx again reported its plugin socket was unavailable and ran plugins in the main process. Full gate and publication remain intentionally unrun.
 
 Final correction focused suite (the same three explicit source files and trusted-modules environment listed above): `66 pass, 0 fail, 1113 expect() calls`, 103.11 seconds, exit 0.
+
+## Integration CI fixture reconciliation — 2026-10-13
+
+PR #390 run `38327059752`, completed Twilight job `115068172929`, ran integration
+head `a424e81402e6518e08f619c127af8e87733e41ad`: 1084 tests passed and two failed.
+Both failures reproduced together locally (0 pass, 2 fail, 38 assertions) through
+the production CLI. These were stale test fixtures after runtime closure isolation.
+No production containment or other production source changed.
+
+The preserved enforce-launcher fixture commits `.nx/installation/node_modules/nx`.
+It now requires the named candidate-module refusal, no certificate output and its
+existing wrapper nonexecution sentinel. Restoring only the old root-level module
+predicate in production made the launcher return exit 0 with `accepted:true` and
+`certified:true`; the corrected negative expected exit 1 and failed. The original
+guard was restored in `finally`. Mutation log: `/tmp/pr390-launcher-mutation.log`.
+
+The scoped React rule fixture formerly linked TypeScript outside its declared
+trusted root. The new copier correctly refused that escape, yielding the F1
+unevaluated reason `trusted TypeScript compiler identity is unreadable`. The fixture
+now physically copies the complete compiler package with symlinks dereferenced,
+retaining its exact scoped React import and F1 finding assertions. CLI exit-code
+assertions now include the verdict so future typed unevaluated reasons are visible.
+
+The two corrected production-path cases passed (2 pass, 0 fail, 41 assertions).
+The complete policy/rules files passed 120 tests, 0 failures, 2033 assertions in
+48.75 seconds. After replacing the initial physical compiler-identity-only fixture
+with the complete copied package, the rules file passed again: 64 tests, 0 failures,
+569 assertions in 16.37 seconds. The final preserved-launcher case additionally
+checks empty stdout so a refusal cannot carry certification output. Adjacent
+`Proof:` comments identify the old fixture fault and watched guard mutation.
+
+Full host gate, full repository tests/build, browser suites and deployment remain
+unrun by this worker; the coordinator owns the canonical gate. The first GitHub
+run-level log command withheld logs while other jobs were running; the completed
+job log was retrieved directly with the Actions jobs/logs API.
+
+Final checks: the preserved-launcher refusal/no-certificate case passed (1 test,
+33 assertions); scoped Nx source lint passed in 14.0 seconds and scoped Nx
+TypeScript check passed in 0.99 seconds, both uncached. Three-file Prettier and
+`git diff --check` passed. Pinned OpenSpec 1.12.0 validated all 186 items with zero
+failures. Logs use `/tmp/pr390-twilight-final-{lint,types}.log`,
+`/tmp/pr390-launcher-final.log` and `/tmp/pr390-twilight-fix-openspec.json`.
