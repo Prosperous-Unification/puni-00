@@ -221,6 +221,62 @@ describe('step blockage replay compatibility probes', () => {
     }
   });
 
+  it('refuses unreadable replay source and CLI in a nonprivileged process', async () => {
+    if (process.getuid?.() === 0)
+      throw new Error('unreadability proof needs a nonprivileged runner');
+    const directory = scratchSync('wbs-replay-permissions-');
+    const source = join(directory, 'src');
+    const cli = join(source, 'step-blockage-replay-kinds-cli.ts');
+    const command = stepBlockageReplayKindsCommand('green').slice(2);
+    try {
+      mkdirSync(source);
+      chmodSync(source, 0o000);
+      // Proof: removing source readability/search checks made this exit 0 instead of 74.
+      expect(await Bun.spawn(command, { cwd: directory }).exited).toBe(74);
+      chmodSync(source, 0o700);
+      writeFileSync(cli, 'console.log([])');
+      chmodSync(cli, 0o000);
+      const child = Bun.spawn(command, { cwd: directory, stderr: 'pipe' });
+      // Proof: replacing CLI execution with an empty answer made this exit 0.
+      expect(await child.exited).not.toBe(0);
+    } finally {
+      chmodSync(source, 0o700);
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses an unreadable replay database and a missing command journal', async () => {
+    if (process.getuid?.() === 0)
+      throw new Error('unreadability proof needs a nonprivileged runner');
+    const directory = scratchSync('wbs-replay-database-');
+    const path = join(directory, 'plan.db');
+    const db = new Database(path);
+    const command = storedStepBlockageReplayKindsCommand('green').slice(2);
+    const read = async () => {
+      const child = Bun.spawn(command, {
+        env: { ...process.env, DB_PATH: path },
+        stdout: 'pipe',
+        stderr: 'pipe',
+      });
+      return { exitCode: await child.exited, stderr: await new Response(child.stderr).text() };
+    };
+    try {
+      const missing = await read();
+      // Proof: treating a missing command_journal as empty made this exit 0.
+      expect(missing.exitCode).not.toBe(0);
+      expect(missing.stderr).toContain('command journal table is missing');
+      db.run('CREATE TABLE command_journal (payload text NOT NULL,inverse text NOT NULL)');
+      expect((await read()).exitCode).toBe(0);
+      chmodSync(path, 0o000);
+      // Proof: overriding denied database permissions in the probe made this exit 0.
+      expect((await read()).exitCode).not.toBe(0);
+    } finally {
+      chmodSync(path, 0o600);
+      db.close();
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
   it('counts nested forward and inverse replay with no live facts, refusing malformed history', async () => {
     const directory = scratchSync('wbs-replay-history-');
     const path = join(directory, 'plan.db');
