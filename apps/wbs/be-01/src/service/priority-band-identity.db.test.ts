@@ -538,6 +538,8 @@ describe('a priority ladder moves no date', () => {
           readiness,
           hold,
           nodeReadings,
+          blockages,
+          blockageCauses,
           charged,
           ...row
         }) => {
@@ -635,6 +637,14 @@ describe('a priority ladder moves no date', () => {
           expect(
             nodeReadings === undefined ? 'parent' : [...new Set(Object.values(nodeReadings))],
           ).toEqual(row.rolledUp ? 'parent' : ['unknown']);
+          // The capture predates blockage fields. An unstated leaf has no facts and an empty
+          // cause list for every project step; parents expose neither field.
+          // Proof (2026-10-14): phantom facts, omitted step causes and parent field leakage
+          // each failed both historical replays and this file's ladder comparison.
+          expect(blockages).toEqual(row.rolledUp ? undefined : {});
+          expect(blockageCauses).toEqual(
+            row.rolledUp ? undefined : Object.fromEntries(tree.steps.map((step) => [step.id, []])),
+          );
           return row;
         },
       ),

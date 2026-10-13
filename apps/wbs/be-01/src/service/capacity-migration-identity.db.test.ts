@@ -342,6 +342,8 @@ describe('every plan schedules identically across the migration', () => {
             readiness,
             hold,
             nodeReadings,
+            blockages,
+            blockageCauses,
             charged,
             ...row
           }) => {
@@ -460,6 +462,16 @@ describe('every plan schedules identically across the migration', () => {
             expect(
               nodeReadings === undefined ? 'parent' : [...new Set(Object.values(nodeReadings))],
             ).toEqual(row.rolledUp ? 'parent' : ['unknown']);
+            // The capture predates blockage fields. An unstated leaf has no facts and an empty
+            // cause list for every project step; parents expose neither field.
+            // Proof (2026-10-14): phantom facts, omitted step causes and parent field leakage
+            // each failed both historical oracle suites through the production tree projection.
+            expect(blockages).toEqual(row.rolledUp ? undefined : {});
+            expect(blockageCauses).toEqual(
+              row.rolledUp
+                ? undefined
+                : Object.fromEntries(tree.steps.map((step) => [step.id, []])),
+            );
             // The third of the same kind, and the newest: `work-item-deadline`
             // slice 6 made `work_item.deadline` readable, so every row now
             // carries a key the pinned document predates. `null` on all sixteen
