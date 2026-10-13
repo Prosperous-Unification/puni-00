@@ -441,9 +441,12 @@ at `/home/puni1/wbs/data/wbs.db`; test IO supplies isolated paths and a Docker e
 
 A full `docker ps --all --quiet` inventory followed by inspection must contain both
 `be-01-blue` and `be-01-green`. Their unique DB_PATH must resolve through a writable bind
-mount to the same existing physical database as the host owner. Every container with a
-writable mount covering that database must be stopped, including containers outside the
-blue/green names. Missing or malformed inventory, inaccessible paths, ambiguous identity,
+mount to the same existing physical database as the host owner. Both verified colours must
+unconditionally be stopped. Additional containers with writable mounts covering that database
+must be stopped, including physical file aliases. A writable directory on the database filesystem
+cannot exclude hardlinks within it, so every running container with such a mount refuses
+conservatively; a recursive snapshot scan cannot establish stable absence. Distinct-device mount
+sources can be excluded by physical device comparison. Missing or malformed inventory, inaccessible paths, ambiguous identity,
 inspection failure and lock contention refuse before opening the writer.
 
 Optional operation/approval IDs check persisted bindings on a read-only snapshot using the

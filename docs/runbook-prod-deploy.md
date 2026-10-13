@@ -423,9 +423,9 @@ docker exec be-01-<colour> bun run src/shared-people-rollback-cli.ts restore /da
 
 The host recovery owner runs directly on h2puni from this release's checkout, with Bun and
 Docker available. Stop every container with a writable mount over the production database
-before invoking it. Both `be-01-blue` and `be-01-green` must exist and identify the same
+before invoking it. Both `be-01-blue` and `be-01-green` must be stopped, exist and identify the same
 `/home/puni1/wbs/data/wbs.db` through their configured DB_PATH and mounts. The operator needs
-permission to inspect every mounted host source; absent, unreadable or ambiguous facts refuse.
+permission to inspect every mounted host source; absent, unreadable or ambiguous facts refuse. Running containers with writable directory mounts on the database filesystem also refuse: those directories can contain hardlinks to the database. Distinct-device mounts can be excluded by physical device comparison. Plan an attended maintenance window for these containers and for unreadable mount sources.
 
 ```sh
 bun apps/wbs/be-01/src/shared-people-host-restore-cli.ts /home/puni1/wbs/data/shared-people-<date>.json

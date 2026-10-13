@@ -4838,3 +4838,61 @@ colour mismatch and live green writer. They require operator correction/maintena
 
 The canonical exact-SHA h2puni gate, full CI and Astra review are pending; this local checkpoint
 claims no host gate or activation. Publication is deliberately deferred until Astra review.
+
+## Astra hardlink-fencing repair (10.2b, 2026-10-14)
+
+Review of `fa47ed1d67dee8a6fce914f47a2719429ed96308` found that physical colour identity could
+pass through a hardlinked database in an alternate mount directory while pathname coverage
+missed that running writer. The retained backup could then restore ranks. The repair requires
+both physically verified colours stopped unconditionally and audits additional writable mounts
+separately. A writable directory on the database's device is conservatively alias-capable even
+when no known path overlaps; snapshot directory scans cannot prove stable hardlink absence.
+Distinct-device sources remain distinguishable by device/inode comparison. No runtime activation
+or shared restore permission changes were made.
+
+Two mounted production-owner regressions first failed against the original code:
+`/tmp/shared-restore-10.2b-alias-original-red.log` (0 pass / 2 fail). Running green through a hardlink
+and a running third writer through a hardlink with both colours stopped are separate cases.
+Each now refuses before the writable opener, leaves ranks absent and preserves DELETE journal
+mode: `/tmp/shared-restore-10.2b-alias-green.log` (2 pass / 10 assertions). Independently bypassing
+the colour shutdown guard and the additional same-device directory check each produced RED in
+`/tmp/shared-restore-10.2b-colour-alias-red.log` and
+`/tmp/shared-restore-10.2b-third-alias-red.log`; both guards have adjacent `Proof:` comments.
+
+Fresh checks after repair:
+
+- The same four-file focused regression command above: **51 pass, 1 explicit real-Docker skip,
+  0 fail**, 309 assertions; `/tmp/shared-restore-10.2b-alias-regression.log`.
+- Real Docker command above: **17 pass, 0 fail**, 168 assertions;
+  `/tmp/shared-restore-10.2b-alias-docker.log`. The actual green and third-writer containers now
+  mount the alternate hardlink directory: each running state refuses with ranks and DELETE mode
+  unchanged, then stopping both admits the isolated restore. Exact created-container cleanup runs.
+- Scoped ESLint and `bunx tsc --build apps/wbs/be-01/tsconfig.json --pretty false`: exit 0 without
+  diagnostics. Scoped formatting and pinned OpenSpec validation were repeated before commit.
+
+### Attended host-operation blockers
+
+Read-only Docker name/mount projection and physical `stat` on h2puni found database device 2049.
+Six additional running containers have writable directory mounts on that same device and would
+be refused by the conservative rule:
+
+| Container             | Same-device writable sources                            |
+| --------------------- | ------------------------------------------------------- |
+| `wbs-dev-src`         | `/home/puni1/wbs-dev/data`, `/home/puni1/wbs-dev/src`   |
+| `netdata`             | `/home/puni1/monitoring/netdata-config`                 |
+| `dev-be-01-blue`      | `/home/puni1/wbs-dev/data`                              |
+| `aivn-studio-dev-src` | `/home/puni1/aivn-dev/src`, `/home/puni1/aivn-dev/data` |
+| `wbs-caddy-1`         | `/home/puni1/wbs/logs`                                  |
+| `aivn-dev-src`        | `/home/puni1/aivn-dev/data`, `/home/puni1/aivn-dev/src` |
+
+Six volume sources are unreadable as `puni1` and remain explicit fail-closed unknowns:
+`/var/lib/docker/volumes/logging-vector-data/_data` (`logging-vector`),
+`/var/lib/docker/volumes/netdatalib/_data` and `netdatacache/_data` (`netdata`),
+`/var/lib/docker/volumes/wbs_caddy_config/_data` and `wbs_caddy_data/_data` (`wbs-caddy-1`),
+`/var/lib/docker/volumes/wbs_registry_data/_data` (`wbs-registry-1`). No inspected writable sources
+were on a distinct device. Receipt: `/tmp/shared-restore-10.2b-alias-host-cost.json`.
+
+These are attended-operation blockers in addition to the physical blue/green mismatch and live
+green recorded above. No production container was stopped or changed, and no production database
+was written. The broad maintenance cost is explicit for Astra's assessment; the preflight does
+not bypass unknown state. Astra rereview and the canonical exact-SHA gate remain pending.

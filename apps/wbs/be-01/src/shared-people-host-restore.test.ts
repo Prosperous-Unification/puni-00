@@ -1,4 +1,13 @@
-import { chmodSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  linkSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 
@@ -384,6 +393,7 @@ dockerProof(
     const image = process.env['WBS_HOST_RESTORE_PROOF_IMAGE'];
     if (image === undefined || image === '')
       throw new Error('WBS_HOST_RESTORE_PROOF_IMAGE must name an available image');
+    const alias = prepareAlias();
     const label = 'wbs-host-restore-proof=' + String(process.pid);
     const created: string[] = [];
     async function command(args: string[]) {
@@ -406,9 +416,9 @@ dockerProof(
             '--label',
             label,
             '--mount',
-            `type=bind,source=${directory},target=/data`,
+            `type=bind,source=${name === 'be-01-blue' ? directory : alias},target=/data`,
             '--env',
-            'DB_PATH=/data/test.db',
+            `DB_PATH=/data/${basename(database)}`,
             '--entrypoint',
             '/bin/sh',
             image,
@@ -424,9 +434,15 @@ dockerProof(
       );
       const writer = created.at(2);
       if (writer === undefined) throw new Error('Docker proof writer absent');
+      const green = created.at(1);
+      if (green === undefined) throw new Error('Docker proof green absent');
+      await command(['start', green]);
+      await refuses(invoke(), 'writable container is not stopped: /be-01-green');
+      expectUnopenedRestore();
+      await command(['stop', '--time', '0', green]);
       await command(['start', writer]);
       await refuses(invoke(), 'writable container is not stopped');
-      expect(rows()).toEqual([]);
+      expectUnopenedRestore();
       await command(['stop', '--time', '0', writer]);
       expect(await invoke()).toEqual({ organizations: 1, ranks: 1 });
       expect(rows()).toEqual([{ project_id: 'a1' }]);
@@ -497,4 +513,51 @@ it('reports malformed inspection boundaries and a missing required colour explic
     ),
     'host restore database is not a file',
   );
+});
+
+function prepareAlias() {
+  const clone = join(directory, 'alias-proof.db');
+  const sqlite = openDatabase(database);
+  try {
+    sqlite.run('VACUUM INTO ?', [clone]);
+  } finally {
+    sqlite.close();
+  }
+  database = clone;
+  const independent = openDatabase(database);
+  try {
+    independent.run('PRAGMA journal_mode = DELETE');
+  } finally {
+    independent.close();
+  }
+  const alias = join(directory, 'alias');
+  mkdirSync(alias);
+  linkSync(database, join(alias, basename(database)));
+  expect(statSync(join(alias, basename(database))).ino).toBe(statSync(database).ino);
+  return alias;
+}
+function expectUnopenedRestore() {
+  const sqlite = openReadOnlyDatabase(database);
+  try {
+    expect(sqlite.query('PRAGMA journal_mode').get()).toEqual({ journal_mode: 'delete' });
+    expect(sqlite.query('SELECT project_id FROM project_rank').all()).toEqual([]);
+  } finally {
+    sqlite.close();
+  }
+}
+it('refuses a running verified green through a hardlinked database alias before the writer opener', async () => {
+  const alias = prepareAlias();
+  writeInventory([container('be-01-blue'), container('be-01-green', true, alias)]);
+  await refuses(invoke(), 'writable container is not stopped: /be-01-green');
+  expectUnopenedRestore();
+});
+it('refuses a third running writer through a hardlinked directory with both colours stopped', async () => {
+  const alias = prepareAlias();
+  writeInventory([
+    container('be-01-blue'),
+    container('be-01-green'),
+    container('manual-writer', true, alias),
+  ]);
+  await refuses(invoke(), 'writable container is not stopped: /manual-writer');
+  expectUnopenedRestore();
 });

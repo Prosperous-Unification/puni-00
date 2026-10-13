@@ -154,16 +154,22 @@ async function fenceContainers(paths: HostRestorePaths): Promise<void> {
     // Proof: bypassing physical identity restored through green's distinct existing database inode.
     if (!mounted.isFile() || mounted.dev !== identity.dev || mounted.ino !== identity.ino)
       throw new Error(`database identity differs: ${name}`);
+    // Proof: bypassing this shutdown guard admitted the running-green hardlink negative before the writer opener.
+    if (!colour.stopped) throw new Error(`writable container is not stopped: ${name}`);
   }
   for (const container of containers) {
+    // Both named colours have already passed unconditional shutdown and physical identity checks.
+    if (container.name === '/be-01-blue' || container.name === '/be-01-green') continue;
     for (const mount of container.mounts) {
       if (!mount.writable) continue;
       const source = await realpath(mount.source);
       const mounted = await stat(source);
       const covers =
         contains(source, database) ||
+        // Proof: removing same-device directory exclusion admitted the mounted third-writer hardlink negative with both colours stopped.
+        (mounted.isDirectory() && mounted.dev === identity.dev) ||
         (mounted.dev === identity.dev && mounted.ino === identity.ino);
-      // Proof: bypassing active-writer refusal admitted both live colours and the third mounted writer.
+      // Proof: bypassing active-writer refusal admitted the third mounted writer before the restore transaction.
       if (covers && !container.stopped)
         throw new Error(`writable container is not stopped: ${container.name}`);
     }
