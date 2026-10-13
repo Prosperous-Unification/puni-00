@@ -800,6 +800,10 @@ export const UNDECLARED_TEST_TARGETS: Readonly<Record<string, string>> = {
   'wbs-fe-01:test:browser:packaged:level':
     'Packaged Browser adapter has a separate runner and publication contract.',
   'wbs-fe-01:e2e': 'Legacy Browser Playwright target without this slice’s report binding.',
+  // Proof: deleting this classification made the named organization Browser inventory
+  // test fail and the production verifier refuse `wbs-fe-01:e2e-organization`.
+  'wbs-fe-01:e2e-organization':
+    'Real-backend organization Browser Playwright target without this slice’s report binding.',
   'wbs-fe-01:e2e-packaged': 'Legacy packaged Browser target without this slice’s report binding.',
 };
 
