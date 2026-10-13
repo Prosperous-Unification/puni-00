@@ -705,7 +705,17 @@ One operation ID SHALL bind exactly one digest across organizations. One operati
 organization SHALL bind exactly one approving actor and durable approval ID. An identical
 personal retry SHALL return the original approval after rechecking membership. Any changed
 digest or approving actor SHALL answer 409 `restore_approval_conflict` without changing evidence.
-Rollback SHALL refuse to discard any restore operation or approval evidence.
+Rollback SHALL refuse to discard any restore operation or approval evidence. The preparatory
+shared-people removal SHALL reject either kind of evidence in its immediate writer transaction
+before mutating ranks, modes or organization audit fields, preserving evidence and the migration
+ledger even when all modes are isolated and no switch audit exists.
+
+#### Scenario: restore evidence closes removal before schema rollback
+
+- **GIVEN** one isolated organization has a rank, no capacity-mode switch audit, and a restore operation with or without an issued approval
+- **WHEN** the operator attempts shared-people removal followed by schema rollback
+- **THEN** removal refuses before changing ranks, modes, organization audit fields or evidence
+- **AND** schema rollback also refuses while the migration ledger remains unchanged
 
 #### Scenario: demotion after request admission
 

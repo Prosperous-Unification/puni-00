@@ -378,8 +378,13 @@ sign-in; WBS has no operator path around it. Then roll back code
 only: with no organization shared, the swap's capacity-modes guard admits an
 older image, and the extra column and table are inert to it.
 
-The procedure below applies while no switch is recorded. The new column's down migration refuses
-while any shared organization **or any project rank** exists. Use the combined recovery procedure instead of removing ranks alone. It preserves all
+The procedure below applies only while no capacity-mode switch, restore operation or restore
+approval is recorded. Check `shared_people_audit`, `shared_people_restore_operation` and
+`shared_people_restore_approval` before preparing a schema rollback. Any row closes that rollback;
+`shared-people-rollback-cli.ts remove` refuses inside its immediate transaction before changing
+modes, ranks or organization audit fields. Restore evidence remains durable even when every
+organization is isolated and no switch audit exists. Do not remove evidence to force a downgrade.
+The new column's down migration also refuses while any shared organization **or any project rank** exists. Use the combined recovery procedure instead of removing ranks alone. It preserves all
 organization identities and semantic modes, including isolated, and every rank field:
 
 ```sh

@@ -4509,3 +4509,42 @@ the observed fault. The tests exercise actual Elysia admission, source gate and 
 | Remove operation FK                            | Same parent negative: absent operation admitted                                                                                      |
 | Widen digest request regex                     | `rejects malformed digests and asserted authority at the request boundary`: storage error 500 instead of boundary 400                |
 | Delete undeclared request fields               | Same boundary case: asserted actorId accepted instead of 400                                                                         |
+
+## Approval checkpoint review fix: refuse removal over restore evidence (2026-10-14)
+
+Astra's P2 review of `7b908e0c0fe94fba32f9f9d27fecabfa004aff86` reproduced a preparatory
+rollback gap: an isolated organization with one rank and no switch audit could lose that rank
+and have its organization audit fields changed by `removeSharedPeople`, then encounter the
+restore-evidence refusal in `down.sql`. The removal now checks both restore-operation and
+restore-approval tables inside its existing immediate writer transaction, before any mutation.
+The runbook's eligibility requires all three evidence tables to be empty.
+
+Two production-path negatives use one isolated rank and zero switch audits: operation-only
+state and a valid personally issued approval through `SharedPeopleRestoreApprovalRepository`.
+Each snapshots complete rank rows, organization rows including audit fields, switch audits,
+restore operations, approvals and the migration ledger. Removal refuses without changing that
+snapshot; subsequent migration rollback also refuses without changing it.
+
+- RED before the guard: **0 pass, 2 fail**, both at the full-state assertion (rank removed and
+  `organization.updated_at` changed from null to 101).
+- GREEN with the guard: **2 pass, 0 fail**, 13 assertions.
+- R5: independently replace `if (operations.length > 0 || approvals.length > 0)` with `if (false)`
+  in the production removal and run
+  `bun test libs/wbs/adapters/store-sqlite/src/shared-people-rollback.db.test.ts -t 'refuses removal before mutating recovery state' --timeout=30000`:
+  **exit 1, 0 pass, 2 fail**, again at the complete recovery-state assertion. Restored source in
+  `finally`; the adjacent `Proof:` records the injected fault and both observed negatives.
+- Final regressions:
+  `bun test libs/wbs/adapters/store-sqlite/src/shared-people-rollback.db.test.ts libs/wbs/adapters/store-sqlite/src/shared-people-audit.db.test.ts libs/wbs/adapters/store-sqlite/src/shared-people-restore-approval.db.test.ts apps/wbs/be-01/src/controller/shared-people-restore-approval.controller.db.test.ts --timeout=30000`:
+  **47 pass, 0 fail, 191 assertions**, including the existing recovery CLI cases.
+- `NX_DAEMON=false bunx nx run wbs-store-sqlite:typecheck`: **passed**.
+- `bunx eslint libs/wbs/adapters/store-sqlite/src/shared-people-rollback.ts libs/wbs/adapters/store-sqlite/src/shared-people-rollback.db.test.ts`:
+  **passed**.
+- `bunx prettier --check <the five changed .ts/.md paths>` and `git diff --check`: **passed**.
+- `bun run tools/tool-git-hooks/src/hooks/migration-lint.ts apps/wbs/be-01/drizzle/20261014120000_add_shared_people_restore_approvals/migration.sql apps/wbs/be-01/drizzle/20261014120000_add_shared_people_restore_approvals/down.sql`:
+  **exit 0**; the migration files themselves are unchanged by this review fix.
+- `BUN_TMPDIR=/tmp BUN_INSTALL_CACHE_DIR=/tmp/puni-bun-cache bunx @fission-ai/openspec@1.12.0 validate --all --json`:
+  **186 passed, 0 failed**.
+
+This review fix remains within task 10.1. Tasks 10.2–10.4, shared capability activation,
+canonical h2puni gate, whole-repository gates/build/browser checks remain unverified here.
+No push, merge or deploy.

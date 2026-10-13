@@ -9,7 +9,13 @@ import {
   type SavedProjectRank,
   saveProjectRanks,
 } from './project-rank-rollback';
-import { organization, projectRank, sharedPeopleAudit } from './schema';
+import {
+  organization,
+  projectRank,
+  sharedPeopleAudit,
+  sharedPeopleRestoreApproval,
+  sharedPeopleRestoreOperation,
+} from './schema';
 import { decodeSharedPeople } from './shared-people-mode';
 
 type Reader = Pick<Drizzle, 'select'>;
@@ -108,9 +114,9 @@ export function saveSharedPeople(dbPath: string): SavedSharedPeople {
  * Clears both facts atomically only when the complete backup still matches; stale input throws before writes.
  * Partial organization updates stamp the supplied instant; all audit fields roll back on failure.
  *
- * @throws once any capacity-mode switch is recorded in `shared_people_audit`: that table's rollback
- * refuses then, so the migrate-down this prepares is closed and clearing the modes would only lose
- * them (docs/runbook-prod-deploy.md#shared-people-rollback).
+ * @throws once any capacity-mode switch, restore operation or restore approval is recorded:
+ * their schema rollback refuses then, so the migrate-down this prepares is closed and clearing
+ * modes or ranks would only lose them (docs/runbook-prod-deploy.md#shared-people-rollback).
  */
 export function removeSharedPeople(db: Drizzle, backup: unknown, at: number) {
   const saved = readSaved(backup);
@@ -127,6 +133,22 @@ export function removeSharedPeople(db: Drizzle, backup: unknown, at: number) {
       if (switches.length > 0)
         throw new Error(
           'shared people switches are recorded: the schema rollback is closed; see docs/runbook-prod-deploy.md#shared-people-rollback',
+        );
+      const operations = tx
+        .select({ id: sharedPeopleRestoreOperation.id })
+        .from(sharedPeopleRestoreOperation)
+        .limit(1)
+        .all();
+      const approvals = tx
+        .select({ id: sharedPeopleRestoreApproval.id })
+        .from(sharedPeopleRestoreApproval)
+        .limit(1)
+        .all();
+      // Proof: bypassing this guard failed both issued-approval=false/true recovery-state negatives:
+      // the isolated rank vanished and organization updated_at changed before down.sql refused.
+      if (operations.length > 0 || approvals.length > 0)
+        throw new Error(
+          'shared people restore evidence is recorded: the schema rollback is closed; see docs/runbook-prod-deploy.md#shared-people-rollback',
         );
       const current = currentState(tx);
       // Proof: bypassing equality makes each stale mode/rank/organization test mutate state.
