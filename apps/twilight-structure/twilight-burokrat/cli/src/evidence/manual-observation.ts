@@ -18,6 +18,10 @@ export function inspectManualObservation(
   // Proof: a faulted staged reader made the production CLI selection assertion fail without this guard.
   if (selected.selection.kind !== 'committed')
     throw new Error('Manual observation selection is not committed');
+  // Proof: removing exact equality made an annotated tag-object SHA peel to its commit and
+  // pass the production CLI tag-object refusal test with current JSON and exit zero.
+  if (selected.selection.revision !== revision)
+    throw new Error('Manual observation selected revision differs from requested SHA');
   const candidate = hashCanonical({
     selection: selected.selection,
     entries: selected.entries,

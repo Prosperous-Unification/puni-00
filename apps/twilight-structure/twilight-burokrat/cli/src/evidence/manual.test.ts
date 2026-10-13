@@ -415,6 +415,17 @@ test('inspect-manual-observation refuses symbolic SHA and absent external eviden
   expect(missing.stdout).toBe('');
 });
 
+test('inspect-manual-observation refuses an annotated tag object SHA that peels to a commit', async () => {
+  const setup = fixture();
+  git(setup.root, ['tag', '-a', 'manual-observation-tag', '-m', 'annotated tag', setup.revision]);
+  const tagObject = git(setup.root, ['rev-parse', 'manual-observation-tag^{tag}']);
+  expect(tagObject).not.toBe(setup.revision);
+  const call = await observe({ ...setup, revision: tagObject });
+  expect(call.exitCode).toBe(1);
+  expect(call.stderr).toContain('Manual observation selected revision differs from requested SHA');
+  expect(call.stdout).toBe('');
+});
+
 test('inspect-manual-observation refuses a staged reader and mismatched inspector revision', () => {
   const setup = fixture();
   const staged = observeFault(

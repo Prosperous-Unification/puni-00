@@ -276,7 +276,7 @@ The version-1 observation SHALL bind revision, candidate, publication observatio
 
 #### Scenario: [TEST-AXES-070] Manual observation refuses invalid selection and evidence
 
-- **GIVEN** a symbolic SHA, staged reader fault, mismatched inspector revision or missing external report
+- **GIVEN** a symbolic SHA, annotated tag-object SHA, staged reader fault, mismatched inspector revision or missing external report
 - **WHEN** the command attempts observation
 - **THEN** it SHALL refuse with a named error and no JSON
 

@@ -139,7 +139,8 @@ Selector version 3 recognizes exact active main and change spec paths and ignore
 ## Manual evidence validator
 
 Task 4.1b.4 wraps the existing `inspectManual` result without filtering its fields. The adapter
-selects one exact full committed SHA, hashes its selected tuple, invokes the real inspector at
+selects one exact full committed SHA, requires the reader's selected revision to equal the
+requested SHA (so an annotated tag object cannot peel into a different commit), hashes its tuple, invokes the real inspector at
 the caller's decoded UTC instant, and requires the returned revision to match. Its version-1
 envelope carries the selected revision, candidate identity, canonical `evaluatedAt`, complete
 `manual` result, absent authentication, false certification and canonical digest of every preceding
