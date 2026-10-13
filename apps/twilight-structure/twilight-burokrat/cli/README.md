@@ -72,6 +72,16 @@ an explicitly unresolved test level. Source ownership does not establish the mod
 case. The observation remains unauthenticated, noncertifying, and carries no coverage or admission
 credit.
 
+`inspect-performance <repository> <committed-sha> <external-rule-policy>` inspects the
+current immutable Performance publication. It binds committed declaration, config and fixture
+blobs to the external Performance policy; recomputes artifact digests; independently decodes
+raw discovery, execution and measured attachments; evaluates reviewed thresholds; and reconciles
+normalized JUnit identities, counts and outcomes. It refuses inconsistent or unsuccessful
+success publications and pointer changes. Historical checkout paths are normalized as report
+identities without filesystem access. The deterministic observation digest binds all emitted
+claims, including authentication absent and `certifies:false`. It runs no tests and awards no
+coverage or admission credit. Historical failure bundles remain diagnostics.
+
 ## Diagnostic specification sources
 
 `inspect-spec-sources <repository> <committed-sha>` inventories every parsed active canonical
