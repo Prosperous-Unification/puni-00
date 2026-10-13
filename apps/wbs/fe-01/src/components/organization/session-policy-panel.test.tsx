@@ -1,6 +1,8 @@
+import { render as renderBare } from '@testing-library/react';
+import { StrictMode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { ResourceScope } from '@/lib/organization-context';
+import { LEGACY_ORGANIZATION, type ResourceScope } from '@/lib/organization-context';
 import { OrganizationResourcesProvider } from '@/runtime/organization-resources';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@/testing/organization-render';
 import { answerJson as answer, stubServer } from '@/testing/stub-server';
@@ -59,8 +61,11 @@ describe('session policy administration', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save session policy' }));
     expect(await screen.findByRole('alert')).toHaveProperty(
       'textContent',
-      'Enter whole seconds from 300 to 2592000, or leave a bound empty.',
+      'Maximum session length must be whole seconds from 300 to 2592000, or empty.',
     );
+    expect(max).toHaveAttribute('aria-invalid', 'true');
+    expect(max).toHaveAttribute('aria-describedby', 'policy-max-error');
+    expect(sent.filter((request) => request.route.startsWith('PUT'))).toHaveLength(0);
     fireEvent.change(max, { target: { value: '3600' } });
     fireEvent.change(reauth, { target: { value: '3601' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save session policy' }));
@@ -68,6 +73,8 @@ describe('session policy administration', () => {
       'textContent',
       'Reauthentication cannot exceed the maximum session length.',
     );
+    expect(reauth).toHaveAttribute('aria-invalid', 'true');
+    expect(reauth).toHaveAttribute('aria-describedby', 'policy-reauth-error');
     expect(sent.filter((request) => request.route.startsWith('PUT'))).toHaveLength(0);
     fireEvent.change(reauth, { target: { value: '' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save session policy' }));
@@ -76,6 +83,123 @@ describe('session policy administration', () => {
       maxSessionSeconds: 3600,
       reauthenticateAfterSeconds: null,
     });
+  });
+  it('names and associates an invalid reauthentication bound without sending a request', async () => {
+    const sent = stubServer({
+      'GET /api/organization/session-policy': [() => answer(200, { policy: null })],
+    });
+    mount();
+    const reauth = await screen.findByLabelText('Reauthenticate after (seconds)');
+    fireEvent.change(reauth, { target: { value: '2592001' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save session policy' }));
+    expect(await screen.findByRole('alert')).toHaveProperty(
+      'textContent',
+      'Reauthenticate after must be whole seconds from 300 to 2592000, or empty.',
+    );
+    expect(reauth).toHaveAttribute('aria-invalid', 'true');
+    expect(reauth).toHaveAttribute('aria-describedby', 'policy-reauth-error');
+    expect(sent.filter((request) => request.route.startsWith('PUT'))).toHaveLength(0);
+  });
+  it('ignores a late refusal after effect cleanup', async () => {
+    stubServer({
+      'GET /api/organization/session-policy': [() => answer(403, { error: 'not_a_member' })],
+    });
+    let release: ((reply: Response) => void) | undefined;
+    vi.mocked(fetch).mockImplementationOnce(
+      () =>
+        new Promise<Response>((resolve) => {
+          release = resolve;
+        }),
+    );
+    const onAccessLost = vi.fn();
+    const mounted = render(<SessionPolicyPanel onAccessLost={onAccessLost} />);
+    mounted.unmount();
+    await act(async () => {
+      release?.(answer(403, { error: 'not_a_member' }));
+      await Promise.resolve();
+    });
+    expect(onAccessLost).not.toHaveBeenCalled();
+  });
+  it('ignores a stale StrictMode GET after the second read becomes ready', async () => {
+    stubServer({ 'GET /api/organization/session-policy': [() => answer(200, { policy: null })] });
+    const original = vi.mocked(fetch).getMockImplementation()!;
+    let release: ((reply: Response) => void) | undefined;
+    let reads = 0;
+    vi.mocked(fetch).mockImplementation((url, init) => {
+      if (reads++ === 0)
+        return new Promise<Response>((resolve) => {
+          release = resolve;
+        });
+      return original(url, init);
+    });
+    renderBare(
+      <StrictMode>
+        <OrganizationResourcesProvider
+          scope={{
+            organization: LEGACY_ORGANIZATION,
+            isCurrent: () => true,
+            refuse: () => undefined,
+          }}
+        >
+          <SessionPolicyPanel onAccessLost={() => undefined} />
+        </OrganizationResourcesProvider>
+      </StrictMode>,
+    );
+    await screen.findByText('No session policy is set.');
+    expect(reads).toBe(2);
+    await act(async () => {
+      release?.(answer(200, { policy }));
+      await Promise.resolve();
+    });
+    expect(screen.getByText('No session policy is set.')).toBeDefined();
+    expect(screen.queryByDisplayValue('28800')).toBeNull();
+  });
+  it.each(['success', 'forbidden'])('ignores a StrictMode stale GET after %s PUT', async (kind) => {
+    stubServer({
+      'GET /api/organization/session-policy': [() => answer(200, { policy: null })],
+      'PUT /api/organization/session-policy': [
+        () =>
+          kind === 'success'
+            ? answer(200, { policy: { maxSessionSeconds: 7200, reauthenticateAfterSeconds: null } })
+            : answer(403, { error: 'forbidden' }),
+      ],
+    });
+    const original = vi.mocked(fetch).getMockImplementation()!;
+    let release: ((reply: Response) => void) | undefined;
+    let reads = 0;
+    vi.mocked(fetch).mockImplementation((url, init) => {
+      if (init?.method !== 'PUT' && reads++ === 0)
+        return new Promise<Response>((resolve) => {
+          release = resolve;
+        });
+      return original(url, init);
+    });
+    renderBare(
+      <StrictMode>
+        <OrganizationResourcesProvider
+          scope={{
+            organization: LEGACY_ORGANIZATION,
+            isCurrent: () => true,
+            refuse: () => undefined,
+          }}
+        >
+          <SessionPolicyPanel onAccessLost={() => undefined} />
+        </OrganizationResourcesProvider>
+      </StrictMode>,
+    );
+    fireEvent.change(await screen.findByLabelText('Maximum session length (seconds)'), {
+      target: { value: '3600' },
+    });
+    expect(reads).toBe(2);
+    fireEvent.click(screen.getByRole('button', { name: 'Save session policy' }));
+    if (kind === 'success') expect(await screen.findByDisplayValue('7200')).toBeDefined();
+    else await screen.findByText('Only a super-admin can manage session policy.');
+    await act(async () => {
+      release?.(answer(200, { policy }));
+      await Promise.resolve();
+    });
+    if (kind === 'success') expect(screen.getByDisplayValue('7200')).toBeDefined();
+    else expect(screen.queryByRole('button', { name: 'Save session policy' })).toBeNull();
   });
   it('clears with both nulls and reconciles the server response', async () => {
     const sent = stubServer({

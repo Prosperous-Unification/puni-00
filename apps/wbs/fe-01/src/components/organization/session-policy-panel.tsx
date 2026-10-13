@@ -47,8 +47,12 @@ export function SessionPolicyPanel({
   const [maxSession, setMaxSession] = useState('');
   const [reauthenticateAfter, setReauthenticateAfter] = useState('');
   const [message, setMessage] = useState('');
+  const [fieldError, setFieldError] = useState<{ field: 'max' | 'reauth'; text: string } | null>(
+    null,
+  );
   const [fault, setFault] = useState<Error | null>(null);
   const pending = useRef(false);
+  const requestVersion = useRef(0);
   const [sending, setSending] = useState(false);
 
   const applyPolicy = useCallback((policy: Policy) => {
@@ -95,9 +99,13 @@ export function SessionPolicyPanel({
     [onAccessLost],
   );
   const refresh = useCallback(async () => {
+    const version = ++requestVersion.current;
     setView({ kind: 'loading' });
     setMessage('');
+    setFieldError(null);
     const reply = await settings['getApiOrganizationSession-policy']({});
+    // Proof: 2026-10-13, removing this fence failed the held StrictMode GET test: the old read replaced the newer absence state.
+    if (version !== requestVersion.current) return;
     switch (reply.kind) {
       case 'success':
         applyPolicy(reply.body.policy);
@@ -117,6 +125,12 @@ export function SessionPolicyPanel({
     void refresh().catch((cause: unknown) => {
       setFault(new Error('Unexpected session policy read failure', { cause }));
     });
+    // Proof: 2026-10-13, removing effect cleanup invalidation let a held refusal call
+    // onAccessLost after unmount; StrictMode replay invalidates the first read.
+    const version = requestVersion;
+    return () => {
+      version.current++;
+    };
   }, [refresh]);
   if (fault !== null) throw fault;
 
@@ -124,12 +138,17 @@ export function SessionPolicyPanel({
     // Proof: removing pending admission together with the submit guard failed the forced held-form test with two PUT requests.
     if (pending.current || view.kind !== 'ready') return;
     pending.current = true;
+    // Proof: 2026-10-13, when read and cleanup advancement were broken, removing
+    // mutation admission let an old GET overwrite successful and forbidden PUT states.
+    const version = ++requestVersion.current;
     setSending(true);
     setMessage('');
+    setFieldError(null);
     try {
       const reply = await settings['putApiOrganizationSession-policy']({
         body: policy ?? { maxSessionSeconds: null, reauthenticateAfterSeconds: null },
       });
+      if (version !== requestVersion.current) return;
       switch (reply.kind) {
         case 'success':
           // Proof: trusting the submitted values failed the save reconciliation test when the server returned 7200 seconds.
@@ -146,10 +165,11 @@ export function SessionPolicyPanel({
           return unreachable(reply);
       }
     } catch (cause) {
-      setFault(new Error('Unexpected session policy mutation failure', { cause }));
+      if (version === requestVersion.current)
+        setFault(new Error('Unexpected session policy mutation failure', { cause }));
     } finally {
       pending.current = false;
-      setSending(false);
+      if (version === requestVersion.current) setSending(false);
     }
   }
   function submit(event: React.SyntheticEvent<HTMLFormElement>) {
@@ -158,13 +178,26 @@ export function SessionPolicyPanel({
     const max = parseBound(maxSession);
     const reauth = parseBound(reauthenticateAfter);
     // Proof: removing local bound validation failed the invalid-value mounted test with a PUT request.
-    if (max === 'invalid' || reauth === 'invalid') {
-      setMessage('Enter whole seconds from 300 to 2592000, or leave a bound empty.');
+    if (max === 'invalid') {
+      setFieldError({
+        field: 'max',
+        text: 'Maximum session length must be whole seconds from 300 to 2592000, or empty.',
+      });
+      return;
+    }
+    if (reauth === 'invalid') {
+      setFieldError({
+        field: 'reauth',
+        text: 'Reauthenticate after must be whole seconds from 300 to 2592000, or empty.',
+      });
       return;
     }
     // Proof: reversing the comparison failed the relation test by posting a reauthentication bound above the maximum.
     if (max !== null && reauth !== null && reauth > max) {
-      setMessage('Reauthentication cannot exceed the maximum session length.');
+      setFieldError({
+        field: 'reauth',
+        text: 'Reauthentication cannot exceed the maximum session length.',
+      });
       return;
     }
     void save({ maxSessionSeconds: max, reauthenticateAfterSeconds: reauth });
@@ -213,10 +246,18 @@ export function SessionPolicyPanel({
                 inputMode="numeric"
                 value={maxSession}
                 disabled={sending}
+                aria-invalid={fieldError?.field === 'max'}
+                aria-describedby={fieldError?.field === 'max' ? 'policy-max-error' : undefined}
                 onChange={(event) => {
                   setMaxSession(event.target.value);
+                  setFieldError(null);
                 }}
               />
+              {fieldError?.field === 'max' && (
+                <p id="policy-max-error" role="alert" className={ALERT_CLASS}>
+                  {fieldError.text}
+                </p>
+              )}
             </span>
             <span className={FIELD_CLASS}>
               <label htmlFor="policy-reauth" className={FIELD_LABEL_CLASS}>
@@ -228,10 +269,20 @@ export function SessionPolicyPanel({
                 inputMode="numeric"
                 value={reauthenticateAfter}
                 disabled={sending}
+                aria-invalid={fieldError?.field === 'reauth'}
+                aria-describedby={
+                  fieldError?.field === 'reauth' ? 'policy-reauth-error' : undefined
+                }
                 onChange={(event) => {
                   setReauthenticateAfter(event.target.value);
+                  setFieldError(null);
                 }}
               />
+              {fieldError?.field === 'reauth' && (
+                <p id="policy-reauth-error" role="alert" className={ALERT_CLASS}>
+                  {fieldError.text}
+                </p>
+              )}
             </span>
             <div className="flex flex-wrap gap-2">
               <Button type="submit" className={CONTROL_HEIGHT} disabled={sending}>
@@ -251,14 +302,7 @@ export function SessionPolicyPanel({
         </>
       )}
       {message !== '' && (
-        <p
-          role={
-            message.includes('Enter whole') || message.includes('cannot exceed')
-              ? 'alert'
-              : 'status'
-          }
-          className={STATUS_CLASS}
-        >
+        <p role="status" className={STATUS_CLASS}>
           {message}
         </p>
       )}

@@ -95,7 +95,7 @@ Times SHALL be compared in milliseconds using the evaluating service's injected 
 
 ### Requirement: A super-admin can review and change session bounds from organization administration
 
-The organization page SHALL read the current organization's policy through its captured resource scope. It SHALL show loading, absent, configured, read failure and authority refusal as distinct states. A current super-admin SHALL be able to set either optional bound or clear both; empty fields SHALL send null. Before sending, the form SHALL refuse values outside the inclusive 300–2,592,000 second integer range and a reauthentication bound greater than a present maximum. A pending mutation SHALL exclude another mutation. The page SHALL use the server's returned policy as the displayed value and SHALL withdraw organization controls when a context or credential refusal takes away access. A delayed response for an organization whose runtime has been withdrawn SHALL reveal no policy.
+The organization page SHALL read the current organization's policy through its captured resource scope. It SHALL show loading, absent, configured, read failure and authority refusal as distinct states. A current super-admin SHALL be able to set either optional bound or clear both; empty fields SHALL send null. Before sending, the form SHALL refuse values outside the inclusive 300–2,592,000 second integer range and a reauthentication bound greater than a present maximum. Its local error SHALL name and be associated with the invalid field. A pending mutation SHALL exclude another mutation. The page SHALL use the server's returned policy as the displayed value and SHALL withdraw organization controls when a context or credential refusal takes away access. A delayed response for an organization whose runtime has been withdrawn SHALL reveal no policy. A delayed read from the same runtime SHALL NOT replace a newer read or a completed mutation, including a mutation that removed super-admin authority.
 
 #### Scenario: Set, clear and read back
 
@@ -109,7 +109,7 @@ The organization page SHALL read the current organization's policy through its c
 
 - **GIVEN** the policy form is ready
 - **WHEN** either field is fractional or outside 300–2,592,000, or reauthentication exceeds a present maximum
-- **THEN** the form names the invalid bound and sends no mutation
+- **THEN** the form names and associates the invalid field and sends no mutation
 - **WHEN** a valid mutation is pending and another submission arrives
 - **THEN** the second submission sends no request
 
@@ -124,3 +124,9 @@ The organization page SHALL read the current organization's policy through its c
 - **GIVEN** a policy read for A is pending
 - **WHEN** the owning organization runtime is withdrawn before that response arrives
 - **THEN** the response cannot publish A's policy to the page
+
+#### Scenario: Older read after a mutation
+
+- **GIVEN** an earlier policy read is pending and a later read has made the form ready
+- **WHEN** a set or clear mutation succeeds, or a mutation refuses super-admin authority, before the earlier read finishes
+- **THEN** the earlier read cannot replace the mutation response or restore withdrawn controls

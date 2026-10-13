@@ -127,4 +127,4 @@
 
   Red: panel import absent, then focused mounted cases for validation, authority, pending, scoping, reconciliation and late response.
 
-  Fault: relax the minimum, drop authority withdrawal, remove both pending admission guards, change the expected-organization header, and trust the submitted value. Each observed failure and restoration is recorded in `verify.md`.
+  Fault: relax the minimum, drop authority withdrawal, remove both pending admission guards, change the expected-organization header, and trust the submitted value. On review, hold an older same-runtime GET across a PUT and inject broken read/effect versioning, then remove mutation admission; separately break inline field naming and association. Each observed failure and restoration is recorded in `verify.md`.
