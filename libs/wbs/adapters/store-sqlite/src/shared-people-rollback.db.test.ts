@@ -382,6 +382,22 @@ describe('combined shared people recovery', () => {
     }
   });
 
+  it('refuses restoring ranks outside the saved organization set without any write', () => {
+    const saved = save();
+    removeSharedPeople(connection.db, saved, 101);
+    const incomplete = {
+      ...saved,
+      organizations: saved.organizations.filter(
+        (organization) => organization.organizationId === 'org-a',
+      ),
+    };
+    const before = { saved: save(), organizations: organizationRows() };
+    expect(() => restoreSharedPeople(connection.db, incomplete, 202)).toThrow(
+      'rank organization is absent',
+    );
+    expect({ saved: save(), organizations: organizationRows() }).toEqual(before);
+  });
+
   it('refuses malformed and duplicate complete-state backups before any mutation', () => {
     const saved = save();
     const malformed: unknown[] = [

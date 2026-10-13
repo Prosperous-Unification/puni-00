@@ -733,3 +733,32 @@ ledger even when all modes are isolated and no switch audit exists.
 
 - **WHEN** a valid delegation for a super-admin requests approval
 - **THEN** it returns 403 insufficient_scope and writes no approval
+
+### Requirement: Shared people backups have a canonical offline digest
+
+The v1 shared-people backup boundary SHALL preserve existing shape, semantic mode, integer rank
+field and uniqueness validation. Every rank SHALL name an organization included in the complete
+backup. A malformed or incomplete backup SHALL fail before producing a digest or recovery write.
+
+The canonical representation SHALL be UTF-8 JSON without whitespace, with root fields
+`format,version,organizations,ranks`, organization fields `organizationId,mode`, and rank fields
+`projectId,organizationId,position,createdAt,updatedAt,createdBy` in that order. Organization and
+rank arrays SHALL sort by ordinal organization/project ID, never locale collation. The digest
+SHALL be lowercase SHA-256 of those canonical bytes, including every normalized saved fact.
+
+`shared-people-rollback-cli.ts digest <backup-file>` SHALL emit only that digest and a newline,
+without requiring `DB_PATH`, opening SQLite or changing any database. Invalid arguments and
+absent, unreadable, malformed or invalid backups SHALL exit nonzero without digest output.
+Existing isolated `save|remove|restore <file>` recovery SHALL retain its contract and shared
+backups SHALL remain refused by bare restore.
+
+#### Scenario: equivalent backup presentation
+
+- **GIVEN** two v1 backups with identical saved facts and different whitespace, object key order or array order
+- **WHEN** the offline digest command reads either backup
+- **THEN** both emit the same canonical digest without opening a database
+
+#### Scenario: a rank outside the complete organization set
+
+- **WHEN** a backup rank names an organization absent from its organizations array
+- **THEN** digest and recovery validation refuse it before any output or write

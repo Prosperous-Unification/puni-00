@@ -492,8 +492,14 @@ sequence`, `push failure retains durable event`, `expired replay requires snapsh
       approves the active organization for one operation ID and canonical backup digest; recheck
       membership on the immediate writer, preserve immutable bindings, idempotent approval retry,
       and refuse rollback over evidence. Watch route, role, binding, transaction and rollback faults.
-- [ ] 10.2 Canonical backup digest and stopped-writer/deploy exclusion; CLI accepts operation and
-      approval IDs only, never actor/session assertions. Preserve shared restore refusal until ready.
+- [x] 10.2a Canonical validated v1 backup parser and digest: fixed root/organization/rank field order,
+      ordinal ID ordering, lowercase SHA-256, complete rank-to-organization relation, and an offline
+      `digest <backup-file>` CLI branch that requires and opens no database. Preserve the existing
+      isolated `save|remove|restore` contract and shared-backup refusal.
+- [ ] 10.2b Same-process host restore entrypoint under the canonical deploy lock; inspect blue/green
+      database identity, mounts and every writable container stopped, retain one parsed backup read,
+      optional operation/approval IDs for read-only binding diagnostics. Prove lock lifetime,
+      process-death rollback, inspection failures and no writes on refusal. No authority assertions.
 - [ ] 10.3 One immediate restore transaction rechecks and consumes every changed organization's
       personal approval/membership, restores modes/ranks, records per-org audits, all-project durable
       elsewhere_changed events, receipt and consumption. Fail atomically and retry by receipt.
