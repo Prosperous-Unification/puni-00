@@ -22,6 +22,10 @@ export function inspectPerformanceSources(
   // production CLI assertion fail with a later publication error.
   if (selected.selection.kind !== 'committed')
     throw new Error('Performance source selection is not committed');
+  // Proof: removing exact equality made an annotated tag-object SHA peel to its commit and
+  // pass the production CLI tag-object refusal test with success JSON and exit zero.
+  if (selected.selection.revision !== revision)
+    throw new Error('Performance source selected revision differs from requested SHA');
   const candidate = hashCanonical({
     selection: selected.selection,
     entries: selected.entries,

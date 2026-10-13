@@ -427,6 +427,17 @@ test('Performance source inspection refuses symbolic revisions and extra operand
   expect(extra.stderr).toContain('usage: twilight-burokrat inspect-performance-sources');
 });
 
+test('Performance source inspection refuses an annotated tag object SHA that peels to a commit', async () => {
+  const setup = fixture();
+  git(setup.root, ['tag', '-a', 'performance-source-tag', '-m', 'annotated tag', setup.revision]);
+  const tagObject = git(setup.root, ['rev-parse', 'performance-source-tag^{tag}']);
+  expect(tagObject).not.toBe(setup.revision);
+  const call = await inspect({ ...setup, revision: tagObject });
+  expect(call.exitCode).toBe(1);
+  expect(call.stderr).toContain('Performance source selected revision differs from requested SHA');
+  expect(call.stdout).toBe('');
+});
+
 for (const field of ['revision', 'candidate'] as const) {
   test(`Performance source inspection refuses mismatched publication ${field}`, () => {
     const setup = fixture();

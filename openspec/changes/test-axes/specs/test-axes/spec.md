@@ -236,7 +236,7 @@ The version-1 observation SHALL bind revision, candidate, publication observatio
 - **GIVEN** a missing, unreadable, malformed or unsuccessful current-success publication, or invalid committed index state
 - **WHEN** the diagnostic invokes the production readers
 - **THEN** the responsible upstream refusal SHALL remain observable
-- **AND** symbolic revisions and unsupported operand counts SHALL refuse before success JSON
+- **AND** symbolic revisions, annotated tag-object SHAs and unsupported operand counts SHALL refuse before success JSON
 
 #### Scenario: [TEST-AXES-065] Performance source observation identity is complete and canonical
 

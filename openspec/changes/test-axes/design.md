@@ -72,6 +72,10 @@ Decision costs: reusing full `checkIndexes` means unrelated malformed index/link
 
 ## Performance source ownership diagnostic (4.1b.3)
 
+The requested full SHA must equal the selected commit SHA. Git may peel a full 40-hex annotated
+tag-object SHA to a different commit, so syntax alone is insufficient for this command's exact
+committed selection contract.
+
 Intent: bind already inspected current-success Performance cases to their exact committed source owner while retaining the publication's noncertifying status. `inspect-performance-sources <repository> <full-committed-sha> <external-policy>` takes no caller-supplied report or ownership facts. It invokes `inspectPerformanceBundle`, then `checkIndexes` against the same captured committed snapshot. The publication's revision and candidate digest must equal that snapshot; every case fixture must match one of its selected regular source tuples and exactly one checked index member. A current-success refusal is final and never replaced by ownership inference.
 
 The version-1 output has `revision`, `candidate`, `publicationObservationDigest`, `indexIdentity`, sorted `indexReviewDebt`, sorted `bindings`, `authentication:{kind:'absent'}`, `certifies:false`, and `observationDigest`. Each binding has `caseId`, `fixture`, `status`, `judgment:{observed,threshold,passed}`, `source:{mode,contentDigest}`, `owner:{moduleId,indexPath,indexIdentity}` and `level:{kind:'unresolved',reason:'complete-level-membership-unavailable'}`. The digest hashes the complete normalized output except itself. The selected candidate digest binds full Git entries and mode; the publication digest binds selection, policy, artifacts and judgments; the index identity binds validated membership. These are observation identities, not receipt authentication.
