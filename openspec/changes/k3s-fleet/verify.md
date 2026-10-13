@@ -724,3 +724,62 @@ The fleet rows of the operator guide ran in the k3s-platform verify.md, "F12 ope
   under the local umask 002, 0644 on GitHub). With `COPY --chmod=0444`, the worktree and a
   `--no-cache` build from a 0644, re-dated copy of the context both produced
   `sha256:372f6f433050a5844bc9c4cd657facf993eb505fec96b50838d253787e2462de`, the current lock.
+
+## F5 protected retirement rehearsal — partial implementation (2026-10-13)
+
+WBS070.13 remains **in progress**. Work starts at `16eaa121` in the isolated clone
+`/tmp/puni-f5-drain`; the shared checkout is untouched. The new
+`tool-fleet:rehearse:drain -- --qemu-prefix <locked-prefix>` entry point creates an exclusively
+generated rootless workers lab and invokes production discover, plan and apply. Fixtures are
+managed Deployments; SQLite persists a marker in an actual database on its Pod volume. Plans
+precede blocker introduction so apply must independently detect the live workload. Recovery
+uncordons explicitly and deletes only its owned fixture namespace/PV. Diagnostics and failed
+labs are retained; success requires stateless retirement and unchanged journal/receipt bytes
+on a second apply. Evidence records target UID, namespace, kubeconfig and toolchain hashes.
+
+### Observed local checks
+
+- Focused Bun tests for `drain-rehearsal`, `cluster-checks`, `retire`, and `production-apply`
+  passed (36 tests); final assertion counts are printed by the command. Nx `tool-fleet:lint`
+  and `tool-fleet:typecheck` passed with cache disabled.
+- `bunx @fission-ai/openspec@1.12.0 validate --all --json`: 186/186 passed.
+  `validate k3s-fleet --strict --json`: 1/1 passed with no issues.
+- The required evidence reader separately rejects absent files, an unreadable directory,
+  chmod-000 files, malformed JSON, stale time, mismatched identity and incomplete outcomes.
+- The actual rehearsal invocation exited 1 at `access('/dev/kvm', R_OK | W_OK)` with
+  `ENOENT`, before creating a lab or SSH key. No VM, workload, provider resource or production
+  host was mutated. This environment has Bun, Docker and SSH, but no `/dev/kvm`, QEMU prefix,
+  standalone kubectl or Ansible. Kubectl/Ansible are intended to run in the existing locked
+  controller; installing those tools cannot supply the missing kernel KVM device. The locked
+  QEMU launcher requires `accel=kvm,type=q35`; TCG was not substituted.
+
+### Watched local R5 proofs
+
+Each injected fault ran the relevant production component test, returned exit 1, and was
+restored before validation. The mutation scripts and captured outputs remain at
+`/tmp/fleet-f5-mutations.py`, `/tmp/fleet-f5-reader-mutations.py` and
+`/tmp/fleet-f5-proof-*.log` in this execution environment.
+
+| Boundary                         | Injected fault                                                                                        | Observed test failure                                                                    |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Evidence identity and freshness  | Removed identity equality, then the age bound                                                         | Foreign target and yesterday's evidence were accepted; the corresponding negative failed |
+| Preserved state                  | Removed before/after field equality                                                                   | Changed marker and replacement Pod UID were accepted                                     |
+| Required protected refusal       | Individually removed exit, cordon, service, receipt, journal-state, phase and elapsed-time predicates | Each injected false success/lost-state/late-PDB case was accepted                        |
+| Journal progress                 | Removed exact completed-effect comparison                                                             | A preflight refusal with completed cordon was accepted                                   |
+| Idempotency                      | Removed second-apply equality                                                                         | Changed completed durable state was accepted                                             |
+| Fixture ownership and marker     | Removed namespace/target comparisons or marker restriction                                            | Foreign namespace/target and shell-bearing marker negatives failed                       |
+| Required evidence read/parse     | Substituted empty state for required read or JSON parse                                               | Missing/unreadable/malformed evidence lost its required boundary diagnostic              |
+| Managed forge and SQLite         | Independently removed each label from production `cluster-checks.py`                                  | Managed-Pod negatives observed exit 0 rather than refusal                                |
+| Local PV independent of affinity | Removed the `local` predicate                                                                         | Affinity-free local PV observed exit 0 rather than refusal                               |
+| Eviction protection              | Added `--disable-eviction` to production `retire.yml` argv                                            | New exact-argv assertion failed; the previous test had incorrectly passed this fault     |
+| Failure propagation and receipt  | Removed production command nonzero refusal                                                            | Injected blocked drain no longer rejected apply, failing the no-receipt negative         |
+
+### Acceptance still blocked
+
+The disposable real VM matrix, live pre-cordon refusals, live PDB eviction deadline, actual
+SQLite volume permissions and marker preservation, actual Service continuity, explicit recovery,
+stateless relocation, completed receipt and idempotent second apply have **not run**. Orchestration
+ownership, target drift, tunnel failure and cleanup guards have no live fault proof yet. Local
+fixtures, mocked kubectl replies and adapter failures are component evidence only. The canonical
+host gate, broader F4/cloud/backend, HA removal and upgrade checks were not run in this worker;
+the root PM owns integration, host gate and Astra review. No push or merge is authorized here.

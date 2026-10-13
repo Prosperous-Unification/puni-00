@@ -278,6 +278,8 @@
       changed_when: "'deleted' in puni_system_pod_move.stdout"
       tags: [drain]
 
+    # Proof: injecting --disable-eviction failed the exact production argv assertion in
+    # retire.test.ts; the old test passed that fault. Live PDB proof remains required.
     - name: Drain while respecting disruption budgets and local storage refusal
       ansible.builtin.command:
         argv:

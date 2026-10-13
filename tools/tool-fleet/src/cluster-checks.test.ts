@@ -79,6 +79,40 @@ describe('controller-side retirement checks', () => {
     ).toBe(0);
   });
 
+  it('refuses managed forge-worktree and singleton SQLite Pods independently of ownerless protection', async () => {
+    for (const label of ['forge-worktree', 'singleton-sqlite']) {
+      const managed = pod({ labels: { [`puni.dev/${label}`]: 'true' } });
+      const refused = await runCheck(
+        { pods: { items: [managed] } },
+        'workloads',
+        'workers',
+        'target',
+      );
+      expect(refused.exitCode).toBe(1);
+      expect(refused.stderr).toContain('needs a maintenance transaction');
+    }
+  });
+
+  it('refuses a local PV even without hostname affinity', async () => {
+    const pods = { items: [pod({}, [{ persistentVolumeClaim: { claimName: 'claim' } }])] };
+    const persistentvolumes = {
+      items: [
+        {
+          metadata: { name: 'local' },
+          spec: { local: { path: '/owned' }, claimRef: { namespace: 'n', name: 'claim' } },
+        },
+      ],
+    };
+    const refused = await runCheck(
+      { pods, persistentvolumes },
+      'local-volumes',
+      'workers',
+      'target',
+    );
+    expect(refused.exitCode).toBe(1);
+    expect(refused.stderr).toContain('is local or pinned');
+  });
+
   it('refuses a claim bound to a volume pinned to the retiring node', async () => {
     const pods = { items: [pod({}, [{ persistentVolumeClaim: { claimName: 'data' } }])] };
     const pinned = {

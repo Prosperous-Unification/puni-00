@@ -89,6 +89,18 @@ describe('planRetirement', () => {
       if (command === undefined) throw new Error(`Missing retirement shell task ${name}`);
       return command;
     };
+    const drain = tasks.find(
+      (task) => task.name === 'Drain while respecting disruption budgets and local storage refusal',
+    );
+    expect(drain?.['ansible.builtin.command']?.argv).toEqual([
+      'kubectl',
+      '--context',
+      '{{ puni_kube_context }}',
+      'drain',
+      '{{ puni_node_name }}',
+      '--ignore-daemonsets',
+      '--timeout=10m',
+    ]);
     // Controller-side checks never go through a shell and never template remote data into argv.
     const checkTasks = tasks.filter((task) => JSON.stringify(task).includes('cluster-checks.py'));
     expect(checkTasks.length).toBe(6);

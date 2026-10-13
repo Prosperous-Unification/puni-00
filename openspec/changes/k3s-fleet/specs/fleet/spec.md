@@ -76,6 +76,15 @@ Retirement SHALL refuse lost required capability, unsafe storage/workload moveme
 - **WHEN** replacement is planned
 - **THEN** the old node remains faulted and storage/writer reassignment is blocked
 
+#### Scenario: Protected workload retirement rehearsal
+
+- **GIVEN** a generated disposable rootless QEMU workers lab with one server and two agents, a pinned kubeconfig, owned fixture namespace, and reviewed target UID
+- **WHEN** production discover, plan, and apply encounter a local-PV PVC, a controller-managed forge-worktree Pod, or a controller-managed labelled singleton SQLite Pod with a persisted marker
+- **THEN** retirement refuses before cordon, produces no completion receipt, and preserves the workload, Pod UID, PV, marker, service, and incomplete journal
+- **AND** a managed stateless Pod with a PDB requiring one available replica reaches eviction after cordon and refuses within the production bounded drain timeout without disabling eviction
+- **AND** recovery explicitly uncordons the target and removes the owned blocker; an ordinary stateless workload then retires successfully, and a second apply preserves the completed journal and receipt
+- **AND** acceptance rejects missing, unreadable, malformed, stale, or identity-mismatched structured evidence and retains diagnostics on failure
+
 #### Scenario: Embedded etcd member retires
 
 - **GIVEN** an HA server retirement with actual etcd members and endpoint health

@@ -19,3 +19,17 @@ The `lab` discovery provider (`tool-fleet:discover --lab-state`) replaces the hc
 ## Host-owned solver on k3s nodes
 
 `infra/ansible/roles/solver` installs the WBS solver supervisor on product nodes as a lingering user service. It drives solver containers through Docker, so the role installs the locked `docker.io` package; membership of the supervisor account in the `docker` group is root-equivalent on that node, which is why the account exists for nothing else. A k3s backend pod is authenticated by its exact `kubepods` containerd scope; the supervisor reads the pod's runtime identity (namespace, pod, container, resolved image digest) through `/usr/local/libexec/puni-cri-peer`, which sudo allows only with one 64-hex container id. The pod's HOSTNAME claim is bound to the runtime-reported pod name. The supervisor uid equals the backend pod's `runAsUser`, held by a test.
+
+The protected F5 rehearsal generates one disposable rootless QEMU workers lab and an owned
+fixture namespace. It creates each reviewed production retirement plan before introducing its
+blocker, then executes the real production apply path so live preflight must independently
+refuse newly introduced unsafe work. Local-PV PVC, managed forge-worktree, and managed
+labelled singleton SQLite with a real volume-backed database marker stop before cordon. The
+SQLite fixture uses its Pod volume so its dedicated label guard is tested independently of
+local-PV protection. PDB minAvailable=1 reaches eviction after cordon and must stop within the
+controller deadline. Initial preflight failures retain an incomplete running journal; eviction
+failures retain the recoverable active step. Explicit recovery uncordons and clears owned
+fixtures before the stateless positive control and byte-identical second apply. Evidence binds
+generated identity, kubeconfig/toolchain hashes, target UID, namespace and observation time.
+Command diagnostics and failed labs remain inspectable. KVM is required by the locked QEMU
+launcher; no TCG fallback or production-host mutation is part of this rehearsal.

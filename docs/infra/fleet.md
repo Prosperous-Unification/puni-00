@@ -123,7 +123,7 @@ honors PDB failures, waits for workload recovery and volume detach, asks k3s to
 remove the exact embedded-etcd member, then disables k3s and removes its
 configuration, kubeconfig, tokens, and TLS credentials before deleting the Node. The adapter persists an authoritative
 enrollment exclusion before writing the owner-only retirement receipt. Any
-failed step leaves a recoverable journal and no receipt.
+failed effect leaves a recoverable journal and no receipt. A preflight failure during initial observation leaves the incomplete initial journal in `running` state with no completed effects.
 
 ```sh
 bunx nx run tool-fleet:apply -- \
@@ -155,3 +155,40 @@ the saved-plan, variables, backend-evidence, and remote-state hashes and recheck
 direct provider ownership before consuming the plan. Retirement never destroys
 a provider instance or retained application storage. A server downgrade uses
 the recovery procedure; the ordinary upgrade planner refuses it.
+
+## Protected retirement rehearsal
+
+On a disposable Linux host with readable and writable `/dev/kvm`, the locked rootless QEMU
+prefix from `infra/local/qemu-lab.lock.json`, Docker access, and Bun dependencies:
+
+```sh
+bunx nx run tool-fleet:rehearse:drain -- --qemu-prefix /path/to/locked/qemu/root
+```
+
+The command generates its own `f5-<random>` workers lab (one server, two agents), SSH keys,
+kubeconfig, fixture namespace, reviewed static inventory and retirement plans. It uses the
+production discover/plan/apply CLI and locked controller, with no provider credentials. Each
+plan is reviewed against the clean lab before its blocker is installed, so the live apply
+preflight must independently detect newly introduced unsafe work. The local-PV fixture uses
+an actual PVC and node-affined local PV. Forge and SQLite fixtures are managed Deployments;
+the SQLite container writes a real `bun:sqlite` database marker on its Pod volume. Its label,
+rather than the local-PV guard, must protect that existing Pod and database.
+
+Local PV, forge and SQLite refusals require no cordon or receipt and an initial journal with
+no completed effects. PDB `minAvailable: 1` requires cordon followed by a bounded eviction
+failure and recoverable active drain effect. Every refusal preserves Pod/controller/service
+UIDs, PV/PVC identity where present, workload/PV specifications, the marker served through
+the fixture Service, and active k3s-agent. Recovery explicitly uncordons before deleting the
+owned fixture namespace. Ordinary stateless retirement must then complete, move the service,
+remove the target Node, stop k3s-agent, and leave journal/receipt bytes unchanged on reapply.
+
+Numbered command outputs, plans, journals, fixture manifests, identity bindings and evidence
+remain under `.puni/fleet-labs/<generated-id>-workers/drain-rehearsal/`. Failures retain the
+lab and print its exact owned cleanup command. Success tears down its VMs and retains the
+artifacts. Evidence binds kubeconfig and toolchain SHA-256s, generated identity, target UID
+and namespace; the reader requires all four cases, preserved state, the positive control and
+fresh observation time. Missing or unreadable evidence throws.
+
+The harness is implemented but its live matrix remains unverified: the 2026-10-13 execution
+environment has no `/dev/kvm`. A successful focused test or OpenSpec check does not replace
+that VM acceptance. F5 and WBS070.13 remain in progress.
