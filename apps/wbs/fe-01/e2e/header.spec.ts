@@ -188,7 +188,11 @@ async function renameSelectedProject(page: Page, to: string): Promise<void> {
  * reopened.
  */
 async function openPicker(page: Page): Promise<void> {
-  await page.getByRole('heading', { name: 'WBS tool v2' }).click();
+  // Blurred directly rather than by clicking the brand: below 1024 the brand is visually
+  // hidden (`AppHeader`), and a click aimed at it lands on the page links instead.
+  await page.getByRole('combobox', { name: 'Project' }).evaluate((node) => {
+    if (node instanceof HTMLElement) node.blur();
+  });
   await page.getByRole('combobox', { name: 'Project' }).click();
   await expect(page.getByRole('listbox', { name: 'Projects' })).toBeVisible();
 }
@@ -408,7 +412,7 @@ test.describe('the header bar, measured by a browser', () => {
     await expect(bar.getByRole('link', { name: 'Plan' })).toBeVisible();
     await expect(bar.getByRole('link', { name: 'Directory' })).toBeVisible();
     await expect(bar.getByRole('combobox', { name: 'Project' })).toBeVisible();
-    await expect(bar.getByRole('heading', { name: /^Online \(/ })).toBeVisible();
+    await expect(bar.getByRole('heading', { name: 'Online', exact: true })).toBeVisible();
 
     await bar.getByRole('button', { name: signedInAs }).click();
     await expect(page.getByRole('menu', { name: `Signed in as ${signedInAs}` })).toBeVisible();
@@ -443,6 +447,118 @@ test.describe('the header bar, measured by a browser', () => {
     await page.getByLabel('Password').fill('correct-horse');
     await page.getByRole('button', { name: 'Sign in with password' }).click();
     await expect(page.getByRole('button', { name: 'password-qa' })).toBeVisible();
+  });
+});
+
+/**
+ * The bar against the UI review of 2026-10-13: a picker you can read, a roster
+ * that does not clip, two rows on a phone with finger-sized controls, and one
+ * row off a project.
+ */
+test.describe('the header bar, read by eye and measured', () => {
+  test('keeps the picker readable and the roster unclipped from 900 up (F-011)', async ({
+    page,
+  }) => {
+    await renameSelectedProject(page, LONG_PROJECT_NAME);
+    const read: string[] = [];
+    for (const width of [1280, 1024, 900]) {
+      await page.setViewportSize({ width, height: 800 });
+      const measured = await page.evaluate(() => {
+        const picker = document.querySelector('[role="combobox"][aria-label="Project"]');
+        if (!(picker instanceof HTMLInputElement)) throw new Error('the bar has no picker');
+        const roster = document.querySelector('header section');
+        if (roster === null) throw new Error('the bar has no roster');
+        // Clipped means drawn and cut: an `sr-only` element is clipped by design and is
+        // out of the flow, so only what is laid out in the row is asked.
+        const clipped = [roster, ...roster.querySelectorAll('*')]
+          .filter((node) => getComputedStyle(node).position !== 'absolute')
+          .filter((node) => node.scrollWidth > node.clientWidth + 1)
+          .map((node) => node.tagName.toLowerCase());
+        return {
+          pickerWidth: Math.round(picker.getBoundingClientRect().width),
+          ellipsis: getComputedStyle(picker).textOverflow,
+          clipped,
+        };
+      });
+      if (measured.pickerWidth < 144)
+        read.push(`${String(width)}: picker ${String(measured.pickerWidth)}px`);
+      if (measured.ellipsis !== 'ellipsis') read.push(`${String(width)}: no ellipsis`);
+      if (measured.clipped.length > 0)
+        read.push(`${String(width)}: clipped ${measured.clipped.join(',')}`);
+    }
+    // Proof: on 2026-10-13, against the bar before this change, this failed on `1280: no
+    // ellipsis`, `1024: picker 53px`, `1024: no ellipsis`, `900: picker 26px`, `900: no
+    // ellipsis`.
+    expect(read).toEqual([]);
+  });
+
+  test('is two rows on a phone, with 44px project controls (F-010, F-041)', async ({ page }) => {
+    await renameSelectedProject(page, LONG_PROJECT_NAME);
+    await page.setViewportSize({ width: 375, height: 812 });
+    const bar = page.getByRole('banner');
+    const controls = [
+      bar.getByRole('combobox', { name: 'Project' }),
+      bar.getByRole('button', { name: 'Rename project' }),
+      bar.getByRole('button', { name: 'Create new project' }),
+    ];
+    const heights: number[] = [];
+    for (const control of controls)
+      heights.push(Math.round((await control.boundingBox())?.height ?? 0));
+    // Proof: on 2026-10-13, before this change, this failed reading [32, 32, 32].
+    expect(heights).toEqual([44, 44, 44]);
+    const height = Math.round((await bar.boundingBox())?.height ?? 0);
+    // Two 44px rows, a 4px gap and the bar's padding and border: 101px. Three rows were 137.
+    expect(height, 'the phone header is more than two rows').toBeLessThanOrEqual(104);
+    const ellipsis = await controls[0].evaluate((node) => getComputedStyle(node).textOverflow);
+    expect(ellipsis).toBe('ellipsis');
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(overflow, 'the phone header scrolls sideways').toBe(0);
+  });
+
+  test('is one row off a project on a phone (F-047)', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto('/directory');
+    const bar = page.getByRole('banner');
+    await expect(bar.getByRole('link', { name: 'Directory' })).toBeVisible();
+    const height = Math.round((await bar.boundingBox())?.height ?? 0);
+    // Proof: on 2026-10-13, before this change, this failed on `Expected: <= 56 · Received:
+    // 101` — a second row holding only the account menu.
+    expect(height, 'the Directory header kept a second row').toBeLessThanOrEqual(56);
+  });
+
+  test('draws the account menu in one control style (F-017)', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.getByRole('banner').getByRole('button', { name: signedInAs }).click();
+    const logOut = page.getByRole('menuitem', { name: 'Log out' });
+    await expect(logOut).toBeFocused();
+    const read = await logOut.evaluate((node) => {
+      const style = getComputedStyle(node);
+      const menu = node.closest('[role="menu"]');
+      if (menu === null) throw new Error('Log out is in no menu');
+      return {
+        outline: style.outlineStyle,
+        lit: style.backgroundColor !== 'rgba(0, 0, 0, 0)',
+        textLeft: Math.round(
+          node.getBoundingClientRect().left + Number.parseFloat(style.paddingLeft),
+        ),
+        menuLeft: Math.round(menu.getBoundingClientRect().left),
+      };
+    });
+    // Proof: on 2026-10-13, before this change, this failed on `lit: false` — the focused
+    // Log out had no fill, only the bordered box the capture shows.
+    expect({ outline: read.outline, lit: read.lit }).toEqual({ outline: 'none', lit: true });
+    const signedInLeft = await page
+      .getByRole('menu')
+      .locator('p')
+      .first()
+      .evaluate((node) =>
+        Math.round(
+          node.getBoundingClientRect().left + Number.parseFloat(getComputedStyle(node).paddingLeft),
+        ),
+      );
+    expect(read.textLeft, 'Log out does not start on the menu’s text edge').toBe(signedInLeft);
   });
 });
 

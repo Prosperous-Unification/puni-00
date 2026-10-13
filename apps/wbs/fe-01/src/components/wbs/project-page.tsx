@@ -29,15 +29,16 @@ import {
 } from '@/runtime/application-services-context';
 import type { SessionProjects } from '@/runtime/session-runtime';
 
-import { useClosedByPointerOutside } from './close-on-outside-pointer';
+import { useClosedOnDismiss } from './close-on-dismiss';
 import { type BesideAnchorRect, HoverCard } from './hover-card';
+import { NoProjectOpen } from './no-project-open';
 import { PlanInteractionProvider, PlanInteractionScope } from './plan-interaction-scope';
 import { failureText } from './plan-refusal';
 import { useRendererForViewport } from './plan-renderer';
 import { entryMeta, matchingProjects, projectCardMeta } from './project-picker';
 import { SavedPlansPanel } from './saved-plans-panel';
 import { recordWbsScrollCommit } from './scroll-performance';
-import { useToasts } from './toasts';
+import { ToastStack, useToasts } from './toasts';
 import { usePlanImport } from './use-plan-import';
 import { WbsTable } from './wbs-table';
 
@@ -436,7 +437,7 @@ function ProjectNameField({
  *
  * **Its own component, after a bug this had.** Held on {@link ProjectPage}
  * (which renders first with no project selected and therefore no shelf), the
- * former one-shot version of `useClosedByPointerOutside` ran before the
+ * former one-shot version of `useClosedOnDismiss` ran before the
  * `<details>` existed and never installed its listener. Caught by the Gemini
  * seat on PR 202 as F-01. The hook now follows a late-mounted node itself; this
  * component remains the shelf's boundary and keeps the layout decisions below
@@ -555,7 +556,7 @@ function SavedPlanShelf({
       is what the controls beside it are.
     */
     <details
-      ref={useClosedByPointerOutside()}
+      ref={useClosedOnDismiss()}
       data-saved-plans
       className={inSheet ? 'w-full' : 'relative shrink-0'}
     >
@@ -574,7 +575,7 @@ function SavedPlanShelf({
         className={
           inSheet
             ? 'mt-1 max-h-80 w-full overflow-y-auto rounded-md border p-3 text-sm'
-            : 'bg-popover absolute right-0 z-50 mt-1 max-h-80 w-96 overflow-y-auto rounded-md border p-3 text-sm shadow-md'
+            : 'scroll-cue bg-popover absolute right-0 z-50 mt-1 max-h-[min(40rem,calc(100dvh-10rem))] w-96 overflow-y-auto rounded-md border p-3 text-sm shadow-md'
         }
       >
         <SavedPlansPanel projectId={projectId} savedPlans={savedPlans} />
@@ -596,6 +597,8 @@ export function ProjectPage({
    */
   const pickerBox = useRef<HTMLInputElement | null>(null);
   const [projects, setProjects] = useState<ProjectListEntry[]>([]);
+  /** Whether a list load has landed, so an empty home is never drawn before one. */
+  const [listed, setListed] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   /**
@@ -746,6 +749,7 @@ export function ProjectPage({
         rememberLastProject(readServices(), linkedProject);
       }
       setProjects(found);
+      setListed(true);
       setSelected((current) => {
         // Proof: without this branch, a link to p1 kept the remembered p2 and
         // never focused the p1 step in the ProjectPage link test (2026-09-27).
@@ -1098,13 +1102,24 @@ export function ProjectPage({
     // own. Proof: without it `grows page links to phone touch targets only
     // below the card breakpoint` failed on `the larger phone targets make the
     // page scroll sideways`, Received: 95. Watched 2026-09-16.
-    <div className="flex min-w-0 flex-1 basis-full items-center gap-1 md:basis-auto">
+    //
+    // Below 900 it is the header's second row whatever the device: `order-last`
+    // puts it after the account group, so the pages and the account share row
+    // one (UI review F-010, F-047). See `AppHeader`.
+    <div className="order-last flex min-w-0 flex-1 basis-full items-center gap-1 min-[900px]:order-none min-[900px]:basis-auto">
       {rename === null ? (
         <>
-          <span className="relative inline-block max-w-72 min-w-0 flex-1">
+          {/*
+            A floor of 9rem with an ellipsis (UI review F-011): with no floor the
+            picker was the bar's only give, and it gave down to `PUN` at 1024,
+            0px at 900 and an un-ellipsed `PUNI platfor` on a phone. The title
+            carries the whole name while the box clips it.
+          */}
+          <span className="relative inline-block max-w-72 min-w-36 flex-1">
             <Input
               ref={pickerBox}
-              className="h-8 w-full"
+              className="h-8 w-full text-ellipsis max-md:h-11"
+              title={search === null ? selectedProject?.name : undefined}
               aria-label="Project"
               role="combobox"
               // At rest the box is the label of what is open, and a label is
@@ -1302,6 +1317,10 @@ export function ProjectPage({
               // name and every test finds the control by it. `sm` keeps the
               // bar at its `h-8` row height.
               data-hint="Rename this project"
+              // The words shorten below `xl` and the name does not: `Rename` is
+              // inside `Rename project`, so what is said and what is shown agree.
+              aria-label="Rename project"
+              className="max-md:h-11"
               onClick={() => {
                 setRename({
                   projectId: selectedProject.id,
@@ -1310,7 +1329,8 @@ export function ProjectPage({
                 });
               }}
             >
-              Rename project
+              <span className="xl:hidden">Rename</span>
+              <span className="max-xl:hidden">Rename project</span>
             </Button>
           )}
         </>
@@ -1333,8 +1353,16 @@ export function ProjectPage({
           }}
         />
       )}
-      <Button size="sm" type="button" data-hint="Start a new project" onClick={create}>
-        Create new project
+      <Button
+        size="sm"
+        type="button"
+        data-hint="Start a new project"
+        aria-label="Create new project"
+        className="max-md:h-11"
+        onClick={create}
+      >
+        <span className="xl:hidden">New project</span>
+        <span className="max-xl:hidden">Create new project</span>
       </Button>
       {/*
         The project's history, on a table viewport only — on a cards one it is
@@ -1350,7 +1378,11 @@ export function ProjectPage({
     <AppHeader
       nav={nav}
       project={projectControls}
-      presence={presence?.(roster)}
+      // Only once a project is chosen: off one there is no roster to be in, and
+      // the panel's Offline would read as a dropped connection that never
+      // existed (UI review F-018). From the choice on it is handed the honest
+      // roster — empty and disconnected until the project's stream speaks.
+      presence={selected === null ? undefined : presence?.(roster)}
       account={account}
     />
   );
@@ -1398,6 +1430,23 @@ export function ProjectPage({
         {/* Proof: on 2026-09-25, drawing the table from the last live runtime through the
         gap failed `draws the next project in a table of its own`: the next project kept the
         old table element (`expected <table …> not to be <table …>`). */}
+        {/*
+          No project open, once the list has said what there is to open (UI
+          review F-019, F-027). Its own toast stack: the table's is the one that
+          reports an import, and there is no table here.
+        */}
+        {listed && selected === null && (
+          <>
+            <NoProjectOpen
+              projects={projects}
+              onOpen={choose}
+              onCreate={create}
+              planImport={planImport}
+              now={now}
+            />
+            <ToastStack toasts={toastApi.toasts} onDismiss={toastApi.dismissToast} />
+          </>
+        )}
         {projectState.status === 'live' && (
           <ProjectViews
             project={projectState.services}

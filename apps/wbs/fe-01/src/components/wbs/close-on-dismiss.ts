@@ -1,7 +1,9 @@
 import { type RefCallback, useCallback, useEffect, useState } from 'react';
 
 /**
- * Closes an open `<details>` when a pointer goes down anywhere outside it.
+ * Closes an open `<details>` when a pointer goes down anywhere outside it, or
+ * when Escape is pressed in it — and on Escape gives the focus back to its
+ * `<summary>`.
  *
  * The toolbar's four panels — Filters, Views, Columns and Export — are
  * `<details>` elements rather than positioned popovers, for the reason
@@ -31,12 +33,22 @@ import { type RefCallback, useCallback, useEffect, useState } from 'react';
  * panel then hid the trigger that Radix returns the focus to on close (Export / Import → Import
  * with AI). The trigger names its dialog by `aria-controls`, which is how ownership is read.
  *
+ * **Escape** is the other half of a menu's manners, and the app's one popover
+ * rule: every popover closes on Escape and returns the focus to what opened it
+ * (UI review F-028, 2026-10-13 — the five panels were the only popovers in the
+ * app Escape left open). The key counts when it is pressed inside the panel, or
+ * with nothing focused at all — Safari does not focus a clicked `<summary>`, so
+ * a mouse reader's Escape arrives at `<body>`. A key some other control already
+ * handled (`defaultPrevented`) is left alone: Radix's dialog closes first and
+ * prevents the default, so the Import with AI dialog opened from Export /
+ * Import shuts without taking the menu under it along.
+ *
  * The callback ref makes the mounted node an effect dependency. Some controls,
  * including Export, are absent until their boundary read succeeds; a one-shot
  * effect that reads `ref.current` can run before that `<details>` exists and
  * never install its listener.
  */
-export function useClosedByPointerOutside(): RefCallback<HTMLDetailsElement> {
+export function useClosedOnDismiss(): RefCallback<HTMLDetailsElement> {
   const [panel, setPanel] = useState<HTMLDetailsElement | null>(null);
   const rememberPanel = useCallback((node: HTMLDetailsElement | null): void => {
     setPanel(node);
@@ -56,13 +68,43 @@ export function useClosedByPointerOutside(): RefCallback<HTMLDetailsElement> {
       panel.open = false;
     };
 
+    const closeOnEscape = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape' || !panel.open || event.defaultPrevented) return;
+      const { target } = event;
+      const inside = target instanceof Node && panel.contains(target);
+      if (!inside && target !== document.body) return;
+      event.preventDefault();
+      panel.open = false;
+      summaryOf(panel).focus();
+    };
+
     document.addEventListener('pointerdown', closeIfOutside, true);
+    // Bubble phase, so a control inside the panel that owns Escape (a field
+    // that clears on it) is asked first and can say so with preventDefault.
+    // Proof: on 2026-10-13, without this listener `every popover closes on Escape and gives the
+    // focus back to its summary (F-028)` in `e2e/toolbar-panels.spec.ts` failed listing all five
+    // panels as `open=true focused=false`.
+    document.addEventListener('keydown', closeOnEscape);
     return () => {
       document.removeEventListener('pointerdown', closeIfOutside, true);
+      document.removeEventListener('keydown', closeOnEscape);
     };
   }, [panel]);
 
   return rememberPanel;
+}
+
+/**
+ * The `<summary>` a panel is opened by.
+ *
+ * @throws When the `<details>` has none: every panel this hook is given is
+ *   written with one, and a disclosure without a summary has nothing to return
+ *   the focus to.
+ */
+function summaryOf(panel: HTMLDetailsElement): HTMLElement {
+  const summary = panel.querySelector(':scope > summary');
+  if (!(summary instanceof HTMLElement)) throw new Error('a dismissible panel has no <summary>');
+  return summary;
 }
 
 /** Whether `target` sits in an open dialog whose trigger (`aria-controls`) is inside `panel`. */

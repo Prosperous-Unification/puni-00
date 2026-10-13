@@ -77,33 +77,40 @@ export function ThemeChoiceItems({
   firstAt,
 }: ThemeChoiceItemsProps): React.JSX.Element {
   return (
-    <div role="group" aria-label="Theme" className="flex items-center gap-1 px-2 py-1">
+    <div role="group" aria-label="Theme" className="flex items-center gap-2 px-2 py-1.5">
       <span aria-hidden="true" className="text-muted-foreground mr-auto text-xs">
         Theme
       </span>
-      {THEME_CHOICES.map((offered, at) => (
-        <button
-          key={offered}
-          type="button"
-          role="menuitemradio"
-          aria-checked={offered === choice}
-          {...itemProps(firstAt + at)}
-          // `bg-transparent` is not decoration and not a duplicate of the
-          // reset: it is what keeps the chosen answer's fill from being undone
-          // by nothing. The unchosen two take the same class from `bg-accent`'s
-          // absence, and saying it here keeps all three reading as one control.
-          className={
-            offered === choice
-              ? 'bg-accent text-accent-foreground cursor-pointer rounded-sm border px-2 py-0.5 text-xs'
-              : 'hover:bg-accent hover:text-accent-foreground text-muted-foreground cursor-pointer rounded-sm border border-transparent bg-transparent px-2 py-0.5 text-xs'
-          }
-          onClick={() => {
-            onChoose(offered);
-          }}
-        >
-          {WORDS[offered]}
-        </button>
-      ))}
+      {/*
+        One segmented control: the three answers inside one border, the chosen
+        one filled. Each answer used to wear a border of its own when chosen,
+        which read as a fourth style beside the menu's rows (UI review F-017).
+      */}
+      <span className="border-input flex rounded-md border p-0.5">
+        {THEME_CHOICES.map((offered, at) => (
+          <button
+            key={offered}
+            type="button"
+            role="menuitemradio"
+            aria-checked={offered === choice}
+            {...itemProps(firstAt + at)}
+            // `bg-transparent` is not decoration and not a duplicate of the
+            // reset: it is what keeps the chosen answer's fill from being undone
+            // by nothing. The unchosen two take the same class from `bg-accent`'s
+            // absence, and saying it here keeps all three reading as one control.
+            className={
+              offered === choice
+                ? 'bg-accent text-accent-foreground focus-visible:ring-ring cursor-pointer rounded-sm px-2 py-0.5 text-xs outline-none focus-visible:ring-2'
+                : 'hover:bg-accent hover:text-accent-foreground text-muted-foreground focus-visible:ring-ring cursor-pointer rounded-sm bg-transparent px-2 py-0.5 text-xs outline-none focus-visible:ring-2'
+            }
+            onClick={() => {
+              onChoose(offered);
+            }}
+          >
+            {WORDS[offered]}
+          </button>
+        ))}
+      </span>
     </div>
   );
 }

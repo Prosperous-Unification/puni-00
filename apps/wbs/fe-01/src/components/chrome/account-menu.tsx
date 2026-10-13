@@ -33,6 +33,17 @@ export interface AccountMenuProps {
 const FIRST_ADD_AT = THEME_CHOICES.length;
 
 /**
+ * One row of the account menu: the row ⋯ menu's shape — borderless, its words
+ * from the left edge at the same inset as the "Signed in as" line and the
+ * Theme label — and lit with the accent while it holds the focus rather than
+ * ringed by the platform's outline. The menu moves the focus onto `Log out`
+ * as it opens, and that outline drew a bordered box beside a segmented Theme
+ * control: two control styles in one small menu (UI review F-017).
+ */
+const MENU_ROW =
+  'hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground w-full cursor-pointer rounded-sm bg-transparent px-2 py-1.5 text-left outline-none';
+
+/**
  * Who is signed in, the palette, and the way out — one button in the header bar
  * rather than the "Signed in as … / Log out" pair that used to take a line of
  * the page.
@@ -242,7 +253,7 @@ export function AccountMenu({
           aria-label={`Signed in as ${username}`}
           className="bg-popover text-popover-foreground absolute top-full right-0 z-20 mt-1 min-w-40 rounded-md border p-1 text-sm shadow-md"
         >
-          <p role="none" className="text-muted-foreground px-2 py-1 text-xs">
+          <p role="none" className="text-muted-foreground px-2 py-1.5 text-xs">
             Signed in as <strong className="text-foreground font-medium">{username}</strong>
           </p>
           <ThemeChoiceItems
@@ -257,7 +268,7 @@ export function AccountMenu({
               type="button"
               role="menuitem"
               {...itemProps(FIRST_ADD_AT + index)}
-              className="hover:bg-accent hover:text-accent-foreground w-full cursor-pointer rounded-sm bg-transparent px-2 py-1 text-left"
+              className={MENU_ROW}
               onClick={() => {
                 onAddMethod?.(method);
               }}
@@ -270,11 +281,12 @@ export function AccountMenu({
               {addMessage}
             </p>
           )}
+          <hr role="none" className="border-border my-1" />
           <button
             type="button"
             role="menuitem"
             {...itemProps(signOutAt)}
-            className="hover:bg-accent hover:text-accent-foreground w-full cursor-pointer rounded-sm bg-transparent px-2 py-1 text-left"
+            className={MENU_ROW}
             onClick={() => {
               setOpen(false);
               onSignOut();

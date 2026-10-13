@@ -36,7 +36,11 @@ import { createProject } from './create-project';
 // Chromium measured 1603.875 with it and 1565.875 when that one control and gap
 // are subtracted, matching the cue-less measurement in `project-settings.spec.ts`.
 // `rows` is still 2 below, so nothing wrapped further.
-const LAID_OUT_WITH_THE_CUE_AT_1280 = 1604;
+//
+// **Re-pinned from 1604 to 1637 on 2026-10-13**, for the 33px the cue-less pin in
+// `project-settings.spec.ts` names (one-line Export / Import, square undo, redo
+// and keyboard buttons). Measured 1636.890625; `rows` is still 2.
+const LAID_OUT_WITH_THE_CUE_AT_1280 = 1637;
 
 /** How far a measured edge may be from a pinned figure, in CSS px — `project-settings.spec.ts`'s. */
 const NEARLY = 2;

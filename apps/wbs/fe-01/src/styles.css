@@ -560,6 +560,38 @@
  */
 @layer components {
   /*
+   * A scrolling popover that says more follows (UI review F-030, 2026-10-13).
+   *
+   * The pure-CSS scroll shadow: two covers in the popover's own colour that
+   * scroll with the content (`local`) and two shadows that stay at the edges
+   * (`scroll`). At the top of the list the top cover sits over the top shadow,
+   * at the bottom the bottom cover sits over the bottom one, and anywhere a
+   * part of the list is out of view the shadow on that edge shows. No script
+   * and no measurement — overlay scrollbars (macOS, headless Chromium) draw
+   * nothing at rest, which is how the Filters and Columns lists read as ending
+   * at a half-cut row. The ink is `--foreground` at 20%, so the dark set
+   * re-points it with the palette.
+   */
+  .scroll-cue {
+    background:
+      linear-gradient(var(--popover) 30%, transparent) center top / 100% 2.5rem no-repeat local,
+      linear-gradient(transparent, var(--popover) 70%) center bottom / 100% 2.5rem no-repeat local,
+      radial-gradient(
+          farthest-side at 50% 0,
+          color-mix(in oklab, var(--foreground) 20%, transparent),
+          transparent
+        )
+        center top / 100% 0.75rem no-repeat scroll,
+      radial-gradient(
+          farthest-side at 50% 100%,
+          color-mix(in oklab, var(--foreground) 20%, transparent),
+          transparent
+        )
+        center bottom / 100% 0.75rem no-repeat scroll,
+      var(--popover);
+  }
+
+  /*
    * The row's colour, which every cell in it paints. Declared on the grid so
    * that it is always defined: a `tr` that sets nothing inherits this.
    */
