@@ -60,3 +60,23 @@ existing adjacent proofs; this slice adds production coverage through the new co
 The worker does not run the full host gate. `bin/h2puni-gate.sh <exact-sha>`, full build and full
 repository tests remain the coordinating agent's responsibility. No remote push or deployment
 was performed by this worker.
+
+## Installed launcher review repair
+
+Astra's review found that `src/bin.ts` omitted the command from its validator allowlist and
+help. The source validator tests did not cover this independently built launcher. The existing
+canonical package build test now generates real Navigator v8 output, then invokes the built
+`dist/bin.mjs` outside the repository for a consistent pair, a tampered task name and help.
+
+- Before adding the launcher route, the built acceptance test failed: expected exit 0, received
+  exit 1 with `unknown command: validate-plan-tasks` (1 passed, 1 failed). The route carries
+  the adjacent observed `Proof:` comment.
+- Removing the task digest guard and rebuilding made the built tampered-name refusal fail:
+  expected exit 1, received exit 0 (1 passed, 1 failed). The guard was restored and its adjacent
+  proof now names both the source CLI and built executable oracles.
+- `bun test --timeout=180000 ./apps/twilight-structure/twilight-burokrat/cli/src/packaging/build.test.ts`:
+  2 passed, 0 failed, 62 assertions after restoring the guard. This uses the real package builder,
+  bundled launcher, bundled validator and packaged toolkit verification.
+- `bunx tsc --build --force apps/twilight-structure/twilight-burokrat/cli/tsconfig.json`, scoped
+  ESLint over the three changed TypeScript files, formatting, `git diff --check` and pinned
+  OpenSpec validation all exited 0. Full host gate and push remain delegated to the coordinator.

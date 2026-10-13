@@ -28,7 +28,8 @@ export function validatePlanTasks(
   const reference = parseOrThrow(PlanReferenceRecord, referenceInput);
   const tasks = parseOrThrow(PlanTasks, tasksInput);
   const tasksDigest = digestOf(tasks);
-  // Proof: removing the digest guard made tampered task values exit 0 (plan-tasks.test.ts, 2026-10-13).
+  // Proof: removing the digest guard made tampered task values exit 0 in plan-tasks.test.ts
+  // and the built executable refusal in packaging/build.test.ts (2026-10-13).
   if (tasksDigest !== reference.tasksDigest) throw new Error('tasksDigest does not match tasks');
   // Proof: removing identity equality made the re-digested plan mismatch exit 0 (plan-tasks.test.ts, 2026-10-13).
   if (tasks.plan !== reference.planRef.plan)

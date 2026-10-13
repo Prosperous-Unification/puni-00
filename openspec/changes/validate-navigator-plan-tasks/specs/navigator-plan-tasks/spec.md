@@ -9,6 +9,11 @@ Burokrat SHALL strictly decode both documents without transformation, verify the
 - **WHEN** the command receives a reference and task export produced together by Navigator
 - **THEN** it emits a deterministic `plan-task-consistency` report with the reference digest, task digest, plan and task count
 
+#### Scenario: Installed executable exposes the validator
+
+- **WHEN** the built Twilight Burokrat executable runs outside the source repository
+- **THEN** its help lists `validate-plan-tasks`, a valid Navigator pair emits the consistency report, and a tampered task export is refused with empty stdout and nonzero exit
+
 #### Scenario: Bound documents disagree
 
 - **WHEN** either digest is stale or a re-digested pair has a mismatched plan, count, version pair or repeated identifier
