@@ -9,12 +9,14 @@ import {
 import { type ReactNode, useCallback, useEffect, useState } from 'react';
 
 import { AppHeader } from '@/components/chrome/app-header';
+import { AccessState } from '@/components/organization/access-state';
 import { CredentialRefusalState } from '@/components/organization/credential-refusal-state';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { CONTROL_HEIGHT, FIELD_LABEL_CLASS, FORM_CLASS } from '@/components/ui/control';
 import { Input } from '@/components/ui/input';
 import { browserClient, failureMessage, unreachable } from '@/lib/http';
+import { cn } from '@/lib/utils';
 
 import { type RefusedView, refusedView, spaceRefusal } from './space-access';
 import {
@@ -139,14 +141,19 @@ export function SpacesPage({
           {view.kind === 'credential' ? (
             <CredentialRefusalState refusal={view.refusal} />
           ) : view.kind === 'refused' ? (
-            <>
-              <p role="alert" className={STATUS_CLASS}>
-                {view.message}
-              </p>
-              <p className={STATUS_CLASS}>
-                <AllProjectsLink />
-              </p>
-            </>
+            <AccessState
+              headline={view.message}
+              detail={view.detail}
+              action={
+                <Link
+                  to="/spaces/$spaceId"
+                  params={{ spaceId: 'all' }}
+                  className={cn(buttonVariants(), 'no-underline')}
+                >
+                  Open All projects
+                </Link>
+              }
+            />
           ) : (
             <Card className="border-border">
               <CardContent className="flex flex-col gap-4">

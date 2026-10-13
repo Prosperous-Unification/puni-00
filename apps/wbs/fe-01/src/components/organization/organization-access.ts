@@ -50,17 +50,37 @@ export function said(text: string): RefusalOutcome {
   return { kind: 'message', text };
 }
 
+/** What a page-level loss says: its headline, and what it means for the reader. */
+export interface LossCopy {
+  headline: string;
+  detail: string;
+}
+
 /** The copy for each page-level loss a sentence says; a credential refusal has its own state. */
-export function lossCopy(loss: Exclude<AccessLoss, CredentialRefusal>): string {
+export function lossCopy(loss: Exclude<AccessLoss, CredentialRefusal>): LossCopy {
   switch (loss) {
     case 'inactive':
-      return 'Organization administration is not active yet.';
+      return {
+        headline: 'Organization administration is not active yet.',
+        detail:
+          'This workspace runs without organizations, so there are no members or invitations to manage. Your projects are on the plan.',
+      };
     case 'signed_out':
-      return 'Your session ended. Sign in again.';
+      return {
+        headline: 'Your session ended. Sign in again.',
+        detail: 'Opening the plan asks you to sign in.',
+      };
     case 'no_organization':
-      return 'No organization is selected for this session.';
+      return {
+        headline: 'This session has no organization.',
+        detail:
+          'Members, invitations and sharing belong to an organization. This workspace has no organization, so your projects are on the plan.',
+      };
     case 'removed':
-      return 'You no longer have access to this organization.';
+      return {
+        headline: 'You no longer have access to this organization.',
+        detail: 'An administrator of the organization can invite you again.',
+      };
     default:
       return unreachable(loss);
   }
