@@ -22,7 +22,7 @@ const config = 'playwright.performance.config.ts';
 const declarationPath = 'playwright.performance.cases.json';
 const fixturePath = 'apps/alpha/nested/case.perf.spec.ts';
 const pointerPath = 'tmp/junit/wbs-fe-01.performance.current.json';
-const declaration: PerformanceCases = {
+const baseDeclaration: PerformanceCases = {
   schemaVersion: 1,
   config,
   project: 'chromium',
@@ -46,7 +46,7 @@ function git(root: string, args: string[]): string {
   if (invocation.exitCode !== 0) throw new Error(invocation.stderr.toString());
   return invocation.stdout.toString().trim();
 }
-function fixture(ownership: 'nested' | 'missing' | 'duplicate' = 'nested') {
+function fixture(ownership: 'nested' | 'missing' | 'duplicate' | 'unowned' = 'nested') {
   const base = mkdtempSync(join(tmpdir(), 'burokrat-performance-'));
   scratch.push(base);
   const root = join(base, 'candidate');
@@ -54,10 +54,20 @@ function fixture(ownership: 'nested' | 'missing' | 'duplicate' = 'nested') {
   git(root, ['init']);
   git(root, ['config', 'user.name', 'Performance Fixture']);
   git(root, ['config', 'user.email', 'performance@example.invalid']);
+  const selectedFixture = ownership === 'unowned' ? 'case.perf.spec.ts' : fixturePath;
+  const declaration: PerformanceCases = {
+    ...baseDeclaration,
+    cases: baseDeclaration.cases.map((performanceCase) => ({
+      ...performanceCase,
+      fixture: selectedFixture,
+    })),
+  };
   writeFileSync(join(root, config), 'export default {}\n');
   writeFileSync(join(root, declarationPath), JSON.stringify(declaration));
   mkdirSync(join(root, 'apps/alpha/nested'), { recursive: true });
-  writeFileSync(join(root, fixturePath), 'test("renders cells", () => {});\n');
+  writeFileSync(join(root, selectedFixture), 'test("renders cells", () => {});\n');
+  if (ownership === 'unowned')
+    writeFileSync(join(root, 'apps/alpha/nested/owned.txt'), 'owned fixture member\n');
   const metadata = (moduleId: string, memberships: object[]) => ({
     schemaVersion: 1,
     moduleId,
@@ -87,9 +97,9 @@ function fixture(ownership: 'nested' | 'missing' | 'duplicate' = 'nested') {
       index(
         'Nested',
         metadata(ownership === 'duplicate' ? 'module.outer' : 'module.nested', [
-          { kind: 'path', path: 'case.perf.spec.ts' },
+          { kind: 'path', path: ownership === 'unowned' ? 'owned.txt' : 'case.perf.spec.ts' },
         ]),
-        'case.perf.spec.ts',
+        ownership === 'unowned' ? 'owned.txt' : 'case.perf.spec.ts',
       ),
     );
   git(root, ['add', '.']);
@@ -177,11 +187,11 @@ function fixture(ownership: 'nested' | 'missing' | 'duplicate' = 'nested') {
     errors: [],
     suites: [
       {
-        file: fixturePath,
-        title: fixturePath,
+        file: selectedFixture,
+        title: selectedFixture,
         specs: [
           {
-            file: fixturePath,
+            file: selectedFixture,
             title: 'renders cells',
             tests: [
               {
@@ -217,7 +227,7 @@ function fixture(ownership: 'nested' | 'missing' | 'duplicate' = 'nested') {
       },
     ],
   });
-  const report = `<testsuite name="wbs-fe-01.performance" tests="1" failures="0" errors="0" skipped="0"><testcase classname="${fixturePath}" file="${fixturePath}" name="renders cells"/></testsuite>`;
+  const report = `<testsuite name="wbs-fe-01.performance" tests="1" failures="0" errors="0" skipped="0"><testcase classname="${selectedFixture}" file="${selectedFixture}" name="renders cells"/></testsuite>`;
   const artifacts = {
     discovery: JSON.stringify(raw('list')),
     run: JSON.stringify(raw('run')),
@@ -234,7 +244,7 @@ function fixture(ownership: 'nested' | 'missing' | 'duplicate' = 'nested') {
     declarationDigest: evidence.declarationDigest,
     configDigest: selection.configDigest,
     selection,
-    collected: [{ caseId: 'cells', fixture: fixturePath, titlePath: ['renders cells'] }],
+    collected: [{ caseId: 'cells', fixture: selectedFixture, titlePath: ['renders cells'] }],
   };
   for (const [field, source] of Object.entries(artifacts)) {
     const path = field === 'report' ? 'report.xml' : `${field === 'run' ? 'run' : field}.json`;
@@ -327,6 +337,18 @@ test('Performance source inspection refuses missing committed ownership despite 
   const call = await inspect(setup);
   expect(call.exitCode).toBe(1);
   expect(call.stderr).toContain('membership target absent: apps/alpha/nested/README.md');
+  expect(call.stdout).toBe('');
+});
+
+test('Performance source inspection refuses a valid checked candidate with an unowned fixture', async () => {
+  const setup = fixture('unowned');
+  const selected = readCandidate(setup.root, { kind: 'committed', revision: setup.revision });
+  expect(checkIndexes(setup.root, selected).indexes).toHaveLength(2);
+  const call = await inspect(setup);
+  expect(call.exitCode).toBe(1);
+  expect(call.stderr).toContain(
+    'Performance source has no unique validated index owner: case.perf.spec.ts',
+  );
   expect(call.stdout).toBe('');
 });
 
@@ -535,4 +557,7 @@ test('Performance source bindings and review debt have canonical order', () => {
   const forwardObservation: unknown = JSON.parse(forward.stdout);
   const backwardObservation: unknown = JSON.parse(backward.stdout);
   expect(forwardObservation).toEqual(backwardObservation);
+  const sortedDebt = (forwardObservation as { indexReviewDebt: { indexPath: string }[] })
+    .indexReviewDebt;
+  expect(sortedDebt.map(({ indexPath }) => indexPath)).toEqual(['a', 'z']);
 });

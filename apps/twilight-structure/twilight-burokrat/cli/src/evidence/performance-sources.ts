@@ -48,8 +48,9 @@ export function inspectPerformanceSources(
     const owners = checked.indexes.filter((index) =>
       index.members.includes(performanceCase.fixture),
     );
-    // Proof: removing this guard changed the unowned-source CLI refusal to an accidental
-    // undefined-owner error and let a two-owner checker fault choose the first owner.
+    // Proof: a valid checked candidate with a root-level unowned fixture reached this guard;
+    // disabling it failed the named CLI assertion with `owner.moduleId` undefined. A faulted
+    // checker with two owners also reached the named refusal.
     if (owners.length !== 1)
       throw new Error(
         `Performance source has no unique validated index owner: ${performanceCase.fixture}`,
@@ -86,7 +87,8 @@ export function inspectPerformanceSources(
     candidate,
     publicationObservationDigest: publication.observationDigest,
     indexIdentity: checked.identity,
-    // Proof: reversing this sort failed the two-debt-entry production CLI order assertion.
+    // Proof: reversing this comparator failed the production CLI assertion requiring the
+    // two debt paths in exact ascending order, `a` then `z`.
     indexReviewDebt: [...checked.reviewDebt].sort((left, right) =>
       compareCanonicalText(left.indexPath, right.indexPath),
     ),
