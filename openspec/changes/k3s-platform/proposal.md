@@ -16,4 +16,4 @@ Deliver Ansible-managed Ubuntu/k3s hosts and Flux-managed platform resources for
 
 ## Constraints
 
-All tools and artifacts use the F0 lock. Missing CRDs, decryption keys, exact host-path admission, registry trust, or cluster identity fail closed. Local overlays use test credentials and cannot reach production contexts. Static rendering cannot claim convergence, telemetry, backup, or recovery success.
+All tools and artifacts use the F0 lock. Missing CRDs, decryption keys, exact host-path admission, registry trust, or cluster identity fail closed. Local overlays use test credentials and cannot reach production contexts. Static rendering cannot claim convergence, telemetry, backup, or recovery success. WBS 070.14 first closes the forge namespace admission bypass: retain `puni-forge` and admit `puni-forge-<slug>` only for the existing validated dev-environment slug grammar. This prerequisite changes admission only; workload namespace migration, deletion, live-host changes, Flux, credentials and RBAC remain out of scope.

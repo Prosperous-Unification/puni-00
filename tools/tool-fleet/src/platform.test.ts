@@ -636,6 +636,50 @@ describe('validatePlatform', () => {
     expect(validatePlatform(root)).rejects.toThrow(/must match only namespaces labelled/);
   });
 
+  it('rejects a trusted policy whose forge identity excludes environment namespaces', async () => {
+    const root = await mutablePlatform();
+    await replaceManifestText(
+      root,
+      'infra/platform/policy/trusted-workloads.yaml',
+      "object.metadata.namespace.matches('^puni-forge-[a-z]([a-z0-9-]{0,18}[a-z0-9])?$')",
+      "object.metadata.namespace == 'puni-forge'",
+    );
+    expect(validatePlatform(root)).rejects.toThrow(/trusted namespace identity/);
+  });
+
+  it('rejects removal of namespace source-label protection', async () => {
+    const root = await mutablePlatform();
+    await replaceManifestText(
+      root,
+      'infra/platform/policy/trusted-workloads.yaml',
+      '!variables.isReserved ||',
+      'true ||',
+    );
+    expect(validatePlatform(root)).rejects.toThrow(/trusted namespace identity/);
+  });
+
+  it('rejects a trusted policy that skips security outside the original forge namespace', async () => {
+    const root = await mutablePlatform();
+    await replaceManifestText(
+      root,
+      'infra/platform/policy/trusted-workloads.yaml',
+      '!variables.isTrusted ||',
+      "!(object.metadata.namespace in ['wbs-solver', 'puni-forge']) ||",
+    );
+    expect(validatePlatform(root)).rejects.toThrow(/trusted namespace identity/);
+  });
+
+  it('rejects removal of the unknown trusted-label guard', async () => {
+    const root = await mutablePlatform();
+    await replaceManifestText(
+      root,
+      'infra/platform/policy/trusted-workloads.yaml',
+      "!('puni.dev/trusted-hostpath' in object.metadata.labels) ||",
+      'true ||',
+    );
+    expect(validatePlatform(root)).rejects.toThrow(/trusted namespace identity/);
+  });
+
   it('rejects Traefik host ports other than 80 and 443', async () => {
     for (const [before, after] of [
       ['        port: 80\n', '        port: 8000\n'],

@@ -24,7 +24,7 @@ Backups follow the store: SQLite through the byte-bound `backup-sqlite.ts` runne
 
 ## Trusted image ownership
 
-Flux creates `wbs-solver/puni-trusted-workload` once (`kustomize.toolkit.fluxcd.io/ssa: IfNotPresent`) and the WBS release coordinator owns `data.solverImages` afterwards. Letting Flux keep reconciling the ConfigMap would revert every release's candidate and rollback digests within one interval; moving the parameter out of Git entirely would lose the fail-closed initial state on a rebuilt cluster. With create-once ownership, a missing ConfigMap still denies every trusted pod (`parameterNotFoundAction: Deny`) until Flux recreates it, and the policy's parameter check denies any non-digest entry. The coordinator's exact contract is in [platform](../../../docs/infra/platform.md#trusted-image-ownership). The policy matches only namespaces labelled `puni.dev/trusted-hostpath`, so an absent parameter cannot block other namespaces; a second policy keeps that label on `wbs-solver` and `puni-forge`.
+Flux creates `wbs-solver/puni-trusted-workload` once (`kustomize.toolkit.fluxcd.io/ssa: IfNotPresent`) and the WBS release coordinator owns `data.solverImages` afterwards. Letting Flux keep reconciling the ConfigMap would revert every release's candidate and rollback digests within one interval; moving the parameter out of Git entirely would lose the fail-closed initial state on a rebuilt cluster. With create-once ownership, a missing ConfigMap still denies every trusted pod (`parameterNotFoundAction: Deny`) until Flux recreates it, and the policy's parameter check denies any non-digest entry. The coordinator's exact contract is in [platform](../../../docs/infra/platform.md#trusted-image-ownership). The policy matches only namespaces labelled `puni.dev/trusted-hostpath`, so an absent parameter cannot block other namespaces; a second policy binds `solver` to `wbs-solver` and `source` to `puni-forge` plus `puni-forge-<slug>`, using the existing 1–20 character dev-environment slug grammar. Every reserved name requires its correct label on creation/update, including malformed reserved suffixes, and other trusted-label values are denied. The Pod policy uses the same forge identity for every admission guard.
 
 ## F9 source-run development
 
@@ -32,7 +32,7 @@ Flux creates `wbs-solver/puni-trusted-workload` once (`kustomize.toolkit.fluxcd.
 
 Assumptions recorded without an interview:
 
-- Environments share the one trusted namespace `puni-forge`, because the F6 admission matches that name; each gets its own labels, database volume, Service, Ingress and NetworkPolicy instead of its own namespace.
+- The current dev-env lifecycle still places environments in `puni-forge`, with separate labels, database volumes, Services, Ingresses and NetworkPolicies. WBS 070.14 first supplies admission for the `puni-forge-<slug>` family; moving workload ownership and namespace lifecycle follows in a separate slice.
 - On a lab it owns (label `puni.dev/lab-id` on `wbs-solver/puni-trusted-workload`), `dev-env` writes the forge image digest and exact roots into the admission parameters. Elsewhere those are reviewed policy changes and `dev-env` refuses.
 - The solver runtime directory `/run/puni/solver` is admitted for the forge through the same exact-root list (`forgeWorktreeRoots`) and mounted read-only; F6 has no separate forge solver parameter.
 - The forge image is `deploy/dev-src/Dockerfile`, the h2puni dev image, built without BuildKit attestations so an unchanged Dockerfile keeps one digest.
