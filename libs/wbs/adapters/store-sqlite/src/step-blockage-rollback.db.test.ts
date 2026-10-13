@@ -209,19 +209,42 @@ describe('step blockage recovery', () => {
     expect(saved.stdout).toContain('saved: 1');
     expect((await runCli('remove', file)).exitCode).toBe(0);
     expect((await runCli('restore', file)).exitCode).toBe(0);
-    expect((await runCli('erase', file)).stderr).toContain('usage:');
-    expect((await runCli('save', file, join(directory, 'missing.db'))).exitCode).not.toBe(0);
+    expect((await runCli('erase', join(directory, 'invalid-verb.json'))).stderr).toContain(
+      'usage:',
+    );
+    const missingDatabaseSave = join(directory, 'missing-database-save.json');
+    const missingDatabase = await runCli(
+      'save',
+      missingDatabaseSave,
+      join(directory, 'missing.db'),
+    );
+    expect(missingDatabase.exitCode).not.toBe(0);
+    expect(missingDatabase.stderr).toContain('unable to open database file');
+    expect(existsSync(missingDatabaseSave)).toBe(false);
     expect(existsSync(join(directory, 'missing.db'))).toBe(false);
+    // Proof: chmod fault changed to readable mode; fresh-destination CLI negative
+    // failed on exit 0 instead of being masked by EEXIST; watched 2026-10-13.
     chmodSync(path, 0);
     try {
-      expect((await runCli('save', file)).exitCode).not.toBe(0);
+      const unreadableDatabaseSave = join(directory, 'unreadable-database-save.json');
+      const unreadableDatabase = await runCli('save', unreadableDatabaseSave);
+      expect(unreadableDatabase.exitCode).not.toBe(0);
+      expect(unreadableDatabase.stderr).toContain('unable to open database file');
+      expect(existsSync(unreadableDatabaseSave)).toBe(false);
     } finally {
       chmodSync(path, 0o600);
     }
     const absent = await runCli('restore', join(directory, 'missing.json'));
     expect(absent.exitCode).not.toBe(0);
+    expect(absent.stderr).toContain('ENOENT');
     writeFileSync(join(directory, 'broken.json'), '{');
-    expect((await runCli('restore', join(directory, 'broken.json'))).exitCode).not.toBe(0);
-    expect((await runCli('save', file, directory)).exitCode).not.toBe(0);
+    const malformedFile = await runCli('restore', join(directory, 'broken.json'));
+    expect(malformedFile.exitCode).not.toBe(0);
+    expect(malformedFile.stderr).toContain('JSON Parse error');
+    const directoryDatabaseSave = join(directory, 'directory-database-save.json');
+    const directoryDatabase = await runCli('save', directoryDatabaseSave, directory);
+    expect(directoryDatabase.exitCode).not.toBe(0);
+    expect(directoryDatabase.stderr).toContain('unable to open database file');
+    expect(existsSync(directoryDatabaseSave)).toBe(false);
   });
 });

@@ -513,5 +513,16 @@
       "(fail) step blockage recovery > refuses overwriting a recovery file after removal and restores all original columns [782.69ms]"
     ],
     "output_file": "recovery-file-exclusive.txt"
+  },
+  {
+    "fault": "unreadable database fixture made readable",
+    "source": "libs/wbs/adapters/store-sqlite/src/step-blockage-rollback.db.test.ts",
+    "test": "./libs/wbs/adapters/store-sqlite/src/step-blockage-rollback.db.test.ts",
+    "pattern": "runs the CLI round trip",
+    "exit": 1,
+    "failed": [
+      "(fail) step blockage recovery > runs the CLI round trip and rejects malformed/absent inputs without creating databases [1632.65ms]"
+    ],
+    "output_file": "unreadable-database-independent.txt"
   }
 ]
