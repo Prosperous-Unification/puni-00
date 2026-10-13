@@ -863,3 +863,19 @@ test('[TEST-AXES-059] refuses non-UTF-8 JUnit declaration', () => {
   rewrite(setup, 'report', (source) => '<?xml version="1.0" encoding="ISO-8859-1"?>' + source);
   expect(() => inspect(setup)).toThrow('encoding');
 });
+
+test('[TEST-AXES-059] production CLI refuses foreign JUnit CDATA despite matching report digest', async () => {
+  const setup = fixture();
+  rewrite(setup, 'report', (source) =>
+    source.replace('</testsuite>', '<![CDATA[foreign]]></testsuite>'),
+  );
+  const invocation = await invokeCli([
+    'inspect-performance',
+    setup.root,
+    setup.revision,
+    setup.policyPath,
+  ]);
+  expect(invocation.exitCode).toBe(1);
+  expect(invocation.stdout).toBe('');
+  expect(invocation.stderr).toContain('unexpected text');
+});

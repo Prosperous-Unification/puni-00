@@ -116,11 +116,14 @@ function reconcileJunit(source: string, declaration: PerformanceCases): void {
     // Proof: returning here failed the production JUnit doctype refusal.
     throw new Error('Performance JUnit doctype is forbidden');
   });
-  parser.on('text', (body) => {
+  const assertPermittedText = (body: string): void => {
     // Proof: disabling this guard failed "[TEST-AXES-059] refuses JUnit unexpected text".
     if (body.trim() !== '' && !['failure', 'skipped'].includes(stack.at(-1) ?? ''))
       throw new Error('Performance JUnit structure contains unexpected text');
-  });
+  };
+  parser.on('text', assertPermittedText);
+  // Proof: removing this listener made the updated-digest foreign-CDATA production CLI test exit 0.
+  parser.on('cdata', assertPermittedText);
   parser.on('opentag', (tag) => {
     const parent = stack.at(-1);
     if (tag.name === 'testsuite' && parent === undefined) {
