@@ -849,13 +849,21 @@ function arrowRoute(
 const ASSUMED_BAR_CLASSES = '[fill-opacity:0.35] [stroke-dasharray:3_2]';
 
 /**
- * How a **done bar** is painted beyond its own colour: a little translucent, so
- * the row light and the weekend bands read through finished work, with a solid
- * stroke — deliberately **not** the assumed span's dotted signature, which says
+ * How a **done bar** is painted beyond its own colour: a solid stroke —
+ * deliberately **not** the assumed span's dotted signature, which says
  * "guessed" where this says "over". The done mark the panel draws on top is
  * the rest of the saying.
+ *
+ * **Opaque since ui-review F-038.** It was 75% translucent so the row light
+ * read through finished work, and that moved the ground its label sits on with
+ * the theme: white on the blue done bar fell to 3.26:1 over the light page.
+ * {@link inkOn} chooses against the fill, so the fill has to be what is drawn.
+ *
+ * Proof: `[fill-opacity:0.75]` put back, and `every bar label clears 4.5:1 on
+ * its bar, light (F-038)` failed on the done bar's label at
+ * `3.2579494463966228`; watched 2026-10-13.
  */
-const DONE_BAR_CLASSES = '[fill-opacity:0.75] [stroke-width:2]';
+const DONE_BAR_CLASSES = '[stroke-width:2]';
 
 /**
  * The classes a bar carries beyond its two colours, and the two facts they say.
@@ -5501,7 +5509,7 @@ export function GanttRenderer({
                 fill={bar.personColor}
                 // The critical path is the **outline**, because the fill is
                 // already saying who. A ring in the foreground colour rather
-                // than the destructive one: `#d62728` is the fourth person's
+                // than the destructive one: `#d42526` is the fourth person's
                 // colour, and a red ring on a red bar is no ring at all.
                 // A done bar wears the status green as its outline instead
                 // (`status-polish`; Dany: "add smth like a green outline to the
