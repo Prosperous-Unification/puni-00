@@ -50,6 +50,10 @@ with the named fault injected; the observed text is the adjacent `Proof:` commen
 to be false` without the listener; browser: `Expected: false · Received: true`).
   One panel at a time: without the toggle listener the keyboard case listed both
   `Filters` and `Views`.
+- The focusout close first closed on the event's `relatedTarget`; in the phone sheet a
+  tick-box label click passed the focus through the sheet's surface and `mobile.spec.ts`
+  `makes the row of a tick box the tick box` crashed the tab (3/3). It now judges where
+  the focus landed a task later; mobile, toolbar-panels and import-with-ai: 39 passed.
 - Sheet panels: with the sheet rule's reset taken out, `Received: "640px"`.
 - Import JSON from the No project open card opens the imported project
   (`e2e/home.spec.ts`).

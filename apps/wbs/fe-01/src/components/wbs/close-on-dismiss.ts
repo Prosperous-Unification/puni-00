@@ -81,16 +81,27 @@ export function useClosedOnDismiss(): RefCallback<HTMLDetailsElement> {
 
     // The keyboard's half of the pointer rule above: Tab out of an open panel and it
     // closes, so an Escape pressed later never meets a panel it can no longer reach.
-    // A focus going nowhere (`relatedTarget` null — a click on bare page) is left to
-    // the pointer rule, and one going into the panel's own dialog keeps it open.
+    //
+    // Judged a task later, on where the focus **landed**, not on the event's
+    // `relatedTarget`. A click on a tick box's label inside the phone's sheet moves the
+    // focus through the sheet's own surface on its way to the box: closing on that
+    // passing target hid the box mid-click, the sheet's focus trap took the focus back,
+    // and the two chased each other until the tab crashed (`makes the row of a tick box
+    // the tick box` in `e2e/mobile.spec.ts`: `Target crashed`, 2026-10-14). A focus that
+    // ends nowhere (`<body>`) is left to the pointer rule, and one in the panel's own
+    // dialog keeps it open.
     // Proof: on 2026-10-13, without this listener `closes when the focus leaves it by
     // the keyboard` in `close-on-dismiss.test.tsx` failed on `expected true to be false`.
-    const closeOnFocusOut = (event: FocusEvent): void => {
+    let pendingFocusCheck: ReturnType<typeof setTimeout> | undefined;
+    const closeOnFocusOut = (): void => {
       if (!panel.open) return;
-      const next = event.relatedTarget;
-      if (!(next instanceof Element) || panel.contains(next)) return;
-      if (isInsideOwnedDialog(panel, next)) return;
-      panel.open = false;
+      clearTimeout(pendingFocusCheck);
+      pendingFocusCheck = setTimeout(() => {
+        const landed = document.activeElement;
+        if (!panel.open || landed === null || landed === document.body) return;
+        if (panel.contains(landed) || isInsideOwnedDialog(panel, landed)) return;
+        panel.open = false;
+      }, 0);
     };
 
     // One panel open at a time, whatever opened it: a summary toggled by Enter fires no
@@ -117,6 +128,7 @@ export function useClosedOnDismiss(): RefCallback<HTMLDetailsElement> {
       document.removeEventListener('pointerdown', closeIfOutside, true);
       document.removeEventListener('keydown', closeOnEscape);
       panel.removeEventListener('focusout', closeOnFocusOut);
+      clearTimeout(pendingFocusCheck);
       panel.removeEventListener('toggle', closeTheOthers);
     };
   }, [panel]);
