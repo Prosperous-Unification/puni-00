@@ -732,3 +732,15 @@ The Architecture runner SHALL derive execution only from its validated `src/arch
 - **WHEN** the real Architecture runner executes
 - **THEN** the runner succeeds, the decoy marker is absent and fresh JUnit contains only the mapped canonical testcase
 - **AND** with two mapped fixtures every operand excludes its matching nested decoy
+
+### Requirement: Find-based Bun level targets execute literal selected files
+
+The six existing find-based Memory Unit/Conformance, SQLite API/Unit/Conformance and core Unit commands SHALL emit `./src` or `./src/testing` operands and pass them unchanged to Bun. Memory Unit SHALL exclude `./src/testing/source-conformance.test.ts`. Collection identities SHALL remove exactly one leading `./` for canonical project-relative comparison. Existing selector scopes, report clearing, empty-selection and selector-error refusals SHALL remain intact. This contract covers existing shell-compatible paths and establishes no whitespace or glob safety.
+
+#### Scenario: [TEST-AXES-092] Find-based level execution excludes nested matching decoys
+
+- **GIVEN** each declared find-based level command, selected shell-compatible fixture paths, stale JUnit and nested matching marker/throw decoys outside the selector root
+- **WHEN** the real manifest command executes through `sh -c`
+- **THEN** it succeeds without executing a decoy and writes fresh JUnit containing exactly the selected canonical passing identities
+- **AND** Unit and API select two files, Conformance selects its source filename, and Memory Unit excludes its Conformance fixture
+- **AND** removing exactly one leading `./` preserves canonical collection identities without stripping a second prefix

@@ -834,6 +834,12 @@
       "id": "TEST-AXES-091",
       "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
       "title": "Architecture execution excludes nested matching decoys"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-092",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Find-based level execution excludes nested matching decoys"
     }
   ]
 }

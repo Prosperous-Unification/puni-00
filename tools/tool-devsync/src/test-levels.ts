@@ -1004,7 +1004,8 @@ export function parseLevelCommand(command: string): LevelCommand {
  * selector in the target's working directory.
  *
  * The selector is run rather than re-implemented: a second copy of the selection
- * rule is the drift this check exists to catch.
+ * rule is the drift this check exists to catch. One leading `./` is removed only
+ * for canonical project-relative identities; execution retains the literal operands.
  *
  * @throws when the selector fails.
  */
@@ -1017,7 +1018,14 @@ export function collectedFiles(root: string, selector: string): readonly string[
   if (run.exitCode !== 0) {
     throw new Error(`${root}: the file selector failed: ${run.stderr.toString()}`);
   }
-  return run.stdout.toString().split(/\s+/).filter(Boolean).sort();
+  // Proof: removing one-prefix normalization failed the canonicalization and real level
+  // collection assertions in test-levels.test.ts (2026-10-14).
+  return run.stdout
+    .toString()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((file) => file.replace(/^\.\//, ''))
+    .sort();
 }
 
 /** The report path a target writes, spelled the way its own working directory must spell it. */
