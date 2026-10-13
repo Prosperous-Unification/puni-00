@@ -29,6 +29,8 @@ this packet.
   nothing by its own spec, so there is no slice that can land first. The project zone the marks
   need is on the tree read (`ChartRead.timezone`) since `step-node-attempts` slice 6.
 
+—
+
 ## Architecture correction — 2026-10-12
 
 Branch `batch-10/gantt-attempt-marks-rulings`, based on `origin/main`
@@ -47,3 +49,306 @@ introduced; the existing deferred Attempt mark glossary task remains open.
 Application tests, browser tests, mutation proofs, performance measurements and the host
 gate were not run for this architecture-only draft PR. All implementation tasks remain
 open. The mutation cases above are required future observations, not completed proofs.
+
+## Slice 1 — chart input and pure projection, 2026-10-12
+
+Isolated branch `batch-10/gantt-attempt-marks-s1` starts at the corrected #371 head
+`2a8f15b4f8b5d7dd11dd98aa9b138e07c73342b1`, then normally merges #373
+`0940c8f03f01031199c5f6bb955ee7a34ab58346` and #372
+`9b44b3eecc2bd94cd74671302b41f233bcc2dd3d`. Both subday design/tasks additions were
+preserved. The earlier prerequisite block above is historical. Axis slices 1 and 3 plus attempt
+inputs are integrated in this isolated stack, without a merge to main or release. Axis
+slice 2 tick, hit-surface and collision integration remains a prerequisite for attempt
+slice 2 and full release.
+
+The chart carries materialized node identities, histories, start date and project zone
+from one read. A shared eligible-node selection feeds the offer count and pure attempt
+projection. Missing calendar inputs produce a typed unavailable state. The projection
+accepts one supplied `now`, caps each mark on its start day's working window, and returns
+a translated forecast and display-range origin; it leaves schedule coordinates and stored
+attempts untouched. Completed leaves keep individual forecast slices at subday rungs.
+The panel comparator observes zone and attempt changes. Task 0.2's glossary entry is copied
+verbatim from `puni-plan/batch-10/interviews/glossary-delta.md`.
+
+TDD observations: the initial focused run failed 20 new cases with 193 existing passes;
+completed rows were one done bar rather than two slices and the count was 2500 rather than 2501. The identity-threading case separately failed before its adapter existed. The panel
+memo case separately failed because the option stayed enabled after history changed.
+The formatter-parts case failed before its required-part check existed.
+
+| Command                                                                    | Observed result                                             |
+| -------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `bun install --frozen-lockfile`                                            | 1292 packages installed, exit 0                             |
+| UTC Vitest geometry/input/panel/seam suites, serial one worker             | 523 passed, 4 files, 44.74s; includes formatter-parts check |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-fe-01:typecheck` | Passed module checks and root TypeScript build              |
+| `bunx eslint` over changed TS/TSX files with autofix                       | Exit 0 after import/Intl/nullish fixes                      |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                   | 184 items passed, 0 failed                                  |
+
+The first Nx typecheck attempt encountered sandbox socket denials and printed no task
+execution despite exit 0; it is not a passing check. Disabling daemon/plugin isolation
+produced the actual successful task output. Two initial lint:fast attempts exited 1 without
+printing ESLint diagnostics. A direct captured ESLint invocation exposed import order,
+optional Intl part reads and nullish style errors; those were corrected. Final Nx outcomes
+are recorded below.
+
+| Check               | Injected fault                                               | Production-path test observing failure                                                              | Observed |
+| ------------------- | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- | -------- |
+| Supplied clock      | Replace supplied `now` with `Date.now()`                     | `a running mark ends at the given now`                                                              | Exit 1   |
+| Start-day clamp     | Use unclamped end minute, including later dates              | `overnight and multi-day attempts stop at the start day 17:00`                                      | Exit 1   |
+| Completed slices    | Remove subday exclusion from done-bar coalescing             | `completed leaves keep planned slices under their attempts`                                         | Exit 1   |
+| Offer count         | Drop attempt lengths from the sum                            | `attempts make 2500 forecast marks exceed the sub-day offer limit`                                  | Exit 1   |
+| Visible eligibility | Add a hidden scheduled copy to the selected rows             | `hidden and held attempts do not widen the axis`                                                    | Exit 1   |
+| Display union       | Retain forecast-only bounds                                  | `attempt start dates extend both sides of the forecast range without changing forecast coordinates` | Exit 1   |
+| Valid instants      | Remove finite/date-range validation                          | `rejects malformed supplied start, instant and reversed intervals`                                  | Exit 1   |
+| Ordered interval    | Remove end-before-start guard                                | `rejects malformed supplied start, instant and reversed intervals`                                  | Exit 1   |
+| Trusted identity    | Return an empty list for a missing attempted node            | `carries attempted node identity and rejects missing trusted references`                            | Exit 1   |
+| Supplied date       | Skip date validation while zone is absent                    | `validates supplied calendar facts even when the other input is unavailable`                        | Exit 1   |
+| Supplied zone       | Validate UTC in place of supplied zone while start is absent | `validates supplied calendar facts even when the other input is unavailable`                        | Exit 1   |
+| Clock parts         | Formatter returns no parts before required-part guard        | `rejects a formatter that omits required clock parts`                                               | Exit 1   |
+| Memoization         | Omit history/zone comparisons before implementation          | `attempt and zone changes update the offer through panel memoization`                               | Exit 1   |
+
+All temporary faults were restored. Adjacent `Proof:` comments identify the observed cases.
+This slice deliberately leaves projection paint, messages, card formatting, collision-list
+integration, exported SVG wiring and browser fixtures to slice 2. No browser/e2e, performance
+measurement, full component suite, build or host gate has been run for this checkpoint;
+no release readiness is claimed. The workstation is `pop-os`, not h2puni.
+
+Final slice-1 checks before checkpoint: `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx
+run wbs-fe-01:lint:fast` passed (9.2s); the same invocation for `typecheck` passed (5.5s,
+module checks and root build). The final four focused UTC suites passed 523 tests in 44.74s.
+`git diff --check` exited 0.
+
+Prerequisite follow-ups were normally merged after the green checkpoint: #371
+`13977965d267576a9cb838f119a64f5d7d2dfede` and #373
+`87976f796965985e13a67810561573b07b7cdfc8`. Both merges were conflict-free and preserve
+both verification histories. The merged branch again passed the same 523 focused tests
+(45.63s), Nx `lint:fast`, Nx `typecheck`, and all 184 OpenSpec validation items. A final
+mechanical naming pass gives new helpers verb-object names and names the anchor's retirement
+packet in its own JSDoc. Read-only architecture review found no blocking geometry/input
+issue and confirmed the mutation logs; its prerequisite-wording correction is applied above.
+
+After the mechanical naming pass, geometry/input suites passed all 220 tests (4.24s),
+changed-file ESLint exited 0, and Nx `typecheck` passed again.
+
+## Slice 2 checkpoint — panel overlay, 2026-10-12
+
+Branch `batch-10/attempt-marks-next` starts at #374
+`2065563ca6677b0f01ef4c377243e8f0307063a9`. Axis prerequisite helper checkpoint
+`1e5405a8f0dd25b4a0150b9abdc15dc79d637729` was normally merged as `3669ea3b1`;
+additive end-of-file geometry/test conflicts and an older verify note were resolved by
+retaining both implementations and the complete attempt verification history. Its 216
+geometry tests passed after resolution. Axis panel checkpoint
+`060f34e452f87458bcf21275419bfa44bd3569a1` was normally merged conflict-free as `6b89ae63b`.
+No main merge or release has occurred.
+
+The real panel now draws attempt marks and actual hatch/dot/solid/open-edge paint above
+forecast slices. `gantt-attempt.tsx` owns extracted mark, pattern and original-instant card
+components. The same translated projection feeds forecasts, hit surfaces and calendar
+headers. Attempt identities participate in the axis's shared pointer map and collision
+chooser; selected attempts open their own cards. Missing calendar fields render the specified
+messages. One panel clock reading feeds every running mark; an explicit `now` participates
+in memoization. Export clones the actual marks and definitions with the same translated axis.
+
+The first panel RED run observed five failures and one unchanged-day pass. Expanded RED
+coverage observed nine failures/two passes before panel wiring. Interaction RED then caught
+forecast-to-attempt card clearing and a 7.84px vertical hit surface; both were corrected.
+The final component suite also covers completed leaves, changed attempt history, malformed
+start/zone/instant containment, translated selection geometry and exported marks. Tests live
+in a dedicated `gantt-attempt-panel.test.tsx` at the real panel boundary, with the zoned
+card oracle in `gantt-attempt.zoned.test.tsx`.
+
+| Command                                                                        | Observed result                                                    |
+| ------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| `BUN_TMPDIR=/tmp bun install --frozen-lockfile`                                | 1,573 installs checked, no changes, exit 0                         |
+| UTC Vitest geometry/input/panel/attempt-panel/detail suites, serial one worker | 540 passed, 5 files, 19.82s                                        |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-fe-01:typecheck`     | Module checks and root build passed, 6.5s                          |
+| Direct changed-file ESLint                                                     | Exit 0 after import ordering, clock purity and test callback fixes |
+
+Initial typecheck caught a test date parameter inferred as one literal; its type was widened.
+Initial ESLint rejected `Date.now()` in render. The panel follows the existing `new Date()`
+clock convention and passes its millisecond value down; geometry still never reads a clock.
+
+| Check                 | Injected fault                                                 | Production-path observer                                                               | Observed                                                              |
+| --------------------- | -------------------------------------------------------------- | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Actual paint          | Swap hatch/dot URL mappings, leaving outcome attributes intact | `paints all four outcomes with hatch strokes, dots, solid fill and an open right edge` | Exit 1                                                                |
+| Original project zone | Omit formatter `timeZone` under `TZ=America/Los_Angeles`       | Real extracted `AttemptCard` overnight zoned test                                      | Exit 1; rendered Aug 3 06:30–16:10 instead of Aug 3 16:30–Aug 4 02:10 |
+| Missing start         | Substitute a date for absent panel start                       | Both missing-start panel states                                                        | Exit 1, two failed                                                    |
+| Missing zone          | Substitute UTC for absent zone                                 | Both missing-zone panel states                                                         | Exit 1, two failed                                                    |
+| Translated hits       | Omit translated `mark.x` from the hit surface                  | `aligns translated headers, forecast and attempt hit surfaces`                         | Exit 1                                                                |
+| Clock memo            | Omit `before.now === after.now`                                | `uses the supplied clock and repaints a new clock through memoization`                 | Exit 1                                                                |
+| Shared chooser        | Remove the attempt collision branch                            | `includes a tick and its forecast in the shared collision chooser`                     | Exit 1                                                                |
+| Vertical pointer size | Original 0.28-row height                                       | `gives a two-minute attempt an 18px pointer surface in both dimensions`                | Failed at 7.84px before correction                                    |
+
+All temporary mutation faults were restored. Adjacent `Proof:` comments name the observations.
+The attempt hit explicitly targets its fill, matching the axis worker's browser discovery
+that an SVG hit rect's stroke footprint can exceed its bounding box. An attribute regression
+was watched failing before this explicit targeting was added. Pointer movement rechecks the
+shared collision membership after the hover delay.
+
+### Still open
+
+- The new `e2e/gantt-attempts.spec.ts` fixture includes three attempts on one slice, all four
+  outcomes, a completed row, a two-minute tick and an attempt before the forecast. It has not
+  been run. Browser acceptance and the browser translation mutation remain open until the
+  estimate-units prerequisite integrates, per the coordinator's instruction.
+- Full fe-01 component/zoned suites, existing Gantt browser shards, full format/lint/build,
+  host gate and attempt-inclusive performance measurement have not been run for this checkpoint.
+- Tasks 2.2, 2.3 and 3 remain open; production overlay coverage does not claim browser or
+  release acceptance. The host gate is reserved for the reviewed integration SHA.
+
+Final checkpoint checks after explicit fill targeting and pointer-move support:
+
+| Command                                                  | Observed result            |
+| -------------------------------------------------------- | -------------------------- |
+| UTC dedicated attempt panel suite                        | 17 passed, 4.94s           |
+| `TZ=America/Los_Angeles` dedicated zoned card suite      | 1 passed, 1.93s            |
+| Nx `typecheck` with daemon/plugin isolation disabled     | Passed, 9.2s               |
+| Nx `lint:fast` with daemon/plugin isolation disabled     | Passed, 1m 16s             |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json` | 184 items passed, 0 failed |
+| `git diff --check`                                       | Exit 0                     |
+
+Axis pointer correction `62b8a24527fa0a6e2c6b55c5bb45f11de8970afa` (#376) was then normally
+merged as `892ab20e38865a15078c79a47a417c2f65fc388e`. The one hover-handler conflict retained
+the axis's extracted pointer-over/pointer-move handler and the attempt card clearing behavior.
+Both verification histories remain intact. Post-merge combined focused suites passed **544**
+tests in 21.25s, and Nx module/app typecheck passed in 5.7s; merge commit format/lint hooks passed.
+
+The isolated Chromium driver was rerun against this merged checkout's own Vite server on
+4337: `bun apps/wbs/fe-01/e2e/subday-axis-benchmark.ts`. It verified a 3.99992px forecast fill,
+17.99992px × 18px pointer surface, exact two-minute card, explicit overlapping-mark choice,
+and the production oversized-plan refusal, with no browser errors. This is synthetic
+panel-boundary evidence, **not** minutes-input or attempt fixture acceptance. Its capped
+500×5 measurement contains no attempts and does not satisfy task 3.2. Output is
+`/tmp/attempt-browser-hit.log`; the separate axis verification history contains the observed
+browser negative. The attempt fixture's pointer aims within the actual overlap, and its
+chooser locator is scoped to the chooser card; the fixture remains unrun.
+
+## Astra attempt review corrections — 2026-10-13
+
+Both P2 findings reproduced before the fixes: the tiny/clamped actual-paint assertion
+observed width zero, and focus followed by blur left `Reference: run/2` visible (2 failed,
+17 skipped; `/tmp/attempt-p2-red.log`). Tiny marks now paint a centered 4px stripe with
+the original outcome fill. Four-pixel hatch/dot tiles ensure even a clamped stripe intersects
+the pattern; running marks retain the open right edge. Keyboard blur dismisses attempt facts
+unless focus transfers into the shared collision chooser.
+
+R5 negatives against production, with `data-attempt` unchanged:
+
+- Replacing only tiny fill with gray failed `keeps visible outcome paint on every tiny
+clamped tick`: expected a pattern URL, received `#334155`
+  (`/tmp/attempt-paint-mutation.log`). The first mutation command had an incorrect relative
+  source path, changed nothing and ran a passing test; it is not counted as proof.
+- Removing the blur callback failed real Chromium Tab-away: expected zero tooltips,
+  received one (`/tmp/attempt-focus-mutation.log`). Source restored after each mutation.
+
+The isolated fixture `benchmarks/attempt-marks.html` mounts the shipped panel with all four
+clamped two-minute outcomes and a fixed clock. `bun apps/wbs/fe-01/e2e/gantt-attempt-focus.ts`
+on Chromium 153.0.8010.12 verified nonzero 4px paint, resolved hatch/dot colors, green solid
+fills, and keyboard focus → Tab-away dismissal with no page errors. This is focused regression
+proof, not real-stack estimate-input/attempt acceptance or a performance measurement.
+Initial corrected attempt suite: 19 passed. Nx frontend typecheck passed (6.3s) and
+`lint:fast` passed (11.5s). Combined checks and chooser focus transfer will be repeated after
+merging the axis review checkpoint. Browser/performance/full-host-gate acceptance remains open.
+
+### Axis correction merge and final attempt confirmation
+
+Normally merged exact axis head `40ad022b7a9a33417cce73738e300d814e48af73` as
+`0d0749d88122244b670cc2e838e81dcb89d517e3`. Resolved React imports by keeping both `useId`
+and `useLayoutEffect`; resolved chooser content by retaining attempt choices inside the axis
+focus wrapper and using the corrected forecast labels. Both verification histories survive.
+The placement effect also clears attempt facts. A first conflict-resolution script selected
+an import conflict as the chooser boundary; normal format/lint hooks rejected the malformed
+file. The file was rebuilt from the three merge inputs and normal hooks then passed.
+
+Additional observed negatives:
+
+- Removing only `setOpenAttempt(null)` from placement invalidation failed the same-generation
+  rung placement regression with stale `Reference: run/2` (`/tmp/attempt-placement-mutation.log`).
+- Breaking only the attempt chooser selector failed Chromium focus transfer: the chooser
+  vanished before its choice could retain focus (`/tmp/attempt-chooser-mutation.log`).
+
+The first chooser browser run used different forecast/attempt dates, so it correctly found
+no collision. The isolated fixture now aligns them on 2026-08-03 and retains 07:00 clamped
+attempt starts. The final driver verifies actual nonzero paint on all four outcomes,
+focus → Tab-away dismissal, and focused attempt → chooser button → explicit attempt card,
+with no browser errors. Final outputs: `/tmp/attempt-focus-browser.log`,
+`/tmp/attempt-p2-final-tests.log`, `/tmp/attempt-p2-final-typecheck.log`,
+`/tmp/attempt-p2-final-lint.log`, and `/tmp/attempt-p2-zoned.log`.
+
+| Final focused check                                                       | Observed result                                                                          |
+| ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| UTC geometry, plan input, forecast panel, attempt panel and detail suites | 557 passed, 5 files, 28.43s                                                              |
+| Los Angeles attempt zoned card suite                                      | 1 passed, 728ms                                                                          |
+| Nx frontend typecheck                                                     | Passed, 6.8s                                                                             |
+| Nx frontend lint:fast                                                     | Passed, 16.5s                                                                            |
+| OpenSpec validate all                                                     | 184 valid, 0 invalid                                                                     |
+| Chromium attempt focus driver                                             | Tiny outcome paint, Tab-away dismissal and chooser focus transfer passed; no page errors |
+| git diff --check                                                          | Exit 0                                                                                   |
+
+The isolated Vite server on 4347 was stopped. Real-stack browser acceptance, browser
+translation mutation, attempt-inclusive performance and the full integration host gate remain
+open; tasks 2.2, 2.3 and 3 are unchanged pending estimate-units integration and review.
+
+## Shared hover dispatcher review correction — 2026-10-13
+
+Astra's follow-up P2 reproduced in four delayed-hover cases: attempt-origin zero hits,
+sole other attempt, sole forecast, and forecast-origin sole attempt all failed before the
+fix (`/tmp/attempt-dispatch-red.log`). Both handlers now call one timer-time membership
+selector and dispatcher. Zero hits dismiss; a sole hit opens its current forecast or attempt
+facts using the selected rectangle; multiple hits open the chooser. Direct focus/click
+opens the addressed mark immediately. Stable callbacks participate in the forecast paint
+memo so card updates retain its render isolation.
+
+Observed R5 production negatives (source restored after each):
+
+| Injected fault                                                  | Observed failure                                                                                                                                       |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Attempt timer opens its captured attempt                        | All three attempt-origin membership cases failed (`/tmp/attempt-dispatch-captured-mutation.log`)                                                       |
+| Shared card dispatcher treats every identity as a forecast      | Forecast-origin sole-attempt case failed to find a card (`/tmp/attempt-dispatch-forecast-mutation.log`)                                                |
+| Sole-hit card measures the event source instead of selected hit | All three sole-current-mark rectangle assertions failed (`/tmp/attempt-dispatch-anchor-mutation.log`)                                                  |
+| Selector dependency returns an absent snapshot identity         | Production throws the named snapshot error; suppressing that check failed the expected-throw assertion (`/tmp/attempt-dispatch-snapshot-mutation.log`) |
+
+An initial snapshot-check mutation did not match Prettier's multiline source and ran a
+passing test; it is not counted as evidence. The corrected mutation failed as recorded.
+The first lint runs found unbound DOM method assertions and missing memo dependencies;
+assertions now retain the spies and dispatch callbacks are stable memo dependencies.
+
+| Final check                                               | Observed result                                                                  |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| UTC geometry/input/forecast/attempt/detail focused suites | 562 passed, 5 files, 21.81s                                                      |
+| Los Angeles attempt zoned card suite                      | 1 passed, 742ms                                                                  |
+| Nx frontend typecheck                                     | Passed, 5.6s                                                                     |
+| Nx frontend lint:fast                                     | Passed, 8.2s                                                                     |
+| OpenSpec validate all                                     | 184 valid, 0 invalid                                                             |
+| Chromium 153 attempt regression driver                    | Tiny paint, Tab-away dismissal and chooser focus transfer passed; no page errors |
+| git diff --check                                          | Exit 0                                                                           |
+
+Outputs are `/tmp/attempt-dispatch-{final-tests,typecheck,lint-final,zoned,spec,browser}.log`.
+The isolated 4347 Vite server is stopped. These checks do not close real-stack browser
+acceptance, attempt-inclusive performance or the full integration host gate. Tasks 2.2,
+2.3 and 3 remain open pending estimate-units integration and reviewed integration checks.
+
+## Combined real-stack browser acceptance (2026-10-13)
+
+The combined estimate/API/renderer evidence and commands are in
+[estimate-units verification](../estimate-units/verify.md#combined-minute-axis-acceptance-2026-10-13).
+The browser fixture persists three attempts over one completed slice, all four outcomes,
+a two-minute cancelled attempt, and a running row before the forecast origin. At 15 min
+it checks four forecast slices under attempts, translated header date, actual hit width,
+real collision chooser, and original Kyiv card instants under a Los Angeles browser zone.
+The completed fixture now explicitly issues `setStatus: done`; a successful end attempt
+alone does not mark its step done. This corrects the earlier fixture label rather than
+assuming completion from its name. Switching that same fixture to Days hides attempts
+and restores the forecast origin and
+three coalesced/planned bars. Missing optional timezone visibly disables attempt marks
+while retaining forecast paint in the companion minute estimate browser case.
+
+R5 browser translation proof: inject `+ 1` only into `AttemptMark`'s hit rect x, leaving
+paint unchanged. `gantt-attempts.spec.ts` fails its hit/paint center assertion: expected
+204.00000762939453, received 1099.9999389648438 (895.9999313354492px apart).
+The fault was restored; its adjacent production `Proof:` comment names the observed case.
+The browser proof checks actual translated surfaces, independent of outcome attributes.
+
+Renderer measurement is supplied by merged benchmark head
+`ca1822547a3590be7a6f5ee7557ad0b4e60afeb5`; its source and measurements remain in
+[sub-day axis verification](../sub-day-gantt-axis/verify.md). Final host gate and broad
+historical browser shard remain unrun here; task 3.1 remains open.

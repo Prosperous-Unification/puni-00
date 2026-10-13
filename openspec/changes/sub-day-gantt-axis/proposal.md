@@ -9,9 +9,9 @@ found no winner between a ladder and a slider, so the ladder's testability argum
 
 - The calendar-scale ladder gains three **sub-day rungs** — 4 h, 1 h, 15 min per cell — as
   discrete, judgeable steps; no slider. They divide the 480-minute workday into 2, 8 and 32
-  cells. Day rungs are unchanged.
-- A bar narrower than 4 px is painted as a 4 px tick carrying `data-tick`; every mark's
-  pointer surface is at least 18 CSS px; overlapping pointer surfaces open an explicit
+  cells. Day-rung paint and labels are unchanged.
+- A positive-span forecast bar narrower than 4 px at a sub-day rung is painted as a 4 px tick carrying `data-tick`; every mark's
+  pointer surface is at least 18 CSS px; zero-duration milestones retain their line ticks; overlapping pointer surfaces at every rung open an explicit
   selection list rather than a guess. The exact span is in the hover card.
 - A sub-day rung is offered only while the marks it would draw (visible leaves × project
   steps, plus attempts once `gantt-attempt-marks` lands) are at most 2,500. Above that the
@@ -27,7 +27,7 @@ to raise the 2,500-mark bracket; any change to day-rung pixels or to the engines
 
 ## Constraints
 
-Every existing day-rung pixel and text assertion stays byte-identical. The 2,500 bracket is
+Every existing day-rung paint and text assertion stays byte-identical. Pointer surfaces and collision selection improve at every rung. The 2,500 bracket is
 the experiment's measured safe side and moves only with a new measurement recorded in
 `verify.md`. Rendering cost is recorded as a benchmark, not pinned as a CI wall-clock gate
 (`working-plan-performance` has already failed under load). Requires `estimate-units` for a

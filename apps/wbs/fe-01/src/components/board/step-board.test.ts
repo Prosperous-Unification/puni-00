@@ -11,8 +11,8 @@ describe('projectStepBoard', () => {
       projectRevision: 7,
       slices: [],
       steps: [
-        { id: 'qa', name: 'QA', allowancePercent: 0 },
-        { id: 'dev', name: 'Development', allowancePercent: 0 },
+        { estimateUnit: 'workdays' as const, id: 'qa', name: 'QA', allowancePercent: 0 },
+        { estimateUnit: 'workdays' as const, id: 'dev', name: 'Development', allowancePercent: 0 },
       ],
       workItems: [
         workItemView({
@@ -91,19 +91,35 @@ describe('projectStepBoard', () => {
     const first = projectStepBoard(
       planRead({
         workItems: [leaf],
-        steps: [{ id: 'original', name: 'QA', allowancePercent: 0 }],
+        steps: [
+          { estimateUnit: 'workdays' as const, id: 'original', name: 'QA', allowancePercent: 0 },
+        ],
       }),
     );
     const renamed = projectStepBoard(
       planRead({
         workItems: [{ ...leaf, number: '020', name: 'Build again' }],
-        steps: [{ id: 'original', name: 'Review', allowancePercent: 0 }],
+        steps: [
+          {
+            estimateUnit: 'workdays' as const,
+            id: 'original',
+            name: 'Review',
+            allowancePercent: 0,
+          },
+        ],
       }),
     );
     const recreated = projectStepBoard(
       planRead({
         workItems: [{ ...leaf, number: '020' }],
-        steps: [{ id: 'replacement', name: 'Review', allowancePercent: 0 }],
+        steps: [
+          {
+            estimateUnit: 'workdays' as const,
+            id: 'replacement',
+            name: 'Review',
+            allowancePercent: 0,
+          },
+        ],
       }),
     );
 
@@ -133,7 +149,7 @@ describe('projectStepBoard', () => {
       projectStepBoard(
         planRead({
           workItems: [leaf],
-          steps: [{ id: 'qa', name: 'QA', allowancePercent: 0 }],
+          steps: [{ estimateUnit: 'workdays' as const, id: 'qa', name: 'QA', allowancePercent: 0 }],
         }),
       ),
     ).toThrow(/progress/);
@@ -145,7 +161,7 @@ describe('projectStepBoard', () => {
       projectStepBoard(
         planRead({
           workItems: [leaf],
-          steps: [{ id: 'qa', name: 'QA', allowancePercent: 0 }],
+          steps: [{ estimateUnit: 'workdays' as const, id: 'qa', name: 'QA', allowancePercent: 0 }],
         }),
       ),
     ).toThrow(/oldStep/);
@@ -158,8 +174,8 @@ describe('projectStepBoard', () => {
         workItemView({ id: 'a-leaf', number: '010' }),
       ],
       steps: [
-        { id: 'qa', name: 'QA', allowancePercent: 0 },
-        { id: 'dev', name: 'Development', allowancePercent: 0 },
+        { estimateUnit: 'workdays' as const, id: 'qa', name: 'QA', allowancePercent: 0 },
+        { estimateUnit: 'workdays' as const, id: 'dev', name: 'Development', allowancePercent: 0 },
       ],
     });
     expect(projectStepBoard(plan).columns.unknown.map((card) => card.id)).toEqual([
@@ -176,7 +192,7 @@ describe('projectStepBoard', () => {
   });
 
   it('rejects duplicate card identities from repeated leaf IDs', () => {
-    const step = { id: 'qa', name: 'QA', allowancePercent: 0 };
+    const step = { estimateUnit: 'workdays' as const, id: 'qa', name: 'QA', allowancePercent: 0 };
     const leaf = workItemView({ id: 'leaf' });
     expect(() =>
       projectStepBoard(
@@ -189,7 +205,7 @@ describe('projectStepBoard', () => {
   });
 
   it('rejects duplicate card identities from repeated step IDs', () => {
-    const step = { id: 'qa', name: 'QA', allowancePercent: 0 };
+    const step = { estimateUnit: 'workdays' as const, id: 'qa', name: 'QA', allowancePercent: 0 };
     const leaf = workItemView({ id: 'leaf' });
     expect(() =>
       projectStepBoard(

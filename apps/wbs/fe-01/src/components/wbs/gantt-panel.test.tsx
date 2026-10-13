@@ -41,6 +41,7 @@ import {
   DAY_PX,
   DAY_SCALES,
   type DayPx,
+  describeForecastSpan,
   FALLBACK_GANTT_THEME,
   GANTT_CEILING_PX,
   GANTT_MIN_PX,
@@ -3561,7 +3562,12 @@ describe('the axis is a calendar', () => {
 /** The Monday the fixture plan begins on, so every offset below is a weekday. */
 const MONDAY = '2026-08-10';
 
-const DEV: StepView = { id: 'step-dev', name: 'Dev', allowancePercent: 0 };
+const DEV: StepView = {
+  estimateUnit: 'workdays' as const,
+  id: 'step-dev',
+  name: 'Dev',
+  allowancePercent: 0,
+};
 
 const NO_DAYS: Days = { optimistic: 0, realistic: 0, pessimistic: 0 };
 
@@ -3588,6 +3594,7 @@ function rowOf(parts: {
   notBefore?: string;
 }): WorkItemView {
   return {
+    charged: {},
     id: parts.id,
     parentId: parts.parentId,
     revision: 0,
@@ -3861,6 +3868,7 @@ function fakeApi(startDate: string | null, skew: ReadSkew = {}): ProjectApi {
     listTimezones: () => notImplemented('listTimezones'),
     addStep: () => notImplemented('addStep'),
     renameStep: () => notImplemented('renameStep'),
+    setStepUnit: () => Promise.reject(new Error('unexpected setStepUnit')),
     setStepAllowance: () => notImplemented('setStepAllowance'),
     removeStep: () => notImplemented('removeStep'),
     addTeam: () => notImplemented('addTeam'),
@@ -4482,7 +4490,11 @@ describe('the chart is drawn from one read', () => {
     // and lists none of the step every slice **is** under. That is the
     // four-request skew this fix exists for, and nothing about it is malformed —
     // both answers were true when they were given.
-    await showTheChart(MONDAY, { steps: [{ id: 'step-ops', name: 'Ops', allowancePercent: 0 }] });
+    await showTheChart(MONDAY, {
+      steps: [
+        { estimateUnit: 'workdays' as const, id: 'step-ops', name: 'Ops', allowancePercent: 0 },
+      ],
+    });
 
     // Proof: `ganttPlan`'s `steps` put back to the `steps` state — the separate
     // read. This test failed on `expected null not to be null`, with the
@@ -5089,7 +5101,27 @@ describe('one surface at a time, and it goes when its facts do', () => {
 
   /** A pointer resting on a mark, which is what the delay is measured from. */
   const restOn = (sliceId: string): void => {
-    fireEvent(markFor(sliceId), pointerEvent('mouse', 'pointerover'));
+    document.querySelectorAll<SVGRectElement>('[data-gantt-hit]').forEach((surface, index) => {
+      vi.spyOn(surface, 'getBoundingClientRect').mockReturnValue({
+        x: index * 100,
+        y: 0,
+        left: index * 100,
+        right: index * 100 + 18,
+        top: 0,
+        bottom: 18,
+        width: 18,
+        height: 18,
+        toJSON: () => ({}),
+      });
+    });
+    const hit = document.querySelector<SVGRectElement>(`[data-gantt-hit="${sliceId}"]`);
+    if (hit === null) throw new Error('Hover fixture has no hit surface');
+    const event = pointerEvent('mouse', 'pointerover');
+    Object.defineProperties(event, {
+      clientX: { value: hit.getBoundingClientRect().left + 9 },
+      clientY: { value: 9 },
+    });
+    fireEvent(markFor(sliceId), event);
   };
 
   itDom('opens nothing for a pointer that crosses the chart', () => {
@@ -7430,6 +7462,40 @@ describe('downloading the chart as a standalone .svg', () => {
         .filter(Boolean),
     ).toEqual(words);
     expect(Number(clocks[1]?.getAttribute('x')) - Number(clocks[0]?.getAttribute('x'))).toBe(28);
+  });
+
+  itDom('exports a positive sub-day tick at the same 4 px width as the live mark', async () => {
+    const captured = captureDownloads();
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [rowAt('short', 0, 2 / 480)],
+          slices: [sliceAt('short-dev', 'short', 0, 2 / 480)],
+        })}
+        dayPx={896}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointed={pointedAtRow(null)}
+      />,
+    );
+    const liveWidth = Number(
+      document.querySelector('[data-gantt-bar="short-dev"]')?.getAttribute('width'),
+    );
+    clickDownload();
+    const doc = new DOMParser().parseFromString(
+      await readBlobText(captured.blobs[0]),
+      'image/svg+xml',
+    );
+    const exported = doc.querySelector('[data-gantt-bar="short-dev"]');
+    expect(exported?.getAttribute('data-tick')).toBe('true');
+    expect(Number(exported?.getAttribute('width'))).toBe(liveWidth);
+    expect(liveWidth * 896).toBeCloseTo(4);
+    expect(exported?.getAttribute('data-start')).toBe('0');
+    expect(Number(exported?.getAttribute('data-finish'))).toBeCloseTo(2 / 480);
   });
 
   itDom('puts a download control in the panel corner, without a toolbar button', () => {
@@ -10206,6 +10272,58 @@ describe('sub-day offer limit', () => {
       expect(option).not.toHaveAttribute('data-not-offered');
     }
   });
+  itDom('attempt and zone changes update the offer through panel memoization', () => {
+    const plan = densePlan(1, 2500);
+    plan.startDate = MONDAY_START;
+    plan.timezone = 'UTC';
+    const pointed = pointedAtRow(null);
+    const drawStable = (next: GanttPlan) => (
+      <GanttPanel
+        plan={next}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointed={pointed}
+      />
+    );
+    const { rerender } = render(drawStable(plan));
+    expect(subDayOptions()[0]).not.toBeDisabled();
+    const attempted = {
+      ...plan,
+      rows: [
+        {
+          ...plan.rows[0],
+          attemptNodes: [
+            {
+              id: 'sn',
+              stepId: '0',
+              reference: null,
+              attempts: [
+                {
+                  attemptNumber: 1,
+                  startedAt: 0,
+                  endedAt: 1,
+                  outcome: 'succeeded' as const,
+                  executorPersonId: null,
+                  reference: null,
+                  note: null,
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      slices: [sliceAt('0-step', '0', 0, 1, { stepId: '0' })],
+    };
+    rerender(drawStable(attempted));
+    expect(subDayOptions()[0]).toBeDisabled();
+    expect(subDayOptions()[0].textContent).toContain('2501 marks');
+    rerender(drawStable({ ...attempted, timezone: null }));
+    expect(subDayOptions()[0]).not.toBeDisabled();
+  });
   itDom('a filter past the limit moves to Days and says so', () => {
     const picked: DayPx[] = [];
     let notice: string | null = null;
@@ -10267,3 +10385,281 @@ itDom('clears a rung notice at the same day width and keeps the scale accessible
   rerender(draw(null));
   expect(screen.getByRole('combobox', { name }).getAttribute('title')).toBe('One day is 28px wide');
 });
+
+describe('sub-day forecast pointer surfaces', () => {
+  const tickPanel = (second: boolean, parts: Partial<GanttPlan> = {}, dayPx: DayPx = 896) => (
+    <GanttPanel
+      plan={planOf({
+        rows: [rowAt('one', 0, 1)],
+        steps: [
+          { id: 'dev', name: 'Dev' },
+          { id: 'qa', name: 'QA' },
+        ],
+        slices: [
+          sliceAt('first', 'one', 0, 2 / 480),
+          ...(second
+            ? [sliceAt('second', 'one', 6 / 896, 6 / 896 + 2 / 480, { stepId: 'qa' })]
+            : []),
+        ],
+        ...parts,
+      })}
+      startDate={MONDAY_START}
+      scheduleError={null}
+      generation={0}
+      heightPx={null}
+      dayPx={dayPx}
+      onPickRow={() => undefined}
+      onPointRow={() => undefined}
+      pointed={pointedAtRow(null)}
+    />
+  );
+  const drawTicks = (second: boolean, parts: Partial<GanttPlan> = {}) =>
+    render(tickPanel(second, parts));
+  const restOnSurface = (
+    sliceId: string,
+    clientX: number,
+    eventName = 'pointerover',
+    advance = true,
+  ) => {
+    const surfaces = [...document.querySelectorAll<SVGRectElement>('[data-gantt-hit]')];
+    for (const [index, surface] of surfaces.entries()) {
+      vi.spyOn(surface, 'getBoundingClientRect').mockReturnValue({
+        left: index * 6,
+        right: index * 6 + 18,
+        top: 0,
+        bottom: 20,
+        width: 18,
+        height: 20,
+        x: index * 6,
+        y: 0,
+        toJSON: () => ({}),
+      });
+    }
+    const surface = document.querySelector(`[data-gantt-hit="${sliceId}"]`);
+    if (surface === null) throw new Error('Missing forecast pointer surface');
+    const pointer = new MouseEvent(eventName, { bubbles: true, clientX, clientY: 10 });
+    Object.defineProperty(pointer, 'pointerType', { value: 'mouse' });
+    fireEvent(surface, pointer);
+    if (advance)
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+  };
+  itDom('paints a two-minute tick at 4 px and gives it an 18 px pointer surface', () => {
+    drawTicks(false);
+    const bar = document.querySelector('[data-gantt-bar="first"]');
+    expect(bar?.getAttribute('data-tick')).toBe('true');
+    expect(Number(bar?.getAttribute('width')) * 896).toBeCloseTo(4);
+    const hit = document.querySelector('[data-gantt-hit="first"]');
+    expect(Number(hit?.getAttribute('width')) * 896).toBeCloseTo(18);
+    expect(hit?.getAttribute('pointer-events')).toBe('fill');
+    expect(Number(hit?.getAttribute('height')) * ROW_PX).toBeGreaterThanOrEqual(18);
+  });
+  itDom('one surface opens the card directly with the exact span of a tick', () => {
+    vi.useFakeTimers();
+    try {
+      drawTicks(false);
+      restOnSurface('first', 2);
+      expect(screen.getByRole('tooltip').textContent).toContain('2 min');
+      expect(screen.queryByRole('button', { name: 'one · Dev · 2 min' })).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  itDom(
+    'keeps the collision list reachable after leaving a hit surface and closes it on Escape',
+    () => {
+      vi.useFakeTimers();
+      try {
+        drawTicks(true);
+        restOnSurface('second', 12);
+        const hit = document.querySelector('[data-gantt-hit="second"]');
+        if (hit === null) throw new Error('Missing forecast hit surface');
+        const pointer = new Event('pointerout', { bubbles: true });
+        Object.defineProperty(pointer, 'pointerType', { value: 'mouse' });
+        fireEvent(hit, pointer);
+        expect(screen.getByRole('button', { name: 'one · QA · 2 min' })).toBeTruthy();
+        expect(screen.getByRole('tooltip').style.pointerEvents).toBe('auto');
+        fireEvent.keyDown(document, { key: 'Escape' });
+        expect(screen.queryByRole('tooltip')).toBeNull();
+      } finally {
+        vi.useRealTimers();
+      }
+    },
+  );
+  itDom('dismisses the collision list when the chart scrolls', () => {
+    vi.useFakeTimers();
+    try {
+      drawTicks(true);
+      restOnSurface('second', 12);
+      const scrollport = screen.getByLabelText('Gantt chart');
+      fireEvent.scroll(scrollport);
+      expect(screen.queryByRole('tooltip')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  itDom('re-evaluates collisions when the pointer moves within the same surface', () => {
+    vi.useFakeTimers();
+    try {
+      drawTicks(true);
+      restOnSurface('second', 22);
+      expect(screen.getByRole('tooltip').textContent).toContain('QA · Unassigned');
+      restOnSurface('second', 12, 'pointermove');
+      expect(screen.getByRole('button', { name: 'one · Dev · 2 min' })).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  itDom('two overlapping surfaces open a list and the chosen line opens its card', () => {
+    vi.useFakeTimers();
+    try {
+      drawTicks(true);
+      restOnSurface('second', 12);
+      expect(screen.getByRole('button', { name: 'one · Dev · 2 min' })).toBeTruthy();
+      fireEvent.click(screen.getByRole('button', { name: 'one · QA · 2 min' }));
+      expect(screen.getByRole('tooltip').textContent).toContain('QA · Unassigned');
+      expect(screen.getByRole('tooltip').textContent).toContain('2 min');
+      expect(screen.queryByRole('button', { name: 'one · Dev · 2 min' })).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  itDom('lets the zero-duration decorative tick pass pointers to its hit surface', () => {
+    drawTicks(false, { slices: [sliceAt('first', 'one', 0, 0)] });
+    expect(
+      document.querySelector('[data-gantt-tick="first"]')?.getAttribute('pointer-events'),
+    ).toBe('none');
+  });
+  itDom.each(['filter', 'collapse', 'rung'] as const)(
+    'invalidates an open collision on a same-generation %s change',
+    (change) => {
+      vi.useFakeTimers();
+      try {
+        const drawn = drawTicks(true);
+        restOnSurface('second', 12);
+        drawn.rerender(
+          tickPanel(
+            change === 'rung',
+            change === 'filter'
+              ? { rows: [], slices: [] }
+              : change === 'collapse'
+                ? { rows: [rowAt('parent', 0, 1)], slices: [] }
+                : {},
+            change === 'rung' ? 28 : 896,
+          ),
+        );
+        expect(screen.queryByRole('tooltip')).toBeNull();
+      } finally {
+        vi.useRealTimers();
+      }
+    },
+  );
+  itDom('cancels pending hover when placement changes at the same generation', () => {
+    vi.useFakeTimers();
+    try {
+      const drawn = drawTicks(true);
+      restOnSurface('second', 12, 'pointerover', false);
+      drawn.rerender(tickPanel(true, {}, 28));
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(screen.queryByRole('tooltip')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  itDom('opens the current sole containing mark rather than the captured event mark', () => {
+    vi.useFakeTimers();
+    try {
+      drawTicks(true);
+      restOnSurface('second', 2);
+      expect(screen.getByRole('tooltip').textContent).toContain('Dev · Unassigned');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  itDom('closes when delayed hit testing finds no containing surface', () => {
+    vi.useFakeTimers();
+    try {
+      drawTicks(true);
+      restOnSurface('second', 30);
+      expect(screen.queryByRole('tooltip')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  itDom('names an unestimated collision as not estimated instead of zero minutes', () => {
+    vi.useFakeTimers();
+    try {
+      drawTicks(true, {
+        slices: [
+          sliceAt('first', 'one', 0, 0, { estimated: false }),
+          sliceAt('second', 'one', 0, 2 / 480, { stepId: 'qa' }),
+        ],
+      });
+      restOnSurface('second', 12);
+      expect(screen.getByRole('button', { name: 'one · Dev · not estimated' })).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  itDom('keeps the chooser while a focused forecast transfers focus to its choice', () => {
+    vi.useFakeTimers();
+    try {
+      drawTicks(true);
+      const bar = document.querySelector('[data-gantt-bar="first"]');
+      if (bar === null) throw new Error('Missing forecast bar');
+      fireEvent.focus(bar);
+      restOnSurface('second', 12);
+      const choice = screen.getByRole('button', { name: 'one · QA · 2 min' });
+      fireEvent.blur(bar, { relatedTarget: choice });
+      fireEvent.click(choice);
+      expect(screen.getByRole('tooltip').textContent).toContain('QA · Unassigned');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+it('describes a done collision by its actual span instead of the summed forecast', () => {
+  const chart = layOutGantt(
+    planOf({
+      rows: [rowAt('done', 5, 10, { status: 'done', factEndStop: 8 })],
+      slices: [sliceAt('done-dev', 'done', 5, 10)],
+    }),
+  );
+  expect(describeForecastSpan(chart.bars[0])).toBe('Done — 3 days actual span');
+});
+
+itDom.each([
+  [40, '40 min'],
+  [135, '2 h 15 min'],
+  [720, '1.5 d'],
+] as const)(
+  'reads the same native minute charge as the table and places it on the working calendar',
+  (minutes, words) => {
+    render(
+      <GanttPanel
+        plan={planOf({
+          steps: [{ id: 'dev', name: 'Agent', estimateUnit: 'minutes' }],
+          rows: [
+            rowAt('minute', 0, minutes / 480, {
+              charged: { dev: { unit: 'minutes', minutes } },
+            }),
+          ],
+          slices: [sliceAt('minute-dev', 'minute', 0, minutes / 480)],
+        })}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointed={pointedAtRow(null)}
+      />,
+    );
+    expect(surfaceOn('minute-dev')).toHaveTextContent(`${words} · placed on the working calendar`);
+  },
+);

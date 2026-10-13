@@ -317,6 +317,7 @@ describe('work item routes', () => {
       code: 'review',
       position: 3000,
       allowancePercent: 0,
+      estimateUnit: 'workdays' as const,
     });
     const uncodedId = crypto.randomUUID();
     seeded.push({
@@ -326,6 +327,7 @@ describe('work item routes', () => {
       code: null,
       position: 4000,
       allowancePercent: 0,
+      estimateUnit: 'workdays' as const,
     });
     const firstId = await addWorkItem(send, token, projectId, { parentId: null, name: 'First' });
     const parentId = await addWorkItem(send, token, projectId, {
@@ -2543,7 +2545,7 @@ describe('work item routes', () => {
       days: { optimistic: days, realistic: days, pessimistic: days },
     });
 
-    expect(refused.status).toBe(400);
+    expect(refused.status).toBe(422);
     expect(await refused.json()).toEqual({ error: 'invalid_estimate', at: 0, kind: 'setEstimate' });
     const tree = await send(`/api/projects/${projectId}/work-items`, token);
     expect(tree.status).toBe(200);

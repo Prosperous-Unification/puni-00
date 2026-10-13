@@ -37,8 +37,24 @@ const reads = {
     createdAt: 1_756_000_000,
   },
   steps: [
-    { id: 's1', projectId: 'p1', name: 'Build', position: 10 },
-    { id: 's2', projectId: 'p1', name: 'Test', position: 20 },
+    {
+      id: 's1',
+      projectId: 'p1',
+      name: 'Build',
+      position: 10,
+      estimateUnit: 'workdays',
+      allowancePercent: 0,
+      code: 'build',
+    },
+    {
+      id: 's2',
+      projectId: 'p1',
+      name: 'Test',
+      position: 20,
+      estimateUnit: 'workdays',
+      allowancePercent: 0,
+      code: 'test',
+    },
   ],
   workItems: [
     {
@@ -403,4 +419,30 @@ describe('planInputRowsOf', () => {
       canonicalisePlanInput(planInputRowsOf(reads)),
     );
   });
+});
+
+it('captures minute units and schedules captured 240-minute effort as half a workday', () => {
+  const first = reads.workItems.at(0);
+  if (first === undefined) throw new Error('capture fixture has no row');
+  const captured: PlanInputReads = {
+    ...reads,
+    project: { ...reads.project, startDate: null },
+    steps: reads.steps.map((step) => ({ ...step, estimateUnit: 'minutes', allowancePercent: 0 })),
+    workItems: [
+      { ...first, deadline: null, readiness: null, hold: null, teamIds: [], serviceIds: [] },
+    ],
+    estimates: [
+      { workItemId: first.id, stepId: 's1', optimistic: 240, realistic: 240, pessimistic: 240 },
+    ],
+    dependencies: [],
+    typedDependencies: [],
+    assignments: [],
+    capacity: new Map(),
+  };
+  expect(
+    canonicalisePlanInput(planInputRowsOf(captured)).steps.every(
+      (step) => step.estimateUnit === 'minutes',
+    ),
+  ).toBe(true);
+  expect(schedulePlanInput(captured).slices.get(sliceKey(first.id, 's1'))?.duration).toBe(0.5);
 });

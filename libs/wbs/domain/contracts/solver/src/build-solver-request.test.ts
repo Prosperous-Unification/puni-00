@@ -1,5 +1,8 @@
 import {
+  chargedWorkdaysOf,
+  DEFAULT_ESTIMATE_RULE,
   type DependencyEdge,
+  NO_ALLOWANCE,
   type PlannedRow,
   SCHEDULER_CONTRACT_VERSION,
   type Slice,
@@ -386,4 +389,29 @@ describe('buildSolverRequest', () => {
       }),
     ).toThrow('no slices');
   });
+});
+
+it('a 480-minute slice and a one-day slice send equal durationUnits', () => {
+  const durations = [
+    chargedWorkdaysOf(
+      'minutes',
+      { optimistic: 480, realistic: 480, pessimistic: 480 },
+      DEFAULT_ESTIMATE_RULE,
+      NO_ALLOWANCE,
+    ),
+    1,
+  ];
+  const requests = durations.map((days) =>
+    requestOf(
+      planOf({
+        rows: [rowOf('A', null, null)],
+        edges: [],
+        slices: [sliceOf('A', 'agent', days)],
+        notBefore: new Map(),
+        poolSizes: new Map(),
+      }),
+    ),
+  );
+  expect(requests[0].slices[0].durationUnits).toBe(48);
+  expect(requests[0].slices[0].durationUnits).toBe(requests[1].slices[0].durationUnits);
 });

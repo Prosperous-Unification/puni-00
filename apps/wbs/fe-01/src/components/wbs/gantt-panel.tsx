@@ -16,6 +16,8 @@ import {
   Profiler,
   useCallback,
   useEffect,
+  useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -32,6 +34,8 @@ import type {
 } from '@/lib/wbs-api';
 
 import type { DepLights } from './dep-light-store';
+import { showDuration } from './duration-words';
+import { AttemptCard, AttemptMark, AttemptPatterns, identifyAttemptMark } from './gantt-attempt';
 import {
   AXIS_RUNGS,
   buildClockCells,
@@ -39,7 +43,7 @@ import {
   resolveAxisRung,
   SUB_DAY_MARK_LIMIT,
 } from './gantt-axis';
-import { useGanttDetail } from './gantt-detail';
+import { selectMarksAtPointer, useGanttDetail } from './gantt-detail';
 import {
   BAR_INSET,
   BLOCKED_STROKE,
@@ -47,6 +51,7 @@ import {
   DONE_BAR_STROKE,
   droppedLinkWords,
   type EstimateTrio,
+  type GanttAttemptMark,
   type GanttBar,
   GanttDataError,
   type GanttPlan,
@@ -54,10 +59,12 @@ import {
   hasTags,
   inkOn,
   layOutGantt,
+  placeBarSurface,
   type PlacedArrow,
   type PlacedBar,
   placeOnCalendar,
   placeOnWorkdays,
+  projectAttemptMarks,
   routeArrow,
   ROW_MIDDLE,
   type ServiceTeamLabel,
@@ -1537,13 +1544,16 @@ export function workdayAxis(horizon: number): AxisDay[] {
  * not one is malformed trusted data, and the panel lets it reach the error
  * boundary rather than drawing an axis of `Invalid Date`.
  */
-function calendarAxis(startDate: IsoDate, horizon: number): AxisDay[] {
+function calendarAxis(startDate: IsoDate, horizon: number, rangeStart = 0): AxisDay[] {
   const origin = addWorkdays(startDate, 0);
   // Counted as the days are walked rather than asked for per cell: the workday
   // a calendar day is, is how many working days have gone before it, and the
   // walk already knows. The origin is a workday by construction, so the first
   // cell takes 0.
   let workday = -1;
+  for (let offset = rangeStart; offset < 0; offset += 1) {
+    if (!isWeekend(addCalendarDays(origin, offset))) workday -= 1;
+  }
   // A bare ceil, and **not** `wholeDaysCovering` — which the workday axis does
   // count with, because there the horizon is the engine's own drifted numbers.
   // The invariant here: this horizon is read off marks already placed by
@@ -1553,7 +1563,7 @@ function calendarAxis(startDate: IsoDate, horizon: number): AxisDay[] {
   // one. `gantt-calendar-snap`'s `verify.md` records the injection that stayed
   // green and why.
   return Array.from({ length: Math.ceil(horizon) }, (_, offset) => {
-    const date = addCalendarDays(origin, offset);
+    const date = addCalendarDays(origin, offset + rangeStart);
     const weekend = isWeekend(date);
     if (!weekend) workday += 1;
     return {
@@ -1685,8 +1695,22 @@ function lateWords(lateBy: number | null): string | null {
  * `1 failed | 90 passed`, on `expected '…14 Aug → 14 Aug · 0 days…' to contain
  * 'not estimated'`. Watched 2026-08-12.
  */
+// Proof: formatting minute charge with dayWords(bar.duration) failed the native-minute chart agreement case; watched 2026-10-12.
 const durationWords = (bar: GanttBar): string =>
-  bar.estimated ? dayWords(bar.duration) : 'not estimated';
+  bar.estimated
+    ? bar.charged?.unit === 'minutes'
+      ? `${showDuration(bar.charged)} · placed on the working calendar`
+      : dayWords(bar.duration)
+    : 'not estimated';
+
+/** Collision words preserve unknown estimates and the actual span of completed work. */
+export function describeForecastSpan(bar: GanttBar): string {
+  // Proof: removing either arm failed the unknown chooser / done actual-span
+  // regressions (subday-review-proof-{unknown,done}, 2026-10-13).
+  if (!bar.estimated) return 'not estimated';
+  if (bar.done) return `Done — ${dayWords(bar.drawnSpan)} actual span`;
+  return `${String(Number((bar.duration * 480).toFixed(9)))} min`;
+}
 
 /**
  * The service team a bar is labelled with, in words, absences included.
@@ -2911,6 +2935,8 @@ export const GanttPanel = memo(
   (before, after) =>
     before.generation === after.generation &&
     before.startDate === after.startDate &&
+    // Proof: omitting now failed the supplied-clock panel memoization case (2026-10-12).
+    before.now === after.now &&
     before.scheduleError === after.scheduleError &&
     before.heightPx === after.heightPx &&
     before.roomPx === after.roomPx &&
@@ -2921,12 +2947,20 @@ export const GanttPanel = memo(
     before.pointed === after.pointed &&
     before.markers === after.markers &&
     before.typedDependencies === after.typedDependencies &&
+    // Proof: omitting zone/history comparisons failed `attempt and zone changes update the offer through panel memoization` (2026-10-12).
+    before.plan.timezone === after.plan.timezone &&
+    before.plan.startDate === after.plan.startDate &&
     before.plan.narrowedByFilter === after.plan.narrowedByFilter &&
     before.plan.rows.length === after.plan.rows.length &&
-    before.plan.rows.every((row, index) => row.id === after.plan.rows[index]?.id),
+    before.plan.rows.every(
+      (row, index) =>
+        row.id === after.plan.rows[index]?.id &&
+        row.attemptNodes === after.plan.rows[index]?.attemptNodes,
+    ),
 );
 
 function GanttPanelContent({
+  now = new Date().getTime(),
   plan,
   depLights,
   startDate,
@@ -2979,6 +3013,7 @@ function GanttPanelContent({
   }
   return (
     <GanttChart
+      now={now}
       plan={plan}
       depLights={depLights}
       startDate={startDate}
@@ -3006,6 +3041,8 @@ function GanttPanelContent({
 
 /** What the panel is given: one chart read, and what to do with a click on it. */
 interface GanttProps {
+  /** One clock reading for all running attempts in this render; no refresh timer is introduced. */
+  now?: number;
   plan: GanttPlan;
   /** Raw wire relationships; validated while the chart fault boundary is mounted. */
   typedDependencies?: readonly TypedDependencyView[];
@@ -3261,21 +3298,85 @@ interface OpenSurface {
   anchor: AnchorRect;
 }
 
-/**
- * The chart itself — every hook this panel has, and the drawing.
- *
- * Separate from {@link GanttPanel} for the cycle answer's sake alone; see
- * there.
- */
-function GanttChart({
+/** Resolved panel inputs shared by the policy wrapper and drawing body. */
+type GanttChartProps = Omit<
+  GanttProps,
+  | 'scheduleError'
+  | 'now'
+  | 'dayPx'
+  | 'onPickDayPx'
+  | 'labelsShown'
+  | 'onPickLabelsShown'
+  | 'markers'
+  | 'onRenameMarker'
+  | 'onRecolorMarker'
+  | 'onDeleteMarker'
+  | 'onCreateMarker'
+  | 'newMarkerId'
+> & {
+  now: number;
+  dayPx: DayPx;
+  onPickDayPx: (dayPx: DayPx, notice?: string) => void;
+  labelsShown: boolean;
+  onPickLabelsShown: (labelsShown: boolean) => void;
+  registerSvgDownload: (download: (() => void) | null) => void;
+  markers: readonly CalendarMarkerView[];
+  onRenameMarker: (markerId: string, name: string) => void;
+  onRecolorMarker: (markerId: string, color: string) => void;
+  onDeleteMarker: (markerId: string) => void;
+  onCreateMarker: (marker: NewCalendarMarkerView) => void;
+  newMarkerId: () => string;
+};
+
+/** Applies the production offer policy before entering the shared drawing body. */
+function GanttChart(props: GanttChartProps) {
+  const { onPickDayPx } = props;
+  const count = markCount(props.plan);
+  // Proof: removing the count comparisons failed four 2501/3000 refusal and restored/filter fallback cases after renderer extraction (2026-10-13).
+  const isSubDayUnavailable =
+    resolveAxisRung(props.dayPx).cellsPerWorkday > 1 && count > SUB_DAY_MARK_LIMIT;
+  const dayPx = isSubDayUnavailable ? DAY_PX : props.dayPx;
+  const offerExplanation = `${String(count)} marks; moved to Days`;
+  useEffect(() => {
+    if (isSubDayUnavailable) onPickDayPx(DAY_PX, offerExplanation);
+  }, [isSubDayUnavailable, offerExplanation, onPickDayPx]);
+  return (
+    <GanttRenderer
+      {...props}
+      dayPx={dayPx}
+      scaleTitle={
+        isSubDayUnavailable
+          ? offerExplanation
+          : (props.rungNotice ?? `One day is ${String(dayPx)}px wide`)
+      }
+      scaleOptions={AXIS_RUNGS.map((rung) => ({
+        ...rung,
+        // Proof: removing the count comparison enabled the 2501/3000 refusal cases after extraction (2026-10-13).
+        unavailable: rung.cellsPerWorkday > 1 && count > SUB_DAY_MARK_LIMIT,
+        refusal: `not offered at ${String(count)} marks`,
+      }))}
+      onPickDayPx={(asked) => {
+        // Proof: removing this comparison admitted an injected 224 pick at 2501 marks; restored-selection case failed after extraction (2026-10-13).
+        if (resolveAxisRung(asked).cellsPerWorkday === 1 || count <= SUB_DAY_MARK_LIMIT) {
+          props.onPickDayPx(asked);
+        }
+      }}
+    />
+  );
+}
+
+/** Shared production drawing body; the isolated benchmark supplies its own scale controls. */
+export function GanttRenderer({
+  now,
   plan,
   depLights,
   startDate,
   generation,
   heightPx,
   roomPx,
-  rungNotice,
-  dayPx: pickedDayPx,
+  scaleTitle,
+  scaleOptions,
+  dayPx,
   onPickDayPx,
   labelsShown,
   onPickLabelsShown,
@@ -3289,44 +3390,16 @@ function GanttChart({
   onDeleteMarker,
   onCreateMarker,
   newMarkerId,
-}: Omit<
-  GanttProps,
-  | 'scheduleError'
-  | 'dayPx'
-  | 'onPickDayPx'
-  | 'labelsShown'
-  | 'onPickLabelsShown'
-  | 'markers'
-  | 'onRenameMarker'
-  | 'onRecolorMarker'
-  | 'onDeleteMarker'
-  | 'onCreateMarker'
-  | 'newMarkerId'
-> & {
-  dayPx: DayPx;
-  onPickDayPx: (dayPx: DayPx, notice?: string) => void;
-  labelsShown: boolean;
-  onPickLabelsShown: (labelsShown: boolean) => void;
-  registerSvgDownload: (download: (() => void) | null) => void;
-  markers: readonly CalendarMarkerView[];
-  onRenameMarker: (markerId: string, name: string) => void;
-  onRecolorMarker: (markerId: string, color: string) => void;
-  onDeleteMarker: (markerId: string) => void;
-  onCreateMarker: (marker: NewCalendarMarkerView) => void;
-  newMarkerId: () => string;
+}: GanttChartProps & {
+  scaleTitle: string;
+  scaleOptions: readonly {
+    id: string;
+    pxPerWorkday: DayPx;
+    label: string;
+    unavailable: boolean;
+    refusal: string;
+  }[];
 }) {
-  const count = markCount(plan);
-  // Proof: removing the count comparisons failed both 2501/3000 refusal and restored/filter fallback cases; changing Days to 56px failed the filter case (2026-10-12).
-  const isSubDayUnavailable =
-    resolveAxisRung(pickedDayPx).cellsPerWorkday > 1 && count > SUB_DAY_MARK_LIMIT;
-  const dayPx = isSubDayUnavailable ? DAY_PX : pickedDayPx;
-  const offerExplanation = `${String(count)} marks; moved to Days`;
-  useEffect(() => {
-    if (isSubDayUnavailable) {
-      // Proof: dropping the reason argument failed the filter case when the caller adopted Days (2026-10-12).
-      onPickDayPx(DAY_PX, offerExplanation);
-    }
-  }, [isSubDayUnavailable, offerExplanation, onPickDayPx]);
   const activeTypedId = useSyncExternalStore(
     depLights?.subscribe ?? (() => () => undefined),
     depLights?.activeTypedId ?? (() => null),
@@ -3606,6 +3679,22 @@ function GanttChart({
     };
   }, [fullScreen]);
   const [open, setOpen] = useState<OpenSurface | null>(null);
+  const [openAttempt, setOpenAttempt] = useState<{ markId: string; anchor: AnchorRect } | null>(
+    null,
+  );
+  const [collision, setCollision] = useState<{ markIds: string[]; anchor: AnchorRect } | null>(
+    null,
+  );
+  useEffect(() => {
+    if (collision === null) return;
+    const close = (key: KeyboardEvent) => {
+      if (key.key === 'Escape') setCollision(null);
+    };
+    document.addEventListener('keydown', close);
+    return () => {
+      document.removeEventListener('keydown', close);
+    };
+  }, [collision]);
   // The axis's own open card: which cell, and the rectangle it was placed
   // against. Separate from the bars' state and mutually exclusive with it —
   // each opener closes the other, so `getByRole('tooltip')` is singular.
@@ -3620,7 +3709,12 @@ function GanttChart({
     null,
   );
   const hasOpenSurface = useRef(false);
-  hasOpenSurface.current = open !== null || openDay !== null || openMarkers !== null;
+  hasOpenSurface.current =
+    open !== null ||
+    openAttempt !== null ||
+    openDay !== null ||
+    openMarkers !== null ||
+    collision !== null;
   /**
    * The calendar-marker composer's day, and it is the **date** rather than the
    * offset the cell was drawn at.
@@ -3788,12 +3882,13 @@ function GanttChart({
    * to come and stays pressed; one released anywhere else, or cancelled
    * outright, gets no click and ends here.
    */
-  const endTouchPress = useCallback((pointer: ReactPointerEvent<SVGRectElement>) => {
+  const endTouchPress = useCallback((pointer: ReactPointerEvent<SVGElement>) => {
     if (pointer.type === 'pointercancel') {
       pressedWithTouch.current = false;
       return;
     }
-    const box = pointer.currentTarget.getBoundingClientRect();
+    // The authored group receives these events from its own SVG mark or hit rectangle.
+    const box = (pointer.target as SVGElement).getBoundingClientRect();
     const onTheMark =
       pointer.clientX >= box.left &&
       pointer.clientX <= box.right &&
@@ -3804,6 +3899,8 @@ function GanttChart({
   }, []);
   /** The live geometry `<svg>`, read by {@link downloadGanttSvg} and nothing else. */
   const chartSvgRef = useRef<SVGSVGElement | null>(null);
+  const pointerMarks = useRef(new Map<string, SVGRectElement>());
+  const chooserRef = useRef<HTMLDivElement | null>(null);
 
   const cancelOpening = useCallback(() => {
     if (opening.current !== null) clearTimeout(opening.current);
@@ -3814,6 +3911,8 @@ function GanttChart({
     if (!hasOpenSurface.current) return;
     hasOpenSurface.current = false;
     setOpen(null);
+    setOpenAttempt(null);
+    setCollision(null);
     setOpenDay(null);
     setOpenMarkers(null);
   }, [cancelOpening]);
@@ -3842,8 +3941,12 @@ function GanttChart({
    * anything a mark *draws* stays in the dependency list. These two are only
    * ever asked "what is true now" by a handler the reader has just fired.
    */
-  const gesture = useRef({ fullScreen: false, openSliceId: undefined as string | undefined });
-  gesture.current = { fullScreen, openSliceId: open?.sliceId };
+  const gesture = useRef({
+    fullScreen: false,
+    openSliceId: undefined as string | undefined,
+    collisionOpen: false,
+  });
+  gesture.current = { fullScreen, openSliceId: open?.sliceId, collisionOpen: collision !== null };
   /**
    * The sentence about the waits this chart could not draw, or null where it
    * drew every one — {@link droppedLinkWords}, whose count comes from the three
@@ -3858,6 +3961,8 @@ function GanttChart({
   // {@link GanttProps.generation}.
   useEffect(() => {
     setOpen(null);
+    setOpenAttempt(null);
+    setCollision(null);
     setOpenDay(null);
   }, [generation]);
 
@@ -3879,10 +3984,17 @@ function GanttChart({
    * workday numbers stand as they are, no scale is built and nothing is asked
    * for a date. That is a state this panel is in, not a path it falls through.
    */
-  const placed = useMemo(
+  const forecast = useMemo(
     () => (startDate === null ? placeOnWorkdays(chart) : placeOnCalendar(chart, startDate)),
     [chart, startDate],
   );
+  const projection = useMemo(
+    // Proof: substituting a date for absent startDate failed both missing-start panel states (2026-10-12).
+    () => projectAttemptMarks(plan, forecast, startDate, rung, now),
+    [plan, forecast, startDate, rung, now],
+  );
+  const placed = projection.forecast;
+  const attemptPatternPrefix = `attempt-${useId().replaceAll(':', '')}`;
   /**
    * The bars that are drawn, which since 2026-09-11 is **all of them**.
    *
@@ -3911,6 +4023,15 @@ function GanttChart({
    * the flags and links have to ask about.
    */
   const drawnBars = placed.bars;
+  // Proof: removing invalidation left the chooser and pending hover alive after
+  // same-generation filter/collapse/rung changes (subday-review-proof-placement).
+  useLayoutEffect(() => {
+    cancelOpening();
+    setCollision(null);
+    setOpen(null);
+    // Proof: omitting this clear retains run/2 after the same-generation rung placement test (2026-10-13).
+    setOpenAttempt(null);
+  }, [placed, dayPx, cancelOpening]);
   /**
    * The bar the open surface belongs to, or null when there is no surface, or
    * no such bar, or that bar is not being drawn.
@@ -4082,8 +4203,10 @@ function GanttChart({
   );
   const axis = useMemo(
     () =>
-      startDate === null ? workdayAxis(placed.horizon) : calendarAxis(startDate, placed.horizon),
-    [placed, startDate],
+      startDate === null
+        ? workdayAxis(placed.horizon)
+        : calendarAxis(startDate, placed.horizon, projection.rangeStart),
+    [placed, startDate, projection.rangeStart],
   );
   /**
    * This project's markers grouped by the day they stand on, in the order
@@ -4312,25 +4435,80 @@ function GanttChart({
   });
 
   /**
-   * Opens a surface on one bar, against the rectangle the browser has that
-   * mark at.
+   * Opens forecast or attempt facts against the selected mark rectangle.
    *
    * The rectangle is read here and kept, rather than the element: the surface
    * is a fixed layer outside this scroll box, so a live measurement would
    * follow the bar while the card stayed where it was put. Scrolling dismisses
    * instead — see the panel's `onScroll`.
    */
-  const showSurface = (sliceId: string, mark: SVGRectElement): void => {
-    const box = mark.getBoundingClientRect();
-    setOpenDay(null);
-    setOpen({
-      sliceId,
-      anchor: { left: box.left, right: box.right, top: box.top, bottom: box.bottom },
-    });
+  const showMarkSurface = useCallback(
+    (markId: string, hit: SVGElement): void => {
+      const box = hit.getBoundingClientRect();
+      const anchor = { left: box.left, right: box.right, top: box.top, bottom: box.bottom };
+      setOpen(null);
+      setOpenAttempt(null);
+      setCollision(null);
+      setOpenDay(null);
+      setOpenMarkers(null);
+      // Proof: forecast-only dispatch fails forecast-origin sole-attempt membership (2026-10-13).
+      if (projection.marks.some((mark) => identifyAttemptMark(mark) === markId)) {
+        setOpenAttempt({ markId, anchor });
+      } else {
+        setOpen({ sliceId: markId, anchor });
+      }
+    },
+    [projection.marks],
+  );
+  /** Dispatches timer-time membership across both mark kinds, using the selected hit anchor. */
+  const showPointerSurface = useCallback(
+    (point: { x: number; y: number }, source: SVGElement): void => {
+      const surfaces = [...pointerMarks.current].map(([markId, hit]) => {
+        const box = hit.getBoundingClientRect();
+        return { markId, hit, left: box.left, right: box.right, top: box.top, bottom: box.bottom };
+      });
+      const markIds = selectMarksAtPointer(surfaces, point.x, point.y);
+      // Proof: captured-source fallback fails attempt-origin zero, sole-other-attempt and sole-forecast cases (2026-10-13).
+      if (markIds.length === 0) {
+        dismiss();
+      } else if (markIds.length === 1) {
+        const selected = surfaces.find((surface) => surface.markId === markIds[0]);
+        // Proof: injecting an absent selector identity throws in the broken-membership dependency test (2026-10-13).
+        if (selected === undefined)
+          throw new Error('Gantt pointer selection is absent from its snapshot');
+        // Proof: anchoring to the event source instead fails all three sole-current-mark rectangle assertions (2026-10-13).
+        showMarkSurface(selected.markId, selected.hit);
+      } else {
+        const box = source.getBoundingClientRect();
+        setOpen(null);
+        setOpenAttempt(null);
+        setOpenDay(null);
+        setOpenMarkers(null);
+        setCollision({
+          markIds,
+          anchor: { left: box.left, right: box.right, top: box.top, bottom: box.bottom },
+        });
+      }
+    },
+    [dismiss, showMarkSurface],
+  );
+  const showAttemptSurface = (
+    mark: GanttAttemptMark,
+    target: SVGRectElement,
+    point?: { x: number; y: number },
+  ): void => {
+    cancelOpening();
+    if (point === undefined) showMarkSurface(identifyAttemptMark(mark), target);
+    else
+      opening.current = setTimeout(() => {
+        showPointerSurface(point, target);
+      }, HOVER_OPEN_MS);
   };
   const showDaySurface = (offset: number, cell: HTMLElement): void => {
     const box = cell.getBoundingClientRect();
     setOpen(null);
+    setOpenAttempt(null);
+    setCollision(null);
     setOpenMarkers(null);
     setOpenDay({
       offset,
@@ -4352,6 +4530,8 @@ function GanttChart({
   const showMarkerOverflow = (offset: number, badge: HTMLElement): void => {
     const box = badge.getBoundingClientRect();
     setOpen(null);
+    setOpenAttempt(null);
+    setCollision(null);
     setOpenDay(null);
     setOpenMarkers({
       offset,
@@ -5064,218 +5244,265 @@ function GanttChart({
           </path>
         ))}
 
-        {drawnBars.map(({ bar, x, width }) => (
-          <rect
-            key={bar.sliceId}
-            data-gantt-bar={bar.sliceId}
-            data-dependency-lit={
-              activeTypedId !== null &&
-              placed.typedArrows.some((arrow) =>
-                arrow.relationshipSlices.some(
-                  (pair) =>
-                    // Proof: dropping this membership check made `names distinct
-                    // typed endpoints and lights only the active grouped
-                    // relationship slices` light B-dev for the QA edge.
-                    // Watched 2026-09-28.
-                    pair.relationshipId === activeTypedId &&
-                    (pair.predecessorSliceId === bar.sliceId ||
-                      pair.successorSliceId === bar.sliceId),
-                ),
-              )
-                ? 'true'
-                : undefined
-            }
-            // The engine's own **workday** numbers, and the geometry
-            // beside them is the calendar's: the two are allowed to
-            // disagree, and the difference between them is exactly what a
-            // test reads to say the conversion happened. A bar at workday
-            // 5 on a Monday-start plan carries `data-start="5"` and stands
-            // at `x="7"`.
-            data-start={bar.start}
-            data-finish={bar.finish}
-            // The last workday this bar is still on, which is the axis cell
-            // its right edge stops inside rather than the one it stops at.
-            // See {@link lastWorkdayOf} — it is the one number about a bar
-            // that cannot be read off `x` and `width` without repeating the
-            // nudge, and the browser gate has to know it to say which label
-            // the edge should line up with.
-            data-last-day={lastWorkdayOf(bar.start, bar.finish)}
-            {...(bar.critical ? { 'data-critical': 'true' } : {})}
-            // The bar whose width is an assumption, findable as such. The
-            // styling below is what a reader sees; this is what the
-            // browser gate selects on, and it has to tell a drawn span
-            // from a measured one before it measures anything. Only ever
-            // in the document with the detail switch on.
-            //
-            // Proof: this hook dropped. `7 failed | 84 passed` —
-            // four on {@link askForTheDetail}'s own throw, `the detail
-            // switch was pressed and nothing arrived at [data-assumed]`,
-            // and three on `expected null to be 'true'` /
-            // `expected +0 to be 1`. Watched 2026-08-12.
-            {...(bar.estimated ? {} : { 'data-assumed': 'true' })}
-            // The bar that is a done row's fact span, findable as such: the
-            // browser gate measures where it stops against the fact end's axis
-            // cell, and has to tell it from a slice first. Never beside
-            // `data-assumed` — a done bar is not a guess.
-            {...(bar.done ? { 'data-done': 'true' } : {})}
-            // What stops the work (`add-work-item-statuses`): the browser gate
-            // and the tests select on these, the outline and the hatch below
-            // are what a reader sees.
-            {...(bar.stop === 'blocked' ? { 'data-blocked': 'true' } : {})}
-            {...(bar.stop === 'blocked_by_proxy' ? { 'data-blocked-by-proxy': 'true' } : {})}
-            x={x}
-            // The **drawn** span in calendar days — the end reading of
-            // the drawn finish less the start reading of the start, so a
-            // bar working through a weekend is drawn across it and one
-            // stopping on the Friday stops at the Saturday. Never a span
-            // from the engine's `finish`: an unestimated slice finishes
-            // where it starts, and that width is no bar at all.
-            width={width}
-            // Its own lane where unknown placeholders overlap on one row, so
-            // each stays under the pointer — see {@link GanttBar.lane}.
-            y={bar.rowIndex + BAR_INSET + (bar.lane * BAR_HEIGHT) / bar.lanes}
-            height={BAR_HEIGHT / bar.lanes}
-            rx={BAR_RADIUS_PX / dayPx}
-            ry={BAR_RADIUS_PX / ROW_PX}
-            // Who is on it — an unestimated slice included, at 35% through
-            // {@link ASSUMED_BAR_CLASSES}. It used to be hollow, which was
-            // honest about the length and cost the reader the assignee;
-            // now it keeps the person and says "guessed" in how it is
-            // painted rather than by having no paint.
-            fill={bar.personColor}
-            // The critical path is the **outline**, because the fill is
-            // already saying who. A ring in the foreground colour rather
-            // than the destructive one: `#d62728` is the fourth person's
-            // colour, and a red ring on a red bar is no ring at all.
-            // A done bar wears the status green as its outline instead
-            // (`status-polish`; Dany: "add smth like a green outline to the
-            // gantt chart slices").
-            // A blocked bar wears the blocked red as its outline, the done
-            // bar's green's way (`add-work-item-statuses`).
-            stroke={
-              bar.done
-                ? DONE_BAR_STROKE
-                : bar.stop === 'blocked'
-                  ? BLOCKED_STROKE
-                  : bar.critical
-                    ? undefined
-                    : bar.personColor
-            }
-            className={cn(
-              barClasses(bar.critical, bar.estimated, bar.done, bar.stop === 'blocked'),
-              'data-[dependency-lit=true]:stroke-foreground data-[dependency-lit=true]:[stroke-width:2]',
-            )}
-            vectorEffect="non-scaling-stroke"
-            // A control, because it is one: it takes the keyboard, it has
-            // a name, and Enter and Space act on it. The step is what
-            // makes the `aria-label` below a name a screen reader reads —
-            // a bare `<rect>` is presentational whatever it is labelled.
-            role="button"
-            tabIndex={0}
-            // **The bar's only accessible name**, and the reason it is
-            // here rather than in the `<title>` this change took off the
-            // bars: two tooltips on one mark is a bug, and the browser's
-            // is the one nothing can place or style. The same facts the
-            // surface shows, from the same derivation.
-            aria-label={barFacts(bar, startDate, today, plan.priorityBands).join('. ')}
-            onPointerDown={(pointer) => {
-              pressedWithTouch.current = pointer.pointerType === 'touch';
-            }}
-            // The three ends a touch has that are not a click, all of
-            // them through {@link endTouchPress}: the release, the
-            // cancellation a scroll or a system gesture takes the touch
-            // away with, and the capture release that follows either.
-            onPointerUp={endTouchPress}
-            onPointerCancel={endTouchPress}
-            onLostPointerCapture={endTouchPress}
-            onClick={(click) => {
-              const rowId = rowIdAt(bar.rowIndex);
-              // A bar with no row is not a state this can be in — the bar
-              // was placed on that row by {@link layOutGantt} — so there is
-              // nothing to do about it but leave the click alone.
-              const touchPress = pressedWithTouch.current;
-              pressedWithTouch.current = false;
-              if (gesture.current.fullScreen && touchPress) {
-                cancelOpening();
-                if (gesture.current.openSliceId !== bar.sliceId) {
-                  showSurface(bar.sliceId, click.currentTarget);
+        {drawnBars.map(({ bar, x, width }) => {
+          const surface = placeBarSurface(x, width, rung);
+          const middle = bar.rowIndex + BAR_INSET + ((bar.lane + 0.5) * BAR_HEIGHT) / bar.lanes;
+          const hitHeight = Math.max(BAR_HEIGHT / bar.lanes, 18 / ROW_PX);
+          const hoverMark = (pointer: ReactPointerEvent<SVGGElement>): void => {
+            // **The touch seam.** Chromium synthesizes a whole mouse
+            // sequence from a tap — `mouseover` included — so a surface
+            // opened on a mouse event opens on every tap as well, over
+            // the row the tap was taking the reader to. The pointer
+            // events are the only ones that say which they came from.
+            if (pointer.pointerType !== 'mouse') return;
+            // Before the timer and never inside it: the pointed row is
+            // a tint, which is cheap to paint and cheap to be wrong
+            // about for a moment, while the surface is a card that
+            // covers the chart. So the light is immediate and the card
+            // still waits out {@link HOVER_OPEN_MS} — a pointer
+            // crossing eight bars lights eight rows in turn, which
+            // reads as a trail, and opens no cards at all.
+            pointRow(bar.rowIndex, 'pointer');
+            const mark = pointer.currentTarget;
+            cancelOpening();
+            const point = { x: pointer.clientX, y: pointer.clientY };
+            opening.current = setTimeout(() => {
+              showPointerSurface(point, mark);
+            }, HOVER_OPEN_MS);
+          };
+          return (
+            <g
+              key={bar.sliceId}
+              onPointerDown={(pointer) => {
+                pressedWithTouch.current = pointer.pointerType === 'touch';
+              }}
+              // The three ends a touch has that are not a click, all of
+              // them through {@link endTouchPress}: the release, the
+              // cancellation a scroll or a system gesture takes the touch
+              // away with, and the capture release that follows either.
+              onPointerUp={endTouchPress}
+              onPointerCancel={endTouchPress}
+              onLostPointerCapture={endTouchPress}
+              onClick={(click) => {
+                const rowId = rowIdAt(bar.rowIndex);
+                // A bar with no row is not a state this can be in — the bar
+                // was placed on that row by {@link layOutGantt} — so there is
+                // nothing to do about it but leave the click alone.
+                const touchPress = pressedWithTouch.current;
+                pressedWithTouch.current = false;
+                if (gesture.current.fullScreen && touchPress) {
+                  cancelOpening();
+                  if (gesture.current.openSliceId !== bar.sliceId) {
+                    showMarkSurface(bar.sliceId, click.currentTarget);
+                    return;
+                  }
+                  dismiss();
+                  // A deliberate second tap navigates to the row, so focus
+                  // belongs on its name cell after leaving full screen, not
+                  // back inside the layer or on the Full trigger.
+                  leavingToRow.current = true;
+                  setFullScreen(false);
+                }
+                if (rowId !== undefined) onPickRow(rowId);
+              }}
+              onKeyDown={(key) => {
+                if (key.key !== 'Enter' && key.key !== ' ') return;
+                // Before anything else: Space's own default is to scroll
+                // the panel, and a reader who asked to go to a row and got
+                // the chart scrolled out from under them is R5 #14's fault
+                // wearing another hat. jsdom performs no default action, so
+                // this line is guarded in a browser (`e2e/gantt.spec.ts`).
+                key.preventDefault();
+                const rowId = rowIdAt(bar.rowIndex);
+                if (rowId !== undefined) onPickRow(rowId);
+              }}
+              onPointerOver={hoverMark}
+              // Proof: removing pointermove failed the same-surface membership case
+              // (subday2-move-red, 2026-10-12).
+              onPointerMove={hoverMark}
+              onPointerOut={(pointer) => {
+                if (
+                  pointer.relatedTarget instanceof Node &&
+                  pointer.currentTarget.contains(pointer.relatedTarget)
+                )
+                  return;
+                if (gesture.current.collisionOpen) {
+                  cancelOpening();
                   return;
                 }
+                // **The card, and not the light.** Leaving a bar used to
+                // clear the pointed row here, which was right while a bar
+                // was one of only two things on this chart that could
+                // point one. Since `pointed-row-one-ink` the row's own
+                // line points it, so leaving a bar is usually landing on
+                // the same row — and clearing here blinked the light off
+                // under the caret or the dependency link the reader had
+                // moved onto, then straight back on. What clears the
+                // light is leaving the drawing, which the SVG root says.
+                //
+                // A touch leaves the mark before its synthesized click.
+                // In full screen that click owns the surface: first tap
+                // opens it, and a second tap on the same bar navigates.
+                if (gesture.current.fullScreen && pointer.pointerType === 'touch') return;
                 dismiss();
-                // A deliberate second tap navigates to the row, so focus
-                // belongs on its name cell after leaving full screen, not
-                // back inside the layer or on the Full trigger.
-                leavingToRow.current = true;
-                setFullScreen(false);
-              }
-              if (rowId !== undefined) onPickRow(rowId);
-            }}
-            onKeyDown={(key) => {
-              if (key.key !== 'Enter' && key.key !== ' ') return;
-              // Before anything else: Space's own default is to scroll
-              // the panel, and a reader who asked to go to a row and got
-              // the chart scrolled out from under them is R5 #14's fault
-              // wearing another hat. jsdom performs no default action, so
-              // this line is guarded in a browser (`e2e/gantt.spec.ts`).
-              key.preventDefault();
-              const rowId = rowIdAt(bar.rowIndex);
-              if (rowId !== undefined) onPickRow(rowId);
-            }}
-            onPointerOver={(pointer) => {
-              // **The touch seam.** Chromium synthesizes a whole mouse
-              // sequence from a tap — `mouseover` included — so a surface
-              // opened on a mouse event opens on every tap as well, over
-              // the row the tap was taking the reader to. The pointer
-              // events are the only ones that say which they came from.
-              if (pointer.pointerType !== 'mouse') return;
-              // Before the timer and never inside it: the pointed row is
-              // a tint, which is cheap to paint and cheap to be wrong
-              // about for a moment, while the surface is a card that
-              // covers the chart. So the light is immediate and the card
-              // still waits out {@link HOVER_OPEN_MS} — a pointer
-              // crossing eight bars lights eight rows in turn, which
-              // reads as a trail, and opens no cards at all.
-              pointRow(bar.rowIndex, 'pointer');
-              const mark = pointer.currentTarget;
-              cancelOpening();
-              opening.current = setTimeout(() => {
-                showSurface(bar.sliceId, mark);
-              }, HOVER_OPEN_MS);
-            }}
-            onPointerOut={(pointer) => {
-              // **The card, and not the light.** Leaving a bar used to
-              // clear the pointed row here, which was right while a bar
-              // was one of only two things on this chart that could
-              // point one. Since `pointed-row-one-ink` the row's own
-              // line points it, so leaving a bar is usually landing on
-              // the same row — and clearing here blinked the light off
-              // under the caret or the dependency link the reader had
-              // moved onto, then straight back on. What clears the
-              // light is leaving the drawing, which the SVG root says.
-              //
-              // A touch leaves the mark before its synthesized click.
-              // In full screen that click owns the surface: first tap
-              // opens it, and a second tap on the same bar navigates.
-              if (gesture.current.fullScreen && pointer.pointerType === 'touch') return;
-              dismiss();
-            }}
-            // No delay on the keyboard: focus is deliberate, and there is
-            // no crossing of the chart to protect a reader from.
-            onFocus={(focus) => {
-              // A touch focuses before its click. Let that click decide
-              // between opening the facts and deliberate navigation;
-              // keyboard focus keeps the immediate surface below.
-              if (gesture.current.fullScreen && pressedWithTouch.current) return;
-              pointRow(bar.rowIndex, 'focus');
-              cancelOpening();
-              showSurface(bar.sliceId, focus.currentTarget);
-            }}
-            onBlur={() => {
-              onPointRow(null, 'focus');
-              dismiss();
-            }}
-          />
-        ))}
+              }}
+              // No delay on the keyboard: focus is deliberate, and there is
+              // no crossing of the chart to protect a reader from.
+              onFocus={(focus) => {
+                // A touch focuses before its click. Let that click decide
+                // between opening the facts and deliberate navigation;
+                // keyboard focus keeps the immediate surface below.
+                if (gesture.current.fullScreen && pressedWithTouch.current) return;
+                pointRow(bar.rowIndex, 'focus');
+                cancelOpening();
+                showMarkSurface(bar.sliceId, focus.currentTarget);
+              }}
+              onBlur={(focus) => {
+                onPointRow(null, 'focus');
+                // Proof: unconditional dismissal removed the choice before its click
+                // after a focused forecast transferred focus into the chooser; Chromium
+                // then found no selected card (subday-review-proof-browser-blur).
+                if (
+                  focus.relatedTarget instanceof Node &&
+                  chooserRef.current?.contains(focus.relatedTarget)
+                )
+                  return;
+                dismiss();
+              }}
+            >
+              <rect
+                data-gantt-bar={bar.sliceId}
+                data-tick={surface.tick ? 'true' : undefined}
+                data-dependency-lit={
+                  activeTypedId !== null &&
+                  placed.typedArrows.some((arrow) =>
+                    arrow.relationshipSlices.some(
+                      (pair) =>
+                        // Proof: dropping this membership check made `names distinct
+                        // typed endpoints and lights only the active grouped
+                        // relationship slices` light B-dev for the QA edge.
+                        // Watched 2026-09-28.
+                        pair.relationshipId === activeTypedId &&
+                        (pair.predecessorSliceId === bar.sliceId ||
+                          pair.successorSliceId === bar.sliceId),
+                    ),
+                  )
+                    ? 'true'
+                    : undefined
+                }
+                // The engine's own **workday** numbers, and the geometry
+                // beside them is the calendar's: the two are allowed to
+                // disagree, and the difference between them is exactly what a
+                // test reads to say the conversion happened. A bar at workday
+                // 5 on a Monday-start plan carries `data-start="5"` and stands
+                // at `x="7"`.
+                data-start={bar.start}
+                data-finish={bar.finish}
+                // The last workday this bar is still on, which is the axis cell
+                // its right edge stops inside rather than the one it stops at.
+                // See {@link lastWorkdayOf} — it is the one number about a bar
+                // that cannot be read off `x` and `width` without repeating the
+                // nudge, and the browser gate has to know it to say which label
+                // the edge should line up with.
+                data-last-day={lastWorkdayOf(bar.start, bar.finish)}
+                {...(bar.critical ? { 'data-critical': 'true' } : {})}
+                // The bar whose width is an assumption, findable as such. The
+                // styling below is what a reader sees; this is what the
+                // browser gate selects on, and it has to tell a drawn span
+                // from a measured one before it measures anything. Only ever
+                // in the document with the detail switch on.
+                //
+                // Proof: this hook dropped. `7 failed | 84 passed` —
+                // four on {@link askForTheDetail}'s own throw, `the detail
+                // switch was pressed and nothing arrived at [data-assumed]`,
+                // and three on `expected null to be 'true'` /
+                // `expected +0 to be 1`. Watched 2026-08-12.
+                {...(bar.estimated ? {} : { 'data-assumed': 'true' })}
+                // The bar that is a done row's fact span, findable as such: the
+                // browser gate measures where it stops against the fact end's axis
+                // cell, and has to tell it from a slice first. Never beside
+                // `data-assumed` — a done bar is not a guess.
+                {...(bar.done ? { 'data-done': 'true' } : {})}
+                // What stops the work (`add-work-item-statuses`): the browser gate
+                // and the tests select on these, the outline and the hatch below
+                // are what a reader sees.
+                {...(bar.stop === 'blocked' ? { 'data-blocked': 'true' } : {})}
+                {...(bar.stop === 'blocked_by_proxy' ? { 'data-blocked-by-proxy': 'true' } : {})}
+                x={x}
+                // The **drawn** span in calendar days — the end reading of
+                // the drawn finish less the start reading of the start, so a
+                // bar working through a weekend is drawn across it and one
+                // stopping on the Friday stops at the Saturday. Never a span
+                // from the engine's `finish`: an unestimated slice finishes
+                // where it starts, and that width is no bar at all.
+                width={surface.width}
+                // Its own lane where unknown placeholders overlap on one row, so
+                // each stays under the pointer — see {@link GanttBar.lane}.
+                y={bar.rowIndex + BAR_INSET + (bar.lane * BAR_HEIGHT) / bar.lanes}
+                height={BAR_HEIGHT / bar.lanes}
+                rx={BAR_RADIUS_PX / dayPx}
+                ry={BAR_RADIUS_PX / ROW_PX}
+                // Who is on it — an unestimated slice included, at 35% through
+                // {@link ASSUMED_BAR_CLASSES}. It used to be hollow, which was
+                // honest about the length and cost the reader the assignee;
+                // now it keeps the person and says "guessed" in how it is
+                // painted rather than by having no paint.
+                fill={bar.personColor}
+                // The critical path is the **outline**, because the fill is
+                // already saying who. A ring in the foreground colour rather
+                // than the destructive one: `#d62728` is the fourth person's
+                // colour, and a red ring on a red bar is no ring at all.
+                // A done bar wears the status green as its outline instead
+                // (`status-polish`; Dany: "add smth like a green outline to the
+                // gantt chart slices").
+                // A blocked bar wears the blocked red as its outline, the done
+                // bar's green's way (`add-work-item-statuses`).
+                stroke={
+                  bar.done
+                    ? DONE_BAR_STROKE
+                    : bar.stop === 'blocked'
+                      ? BLOCKED_STROKE
+                      : bar.critical
+                        ? undefined
+                        : bar.personColor
+                }
+                className={cn(
+                  barClasses(bar.critical, bar.estimated, bar.done, bar.stop === 'blocked'),
+                  'data-[dependency-lit=true]:stroke-foreground data-[dependency-lit=true]:[stroke-width:2]',
+                )}
+                vectorEffect="non-scaling-stroke"
+                // A control, because it is one: it takes the keyboard, it has
+                // a name, and Enter and Space act on it. The step is what
+                // makes the `aria-label` below a name a screen reader reads —
+                // a bare `<rect>` is presentational whatever it is labelled.
+                role="button"
+                tabIndex={0}
+                // **The bar's only accessible name**, and the reason it is
+                // here rather than in the `<title>` this change took off the
+                // bars: two tooltips on one mark is a bug, and the browser's
+                // is the one nothing can place or style. The same facts the
+                // surface shows, from the same derivation.
+                aria-label={barFacts(bar, startDate, today, plan.priorityBands).join('. ')}
+              />
+              <rect
+                data-gantt-hit={bar.sliceId}
+                ref={(hit) => {
+                  if (hit === null) pointerMarks.current.delete(bar.sliceId);
+                  else pointerMarks.current.set(bar.sliceId, hit);
+                }}
+                x={surface.hitX}
+                width={surface.hitWidth}
+                y={middle - hitHeight / 2}
+                height={hitHeight}
+                fill="transparent"
+                // Proof: all includes an unpainted 1-unit SVG stroke (896px at
+                // this rung); the browser overlap case opened Step 1 directly at
+                // x183 although its fill starts x187 (2026-10-12).
+                pointerEvents="fill"
+              />
+            </g>
+          );
+        })}
 
         {/*
               The band, as a cap at the bar's left edge — the third channel, and
@@ -5398,6 +5625,10 @@ function GanttChart({
               x2={x}
               y2={bar.rowIndex + BAR_INSET + BAR_HEIGHT}
               data-gantt-tick={bar.sliceId}
+              // Proof: removing transparency makes Chromium hit this decorative
+              // stroke instead of the milestone's 18px pointer rectangle; exact-center
+              // elementFromPoint failed (subday-review-proof-browser-zero).
+              pointerEvents="none"
               stroke={bar.critical ? undefined : bar.personColor}
               className={bar.critical ? 'stroke-foreground [stroke-width:2]' : ''}
               vectorEffect="non-scaling-stroke"
@@ -5444,6 +5675,8 @@ function GanttChart({
       startDate,
       today,
       todayAt,
+      showMarkSurface,
+      showPointerSurface,
     ],
   );
   /**
@@ -6246,6 +6479,33 @@ function GanttChart({
                 )}
 
                 {marksOverLight}
+                <AttemptPatterns prefix={attemptPatternPrefix} dayPx={dayPx} rowPx={ROW_PX} />
+                {projection.marks.map((mark) => (
+                  <AttemptMark
+                    key={identifyAttemptMark(mark)}
+                    mark={mark}
+                    prefix={attemptPatternPrefix}
+                    dayPx={dayPx}
+                    rowPx={ROW_PX}
+                    onShow={showAttemptSurface}
+                    registerHit={(hit) => {
+                      if (hit === null) pointerMarks.current.delete(identifyAttemptMark(mark));
+                      else pointerMarks.current.set(identifyAttemptMark(mark), hit);
+                    }}
+                    onDismiss={() => {
+                      if (!gesture.current.collisionOpen) dismiss();
+                    }}
+                    onLeaveFocus={(relatedTarget) => {
+                      // Proof: a nonmatching chooser selector removes the list during Chromium focus transfer (gantt-attempt-focus, 2026-10-13).
+                      if (
+                        relatedTarget instanceof Element &&
+                        relatedTarget.closest('[data-gantt-collision-list]') !== null
+                      )
+                        return;
+                      dismiss();
+                    }}
+                  />
+                ))}
               </svg>
 
               {barWords}
@@ -6329,8 +6589,80 @@ function GanttChart({
         to the Name cell's preview, which is the same {@link HoverCard} with a
         different body.
       */}
+        {collision !== null && (
+          <HoverCard label="Choose a mark" anchor={collision.anchor} takesPointer>
+            <div ref={chooserRef} data-gantt-collision-list>
+              <button
+                type="button"
+                onClick={() => {
+                  setCollision(null);
+                }}
+              >
+                Close mark list
+              </button>
+              {collision.markIds.map((markId) => {
+                const attempt = projection.marks.find(
+                  (mark) => identifyAttemptMark(mark) === markId,
+                );
+                if (attempt !== undefined)
+                  return (
+                    <button
+                      key={markId}
+                      type="button"
+                      className="block text-xs"
+                      onClick={() => {
+                        setOpen(null);
+                        setOpenAttempt({ markId, anchor: collision.anchor });
+                        setCollision(null);
+                      }}
+                    >{`Attempt ${String(attempt.attempt.attemptNumber)} — ${attempt.attempt.outcome ?? 'running'} · ${attempt.nodeReference ?? attempt.nodeId}`}</button>
+                  );
+                const placedBar = drawnBars.find(({ bar }) => bar.sliceId === markId);
+                if (placedBar === undefined) return null;
+                const { bar } = placedBar;
+                return (
+                  <button
+                    key={markId}
+                    type="button"
+                    className="block text-xs"
+                    onClick={() => {
+                      setOpen({ sliceId: markId, anchor: collision.anchor });
+                      setCollision(null);
+                    }}
+                  >{`${bar.workItemNumber} · ${bar.stepName ?? 'No step'} · ${describeForecastSpan(bar)}`}</button>
+                );
+              })}
+            </div>
+          </HoverCard>
+        )}
+        {openAttempt !== null &&
+          projection.availability.state === 'available' &&
+          (() => {
+            const mark = projection.marks.find(
+              (candidate) => identifyAttemptMark(candidate) === openAttempt.markId,
+            );
+            return mark === undefined ? null : (
+              <HoverCard
+                label={`Facts for attempt ${String(mark.attempt.attemptNumber)}`}
+                anchor={openAttempt.anchor}
+              >
+                <AttemptCard
+                  mark={mark}
+                  timezone={projection.availability.timezone}
+                  personNames={plan.personNames}
+                />
+              </HoverCard>
+            );
+          })()}
         {openBar !== null && open !== null && (
           <HoverCard label={`Facts for ${openBar.workItemNumber}`} anchor={open.anchor}>
+            {(() => {
+              const placedBar = drawnBars.find(({ bar }) => bar.sliceId === openBar.sliceId);
+              return placedBar !== undefined &&
+                placeBarSurface(placedBar.x, placedBar.width, rung).tick ? (
+                <p className="text-xs">{describeForecastSpan(openBar)}</p>
+              ) : null;
+            })()}
             {barFacts(openBar, startDate, today, plan.priorityBands).map((line) => (
               <p key={line} className="text-xs">
                 {line}
@@ -6740,6 +7072,19 @@ function GanttChart({
         outside it in either direction — and on a phone the controls land in
         the thumb's half of the screen rather than under the plan above.
       */}
+      {projection.availability.state === 'unavailable' &&
+        projection.availability.missing.map((missing) => (
+          <p
+            key={missing}
+            role="status"
+            data-attempt-unavailable
+            className="text-muted-foreground px-3 py-1 text-sm"
+          >
+            {missing === 'startDate'
+              ? 'Attempt marks unavailable: set a project start date'
+              : 'Attempt marks unavailable: project timezone is unavailable'}
+          </p>
+        ))}
       <div
         data-gantt-controls
         className="border-border text-muted-foreground flex flex-wrap items-center gap-1 border-t px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase"
@@ -6849,11 +7194,7 @@ function GanttChart({
           // Proof: removing this label makes the normal/refusal-title role-name regression fail.
           aria-label="Day scale — how wide one day is drawn"
           data-gantt-day-scale
-          title={
-            isSubDayUnavailable
-              ? offerExplanation
-              : (rungNotice ?? `One day is ${String(dayPx)}px wide`)
-          }
+          title={scaleTitle}
           data-hint={`One day is ${String(dayPx)}px wide. Narrower rungs fit more of the plan on screen at once.`}
           // The chips' look without their element: `buttonVariants` is for
           // `<button>`, and a `<select>` put through it loses the platform
@@ -6868,18 +7209,13 @@ function GanttChart({
             // by construction: `value` off a DOM node is a string from the
             // page, and the same guard the storage boundary uses is the
             // one that keeps this a `DayPx` without an assertion.
-            // Proof: replacing the limit arm with true let an injected change pick 224 at 2501 marks; the restored-selection case failed on [28, 224] (2026-10-12).
-            if (
-              isDayPx(asked) &&
-              (resolveAxisRung(asked).cellsPerWorkday === 1 || count <= SUB_DAY_MARK_LIMIT)
-            ) {
+            if (isDayPx(asked)) {
               onPickDayPx(asked);
             }
           }}
         >
-          {AXIS_RUNGS.map((offered) => {
-            // Proof: removing the count comparison enabled all three rungs in the 2501/3000 refusal cases (2026-10-12).
-            const isUnavailable = offered.cellsPerWorkday > 1 && count > SUB_DAY_MARK_LIMIT;
+          {scaleOptions.map((offered) => {
+            const isUnavailable = offered.unavailable;
             return (
               <option
                 key={offered.id}
@@ -6889,7 +7225,7 @@ function GanttChart({
                 {...(isUnavailable ? { 'data-not-offered': true } : {})}
               >
                 {offered.label}
-                {isUnavailable ? ` — not offered at ${String(count)} marks` : ''}
+                {isUnavailable ? ` — ${offered.refusal}` : ''}
               </option>
             );
           })}
@@ -7010,8 +7346,12 @@ function GanttChart({
         if (pointer.pointerType !== 'touch' || open === null) return;
         const target = pointer.target;
         if (target instanceof Element) {
-          const bar = target.closest('[data-gantt-bar]');
-          if (bar?.getAttribute('data-gantt-bar') === open.sliceId) return;
+          const mark = target.closest('[data-gantt-hit], [data-gantt-bar]');
+          // Proof: recognizing only the painted bar made Chromium's deliberate
+          // second tap on its paired hit surface keep full screen open (2026-10-13).
+          const sliceId =
+            mark?.getAttribute('data-gantt-hit') ?? mark?.getAttribute('data-gantt-bar');
+          if (sliceId === open.sliceId) return;
         }
         dismiss();
       }}

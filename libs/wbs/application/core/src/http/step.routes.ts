@@ -1,9 +1,9 @@
 import { addStep, removeStep, renameStep } from '@wbs/contracts';
-import { allowancePercentOf, NO_ALLOWANCE } from '@wbs/domain';
+import { allowancePercentOf, isEstimateUnit, NO_ALLOWANCE } from '@wbs/domain';
 
 import type { PlanCommandRunner } from '../module/plan-commands/plan-commands.feature';
 import { runCommandBatchAfter } from '../module/plan-commands/run-command-batch';
-import type { StepOutcome, StepService } from '../module/step/step.resource';
+import type { StepOutcome, StepService, StepUnitOutcome } from '../module/step/step.resource';
 import type { OrganizationAccess, ResourceAccess } from '../ports/organization-access';
 import type { Step } from '../ports/step-store';
 import { bind, EMPTY, type HttpReply } from './endpoint';
@@ -39,6 +39,8 @@ function addedReply(outcome: StepOutcome): HttpReply<typeof addStep> {
     case 'invalid_code':
     case 'reserved_code':
       return { ok: false, status: 422, body: { error: outcome.reason } };
+    case 'invalid_estimate_unit':
+      return { ok: false, status: 422, body: { error: outcome.reason } };
     case 'code_taken':
       return { ok: false, status: 409, body: { error: outcome.reason } };
     default:
@@ -47,9 +49,13 @@ function addedReply(outcome: StepOutcome): HttpReply<typeof addStep> {
 }
 
 /** A rename keeps the step's code, so no code refusal can reach it. */
-function renamedReply(outcome: StepOutcome): HttpReply<typeof renameStep> {
+function renamedReply(outcome: StepUnitOutcome): HttpReply<typeof renameStep> {
   if (outcome.ok) return namedReply(outcome);
   switch (outcome.reason) {
+    case 'estimates_present':
+      return { ok: false, status: 409, body: { error: 'estimates_present', count: outcome.count } };
+    case 'invalid_estimate_unit':
+      return { ok: false, status: 422, body: { error: 'invalid_estimate_unit' } };
     case 'invalid_code':
     case 'reserved_code':
     case 'code_taken':
@@ -75,7 +81,10 @@ function renamedReply(outcome: StepOutcome): HttpReply<typeof renameStep> {
  * prelude and settles with it; the rename itself is not journalled.
  */
 export function stepRoutes(
-  steps: Pick<StepService, 'addWithin' | 'findWithin' | 'removeWithin' | 'renameWithin'>,
+  steps: Pick<
+    StepService,
+    'addWithin' | 'findWithin' | 'removeWithin' | 'renameWithin' | 'patchUnitWithin'
+  >,
   commands: Pick<PlanCommandRunner, 'runAfterWithin'>,
   organizations: OrganizationAccess,
   recovery?: RecoveryWriteBoundary,
@@ -111,6 +120,9 @@ export function stepRoutes(
       // names, and refuses one with three decimals` stored the step.
       if (allowance === null)
         return { ok: false, status: 422, body: { error: 'invalid_allowance' } };
+      const estimateUnit = body.estimateUnit;
+      if (estimateUnit !== undefined && !isEstimateUnit(estimateUnit))
+        return { ok: false, status: 422, body: { error: 'invalid_estimate_unit' } };
       const resolved = await organizations.resolve(principal);
       if (!resolved.ok) return organizationRefusal(resolved);
       // Proof: catching the store failure as not_found returned a refusal object
@@ -129,6 +141,7 @@ export function stepRoutes(
               allowance,
               body.code,
               resolved.access,
+              estimateUnit,
             ),
           (reason): StepOutcome => ({ ok: false, reason }),
         ),
@@ -144,7 +157,7 @@ export function stepRoutes(
         return { ok: false, status: 422, body: { error: 'invalid_allowance' } };
       const resolved = await organizations.resolve(principal);
       if (!resolved.ok) return organizationRefusal(resolved);
-      if (allowance === undefined) {
+      if (allowance === undefined && body.estimateUnit === undefined) {
         if (body.name === undefined) {
           return { ok: false, status: 422, body: { error: 'invalid_body' } };
         }
@@ -161,7 +174,7 @@ export function stepRoutes(
           ),
         );
       }
-      const { name } = body;
+      const { name, estimateUnit } = body;
       // The rename is the batch's prelude, so a refused allowance takes it back
       // and a refused rename writes no allowance: one edit, all or nothing.
       // Proof: renaming through `steps` before the batch, as this route did,
@@ -172,9 +185,10 @@ export function stepRoutes(
         {
           projectId: params.id,
           actor: principal,
-          commands: [
-            { kind: 'setStepAllowance', stepId: params.stepId, allowancePercent: allowance },
-          ],
+          commands:
+            allowance === undefined
+              ? []
+              : [{ kind: 'setStepAllowance', stepId: params.stepId, allowancePercent: allowance }],
           access: resolved.access,
         },
         async (graph) => {
@@ -194,6 +208,16 @@ export function stepRoutes(
             resolved.access,
           );
           if (!found.ok) return found;
+          if (estimateUnit !== undefined) {
+            const patched = await graph.steps.patchUnitWithin(
+              params.id,
+              params.stepId,
+              principal.id,
+              estimateUnit,
+              resolved.access,
+            );
+            if (!patched.ok) return patched;
+          }
           if (name === undefined) return null;
           const renamed = await graph.steps.renameWithin(
             params.id,

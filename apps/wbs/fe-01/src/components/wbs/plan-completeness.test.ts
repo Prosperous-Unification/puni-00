@@ -4,8 +4,18 @@ import type { Days, StepView, WorkItemView } from '@/lib/wbs-api';
 
 import { describeGaps, type EstimateGaps, findEstimateGaps } from './plan-completeness';
 
-const DEV: StepView = { id: 'step-dev', name: 'Dev', allowancePercent: 0 };
-const QA: StepView = { id: 'step-qa', name: 'QA', allowancePercent: 0 };
+const DEV: StepView = {
+  estimateUnit: 'workdays' as const,
+  id: 'step-dev',
+  name: 'Dev',
+  allowancePercent: 0,
+};
+const QA: StepView = {
+  estimateUnit: 'workdays' as const,
+  id: 'step-qa',
+  name: 'QA',
+  allowancePercent: 0,
+};
 const STEPS = [DEV, QA];
 
 const DAYS: Days = { optimistic: 2, realistic: 3, pessimistic: 8 };

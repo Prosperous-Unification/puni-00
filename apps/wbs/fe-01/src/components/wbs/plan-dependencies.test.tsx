@@ -2057,6 +2057,7 @@ describe('dependencies in the table — cross-review findings', () => {
             estimateRounding: 'ceil' as const,
             workItems: [
               workItemView({
+                charged: {},
                 id: 'w1',
                 parentId: null,
                 revision: 0,

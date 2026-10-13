@@ -44,7 +44,17 @@ beforeEach(async () => {
   devStepId = crypto.randomUUID();
   await new ProjectRepository(db, OPEN).create(
     projectRow({ id: projectId, ownerId }),
-    [{ id: devStepId, projectId, name: 'Dev', position: 10, code: 'dev', allowancePercent: 0 }],
+    [
+      {
+        id: devStepId,
+        projectId,
+        name: 'Dev',
+        position: 10,
+        code: 'dev',
+        allowancePercent: 0,
+        estimateUnit: 'workdays' as const,
+      },
+    ],
     wrote(),
   );
 });
@@ -143,6 +153,7 @@ describe('TypedDependencyRepository', () => {
           position: 10,
           code: 'dev',
           allowancePercent: 0,
+          estimateUnit: 'workdays' as const,
         },
       ],
       wrote(),
@@ -252,6 +263,7 @@ describe('TypedDependencyRepository', () => {
           position: 10,
           code: 'dev',
           allowancePercent: 0,
+          estimateUnit: 'workdays' as const,
         },
       ],
       wrote(),

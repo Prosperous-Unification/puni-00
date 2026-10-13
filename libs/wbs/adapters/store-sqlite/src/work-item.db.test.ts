@@ -66,7 +66,17 @@ beforeEach(async () => {
       id: projectId,
       ownerId,
     }),
-    [{ id: stepId, projectId, name: 'Dev', position: 10, code: 'dev', allowancePercent: 0 }],
+    [
+      {
+        id: stepId,
+        projectId,
+        name: 'Dev',
+        position: 10,
+        code: 'dev',
+        allowancePercent: 0,
+        estimateUnit: 'workdays' as const,
+      },
+    ],
     wrote(),
   );
   personId = (
@@ -1204,7 +1214,7 @@ describe('the order the work-item select answers in', () => {
       rows,
       await estimates.listByProject(projectId),
       new Set(rows.map((each) => each.parentId).filter((id): id is string => id !== null)),
-      [{ id: stepId, allowancePercent: 0 }],
+      [{ estimateUnit: 'workdays' as const, id: stepId, allowancePercent: 0 }],
       {
         method: project.estimateMethod,
         pertWeights: project.pertWeights,
@@ -1285,7 +1295,7 @@ describe('the order the work-item select answers in', () => {
       rows,
       await estimates.listByProject(projectId),
       new Set(rows.map((each) => each.parentId).filter((id): id is string => id !== null)),
-      [{ id: stepId, allowancePercent: 0 }],
+      [{ estimateUnit: 'workdays' as const, id: stepId, allowancePercent: 0 }],
       {
         method: project.estimateMethod,
         pertWeights: project.pertWeights,

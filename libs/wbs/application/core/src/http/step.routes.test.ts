@@ -238,6 +238,7 @@ test('typed step bindings preserve the service value, actor and trimmed name', a
         position: 10,
         code: 'design',
         allowancePercent: 0,
+        estimateUnit: 'workdays' as const,
       },
     },
   });

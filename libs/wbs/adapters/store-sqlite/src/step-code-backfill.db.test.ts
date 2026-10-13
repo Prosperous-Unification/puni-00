@@ -120,6 +120,7 @@ describe('backfillStepCodes', () => {
             position: 10,
             code: 'dev',
             allowancePercent: 0,
+            estimateUnit: 'workdays' as const,
           },
         },
         created_at: 5_000,

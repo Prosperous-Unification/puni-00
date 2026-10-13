@@ -1,0 +1,29 @@
+{
+  "date": "2026-10-12T21:06:36.903Z",
+  "browser": "153.0.8010.12",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "fixture": "500 visible leaves × 5 forecast steps; no attempts",
+  "entry": "benchmarks/subday-axis.html → src/testing/subday-axis-benchmark.tsx → shipped GanttPanel",
+  "mode": "Vite development; warm caches; one warmup then five fresh mounts; two-frame completion",
+  "mountMs": [1022.9000000003725, 614.3000000007451, 784.4000000003725, 485.5, 463],
+  "interactionMs": [
+    578, 375.30000000074506, 512.7000000011176, 303.19999999925494, 312.2999999988824
+  ],
+  "mountP95": 1022.9000000003725,
+  "interactionP95": 578,
+  "oversized": "2000×5 production refusal at Days verified; renderer-only cost not measured",
+  "tinyMark": {
+    "fillWidth": 3.9999234080314636,
+    "outlinedWidth": 4.9999237060546875,
+    "hitWidth": 17.999923706054688,
+    "hitHeight": 18,
+    "explicitCollisionChoice": true,
+    "keyboardFocusToMouseChoice": true,
+    "milestoneCenterHitsPointerSurface": true,
+    "milestoneCenterOpensCard": true
+  },
+  "browserErrors": []
+}

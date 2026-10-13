@@ -4,6 +4,7 @@ import type { EstimateMethod, EstimateRounding, PertWeights } from './estimate';
 import type { PriorityBand } from './priority-band';
 import type { Hold, Readiness } from './progress';
 import type { StoredActual, StoredEstimate, StoredMeasure, StoredProgress } from './step-values';
+import type { EstimateUnit } from './stored-vocabularies';
 import type { ScheduleEngine, SolverObjectiveName } from './stored-vocabularies';
 import type { TypedDependency } from './typed-dependency';
 import type { IsoDate } from './workday';
@@ -37,6 +38,7 @@ export interface CapturedStep {
   readonly position: number;
   /** The step's allowance at capture: a saved plan's charged figures use it, never the live one. */
   readonly allowancePercent: number;
+  readonly estimateUnit: EstimateUnit;
 }
 
 export interface CapturedWorkItem {

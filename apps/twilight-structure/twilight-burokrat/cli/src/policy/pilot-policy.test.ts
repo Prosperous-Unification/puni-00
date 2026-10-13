@@ -423,6 +423,9 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
       candidate.repository,
       candidate.revision,
     ]);
+    // Proof: omitting step-unit.test.ts from the memory adapter index made this production CLI
+    // invocation exit 1 with "unindexed candidate path" in the pins exact pre-index tuples test
+    // (2026-10-13, PR #380 head 214dc6c86).
     expect(indexInvocation.exitCode, output(indexInvocation)).toBe(0);
     const indexReport = JSON.parse(pipeText(indexInvocation.stdout, 'index stdout')) as {
       indexes: {

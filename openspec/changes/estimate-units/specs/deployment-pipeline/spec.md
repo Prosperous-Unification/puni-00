@@ -7,7 +7,11 @@ The migration SHALL add `step.estimate_unit TEXT NOT NULL DEFAULT 'workdays'` ch
 `workdays`. Its `down.sql` SHALL refuse while any step holds `minutes`, naming
 `estimate-unit-rollback-cli.ts`'s `save`, `remove` and `restore` commands, and then drop the
 column. `remove` SHALL delete the saved minute-unit steps' estimate rows and set those steps
-to `workdays`; `restore` SHALL put both back after a later forward run. The stamp SHALL sort
+to `workdays`; `restore` SHALL put both back after a later forward run.
+Rollback and recovery `remove` SHALL refuse retained minute-bound command journal entries
+in either undo or redo state, independent of current step existence/unit and nested command
+shape. They SHALL preserve whole entries unchanged; journal recovery is not supported.
+Saved rows SHALL pass finite ordered trio and whole-minute maximum validation before mutations. The stamp SHALL sort
 after every migration on main and in the integration queue.
 
 #### Scenario: rollback over a minute step is refused
@@ -30,7 +34,7 @@ after every migration on main and in the integration queue.
 
 ### Requirement: The swap refuses code that cannot read a stored minutes unit
 
-The swap SHALL compare the stored `estimate_unit` values against the units the incoming image
+The swap SHALL compare live `estimate_unit` values and immutable journal unit bindings against the units the incoming image
 prints, before migrating and again after stopping blue, in the stored-vocabularies step beside
 holds, readiness, capacity modes and relationship types. An image whose `estimate-units-cli.ts`
 is absent SHALL read as supporting `workdays` alone. A stored unit the image does not support
@@ -47,3 +51,16 @@ SHALL abort the swap before any write, naming the value and its count.
 - **GIVEN** a database whose steps are all `workdays` and an image predating the units CLI
 - **WHEN** the swap runs
 - **THEN** the unit comparison passes
+
+#### Scenario: cleared minute history still refuses old code
+
+- **GIVEN** a minute trio was cleared and its step changed to workdays or removed
+- **AND** the journal retains its minute-bound inverse or redo, including inside a batch
+- **WHEN** an old-image swap, migration down or recovery remove runs
+- **THEN** it refuses, preserves units/rows/history and names the incompatible minute history
+
+#### Scenario: damaged recovery minute trio refuses before mutation
+
+- **GIVEN** a saved row has a fractional, unordered, nonfinite or above-maximum minute trio
+- **WHEN** restore runs
+- **THEN** it fails and every unit and estimate row remains unchanged

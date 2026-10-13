@@ -56,7 +56,7 @@ describe('StepBoardView', () => {
           workItems: [
             workItemView({ id: 'leaf', number: '020', name: 'Build', status: 'on_hold' }),
           ],
-          steps: [{ id: 'qa', name: 'QA', allowancePercent: 0 }],
+          steps: [{ estimateUnit: 'workdays' as const, id: 'qa', name: 'QA', allowancePercent: 0 }],
         }),
       },
     });
@@ -88,8 +88,13 @@ describe('StepBoardView', () => {
             workItemView({ id: 'a-leaf', number: '010', name: 'Review' }),
           ],
           steps: [
-            { id: 'qa', name: 'QA', allowancePercent: 0 },
-            { id: 'dev', name: 'Development', allowancePercent: 0 },
+            { estimateUnit: 'workdays' as const, id: 'qa', name: 'QA', allowancePercent: 0 },
+            {
+              estimateUnit: 'workdays' as const,
+              id: 'dev',
+              name: 'Development',
+              allowancePercent: 0,
+            },
           ],
         }),
       },
@@ -180,7 +185,7 @@ describe('StepBoardView', () => {
         generation: 1,
         value: planRead({
           workItems: [workItemView({ id: 'leaf', name: 'Build' })],
-          steps: [{ id: 'qa', name: 'QA', allowancePercent: 0 }],
+          steps: [{ estimateUnit: 'workdays' as const, id: 'qa', name: 'QA', allowancePercent: 0 }],
         }),
       },
     });
@@ -209,7 +214,7 @@ describe('StepBoardView', () => {
         generation: 2,
         value: planRead({
           workItems: [workItemView({ id: 'leaf', name: 'Built' })],
-          steps: [{ id: 'qa', name: 'QA', allowancePercent: 0 }],
+          steps: [{ estimateUnit: 'workdays' as const, id: 'qa', name: 'QA', allowancePercent: 0 }],
         }),
       },
     });
@@ -228,14 +233,18 @@ describe('StepBoardView', () => {
         generation: 1,
         value: planRead({
           workItems: [leaf],
-          steps: [{ id: 'qa', name: 'QA', allowancePercent: 0 }],
+          steps: [{ estimateUnit: 'workdays' as const, id: 'qa', name: 'QA', allowancePercent: 0 }],
         }),
       },
-      steps: [{ id: 'qa', name: 'QA', allowancePercent: 0 }],
+      steps: [{ estimateUnit: 'workdays' as const, id: 'qa', name: 'QA', allowancePercent: 0 }],
     });
     expect(screen.getByText('QA')).toBeDefined();
 
-    publish(plan, { steps: [{ id: 'dev', name: 'Development', allowancePercent: 0 }] });
+    publish(plan, {
+      steps: [
+        { estimateUnit: 'workdays' as const, id: 'dev', name: 'Development', allowancePercent: 0 },
+      ],
+    });
     expect(screen.getByText('QA')).toBeDefined();
     expect(screen.queryByText('Development')).toBeNull();
 
@@ -244,7 +253,14 @@ describe('StepBoardView', () => {
         generation: 2,
         value: planRead({
           workItems: [leaf],
-          steps: [{ id: 'dev', name: 'Development', allowancePercent: 0 }],
+          steps: [
+            {
+              estimateUnit: 'workdays' as const,
+              id: 'dev',
+              name: 'Development',
+              allowancePercent: 0,
+            },
+          ],
         }),
       },
     });
@@ -266,7 +282,7 @@ describe('StepBoardView', () => {
         generation: 1,
         value: planRead({
           workItems: [workItemView({ id: 'leaf', progress: { qa: 'blocked' as 'done' } })],
-          steps: [{ id: 'qa', name: 'QA', allowancePercent: 0 }],
+          steps: [{ estimateUnit: 'workdays' as const, id: 'qa', name: 'QA', allowancePercent: 0 }],
         }),
       },
     });

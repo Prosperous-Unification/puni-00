@@ -240,6 +240,8 @@ function stepWriteCode(
     case 'invalid_json':
     case 'taken':
     case 'invalid_body':
+    case 'invalid_estimate_unit':
+    case 'estimates_present':
     case 'invalid_allowance':
     case 'invalid_code':
     case 'reserved_code':
@@ -436,6 +438,8 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'attempt_in_future':
     case 'no_running_attempt':
     case 'attempt_ends_before_start':
+    case 'minutes_not_integer':
+    case 'minutes_above_max':
     case 'unknown_attempt':
       return refusal.error;
     default:

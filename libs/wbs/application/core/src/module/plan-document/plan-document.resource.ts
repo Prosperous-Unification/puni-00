@@ -17,6 +17,7 @@ import {
 import {
   formatStepNodeId,
   formatStepReference,
+  isEstimateUnit,
   isHold,
   isReadiness,
   isTimezone,
@@ -198,7 +199,12 @@ function codedTree(
     // an uncoded step, naming it` received ok: true, and the mounted be-01
     // export received 500 instead of 409 (2026-09-27).
     if (step.code === null) uncoded.push({ id: step.id, name: step.name });
-    else coded.push({ ...step, code: step.code });
+    else {
+      // Proof: removing this guard exported a trusted step without a unit (plan-document.resource.test.ts version 8).
+      if (step.estimateUnit === undefined)
+        throw new Error(`step ${step.id} was read without an estimate unit`);
+      coded.push({ ...step, code: step.code, estimateUnit: step.estimateUnit });
+    }
   }
   if (uncoded.length > 0)
     return {
@@ -392,6 +398,7 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
     version !== 4 &&
     version !== 5 &&
     version !== 6 &&
+    version !== 7 &&
     version !== PLAN_DOCUMENT_VERSION
   ) {
     return { ok: false, code: 'unsupported_version', path: 'document.version' };
@@ -442,27 +449,31 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
     }
   }
   const steps: PlanDocumentImport['steps'] = [];
-  for (const [at, { code, ...step }] of checked.value.steps.entries()) {
+  for (const [at, { code, estimateUnit: writtenUnit, ...step }] of checked.value.steps.entries()) {
+    // Proof: skipping this guard imported a missing unit with 201 instead of 400 (composed minute import test).
+    if (version >= 8 && !isEstimateUnit(writtenUnit))
+      return { ok: false, code: 'invalid_body', path: `steps[${String(at)}].estimateUnit` };
+    const estimateUnit = version >= 8 && isEstimateUnit(writtenUnit) ? writtenUnit : 'workdays';
     const path = `steps[${String(at)}].allowancePercent`;
     if (version === 1) {
       // Proof: with this refusal removed, `refuses a version-1 file that names
       // a step allowance` imported it at 0% (2026-09-27).
       if (step.allowancePercent !== undefined) return { ok: false, code: 'invalid_body', path };
-      steps.push({ ...step, allowancePercent: NO_ALLOWANCE, code: null });
+      steps.push({ ...step, estimateUnit, allowancePercent: NO_ALLOWANCE, code: null });
       continue;
     }
     // Proof: with this refusal removed, `refuses a current-format file whose
     // step has no allowance` imported it (2026-09-27).
     if (step.allowancePercent === undefined) return { ok: false, code: 'invalid_body', path };
     if (version === 2) {
-      steps.push({ ...step, allowancePercent: step.allowancePercent, code: null });
+      steps.push({ ...step, estimateUnit, allowancePercent: step.allowancePercent, code: null });
       continue;
     }
     // Proof: with this refusal removed, `refuses a version-3 file whose step
     // has no string code` received ok: true (2026-09-27).
     if (typeof code !== 'string')
       return { ok: false, code: 'invalid_body', path: `steps[${String(at)}].code` };
-    steps.push({ ...step, allowancePercent: step.allowancePercent, code });
+    steps.push({ ...step, estimateUnit, allowancePercent: step.allowancePercent, code });
   }
   const { timezone: written, ...settings } = checked.value.settings;
   let timezone = 'UTC';

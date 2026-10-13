@@ -984,6 +984,65 @@ try {
   ];
 }
 
+/**
+ * Estimate units read by an incoming image (ADR 0042). Absence under readable src
+ * identifies legacy workday arithmetic; unavailable src and nonregular CLI paths refuse.
+ * Proof: an unconditional legacy answer made the missing-source estimate-unit test read exit 0 instead of 74 (2026-10-12).
+ */
+export function estimateUnitsCommand(container: string): string[] {
+  const cli = 'src/estimate-units-cli.ts';
+  return [
+    'exec',
+    container,
+    'sh',
+    '-c',
+    `if test -f ${cli}; then bun run ${cli}; elif test -e ${cli}; then exit 73; elif test -d src && test -r src && test -x src; then printf '["workdays"]\\n'; else exit 74; fi`,
+  ];
+}
+
+/** Stored step units and counts; an older schema only ever held workdays (ADR 0042). */
+export function storedEstimateUnitsCommand(container: string): string[] {
+  return [
+    'exec',
+    container,
+    'bun',
+    '-e',
+    `import { Database } from 'bun:sqlite';
+const path = process.env.DB_PATH;
+if (!path) throw new Error('DB_PATH must be set');
+const db = new Database(path, { readonly: true });
+try {
+  const columns = db.query('PRAGMA table_info(step)').all();
+  if (columns.length === 0) throw new Error('step table does not exist');
+  const hasUnit = columns.some((column) => column.name === 'estimate_unit');
+  const rows = db.query(hasUnit ? 'SELECT estimate_unit AS unit, count(*) AS count FROM step GROUP BY estimate_unit ORDER BY estimate_unit' : "SELECT 'workdays' AS unit, count(*) AS count FROM step HAVING count(*) > 0").all();
+  if (hasUnit) {
+    for (const entry of db.query('SELECT preconditions FROM command_journal').all()) {
+      const preconditions = JSON.parse(entry.preconditions);
+      // Proof: removing shape validation accepted array preconditions (docker.test.ts stored-unit probe).
+      if (typeof preconditions !== 'object' || preconditions === null || Array.isArray(preconditions)) throw new Error('journal preconditions are malformed');
+      if (!Object.hasOwn(preconditions, 'estimateUnits')) continue;
+      const units = preconditions.estimateUnits;
+      // Proof: removing map validation lost the named null-map refusal (docker.test.ts stored-unit probe).
+      if (typeof units !== 'object' || units === null || Array.isArray(units)) throw new Error('journal estimate units are malformed');
+      for (const unit of Object.values(units)) {
+        // Proof: removing vocabulary validation accepted hours (docker.test.ts stored-unit probe).
+        if (unit !== 'workdays' && unit !== 'minutes') throw new Error('journal estimate unit is unknown');
+        // Proof: skipping history minutes lost the gone-step binding (docker.test.ts stored-unit probe).
+        if (unit === 'minutes') {
+          const retained = rows.find((row) => row.unit === 'minutes');
+          if (retained) retained.count += 1;
+          else rows.push({ unit: 'minutes', count: 1 });
+        }
+      }
+    }
+    rows.sort((a, b) => a.unit.localeCompare(b.unit));
+  }
+  console.log(JSON.stringify(rows));
+} finally { db.close(); }`,
+  ];
+}
+
 /** Applies pending migrations through the path shipped in the backend image. */
 export function migrateCommand(container: string): string[] {
   return ['exec', container, 'bun', 'run', 'src/migrate-cli.ts'];

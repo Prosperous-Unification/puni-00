@@ -346,6 +346,7 @@ describe('a priority ladder moves no date', () => {
           position: STEP_POSITION_STEP,
           code: 'dev',
           allowancePercent: 0,
+          estimateUnit: 'workdays' as const,
         },
       ],
       STAMP,
@@ -479,11 +480,13 @@ describe('a priority ladder moves no date', () => {
       // and asserted rather than dropped: the oracle predates step codes, and
       // every replayed step was created with the code its name suggests. A
       // step code names a step; it moves no date.
-      steps: tree.steps.map(({ code, allowancePercent, ...step }) => {
+      steps: tree.steps.map(({ code, allowancePercent, estimateUnit, ...step }) => {
         expect(code).toBe(suggestStepCode(step.name, new Set()));
         // The capture also predates step allowances: every replayed step carries
         // the 0% the migration gives it.
         expect(allowancePercent).toBe(0);
+        // The capture predates estimate units; every legacy step remains workdays.
+        expect(estimateUnit).toBe('workdays');
         return step;
       }),
       // The capture predates the pool named on each slice. Assert the new field
@@ -532,8 +535,20 @@ describe('a priority ladder moves no date', () => {
           readiness,
           hold,
           nodeReadings,
+          charged,
           ...row
         }) => {
+          // Native charges retain the workday figures pinned by the historical oracle.
+          // Proof: replacing production finalsOf charged with {} failed both historical
+          // replays and the ladder comparison here on 2026-10-13.
+          expect(charged).toEqual(
+            Object.fromEntries(
+              Object.entries(row.finalDays).map(([stepId, days]) => [
+                stepId,
+                { unit: 'workdays', days },
+              ]),
+            ),
+          );
           // Lifted by `add-work-item-statuses` and asserted null for the fact
           // dates' reason: the oracle predates both columns and nothing in the
           // replayed plans says a readiness or a hold.
@@ -787,6 +802,7 @@ describe('a priority ladder moves no date', () => {
       code: `step-${String(place)}`,
       position: (place + 1) * STEP_POSITION_STEP,
       allowancePercent: 0,
+      estimateUnit: 'workdays' as const,
     }));
     await projects.create(project, steps, STAMP);
     for (const row of plan.rows) {

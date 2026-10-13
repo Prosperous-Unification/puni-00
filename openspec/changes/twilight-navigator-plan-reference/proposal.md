@@ -13,7 +13,7 @@ Add the Navigator CLI `twin` (`apps/twilight-structure/twilight-navigator/cli`, 
 1. Burokrat's contracts library declares the record kinds `plan-reference` and
    `progress-receipt` (version 1), each carrying a SHA-256 digest of its canonical JSON;
    `decodeRecord` refuses anything else. Navigator depends on Burokrat, never the reverse.
-2. `twin plan-reference` reads one exported WBS plan document (version 6) and a requirements
+2. `twin plan-reference` reads one exported WBS plan document (version 7) and a requirements
    file, and writes a digest-identified plan reference and a deterministic task export,
    created exclusively with mode 0600.
 3. `twin receipt-to-commands` checks a progress receipt against its plan reference and task

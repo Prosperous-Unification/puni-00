@@ -226,6 +226,7 @@ async function seedProject(db: ReturnType<typeof openDrizzle>): Promise<{
         position: 10,
         code: 'dev',
         allowancePercent: 0,
+        estimateUnit: 'workdays' as const,
       },
     ],
     { at: 1, by: ownerId },
@@ -6711,13 +6712,13 @@ describe('buildServices', () => {
     const seed = openDatabase(path);
     try {
       seed.run(
-        "INSERT INTO optimization_generation (project_id, contract_version, generation, input_hash, updated_at) VALUES ('A', '15+0.2.0', 1, 'old', 1)",
+        "INSERT INTO optimization_generation (project_id, contract_version, generation, input_hash, updated_at) VALUES ('A', '16+0.2.0', 1, 'old', 1)",
       );
       seed.run(
         `INSERT INTO solver_slot
          (project_id, contract_version, generation, objective, budget_ms, owner_id,
           attempt_token, lifecycle, pid, started_at, heartbeat_at, admitted_deadline_at)
-         VALUES ('A', '15+0.2.0', 1, 'pri', 60000, 'worker', 'token', 'running', 4242, 1, 1, 60001)`,
+         VALUES ('A', '16+0.2.0', 1, 'pri', 60000, 'worker', 'token', 'running', 4242, 1, 1, 60001)`,
       );
     } finally {
       seed.close();
@@ -6781,6 +6782,7 @@ describe('buildServices', () => {
               position: 10,
               code: 'step',
               allowancePercent: 0,
+              estimateUnit: 'workdays' as const,
             },
           ],
           { at: 1, by: ownerId },
@@ -7324,8 +7326,8 @@ describe('buildServices', () => {
       ]),
     ).toEqual([
       // The current solver release composes with the current scheduler contract.
-      ['0.2.0', '15+0.2.0', 60_000],
-      ['0.2.0', '15+0.2.0', 60_000],
+      ['0.2.0', '16+0.2.0', 60_000],
+      ['0.2.0', '16+0.2.0', 60_000],
     ]);
   });
 
@@ -7395,7 +7397,7 @@ describe('buildServices', () => {
     // seeded failed pair and failed here with `Expected ["pri", "time"] /
     // Received []`; watched 2026-09-07.
     expect(spawned.map(({ objective }) => objective)).toEqual(['pri', 'time']);
-    expect(spawned.map(({ key }) => key.contractVersion)).toEqual(['15+0.2.0', '15+0.2.0']);
+    expect(spawned.map(({ key }) => key.contractVersion)).toEqual(['16+0.2.0', '16+0.2.0']);
     expect(
       db
         .select({ contractVersion: optimizedScheduleCache.contractVersion })

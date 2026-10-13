@@ -27,8 +27,8 @@ const nodeFs = (id: string, from: [string, string], to: [string, string]): Typed
 const base: DependencyGraphState = {
   rows: [item('A'), item('B')],
   steps: [
-    { id: 'dev', allowancePercent: NO_ALLOWANCE },
-    { id: 'qa', allowancePercent: NO_ALLOWANCE },
+    { estimateUnit: 'workdays' as const, id: 'dev', allowancePercent: NO_ALLOWANCE },
+    { estimateUnit: 'workdays' as const, id: 'qa', allowancePercent: NO_ALLOWANCE },
   ],
   estimates: [
     { workItemId: 'A', stepId: 'dev' },

@@ -79,8 +79,22 @@ export function planDocumentFixture(): PlanDocumentImport {
     steps: [
       // `impl`, not the `build` a suggestion would give, so a round trip shows
       // the file's own code was kept.
-      { id: 'step-1', name: ' Build ', position: 10, allowancePercent: 0, code: 'impl' },
-      { id: 'step-2', name: 'QA', position: 20, allowancePercent: 30, code: 'qa' },
+      {
+        estimateUnit: 'workdays' as const,
+        id: 'step-1',
+        name: ' Build ',
+        position: 10,
+        allowancePercent: 0,
+        code: 'impl',
+      },
+      {
+        estimateUnit: 'workdays' as const,
+        id: 'step-2',
+        name: 'QA',
+        position: 20,
+        allowancePercent: 30,
+        code: 'qa',
+      },
     ],
   };
 }

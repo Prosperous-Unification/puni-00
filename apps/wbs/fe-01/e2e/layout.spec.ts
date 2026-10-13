@@ -2404,7 +2404,7 @@ test.describe('the table, measured by a browser', () => {
     // Through `Project settings` and its `Steps` tab, since `project-config-modal`.
     await page.getByRole('button', { name: 'Project settings' }).click();
     await page.getByRole('tab', { name: 'Steps' }).click();
-    await page.getByLabel('New step').fill('Design');
+    await page.getByRole('textbox', { name: 'New step', exact: true }).fill('Design');
     await page.getByRole('button', { name: 'Add step' }).click();
     await expect(page.getByRole('button', { name: 'Remove Design' })).toBeVisible();
     // The same race the removals below close, on the way in: the section holds

@@ -28,6 +28,7 @@ export function createPlanCommands({ projectId, routes }: PlanCommandPorts): Pla
     setPriorityBands: (...rest) => routes.setPriorityBands(projectId, ...rest),
     addStep: (...rest) => routes.addStep(projectId, ...rest),
     renameStep: (...rest) => routes.renameStep(projectId, ...rest),
+    setStepUnit: (...rest) => routes.setStepUnit(projectId, ...rest),
     setStepAllowance: (...rest) => routes.setStepAllowance(projectId, ...rest),
     removeStep: (...rest) => routes.removeStep(projectId, ...rest),
     createWorkItem: (...rest) => routes.createWorkItem(projectId, ...rest),

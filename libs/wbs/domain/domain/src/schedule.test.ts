@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 
 import type { PlannedRow } from './derive-numbers';
+import { chargedWorkdaysOf, DEFAULT_ESTIMATE_RULE, NO_ALLOWANCE } from './estimate';
 import type { DependencyEdge, Scheduled, ScheduledSlice, Slice } from './schedule';
 import { schedule as planSlices, sliceKey } from './schedule';
 
@@ -496,4 +497,16 @@ describe('schedule — the slices it refuses to plan', () => {
       /not a leaf/,
     );
   });
+});
+
+it('a 240-minute slice lasts half a workday and its successor starts at 0.5', () => {
+  const duration = chargedWorkdaysOf(
+    'minutes',
+    { optimistic: 240, realistic: 240, pessimistic: 240 },
+    DEFAULT_ESTIMATE_RULE,
+    NO_ALLOWANCE,
+  );
+  const found = schedule([item('a'), item('b')], [edge('a', 'b')], days({ a: duration, b: 1 }));
+  expect(found.get('a')?.duration).toBe(0.5);
+  expect(found.get('b')?.earliestStart).toBe(0.5);
 });

@@ -1,6 +1,6 @@
 export { STEP_POSITION_STEP } from '@wbs/domain';
 
-import type { AllowancePercent } from '@wbs/domain';
+import type { AllowancePercent, EstimateUnit } from '@wbs/domain';
 
 import type { Assignment } from './directory-store';
 import type { WriteStamp } from './write-stamp';
@@ -28,6 +28,8 @@ export interface Step {
    * set one; there is no per-work-item override.
    */
   allowancePercent: AllowancePercent;
+  /** Unit of every trio on this step; changing it over estimates is refused (ADR 0042). */
+  estimateUnit: EstimateUnit;
 }
 
 /**
@@ -39,7 +41,10 @@ export interface Step {
  * the reserved namespace; absent, the store suggests one from the name against
  * the codes the project holds, inside the same transaction.
  */
-export type NewStep = Omit<Step, 'position' | 'code'> & { code?: string };
+export type NewStep = Omit<Step, 'position' | 'code' | 'estimateUnit'> & {
+  code?: string;
+  estimateUnit?: EstimateUnit;
+};
 
 /**
  * Why a step could not be added or renamed. All are states of the project, not
@@ -56,6 +61,12 @@ export type StepWritten = { ok: true; step: Step } | { ok: false; reason: StepWr
 export type StepAllowanceWritten =
   | { ok: true; step: Step; previousPercent: AllowancePercent; revision: number }
   | { ok: false; reason: 'not_found' };
+
+/** An empty step changed unit, or a count names why it could not (ADR 0042). */
+export type StepUnitWritten =
+  | { ok: true; step: Step }
+  | { ok: false; reason: 'not_found' }
+  | { ok: false; reason: 'estimates_present'; count: number };
 
 /**
  * What points at one step, read for the refusal that names it.
@@ -168,6 +179,13 @@ export interface StepStore {
    * has gone or is not `projectId`'s: the project is part of the write's own
    * predicate, so a check made before the write cannot be outrun.
    */
+  /** Writes a new unit only when no estimate holds the old unit, in the same transaction. */
+  patchUnit(
+    projectId: string,
+    stepId: string,
+    unit: EstimateUnit,
+    stamp: WriteStamp,
+  ): Promise<StepUnitWritten>;
   rename(projectId: string, stepId: string, name: string, stamp: WriteStamp): Promise<StepWritten>;
   /**
    * What points at the step right now — a **fast path** for the refusal, never

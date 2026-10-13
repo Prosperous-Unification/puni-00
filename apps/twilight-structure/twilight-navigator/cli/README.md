@@ -12,7 +12,7 @@ progress receipt comes back. Burokrat declares and validates both
 
 ## `twin plan-reference`
 
-From the repository root, with a WBS plan export (`GET /api/projects/:id/export`, version 6)
+From the repository root, with a WBS plan export (`GET /api/projects/:id/export`, version 7)
 and the requirements the plan answers (for example the change's delta spec):
 
 ```sh

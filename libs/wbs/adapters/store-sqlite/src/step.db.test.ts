@@ -113,8 +113,24 @@ beforeEach(async () => {
   devId = crypto.randomUUID();
   qaId = crypto.randomUUID();
   const starting: Step[] = [
-    { id: devId, projectId, name: 'Dev', position: 10, code: 'dev', allowancePercent: 0 },
-    { id: qaId, projectId, name: 'QA', position: 20, code: 'qa', allowancePercent: 0 },
+    {
+      id: devId,
+      projectId,
+      name: 'Dev',
+      position: 10,
+      code: 'dev',
+      allowancePercent: 0,
+      estimateUnit: 'workdays' as const,
+    },
+    {
+      id: qaId,
+      projectId,
+      name: 'QA',
+      position: 20,
+      code: 'qa',
+      allowancePercent: 0,
+      estimateUnit: 'workdays' as const,
+    },
   ];
   await projects.create(project, starting, wrote());
 
@@ -130,6 +146,7 @@ beforeEach(async () => {
         position: 10,
         code: 'dev',
         allowancePercent: 0,
+        estimateUnit: 'workdays' as const,
       },
     ],
     wrote(),
@@ -261,7 +278,13 @@ describe('StepRepository', () => {
     const before = await revisionOf(projectId);
 
     const written = await steps.add(
-      { id: 'design', projectId, name: 'Design', allowancePercent: 0 },
+      {
+        id: 'design',
+        projectId,
+        name: 'Design',
+        allowancePercent: 0,
+        estimateUnit: 'workdays' as const,
+      },
       wrote(),
     );
 
@@ -274,6 +297,7 @@ describe('StepRepository', () => {
         position: 30,
         code: 'design',
         allowancePercent: 0,
+        estimateUnit: 'workdays' as const,
       },
     });
     const names = (await steps.listByProject(projectId)).map((each) => each.name);
@@ -283,7 +307,14 @@ describe('StepRepository', () => {
 
   it('writes the code its creator chose', async () => {
     const written = await steps.add(
-      { id: 'impl', projectId, name: 'Build', code: 'impl', allowancePercent: 0 },
+      {
+        id: 'impl',
+        projectId,
+        name: 'Build',
+        code: 'impl',
+        allowancePercent: 0,
+        estimateUnit: 'workdays' as const,
+      },
       wrote(),
     );
 
@@ -296,13 +327,20 @@ describe('StepRepository', () => {
         position: 30,
         code: 'impl',
         allowancePercent: 0,
+        estimateUnit: 'workdays' as const,
       },
     });
   });
 
   it('suggests a code against the codes the project holds', async () => {
     const written = await steps.add(
-      { id: 'qa-again', projectId, name: 'Q/A', allowancePercent: 0 },
+      {
+        id: 'qa-again',
+        projectId,
+        name: 'Q/A',
+        allowancePercent: 0,
+        estimateUnit: 'workdays' as const,
+      },
       wrote(),
     );
 
@@ -315,10 +353,17 @@ describe('StepRepository', () => {
         position: 30,
         code: 'q-a',
         allowancePercent: 0,
+        estimateUnit: 'workdays' as const,
       },
     });
     const clash = await steps.add(
-      { id: 'dev-again', projectId, name: 'DEV!', allowancePercent: 0 },
+      {
+        id: 'dev-again',
+        projectId,
+        name: 'DEV!',
+        allowancePercent: 0,
+        estimateUnit: 'workdays' as const,
+      },
       wrote(),
     );
     expect(clash).toEqual({
@@ -330,6 +375,7 @@ describe('StepRepository', () => {
         position: 40,
         code: 'dev-2',
         allowancePercent: 0,
+        estimateUnit: 'workdays' as const,
       },
     });
   });
@@ -343,7 +389,14 @@ describe('StepRepository', () => {
     const before = await revisionOf(projectId);
 
     const written = await steps.add(
-      { id: 'dup', projectId, name: 'Develop', code: 'dev', allowancePercent: 0 },
+      {
+        id: 'dup',
+        projectId,
+        name: 'Develop',
+        code: 'dev',
+        allowancePercent: 0,
+        estimateUnit: 'workdays' as const,
+      },
       wrote(),
     );
 
@@ -364,10 +417,17 @@ describe('StepRepository', () => {
       position: 30,
       code: null,
       allowancePercent: 0,
+      estimateUnit: 'workdays' as const,
     });
     // And a new step beside it is still coded: an uncoded step holds no code.
     const written = await steps.add(
-      { id: 'next', projectId, name: 'Legacy 2', allowancePercent: 0 },
+      {
+        id: 'next',
+        projectId,
+        name: 'Legacy 2',
+        allowancePercent: 0,
+        estimateUnit: 'workdays' as const,
+      },
       wrote(),
     );
     expect(written.ok && written.step.code).toBe('legacy-2');
@@ -378,7 +438,16 @@ describe('StepRepository', () => {
     // `WHERE project_id = ?` from `step_project_name`, so without an ORDER BY
     // these come back `Analysis, Dev, QA` — and step order is what a work
     // item's slices run in.
-    await steps.add({ id: 'analysis', projectId, name: 'Analysis', allowancePercent: 0 }, wrote());
+    await steps.add(
+      {
+        id: 'analysis',
+        projectId,
+        name: 'Analysis',
+        allowancePercent: 0,
+        estimateUnit: 'workdays' as const,
+      },
+      wrote(),
+    );
 
     const names = (await steps.listByProject(projectId)).map((each) => each.name);
 
@@ -387,7 +456,13 @@ describe('StepRepository', () => {
 
   it('reads the same order through the project, which is where the schedule asks', async () => {
     await steps.add(
-      { id: 'analysis-2', projectId, name: 'Analysis', allowancePercent: 0 },
+      {
+        id: 'analysis-2',
+        projectId,
+        name: 'Analysis',
+        allowancePercent: 0,
+        estimateUnit: 'workdays' as const,
+      },
       wrote(),
     );
 
@@ -398,7 +473,13 @@ describe('StepRepository', () => {
 
   it('refuses a name the project already holds, and leaves the steps as they were', async () => {
     const written = await steps.add(
-      { id: 'second-qa', projectId, name: 'QA', allowancePercent: 0 },
+      {
+        id: 'second-qa',
+        projectId,
+        name: 'QA',
+        allowancePercent: 0,
+        estimateUnit: 'workdays' as const,
+      },
       wrote(),
     );
 
@@ -408,7 +489,13 @@ describe('StepRepository', () => {
 
   it('accepts in one project a name another project holds', async () => {
     const written = await steps.add(
-      { id: 'other-qa', projectId: otherProjectId, name: 'QA', allowancePercent: 0 },
+      {
+        id: 'other-qa',
+        projectId: otherProjectId,
+        name: 'QA',
+        allowancePercent: 0,
+        estimateUnit: 'workdays' as const,
+      },
       wrote(),
     );
 
@@ -427,7 +514,15 @@ describe('StepRepository', () => {
       ok: true,
       // The code stays: a step code is immutable, and `010.qa` must keep
       // naming this step after the rename.
-      step: { id: qaId, projectId, name: 'Review', position: 20, code: 'qa', allowancePercent: 0 },
+      step: {
+        id: qaId,
+        projectId,
+        name: 'Review',
+        position: 20,
+        code: 'qa',
+        allowancePercent: 0,
+        estimateUnit: 'workdays' as const,
+      },
     });
     expect(await revisionOf(projectId)).toBe(before + 1);
   });
@@ -472,6 +567,7 @@ describe('StepRepository', () => {
       position: 20,
       code: 'qa',
       allowancePercent: 0,
+      estimateUnit: 'workdays' as const,
     });
   });
 
@@ -949,7 +1045,13 @@ describe('what a step read publishes', () => {
    */
   it('carries the columns the Step type declares and no others', async () => {
     const written = await steps.add(
-      { id: 'design', projectId, name: 'Design', allowancePercent: 0 },
+      {
+        id: 'design',
+        projectId,
+        name: 'Design',
+        allowancePercent: 0,
+        estimateUnit: 'workdays' as const,
+      },
       wrote(),
     );
     if (!written.ok) throw new Error(`add refused: ${written.reason}`);
@@ -985,6 +1087,7 @@ describe('ProjectRepository.setStepAllowance', () => {
         position: 20,
         code: 'qa',
         allowancePercent: 12.34,
+        estimateUnit: 'workdays' as const,
       },
       previousPercent: 0,
       revision: 1,
@@ -1047,4 +1150,35 @@ describe('ProjectRepository.setStepAllowance', () => {
       sqlite.close();
     }
   });
+});
+
+it('reads and writes a step estimate unit', async () => {
+  const added = await steps.add(
+    { id: 'minute-step', projectId, name: 'Agent', allowancePercent: 0, estimateUnit: 'minutes' },
+    wrote(),
+  );
+  expect(added).toMatchObject({ ok: true, step: { estimateUnit: 'minutes' } });
+  expect(await steps.findById('minute-step')).toMatchObject({ estimateUnit: 'minutes' });
+});
+
+it('names an absent estimate-count row before changing a unit', () => {
+  let reads = 0;
+  const tx = {
+    select: () => ({
+      from: () => ({
+        where: () => ({
+          get: () =>
+            reads++ === 0 ? { id: devId, projectId, estimateUnit: 'workdays' } : undefined,
+        }),
+      }),
+    }),
+  };
+  const broken = { transaction: (act: (transaction: typeof tx) => unknown) => act(tx) };
+  const repository = new StepRepository(
+    broken as unknown as ConstructorParameters<typeof StepRepository>[0],
+    OPEN,
+  );
+  expect(repository.patchUnit(projectId, devId, 'minutes', wrote())).rejects.toThrow(
+    'estimate count returned no row',
+  );
 });

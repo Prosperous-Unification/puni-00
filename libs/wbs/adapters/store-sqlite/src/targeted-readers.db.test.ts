@@ -56,6 +56,7 @@ beforeEach(async () => {
       position: 10,
       code: 'build',
       allowancePercent: 0,
+      estimateUnit: 'workdays' as const,
     },
   ];
   await new ProjectRepository(db, OPEN).create(project, steps, STAMP);
@@ -269,6 +270,7 @@ describe('targeted SQLite readers reject malformed stored state', () => {
           position: 10,
           code: 'foreign',
           allowancePercent: 0,
+          estimateUnit: 'workdays' as const,
         },
       ],
       STAMP,

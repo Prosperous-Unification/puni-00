@@ -9,11 +9,13 @@ import { assembleCaddyfile } from './lib/caddy';
 import {
   attemptOutcomesCommand,
   capacityModesCommand,
+  estimateUnitsCommand,
   holdKindsCommand,
   readinessKindsCommand,
   relationshipTypesCommand,
   storedAttemptOutcomesCommand,
   storedCapacityModesCommand,
+  storedEstimateUnitsCommand,
   storedHoldsCommand,
   storedReadinessesCommand,
   storedRelationshipTypesCommand,
@@ -951,13 +953,22 @@ describe('execute, stored vocabulary rollback guard', () => {
       supported: '[]',
       stored: () => '[]',
     },
+    units: { supported: string; stored: (read: number) => string } = {
+      supported: '["workdays","minutes"]',
+      stored: () => '[]',
+    },
   ) {
     const ran: string[][] = [];
     const phases: string[] = [];
     let outcomeReads = 0;
+    let unitReads = 0;
     const io: SwapExecutionIo = {
       sh: (args) => {
         ran.push(args);
+        if (JSON.stringify(args) === JSON.stringify(estimateUnitsCommand('be-01-green')))
+          return Promise.resolve(units.supported);
+        if (JSON.stringify(args) === JSON.stringify(storedEstimateUnitsCommand('be-01-green')))
+          return Promise.resolve(units.stored(++unitReads));
         if (JSON.stringify(args) === JSON.stringify(capacityModesCommand('be-01-green')))
           return Promise.resolve('["isolated"]');
         if (JSON.stringify(args) === JSON.stringify(storedCapacityModesCommand('be-01-green')))
@@ -1146,6 +1157,34 @@ describe('execute, stored vocabulary rollback guard', () => {
     expect(attempt.ran.some((args) => args.includes('src/migrate-cli.ts'))).toBe(true);
   });
 
+  it('refuses an image that reads no minutes while minute steps are stored, and stops green', async () => {
+    const attempt = await runGuard('["FS"]', '[]', undefined, undefined, undefined, undefined, {
+      supported: '["workdays"]',
+      stored: () => '[{"unit":"minutes","count":2}]',
+    });
+    expect(attempt.caught).toHaveProperty('message', expect.stringContaining('minutes (2)'));
+    expect(attempt.caught).toHaveProperty(
+      'message',
+      expect.stringContaining('estimate-unit-rollback-cli.ts save'),
+    );
+    expect(attempt.ran.at(-1)).toEqual(['stop', 'be-01-green']);
+    expect(attempt.ran.some((args) => args.includes('src/migrate-cli.ts'))).toBe(false);
+  });
+
+  it('passes an image without the units CLI over workday steps', async () => {
+    const attempt = await runGuard('["FS"]', '[]', undefined, undefined, undefined, undefined, {
+      supported: '["workdays"]',
+      stored: () => '[{"unit":"workdays","count":2}]',
+    });
+    expect(attempt.caught).toBeUndefined();
+    expect(
+      attempt.ran.some(
+        (args) =>
+          JSON.stringify(args) === JSON.stringify(storedEstimateUnitsCommand('be-01-green')),
+      ),
+    ).toBe(true);
+  });
+
   it('allows stored readiness when the incoming image reads it', async () => {
     const attempt = await runGuard('["FS"]', '[]', undefined, undefined, {
       supported: '["draft","ready"]',
@@ -1208,6 +1247,10 @@ describe('execute, pre-migration backup', () => {
     const phases: string[] = [];
     const io: SwapExecutionIo = {
       sh: (args) => {
+        if (JSON.stringify(args) === JSON.stringify(estimateUnitsCommand('be-01-green')))
+          return Promise.resolve('["workdays","minutes"]');
+        if (JSON.stringify(args) === JSON.stringify(storedEstimateUnitsCommand('be-01-green')))
+          return Promise.resolve('[]');
         ran.push(args);
         if (JSON.stringify(args) === JSON.stringify(capacityModesCommand('be-01-green')))
           return Promise.resolve('["isolated"]');
@@ -1302,6 +1345,10 @@ describe('execute, captured migration set', () => {
       let persisted = '';
       const io: SwapExecutionIo = {
         sh: (args) => {
+          if (JSON.stringify(args) === JSON.stringify(estimateUnitsCommand('be-01-green')))
+            return Promise.resolve('["workdays","minutes"]');
+          if (JSON.stringify(args) === JSON.stringify(storedEstimateUnitsCommand('be-01-green')))
+            return Promise.resolve('[]');
           ran.push(args);
           if (args[2] === 'printenv' && args[3] === 'DB_PATH')
             return Promise.resolve('/data/wbs.db\n');
@@ -1351,6 +1398,10 @@ describe('execute, captured migration set', () => {
     const ran: string[][] = [];
     const io: SwapExecutionIo = {
       sh: (args) => {
+        if (JSON.stringify(args) === JSON.stringify(estimateUnitsCommand('be-01-green')))
+          return Promise.resolve('["workdays","minutes"]');
+        if (JSON.stringify(args) === JSON.stringify(storedEstimateUnitsCommand('be-01-green')))
+          return Promise.resolve('[]');
         ran.push(args);
         if (args[2] === 'printenv' && args[3] === 'DB_PATH')
           return Promise.resolve('/data/wbs.db\n');
@@ -1384,6 +1435,10 @@ describe('execute, captured migration set', () => {
     let captured = '';
     const io: SwapExecutionIo = {
       sh: (args) => {
+        if (JSON.stringify(args) === JSON.stringify(estimateUnitsCommand('be-01-green')))
+          return Promise.resolve('["workdays","minutes"]');
+        if (JSON.stringify(args) === JSON.stringify(storedEstimateUnitsCommand('be-01-green')))
+          return Promise.resolve('[]');
         ran.push(args);
         if (args[2] === 'printenv' && args[3] === 'DB_PATH')
           return Promise.resolve('/data/wbs.db\n');
@@ -1422,6 +1477,10 @@ describe('execute, captured migration set', () => {
     let failCommit = false;
     const io: SwapExecutionIo = {
       sh: (args) => {
+        if (JSON.stringify(args) === JSON.stringify(estimateUnitsCommand('be-01-green')))
+          return Promise.resolve('["workdays","minutes"]');
+        if (JSON.stringify(args) === JSON.stringify(storedEstimateUnitsCommand('be-01-green')))
+          return Promise.resolve('[]');
         if (args[2] === 'printenv' && args[3] === 'DB_PATH')
           return Promise.resolve('/data/wbs.db\n');
         if (args.includes('src/migrate-status-cli.ts'))
@@ -1470,6 +1529,10 @@ describe('execute, after routing has moved', () => {
     let holdReads = 0;
     const io: SwapExecutionIo = {
       sh: (args) => {
+        if (JSON.stringify(args) === JSON.stringify(estimateUnitsCommand('be-01-green')))
+          return Promise.resolve('["workdays","minutes"]');
+        if (JSON.stringify(args) === JSON.stringify(storedEstimateUnitsCommand('be-01-green')))
+          return Promise.resolve('[]');
         ran.push(args);
         if (JSON.stringify(args) === JSON.stringify(capacityModesCommand('be-01-green')))
           return Promise.resolve('["isolated"]');
@@ -1544,6 +1607,10 @@ describe('execute, after routing has moved', () => {
     let outcomeReads = 0;
     const io: SwapExecutionIo = {
       sh: (args) => {
+        if (JSON.stringify(args) === JSON.stringify(estimateUnitsCommand('be-01-green')))
+          return Promise.resolve('["workdays","minutes"]');
+        if (JSON.stringify(args) === JSON.stringify(storedEstimateUnitsCommand('be-01-green')))
+          return Promise.resolve('[]');
         ran.push(args);
         if (JSON.stringify(args) === JSON.stringify(capacityModesCommand('be-01-green')))
           return Promise.resolve('["isolated"]');
@@ -1612,12 +1679,95 @@ describe('execute, after routing has moved', () => {
     expect(written).toEqual(['phase old-stopped']);
   });
 
+  it('refuses a minute unit written after the first check once blue stops', async () => {
+    const ran: string[][] = [];
+    const written: string[] = [];
+    let unitReads = 0;
+    const io: SwapExecutionIo = {
+      sh: (args) => {
+        ran.push(args);
+        if (JSON.stringify(args) === JSON.stringify(capacityModesCommand('be-01-green')))
+          return Promise.resolve('["isolated"]');
+        if (JSON.stringify(args) === JSON.stringify(storedCapacityModesCommand('be-01-green')))
+          return Promise.resolve('[]');
+        if (JSON.stringify(args) === JSON.stringify(estimateUnitsCommand('be-01-green')))
+          return Promise.resolve('["workdays"]');
+        if (JSON.stringify(args) === JSON.stringify(storedEstimateUnitsCommand('be-01-green'))) {
+          unitReads++;
+          return Promise.resolve(unitReads === 1 ? '[]' : '[{"unit":"minutes","count":1}]');
+        }
+        if (
+          JSON.stringify(args) === JSON.stringify(attemptOutcomesCommand('be-01-green')) ||
+          JSON.stringify(args) === JSON.stringify(storedAttemptOutcomesCommand('be-01-green'))
+        )
+          return Promise.resolve('[]');
+        const is = (command: string[]) => JSON.stringify(args) === JSON.stringify(command);
+        if (is(relationshipTypesCommand('be-01-green'))) return Promise.resolve('["FS"]');
+        if (is(storedRelationshipTypesCommand('be-01-green'))) return Promise.resolve('[]');
+        if (is(holdKindsCommand('be-01-green'))) return Promise.resolve('[]');
+        if (is(readinessKindsCommand('be-01-green'))) return Promise.resolve('[]');
+        if (is(storedReadinessesCommand('be-01-green'))) return Promise.resolve('[]');
+        if (is(storedHoldsCommand('be-01-green'))) return Promise.resolve('[]');
+        if (args.includes('src/migrate-status-cli.ts')) return Promise.resolve('none');
+        if (args.includes('src/migrate-cli.ts')) return Promise.resolve('migrated');
+        if (args[0] === 'stop') return Promise.resolve('');
+        throw new Error(`unexpected Docker command: ${args.join(' ')}`);
+      },
+      readPhase: () => Promise.resolve('committed'),
+      writePhase: (_path, phase) => {
+        written.push(`phase ${phase}`);
+        return Promise.resolve();
+      },
+      writeAtomic: (path) => {
+        written.push(`file ${path}`);
+        return Promise.resolve();
+      },
+    };
+
+    let caught: unknown;
+    try {
+      await execute(
+        {
+          tier: 'be',
+          from: 'blue',
+          to: 'green',
+          steps: [
+            'stored-vocabularies',
+            'migrate',
+            'stop-blue',
+            'stored-vocabularies-after-stop',
+            'backfill-step-codes',
+            'commit',
+          ],
+        },
+        'registry/be-01@sha256:abc',
+        'deadbeef',
+        withCapturedMigrationIo(io),
+      );
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toHaveProperty(
+      'message',
+      expect.stringMatching(
+        /minutes \(1\).*redeploy.*docs\/runbook-prod-deploy\.md#estimate-unit-rollback/is,
+      ),
+    );
+    expect(unitReads).toBe(2);
+    expect(ran.some((args) => args.includes('src/backfill-step-codes-cli.ts'))).toBe(false);
+    expect(written).toEqual(['phase old-stopped']);
+  });
+
   it('refuses FF inserted after the first check once blue stops, without committing', async () => {
     const ran: string[][] = [];
     const written: string[] = [];
     let storedReads = 0;
     const io: SwapExecutionIo = {
       sh: (args) => {
+        if (JSON.stringify(args) === JSON.stringify(estimateUnitsCommand('be-01-green')))
+          return Promise.resolve('["workdays","minutes"]');
+        if (JSON.stringify(args) === JSON.stringify(storedEstimateUnitsCommand('be-01-green')))
+          return Promise.resolve('[]');
         ran.push(args);
         if (JSON.stringify(args) === JSON.stringify(capacityModesCommand('be-01-green')))
           return Promise.resolve('["isolated"]');
@@ -1705,6 +1855,10 @@ describe('execute, after routing has moved', () => {
     const written: string[] = [];
     const io: SwapExecutionIo = {
       sh: (args) => {
+        if (JSON.stringify(args) === JSON.stringify(estimateUnitsCommand('be-01-green')))
+          return Promise.resolve('["workdays","minutes"]');
+        if (JSON.stringify(args) === JSON.stringify(storedEstimateUnitsCommand('be-01-green')))
+          return Promise.resolve('[]');
         ran.push(args);
         if (JSON.stringify(args) === JSON.stringify(capacityModesCommand('be-01-green')))
           return Promise.resolve('["isolated"]');
@@ -1763,6 +1917,10 @@ describe('execute, capacity mode guard', () => {
     let reads = 0;
     const io: SwapExecutionIo = {
       sh: (args) => {
+        if (JSON.stringify(args) === JSON.stringify(estimateUnitsCommand('be-01-green')))
+          return Promise.resolve('["workdays","minutes"]');
+        if (JSON.stringify(args) === JSON.stringify(storedEstimateUnitsCommand('be-01-green')))
+          return Promise.resolve('[]');
         ran.push(args);
         const is = (command: string[]) => JSON.stringify(args) === JSON.stringify(command);
         if (is(capacityModesCommand('be-01-green')))

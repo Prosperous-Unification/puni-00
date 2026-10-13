@@ -13,7 +13,7 @@ import {
 } from './roll-up';
 import type { StepNodeRef } from './step-node';
 import type { StoredActual, StoredEstimate, StoredMeasure, StoredProgress } from './step-values';
-import type { MeasureMetric } from './stored-vocabularies';
+import type { EstimateUnit, MeasureMetric } from './stored-vocabularies';
 
 const item = (id: string, parentId: string | null): ParentedRow => ({ id, parentId });
 
@@ -488,6 +488,10 @@ describe('rollUpFinals', () => {
       [held('a', 'dev', 0.5, 0.5, 0.5)],
       ceiling,
       noAllowance,
+      new Map<string, EstimateUnit>([
+        ['dev', 'workdays'],
+        ['qa', 'workdays'],
+      ]),
     );
 
     expect(finals.get('a')?.get('dev')).toBe(1);
@@ -507,7 +511,16 @@ describe('rollUpFinals', () => {
     const rows = [item('parent', null), item('one', 'parent'), item('two', 'parent')];
     const estimates = [held('one', 'dev', 0.5, 0.5, 0.5), held('two', 'dev', 0.5, 0.5, 0.5)];
 
-    const finals = rollUpFinals(rows, estimates, ceiling, noAllowance);
+    const finals = rollUpFinals(
+      rows,
+      estimates,
+      ceiling,
+      noAllowance,
+      new Map<string, EstimateUnit>([
+        ['dev', 'workdays'],
+        ['qa', 'workdays'],
+      ]),
+    );
 
     expect(finals.get('one')?.get('dev')).toBe(1);
     expect(finals.get('two')?.get('dev')).toBe(1);
@@ -524,7 +537,20 @@ describe('rollUpFinals', () => {
     const rows = [item('a', null)];
     const estimates = [held('a', 'dev', 2, 3, 10)];
 
-    expect(rollUpFinals(rows, estimates, ceiling, noAllowance).get('a')?.get('dev')).toBe(4);
+    expect(
+      rollUpFinals(
+        rows,
+        estimates,
+        ceiling,
+        noAllowance,
+        new Map<string, EstimateUnit>([
+          ['dev', 'workdays'],
+          ['qa', 'workdays'],
+        ]),
+      )
+        .get('a')
+        ?.get('dev'),
+    ).toBe(4);
     expect(
       rollUpFinals(
         rows,
@@ -534,6 +560,10 @@ describe('rollUpFinals', () => {
           pertWeights: { optimistic: 1, realistic: 1, pessimistic: 1 },
         },
         noAllowance,
+        new Map<string, EstimateUnit>([
+          ['dev', 'workdays'],
+          ['qa', 'workdays'],
+        ]),
       )
         .get('a')
         ?.get('dev'),
@@ -544,6 +574,10 @@ describe('rollUpFinals', () => {
         [held('a', 'dev', 1, 2, 4)],
         { ...ceiling, rounding: 'floor' },
         noAllowance,
+        new Map<string, EstimateUnit>([
+          ['dev', 'workdays'],
+          ['qa', 'workdays'],
+        ]),
       )
         .get('a')
         ?.get('dev'),
@@ -553,7 +587,16 @@ describe('rollUpFinals', () => {
   it('reports a step no descendant estimated as absent, not as zero days', () => {
     const rows = [item('parent', null), item('one', 'parent')];
 
-    const finals = rollUpFinals(rows, [held('one', 'dev', 1, 2, 3)], ceiling, noAllowance);
+    const finals = rollUpFinals(
+      rows,
+      [held('one', 'dev', 1, 2, 3)],
+      ceiling,
+      noAllowance,
+      new Map<string, EstimateUnit>([
+        ['dev', 'workdays'],
+        ['qa', 'workdays'],
+      ]),
+    );
 
     expect(finals.get('parent')?.has('qa')).toBe(false);
   });
@@ -563,7 +606,20 @@ describe('rollUpFinals', () => {
     const estimates = [held('parent', 'dev', 99, 99, 99), held('one', 'dev', 1, 2, 3)];
 
     // `(1 + 4×2 + 3) / 6` is 2 days; the 99s are not counted at all.
-    expect(rollUpFinals(rows, estimates, ceiling, noAllowance).get('parent')?.get('dev')).toBe(2);
+    expect(
+      rollUpFinals(
+        rows,
+        estimates,
+        ceiling,
+        noAllowance,
+        new Map<string, EstimateUnit>([
+          ['dev', 'workdays'],
+          ['qa', 'workdays'],
+        ]),
+      )
+        .get('parent')
+        ?.get('dev'),
+    ).toBe(2);
   });
 
   describe('with a step allowance', () => {
@@ -578,6 +634,10 @@ describe('rollUpFinals', () => {
         [held('a', 'qa', 1.1, 1.1, 1.1)],
         ceiling,
         qaAt30,
+        new Map<string, EstimateUnit>([
+          ['dev', 'workdays'],
+          ['qa', 'workdays'],
+        ]),
       );
 
       expect(finals.get('a')?.get('qa')).toBe(2);
@@ -591,7 +651,16 @@ describe('rollUpFinals', () => {
       const rows = [item('parent', null), item('one', 'parent'), item('two', 'parent')];
       const estimates = [held('one', 'qa', 2, 2, 2), held('two', 'qa', 2, 2, 2)];
 
-      const finals = rollUpFinals(rows, estimates, ceiling, qaAt30);
+      const finals = rollUpFinals(
+        rows,
+        estimates,
+        ceiling,
+        qaAt30,
+        new Map<string, EstimateUnit>([
+          ['dev', 'workdays'],
+          ['qa', 'workdays'],
+        ]),
+      );
 
       expect(finals.get('one')?.get('qa')).toBe(3);
       expect(finals.get('two')?.get('qa')).toBe(3);
@@ -604,6 +673,10 @@ describe('rollUpFinals', () => {
         [held('a', 'dev', 1.1, 1.1, 1.1)],
         ceiling,
         qaAt30,
+        new Map<string, EstimateUnit>([
+          ['dev', 'workdays'],
+          ['qa', 'workdays'],
+        ]),
       );
 
       expect(finals.get('a')?.get('dev')).toBe(2);
@@ -611,8 +684,41 @@ describe('rollUpFinals', () => {
 
     it('throws for an estimate whose step is not in the plan read', () => {
       expect(() =>
-        rollUpFinals([item('a', null)], [held('a', 'gone', 1, 1, 1)], ceiling, qaAt30),
+        rollUpFinals(
+          [item('a', null)],
+          [held('a', 'gone', 1, 1, 1)],
+          ceiling,
+          qaAt30,
+          new Map<string, EstimateUnit>([
+            ['dev', 'workdays'],
+            ['qa', 'workdays'],
+          ]),
+        ),
       ).toThrow('no allowance is known for step gone');
     });
   });
+});
+
+it('folds a minute step as its charged minutes over 480', () => {
+  const finals = rollUpFinals(
+    [item('parent', null), item('leaf', 'parent')],
+    [held('leaf', 'agent', 240, 240, 240)],
+    DEFAULT_ESTIMATE_RULE,
+    new Map([['agent', 0]]),
+    new Map([['agent', 'minutes']]),
+  );
+  expect(finals.get('leaf')?.get('agent')).toBe(0.5);
+  expect(finals.get('parent')?.get('agent')).toBe(0.5);
+});
+
+it('refuses an estimate whose unit is absent from the same plan read', () => {
+  expect(() =>
+    rollUpFinals(
+      [item('a', null)],
+      [held('a', 'dev', 1, 1, 1)],
+      DEFAULT_ESTIMATE_RULE,
+      new Map([['dev', 0]]),
+      new Map(),
+    ),
+  ).toThrow('no estimate unit is known for step dev');
 });

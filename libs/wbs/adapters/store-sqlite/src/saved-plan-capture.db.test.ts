@@ -154,6 +154,7 @@ describe('capturing a project’s plan input', () => {
           position: 10,
           code: 'before',
           allowancePercent: 0,
+          estimateUnit: 'workdays' as const,
         },
       ],
       wrote,
@@ -228,7 +229,14 @@ describe('capturing a project’s plan input', () => {
     const writing = openConnection(path);
     try {
       await new StepRepository(writing.db, OPEN).add(
-        { id: 'st-2', projectId: 'p1', name: 'Second', code: 'second', allowancePercent: 0 },
+        {
+          id: 'st-2',
+          projectId: 'p1',
+          name: 'Second',
+          code: 'second',
+          allowancePercent: 0,
+          estimateUnit: 'workdays' as const,
+        },
         wrote,
       );
       await new TypedDependencyRepository(writing.db, OPEN).add(

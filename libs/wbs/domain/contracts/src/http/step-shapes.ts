@@ -15,14 +15,21 @@ const stepParams = requestSchema(type({ id: 'string', stepId: 'string' }));
 // Proof: using responseSchema admitted the extra name body,200 instead of422
 // in step.controller.db.test.ts's undeclared-input case.
 /** A rename, an allowance edit, or both; an empty body is `invalid_body`. */
-const patchBody = requestSchema(type({ 'name?': 'string', 'allowancePercent?': 'number' }));
+const patchBody = requestSchema(
+  type({ 'name?': 'string', 'allowancePercent?': 'number', 'estimateUnit?': 'string' }),
+);
 /**
  * A new step's name and, optionally, the step code its creator chose; absent,
  * the code is suggested from the name. Grammar and reservation are domain
  * refusals (422), not structural defects, so the code arrives as any string.
  */
 const newStepBody = requestSchema(
-  type({ name: 'string', 'code?': 'string', 'allowancePercent?': 'number' }),
+  type({
+    name: 'string',
+    'code?': 'string',
+    'allowancePercent?': 'number',
+    'estimateUnit?': 'string',
+  }),
 );
 /**
  * One step as every read and write returns it.
@@ -50,6 +57,9 @@ export const stepShape = type({
   position: 'number',
   'code?': 'string | null',
   'allowancePercent?': 'number',
+  // Proof: requiring this field refused the pre-unit backend fixture; malformed present hours remains refused (step-shapes.test.ts, 2026-10-12).
+  // An older backend predates units and can only answer workday steps.
+  'estimateUnit?': "'workdays' | 'minutes'",
 });
 const stepReply = responseSchema(type({ step: stepShape }));
 const policies = [
@@ -76,7 +86,9 @@ const nameRefusals = [
   { status: 409, schema: responseSchema(type({ error: "'taken'" })) },
   {
     status: 422,
-    schema: responseSchema(type({ error: "'invalid_body' | 'invalid_allowance'" })),
+    schema: responseSchema(
+      type({ error: "'invalid_body' | 'invalid_allowance' | 'invalid_estimate_unit'" }),
+    ),
   },
 ] as const;
 
@@ -115,6 +127,10 @@ export const renameStep = defineEndpointShape({
   responses: [{ kind: 'json', status: 200, schema: stepReply }],
   refusals: [
     ...nameRefusals,
+    {
+      status: 409,
+      schema: responseSchema(type({ error: "'estimates_present'", count: 'number' })),
+    },
     { status: 422, schema: responseSchema(type({ error: "'calendar_range'" })) },
   ] as const,
   document: { summary: 'Rename a project step or set its estimate allowance.' },

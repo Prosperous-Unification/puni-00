@@ -23,6 +23,7 @@ export const PROJECT_COMMAND_ROUTES = [
   'addStep',
   'renameStep',
   'setStepAllowance',
+  'setStepUnit',
   'removeStep',
   'createWorkItem',
   'arrangeBySchedule',

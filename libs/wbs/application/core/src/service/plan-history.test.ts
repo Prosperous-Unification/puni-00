@@ -34,6 +34,7 @@ beforeEach(async () => {
         position: 10,
         code: 'dev',
         allowancePercent: 0,
+        estimateUnit: 'workdays' as const,
       },
     ],
     {

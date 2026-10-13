@@ -472,6 +472,7 @@ export function mountedEndpoints(
         addWithin: (...args) => opts.steps.addWithin(...args),
         findWithin: (...args) => opts.steps.findWithin(...args),
         renameWithin: (...args) => opts.steps.renameWithin(...args),
+        patchUnitWithin: (...args) => opts.steps.patchUnitWithin(...args),
         removeWithin: admitted.removeStepWithin,
       },
       commands,

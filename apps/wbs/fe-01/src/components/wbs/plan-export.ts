@@ -1,12 +1,14 @@
 import { type EffectiveServices, effectiveServicesOf } from '@wbs/domain/effective-service';
 import { type EffectiveTags, effectiveTagsOf } from '@wbs/domain/effective-tag';
 import { type EffectiveTeams, effectiveTeamsOf } from '@wbs/domain/effective-team';
+import type { ChargedEstimate, EstimateUnit } from '@wbs/domain/estimate';
 import { priorityBandOf } from '@wbs/domain/priority-band';
 import type { WorkItemStatus } from '@wbs/domain/progress';
 
 import type { EstimateMethod, PriorityBandView, SliceView } from '@/lib/wbs-api';
 
 import { DEADLINE_UNREACHABLE_CELL, deadlineBeforeProjectStart } from './deadline-impossible';
+import { minuteCharge, showDuration } from './duration-words';
 import { STATUS_LABEL } from './status-cell';
 
 /** One estimate's three points, as a row carries them into an export. */
@@ -61,6 +63,7 @@ export interface ExportRow {
   serviceIds: readonly string[];
   estimates: Record<string, ExportTrio | undefined>;
   finalDays: Record<string, number | undefined>;
+  charged?: Record<string, ChargedEstimate>;
   finalTotal: number;
   /** By id — resolved to work item numbers here, because an id is not readable. */
   dependsOn: readonly string[];
@@ -241,7 +244,7 @@ export interface PlanExport {
   startDate: string | null;
   /** Why be-01 could not produce calendar dates for the plan. */
   scheduleError: 'calendar_range' | 'cycle' | null;
-  steps: readonly NamedEntry[];
+  steps: readonly (NamedEntry & { estimateUnit?: EstimateUnit })[];
   teams: readonly NamedEntry[];
   /** The tag vocabulary, for the Tags column — `teams`' shape, one dimension over. */
   tags: readonly NamedEntry[];
@@ -744,29 +747,48 @@ function columnsOf(plan: PlanExport, markSums: boolean): ExportColumn[] {
     { header: 'Ran at', cell: (row) => ranAtCell(plan, row) },
     ...plan.steps.flatMap((step): ExportColumn[] => [
       {
-        header: `${step.name} optimistic`,
+        header: `${step.name} optimistic${step.estimateUnit === 'minutes' ? ' (min)' : ''}`,
         cell: (row) => {
           const trio = row.estimates[step.id];
-          return trio === undefined ? '' : showFigure(trio.optimistic);
+          return trio === undefined
+            ? ''
+            : step.estimateUnit === 'minutes'
+              ? showDuration({ unit: 'minutes', minutes: trio.optimistic })
+              : showFigure(trio.optimistic);
         },
       },
       {
-        header: `${step.name} realistic`,
+        header: `${step.name} realistic${step.estimateUnit === 'minutes' ? ' (min)' : ''}`,
         cell: (row) => {
           const trio = row.estimates[step.id];
-          return trio === undefined ? '' : showFigure(trio.realistic);
+          return trio === undefined
+            ? ''
+            : step.estimateUnit === 'minutes'
+              ? showDuration({ unit: 'minutes', minutes: trio.realistic })
+              : showFigure(trio.realistic);
         },
       },
       {
-        header: `${step.name} pessimistic`,
+        header: `${step.name} pessimistic${step.estimateUnit === 'minutes' ? ' (min)' : ''}`,
         cell: (row) => {
           const trio = row.estimates[step.id];
-          return trio === undefined ? '' : showFigure(trio.pessimistic);
+          return trio === undefined
+            ? ''
+            : step.estimateUnit === 'minutes'
+              ? showDuration({ unit: 'minutes', minutes: trio.pessimistic })
+              : showFigure(trio.pessimistic);
         },
       },
       {
-        header: `${step.name} final (${method})`,
-        cell: (row) => figure(row, row.finalDays[step.id]),
+        header: `${step.name} final (${method})${step.estimateUnit === 'minutes' ? ' (min)' : ''}`,
+        cell: (row) => {
+          if (step.estimateUnit !== 'minutes') return figure(row, row.finalDays[step.id]);
+          const charge = minuteCharge(row, step.id);
+          if (charge === undefined) return '';
+          // Proof: using row.finalDays here exported 0.0833 rather than 40 min; native minute export failed, watched 2026-10-12.
+          const text = showDuration(charge);
+          return markSums && row.rolledUp ? `${text} (sum)` : text;
+        },
       },
       { header: `${step.name} by`, cell: (row) => assigneeCell(plan, row, step.id) },
       // How many runs this node took, beside who ran it. Blank where there were

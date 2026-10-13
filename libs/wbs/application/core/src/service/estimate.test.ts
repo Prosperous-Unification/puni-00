@@ -40,8 +40,17 @@ beforeEach(async () => {
         position: 10,
         code: 'dev',
         allowancePercent: 0,
+        estimateUnit: 'workdays' as const,
       },
-      { id: QA, projectId: project.id, name: 'QA', position: 20, code: 'qa', allowancePercent: 0 },
+      {
+        id: QA,
+        projectId: project.id,
+        name: 'QA',
+        position: 20,
+        code: 'qa',
+        allowancePercent: 0,
+        estimateUnit: 'workdays' as const,
+      },
     ],
     { at: 1, by: OWNER },
   );

@@ -479,9 +479,10 @@ day it was created. Shown to tell same-named projects apart, never searched.
 _Avoid_: subtitle, caption, details
 
 **Estimate**:
-Three durations in days — optimistic, realistic, pessimistic — held for one work item and
-one step. A work item with children has no estimates of its own.
-_Avoid_: points, effort, sizing
+Three durations in the step's **estimate unit** — optimistic, realistic, pessimistic — held
+for one step node. Workday-unit trios may be fractions; minute-unit trios are whole minutes.
+A work item with children has no estimates of its own.
+_Avoid_: points, effort, sizing, days (as the only unit)
 
 **Project-step allowance**:
 The percentage on a project step, default zero, applied to each leaf's combined base estimate
@@ -490,9 +491,10 @@ parent does not apply it again.
 _Avoid_: contingency estimate, per-work-item allowance
 
 **Charged estimate**:
-The effort for an estimated leaf step after its project-step allowance is applied to the combined
-base and the project rounds the result. Unknown remains unknown and contributes zero scheduling
-duration; a stated zero stays estimated.
+The effort for an estimated step node after its project-step allowance is applied to the
+combined base and the figure is rounded in the step's unit: by the project's estimate
+rounding for workdays, to the whole minute for minutes. Unknown remains unknown and
+contributes zero scheduling duration; a stated zero stays estimated.
 _Avoid_: base estimate, raw estimate
 
 **Trio shorthand**:
@@ -514,11 +516,22 @@ otherwise; read only under the `pert` estimate method.
 _Avoid_: PERT formula, coefficients, lambda
 
 **Estimate rounding**:
-A project's answer to how one step's combined figure, after its project-step allowance, becomes
-the days it is charged:
-`floor`, `round`, `ceil`, or `exact` for the fraction itself. `ceil` unless the project says
-otherwise, and applied per step before any sum is taken.
+A project's answer to how one workday-unit step's combined figure, after its project-step
+allowance, becomes the days it is charged: `floor`, `round`, `ceil`, or `exact` for the
+fraction itself. `ceil` unless the project says otherwise, applied per step before any sum.
+Minute-unit steps do not consult it; they are charged to the minute.
 _Avoid_: precision, rounding mode, day granularity
+
+**Estimate unit**:
+Whether a step's estimates are in `workdays` or `minutes`; one per step, `workdays` unless
+the step says otherwise, and the unit every trio on that step is read in. Changing it while
+the step holds estimates is refused.
+_Avoid_: grain, precision, time unit, kind
+
+**Workday minutes**:
+The 480 minutes a workday holds for placing a minute-unit slice on the workday axis — a
+domain constant until the **working window** replaces it.
+_Avoid_: hours per day, shift length, minutes per workday (as a setting)
 
 **Estimate gap**:
 One leaf work item and one step it holds no estimate for. A work item with children never
@@ -575,6 +588,12 @@ _Avoid_: run, try, execution, round (as a stored thing), retry
 How an attempt ended — `succeeded`, `failed` or `cancelled`; absent while it runs. Says
 nothing about the node's progress, which is said separately.
 _Avoid_: result, status (which is the node's), verdict
+
+**Attempt mark**:
+The drawing of one attempt on the Gantt panel at a sub-day rung, over its node's planned
+slice: solid when succeeded, hatched when failed, dotted when cancelled, open to now while
+running. Narrower than 4 px it is a tick.
+_Avoid_: actual bar (which is the work item's done bar), run bar
 
 **Project timezone**:
 The IANA zone a project's instants are read as days in — attempts, fact fills and the

@@ -45,6 +45,7 @@
 import { SCHEDULER_CONTRACT_VERSION } from './contract-version';
 import type { DependencyReach } from './dependency-reach';
 import type { PlannedRow } from './derive-numbers';
+import { chargedWorkdaysOf, DEFAULT_ESTIMATE_RULE, NO_ALLOWANCE } from './estimate';
 import {
   type DependencyEdge,
   type PoolSizes,
@@ -88,6 +89,23 @@ const work = (workItemId: string, days: number | null, extra: Partial<Slice> = {
  * plan happens to exercise.
  */
 export const FAST_GOLDEN_CASES: readonly FastGoldenCase[] = [
+  {
+    name: 'minute-step-half-workday',
+    rows: [leaf('a', 10), leaf('b', 20)],
+    edges: [{ predecessorId: 'a', successorId: 'b' }],
+    slices: [
+      work(
+        'a',
+        chargedWorkdaysOf(
+          'minutes',
+          { optimistic: 240, realistic: 240, pessimistic: 240 },
+          DEFAULT_ESTIMATE_RULE,
+          NO_ALLOWANCE,
+        ),
+      ),
+      work('b', 1),
+    ],
+  },
   {
     // Dates, ordering and the critical path, with nothing resource-bound.
     name: 'chain-of-three',

@@ -2398,3 +2398,117 @@ Checks: `nx run twilight-burokrat:typecheck` and `lint:fast` (`--skip-nx-cache`)
 passed `2341 pass, 0 fail` twice, once with `TMPDIR=/var/tmp`. Not run: the whole-repository
 `twilight-burokrat:lint` target (it needs an activation root and reports inactive without one)
 and the h2puni gate.
+
+### Round 13 pointed-row interaction surface reconciliation — 2026-10-13
+
+PR #380 head `214dc6c863b0b529ce7befe78d4f700dfc6d9570` failed CI run `38312181300`, pixel shard 3/4 job `115020412527`, at the offscreen premise before hovering. The downloaded log `/tmp/round13-pixel-job.log` and artifact `/tmp/round13-pixel-artifact/` show row 210 wholly below the table (top 513.75, table bottom 501), with visible chart bar y927.04–944.96 and point (260,936). Every bar nevertheless reported `exactHit: false`: the renderer now places a sibling transparent `[data-gantt-hit]` above the painted `[data-gantt-bar]`. The former is the pointer target; it cannot have the latter as an ancestor. This is a deterministic test oracle mismatch.
+
+Both stale exact-hit selectors were reproduced against that exact head in the isolated `.worktrees/round13-pixel-triage` checkout. `CI=1 E2E_PORT_SHIFT=3900 bunx playwright test --config apps/wbs/fe-01/playwright.config.ts pointed-row-offscreen.spec.ts` exited 1 at the absent offscreen hit premise (`/tmp/round13-pixel-red.log`). The same command selecting `hover-cards.spec.ts --grep 'pointing a visible paired row neither'` exited 1 at the covered-target assertion (`/tmp/round13-visible-red.log`). Searching every E2E `elementFromPoint`/`elementsFromPoint` use found exactly these two stale painted-bar ancestor checks.
+
+The test-only correction pairs the hit surface with the painted bar by exact slice ID, intersects both boxes with the panel and viewport, then requires browser `elementFromPoint` to identify that exact paired surface. The existing offscreen row, minimum table height, linked scroll alignment, unchanged focus and scroll positions, no native scroll request, no navigation and exact row highlighting assertions are retained. The two focused cases passed 2/2 in 18.5s with `--grep 'pointing a visible'` across both files (`/tmp/round13-pixel-green.log`), still selecting offscreen row 210 at (260,936).
+
+R5 production-path negative: temporarily changing the forecast hit rect from `pointerEvents="fill"` to `pointerEvents="none"` made both corrected tests fail at their exact-hit premise, 2 failed, exit 1 (`/tmp/round13-pixel-fault.log`). The production file was restored with `cmp` equality against `/tmp/round13-gantt-panel-original.tsx`; its Git diff is empty. Adjacent `Proof:` comments record the observed failures.
+
+Pixel shard 4/4 job `115020412672` separately failed seven Steps cases because `getByLabel('New step')` matched the textbox and the new workday/minute radio labels. Its log is `/tmp/round13-pixel-job4.log`. The same broad locator also existed in the folded-budget layout scenario. The selectors now explicitly choose `getByRole('textbox', { name: 'New step', exact: true })`. The Steps opener was reproduced red (`/tmp/round13-steps-red.log`), then all seven Steps cases passed in 17.7s (`/tmp/round13-steps-green.log`). The folded-budget scenario independently reproduced the same strict-mode red (`/tmp/round13-layout-red.log`), then passed (`/tmp/round13-layout-green.log`). These checks reused only this worktree's already-owned 7000/7100/8100 stack with `E2E_PORT_SHIFT=3900`, separate output directories and the line reporter; their provenance is the same source/build as the concurrent shard 3 run. All five broad New step locators in frontend E2E were corrected; unit radio names are preserved.
+
+Additional production DOM dependency negatives used disposable copies of the same tests, removed afterwards. Removing `[data-gantt-hit]` attributes made both paths throw their absent paired-surface errors (`/tmp/round13-missing-hit.log`, 2 failed, exit 1). Translating every production hit surface 1000 SVG units made the offscreen premise fail and the visible case refuse its empty bar/hit intersection (`/tmp/round13-disjoint-hit-owned.log`, 2 failed, exit 1). Adjacent proof comments record both checks. The translation fault ran with its own `CI=1 E2E_PORT_SHIFT=4400` stack.
+
+The complete affected shard 3 command `CI=1 E2E_PORT_SHIFT=3900 bunx playwright test --config apps/wbs/fe-01/playwright.config.ts --shard=3/4` passed 91/91 in 4.6m (`/tmp/round13-pixel-shard3.log`). An attempted concurrent shard 4 and first displacement-negative run reused that stack; they were stopped when shard 3 finished and its owned servers exited. The interrupted shard 4 had 19 passed and 73 did not run (`/tmp/round13-pixel-shard4.log`); neither incomplete run is acceptance evidence. Both were restarted with dedicated server ownership.
+
+After every injected fault was removed, the two original hover tests passed again, 2/2 in 13.0s (`/tmp/round13-final-focused.log`). `bunx tsc -p apps/wbs/fe-01/tsconfig.json --noEmit`, changed-file Prettier and `git diff --check` passed. Direct changed-file ESLint exited 0 but explicitly skipped `@nx/enforce-module-boundaries` because no cached ProjectGraph was available; that rule remains for the coordinator's canonical gate. No standalone `openspec` executable was available on this local PATH, so standalone OpenSpec validation was not run. The coordinator owns `bin/h2puni-gate.sh <integrated-sha>` and its OpenSpec validation after integration.
+
+The dedicated fourth-shard command `CI=1 E2E_PORT_SHIFT=4400 bunx playwright test --config apps/wbs/fe-01/playwright.config.ts --shard=4/4 --output=/tmp/round13-shard4-owned-results --reporter=line` exited 0: 76 passed, 39 skipped in 5.0m (`/tmp/round13-pixel-shard4-owned.log`). Those 39 suite-declared skips were not executed. All seven formerly failing Steps cases passed in this complete shard. Full pixel shards 1/4 and 2/4 were not rerun locally; the changed folded-budget case and the changed visible-pair case from those shards were run separately as recorded above.
+
+## 2026-10-13 — cancellation fixture readiness race
+
+PR #380 workspace job `115045539439`, source `a478c109d`, failed the cancellation
+fixture at `expect(ready).toBe(true)` after its 60-second readiness wait. The CI
+log retained no supervisor diagnostic, so the precise cause of that invocation
+cannot be recovered. The coordinator reported that the same source passed this
+suite in the host gate and passed the workspace gate through stacked PR #387.
+
+The focused unchanged cancellation test passed locally in 2.68s. Its readiness
+probe actively bound each service port while production preflight independently
+required those ports to be free. Injecting a 1000ms scheduling pause between the
+probe's successful bind and close reproduced the CI assertion failure in 60.27s;
+the retained supervisor diagnostic was `Performance shifted port 9100 is occupied`
+with `EADDRINUSE` from production `assertShiftedPortsFree`. A 100ms pause passed.
+This proves a scheduling-dependent self-collision, though the original CI run's
+missing diagnostic prevents attributing that particular failure conclusively.
+
+Readiness now observes HTTP 200 from each fixture service, retries only connection
+refusal, and surfaces early supervisor failure. The post-cancellation bind checks
+still prove the shifted ports are free. The corrected cancellation test passed in
+2.92s and passed in 4.69s with the same 1000ms pause before the observer returned.
+A separately injected foreign listener on 10200 produced the named production
+occupied-port refusal in 241ms instead of obscuring it behind the 60-second wait.
+All injected faults were removed.
+
+Validation:
+
+- `bun test --preload ./tools/test/scratch/preload.ts --timeout=30000 tools/tool-devsync/src/performance-level.test.ts tools/tool-devsync/src/performance-supervisor-test.test.ts --test-name-pattern 'a cancelled supervisor|occupied shifted port|failed service readiness|drains a full stderr|bounds a'`: 18 passed, 51 filtered, 0 failed, 59.54s.
+- `NX_DAEMON=false bunx nx run tool-devsync:lint:fast`: passed in 9.0s, including the module-boundary rule. Earlier direct ESLint lacked a cached graph; the Nx run resolved that limitation.
+- `bunx tsc --build --force tools/tool-devsync/tsconfig.json`: passed.
+- Changed-file Prettier and `git diff --check`: passed.
+
+Port-binding tests required sandbox escalation because sandboxed listeners fail
+with `Failed to listen at ::`. No full Nx suite, canonical host gate, full
+Performance test file, or standalone OpenSpec validation was run for this
+isolated test-only patch; the coordinator owns the integrated revision's gate.
+
+### PR #380 pixel shard 1 target reconciliation — 2026-10-13
+
+Investigated exact head `a478c109d13233ffb61df874adf90c23fc583e75` in an isolated
+worktree. CI run `38319854625`, job `115045505553`, artifact `11778373875`
+(SHA256 `ecf2bda22a057912e651abc715b0ad71f7c6d0267bcb649933cb8886a242e81c`)
+contains the arrow paint-probe failure and eight pointer-action timeouts. Every
+timeout trace names the transparent paired `[data-gantt-hit]` as intercepting
+a gesture aimed at `[data-gantt-bar]`. The arrow probe likewise found that
+transparent surface. Local focused replay reproduced both failures; WebSocket
+EPIPE messages also occur during successful runs and do not explain these traces.
+
+Browser gestures now use the paired pointer surface; keyboard and rectangle
+checks retain the painted bar. The synchronous arrow paint probe temporarily
+ignores only transparent hit surfaces and restores their pointer attributes in
+`finally`, retaining SVG clipping and every painted mark.
+
+The corrected touch gesture exposed a production defect: full-screen capture
+recognized only the painted bar, so a second tap on its hit surface dismissed
+the facts before the click could navigate. The guard now recognizes either
+representation's slice ID. This restores the existing deliberate-second-tap
+specification without changing hit geometry, attempt marks or retry budgets.
+
+Sequential checks from the isolated workspace (`CI=1 E2E_PORT_SHIFT=7400
+BUN_TMPDIR=/tmp` for browser commands):
+
+- `bun install --frozen-lockfile --offline`: exit 0.
+- `bun run e2e -- --grep 'opens facts first in full screen'` before the guard
+  fix: exit 1, expected full-screen count 0, received 1
+  (`/tmp/pr380-pixel1-touch-red.log`). Reverting the guard after the clean green
+  replay reproduced the same failure (`/tmp/pr380-pixel1-touch-mutation.log`);
+  the fix was restored before the full shard.
+- Focused arrow, navigation, phone, surface-placement and touch replay: 18 passed,
+  exit 0 (`/tmp/pr380-pixel1-focused-clean.log`).
+- `bun run e2e -- --shard=1/4`: 120 passed, 1 declared skip, exit 0, 9m56s
+  (`/tmp/pr380-pixel1-shard1.log`). This includes all original CI failures,
+  all six pointed-row cases, native-minute ticks, attempt mark paint, translated
+  hits, collision choice, malformed native-minute refusal and missing-zone
+  forecast retention. `dragging up moves the boundary up` remains the suite-declared skip.
+- Gantt panel view tests filtered to touch/tap/two-minute/collision/pointer
+  surface behavior: 22 passed, 277 excluded by the filter, exit 0
+  (`/tmp/pr380-pixel1-view.log`).
+- Scoped ESLint and Prettier, app and e2e TypeScript checks: exit 0.
+
+The paint and pointer mutation proofs use disposable copies of the real browser
+cases. Removing the production SVG's left viewBox padding makes the arrow probe
+find the row-label button. Setting the paired production target's pointer events
+to `none` makes row navigation reject the intercepted click. Adjacent `Proof:`
+comments identify these faults. The sequential clean proof run exited 1 with both expected failures in 23s
+(`/tmp/pr380-pixel1-mutations-clean.log`). Disposable cases were removed afterwards.
+
+The first exploratory browser runs overlapped the default Playwright output
+directory and produced artifact-close ENOENT errors; they are excluded from the
+passing evidence above. The authoritative affected replay, guard reversion and
+full shard are sequential. Browser shards 2–4, the full view suite and the host
+release gate were not run in this repair; the coordinator owns the combined
+release head and its gate.

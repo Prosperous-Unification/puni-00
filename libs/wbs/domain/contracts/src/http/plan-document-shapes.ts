@@ -7,18 +7,18 @@ import { numberedWorkItem, workItemTree } from './work-item-response';
 /**
  * The plan document version this release writes.
  *
- * `7` carries the project's timezone and each leaf's attempts by step code
+ * `8` carries each step’s estimate unit. `7` carries the project's timezone and each leaf's attempts by step code
  * (`step-node-attempts` D5); `6` each leaf's readiness and hold
  * (`add-work-item-statuses`); `5`
  * extends typed dependencies to SS/FF; `4` added FS separately from
  * legacy `dependsOn`; `3` added step codes and `2` step allowances. The
  * classifier converts earlier versions explicitly.
  */
-export const PLAN_DOCUMENT_VERSION = 7;
+export const PLAN_DOCUMENT_VERSION = 8;
 
 const planHeader = type({
   format: "'wbs-plan'",
-  version: '7',
+  version: '8',
   exportedAt: 'string',
 });
 
@@ -130,7 +130,7 @@ const documentWorkItem = numberedWorkItem
 export const planDocument = workItemTree.omit('typedDependencies', 'workItems').and({
   workItems: documentWorkItem.array(),
   typedDependencies: documentTypedDependency.array(),
-  steps: type({ code: 'string' }).array(),
+  steps: type({ code: 'string', estimateUnit: "'workdays' | 'minutes'" }).array(),
   stepNodes: type({
     id: 'string',
     workItemId: 'string',
@@ -222,6 +222,7 @@ const writablePlanDocument = type({
     name: 'string',
     position: 'number',
     'allowancePercent?': 'number',
+    'estimateUnit?': 'unknown',
     'code?': 'unknown',
   }).array(),
   'typedDependencies?': 'unknown',
@@ -256,7 +257,11 @@ export type PlanDocumentImport = Omit<
     hold: 'on_hold' | 'blocked' | null;
     attempts: ImportedAttempt[];
   })[];
-  steps: (Omit<PlanDocumentRequest['steps'][number], 'allowancePercent' | 'code'> & {
+  steps: (Omit<
+    PlanDocumentRequest['steps'][number],
+    'allowancePercent' | 'code' | 'estimateUnit'
+  > & {
+    estimateUnit: 'workdays' | 'minutes';
     allowancePercent: number;
     code: string | null;
   })[];

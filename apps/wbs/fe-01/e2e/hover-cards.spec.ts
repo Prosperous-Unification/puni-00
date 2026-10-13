@@ -1799,9 +1799,10 @@ test.describe('a pointed row the plan stops drawing', () => {
     await page.getByLabel('Find').fill('Survey');
     await expect(page.locator('[data-gantt-label]')).toHaveCount(1);
 
-    // The pointer now arrives on the one bar left. That is the reading being
-    // made, and the chart has to light the row it belongs to.
-    await page.locator('[data-gantt-bar][aria-label^="010 - "]').first().hover();
+    // The pointer arrives on the bar's transparent hit surface; the painted
+    // rect beneath it keeps the accessible name and keyboard focus.
+    const bar = page.locator('[data-gantt-bar][aria-label^="010 - "]').first();
+    await bar.locator('..').locator('[data-gantt-hit]').hover();
 
     // Proof: the shown-row guard dropped to a bare fallthrough — today that
     // is `resolve`'s `tableShown` taken straight from `tablePointed` in
@@ -1812,6 +1813,8 @@ test.describe('a pointed row the plan stops drawing', () => {
     // 0` — the chart dark under the pointer, the remembered row winning.
     // Watched in Chromium 2026-09-01, which is also the measurement that the
     // browser leaves the id behind at all.
+    // Proof: repeated 2026-10-13 through the paired hit surface with
+    // `tableShown = tablePointed`; this assertion received 0 bands instead of 1.
     await expect(bands, 'the chart drew no band for the bar under the pointer').toHaveCount(1);
     await expect(bands.first()).toHaveAttribute('data-gantt-row-lit', '0');
 
@@ -2004,15 +2007,22 @@ test('pointing a visible paired row neither scrolls nor requests row navigation'
     ) {
       throw new Error('a pointed-row pane, target row or target bar is missing');
     }
+    const hit = [...chartPanel.querySelectorAll('[data-gantt-hit]')].find(
+      (surface) => surface.getAttribute('data-gantt-hit') === bar.getAttribute('data-gantt-bar'),
+    );
+    // Proof: removing production hit attributes made Chromium refuse the absent target surface.
+    if (hit === undefined) throw new Error('the target bar has no paired hit surface');
     const tableBox = table.getBoundingClientRect();
     const rowBox = row.getBoundingClientRect();
     const chartBox = chartPanel.getBoundingClientRect();
     const barBox = bar.getBoundingClientRect();
+    const hitBox = hit.getBoundingClientRect();
+    // Proof: translating production hit surfaces 1000 SVG units failed the outside-clip refusal in Chromium.
     const visible = {
-      left: Math.max(barBox.left, chartBox.left, 0),
-      right: Math.min(barBox.right, chartBox.right, window.innerWidth),
-      top: Math.max(barBox.top, chartBox.top, 0),
-      bottom: Math.min(barBox.bottom, chartBox.bottom, window.innerHeight),
+      left: Math.max(barBox.left, hitBox.left, chartBox.left, 0),
+      right: Math.min(barBox.right, hitBox.right, chartBox.right, window.innerWidth),
+      top: Math.max(barBox.top, hitBox.top, chartBox.top, 0),
+      bottom: Math.min(barBox.bottom, hitBox.bottom, chartBox.bottom, window.innerHeight),
     };
     if (visible.left >= visible.right || visible.top >= visible.bottom)
       throw new Error('the first bar is outside the chart client clip or viewport');
@@ -2028,7 +2038,8 @@ test('pointing a visible paired row neither scrolls nor requests row navigation'
       },
       targetInsideTable: rowBox.top >= tableBox.top && rowBox.bottom <= tableBox.bottom,
       point,
-      targetHit: document.elementFromPoint(point.x, point.y)?.closest('[data-gantt-bar]') === bar,
+      // Proof: disabling the production hit rect's pointer events failed the covered-target assertion in Chromium.
+      targetHit: document.elementFromPoint(point.x, point.y)?.closest('[data-gantt-hit]') === hit,
       focused: document.activeElement?.outerHTML,
     };
   });

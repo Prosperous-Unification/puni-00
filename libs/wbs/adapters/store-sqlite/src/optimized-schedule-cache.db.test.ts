@@ -346,6 +346,7 @@ describe('the optimizer migration', () => {
       // Newest first, so the settings columns come off before the tables they
       // steer — this migration is no longer the only thing above LOOKUP_INDEXES.
       expect(rollbackTo(db.path, FOLDER, LOOKUP_INDEXES)).toEqual([
+        '20261012130000_add_step_estimate_unit',
         '20261012120000_add_step_node_attempts',
         '20261012090200_widen_organization_audit',
         '20261012090100_add_browser_auth_times',

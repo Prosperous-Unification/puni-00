@@ -468,14 +468,14 @@ describe('shared live projection', () => {
     const connection = openConnection(h.databasePath());
     try {
       const inputHash = scheduleInputHash(input);
-      const generation = allocateGeneration(connection.db, lower, '15+0.2.0', inputHash, 1);
+      const generation = allocateGeneration(connection.db, lower, '16+0.2.0', inputHash, 1);
       connection.db
         .insert(optimizedScheduleCache)
         .values({
           projectId: lower,
           inputHash,
           generation,
-          contractVersion: '15+0.2.0',
+          contractVersion: '16+0.2.0',
           budgetMs: 60000,
           objective: 'pri',
           status: 'ok',
@@ -517,7 +517,7 @@ describe('shared live projection', () => {
       }
     ).savedPlan.schedule;
     expect(stored.present).toBe(true);
-    expect(stored.algorithmId).toBe('optimized:15+0.2.0:pri:60000');
+    expect(stored.algorithmId).toBe('optimized:16+0.2.0:pri:60000');
     expect(
       (JSON.parse(stored.body.bytes) as { workItems: { 'lower-work': { earliestStart: number } } })
         .workItems['lower-work'].earliestStart,
@@ -551,14 +551,14 @@ describe('shared live projection', () => {
       );
       const connection = openConnection(h.databasePath());
       try {
-        const generation = allocateGeneration(connection.db, lower, '15+0.2.0', inputHash, 1);
+        const generation = allocateGeneration(connection.db, lower, '16+0.2.0', inputHash, 1);
         connection.db
           .insert(optimizedScheduleCache)
           .values({
             projectId: lower,
             inputHash,
             generation,
-            contractVersion: '15+0.2.0',
+            contractVersion: '16+0.2.0',
             budgetMs: 60000,
             objective: 'pri',
             status: state === 'failed' ? 'failed' : 'ok',
@@ -811,7 +811,7 @@ async function seedSharedPlans(
 }
 
 function seedFailedRetry(projectId: string, inputHash: string, solverVersion = '0.2.0'): void {
-  const contractVersion = `15+${solverVersion}`;
+  const contractVersion = `16+${solverVersion}`;
   h.sqlite.run(
     'INSERT INTO optimization_generation (project_id, contract_version, generation, input_hash, updated_at) VALUES (?, ?, 1, ?, 1)',
     [projectId, contractVersion, inputHash],
@@ -1219,11 +1219,11 @@ describe('shared displayed cache evidence', () => {
     );
     const connection = openConnection(h.databasePath());
     try {
-      const generation = allocateGeneration(connection.db, lower, '15+0.2.0', oldHash, 1);
+      const generation = allocateGeneration(connection.db, lower, '16+0.2.0', oldHash, 1);
       expect(
         enqueueSolverRequest(connection.db, {
           projectId: lower,
-          contractVersion: '15+0.2.0',
+          contractVersion: '16+0.2.0',
           generation,
           objective: 'pri',
           budgetMs: 60_000,
@@ -1443,7 +1443,7 @@ describe('shared displayed cache evidence', () => {
       const connection = openConnection(h.databasePath());
       try {
         const inputHash = scheduleInputHash(input);
-        const generation = allocateGeneration(connection.db, lower, '15+0.2.0', inputHash, 1);
+        const generation = allocateGeneration(connection.db, lower, '16+0.2.0', inputHash, 1);
         for (const objective of ['pri', 'time'] as const) {
           connection.db
             .insert(optimizedScheduleCache)
@@ -1451,7 +1451,7 @@ describe('shared displayed cache evidence', () => {
               projectId: lower,
               inputHash,
               generation,
-              contractVersion: '15+0.2.0',
+              contractVersion: '16+0.2.0',
               budgetMs: 60000,
               objective,
               status: 'ok',
@@ -1641,14 +1641,14 @@ describe('shared displayed cache evidence', () => {
           const connection = openConnection(h.databasePath());
           try {
             const inputHash = scheduleInputHash(input);
-            const generation = allocateGeneration(connection.db, higher, '15+0.1.0', inputHash, 1);
+            const generation = allocateGeneration(connection.db, higher, '16+0.1.0', inputHash, 1);
             connection.db
               .insert(optimizedScheduleCache)
               .values({
                 projectId: higher,
                 inputHash,
                 generation,
-                contractVersion: '15+0.1.0',
+                contractVersion: '16+0.1.0',
                 budgetMs: 60000,
                 objective: 'pri',
                 status: 'ok',

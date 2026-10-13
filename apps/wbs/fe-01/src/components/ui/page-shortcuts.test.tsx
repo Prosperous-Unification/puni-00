@@ -22,6 +22,7 @@ afterEach(cleanup);
 
 /** The one row every test here works over, numbered the way be-01 numbers it. */
 const ROW: WorkItemView = workItemView({
+  charged: {},
   id: 'row-1',
   parentId: null,
   number: '010',
@@ -116,7 +117,10 @@ function silentApi(): SilentApi {
       redo: () => Promise.resolve({ ok: true as const, done: 'rename', detail: null }),
       setEstimateMethod: nothing,
       setStartDate: nothing,
-      steps: () => Promise.resolve([{ id: 'step-dev', name: 'Dev', allowancePercent: 0 }]),
+      steps: () =>
+        Promise.resolve([
+          { estimateUnit: 'workdays' as const, id: 'step-dev', name: 'Dev', allowancePercent: 0 },
+        ]),
       addStep: () => Promise.reject(new Error('not_in_these_tests')),
       renameStep: () => Promise.reject(new Error('not_in_these_tests')),
       removeStep: () => Promise.reject(new Error('not_in_these_tests')),

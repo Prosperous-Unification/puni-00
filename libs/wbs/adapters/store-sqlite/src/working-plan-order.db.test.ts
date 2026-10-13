@@ -77,6 +77,7 @@ async function sqliteEstimateRunner(name: string) {
         position: 10,
         code: 'step',
         allowancePercent: 0,
+        estimateUnit: 'workdays' as const,
       },
     ],
     STAMP,
@@ -223,6 +224,7 @@ it('keeps SQLite satellite order authoritative after a WorkingPlan patch refresh
       code: id === 'step-A' ? 'step-a' : 'step-a-2',
       position: 10,
       allowancePercent: 0,
+      estimateUnit: 'workdays' as const,
     }));
     await source.stores.projects.create(project, steps, STAMP);
     await source.stores.workItems.insert(workItemRow({ id: ROW, projectId: PROJECT }), [], STAMP);
@@ -304,6 +306,7 @@ it('keeps SQLite dependency order authoritative after a WorkingPlan add', async 
           position: 10,
           code: 'step',
           allowancePercent: 0,
+          estimateUnit: 'workdays' as const,
         },
       ],
       STAMP,
@@ -361,6 +364,7 @@ it('advances SQLite assignment and directory cascades before the next runner com
           position: 10,
           code: 'step',
           allowancePercent: 0,
+          estimateUnit: 'workdays' as const,
         },
       ],
       STAMP,
@@ -472,7 +476,11 @@ it('advances SQLite assignment and directory cascades before the next runner com
     ]);
     const assignmentEntry = (await source.stores.journal.entriesFor(PROJECT, OWNER)).at(-1);
     if (assignmentEntry === undefined) throw new Error('SQLite assignment batch wrote no journal');
-    expect(assignmentEntry.preconditions).toEqual({ expected: { [ROW]: 4 }, from: { [ROW]: 2 } });
+    expect(assignmentEntry.preconditions).toEqual({
+      expected: { [ROW]: 4 },
+      from: { [ROW]: 2 },
+      estimateUnits: {},
+    });
     expect(await runner.undo(PROJECT, OWNER)).toMatchObject({ ok: true });
     expect(await source.stores.directory.assignmentsFor(ROW)).toEqual([
       { workItemId: ROW, stepId: 'step', personId: createdPersonId },
@@ -532,6 +540,7 @@ it('rolls back a successful directory write when its retained reload fails', asy
           position: 10,
           code: 'step',
           allowancePercent: 0,
+          estimateUnit: 'workdays' as const,
         },
       ],
       STAMP,
@@ -636,6 +645,7 @@ it('places every new subtree row and value group in SQLite authoritative order',
           position: 10,
           code: 'step',
           allowancePercent: 0,
+          estimateUnit: 'workdays' as const,
         },
       ],
       STAMP,
@@ -797,6 +807,7 @@ it('keeps SQLite work-item order authoritative immediately after a runner insert
         position: 10,
         code: 'step',
         allowancePercent: 0,
+        estimateUnit: 'workdays' as const,
       },
     ];
     await source.stores.projects.create(project, steps, STAMP);
@@ -950,6 +961,7 @@ it('refreshes a dependency survivor before the next runner command and preserves
           position: 10,
           code: 'step',
           allowancePercent: 0,
+          estimateUnit: 'workdays' as const,
         },
       ],
       STAMP,
@@ -1025,6 +1037,7 @@ it('refreshes a dependency survivor before the next runner command and preserves
     expect(entry.preconditions).toEqual({
       expected: { survivor: 3 },
       from: { survivor: 1 },
+      estimateUnits: {},
     });
 
     expect(await runner.undo(PROJECT, OWNER)).toMatchObject({ ok: true });
@@ -1066,6 +1079,7 @@ it('keeps every SQLite value group in source order after runner sets populate an
           position: 10,
           code: 'step',
           allowancePercent: 0,
+          estimateUnit: 'workdays' as const,
         },
       ],
       STAMP,

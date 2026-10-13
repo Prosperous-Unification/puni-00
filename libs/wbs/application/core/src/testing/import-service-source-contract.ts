@@ -127,9 +127,30 @@ function roundTripFixture(): PlanDocumentImport {
     scheduleObjective: 'time',
   };
   document.steps = [
-    { id: 'step-discover', name: 'Discover', position: 10, allowancePercent: 0, code: 'discover' },
-    { id: 'step-build', name: 'Build', position: 30, allowancePercent: 12.5, code: 'impl' },
-    { id: 'step-verify', name: 'Verify', position: 70, allowancePercent: 30, code: 'verify' },
+    {
+      estimateUnit: 'workdays' as const,
+      id: 'step-discover',
+      name: 'Discover',
+      position: 10,
+      allowancePercent: 0,
+      code: 'discover',
+    },
+    {
+      estimateUnit: 'workdays' as const,
+      id: 'step-build',
+      name: 'Build',
+      position: 30,
+      allowancePercent: 12.5,
+      code: 'impl',
+    },
+    {
+      estimateUnit: 'workdays' as const,
+      id: 'step-verify',
+      name: 'Verify',
+      position: 70,
+      allowancePercent: 30,
+      code: 'verify',
+    },
   ];
   document.calendarMarkers = [
     {
@@ -562,9 +583,30 @@ export function importServiceSourceContract(
         document.settings.scheduleEngine = 'optimized';
         document.settings.scheduleObjective = 'time';
         document.steps = [
-          { id: 'step-discover', name: 'Discover', position: 10, allowancePercent: 0, code: null },
-          { id: 'step-build', name: 'Build', position: 30, allowancePercent: 0, code: null },
-          { id: 'step-verify', name: 'Verify', position: 70, allowancePercent: 0, code: null },
+          {
+            estimateUnit: 'workdays' as const,
+            id: 'step-discover',
+            name: 'Discover',
+            position: 10,
+            allowancePercent: 0,
+            code: null,
+          },
+          {
+            estimateUnit: 'workdays' as const,
+            id: 'step-build',
+            name: 'Build',
+            position: 30,
+            allowancePercent: 0,
+            code: null,
+          },
+          {
+            estimateUnit: 'workdays' as const,
+            id: 'step-verify',
+            name: 'Verify',
+            position: 70,
+            allowancePercent: 0,
+            code: null,
+          },
         ];
         const row = document.workItems.at(0);
         if (row === undefined) throw new Error('plan document fixture has no work item');
@@ -748,6 +790,7 @@ export function importServiceSourceContract(
             position,
             code: suggestStepCode(name, new Set()),
             allowancePercent,
+            estimateUnit: 'workdays' as const,
           })),
           STAMP,
         );
@@ -1195,7 +1238,7 @@ export function importServiceSourceContract(
           if (!imported.ok) throw new Error(`import refused at ${imported.path}`);
           const exported = await exportDocument(source, imported.projectId);
 
-          expect(exported.document.version).toBe(7);
+          expect(exported.document.version).toBe(8);
           expect(exported.typedDependencies).toEqual([]);
           expect(exported.steps.map(({ name, code }) => [name, code])).toEqual([
             ['Discover', codes[0]],
@@ -1251,7 +1294,7 @@ export function importServiceSourceContract(
           verifyStep === undefined
         )
           throw new Error('round-trip relationship references disappeared');
-        expect(exported.document.version).toBe(7);
+        expect(exported.document.version).toBe(8);
         expect(
           exported.typedDependencies.map(({ predecessor, successor, type }) => ({
             predecessor,
@@ -1467,8 +1510,22 @@ export function importServiceSourceContract(
         target.dependsOn = [];
         file.workItems.push({ ...structuredClone(target), id: 'a', position: 30, name: 'Other' });
         file.steps.push(
-          { id: 'c', name: 'C', position: 80, allowancePercent: 0, code: 'c' },
-          { id: 'b:c', name: 'BC', position: 90, allowancePercent: 0, code: 'bc' },
+          {
+            estimateUnit: 'workdays' as const,
+            id: 'c',
+            name: 'C',
+            position: 80,
+            allowancePercent: 0,
+            code: 'c',
+          },
+          {
+            estimateUnit: 'workdays' as const,
+            id: 'b:c',
+            name: 'BC',
+            position: 90,
+            allowancePercent: 0,
+            code: 'bc',
+          },
         );
         Reflect.set(file, 'typedDependencies', [
           {

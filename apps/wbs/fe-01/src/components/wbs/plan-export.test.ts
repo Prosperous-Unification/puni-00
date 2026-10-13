@@ -1266,3 +1266,24 @@ describe('a document of what was on screen', () => {
     expect(planFileName(plan(), 'md')).toBe('rewire-the-shed-2026-08-07.md');
   });
 });
+
+it('exports native minute trios and final charges under explicit minute headers', () => {
+  const text = planToCsv(
+    plan({
+      steps: [{ id: 'dev', name: 'Agent', estimateUnit: 'minutes' }],
+      rows: [
+        row({
+          id: 'a',
+          number: '010',
+          estimates: { dev: { optimistic: 40, realistic: 40, pessimistic: 40 } },
+          finalDays: { dev: 1 / 12 },
+          charged: { dev: { unit: 'minutes', minutes: 40 } },
+        }),
+      ],
+    }),
+  );
+  const csv = [csvColumns(text), csvDataRow(text)];
+  expect(csv[0]).toContain('Agent optimistic (min)');
+  expect(csv[0]).toContain('Agent final (PERT) (min)');
+  expect(csv[1][csv[0].indexOf('Agent final (PERT) (min)')]).toBe('40 min');
+});

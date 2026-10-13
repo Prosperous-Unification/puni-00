@@ -36,6 +36,7 @@ test('direct solution binding reads the exact slug and complete project with ord
       position: 10,
       code: 'build',
       allowancePercent: 0,
+      estimateUnit: 'workdays' as const,
     },
   ];
   await store.create(project, steps, { at: 1, by: 'owner' });

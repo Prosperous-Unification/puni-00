@@ -81,6 +81,7 @@ beforeEach(async () => {
         position: 10,
         code: 'dev',
         allowancePercent: 0,
+        estimateUnit: 'workdays' as const,
       },
     ],
     WROTE,
@@ -560,6 +561,7 @@ describe('the plan waits for the people in it', () => {
           position: 10,
           code: 'dev',
           allowancePercent: 0,
+          estimateUnit: 'workdays' as const,
         },
         {
           id: qa,
@@ -568,6 +570,7 @@ describe('the plan waits for the people in it', () => {
           position: 20,
           code: 'qa',
           allowancePercent: 0,
+          estimateUnit: 'workdays' as const,
         },
       ],
       WROTE,
@@ -1328,7 +1331,7 @@ describe('the calendar — weekend edges and fractions of a day', () => {
     // last row finishes at 15.000000000000002, and a bare ceil read that
     // drifted bit as a sixteenth day — `endsOn` three calendar days late over
     // the weekend. The successor's own `startsOn` goes through `addWorkdays`'
-    // floor, which upward drift cannot fool (floor of 15+ε is 15); it is
+    // floor, which upward drift cannot fool (floor of 16+ε is 15); it is
     // asserted so the boundary cannot regress. Its `endsOn` is clean by
     // arithmetic — 15.000000000000002 + 1 rounds to exactly 16 in doubles —
     // which is why the drifted `endsOn` is asserted on the chain end, where
@@ -1431,8 +1434,24 @@ describe('the project’s dependency reach', () => {
         depReach: reach,
       }),
       [
-        { id: dev, projectId: id, name: 'Dev', position: 10, code: 'dev', allowancePercent: 0 },
-        { id: qa, projectId: id, name: 'QA', position: 20, code: 'qa', allowancePercent: 0 },
+        {
+          id: dev,
+          projectId: id,
+          name: 'Dev',
+          position: 10,
+          code: 'dev',
+          allowancePercent: 0,
+          estimateUnit: 'workdays' as const,
+        },
+        {
+          id: qa,
+          projectId: id,
+          name: 'QA',
+          position: 20,
+          code: 'qa',
+          allowancePercent: 0,
+          estimateUnit: 'workdays' as const,
+        },
       ],
       WROTE,
     );
@@ -1570,8 +1589,24 @@ describe('the project’s estimate arithmetic — weights, and the rounding per 
         createdAt: 1,
       },
       [
-        { id: devId, projectId: id, name: 'Dev', position: 10, code: 'dev', allowancePercent: 0 },
-        { id: qaId, projectId: id, name: 'QA', position: 20, code: 'qa', allowancePercent: 0 },
+        {
+          id: devId,
+          projectId: id,
+          name: 'Dev',
+          position: 10,
+          code: 'dev',
+          allowancePercent: 0,
+          estimateUnit: 'workdays' as const,
+        },
+        {
+          id: qaId,
+          projectId: id,
+          name: 'QA',
+          position: 20,
+          code: 'qa',
+          allowancePercent: 0,
+          estimateUnit: 'workdays' as const,
+        },
       ],
       WROTE,
     );
@@ -1593,7 +1628,7 @@ describe('the project’s estimate arithmetic — weights, and the rounding per 
    * are two days under `ceil`; summing them first and rounding once is one.
    *
    * Proof: with the other order in place — `rollUpFinals` charging
-   * `combinedDays` and `finalsOf` rounding the **sum** with a `Math.ceil` — this
+   * `combinedFigure` and `finalsOf` rounding the **sum** with a `Math.ceil` — this
    * failed on `Expected: 1 / Received: 0.5` at the Dev step, which is the
    * fraction a plan that rounds its total still carries per step. Watched
    * 2026-08-30.
@@ -2036,8 +2071,24 @@ describe('the slices the schedule placed, on the wire', () => {
         ownerId: OWNER,
       }),
       [
-        { id: devId, projectId: id, name: 'Dev', position: 10, code: 'dev', allowancePercent: 0 },
-        { id: qaId, projectId: id, name: 'QA', position: 20, code: 'qa', allowancePercent: 0 },
+        {
+          id: devId,
+          projectId: id,
+          name: 'Dev',
+          position: 10,
+          code: 'dev',
+          allowancePercent: 0,
+          estimateUnit: 'workdays' as const,
+        },
+        {
+          id: qaId,
+          projectId: id,
+          name: 'QA',
+          position: 20,
+          code: 'qa',
+          allowancePercent: 0,
+          estimateUnit: 'workdays' as const,
+        },
       ],
       WROTE,
     );
@@ -2387,6 +2438,7 @@ describe('assignment projections isolate memory projects', () => {
           position: 10,
           code: 'other',
           allowancePercent: 0,
+          estimateUnit: 'workdays' as const,
         },
       ],
       WROTE,

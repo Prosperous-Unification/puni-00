@@ -1,7 +1,12 @@
 import { arrangeBySchedule as arrangeSiblings } from '@wbs/domain/arrange-siblings';
 import type { DependencyReach } from '@wbs/domain/dependency-reach';
 import { deriveNumbers, type WorkItemPlacement } from '@wbs/domain/derive-numbers';
-import { allowancePercentOf, chargedDays } from '@wbs/domain/estimate';
+import {
+  allowancePercentOf,
+  type ChargedEstimate,
+  chargedMinutes,
+  chargedWorkdaysOf,
+} from '@wbs/domain/estimate';
 import { automaticColor } from '@wbs/domain/marker-color';
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
 import { formatStepReference } from '@wbs/domain/step-reference';
@@ -21,7 +26,7 @@ import type {
 } from '@/lib/wbs-api';
 import { DEFAULT_PERT_WEIGHTS_VIEW } from '@/lib/wbs-api';
 
-import { refusingApi } from './refusing-api';
+import { EstimateUnitConflict, refusingApi } from './refusing-api';
 
 /**
  * The plan fixtures every fe-01 suite drives the table through.
@@ -39,12 +44,22 @@ import { refusingApi } from './refusing-api';
  */
 
 /** The first step every fixture starts with. */
-export const DEV: StepView = { id: 'step-dev', name: 'Dev', allowancePercent: 0 };
+export const DEV: StepView = {
+  estimateUnit: 'workdays' as const,
+  id: 'step-dev',
+  name: 'Dev',
+  allowancePercent: 0,
+};
 /**
  * A second step, because "one assignee is assumed to do every step" is only
  * observable when there is another step for them to be assumed into.
  */
-export const QA: StepView = { id: 'step-qa', name: 'QA', allowancePercent: 0 };
+export const QA: StepView = {
+  estimateUnit: 'workdays' as const,
+  id: 'step-qa',
+  name: 'QA',
+  allowancePercent: 0,
+};
 
 /**
  * A ProjectApi over an in-memory tree, numbering rows the way be-01 does.
@@ -200,12 +215,19 @@ export function fakeProjectApi(): ProjectApi & {
   const stackCalls: ('undo' | 'redo')[] = [];
   let stackAnswer: UndoResult = { ok: true, done: 'rename “Strip”', detail: null };
 
-  /** The final figure be-01 would report, under whichever method is set. */
-  const finalOf = (days: Days, stepId: string): number => {
+  /** Reads the policy named by a trusted stored estimate. */
+  const stepOf = (stepId: string): StepView => {
     const step = stepList.find((candidate) => candidate.id === stepId);
     // Proof: disabling this guard made `refuses a broken estimate that names a step absent from the policy` fail with a TypeError instead of `Unknown step missing-step`.
     if (step === undefined) throw new Error(`Unknown step ${stepId}`);
-    return chargedDays(
+    return step;
+  };
+
+  /** The final figure be-01 would report, under whichever method is set. */
+  const finalOf = (days: Days, stepId: string): number => {
+    const step = stepOf(stepId);
+    return chargedWorkdaysOf(
+      step.estimateUnit,
       days,
       { method: estimateMethod, pertWeights: DEFAULT_PERT_WEIGHTS_VIEW, rounding: 'ceil' },
       step.allowancePercent,
@@ -299,6 +321,45 @@ export function fakeProjectApi(): ProjectApi & {
     };
     walk(of.id);
     return summed;
+  }
+
+  function rolledUpCharges(of: WorkItemView): Record<string, ChargedEstimate> {
+    const charges = new Map<string, ChargedEstimate>();
+    const walk = (row: WorkItemView): void => {
+      const children = rows.filter((candidate) => candidate.parentId === row.id);
+      if (children.length > 0) {
+        for (const child of children) walk(child);
+        return;
+      }
+      for (const [stepId, trio] of Object.entries(row.estimates)) {
+        const step = stepOf(stepId);
+        const previous = charges.get(stepId);
+        charges.set(
+          stepId,
+          step.estimateUnit === 'minutes'
+            ? {
+                unit: 'minutes',
+                minutes:
+                  (previous?.unit === 'minutes' ? previous.minutes : 0) +
+                  chargedMinutes(
+                    trio,
+                    {
+                      method: estimateMethod,
+                      pertWeights: DEFAULT_PERT_WEIGHTS_VIEW,
+                      rounding: 'ceil',
+                    },
+                    step.allowancePercent,
+                  ),
+              }
+            : {
+                unit: 'workdays',
+                days: (previous?.unit === 'workdays' ? previous.days : 0) + finalOf(trio, stepId),
+              },
+        );
+      }
+    };
+    walk(of);
+    return Object.fromEntries(charges);
   }
 
   function rolledUpFinalDays(of: WorkItemView): Record<string, number> {
@@ -487,6 +548,7 @@ export function fakeProjectApi(): ProjectApi & {
           // empty in jsdom and every claim about it was made against nothing.
           estimates: rolledUpEstimates(r),
           finalDays: rolledUpFinalDays(r),
+          charged: rolledUpCharges(r),
           finalTotal: Object.values(rolledUpFinalDays(r)).reduce((total, days) => total + days, 0),
           // be-01 works the dates out; the fake only has to place them on the
           // calendar the same way, so the table is asserted on what it renders.
@@ -769,13 +831,18 @@ export function fakeProjectApi(): ProjectApi & {
       return Promise.resolve();
     },
     steps: () => Promise.resolve(stepList.map((step) => ({ ...step }))),
-    addStep(_projectId, name) {
+    addStep(_projectId, name, estimateUnit = 'workdays') {
       const clean = name.trim();
       if (clean === '') return Promise.reject(new Error('name_required'));
       if (stepList.some((step) => step.name === clean)) {
         return Promise.reject(new Error('taken'));
       }
-      const step = { id: `step-${clean.toLowerCase()}`, name: clean, allowancePercent: 0 };
+      const step = {
+        estimateUnit,
+        id: `step-${clean.toLowerCase()}`,
+        name: clean,
+        allowancePercent: 0,
+      };
       stepList.push(step);
       renumber();
       return Promise.resolve(step);
@@ -790,6 +857,16 @@ export function fakeProjectApi(): ProjectApi & {
       }
       step.name = clean;
       renumber();
+      return Promise.resolve({ ...step });
+    },
+    setStepUnit(_projectId, stepId, estimateUnit) {
+      const step = stepList.find((candidate) => candidate.id === stepId);
+      if (step === undefined) return Promise.reject(new Error('not_found'));
+      const count = rows.filter((row) => Object.hasOwn(row.estimates, stepId)).length;
+      // Proof: removing this guard let the native-minute fake test reinterpret estimates as workdays; watched 2026-10-12.
+      if (step.estimateUnit !== estimateUnit && count > 0)
+        return Promise.reject(new EstimateUnitConflict(count));
+      step.estimateUnit = estimateUnit;
       return Promise.resolve({ ...step });
     },
     setStepAllowance(_projectId, stepId, allowancePercent) {

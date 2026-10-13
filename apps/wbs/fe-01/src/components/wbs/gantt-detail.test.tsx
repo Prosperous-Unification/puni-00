@@ -13,7 +13,7 @@ import { type ApplicationServices, installApplicationRuntime } from '@/runtime/a
 import { ApplicationServicesProvider } from '@/runtime/application-services-context';
 import { createLifetimeSlot, type LifetimeSlot } from '@/runtime/lifetime-slot';
 
-import { type GanttDetail, useGanttDetail } from './gantt-detail';
+import { type GanttDetail, selectMarksAtPointer, useGanttDetail } from './gantt-detail';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
@@ -277,4 +277,17 @@ describe('the detail switch, over the runtime the page publishes', () => {
       expect(captured.detail?.persists).toBe(false);
     },
   );
+});
+
+describe('forecast pointer collisions', () => {
+  it('returns every containing surface rather than guessing the nearest mark', () => {
+    const surfaces = [
+      { markId: 'first', left: 0, right: 18, top: 0, bottom: 20 },
+      { markId: 'second', left: 6, right: 24, top: 0, bottom: 20 },
+      { markId: 'other-row', left: 6, right: 24, top: 20, bottom: 40 },
+    ];
+    expect(selectMarksAtPointer(surfaces, 12, 10)).toEqual(['first', 'second']);
+    expect(selectMarksAtPointer(surfaces, 2, 10)).toEqual(['first']);
+    expect(selectMarksAtPointer(surfaces, 30, 10)).toEqual([]);
+  });
 });

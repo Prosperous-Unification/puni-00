@@ -112,7 +112,9 @@ describe('a rename and an allowance in one edit', () => {
   it('writes both, as one undo entry for the allowance', async () => {
     expect(await patchQa({ name: 'Review', allowancePercent: 30 })).toMatchObject({
       status: 200,
-      body: { step: { id: qa, name: 'Review', allowancePercent: 30 } },
+      body: {
+        step: { estimateUnit: 'workdays' as const, id: qa, name: 'Review', allowancePercent: 30 },
+      },
     });
 
     expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);

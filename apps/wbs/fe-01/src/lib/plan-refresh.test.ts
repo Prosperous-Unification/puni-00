@@ -101,7 +101,9 @@ describe('plan refresh obligations', () => {
     api.steps = () => steps.promise;
     const wider = owner.invalidate({ resources: ['tree', 'steps'] });
     await owner.invalidate({ resources: ['tree'] });
-    steps.resolve([{ id: 'renamed', name: 'Renamed', allowancePercent: 0 }]);
+    steps.resolve([
+      { estimateUnit: 'workdays' as const, id: 'renamed', name: 'Renamed', allowancePercent: 0 },
+    ]);
     expect((await wider).status).toBe('installed');
     expect(owner.getSnapshot().steps.installed?.value.at(0)?.name).toBe('Renamed');
     owner.dispose();

@@ -4567,3 +4567,77 @@ describe('the status cell and the two fact cells', () => {
     });
   });
 });
+
+itDom.each([
+  [40, '40 min'],
+  [135, '2 h 15 min'],
+  [720, '1.5 d'],
+] as const)(
+  'refuses fractional minute shorthand before sending and reads native %s as %s',
+  async (minutes, words) => {
+    const api = fakeApi();
+    await api.setStepUnit('p1', DEV.id, 'minutes');
+    const row = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: null,
+      name: 'Minute task',
+    });
+    await api.setEstimate(row.id, DEV.id, {
+      optimistic: minutes,
+      realistic: minutes,
+      pessimistic: minutes,
+    });
+    const writes = recordCalls(api, 'setEstimate');
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    const cell = await screen.findByLabelText('Dev estimate for 010');
+    expect(document.querySelector('[data-folded-final]')).toHaveTextContent(words);
+    fireEvent.focus(cell);
+    expect(screen.getByRole('tooltip')).toHaveTextContent(`Final ${words}`);
+    fireEvent.change(cell, { target: { value: '1.5' } });
+    fireEvent.blur(cell);
+    await waitFor(() => expect(cell).toHaveAttribute('aria-invalid', 'true'));
+    expect(writes).toHaveLength(0);
+    fireEvent.focus(cell);
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Use whole minutes, zero or more.');
+  },
+);
+
+itDom.each([
+  ['optimistic', '1.5'],
+  ['pessimistic', '21474836161'],
+])('refuses invalid unfolded minute %s point %s before sending', async (point, typed) => {
+  const api = fakeApi();
+  await api.setStepUnit('p1', DEV.id, 'minutes');
+  const row = await api.createWorkItem('p1', { parentId: null, afterId: null });
+  await api.setEstimate(row.id, DEV.id, { optimistic: 40, realistic: 40, pessimistic: 40 });
+  const writes = recordCalls(api, 'setEstimate');
+  render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+  await screen.findByLabelText('Dev estimate for 010');
+  unfoldStep('Dev');
+  const cell = screen.getByLabelText(`Dev ${point} for 010`);
+  fireEvent.change(cell, { target: { value: typed } });
+  fireEvent.blur(cell);
+  await waitFor(() => expect(cell).toHaveAttribute('aria-invalid', 'true'));
+  expect(writes).toHaveLength(0);
+});
+
+itDom('routes a missing trusted native minute charge to the Error Boundary', async () => {
+  const api = fakeApi();
+  await api.setStepUnit('p1', DEV.id, 'minutes');
+  const row = await api.createWorkItem('p1', { parentId: null, afterId: null });
+  await api.setEstimate(row.id, DEV.id, { optimistic: 40, realistic: 40, pessimistic: 40 });
+  const readTree = api.tree.bind(api);
+  api.tree = async (projectId) => {
+    const tree = await readTree(projectId);
+    return {
+      ...tree,
+      workItems: tree.workItems.map(({ charged: _charge, ...workItem }) => workItem),
+    };
+  };
+  render(
+    <PlanFaultBoundary>
+      <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />
+    </PlanFaultBoundary>,
+  );
+  expect(await screen.findByRole('alert')).toHaveTextContent('Plan could not be rendered.');
+});

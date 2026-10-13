@@ -3,6 +3,8 @@ import {
   type AssumedAssigneeFlip,
   assumedAssigneeFlips,
   cleanName,
+  type EstimateUnit,
+  isEstimateUnit,
   isReservedStepCode,
   isStepCode,
   stepIsInUse,
@@ -64,9 +66,12 @@ export type StepRefusal =
   | 'taken'
   | 'invalid_code'
   | 'reserved_code'
-  | 'code_taken';
+  | 'code_taken'
+  | 'invalid_estimate_unit';
 
 export type StepOutcome = { ok: true; value: Step } | { ok: false; reason: StepRefusal };
+export type StepUnitOutcome =
+  StepOutcome | { ok: false; reason: 'estimates_present'; count: number };
 
 /** What a removal would take with it, as the refusal reports it. */
 export interface StepInUse {
@@ -213,6 +218,7 @@ export class StepService {
     allowancePercent: AllowancePercent,
     code: string | undefined,
     access: ResourceAccess,
+    estimateUnit: EstimateUnit = 'workdays',
   ): Promise<StepOutcome> {
     const clean = cleanName(name);
     // Before the project is read: a step called nothing would sit in every
@@ -228,12 +234,47 @@ export class StepService {
 
     const written = await this.opts.steps.add(
       code === undefined
-        ? { id: this.clock.newId(), projectId, name: clean, allowancePercent }
-        : { id: this.clock.newId(), projectId, name: clean, allowancePercent, code },
+        ? {
+            id: this.clock.newId(),
+            projectId,
+            name: clean,
+            allowancePercent,
+            estimateUnit,
+          }
+        : {
+            id: this.clock.newId(),
+            projectId,
+            name: clean,
+            allowancePercent,
+            code,
+            estimateUnit,
+          },
       this.clock.stampFor(actorId),
     );
     if (!written.ok) return { ok: false, reason: written.reason };
     await this.opts.broadcast.publish(projectId, { type: 'step_added', step: written.step });
+    return { ok: true, value: written.step };
+  }
+
+  /** Changes an empty step's unit through the store's count-and-write transaction (ADR 0042). */
+  async patchUnitWithin(
+    projectId: string,
+    stepId: string,
+    actorId: string,
+    unit: string,
+    access: ResourceAccess,
+  ): Promise<StepUnitOutcome> {
+    if (!isEstimateUnit(unit)) return { ok: false, reason: 'invalid_estimate_unit' };
+    const admitted = await this.gate(projectId, stepId, actorId, access);
+    if (!admitted.ok) return admitted;
+    const written = await this.opts.steps.patchUnit(
+      projectId,
+      stepId,
+      unit,
+      this.clock.stampFor(actorId),
+    );
+    if (!written.ok) return written;
+    await this.opts.broadcast.publish(projectId, { type: 'step_renamed', step: written.step });
     return { ok: true, value: written.step };
   }
 

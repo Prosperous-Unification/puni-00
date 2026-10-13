@@ -1,4 +1,11 @@
-import type { AllowancePercent, Days, MeasureMetric, StepState } from '@wbs/domain';
+import {
+  type AllowancePercent,
+  type Days,
+  type EstimateUnit,
+  isEstimateUnit,
+  type MeasureMetric,
+  type StepState,
+} from '@wbs/domain';
 
 import type { ActualKey, StoredActual } from '../ports/actual-store';
 import type { StoredDependency } from '../ports/dependency-store';
@@ -371,6 +378,8 @@ export function stepOfRevisionKey(key: string): string | null {
  * refuses. See `openspec/changes/conditional-undo/design.md`.
  */
 export interface Preconditions {
+  /** Immutable units from the original write; absent only in legacy workday-only journals. */
+  estimateUnits?: Record<string, EstimateUnit>;
   expected: Revisions;
   from: Revisions;
 }
@@ -445,7 +454,70 @@ export function readPreconditions(value: unknown): Preconditions {
   if (typeof value !== 'object' || value === null || !('expected' in value) || !('from' in value)) {
     throw new Error(`a journal entry holds no preconditions: ${JSON.stringify(value)}`);
   }
-  return { expected: readRevisions(value.expected), from: readRevisions(value.from) };
+  return {
+    expected: readRevisions(value.expected),
+    from: readRevisions(value.from),
+    ...('estimateUnits' in value ? { estimateUnits: readEstimateUnits(value.estimateUnits) } : {}),
+  };
+}
+
+/** Validates a present binding map; malformed trusted history never means legacy history. */
+function readEstimateUnits(value: unknown): Record<string, EstimateUnit> {
+  // Proof: bypassing shape validation changed null's named trusted-state failure to a raw TypeError (compensating.test.ts, 2026-10-12).
+  if (typeof value !== 'object' || value === null || Array.isArray(value))
+    throw new Error('journal estimate units are not a map');
+  const units: Record<string, EstimateUnit> = {};
+  for (const [stepId, unit] of Object.entries(value)) {
+    // Proof: skipping vocabulary validation admitted hours (compensating.test.ts binding-map case, 2026-10-12).
+    if (!isEstimateUnit(unit))
+      throw new Error(`journal estimate units name an unknown unit for step ${stepId}`);
+    units[stepId] = unit;
+  }
+  return units;
+}
+
+/** Every step whose estimate meaning either direction of a journal entry carries. */
+export function estimateStepsOf(commands: readonly CompensatingCommand[]): Set<string> {
+  const steps = new Set<string>();
+  for (const command of commands) {
+    switch (command.do) {
+      case 'set_estimate':
+      case 'clear_estimate':
+        steps.add(command.stepId);
+        break;
+      // Proof: omitting this array lost handed-up from the nested coverage case (compensating.test.ts, 2026-10-12).
+      case 'delete_subtree':
+        for (const estimate of command.setEstimates) steps.add(estimate.stepId);
+        break;
+      // Proof: omitting subtree arrays restored an estimate under another unit, 200 vs 409 (mounted deleted-subtree case, 2026-10-12).
+      case 'restore_subtree':
+        for (const estimate of [...command.estimates, ...command.removedEstimates])
+          steps.add(estimate.stepId);
+        break;
+      // Proof: skipping recursion let the mixed inverse batch restore and rename, 200 vs 409 (mounted replay case, 2026-10-12).
+      case 'batch':
+        for (const stepId of estimateStepsOf(command.steps)) steps.add(stepId);
+        break;
+    }
+  }
+  return steps;
+}
+
+/** Binds legacy history to workdays explicitly and refuses incomplete modern bindings. */
+export function boundEstimateUnits(
+  preconditions: Preconditions,
+  commands: readonly CompensatingCommand[],
+): Record<string, EstimateUnit> {
+  const steps = estimateStepsOf(commands);
+  // Proof: treating legacy as minutes made its workday replay refuse 409 instead of 200 (mounted legacy case, 2026-10-12).
+  if (preconditions.estimateUnits === undefined)
+    return Object.fromEntries([...steps].map((stepId) => [stepId, 'workdays' as const]));
+  for (const stepId of steps) {
+    // Proof: skipping coverage let a present empty map replay, 200 instead of trusted-state 500 (mounted legacy/malformed case, 2026-10-12).
+    if (!Object.hasOwn(preconditions.estimateUnits, stepId))
+      throw new Error(`journal estimate units have no binding for step ${stepId}`);
+  }
+  return preconditions.estimateUnits;
 }
 
 function readRevisions(value: unknown): Revisions {

@@ -124,7 +124,8 @@
  * reddens until the number moves. On a direct push the lint reports after the
  * commit has landed, which is detection and not prevention.
  */
-export const SCHEDULER_CONTRACT_VERSION = 15;
+// Estimate-unit corpus cases require a fresh namespace; existing workday cases retain identical schedules (ADR 0042).
+export const SCHEDULER_CONTRACT_VERSION = 16;
 
 /**
  * The composite the **wire** carries and the **cache key** stores, from one

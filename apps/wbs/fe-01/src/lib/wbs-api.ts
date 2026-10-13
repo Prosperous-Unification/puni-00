@@ -44,6 +44,7 @@ import {
   validateSchema,
 } from '@wbs/contracts';
 import type { DependencyReach } from '@wbs/domain/dependency-reach';
+import type { ChargedEstimate, EstimateUnit } from '@wbs/domain/estimate';
 import type { PriorityBand } from '@wbs/domain/priority-band';
 // The second exception, and the cheaper one: `IsoDate` is `export type IsoDate =
 // string` in a module with no imports of its own, so this erases entirely at
@@ -282,6 +283,7 @@ export interface ElsewhereHolderView {
 }
 
 export interface WorkItemView {
+  charged?: Record<string, ChargedEstimate>;
   id: string;
   parentId: string | null;
   /**
@@ -602,6 +604,7 @@ export interface SpanView {
 }
 
 export interface StepView {
+  estimateUnit: EstimateUnit;
   id: string;
   name: string;
   allowancePercent: number;
@@ -649,8 +652,15 @@ export function stepViewOf(step: {
   id: string;
   name: string;
   allowancePercent?: number;
+  estimateUnit?: EstimateUnit;
 }): StepView {
-  return { id: step.id, name: step.name, allowancePercent: step.allowancePercent ?? 0 };
+  return {
+    // Proof: forcing workdays failed step-view.test.ts minute preservation.
+    estimateUnit: step.estimateUnit ?? 'workdays',
+    id: step.id,
+    name: step.name,
+    allowancePercent: step.allowancePercent ?? 0,
+  };
 }
 
 /**
@@ -1651,7 +1661,8 @@ export interface ProjectApi {
   setPriorityBands(projectId: string, bands: readonly PriorityBandView[]): Promise<void>;
   steps(projectId: string): Promise<StepView[]>;
   /** Adds a step to the project. Throws `taken` when the name is already one. */
-  addStep(projectId: string, name: string): Promise<StepView>;
+  addStep(projectId: string, name: string, estimateUnit?: EstimateUnit): Promise<StepView>;
+  setStepUnit(projectId: string, stepId: string, estimateUnit: EstimateUnit): Promise<StepView>;
   renameStep(projectId: string, stepId: string, name: string): Promise<StepView>;
   setStepAllowance(projectId: string, stepId: string, allowancePercent: number): Promise<StepView>;
   /**
@@ -2091,6 +2102,8 @@ export const STEP_REFUSALS: RefusalWords = {
   sentences: {
     taken: 'That name is already a step on this plan.',
     name_required: 'A step needs a name.',
+    invalid_estimate_unit: 'Choose workdays or minutes.',
+    estimates_present: 'Clear the estimates in this step before changing its unit.',
     invalid_allowance: 'Invalid allowance. Enter 0–1000 with at most two decimal places.',
     // Proof: without this sentence, `says why an allowance past the calendar was
     // refused` (steps-panel.test.tsx) found no sentence; watched 2026-09-28.
@@ -2839,12 +2852,23 @@ export function httpProjectApi(token: string): ProjectApi {
         await client.getApiProjectsById({ params: { id: projectId }, headers: auth(token) }),
       ).steps.map(stepViewOf);
     },
-    async addStep(projectId, name) {
+    async addStep(projectId, name, estimateUnit = 'workdays') {
       const { step } = jsonBody(
         addStepShape,
         await client.postApiProjectsByIdSteps({
           params: { id: projectId },
-          body: { name },
+          body: { name, estimateUnit },
+          headers: auth(token),
+        }),
+      );
+      return stepViewOf(step);
+    },
+    async setStepUnit(projectId, stepId, estimateUnit) {
+      const { step } = jsonBody(
+        renameStepShape,
+        await client.patchApiProjectsByIdStepsByStepId({
+          params: { id: projectId, stepId },
+          body: { estimateUnit },
           headers: auth(token),
         }),
       );

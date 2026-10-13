@@ -41,8 +41,22 @@ describe('canonicalisePlanInput', () => {
 
   it('captures coded and uncoded step identities', () => {
     expect(canonicalisePlanInput(rows).steps).toEqual([
-      { id: 's1', code: 'build', name: 'Build', position: 10, allowancePercent: 0 },
-      { id: 's2', code: null, name: 'Test', position: 20, allowancePercent: 0 },
+      {
+        id: 's1',
+        code: 'build',
+        name: 'Build',
+        position: 10,
+        estimateUnit: 'workdays' as const,
+        allowancePercent: 0,
+      },
+      {
+        id: 's2',
+        code: null,
+        name: 'Test',
+        position: 20,
+        estimateUnit: 'workdays' as const,
+        allowancePercent: 0,
+      },
     ]);
   });
 
@@ -183,7 +197,16 @@ describe('canonicalisePlanInput round trip', () => {
           readiness: null,
           hold: null,
         })),
-        steps: [{ id: 's1', code: 'build', name: 'Build', position: 10, allowancePercent: 0 }],
+        steps: [
+          {
+            id: 's1',
+            code: 'build',
+            name: 'Build',
+            position: 10,
+            estimateUnit: 'workdays' as const,
+            allowancePercent: 0,
+          },
+        ],
         stepValues: ids.map((id) => ({
           workItemId: id,
           stepId: 's1',
@@ -225,4 +248,12 @@ describe('canonicalisePlanInput round trip', () => {
       { numRuns: 200 },
     );
   });
+});
+
+it('captures a minute unit in the canonical body rather than restating it as workdays', () => {
+  const captured = canonicalisePlanInput({
+    ...rows,
+    steps: rows.steps.map((step) => ({ ...step, estimateUnit: 'minutes' as const })),
+  });
+  expect(captured.steps.every((step) => step.estimateUnit === 'minutes')).toBe(true);
 });
