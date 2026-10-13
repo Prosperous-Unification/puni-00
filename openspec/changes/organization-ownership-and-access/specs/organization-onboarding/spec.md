@@ -161,3 +161,47 @@ fe-01 SHALL provide onboarding, organization switching, a members page for invit
 - **GIVEN** a member has a members page open
 - **WHEN** that membership is removed and the page refreshes or receives a refusal
 - **THEN** it clears organization data and renders the no-access state
+
+### Requirement: Organization selection owns the frontend resource lifetime
+
+After activated onboarding, fe-01 SHALL offer explicit selection for one or multiple memberships, a switcher for the active membership, and navigation to organization administration. Zero memberships SHALL remain in onboarding; organization creation and invitation acceptance SHALL refresh available memberships without automatically selecting one. Before activation the legacy application SHALL remain usable. Loading, selection, switching, no memberships, request failure, lost access and retirement failure SHALL have distinct rendered states.
+
+A successful selection SHALL be confirmed against the server's current active context before publishing organization resources. The frontend SHALL synchronously withdraw the previous organization runtime, retire its selected project, streams, directory, catalog and organization panels, and create a fresh runtime for the account and confirmed organization. Clients SHALL capture that runtime's expected organization immutably; they SHALL NOT choose it from a mutable global when a request is sent. Responses or events from a withdrawn runtime SHALL NOT publish into its successor. Failed retirement SHALL reach the existing fatal state; superseded transitions SHALL preserve their existing controlled outcome. Selection failure SHALL leave old organization content withdrawn and render recovery rather than restoring unconfirmed authority.
+
+Focus, persisted page restoration and another tab's selection notification SHALL invalidate or reconcile context against the server before using retained organization content. Cross-tab notifications SHALL only invalidate; their payload SHALL NOT grant organization access. Organization-context mismatch, removed membership or lost binding SHALL clear organization content and render recovery without retrying a mutation. Membership loss discovered through a refresh or refusal SHALL clear all panels. The existing gateway revocation bound remains a separate requirement; this UI contract SHALL NOT claim instantaneous remote removal without a delivered signal.
+
+#### Scenario: Explicit selection after onboarding
+
+- **GIVEN** a user with zero, one or multiple memberships
+- **WHEN** the signed-in application discovers onboarding and active context
+- **THEN** zero memberships sees its onboarding path, and an unbound user with one or multiple memberships must explicitly choose before organization resources are exposed
+- **AND** creating an organization or accepting an invitation refreshes choices without implicitly selecting
+
+#### Scenario: Same account switches organization
+
+- **GIVEN** one account displaying A's catalog, directory, project and organization panels
+- **WHEN** the user selects B and the server confirms B
+- **THEN** A is withdrawn before B is exposed, its project and streams retire, and B receives fresh services whose reads and writes capture expected organization B
+- **AND** a delayed A response or event cannot repopulate A or B with stale content
+
+#### Scenario: Two tabs share a selection cookie
+
+- **GIVEN** two tabs displaying A and sharing the browser credential cookies
+- **WHEN** one selects B and the other receives its notification or regains focus
+- **THEN** the other withdraws A and reconciles through the server before exposing organization content
+- **AND** if notification is missed, a stale request still carries A and refuses after the shared cookie switches to B
+- **AND** one refused mutation produces no automatic retry under B
+
+#### Scenario: Selection responses arrive out of order
+
+- **GIVEN** selection and context requests overlap with another selection, sign-out or credential replacement
+- **WHEN** an earlier response arrives after the newer transition
+- **THEN** it cannot publish or resurrect the previous runtime, and a disagreement between the intended selection and server context requires recovery or explicit reselection
+- **AND** cross-tab notices naming an arbitrary organization cannot select it
+
+#### Scenario: Membership loss and retirement failure
+
+- **GIVEN** rendered organization content
+- **WHEN** refresh or refusal reports membership loss, missing binding or changed organization
+- **THEN** the entire organization runtime and every panel clear and a no-access or selection state renders
+- **AND** failure to retire a project or stream renders the existing fatal recovery state rather than reporting a successful switch
