@@ -417,3 +417,47 @@ This proves admission only. The test Pods remain unscheduled, and no host mount 
 runtime claim is made. No workload migration, live-host, Flux, credential or RBAC change is
 included. The full h2puni gate remains with the coordinating agent; WBS 070.14 and its workload
 namespace lifecycle task remain in progress.
+
+### Review repair: pre-existing unlabelled reserved namespace
+
+Astra review identified that the label selector bypassed the workload policy for reserved
+namespaces created before the namespace policy. The repair adds a parameter-free Pod identity
+policy without a namespace selector. Upgrade probes create valid and malformed unlabelled
+reserved namespaces plus approved/unsafe Pods before installation. Pod CREATE/UPDATE and
+ephemeral requests must then deny independently of parameters. No existing namespace is
+repaired or migrated by this slice.
+
+Fresh locked-image k3d upgrade rehearsal, starting with no policy installed:
+
+1. `bun infra/platform/conformance/admission/forge-namespace-upgrade-check.mjs --prepare`
+   created `puni-forge-upgrade` and `puni-forge-1upgrade` without trusted labels, plus approved
+   and privileged Pods in each. They remained unscheduled on the single server.
+2. Installed the prior policy: the first otherwise-approved Pod create was admitted (API exit
+   0), so the upgrade assertion failed. This reproduced the review finding.
+3. Installed the independent `puni-reserved-forge-pod` policy/binding without parameters or a
+   namespace selector. `bun infra/platform/conformance/admission/forge-namespace-upgrade-check.mjs`
+   passed all 24 assertions: both namespace identities × approved/unsafe × Pod create, Pod
+   update and ephemeral update, once with parameters present and again with parameters absent.
+   The check restored the parameter ConfigMap in `finally`.
+4. `bun infra/platform/conformance/admission/forge-namespace-check.mjs` passed all 88 assertions,
+   retaining the prior 87 and adding a kube-system Pod admitted with trusted parameters absent.
+5. `bun test --preload ./tools/test/scratch/preload.ts tools/tool-fleet/src/platform.test.ts`:
+   61 passed, 0 failed, 130 assertions. Focused `tool-fleet:lint` and `tool-fleet:typecheck`
+   (uncached) passed after correcting the static validator's array indexing for ESLint; both
+   conformance scripts also passed explicit ESLint. The first commit attempt was stopped by
+   lefthook on those indexing diagnostics; no hook was bypassed.
+
+| Check                                     | Injected fault                                                            | Production-path probe                                                                                                                         | Observed result                                                                                             |
+| ----------------------------------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Pre-existing reserved namespace admission | Replaced only the new parameter-free identity expression with `true`      | Every approved/unsafe Pod CREATE, Pod UPDATE and ephemeral UPDATE in both unlabelled valid/malformed identities                               | All 12 negatives failed with API exit 0; the restored guard denied all 24 present/absent-parameter requests |
+| Required independent identity graph       | Removed `assertReservedForgePods` from the production validator call path | Five independent `validatePlatform` mutations: missing policy, namespace selector, parameters, missing binding, missing ephemeral subresource | All five resolved and failed their denial assertions; restoring the call made all five pass                 |
+
+The API observed newly installed admission bindings asynchronously. The initial immediate
+post-install probe still admitted a request; a later complete run verified the active guard.
+Only complete successful runs are counted. Pod updates patch metadata on existing approved
+or unsafe Pods, avoiding immutable-spec schema rejection; ephemeral updates use the actual
+subresource. The proof requires the independent policy's specific denial message.
+
+Changed-file format and OpenSpec validation passed. The fresh disposable cluster and its
+kubeconfig were removed after the final runs. The full h2puni gate remains with the root agent;
+no live namespace, workload migration, Flux, credential or RBAC change was made.

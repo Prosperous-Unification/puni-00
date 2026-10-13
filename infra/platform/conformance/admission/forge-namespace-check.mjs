@@ -254,6 +254,8 @@ try {
     allowPrivilegeEscalation: false,
   });
   admit('ordinary without trusted parameter', ordinary);
+  ordinary.metadata.namespace = 'kube-system';
+  admit('system without trusted parameter', ordinary);
 } finally {
   requireRequest(['create', '-f', '-'], parameter);
 }

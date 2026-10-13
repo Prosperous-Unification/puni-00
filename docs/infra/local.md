@@ -135,7 +135,7 @@ controller, node and container-security rules. `dev-env` currently uses `puni-fo
 workload namespace ownership and lifecycle migration are a later WBS 070.14 slice.
 
 Run this admission-only rehearsal against a new disposable cluster. It installs no Flux graph
-and proves API admission, including the ephemeral-container subresource. The three target Pods
+and proves API admission, including the ephemeral-container subresource. The test Pods
 remain unscheduled because the rehearsal has no forge node selector; it proves no host mount or
 application runtime behavior. Use the locked `k3d` and `kubectl` from the Tools section.
 
@@ -149,14 +149,25 @@ export KUBE_CONTEXT=k3d-puni-forge-admission
   --kubeconfig-update-default=false --kubeconfig-switch-context=false \
   --k3s-arg '--disable=traefik,servicelb,metrics-server@server:*' --wait --timeout 180s
 "$K3D" kubeconfig get puni-forge-admission > "$KUBECONFIG"
+bun infra/platform/conformance/admission/forge-namespace-upgrade-check.mjs --prepare
 "$KUBECTL" --kubeconfig "$KUBECONFIG" --context "$KUBE_CONTEXT" apply \
   -f infra/platform/conformance/admission/forge-namespaces.yaml \
   -f infra/platform/policy/trusted-images.yaml \
   -f infra/platform/policy/trusted-workloads.yaml
 bun infra/platform/conformance/admission/forge-namespace-check.mjs
+bun infra/platform/conformance/admission/forge-namespace-upgrade-check.mjs
 "$K3D" cluster delete puni-forge-admission
 rm "$KUBECONFIG"
 ```
+
+The upgrade preparation creates unlabelled valid and malformed reserved namespaces and approved
+and unsafe Pods before any admission policy exists. A separate parameter-free Pod identity
+policy covers Pod CREATE/UPDATE and `pods/ephemeralcontainers` regardless of namespace labels,
+so installing the platform closes that pre-existing namespace bypass. Upgrade probes deny all
+12 requests with and without trusted parameters, then restore the parameter ConfigMap. These
+probes require the new identity policy's specific denial message, never a Kubernetes schema
+rejection. Policy bindings propagate asynchronously; accept only a complete successful check
+after the API has observed installation.
 
 The check requires explicit cluster variables, tests the original forge plus `alpha` and `beta`,
 and checks that deleting the shared parameter ConfigMap denies all trusted Pods while ordinary

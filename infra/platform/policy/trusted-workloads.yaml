@@ -346,3 +346,42 @@ metadata:
 spec:
   policyName: puni-trusted-namespace-label
   validationActions: [Deny]
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: puni-reserved-forge-pod
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ['']
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods, pods/ephemeralcontainers]
+  variables:
+    - name: isForge
+      expression: >-
+        object.metadata.namespace == 'puni-forge' ||
+        object.metadata.namespace.matches('^puni-forge-[a-z]([a-z0-9-]{0,18}[a-z0-9])?$')
+    - name: isReserved
+      expression: >-
+        object.metadata.namespace == 'puni-forge' ||
+        object.metadata.namespace.startsWith('puni-forge-')
+  validations:
+    # Proof: replacing this guard with true admitted approved/unsafe Pod creates, updates and
+    # ephemeral requests in both pre-existing unlabelled valid/malformed namespaces on k3d.
+    - expression: >-
+        !variables.isReserved ||
+        (variables.isForge && has(namespaceObject.metadata.labels) &&
+         'puni.dev/trusted-hostpath' in namespaceObject.metadata.labels &&
+         namespaceObject.metadata.labels['puni.dev/trusted-hostpath'] == 'source')
+      message: reserved forge namespaces require their source label before Pod admission
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: puni-reserved-forge-pod
+spec:
+  policyName: puni-reserved-forge-pod
+  validationActions: [Deny]

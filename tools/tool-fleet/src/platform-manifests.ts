@@ -590,6 +590,85 @@ function assertTrustedNamespaceIdentity(manifests: readonly PlatformManifest[]):
   }
 }
 
+const ReservedForgePods = type({
+  kind: "'ValidatingAdmissionPolicy'",
+  metadata: { name: "'puni-reserved-forge-pod'" },
+  spec: {
+    failurePolicy: "'Fail'",
+    'paramKind?': 'unknown',
+    matchConstraints: {
+      'namespaceSelector?': 'unknown',
+      resourceRules: type({
+        apiGroups: 'string[]',
+        apiVersions: 'string[]',
+        operations: 'string[]',
+        resources: 'string[]',
+      }).array(),
+    },
+    variables: type({ name: 'string', expression: 'string' }).array(),
+    validations: type({ expression: 'string' }).array(),
+  },
+});
+const ReservedForgeBinding = type({
+  kind: "'ValidatingAdmissionPolicyBinding'",
+  metadata: { name: "'puni-reserved-forge-pod'" },
+  spec: {
+    policyName: "'puni-reserved-forge-pod'",
+    validationActions: 'string[]',
+    'paramRef?': 'unknown',
+  },
+});
+
+/** Reject admission graphs that can skip pre-existing unlabelled reserved forge namespaces. */
+function assertReservedForgePods(manifests: readonly PlatformManifest[]): void {
+  const policies = manifests.flatMap(({ document }) => {
+    const policy = ReservedForgePods(document);
+    return policy instanceof type.errors ? [] : [policy];
+  });
+  const bindings = manifests.flatMap(({ document }) => {
+    const binding = ReservedForgeBinding(document);
+    return binding instanceof type.errors ? [] : [binding];
+  });
+  const policy = policies.at(0);
+  const binding = bindings.at(0);
+  const rule = policy?.spec.matchConstraints.resourceRules.at(0);
+  const forge = policy?.spec.variables.find((variable) => variable.name === 'isForge');
+  const reserved = policy?.spec.variables.find((variable) => variable.name === 'isReserved');
+  const guard = policy?.spec.validations.at(0);
+  const normalizeExpression = (expression: string): string =>
+    expression.replace(/\s+/g, ' ').trim();
+  if (
+    policies.length !== 1 ||
+    bindings.length !== 1 ||
+    policy === undefined ||
+    binding === undefined ||
+    'paramKind' in policy.spec ||
+    'paramRef' in binding.spec ||
+    'namespaceSelector' in policy.spec.matchConstraints ||
+    binding.spec.validationActions.join(',') !== 'Deny' ||
+    policy.spec.matchConstraints.resourceRules.length !== 1 ||
+    rule?.apiGroups.length !== 1 ||
+    rule.apiGroups[0] !== '' ||
+    rule.apiVersions.join(',') !== 'v1' ||
+    rule.operations.join(',') !== 'CREATE,UPDATE' ||
+    rule.resources.join(',') !== 'pods,pods/ephemeralcontainers' ||
+    forge === undefined ||
+    reserved === undefined ||
+    guard === undefined ||
+    policy.spec.validations.length !== 1 ||
+    normalizeExpression(forge.expression) !==
+      "object.metadata.namespace == 'puni-forge' || object.metadata.namespace.matches('^puni-forge-[a-z]([a-z0-9-]{0,18}[a-z0-9])?$')" ||
+    normalizeExpression(reserved.expression) !==
+      "object.metadata.namespace == 'puni-forge' || object.metadata.namespace.startsWith('puni-forge-')" ||
+    normalizeExpression(guard.expression) !==
+      "!variables.isReserved || (variables.isForge && has(namespaceObject.metadata.labels) && 'puni.dev/trusted-hostpath' in namespaceObject.metadata.labels && namespaceObject.metadata.labels['puni.dev/trusted-hostpath'] == 'source')"
+  ) {
+    // Proof: removing this guard made validatePlatform accept missing identity policy/binding,
+    // a namespace label selector, parameters, and omitted ephemeral subresource mutations.
+    throw new Error('reserved Pod identity must cover all namespaces without parameters');
+  }
+}
+
 /**
  * Require the trusted-hostpath policy to match only labelled trusted namespaces. Its
  * binding denies when the parameter ConfigMap is absent, so an unscoped policy would
@@ -597,6 +676,7 @@ function assertTrustedNamespaceIdentity(manifests: readonly PlatformManifest[]):
  */
 export function assertTrustedPolicyScope(manifests: readonly PlatformManifest[]): void {
   assertTrustedNamespaceIdentity(manifests);
+  assertReservedForgePods(manifests);
   const policies = manifests.flatMap(({ document }) => {
     const policy = TrustedPolicy(document);
     return policy instanceof type.errors ? [] : [policy];

@@ -28,6 +28,7 @@
     - [x] Admission prerequisite: add original/two-family namespace positives and path/image/identity/security/init/ephemeral plus namespace-label negatives; observe the bypass before the fix.
     - [x] Apply one trusted forge identity contract to pod and namespace policies; reject missing/changed/unknown source labels and malformed reserved suffixes; validate rendered policy structure.
     - [x] Run disposable k3d server-side admission probes, missing-parameter and ordinary/solver controls; remove guards to prove negatives can fail, record evidence in verify.md.
+    - [x] Close the upgrade bypass with a parameter-free Pod identity policy independent of namespace labels; precreate unlabelled valid/malformed reserved namespaces, test Pod create/update and ephemeral-container requests, and watch their negatives fail with the new guard removed.
     - [ ] Migrate environment workload ownership and namespace lifecycle in a separately reviewed slice; admission prerequisite alone does not complete WBS 070.14.
   - [x] The real Ubuntu VM host-setup check (`tool-fleet:lab -- up --provider qemu --lab-id …`) ran in the VM lab track; evidence in [k3s-fleet verify.md](../k3s-fleet/verify.md).
 - [ ] F10 — Execute cold recovery and routine maintenance drills per [F10](../../../docs/superpowers/plans/2026-09-17-k3s-fleet.md#f10--recovery-and-routine-maintenance).
