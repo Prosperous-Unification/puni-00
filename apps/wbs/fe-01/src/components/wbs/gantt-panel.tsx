@@ -951,8 +951,8 @@ function labelPadRightPx(done: boolean, drawnPx: number): number {
  * number or **is** it (Dany: "every title to start from the item number - and
  * it must always be visible"), so nothing about the label can be decided
  * without knowing how much of the box the number will take. `estimated` rides
- * with it for the same reason: an assumed bar leads with `?` in front of the
- * number ({@link leadOf}), and that is room the number's own fit has to count.
+ * with it because an assumed bar writes {@link PLACEHOLDER_WORDS} instead of
+ * the number, and that is a different fit.
  */
 export interface LabelRoom {
   readonly px: number;
@@ -988,24 +988,69 @@ export function labelRoomFor(
 }
 
 /**
- * What every label on this bar opens with: the row's number, or `? · number`
- * on a bar whose width nobody gave.
+ * What every label on an estimated bar opens with: the row's number.
  *
- * The `?` leads and is not dropped for the name, because this bar's width is
- * {@link ASSUMED_SLICE_WORKDAYS} and not an estimate, and a bar that says
- * `010 · KA` and nothing else is a bar claiming two days of Kat's time. It sat
- * first before the number rule too (Dany, 2026-09-13: "let's just keep it at
- * the beginning like now"). What it **is** dropped for is the number itself
- * ({@link barText}): the dashed translucent outline ({@link ASSUMED_BAR_CLASSES})
- * says "a guess" on its own, and nothing else on the chart says which row.
+ * An assumed bar no longer leads with `? · number` (ui-review F-037,
+ * 2026-10-13): the `?` read as an error, and the number repeated what the
+ * row's estimated bar beside it already says. An assumed bar says what it is
+ * instead — {@link PLACEHOLDER_WORDS}, in {@link barText} — and the dashed
+ * translucent outline ({@link ASSUMED_BAR_CLASSES}) still says "a guess".
  */
 function leadOf(room: LabelRoom): string {
-  return room.estimated ? room.number : `?${LABEL_SEPARATOR}${room.number}`;
+  return room.number;
+}
+
+/**
+ * What a placeholder bar writes on itself: the fact that nobody estimated it,
+ * once, and nothing else — not the row number, which the label column and the
+ * row's estimated bars carry, and not the assignee, whom the fill names.
+ */
+const PLACEHOLDER_WORDS = 'no estimate';
+
+/**
+ * The fewest characters of {@link PLACEHOLDER_WORDS} worth writing before the
+ * box crops the rest with its ellipsis: `no est…` still reads as the phrase;
+ * fewer is a stray word. {@link LABEL_CHAR_PX} is generous, so at the opening
+ * scale a two-workday placeholder writes the phrase whole in Chromium.
+ */
+const PLACEHOLDER_LEGIBLE_CHARS = 6;
+
+/**
+ * How tall a lane must be before a label is written in it, in CSS pixels.
+ *
+ * A bar shares its row with others only in a cluster that holds an unestimated
+ * placeholder ({@link GanttBar.lane}); each lane is then a slice of the bar's
+ * height. Two lanes are 8.96px, which holds the 9px label's digits and
+ * x-height; three are 6px, which holds nothing legible, so those bars write
+ * nothing and their hover cards still name them.
+ */
+const LABEL_LANE_MIN_PX = 8;
+
+/**
+ * Where a bar's label box stands, in CSS pixels down from the chart's first
+ * row: the bar's **own lane**, never the whole row band.
+ *
+ * Proof: written as the whole bar's band (`rowIndex + BAR_INSET` and
+ * `BAR_HEIGHT`) — what painted two lanes' labels over each other as
+ * `01010.3.0606` (ui-review F-012) — and `paints one label per bar, each
+ * inside its own lane, none over another` failed on `sand-plan label bottom:
+ * expected 50.96 to be less than or equal to 42.01`; watched 2026-10-13.
+ *
+ * @returns null where the lane is too short for a label ({@link LABEL_LANE_MIN_PX}).
+ */
+export function labelLaneOf(bar: {
+  rowIndex: number;
+  lane: number;
+  lanes: number;
+}): { topPx: number; heightPx: number } | null {
+  const heightPx = (BAR_HEIGHT * ROW_PX) / bar.lanes;
+  if (heightPx < LABEL_LANE_MIN_PX) return null;
+  return { topPx: (bar.rowIndex + BAR_INSET) * ROW_PX + bar.lane * heightPx, heightPx };
 }
 
 /**
  * Whether `who` fits after the room's lead with the crop mark's width to
- * spare — so `[? ·] number · who · words` reads whole up to the mark, and the
+ * spare — so `number · who · words` reads whole up to the mark, and the
  * mark falls on the words. The one measurement every candidate for `who` goes
  * through, in {@link barLabelFor}, {@link poolLabelFor} and {@link barText}
  * alike.
@@ -1348,9 +1393,9 @@ export function poolLabelFor(
  * width and crops with an ellipsis, so a narrow bar shows as much of the name
  * as it has pixels for rather than none of it.
  *
- * **The number is measured, and it wins.** Five readings, in order, each tried
- * only where the one before does not fit — `lead` being the number, or
- * `? · number` on an assumed bar ({@link leadOf}):
+ * **The number is measured, and it wins.** Four readings, in order, each tried
+ * only where the one before does not fit — `lead` being the number
+ * ({@link leadOf}):
  *
  * 1. `lead · who · name` where `lead · who` and the crop mark fit
  *    ({@link headFits}) — the mark lands on the name.
@@ -1358,8 +1403,9 @@ export function poolLabelFor(
  *    bar gives up first, and the hover surface still names the person.
  * 3. `lead` alone where only the lead fits — nothing follows, so no mark is
  *    drawn and nothing eats into it.
- * 4. `number` alone where only the number fits — the `?` goes, and the dashed
- *    outline is what still says "a guess".
+ *
+ * An assumed bar is none of these: it writes {@link PLACEHOLDER_WORDS} where
+ * enough of the phrase fits to read, and nothing otherwise (ui-review F-037).
  *
  * And nothing where the number itself does not fit: half a number is the
  * misreading this exists to remove, and a label box over a 5px bar is a stray
@@ -1373,18 +1419,22 @@ export function poolLabelFor(
  * Proof, the number rule: given the rule before it back — a letter of room is
  * enough and the number is never measured — `keeps the number whole before
  * anything else on the bar` failed on `expected '170.1 · KB · Strip' to be
- * '170.1 · Strip'` and `leads an assumed bar with the ?, and gives it up only
- * for the number` on `expected '? · 010 · KB · Strip' to be '? · 010 · Strip'`,
- * `2 failed | 237 passed`. Watched 2026-09-13.
+ * '170.1 · Strip'` and the assumed-bar case of that day on `expected
+ * '? · 010 · KB · Strip' to be '? · 010 · Strip'`, `2 failed | 237 passed`.
+ * Watched 2026-09-13; the assumed bar's `?` lead itself went with F-037.
  */
 export function barText(who: string | null, name: string, room: LabelRoom): string | null {
+  if (!room.estimated) {
+    return room.px >= PLACEHOLDER_LEGIBLE_CHARS * LABEL_CHAR_PX + ELLIPSIS_PX
+      ? PLACEHOLDER_WORDS
+      : null;
+  }
   const lead = leadOf(room);
   const words = nameWords(name);
   if (who !== null && headFits(room, who)) return [lead, who, words].join(LABEL_SEPARATOR);
   const leadPx = lead.length * LABEL_CHAR_PX;
   if (room.px >= leadPx + ELLIPSIS_PX) return [lead, words].join(LABEL_SEPARATOR);
-  if (room.px >= leadPx) return lead;
-  return room.px >= room.number.length * LABEL_CHAR_PX ? room.number : null;
+  return room.px >= leadPx ? lead : null;
 }
 
 /**
@@ -2764,18 +2814,19 @@ function buildStandaloneGanttSvg(input: StandaloneGanttSvgInput): SVGSVGElement 
         ? poolLabelFor(bar.team, bar.width, room)
         : barLabelFor(bar.personName, room);
     const shown = barText(who, bar.workItemName, room);
-    if (shown === null) continue;
+    const lane = labelLaneOf(bar);
+    if (shown === null || lane === null) continue;
     const barLeft = gutterPx + x * dayPx + CHART_PAD_PX;
-    const barTop = ROW_PX + (bar.rowIndex + BAR_INSET) * ROW_PX;
+    const barTop = ROW_PX + lane.topPx;
     const clipId = `gantt-bar-label-clip-${String(index)}`;
     const clip = document.createElementNS(SVG_NS, 'clipPath');
     clip.setAttribute('id', clipId);
     clip.setAttribute('clipPathUnits', 'userSpaceOnUse');
-    clip.appendChild(svgRect(barLeft, barTop, width * dayPx, BAR_HEIGHT * ROW_PX, '#000'));
+    clip.appendChild(svgRect(barLeft, barTop, width * dayPx, lane.heightPx, '#000'));
     labelClips.appendChild(clip);
 
     const left = barLeft + LABEL_PAD_LEFT_PX;
-    const top = ROW_PX + (bar.rowIndex + BAR_INSET) * ROW_PX + (BAR_HEIGHT * ROW_PX) / 2 + 3;
+    const top = barTop + lane.heightPx / 2 + 3;
     const label = svgText(left, top, shown, {
       fontSize: 9,
       fontWeight: '600',
@@ -3999,7 +4050,7 @@ export function GanttRenderer({
    * The bars that are drawn, which since 2026-09-11 is **all of them**.
    *
    * A slice nobody has estimated is drawn across an assumed span of two
-   * workdays, translucent and dashed and carrying a `?`. Those bars were part of
+   * workdays, translucent and dashed and saying `no estimate`. Those bars were part of
    * what the detail switch hid, by Dany's own ask on 2026-08-11 ("remove …
    * unestimated QA bars") and folded into one control on 2026-08-12 ("all
    * decluttering into one button").
@@ -4009,11 +4060,11 @@ export function GanttRenderer({
    * twelve rows of a twenty-eight-bar chart are uncosted, and with the switch
    * off those twelve lanes drew **nothing at all**. A row that is on the chart
    * and draws nothing reads as a row with no work rather than as a row nobody
-   * has costed, which is the opposite of what the `?` is for.
+   * has costed, which is the opposite of what the placeholder is for.
    *
    * So the switch answers about **two** families now — the stored-dependency
    * arrows and the parent rows' summary brackets — and an uncosted slice is
-   * drawn in both of its states. The dashes and the `?` are what say the span
+   * drawn in both of its states. The dashes and the words are what say the span
    * was assumed; they do that whether or not the reader wants elbows.
    *
    * One list, read by the rects, the ticks and the on-bar labels alike, so the
@@ -5737,8 +5788,8 @@ export function GanttRenderer({
             */}
         {drawnBars.map(({ bar, x, width }) => {
           // The row's number first, then who is on the bar, then its name —
-          // see {@link barText}; an unestimated bar leads with the `?` its
-          // width is a guess about ({@link leadOf}). The room is the **drawn**
+          // see {@link barText}; an unestimated bar says `no estimate`
+          // instead ({@link PLACEHOLDER_WORDS}). The room is the **drawn**
           // width, weekend cells included: a bar stretched over a Saturday has
           // those pixels to write in. The name is cropped by the box, not the
           // string. Nobody named and a team on the row: the bar says whose
@@ -5750,7 +5801,8 @@ export function GanttRenderer({
               ? poolLabelFor(bar.team, bar.width, room)
               : barLabelFor(bar.personName, room);
           const shown = barText(who, bar.workItemName, room);
-          if (shown === null) return null;
+          const lane = labelLaneOf(bar);
+          if (shown === null || lane === null) return null;
           return (
             <span
               key={`${bar.sliceId}-label`}
@@ -5773,10 +5825,12 @@ export function GanttRenderer({
                 // schedule: the label's pixel is the bar's pixel only with
                 // the same band added. See {@link CHART_PAD_PX}.
                 left: x * dayPx + CHART_PAD_PX,
-                top: (bar.rowIndex + BAR_INSET) * ROW_PX,
+                // The bar's own lane, so two bars sharing a row never write
+                // over each other — see {@link labelLaneOf}.
+                top: lane.topPx,
                 width: width * dayPx,
-                height: BAR_HEIGHT * ROW_PX,
-                lineHeight: `${String(BAR_HEIGHT * ROW_PX)}px`,
+                height: lane.heightPx,
+                lineHeight: `${String(lane.heightPx)}px`,
                 paddingLeft: LABEL_PAD_LEFT_PX,
                 // The pixels {@link labelRoomFor} took off the box: the pad,
                 // and the done tick where one is drawn.
