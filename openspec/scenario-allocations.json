@@ -720,6 +720,30 @@
       "id": "TEST-AXES-072",
       "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
       "title": "Manual observation identity and installed dispatch are complete"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-073",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Specification sources reject a tag object"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-074",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser test reports reject a tag object"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-075",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser test sources reject a tag object"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-076",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Performance inspection requires the exact committed object"
     }
   ]
 }
