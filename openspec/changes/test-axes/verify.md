@@ -3052,3 +3052,139 @@ Focused validation:
 Changed-file format and whitespace checks are recorded after this entry. The canonical h2puni host gate remains coordinator-owned and has not been run by this isolated implementation agent; no whole-tree gate success is claimed.
 
 Final restored-code validation: the 99-test collection/command suite again exited 0 with 342 assertions; changed-file `bunx prettier --check` and `git diff --check` exited 0. Host gate remains pending coordinator review.
+
+## Task 2.2a.4 — Name ownership exact-source review packet (2026-10-14)
+
+Evidence base: exact merged #423 `6043639bc832fa7e68ad8fddbcf724c033d30cc8`, initially clean
+`/tmp/puni-test-axes-21j` worktree, branch `docs/test-axes-name-lineage-packet`. This packet
+records the existing owners' intent and eligibility for later source reconciliation. Its
+classification is **active dependency with approved semantic supersession; source eligibility
+pending human acceptance**. Tasks 2.2a and 2.2 remain open.
+
+Fresh production command on that exact commit:
+
+```sh
+bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts inspect-spec-sources . 6043639bc832fa7e68ad8fddbcf724c033d30cc8 > /tmp/test-axes-name-spec-sources.json
+```
+
+Exit 0: 277 active source inputs, 96 canonical requirements and 1,018 operations;
+`certifies:false`. Candidate identity:
+`ff923deb521d4086a1eeb8400f5fb7bbb9640269b61876ee0f4988a2ce6abe08`.
+Complete observation digest:
+`b533a9a276fc9cca9b6e2fe05f0ce81a813d18cfc732895df92d674f53177555`.
+These identities describe the pinned evidence base, not the later documentation commit.
+The diagnostic reads committed Git blobs and inventories operations; its exit zero does not
+establish selector eligibility, accepted lineage or coverage.
+
+### Exact active sources and ownership
+
+Both files belong to capability `wbs-domain`. File digests below bind the complete selected
+source bytes; fragment digests bind the production parser's raw requirement fragments. Each
+listed operation contains six scenarios.
+
+| Owner/source                                                              | Complete source SHA-256                                            |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| [column-widths-drag spec](../column-widths-drag/specs/wbs-domain/spec.md) | `7b4a90c5e4230eda225a9fee879d1bc6ebdabf70b68350e3899a7595172cf779` |
+| [name-column-drag spec](../name-column-drag/specs/wbs-domain/spec.md)     | `7370ec14fb34363206522bc1408ba88869fc7d55b94ce4290d9457669b0c85bf` |
+
+| Exact source path                                              | Operation | Exact requirement title                                                 | Fragment SHA-256                                                   |
+| -------------------------------------------------------------- | --------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `openspec/changes/column-widths-drag/specs/wbs-domain/spec.md` | ADDED     | A column with a declared width can be dragged to another width          | `3d10305d27221b2730616437f36df82ae37fd0bd6d0eec132fc1cb2a85f9877c` |
+| `openspec/changes/name-column-drag/specs/wbs-domain/spec.md`   | MODIFIED  | A column with a declared width can be dragged to another width          | `a5c33929d2bd60447711769c176606087115bec9099a7c65b0f593f287b78c27` |
+| `openspec/changes/name-column-drag/specs/wbs-domain/spec.md`   | ADDED     | The Name column takes a dragged width, and the viewport keeps the slack | `246f9d1349f2f1c381542ad871c2fc8e364ba88534ef5450752aab2a853750bb` |
+
+The predecessor owns declared-width dragging and its shared layout, persistence and reset
+rules. The successor's [proposal](../name-column-drag/proposal.md) and
+[delta specification](../name-column-drag/specs/wbs-domain/spec.md) explicitly supersede
+its no-Name-handle clause. The same-title MODIFIED block states full-text replacement of the
+still-active predecessor and names its acceptance hold. It is an intentional dependency,
+with no evidence here for changing either operation label.
+
+### Recorded semantic decision and scenario mapping
+
+The [roadmap U1](../../../docs/plans/2026-08-10-ux-batch-and-roadmap.md#u1-name-column-drag-15d)
+and [Dany's 2026-08-10 Answers](../../../docs/plans/2026-08-10-ux-batch-and-roadmap.md#answers--dany-2026-08-10-whatsapp)
+already approve the direction: Name owns its dragged width; Number retains its envelope.
+Name gains a handle, uses its measured header width at gesture start, clamps to 200–600px,
+and shares the existing persistence, sanitizer and reset. With an override the table uses its
+resolved sum and the viewport keeps the slack. Without an override Name retains flexible
+remainder behavior and `widthFor` still refuses a declared width. The owner
+[verification record](../name-column-drag/verify.md#the-task-5-branch-decision) records the
+browser-selected sum-width design. Those historical test observations are owner evidence;
+this documentation slice does not rerun or certify them.
+
+The exact same-title scenario mapping is:
+
+| Predecessor scenario                                            | Successor scenario                                              | Disposition                                                              |
+| --------------------------------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| dragging a fixed column wider                                   | dragging a fixed column wider                                   | Preserved title and behavior                                             |
+| the Name column offers no handle                                | every column offers a handle, the Name column included          | Explicit approved semantic supersession; Name starts from measured width |
+| the floor is the narrower of 36 and the default                 | the floor is the narrower of 36 and the default                 | Preserved title and behavior for the narrow fixed column                 |
+| a resized folded role moves the figure the Phases dialog quotes | a resized folded role moves the figure the Phases dialog quotes | Preserved title and behavior                                             |
+| the ceiling is the same number in both directions               | the ceiling is the same number in both directions               | Preserved title and behavior                                             |
+| a drag does not disturb what is being typed                     | a drag does not disturb what is being typed                     | Preserved title and behavior                                             |
+
+The successor's separate ADDED requirement owns these six additional scenarios:
+
+| Exact scenario title                                  | Additional obligation                                                                       |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| dragging the Name column below the table minimum      | Name widens from its floor; minimum follows; earlier pins remain fixed                      |
+| the viewport keeps the slack                          | Name uses its override; other column envelopes hold; no sideways scroll within the viewport |
+| Name's floor and ceiling                              | Name clamps to 200px and 600px                                                              |
+| a stored Name entry is a claim with Name's own bounds | 300 applies; 150 and 1e9 drop independently                                                 |
+| an undragged Name is still the flexible column        | No declared width; remainder behavior and width lookup refusal survive                      |
+| one reset returns the whole layout, Name included     | Forget shared storage; restore flexible Name and resolved Number default                    |
+
+The retired negative `refuses the flexible column a width and a floor alike, override or not`
+is named in [column-widths-drag verify row 4](../column-widths-drag/verify.md) and explicitly
+superseded in the successor spec/proposal: its injected flexible-floor arm becomes intended
+behavior. This semantic retirement does not authorize dropping the five surviving predecessor
+scenarios, changing identifier history or weakening selector predecessor checks.
+
+### Acceptance holds and proposed later lifecycle
+
+[Column-widths task 7.2](../column-widths-drag/tasks.md#7-gate) and
+[Name task 6.2](../name-column-drag/tasks.md#6-gate) remain unchecked: both require deployment
+to dev and Dany's judgment of the table's feel. The
+[roadmap Lane B](../../../docs/plans/2026-08-10-ux-batch-and-roadmap.md#lane-b--bookkeeping-first-05d)
+requires driving predecessor acceptance to a decision before the archive sweep. Semantic
+approval from August does not establish that either attended acceptance occurred.
+
+Proposed later lifecycle, subject to exact-source review and those acceptance decisions:
+
+1. Record both attended acceptance outcomes in their owning change records, or record an
+   explicit owner decision about a hold; retain them until that evidence exists.
+2. Review and sync the accepted column-widths predecessor into canonical lineage while
+   preserving all its requirements and scenario history, then archive that accepted owner.
+   Archive content remains historical evidence and never becomes selector runtime input.
+3. Reconcile the successor against that canonical predecessor with an explicit representation
+   of the approved no-handle supersession and all five retained scenarios. Resolve any
+   scenario retirement through the identifier/predecessor workflow before selecting it;
+   merely dropping a predecessor scenario would violate the selector's retention check.
+   After successor acceptance, review its Name-specific addition and replacement, sync and
+   archive through the normal workflow, retaining shared persistence/reset obligations.
+4. Run the committed whole-tree `SPEC-SCENARIOS` selector and record every remaining refusal.
+   Neither this proposed sequence nor a successful inventory authorizes a path-order winner.
+
+This packet applies none of that lifecycle: no sync, archive, relabel, source edit, journal
+edit, selector relaxation or human acceptance request. Grouping the fresh diagnostic by exact
+capability/title leaves seven competing groups: leaf status; declared-width dragging; caller
+solver durations; flat trio; folded estimate reading; notes Done/Escape; and marking done's
+fact end. The calendar-axis same-source rename/MODIFIED pair is its declared rename lineage,
+not an eighth competing owner group. All seven groups remain unresolved by this packet; the
+Name classification supplies review evidence only.
+
+### Packet validation and limits
+
+No tests or production-path fault injections are required for these two documentation edits:
+no behavior or safety check changes. The source diagnostic above is a fresh read-only
+observation. Fresh scoped checks:
+
+- `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate test-axes --strict --json`:
+  exit 0; one valid change, zero issues.
+- `bunx prettier --check openspec/changes/test-axes/tasks.md openspec/changes/test-axes/verify.md`:
+  exit 0; both changed files match Prettier style.
+- `git diff --check`: exit 0; no whitespace errors.
+
+The full Nx suite, canonical h2puni gate, deployment, attended UI checks, coverage,
+certification and admission are unperformed by this slice. No push was performed.
