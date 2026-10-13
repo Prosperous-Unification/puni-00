@@ -207,6 +207,51 @@ The version-1 observation SHALL bind the exact revision and candidate digest, up
 - **THEN** it SHALL preserve every outcome and review-debt entry, report level classification explicitly unresolved, and emit authentication absent and certification false
 - **AND** it SHALL emit no tested-module, service-kind, scenario-coverage, structural-coverage or admission claim
 
+### Requirement: Diagnostic Performance sources bind exact indexed ownership
+
+The `inspect-performance-sources <repository> <full-committed-sha> <external-policy>` command SHALL invoke the real current-success Performance publication inspector and `checkIndexes` on the same committed candidate. It SHALL bind each inspected case to exactly one validated nearest index owner and to its selected regular source tuple. It SHALL preserve all inherited publication and index refusals, including missing or unreadable state; working files SHALL NOT repair missing committed sources or indexes. A mismatch between the captured candidate and publication revision or candidate identity SHALL refuse.
+
+The version-1 observation SHALL bind revision, candidate, publication observation digest, overall index identity, sorted index review debt, and each case ID, fixture, status, comparison judgment, source mode/content digest, and owner module ID/index path/index identity. Bindings SHALL be sorted by case ID, debt by index path, and the observation digest SHALL cover the complete normalized payload excluding itself. Every binding SHALL report level unresolved because complete precedence facts are unavailable. Authentication SHALL remain absent and certification false. The diagnostic SHALL emit no tested-module, service-kind, scenario-coverage, structural-coverage, admission or capability-chain claim. An upstream current-success refusal SHALL never be normalized into a successful source observation.
+
+#### Scenario: [TEST-AXES-061] A Performance case binds its exact nested index owner
+
+- **GIVEN** a valid current-success Performance publication whose selected fixture belongs to a nested module
+- **WHEN** the source diagnostic inspects that committed candidate
+- **THEN** it SHALL bind the exact nested owner, source tuple, case judgment and publication/index identities
+
+#### Scenario: [TEST-AXES-062] A Performance case lacks unique validated ownership
+
+- **GIVEN** absent or ambiguous committed ownership, including a working-tree repair
+- **WHEN** the source diagnostic joins the case fixture to checked indexes
+- **THEN** it SHALL refuse without a partial success observation
+
+#### Scenario: [TEST-AXES-063] Performance publication and ownership select different identities
+
+- **GIVEN** a publication revision, candidate identity or source tuple that differs from the captured selection
+- **WHEN** the diagnostic joins publication cases to ownership
+- **THEN** it SHALL refuse the mismatch
+
+#### Scenario: [TEST-AXES-064] Performance source diagnosis preserves upstream refusals
+
+- **GIVEN** a missing, unreadable, malformed or unsuccessful current-success publication, or invalid committed index state
+- **WHEN** the diagnostic invokes the production readers
+- **THEN** the responsible upstream refusal SHALL remain observable
+- **AND** symbolic revisions and unsupported operand counts SHALL refuse before success JSON
+
+#### Scenario: [TEST-AXES-065] Performance source observation identity is complete and canonical
+
+- **GIVEN** valid cases and index review debt presented in different orders
+- **WHEN** the diagnostic computes observations
+- **THEN** equivalent observations SHALL have equal digests
+- **AND** changes to source, judgment, owner, publication or index identity, or review debt SHALL change the digest
+
+#### Scenario: [TEST-AXES-066] Performance source diagnosis grants no coverage
+
+- **GIVEN** a valid passing current-success publication
+- **WHEN** the source diagnostic completes
+- **THEN** it SHALL keep authentication absent, certification false and level unresolved
+- **AND** it SHALL make no test-level, tested-module, service-kind, coverage or admission claim
+
 ### Requirement: Tests live inside their modules
 
 A test SHALL live inside the module it tests, resolved from the module index.
