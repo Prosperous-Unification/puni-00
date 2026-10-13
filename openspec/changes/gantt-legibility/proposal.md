@@ -19,7 +19,8 @@ read as disabled (F-013).
   two; done bars are opaque.
 - Compressed rungs name months at their first day, with boundaries.
 - The calendar fills the panel; positive bars are at least 4px wide.
-- The strip uses the toolbar's `size="sm"` controls and a filled pressed state.
+- Strip toggles are drawn plain when off and filled when pressed; the
+  toolbar's 32px size is left open (two layout gates pin the strip).
 
 ## Non-goals
 

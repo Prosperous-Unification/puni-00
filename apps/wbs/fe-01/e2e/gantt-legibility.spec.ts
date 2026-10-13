@@ -185,42 +185,38 @@ test.describe('Gantt legibility (ui-review 2026-10-13)', () => {
     });
   }
 
-  test("the chart strip speaks the toolbar's control vocabulary (F-013)", async ({ page }) => {
+  test('a strip toggle that is off reads as off, not as disabled (F-013)', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await seedEveryBarColour(page);
-    const toolbarGantt = page.getByRole('button', { name: 'Gantt', exact: true });
-    const toolbar = await toolbarGantt.evaluate((button) => {
-      const style = getComputedStyle(button);
-      return { height: button.getBoundingClientRect().height, fontSize: style.fontSize };
-    });
-    // Both toggles off, the state the review read as "disabled".
-    for (const toggle of ['[data-gantt-labels-toggle]', '[data-gantt-detail-toggle]']) {
-      if ((await page.locator(toggle).getAttribute('aria-pressed')) === 'true') {
-        await page.locator(toggle).click();
-      }
-      await expect(page.locator(toggle)).toHaveAttribute('aria-pressed', 'false');
-    }
-    const strip = await page.locator('[data-gantt-controls]').evaluate((row) =>
-      [...row.querySelectorAll<HTMLElement>('button, select')].map((control) => {
-        const style = getComputedStyle(control);
+    const names = page.locator('[data-gantt-labels-toggle]');
+    const look = () =>
+      names.evaluate((button) => {
+        const style = getComputedStyle(button);
         return {
-          name: control.getAttribute('aria-label') ?? control.textContent.trim(),
-          height: control.getBoundingClientRect().height,
-          fontSize: style.fontSize,
           struck: style.textDecorationLine.includes('line-through'),
           dashed: style.borderTopStyle === 'dashed',
+          ground: style.backgroundColor,
         };
-      }),
+      });
+    await expect(names).toHaveAttribute('aria-pressed', 'true');
+    await page.mouse.move(0, 0);
+    await page.waitForTimeout(300);
+    const pressed = await look();
+    await names.click();
+    await expect(names).toHaveAttribute('aria-pressed', 'false');
+    await page.mouse.move(0, 0);
+    // Past the 150ms colour transition the variants carry.
+    await page.waitForTimeout(300);
+    const off = await look();
+    // Proof: on main, whose off toggles were `line-through border-dashed`,
+    // this failed on `Names struck through when off`, expected false,
+    // received true; watched 2026-10-13.
+    expect(off.struck, 'Names struck through when off').toBe(false);
+    expect(off.dashed, 'Names dashed when off').toBe(false);
+    // And on and off still differ at a glance: the pressed toggle is filled.
+    expect(pressed.ground, 'the pressed toggle is drawn like the released one').not.toBe(
+      off.ground,
     );
-    // Proof: on main, where the strip's chips were `h-4 text-[10px]` and the
-    // off toggles `line-through border-dashed`, this failed on `Names height`,
-    // expected 32, received 16; watched 2026-10-13.
-    for (const control of strip) {
-      expect(control.height, `${control.name} height`).toBe(toolbar.height);
-      expect(control.fontSize, `${control.name} font size`).toBe(toolbar.fontSize);
-      expect(control.struck, `${control.name} struck through`).toBe(false);
-      expect(control.dashed, `${control.name} dashed`).toBe(false);
-    }
   });
 
   test('labels never overlap one another on the chart (F-012)', async ({ page }) => {

@@ -15,5 +15,6 @@
 
 ## 4. Strip (F-013)
 
-- [x] 4.1 Failing browser test: strip controls match the toolbar's height and font, none struck or dashed
-- [x] 4.2 Toolbar-sized strip, pressed fill, one row on a 375px phone
+- [x] 4.1 Failing browser test: an off toggle is neither struck nor dashed, and pressed differs from off
+- [x] 4.2 Plain off state and filled pressed state at the strip's existing metrics
+- [ ] 4.3 The toolbar's 32px size for the strip: open decision (scroll-stability and marker-rule gates)

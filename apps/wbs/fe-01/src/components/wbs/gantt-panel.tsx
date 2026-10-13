@@ -522,32 +522,64 @@ const NOT_BEFORE_CLEARANCE = 0.03;
 const BAR_RADIUS_PX = 3;
 
 /**
- * One control on the chart's own strip — `Names`, `Detail`, `Full`, `⇩` — in
- * the plan toolbar's vocabulary: `Button`'s `outline` variant at `size="sm"`,
- * the size the toolbar's own `Gantt` toggle is drawn at.
+ * One chip on the chart's own toolbar — `Names`, `Detail`, `Full`, `⇩`.
  *
- * Through `buttonVariants` rather than a hand-rolled border: this app's reset
- * leaves every `<button>` its platform box, so a chrome control that does not
- * go through the variants gets the platform's idea of one (and the browser's
- * focus ring rather than the app's).
+ * Through `buttonVariants` rather than a hand-rolled border, for the reason
+ * that table's own note gives: this app's reset leaves every `<button>` its
+ * platform box, so a chrome control that does not go through the variants gets
+ * the platform's idea of one. Three things were measured wrong before this
+ * existed, at 900px in Chromium:
  *
- * **The toolbar's size since ui-review F-013** (2026-10-13). The strip had
- * grown its own smaller dialect — 16px chips of 10px uppercase words — and a
- * toggle switched off was dashed and struck through, which the review read as
- * a disabled control. A toggle that is off is not disabled: it is drawn plain,
- * and `aria-pressed` is drawn as a filled chip ({@link CHART_TOGGLE_PRESSED}).
+ * - keyboard focus drew the **browser's** ring, not the app's. A chip with the
+ *   old class string, appended to this same bar and arrived at by `Tab`, read
+ *   `outline: auto 1px rgb(0, 95, 204)` with no ring in its `box-shadow`;
+ *   every other focusable control in this app answers with `ring-ring`. That
+ *   blue `auto` outline is what Dany called ugly on the sign-in form's reveal,
+ *   which had the same cause.
+ * - `⇩` stood 19px tall where its four neighbours and the scale `<select>`
+ *   stood 16px, because the glyph's line box is taller than the words'.
+ *   `leading-none` and a stated height are what make the row one row.
+ * - every chip carried `ml-1` **and** sat in a `gap-1` row, so the gaps were
+ *   8px between chips and 4px after the caption.
  *
- * `cn` (`tailwind-merge`) over the variants rather than `buttonVariants({
- * className })`, because `cva` appends without merging and the losing half of
- * a conflict would survive to be decided by stylesheet order.
+ * The ring is `ring-1 ring-offset-1` rather than the variants' `ring-2
+ * ring-offset-2`: on a 16px chip in a 21px bar the wider ring is clipped by
+ * the panel's own top border, which reads as a broken box rather than focus.
+ *
+ * `cn` wraps the variants rather than `buttonVariants({ className })` taking
+ * the overrides, and that is not a style choice. `cva` **appends** `className`
+ * without merging it, so `size: 'default'`'s `h-9` and the base's `ring-2`
+ * both survived alongside `h-4` and `ring-1`, and the stylesheet's order
+ * decided: the first cut drew four 36px chips beside a 16px `<select>`. `cn`
+ * is `tailwind-merge`, which drops the losing half — but only where the two
+ * halves collide, which is why `py-0` is spelled out below. Every number here
+ * was read off `getBoundingClientRect` in Chromium at 900px, and two guesses
+ * at this paragraph were wrong before it: `h-9` was blamed for a height
+ * `py-2` was making, and `box-border` was added for a `box-sizing` that was
+ * already `border-box`.
+ *
+ * **On and off since ui-review F-013** (2026-10-13): a toggle switched off
+ * was dashed and struck through, which the review read as a disabled
+ * control. Off is now drawn plain and pressed is drawn filled
+ * ({@link CHART_TOGGLE_PRESSED}). The review also asked for the toolbar's
+ * 32px size; that is left open in the lane record, because the strip's
+ * metrics are pinned by two gates. A 32px strip made `scroll-stability.e2e.ts`
+ * fail on `[data-table-frame] leaves mismatched faces at end` (0.2268 of a
+ * row at 1280×800), and the toolbar's `text-xs` at this height, with no
+ * height change at all, brought `gantt.spec.ts`'s marker-rule body-ink fault
+ * (delta 40, columns 122–124) back in 2 of 10 local runs.
  */
 const chartChip = (extra?: string): string =>
-  // `px-2` rather than `sm`'s `px-3`, and `px-1.5` on a phone: the caption and
-  // five controls fit one row of a 375px phone at the 44px floor with them,
-  // and the last control wraps onto a row of its own without.
   cn(
-    buttonVariants({ variant: 'outline', size: 'sm' }),
-    'px-2 max-md:px-1.5',
+    buttonVariants({ variant: 'outline' }),
+    // `py-0` is load-bearing. `tailwind-merge` resolves a conflict, and
+    // `size: 'default'`'s `py-2` conflicts with nothing here — so it survived,
+    // put 8px above and below a 10px word, and the chips measured 18px against
+    // the scale `<select>`'s 16px. `border-border` for the same reason in the
+    // other direction: `variant: 'outline'` brings `border-input`, and this
+    // bar's border is `border-border`.
+    'h-4 rounded border-border px-1.5 py-0 text-[10px] leading-none font-semibold tracking-wide normal-case',
+    'focus-visible:ring-1 focus-visible:ring-offset-1',
     CHART_TOGGLE_PRESSED,
     extra,
   );
@@ -5879,11 +5911,11 @@ export function GanttRenderer({
                   ? 'pointer-events-none absolute overflow-hidden text-[9px] font-semibold text-ellipsis whitespace-nowrap'
                   : // The page's own ink on an assumed bar: `inkOn` picks a
                     // colour to be read on a **solid** fill, and this one is
-                    // 35% of that colour over whatever the page is. Italic and
-                    // regular, the voice `On hold` speaks in: a note about the
-                    // bar rather than its name, and narrow enough that `no
-                    // estimate` is whole on a two-day placeholder at Days.
-                    'text-foreground pointer-events-none absolute overflow-hidden text-[9px] font-normal text-ellipsis whitespace-nowrap italic'
+                    // 35% of that colour over whatever the page is. Regular
+                    // weight: a note about the bar rather than its name, and
+                    // narrow enough that `no estimate` is whole on a two-day
+                    // placeholder at Days.
+                    'text-foreground pointer-events-none absolute overflow-hidden text-[9px] font-normal text-ellipsis whitespace-nowrap'
               }
               style={{
                 // Dark ink on the three light entries of the palette and
@@ -7229,14 +7261,9 @@ export function GanttRenderer({
         ))}
       <div
         data-gantt-controls
-        className="border-border flex flex-wrap items-center gap-1 border-t px-2 py-0.5"
+        className="border-border text-muted-foreground flex flex-wrap items-center gap-1 border-t px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase"
       >
-        <span
-          data-gantt-month
-          // Smaller on a phone, where the caption and five controls at the
-          // 44px floor have to share one row of 343px.
-          className="text-muted-foreground text-xs font-semibold tracking-wide uppercase max-md:text-[10px] max-md:tracking-normal"
-        >
+        <span data-gantt-month>
           {(() => {
             if (startDate === null) return 'Workday';
             // The nullish arm is the workday axis's cells, which a dated
@@ -7348,9 +7375,7 @@ export function GanttRenderer({
           // chevron this corner has no room to redraw. So the four classes the
           // bar is made of are stated here instead, and the height is the same
           // `h-4` the chips take.
-          // The toolbar's select, in the strip's button size: the `Plan with`
-          // select's border and ground, `h-8` and `text-xs` like `size="sm"`.
-          className="border-input bg-background hover:bg-accent focus-visible:ring-ring focus-visible:ring-offset-background h-8 rounded-md border px-2 text-xs font-medium shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none max-md:px-1"
+          className="border-border hover:bg-accent focus-visible:ring-ring focus-visible:ring-offset-background h-4 rounded border bg-transparent px-1 text-[10px] leading-none font-semibold tracking-wide normal-case transition-colors focus-visible:ring-1 focus-visible:ring-offset-1 focus-visible:outline-none"
           value={dayPx}
           onChange={(pick) => {
             const asked = Number(pick.currentTarget.value);

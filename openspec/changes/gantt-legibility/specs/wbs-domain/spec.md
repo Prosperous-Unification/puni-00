@@ -128,9 +128,8 @@ on to the panel's edge without passing it. Every bar with a positive span
 SHALL be painted at least 4px wide at every rung; its scheduled span is
 unchanged.
 
-The chart's control strip SHALL use the plan toolbar's control size and font.
-A toggle that is off SHALL be drawn plain, never struck through or dashed; a
-pressed toggle SHALL be drawn filled.
+On the chart's control strip, a toggle that is off SHALL be drawn plain, never
+struck through or dashed, and a pressed toggle SHALL be drawn filled.
 
 #### Scenario: two placeholders at one instant
 

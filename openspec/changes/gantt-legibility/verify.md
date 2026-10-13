@@ -24,4 +24,9 @@ pointed-row-offscreen live-caret mobile` — first run 159 passed, 3 failed (str
 - F-023 `gantt-axis-months.test.tsx`: base → `expected [] to deeply equal [ 'Oct 2026', … ]`.
 - F-026 `gantt-panel-fill.test.tsx`: schedule horizon → `expected 15 to be ≥ 250`;
   sub-day-only floor → `expected 1 to be ≥ 4`. Browser: right edge 260, expected > 1404.
-- F-013 browser spec on base: `Names height` expected 32, received 16.
+- F-013 browser spec on base: `Names struck through when off`, expected false, received true.
+- Strip size, measured and backed out: a 32px strip failed `scroll-stability.e2e.ts`
+  (`[data-table-frame] leaves mismatched faces at end`, 0.2268; 0.1504 at 24px), and the
+  toolbar's `text-xs` at the old height alone brought `gantt.spec.ts:3883`'s marker-rule body
+  ink back (delta 40, columns 122–124) in 2/10 local runs against 10/10 green on the base.
+  With the strip's metrics restored: 20/20 across both, repeated 10 times.
