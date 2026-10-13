@@ -673,6 +673,7 @@ describe('readMigrationFolders', () => {
       '20261012090200_widen_organization_audit',
       '20261012120000_add_step_node_attempts',
       '20261012130000_add_step_estimate_unit',
+      '20261013140000_add_step_node_blockages',
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
   });
@@ -748,7 +749,7 @@ describe('rollbackTo, against a real database', () => {
       cpSync(FOLDER, candidateFolder, { recursive: true });
       runMigrations(db.path, FOLDER);
       const originalNames = appliedNames(db.path);
-      expect(originalNames.at(-1)).toBe('20261012130000_add_step_estimate_unit');
+      expect(originalNames.at(-1)).toBe('20261013140000_add_step_node_blockages');
       const candidate = join(candidateFolder, candidateName);
       mkdirSync(candidate);
       writeFileSync(
@@ -850,11 +851,13 @@ describe('rollbackTo, against a real database', () => {
         '20261012090200_widen_organization_audit',
         '20261012120000_add_step_node_attempts',
         '20261012130000_add_step_estimate_unit',
+        '20261013140000_add_step_node_blockages',
       ]);
 
       const reversed = rollbackTo(db.path, FOLDER, INIT);
 
       expect(reversed).toEqual([
+        '20261013140000_add_step_node_blockages',
         '20261012130000_add_step_estimate_unit',
         '20261012120000_add_step_node_attempts',
         '20261012090200_widen_organization_audit',
@@ -1015,6 +1018,7 @@ describe('rollbackTo, against a real database', () => {
         '20261012090200_widen_organization_audit',
         '20261012120000_add_step_node_attempts',
         '20261012130000_add_step_estimate_unit',
+        '20261013140000_add_step_node_blockages',
       ]);
     } finally {
       db.cleanup();
@@ -1085,6 +1089,7 @@ describe('rollbackTo, against a real database', () => {
       const reversed = rollbackTo(db.path, FOLDER, ROLLBACK_ALL);
 
       expect(reversed).toEqual([
+        '20261013140000_add_step_node_blockages',
         '20261012130000_add_step_estimate_unit',
         '20261012120000_add_step_node_attempts',
         '20261012090200_widen_organization_audit',
@@ -1199,6 +1204,7 @@ describe('rollbackTo, against a real database', () => {
       expect(newest).toBeDefined();
       expect(rollbackTo(db.path, FOLDER, newest ?? '')).toEqual([]);
       expect(rollbackTo(db.path, FOLDER, AUDIT_COLUMNS)).toEqual([
+        '20261013140000_add_step_node_blockages',
         '20261012130000_add_step_estimate_unit',
         '20261012120000_add_step_node_attempts',
         '20261012090200_widen_organization_audit',
@@ -1298,6 +1304,7 @@ describe('rollbackTo, against a real database', () => {
       // Descending — newest reversed first — so the audit columns come off
       // before the rename they were written against.
       expect(rollbackTo(db.path, FOLDER, WEIGHTS_AND_ROUNDING)).toEqual([
+        '20261013140000_add_step_node_blockages',
         '20261012130000_add_step_estimate_unit',
         '20261012120000_add_step_node_attempts',
         '20261012090200_widen_organization_audit',
