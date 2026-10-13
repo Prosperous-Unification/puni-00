@@ -416,12 +416,24 @@ export function DirectoryPage({ directory: management, nav, account, loadOf }: D
                   Nobody is in the directory yet. Add the first person below.
                 </p>
               ) : (
-                <ul className="flex flex-col gap-4">
+                <ul className="m-0 flex list-none flex-col gap-4 p-0">
                   {people.map((person) => (
                     <li key={person.id} className="flex flex-col gap-2">
-                      <div className="flex items-center gap-2">
+                      {/*
+                        The name on a line of its own below `md`, the kind and
+                        the ✕ under it: beside them a 375px phone left the name
+                        ~108px, and `Margaret Hamilton` read `Margaret Han`
+                        (F-046 of the 2026-10-13 phone review). From `md` up the
+                        three share one line again.
+
+                        Proof: on the one-line row this replaced, `gives a
+                        person's name the width to be read on the Directory
+                        (F-046)` in `e2e/mobile.spec.ts` failed on `the name is
+                        clipped … Expected: <= 108 / Received: 174`.
+                      */}
+                      <div className="flex flex-wrap items-center gap-2 md:flex-nowrap">
                         <Input
-                          className={`${TAP} min-w-0 flex-1`}
+                          className={`${TAP} min-w-0 basis-full md:flex-1 md:basis-0`}
                           aria-label={`Name of ${person.name}`}
                           value={nameShown(person)}
                           disabled={busy}
@@ -574,7 +586,7 @@ export function DirectoryPage({ directory: management, nav, account, loadOf }: D
                   No teams yet. Add the first one below.
                 </p>
               ) : (
-                <ul className="flex flex-col gap-3">
+                <ul className="m-0 flex list-none flex-col gap-3 p-0">
                   {teams.map((team) => (
                     <li key={team.id} className="flex flex-col gap-2">
                       <div className="flex items-center gap-2">
@@ -751,7 +763,7 @@ export function DirectoryPage({ directory: management, nav, account, loadOf }: D
                   one exists.
                 </p>
               ) : (
-                <ul className="flex flex-col gap-3">
+                <ul className="m-0 flex list-none flex-col gap-3 p-0">
                   {tags.map((tag) => (
                     <li key={tag.id} className="flex items-center gap-2">
                       <Input
@@ -832,7 +844,7 @@ export function DirectoryPage({ directory: management, nav, account, loadOf }: D
                   column on from <strong>Columns</strong> to see it.
                 </p>
               ) : (
-                <ul className="flex flex-col gap-3">
+                <ul className="m-0 flex list-none flex-col gap-3 p-0">
                   {workItemTypes.map((workItemType) => (
                     <li key={workItemType.id} className="flex items-center gap-2">
                       <Input
@@ -918,7 +930,7 @@ export function DirectoryPage({ directory: management, nav, account, loadOf }: D
                   appears once one exists.
                 </p>
               ) : (
-                <ul className="flex flex-col gap-3">
+                <ul className="m-0 flex list-none flex-col gap-3 p-0">
                   {services.map((service) => (
                     <li key={service.id} className="flex items-center gap-2">
                       <Input

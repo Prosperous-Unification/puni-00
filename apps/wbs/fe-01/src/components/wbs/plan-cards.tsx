@@ -766,6 +766,36 @@ function CardActions({
 const TAP = 'min-h-11';
 
 /**
+ * A step's disclosure on a card: 44px tall for a thumb, its words still the
+ * 12px of a footnote. `list-none` and the WebKit marker rule take the user
+ * agent's triangle off, because a `flex` summary drops it in Chromium and keeps
+ * it in Safari; the `▸` each summary draws is the one triangle on every engine.
+ */
+const DISCLOSURE_SUMMARY =
+  'flex min-h-11 w-fit cursor-pointer list-none items-center gap-1 select-none [&::-webkit-details-marker]:hidden';
+
+/**
+ * How a card field's trigger looks, by whether the row holds a value for it.
+ *
+ * - **A value** is the word itself, dotted-underlined: the card's ink.
+ * - **Empty, folded** is nothing at all — the card's `Add…` control stands for
+ *   every empty field at once ({@link PlanCards}).
+ * - **Empty, offered** (after `Add…`) is a bordered `+ name` row, ordered after
+ *   the values and the `Add…` control so the offers read as one group.
+ *
+ * Until the 2026-10-13 phone review a card drew every empty field as a dotted
+ * `team…`-style word in a grey box — four to six of them under every card,
+ * reading as disabled controls (F-009).
+ */
+function fieldTriggerClass(empty: boolean, foldsWhenEmpty: boolean): string {
+  if (empty && foldsWhenEmpty) return 'hidden';
+  if (empty) {
+    return `${TAP} text-muted-foreground border-border order-2 inline-flex items-center rounded-md border px-3 disabled:opacity-60`;
+  }
+  return `${TAP} text-muted-foreground inline-flex max-w-full min-w-0 items-center gap-1 text-left underline decoration-dotted underline-offset-2 disabled:no-underline disabled:opacity-60`;
+}
+
+/**
  * What a card that answered the filter is tinted.
  *
  * The **same custom property** `wbs-table.tsx`'s Name cell paints a match with
@@ -814,8 +844,11 @@ function CardTeamField({
   teams,
   setTeams,
   createTeam,
+  foldsWhenEmpty,
 }: {
   row: TreeRow;
+  /** Whether an empty field draws nothing, behind the card's `Add…` — see {@link fieldTriggerClass}. */
+  foldsWhenEmpty: boolean;
   team: ServiceTeamLabel;
   teams: readonly PickableEntry[];
   setTeams: (row: TreeRow, teamIds: readonly string[]) => Promise<CommitOutcome>;
@@ -858,12 +891,12 @@ function CardTeamField({
         // beside it because a bare `min-height` on a button leaves the word
         // at the top of the box it just grew (`styles.css` makes the same
         // repair for the ✕ and the palette switch).
-        className={`${TAP} text-muted-foreground inline-flex max-w-full min-w-0 items-center text-left underline decoration-dotted underline-offset-2`}
+        className={fieldTriggerClass(team.state === 'none', foldsWhenEmpty)}
       >
         {team.state === 'none' ? (
           // No `data-card-team`: this row claims no team, and the attribute
           // is the claim. What is drawn is the invitation to make one.
-          <span className="opacity-70">team…</span>
+          <span>+ Team</span>
         ) : (
           <span
             data-card-team
@@ -884,6 +917,7 @@ function CardTeamField({
           setOpen(false);
         }}
         label={`Service or team for ${row.number}`}
+        title={`Teams for ${rowWords(row.number, row.name)}`}
         adapter={{
           kind: 'team',
           entries: teams,
@@ -924,8 +958,11 @@ function CardServiceField({
   ownIds,
   setValues,
   createValue,
+  foldsWhenEmpty,
 }: {
   row: TreeRow;
+  /** Whether an empty field draws nothing, behind the card's `Add…` — see {@link fieldTriggerClass}. */
+  foldsWhenEmpty: boolean;
   label: ServiceLabel;
   entries: readonly PickableEntry[];
   ownIds: readonly string[];
@@ -950,10 +987,10 @@ function CardServiceField({
         }}
         aria-label={`Services for ${row.number}${names.length > 0 ? `: ${names.join(', ')}` : ''}`}
         data-fact={title}
-        className={`${TAP} text-muted-foreground inline-flex max-w-full min-w-0 items-center text-left underline decoration-dotted underline-offset-2`}
+        className={fieldTriggerClass(names.length === 0, foldsWhenEmpty)}
       >
         {names.length === 0 ? (
-          <span className="opacity-70">service…</span>
+          <span>+ Services</span>
         ) : (
           <span
             data-card-service=""
@@ -970,6 +1007,7 @@ function CardServiceField({
           setOpen(false);
         }}
         label={`Services for ${row.number}`}
+        title={`Services for ${rowWords(row.number, row.name)}`}
         adapter={{
           kind: 'service',
           entries,
@@ -1015,8 +1053,11 @@ function CardTagsField({
   entries,
   setTags,
   createTag,
+  foldsWhenEmpty,
 }: {
   row: TreeRow;
+  /** Whether an empty field draws nothing, behind the card's `Add…` — see {@link fieldTriggerClass}. */
+  foldsWhenEmpty: boolean;
   label: TagLabel;
   entries: readonly PickableEntry[];
   setTags: (row: TreeRow, tagIds: readonly string[]) => Promise<CommitOutcome>;
@@ -1045,9 +1086,9 @@ function CardTagsField({
         }}
         aria-label={`Tags for ${row.number}${inForce.length > 0 ? `: ${inForce.join(', ')}` : ''}`}
         data-fact={title}
-        className={`${TAP} text-muted-foreground inline-flex max-w-full min-w-0 items-center gap-1 text-left underline decoration-dotted underline-offset-2`}
+        className={fieldTriggerClass(inForce.length === 0, foldsWhenEmpty)}
       >
-        {inForce.length === 0 && <span className="opacity-70">tag…</span>}
+        {inForce.length === 0 && <span>+ Tags</span>}
         {label.own.length > 0 && <span data-card-tags="">{label.own.join(', ')}</span>}
         {label.inherited.length > 0 && (
           <span data-card-tags-inherited="" data-inherited="true" data-fact={title}>
@@ -1061,6 +1102,7 @@ function CardTagsField({
           setOpen(false);
         }}
         label={`Tags for ${row.number}`}
+        title={`Tags for ${rowWords(row.number, row.name)}`}
         adapter={{
           kind: 'tag',
           entries,
@@ -1115,8 +1157,11 @@ function CardNotBeforeField({
   row,
   hasCalendar,
   setNotBefore,
+  foldsWhenEmpty,
 }: {
   row: TreeRow;
+  /** Whether an empty field draws nothing, behind the card's `Add…` — see {@link fieldTriggerClass}. */
+  foldsWhenEmpty: boolean;
   hasCalendar: boolean;
   setNotBefore: (row: TreeRow, day: string | null, reason: string | null) => void;
 }) {
@@ -1176,12 +1221,12 @@ function CardNotBeforeField({
           // 21px: the 44px floor in `styles.css` is scoped to
           // `[data-modal-surface]` and `[data-account-menu]`, a card is neither,
           // so every control this file draws carries its own height or none.
-          className={`${TAP} text-muted-foreground inline-flex max-w-full min-w-0 items-center text-left underline decoration-dotted underline-offset-2 disabled:no-underline disabled:opacity-60`}
+          className={fieldTriggerClass(day === null, foldsWhenEmpty)}
         >
           {day === null ? (
             // No `data-card-not-before`: this row constrains nothing, and the
             // attribute is the constraint. What is drawn is the invitation.
-            <span className="opacity-70">not before…</span>
+            <span>+ Earliest start</span>
           ) : (
             <span data-card-not-before data-fact={title}>
               not before {shortIsoDate(day, new Date())}
@@ -1325,8 +1370,11 @@ function CardDeadlineField({
   row,
   projectStart,
   setDeadline,
+  foldsWhenEmpty,
 }: {
   row: TreeRow;
+  /** Whether an empty field draws nothing, behind the card's `Add…` — see {@link fieldTriggerClass}. */
+  foldsWhenEmpty: boolean;
   projectStart: string | null;
   setDeadline: (row: TreeRow, day: string | null) => void;
 }) {
@@ -1386,12 +1434,12 @@ function CardDeadlineField({
           // is the whole of what this control has to say.
           aria-describedby={impossible ? `card-deadline-impossible-${row.id}` : undefined}
           data-fact={title}
-          className={`${TAP} text-muted-foreground inline-flex max-w-full min-w-0 items-center text-left underline decoration-dotted underline-offset-2 disabled:no-underline disabled:opacity-60`}
+          className={fieldTriggerClass(day === null, foldsWhenEmpty)}
         >
           {day === null ? (
             // No `data-card-deadline`: this row owes nothing by any day, and the
             // attribute is the claim. What is drawn is the invitation.
-            <span className="opacity-70">work item deadline…</span>
+            <span>+ Work item deadline</span>
           ) : (
             <>
               <span data-card-deadline data-fact={title}>
@@ -1798,7 +1846,7 @@ function CardPriorityField({
               data-priority-rank={paint.rank}
               data-fact={paint.words}
               className="rounded-full px-2 py-0.5 text-xs font-semibold"
-              style={{ color: paint.ink, background: paint.tint }}
+              style={{ color: paint.chipInk, background: paint.tint }}
             >
               {paint.label} {row.priority}
             </span>
@@ -1844,7 +1892,7 @@ function CardPriorityField({
                       void send(band.label);
                     }}
                   >
-                    <span style={{ color: line?.ink, fontWeight: 600 }}>{band.label}</span>
+                    <span style={{ color: line?.chipInk, fontWeight: 600 }}>{band.label}</span>
                     <span className="text-muted-foreground text-sm">{band.defaultValue}</span>
                   </button>
                 </li>
@@ -1967,8 +2015,11 @@ function CardDependsField({
   options,
   addDependency,
   dropDependency,
+  foldsWhenEmpty,
 }: {
   row: TreeRow;
+  /** Whether an empty field draws nothing, behind the card's `Add…` — see {@link fieldTriggerClass}. */
+  foldsWhenEmpty: boolean;
   waits: readonly DependencyEntry[];
   typedWaits: readonly TypedDependencyView[];
   dependencyRows: readonly TreeRow[];
@@ -2059,12 +2110,15 @@ function CardDependsField({
           data-card-waits-field
           aria-label={`Depends on for ${row.number}`}
           data-hint="What this work item waits for. It cannot start until these have finished."
-          className={`${TAP} text-muted-foreground inline-flex max-w-full min-w-0 items-center text-left underline decoration-dotted underline-offset-2`}
+          className={fieldTriggerClass(
+            waits.length === 0 && typedWaits.length === 0,
+            foldsWhenEmpty,
+          )}
         >
           {waits.length === 0 && typedWaits.length === 0 ? (
             // No `data-card-waits`: this row waits for nothing, and the
             // attribute is the waiting. What is drawn is the invitation.
-            <span className="opacity-70">waits for…</span>
+            <span>+ Waits for</span>
           ) : (
             <span data-card-waits>
               waits for{' '}
@@ -2337,20 +2391,22 @@ function CardDependsField({
               // content height; without it the list still outgrows the surface
               // and the surface's hidden overflow clips the last rows with no
               // scroll to reach them.
-              className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto"
+              //
+              // `list-none p-0 m-0` on the list and a flex line per row: the
+              // sheet is a portal outside every reset that would have taken
+              // the user agent's disc and indent off, and two block buttons in
+              // a bare `<li>` stacked the › above its own row (F-050 of the
+              // 2026-10-13 phone review). The row is what a thumb aims at, so
+              // it takes the width; the › that customizes it sits after it.
+              //
+              // Proof: with the `<ul>` and `<li>` classes back as they were,
+              // `lays the Depends sheet's rows inline, without bullets (F-050)`
+              // in `e2e/mobile.spec.ts` failed on `a depends row wears a bullet
+              // … Received: "disc"`.
+              className="m-0 flex min-h-0 flex-1 list-none flex-col gap-1 overflow-y-auto p-0"
             >
               {offered.map((entry) => (
-                <li key={entry.id}>
-                  <button
-                    type="button"
-                    className={`${TAP} rounded-md border px-3`}
-                    aria-label={`Customize ${entry.number} - ${entry.name}`}
-                    onClick={() => {
-                      setEditing({ predecessorId: entry.id });
-                    }}
-                  >
-                    ›
-                  </button>
+                <li key={entry.id} className="flex min-w-0 items-center gap-2">
                   <button
                     type="button"
                     data-card-depends-option={entry.number}
@@ -2363,7 +2419,7 @@ function CardDependsField({
                     // cannot send the same edge twice — `onAdd` is the guard
                     // and the `disabled` is the thing a finger hits.
                     disabled={entry.refusal !== undefined || adding.has(entry.id)}
-                    className={`${TAP} flex w-full items-center gap-2 rounded-md border px-3 text-left disabled:opacity-50`}
+                    className={`${TAP} flex min-w-0 flex-1 items-center gap-2 rounded-md border px-3 text-left disabled:opacity-50`}
                     onClick={() => {
                       onAdd(entry);
                     }}
@@ -2375,6 +2431,16 @@ function CardDependsField({
                         — {REFUSAL_SUFFIX[entry.refusal]}
                       </span>
                     )}
+                  </button>
+                  <button
+                    type="button"
+                    className={`${TAP} min-w-11 shrink-0 rounded-md border px-3`}
+                    aria-label={`Customize ${entry.number} - ${entry.name}`}
+                    onClick={() => {
+                      setEditing({ predecessorId: entry.id });
+                    }}
+                  >
+                    ›
                   </button>
                 </li>
               ))}
@@ -2645,6 +2711,16 @@ export function PlanCards({
   // would make that a fact somebody has to keep true rather than one the
   // structure states.
   const menu = useRef(createOpenCardMenu());
+  // The cards whose empty fields are offered rather than folded, by row id —
+  // per card, because opening one card's `Add…` must not unfold the list.
+  const [offering, setOffering] = useState<ReadonlySet<string>>(() => new Set());
+  const toggleOffering = (rowId: string): void => {
+    setOffering((current) => {
+      const next = new Set(current);
+      if (!next.delete(rowId)) next.add(rowId);
+      return next;
+    });
+  };
   return (
     /*
       `data-grid` for the same two reasons the `<table>` carries it: it scopes
@@ -2668,6 +2744,19 @@ export function PlanCards({
         const span = spanOf(row);
         const slack = cardSlackOf(row, showDay);
         const mismatches = cardMismatchesOf(row, steps, nonOwner, assigneeOn);
+        const typedWaits = typedWaitsFor?.(row) ?? [];
+        const offered = offering.has(row.id);
+        const folds = !offered;
+        // The same emptiness each field's own trigger reads; it only decides
+        // whether the card has an `Add…` at all, never whether a value shows.
+        const emptyFields = [
+          row.startNoEarlierThan === null,
+          row.deadline === null,
+          waits.length === 0 && typedWaits.length === 0,
+          team.state === 'none',
+          tags.length > 0 && tagging.own.length === 0 && tagging.inherited.length === 0,
+          services.length > 0 && delivers.state === 'none',
+        ].filter(Boolean).length;
         return (
           <article
             key={row.id}
@@ -2750,7 +2839,7 @@ export function PlanCards({
               // function — see {@link renderName}. The notes under it are drawn
               // as the text they are: this face shows them at rest, and a note
               // is read here rather than in a hover a phone does not have.
-              renderFirstLine={renderName}
+              renderLine={renderName}
               className={`${TAP} box-border w-full rounded-md border p-2 text-base`}
               value={composeNameCell(row.name, row.notes)}
               onAttach={(element) => {
@@ -2915,53 +3004,80 @@ export function PlanCards({
                   measurement, no pointer-type guard and no dismiss handler,
                   and a tap is what opens one already.
                 */}
-                  <details
-                    data-step-detail={step.id}
-                    className="text-muted-foreground -mt-1 ml-20 text-xs"
-                  >
-                    <summary className="w-fit cursor-pointer py-1 select-none">o·r·p</summary>
-                    {/*
+                  {/*
+                    The two disclosures under a step share one line, each a 44px
+                    target around 12px words (F-042 of the 2026-10-13 phone
+                    review measured them at 38×24 and 60×24). One line for both
+                    is what keeps the floor from adding a 44px band per
+                    disclosure to every step of every card; the one that is
+                    opened takes the whole line (`open:basis-full`) and the other
+                    wraps under it.
+
+                    Proof: on the two `py-1` disclosures this replaced, `gives
+                    the o·r·p and Attempts disclosures 44px without growing
+                    their words (F-042)` in `e2e/mobile.spec.ts` failed on
+                    `o·r·p is short … Received: 24`.
+                  */}
+                  <div data-step-disclosures={step.id} className="ml-20 flex flex-wrap gap-x-4">
+                    <details
+                      data-step-detail={step.id}
+                      className="group text-muted-foreground text-xs open:basis-full"
+                    >
+                      <summary className={DISCLOSURE_SUMMARY}>
+                        <span aria-hidden className="transition-transform group-open:rotate-90">
+                          ▸
+                        </span>
+                        o·r·p
+                      </summary>
+                      {/*
                       The words are still the words — `data-step-trio` has not
                       moved and still says what the row holds — but they are now
                       the face of a control, because reading the trio was never
                       the missing half. See {@link CardTrioField}.
                     */}
-                    <CardTrioField
-                      row={row}
-                      stepId={step.id}
-                      stepName={step.name}
-                      line={trio.line}
-                      baseline={estimateValue(row, step.id)}
-                      commit={(typed, baseline) => commitEstimate(row, step.id, typed, baseline)}
-                    />
-                    {trio.final !== '' && (
-                      <div data-step-final={step.id}>
-                        Final {trio.final}
-                        {step.estimateUnit === 'workdays' ? ' days' : ''}
-                      </div>
-                    )}
-                  </details>
-                  {/*
+                      <CardTrioField
+                        row={row}
+                        stepId={step.id}
+                        stepName={step.name}
+                        line={trio.line}
+                        baseline={estimateValue(row, step.id)}
+                        commit={(typed, baseline) => commitEstimate(row, step.id, typed, baseline)}
+                      />
+                      {trio.final !== '' && (
+                        <div data-step-final={step.id}>
+                          Final {trio.final}
+                          {step.estimateUnit === 'workdays' ? ' days' : ''}
+                        </div>
+                      )}
+                    </details>
+                    {/*
                     The node's attempts, the step card's own list and actions
                     behind a tap, since a phone has no hover to open that card.
                     The count remains visible without the project's zone;
                     {@link AttemptsSection} leaves the timed lines and actions out.
                   */}
-                  {attempted !== null && (
-                    <details data-step-attempts={step.id} className="-mt-1 ml-20 text-sm">
-                      <summary className="text-muted-foreground w-fit cursor-pointer py-1 text-xs select-none">
-                        Attempts
-                        {attempted.node.attempts.length > 0 &&
-                          ` (${String(attempted.node.attempts.length)})`}
-                      </summary>
-                      <AttemptsSection
-                        node={attempted.node}
-                        label={attempted.label}
-                        actions={attempted.actions}
-                        tapSized
-                      />
-                    </details>
-                  )}
+                    {attempted !== null && (
+                      <details
+                        data-step-attempts={step.id}
+                        className="group text-sm open:basis-full"
+                      >
+                        <summary className={`${DISCLOSURE_SUMMARY} text-muted-foreground text-xs`}>
+                          <span aria-hidden className="transition-transform group-open:rotate-90">
+                            ▸
+                          </span>
+                          Attempts
+                          {attempted.node.attempts.length > 0 &&
+                            ` (${String(attempted.node.attempts.length)})`}
+                        </summary>
+                        <AttemptsSection
+                          node={attempted.node}
+                          label={attempted.label}
+                          actions={attempted.actions}
+                          tapSized
+                        />
+                      </details>
+                    )}
+                  </div>
                 </Fragment>
               );
             })}
@@ -2978,7 +3094,7 @@ export function PlanCards({
               word at the top and the meta line reads as three different
               baselines.
             */}
-            <p className="text-muted-foreground flex flex-wrap items-center gap-x-3 text-sm">
+            <p className="text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
               {/*
                 The days in full behind the short ones, the same bargain the
                 table's Start and End cells make — a phone has no hover, and
@@ -2997,6 +3113,7 @@ export function PlanCards({
                 row={row}
                 hasCalendar={projectStart !== null}
                 setNotBefore={setNotBefore}
+                foldsWhenEmpty={folds}
               />
               {/*
                 Between the floor and the span, which is the table's own column
@@ -3006,7 +3123,12 @@ export function PlanCards({
                 two faces of one plan should find its facts in one order, and a
                 phone is not the surface that gets to re-argue it (TASK-291).
               */}
-              <CardDeadlineField row={row} projectStart={projectStart} setDeadline={setDeadline} />
+              <CardDeadlineField
+                row={row}
+                projectStart={projectStart}
+                setDeadline={setDeadline}
+                foldsWhenEmpty={folds}
+              />
               <span data-card-span data-fact={cardSpanTitle(span)}>
                 {span.start.text} → {span.finish.text}
               </span>
@@ -3033,7 +3155,8 @@ export function PlanCards({
               <CardDependsField
                 row={row}
                 waits={waits}
-                typedWaits={typedWaitsFor?.(row) ?? []}
+                typedWaits={typedWaits}
+                foldsWhenEmpty={folds}
                 dependencyRows={dependencyRows ?? rows.map((card) => card.row)}
                 dependencyStepNodes={dependencyStepNodes}
                 steps={steps}
@@ -3057,6 +3180,7 @@ export function PlanCards({
                 teams={teams}
                 setTeams={setTeams}
                 createTeam={createTeam}
+                foldsWhenEmpty={folds}
               />
               {/*
                 The tags, and `↳` where the row carries none of its own — the
@@ -3075,6 +3199,7 @@ export function PlanCards({
                   entries={tags}
                   setTags={setTags}
                   createTag={createTag}
+                  foldsWhenEmpty={folds}
                 />
               )}
               {/*
@@ -3106,6 +3231,7 @@ export function PlanCards({
                   ownIds={row.serviceIds}
                   setValues={setServices}
                   createValue={createService}
+                  foldsWhenEmpty={folds}
                 />
               )}
               {/*
@@ -3119,6 +3245,37 @@ export function PlanCards({
                 runs one at a time whatever this says (C1's D3). Both are facts
                 a reader of a bare `3` cannot get anywhere else on a phone.
               */}
+              {/*
+                Every empty field of this card behind one control (F-009 of the
+                2026-10-13 phone review): four to six `team…`-style words under
+                every card read as disabled controls and buried the values. The
+                empty triggers stay mounted — folded to nothing — so a sheet a
+                field opened survives the field filling in, and the offers
+                follow this control (`order-1`, the offers `order-2`) whatever
+                their place in the table's column order.
+
+                Proof: with `folds` pinned to `false`, `folds a card's empty
+                fields behind one Add… control (F-009)` in `e2e/mobile.spec.ts`
+                failed on `[data-card-not-before-field] is drawn while empty …
+                Received: visible`.
+              */}
+              {emptyFields > 0 && (
+                <button
+                  type="button"
+                  data-card-add=""
+                  aria-expanded={offered}
+                  aria-label={`Add details to ${row.number}`}
+                  className={`${TAP} border-border text-foreground order-1 inline-flex items-center gap-1 rounded-md border px-3`}
+                  onClick={() => {
+                    toggleOffering(row.id);
+                  }}
+                >
+                  Add…
+                  <span aria-hidden className={offered ? 'rotate-90' : ''}>
+                    ▸
+                  </span>
+                </button>
+              )}
               {row.maxParallel > 1 && (
                 <span data-card-parallel={inertParallel(row) ? 'inert' : 'live'}>
                   {inertParallel(row)

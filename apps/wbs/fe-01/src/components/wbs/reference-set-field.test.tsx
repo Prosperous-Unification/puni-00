@@ -582,9 +582,17 @@ describe('the reference strip on one rest line', () => {
 describe('ReferenceSetSheet', () => {
   itDom('uses the same set editor inside a labelled phone dialog', () => {
     const close = vi.fn();
-    render(<ReferenceSetSheet label="Teams" adapter={adapter()} open onClose={close} />);
+    render(
+      <ReferenceSetSheet
+        label="Teams"
+        title="Teams for 010 - Survey"
+        adapter={adapter()}
+        open
+        onClose={close}
+      />,
+    );
 
-    expect(screen.getByRole('dialog', { name: 'Edit Teams' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Teams for 010 - Survey' })).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Teams' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Close Teams' }));
     expect(close).toHaveBeenCalledOnce();
@@ -594,6 +602,7 @@ describe('ReferenceSetSheet', () => {
     render(
       <ReferenceSetSheet
         label="Teams"
+        title="Teams for 020 - Survey"
         adapter={adapter({ ownIds: [], inheritedLabel: 'Core from 010' })}
         placeholder="search or add"
         open
@@ -601,7 +610,7 @@ describe('ReferenceSetSheet', () => {
       />,
     );
 
-    const sheet = screen.getByRole('dialog', { name: 'Edit Teams' });
+    const sheet = screen.getByRole('dialog', { name: 'Teams for 020 - Survey' });
     expect(drawnSayings(sheet, 'Core')).toEqual(['Inherited: Core from 010']);
   });
 });
