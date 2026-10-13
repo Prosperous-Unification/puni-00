@@ -1,7 +1,21 @@
 import { appName, containerName, PORT } from './docker';
 import type { Color, Tier } from './state';
 
-const DEV_MCP_ROUTES = `\thandle /mcp* {
+/**
+ * Exact resource body bytes match the SDK; anonymous OAuth stays bounded separately.
+ * Proof: caddy/mcp-body-limit.test.ts fails when either cap is restored,
+ * removed, or widened, or when only the candidate changes or forwarding overwrite is removed.
+ */
+const DEV_MCP_ROUTES = `\thandle /mcp {
+\t\trequest_body {
+\t\t\tmax_size 4194304
+\t\t}
+\t\treverse_proxy wbs-dev-src:3300 {
+\t\t\theader_up X-Forwarded-For {remote_host}
+\t\t}
+\t}
+
+\thandle /mcp* {
 \t\trequest_body {
 \t\t\tmax_size 64KB
 \t\t}

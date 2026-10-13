@@ -18,7 +18,10 @@ import { expect, type Page, test } from '@playwright/test';
 
 const DAY = 86_400_000;
 
-async function answerAsSuperAdmin(page: Page): Promise<void> {
+async function answerAsSuperAdmin(
+  page: Page,
+  mode: 'ready' | 'denied' | 'held' | 'create-held' = 'ready',
+): Promise<void> {
   const now = Date.now();
   await page.route('**/api/**', async (route) => {
     const url = new URL(route.request().url());
@@ -59,9 +62,68 @@ async function answerAsSuperAdmin(page: Page): Promise<void> {
         return json({
           requests: [{ id: 'r1', email: 'ken@acme.test', status: 'pending', createdAt: 1 }],
         });
+      case 'GET /api/organization/sso-connections':
+        if (mode === 'denied') return json({ error: 'forbidden' }, 403);
+        return json({
+          connections: [
+            {
+              id: 'connection-a',
+              domainClaimId: 'used-a',
+              domain: 'acme-engineering-subsidiary.example',
+              auth0Connection: 'acme-engineering-enterprise-saml',
+              strategy: 'samlp',
+              loginSlug: 'acme-europe-login',
+              enforced: false,
+              provenAt: null,
+              provenBy: null,
+              lastPrefixMismatchAt: null,
+            },
+            {
+              id: 'connection-b',
+              domainClaimId: 'used-b',
+              domain: 'other.example',
+              auth0Connection: 'other-company-oidc',
+              strategy: 'oidc',
+              loginSlug: 'other-company-login',
+              enforced: true,
+              provenAt: 1,
+              provenBy: 'u1',
+              lastPrefixMismatchAt: 2,
+            },
+          ],
+        });
+      case 'POST /api/organization/sso-connections':
+        if (mode === 'create-held') {
+          await new Promise<void>((resolve) => {
+            page.once('close', () => {
+              resolve();
+            });
+          });
+          return;
+        }
+        return json({ error: 'login_slug_taken' }, 409);
+      case 'POST /api/auth/link/auth0':
+        if (mode === 'held') {
+          await new Promise<void>((resolve) => {
+            page.once('close', () => {
+              resolve();
+            });
+          });
+          return;
+        }
+        return json({ error: 'invalid_credentials' }, 401);
       case 'GET /api/organization/domains':
         return json({
           domains: [
+            {
+              id: 'available',
+              domain: 'available.example',
+              status: 'verified',
+              challengeExpiresAt: null,
+              lastSuccessAt: 1,
+              lastCheckedAt: 1,
+              proofWarning: false,
+            },
             {
               id: 'd1',
               domain: 'acme-engineering-subsidiary.example',
@@ -107,6 +169,9 @@ for (const width of [1280, 375]) {
         page.getByRole('button', { name: 'Share people across projects' }),
       ).toBeVisible();
 
+      await page.getByRole('button', { name: 'Start proof for other.example' }).click();
+      await page.getByLabel('How did you sign in to WBS?').selectOption('password');
+      await expect(page.getByLabel('Your WBS password')).toBeVisible();
       const controls = await controlsOf(page);
       expect(controls.length).toBeGreaterThan(10);
       // The platform's own button is drawn with a 0px or 2px corner and its
@@ -131,6 +196,58 @@ for (const width of [1280, 375]) {
       await page.screenshot({ path: testInfo.outputPath(`organization-${String(width)}.png`) });
     });
 
+    test('shows a denied setup without create or proof controls', async ({ page }) => {
+      await answerAsSuperAdmin(page, 'denied');
+      await page.goto('/organization');
+      const panel = page.getByRole('region', { name: 'Company sign-in' });
+      await expect(panel.getByRole('alert')).toHaveText(
+        'Only a super-admin can set up company sign-in.',
+      );
+      await expect(panel.getByLabel('Verified domain')).toHaveCount(0);
+      await expect(panel.getByRole('button', { name: /Start proof/ })).toHaveCount(0);
+      await expect(page.getByRole('heading', { name: 'Members', exact: true })).toBeVisible();
+    });
+
+    test('holds the routed proof on one connection', async ({ page }) => {
+      await answerAsSuperAdmin(page, 'held');
+      await page.goto('/organization');
+      await page.getByRole('button', { name: 'Start proof for other.example' }).click();
+      await page.getByLabel('How did you sign in to WBS?').selectOption('provider');
+      const requested = page.waitForRequest('**/api/auth/link/auth0');
+      await page.getByRole('button', { name: 'Link your company sign-in' }).click();
+      expect((await requested).postDataJSON()).toEqual({ organization: 'other-company-login' });
+      await expect(
+        page.getByRole('button', { name: 'Start proof for acme-engineering-subsidiary.example' }),
+      ).toBeDisabled();
+      await expect(page.getByRole('button', { name: 'Refresh company sign-in' })).toBeDisabled();
+      await expect(page.getByLabel('How did you sign in to WBS?')).toHaveCount(1);
+      await expect(page.getByRole('group', { name: 'Prove other.example' })).toBeVisible();
+    });
+
+    test('disables the selected proof form while create is held', async ({ page }) => {
+      await answerAsSuperAdmin(page, 'create-held');
+      await page.goto('/organization');
+      await page.getByLabel('Verified domain').selectOption('available');
+      await page.getByLabel('Auth0 connection name').fill('new-company-oidc');
+      await page.getByLabel('Strategy', { exact: true }).selectOption('oidc');
+      await page.getByLabel('Login slug').fill('new-company-login');
+      await page.getByRole('button', { name: 'Start proof for other.example' }).click();
+      await page.getByLabel('How did you sign in to WBS?').selectOption('password');
+      await page.getByLabel('Your WBS password').fill('fresh-password');
+      const requested = page.waitForRequest('**/api/organization/sso-connections');
+      await page.getByRole('button', { name: 'Create connection' }).click();
+      expect((await requested).postDataJSON()).toEqual({
+        domainClaimId: 'available',
+        auth0Connection: 'new-company-oidc',
+        strategy: 'oidc',
+        loginSlug: 'new-company-login',
+      });
+      await expect(page.getByLabel('How did you sign in to WBS?')).toBeDisabled();
+      await expect(page.getByLabel('Your WBS password')).toBeDisabled();
+      await expect(page.getByRole('button', { name: 'Link your company sign-in' })).toBeDisabled();
+      await expect(page.getByRole('group', { name: 'Prove other.example' })).toBeVisible();
+    });
+
     test('reaches every control by Tab', async ({ page }) => {
       await answerAsSuperAdmin(page);
       await page.goto('/organization');
@@ -138,6 +255,9 @@ for (const width of [1280, 375]) {
         page.getByRole('button', { name: 'Share people across projects' }),
       ).toBeVisible();
 
+      await page.getByRole('button', { name: 'Start proof for other.example' }).click();
+      await page.getByLabel('How did you sign in to WBS?').selectOption('password');
+      await page.getByRole('heading', { name: 'Organization', exact: true }).click();
       const expected = await page
         .locator('main')
         .evaluate((main) => main.querySelectorAll('button:not([disabled]), input, select').length);

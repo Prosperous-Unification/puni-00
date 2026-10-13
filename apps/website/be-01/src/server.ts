@@ -1027,6 +1027,16 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         isCompleted: () =>
           store.findConversationOperation(admitted.conversationId, idempotencyKey)?.state ===
           'completed',
+        canContinue: () => {
+          if (isClosed) return false;
+          const currentDraft = store.findDraft(digest(claim), now);
+          if (!currentDraft?.description.trim()) return false;
+          const operation = store.findConversationOperation(
+            admitted.conversationId,
+            idempotencyKey,
+          );
+          return operation?.id === admitted.id && operation.state !== 'unknown';
+        },
       });
       return attachCors(response, origin);
     }

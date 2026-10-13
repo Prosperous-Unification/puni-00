@@ -22,13 +22,19 @@ The repository has several test runners and established test levels, but no comp
 - To: one real WBS rendering case measures mounted table cells against a reviewed budget through the real FE/BE/GW stack; startup failures and timed-out process trees refuse without publishing a report.
 - Impact: adds one measured Performance case and bounded runner lifecycle behavior. The resulting report remains operational and noncertifying.
 
+**Performance publication inspection**
+
+- From: `evaluatePerformanceRun` judges supplied evidence but does not inspect immutable publication integrity.
+- To: `inspect-performance` binds the current publication to committed sources and external policy, decodes raw reports independently, and reconciles measurements and JUnit.
+- Impact: read-only diagnostic with authentication absent and `certifies:false`; historical failure bundles remain diagnostics.
+
 ## Non-Goals
 
-This change renames no existing test. It adds test targets and test reporting only additively: an existing target is never renamed, removed or repurposed. Conformance and Architecture tests remain outside T2 because they prove contracts and rules rather than scenarios. Migration of every legacy OpenSpec scenario is outside the first adopted set; the ledgers must report that debt explicitly.
+This change renames no existing test. Existing targets remain intact. Conformance and Architecture tests remain outside T2 because they prove contracts and rules rather than scenarios. Migration of every legacy OpenSpec scenario is outside the first adopted set; the ledgers must report that debt explicitly.
 
 ## Constraints
 
-Scenario identifiers use square brackets at the start of scenario and test titles, are allocated without reuse, and preserve predecessors. Existing hand-written identifiers are imported and reserved before allocator provenance is enforced. Existing aggregate targets are preserved.
+Scenario identifiers use square brackets at the start of scenario and test titles, are allocated without reuse, and preserve predecessors. Existing identifiers are reserved before provenance enforcement. Existing aggregate targets are preserved.
 
 ## Capabilities
 
