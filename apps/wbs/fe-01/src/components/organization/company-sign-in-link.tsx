@@ -67,7 +67,13 @@ export function CompanySignInLink({
           setMessage(failureMessage(reply.failure));
           break;
         case 'refusal':
-          setMessage(startRefusal(reply));
+          // Proof: 2026-10-13, omitting this mode-specific copy failed
+          // `explains a rejected provider choice without claiming a password was entered`.
+          setMessage(
+            reply.status === 401 && choice === 'provider'
+              ? 'Could not verify your current sign-in. If you used a WBS password, choose that option. Otherwise, sign in again.'
+              : startRefusal(reply),
+          );
           break;
         default:
           return unreachable(reply);

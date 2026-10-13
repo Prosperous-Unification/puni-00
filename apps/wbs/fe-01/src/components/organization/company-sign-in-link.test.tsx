@@ -72,6 +72,22 @@ describe('company sign-in link', () => {
     choose('password');
     expect(screen.getByLabelText('Your WBS password')).toHaveProperty('value', '');
   });
+  it('explains a rejected provider choice without claiming a password was entered', async () => {
+    const sent = stubServer({
+      'POST /api/auth/link/auth0': [() => answer(401, { error: 'invalid_credentials' })],
+    });
+    render(<CompanySignInLink organization="acme-eu-2" navigate={vi.fn()} />);
+    choose('provider');
+    submit();
+    expect(await screen.findByRole('alert')).toHaveProperty(
+      'textContent',
+      'Could not verify your current sign-in. If you used a WBS password, choose that option. Otherwise, sign in again.',
+    );
+    expect(sent[0]?.body).toEqual({ organization: 'acme-eu-2' });
+    expect(screen.queryByLabelText('Your WBS password')).toBeNull();
+    expect(screen.getByRole('button')).toHaveProperty('disabled', false);
+  });
+
   it('prevents repeated form submissions while a request is pending', async () => {
     let release: (response: Response) => void = () => {
       throw new Error('Request not started');

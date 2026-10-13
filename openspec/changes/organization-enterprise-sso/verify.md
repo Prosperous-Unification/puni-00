@@ -136,3 +136,25 @@ Final observations after restoring all faults and correcting test style:
 - `NX_DAEMON=false NX_NO_CLOUD=true bunx nx run wbs-fe-01:typecheck`: frontend and module typechecks passed again, exit 0.
 - Prettier check on all ten touched files and `git diff --check`: clean.
 - OpenSpec validation rerun after task/spec/design/verify edits: 184 passed, 0 failed, exit 0.
+
+### Review follow-up: sign-in-mode refusal wording
+
+The independent review found no P1/P2 issue and requested clearer provider-mode
+401 wording. A new production-path component regression first failed with
+`That password is not correct.` when provider mode had submitted no password.
+The form now explains that the current sign-in could not be verified and offers
+the WBS password choice or a fresh sign-in. Password-mode 401 and all 429 copy
+keep their existing meaning. This changes modeled refusal presentation only;
+no new authority or admission guard is introduced. The test-first failure also
+proves that removing the mode-specific copy reintroduces the observed defect.
+
+Review follow-up verification: the three directly affected suites
+(`company-sign-in-link`, `credential-refusal-state`, `auth0-link`) pass 36 tests.
+Frontend/module typecheck and frontend build pass again. OpenSpec validates all
+184 items. Lint initially flagged a redundant error-code comparison: the typed
+401 response already guarantees `invalid_credentials`; that comparison was
+removed before the final rerun.
+
+Final full frontend lint passes (exit 0), and the three touched files pass
+Prettier and `git diff --check`. The canonical host gate, integration, and deploy
+remain outside this worker's scope.
