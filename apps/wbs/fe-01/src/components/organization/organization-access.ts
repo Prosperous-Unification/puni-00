@@ -74,7 +74,7 @@ export function lossCopy(loss: Exclude<AccessLoss, CredentialRefusal>): LossCopy
       return {
         headline: 'This session has no organization.',
         detail:
-          'Members, invitations and sharing belong to an organization, and this sign-in is not in one. Your projects are on the plan.',
+          'Members, invitations and sharing belong to an organization. This workspace has no organization, so your projects are on the plan.',
       };
     case 'removed':
       return {

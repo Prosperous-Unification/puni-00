@@ -47,7 +47,7 @@ export function spaceRefusal(refusal: SpaceRefusal): SpaceRefusalOutcome {
         kind: 'page',
         text: 'This session has no organization.',
         detail:
-          'Spaces belong to an organization, and this sign-in is not in one. Every project you can open is in All projects.',
+          'Spaces group an organization’s projects. This workspace has no organization, so every project is in All projects.',
       };
     case 'not_a_member':
       return {

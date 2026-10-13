@@ -444,7 +444,13 @@ export function StepsPanel({
               <span>Allowance</span>
               <span />
             </div>
-            <ul className="contents">
+            {/*
+              Not redundant here: WebKit drops a list's implicit role once it is
+              `display: contents`, so the role is said out loud for the screen
+              reader that would otherwise hear five loose rows.
+            */}
+            {/* eslint-disable-next-line jsx-a11y/no-redundant-roles -- the `display: contents` boundary above */}
+            <ul role="list" className="contents">
               {steps.map((step) => (
                 <li
                   key={step.id}

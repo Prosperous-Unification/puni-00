@@ -393,13 +393,15 @@ export function ProjectSettingsModal({
         </Button>
       </ModalTrigger>
       <ModalContent
-        // One frame for every section. F-021 (UI review 2026-10-13): sized by
-        // its contents the surface was 346px on Teams and 538px on Priorities,
-        // and re-centred on every tab, so the tab list jumped under the
-        // pointer. A fixed height keeps the tabs where they were clicked; the
-        // tallest section scrolls inside it rather than growing it. Wider than
-        // `2xl` so the Steps grid has room for a readable name column (F-020).
-        className="h-[min(46rem,90vh)] sm:max-w-3xl"
+        // Anchored at the top rather than centred. F-021 (UI review
+        // 2026-10-13): sized by its contents and centred, the surface was
+        // 346px on Teams and 538px on Priorities and re-centred on every tab,
+        // so the tab list jumped under the pointer. A fixed height stopped the
+        // jump but left Teams two-thirds empty; a top anchor keeps the title
+        // and the tabs where they were clicked and lets each section be its own
+        // height. Only the section scrolls (below), never the title or the ✕.
+        // Wider than `2xl` so the Steps grid has a readable name column (F-020).
+        className="top-[5vh] translate-y-0 overflow-y-hidden sm:max-w-3xl"
         // Radix performs the dismissal itself unless the event is prevented, so
         // a refused close has to be said here and not only in `onOpenChange`.
         onEscapeKeyDown={(event) => {
@@ -422,11 +424,15 @@ export function ProjectSettingsModal({
           </p>
         )}
 
-        <div className="flex flex-col gap-4 sm:flex-row">
+        <div className="flex min-h-0 flex-1 flex-col gap-4 sm:flex-row">
+          {/*
+            Three to a row on a phone: six tabs in one row were cut to "Team"
+            and ran into each other past the edge (F-053). A column from `sm`.
+          */}
           <div
             role="tablist"
             aria-label="Project settings sections"
-            className="flex gap-1 sm:w-36 sm:shrink-0 sm:flex-col"
+            className="grid shrink-0 grid-cols-3 gap-1 sm:flex sm:w-36 sm:flex-col"
           >
             {SECTIONS.map((section, at) => {
               const selected = shown === section.id;
@@ -460,7 +466,7 @@ export function ProjectSettingsModal({
             })}
           </div>
 
-          <div className="min-w-0 flex-1">
+          <div className="-mx-1 min-h-0 min-w-0 flex-1 overflow-y-auto px-1">
             <div
               role="tabpanel"
               id={panelId('teams')}
