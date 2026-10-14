@@ -52,6 +52,14 @@ export function browserClient<const Shapes extends readonly EndpointShape[]>(
         if (reply.kind === 'refusal') {
           const body = reply.body;
           if (typeof body === 'object' && body !== null && 'error' in body) {
+            // Legacy mode has no selected organization to withdraw; the page owns these refusals.
+            // Proof: without this guard both `legacy organization panels retain page-level … recovery`
+            // cases failed on an unexpected withdrawal call; page-states.spec.ts lost Open the plan.
+            if (
+              scope.organization.kind === 'legacy' &&
+              (body.error === 'no_active_organization' || body.error === 'not_a_member')
+            )
+              return reply;
             switch (body.error) {
               case 'organization_context_changed':
               case 'no_active_organization':

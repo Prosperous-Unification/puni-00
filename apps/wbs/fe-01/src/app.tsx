@@ -1,3 +1,4 @@
+import type { SessionFeatures } from '@wbs/contracts';
 import {
   type ReactNode,
   useCallback,
@@ -19,6 +20,7 @@ import { PresencePanel } from '@/components/presence/presence-panel';
 import { HintLayer } from '@/components/wbs/hint';
 import { type logout, me as fetchMe, type Session } from '@/lib/api';
 import { failureMessage, unreachable } from '@/lib/http';
+import { SessionFeaturesProvider } from '@/lib/session-features';
 import { ThemeProvider, useThemeChoice } from '@/lib/theme';
 import { useRetirementJoin } from '@/runtime/application-services-context';
 import { type BrowserSignOutState, createBrowserSignOut } from '@/runtime/browser-sign-out';
@@ -115,6 +117,9 @@ function AppContent({
   const [session, setSession] = useState<Session | null>(null);
   const [checked, setChecked] = useState(false);
   const [sessionError, setSessionError] = useState('');
+  // What the startup session read reported, signed in or out; null when the
+  // backend reported nothing, which keeps every feature's own reads.
+  const [features, setFeatures] = useState<SessionFeatures | null>(null);
   const [signOutState, setSignOutState] = useState<BrowserSignOutState | null>(null);
   const owner = useRef<SessionOwner | null>(null);
   const sessionRevision = useRef(0);
@@ -206,6 +211,9 @@ function AppContent({
         if (!active || requestedAt !== sessionRevision.current) return;
         switch (reply.kind) {
           case 'success':
+            // Proof: dropping this made quiet-load.spec.ts record
+            // `GET /api/onboarding 403` again on every local-mode page.
+            setFeatures(reply.body.features ?? null);
             if (reply.body.user !== null) acceptSession({ token: '', user: reply.body.user });
             return;
           case 'failure':
@@ -300,12 +308,36 @@ function AppContent({
     );
 
   return (
-    <OnboardingScreen
-      renderOrganization={(mode) => (
-        <OrganizationGate
-          key={session.user.id}
-          mode={mode}
-          identity={{ userId: session.user.id, credential: credentialOf(session.token) }}
+    <SessionFeaturesProvider value={features}>
+      <OnboardingScreen
+        renderOrganization={(mode) => (
+          <OrganizationGate
+            key={session.user.id}
+            mode={mode}
+            identity={{ userId: session.user.id, credential: credentialOf(session.token) }}
+            openOwner={openOwner}
+            onOwner={(current) => {
+              owner.current = current;
+            }}
+            onSignOut={(current) => {
+              beginSignOut(session, current);
+            }}
+            renderRuntime={(services, switcher, signOut) => (
+              <SessionView
+                session={session}
+                services={services}
+                switcher={switcher}
+                onSignOut={signOut}
+              />
+            )}
+          />
+        )}
+        onSignOut={() => {
+          beginSignOut(session, owner.current);
+        }}
+      >
+        <SignedInApp
+          session={session}
           openOwner={openOwner}
           onOwner={(current) => {
             owner.current = current;
@@ -313,31 +345,9 @@ function AppContent({
           onSignOut={(current) => {
             beginSignOut(session, current);
           }}
-          renderRuntime={(services, switcher, signOut) => (
-            <SessionView
-              session={session}
-              services={services}
-              switcher={switcher}
-              onSignOut={signOut}
-            />
-          )}
         />
-      )}
-      onSignOut={() => {
-        beginSignOut(session, owner.current);
-      }}
-    >
-      <SignedInApp
-        session={session}
-        openOwner={openOwner}
-        onOwner={(current) => {
-          owner.current = current;
-        }}
-        onSignOut={(current) => {
-          beginSignOut(session, current);
-        }}
-      />
-    </OnboardingScreen>
+      </OnboardingScreen>
+    </SessionFeaturesProvider>
   );
 }
 

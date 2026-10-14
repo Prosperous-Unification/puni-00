@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 
 import {
   Modal,
@@ -92,6 +92,24 @@ export interface ReferenceSetStripProps {
   /** The name of a conflicted type's keep button; see {@link holdsOneMember}. */
   keepLabel?: (entry: ReferenceSetEntry) => string;
   placeholder?: string;
+  /**
+   * Where the strip is drawn: a table cell's one clipped line (the default), or
+   * the phone's sheet — see {@link ReferenceSetSheet}.
+   *
+   * The sheet is a surface with room, so there it is laid out as a form: the
+   * chips on their own wrapping line, the search under them at the sheet's
+   * width, always in the flow. None of the cell's machinery for a 120px column
+   * applies there — the clip and fade at rest, the floating panel while
+   * editing, the hover card — and drawn with it, the sheet's anchor took the
+   * sheet's whole height (`flex: 1` in a column) and centred one search box in
+   * it: the blank middle and bottom-docked field of F-049 (2026-10-13).
+   *
+   * Proof: with the sheet passing no `face`, `opens the team sheet titled by
+   * its field, chips and search at the top (F-049)` in `e2e/mobile.spec.ts`
+   * failed on `the search is not under the chips — Expected: > 586.90625,
+   * Received: 586.90625`: one line, 450px down the sheet.
+   */
+  face?: 'cell' | 'sheet';
   'data-hint'?: string;
   /** The project fact this box carries, drawn at once where a hint would wait. */
   'data-fact'?: string;
@@ -168,6 +186,9 @@ export const REFERENCE_SET_EDGE_FADE = 'linear-gradient(to left, transparent, #0
  */
 export const REFERENCE_SET_LINE_HEIGHT = 24;
 
+/** The one chip line a resting strip shows; chips that would start a second wrap out of sight. */
+const REST_CHIP_LINE_PX = 18;
+
 /**
  * Where an open panel sits in the stack.
  *
@@ -180,8 +201,18 @@ const REFERENCE_SET_PANEL_LAYER = 10;
 
 export const REFERENCE_SET_ADD_CLASS =
   'shrink-0 border-0 bg-transparent text-xs hover:bg-[color-mix(in_oklab,var(--foreground)_7%,var(--cell-bg))] hover:text-foreground';
+/**
+ * The `+` and a chip on the phone's sheet, where there is room for a control
+ * a thumb can see: the cell's are 12px ink sized for a 120px column.
+ */
+const SHEET_ADD_CLASS = 'border-border min-w-11 shrink-0 rounded-md border bg-transparent';
+const SHEET_CHIP_CLASS =
+  'bg-muted inline-flex max-w-full items-center gap-1 rounded-md pl-3 text-sm';
+// `min-w-0` so `max-w-full` holds: a flex item's automatic minimum is its
+// content, and a minimum outranks a maximum, so a long chip ran past its line
+// instead of ending in an ellipsis (review of PR #409).
 export const REFERENCE_SET_CHIP_CLASS =
-  'bg-muted inline-flex max-w-full items-center gap-0.5 rounded px-1 text-xs';
+  'bg-muted inline-flex max-w-full min-w-0 items-center gap-0.5 rounded px-1 text-xs';
 export const REFERENCE_SET_REMOVE_CLASS = 'shrink-0 border-0 bg-transparent p-0';
 /**
  * The inherited chip's ink: the own chip's box, dimmed and outlined instead of
@@ -196,7 +227,7 @@ export const REFERENCE_SET_REMOVE_CLASS = 'shrink-0 border-0 bg-transparent p-0'
  * two states.
  */
 export const REFERENCE_SET_INHERITED_CHIP_CLASS =
-  'text-muted-foreground border-muted-foreground/40 inline-flex max-w-full items-center gap-0.5 rounded border border-dashed px-1 text-xs';
+  'text-muted-foreground border-muted-foreground/40 inline-flex max-w-full min-w-0 items-center gap-0.5 rounded border border-dashed px-1 text-xs';
 
 /** One line of {@link ReferenceSetStrip}'s hover card. */
 interface ReferenceSetLine {
@@ -266,10 +297,20 @@ export function ReferenceSetStrip({
   removeLabel,
   keepLabel,
   placeholder,
+  face = 'cell',
   'data-hint': hint,
   'data-fact': fact,
 }: ReferenceSetStripProps) {
+  const sheet = face === 'sheet';
   const root = useRef<HTMLSpanElement>(null);
+  const chipLine = useRef<HTMLSpanElement>(null);
+  /**
+   * The chips the resting line wrapped out of sight, by their words — a layout
+   * fact, so measured: every chip whose top is at or below the line's bottom.
+   * Drawn as `+N` beside the line, and the edge fade follows it, so the line
+   * never hides a chip silently (review of PR #409, decision D4).
+   */
+  const [hiddenChips, setHiddenChips] = useState<readonly string[]>([]);
   const ownIds = unique(adapter.ownIds);
   const holdsOne = holdsOneMember(adapter.kind);
   // Proof: forced false and `flags a type conflict, shows every type, and keeps
@@ -300,6 +341,33 @@ export function ReferenceSetStrip({
    * members is editing this cell as much as somebody typing into it.
    */
   const [editing, setEditing] = useState(false);
+  const chipsKey = [...ownIds, ...(adapter.inheritedEntries ?? []).map((entry) => entry.id)].join(
+    '\0',
+  );
+  useLayoutEffect(() => {
+    const line = chipLine.current;
+    // jsdom has no ResizeObserver and lays nothing out, so nothing there can be
+    // measured as hidden; the count is proven in `e2e/plan-table-review.spec.ts`.
+    if (editing || line === null || typeof ResizeObserver === 'undefined') {
+      setHiddenChips((was) => (was.length === 0 ? was : []));
+      return;
+    }
+    const measure = (): void => {
+      const bottom = line.getBoundingClientRect().bottom;
+      const hidden = [
+        ...line.querySelectorAll('[data-reference-chip], [data-reference-inherited-chip]'),
+      ]
+        .filter((chip) => chip.getBoundingClientRect().top >= bottom - 0.5)
+        .map((chip) => chip.textContent.replace(/[×✓]/g, '').trim());
+      setHiddenChips((was) => (was.join('\0') === hidden.join('\0') ? was : hidden));
+    };
+    measure();
+    const watching = new ResizeObserver(measure);
+    watching.observe(line);
+    return () => {
+      watching.disconnect();
+    };
+  }, [editing, chipsKey]);
   /**
    * Whether the pointer is on this cell — which is the same question as "is the
    * hover card open", subject to the two conditions on it below.
@@ -350,7 +418,9 @@ export function ReferenceSetStrip({
    * resting `27.1875`. Watched 2026-08-29, after the jsdom-only round shipped
    * a fix that did not work in a browser.
    */
-  const wrapping = editing && own.length > 0;
+  const wrapping = sheet || (editing && own.length > 0);
+  /** Whether the strip floats as a panel over the rows below — a cell's, being edited. */
+  const floating = editing && !sheet;
   const lines = referenceSetLines(own, inherited, adapter.inheritedLabel);
   /**
    * Whether the card is on screen: the pointer is here, the cell is at rest,
@@ -362,7 +432,7 @@ export function ReferenceSetStrip({
    * first — and it would open from the anchor the panel has left, which is a
    * card standing where the cell no longer is.
    */
-  const carded = pointed && !editing && lines.length > 0;
+  const carded = pointed && !editing && !sheet && lines.length > 0;
   if (sourceIdsRef.current.join('\0') !== ownIds.join('\0')) {
     sourceIdsRef.current = ownIds;
     projectedIdsRef.current = ownIds;
@@ -437,18 +507,23 @@ export function ReferenceSetStrip({
       onMouseLeave={() => {
         setPointed(false);
       }}
-      style={{
-        position: 'relative',
-        display: 'flex',
-        alignItems: 'center',
-        flex: 1,
-        minWidth: 0,
-        // A floor, not a height. At rest the strip stands in this anchor and
-        // sets its own height — 24.1875px in Chromium, an input's border and
-        // padding included — and a pinned 24 would clip it by the difference.
-        // While the strip floats, this is what is left holding the line.
-        minHeight: REFERENCE_SET_LINE_HEIGHT,
-      }}
+      style={
+        sheet
+          ? { position: 'relative', display: 'block', minWidth: 0 }
+          : {
+              position: 'relative',
+              display: 'flex',
+              alignItems: 'center',
+              flex: 1,
+              minWidth: 0,
+              // A floor, not a height. At rest the strip stands in this anchor
+              // and sets its own height — 24.1875px in Chromium, an input's
+              // border and padding included — and a pinned 24 would clip it by
+              // the difference. While the strip floats, this is what is left
+              // holding the line.
+              minHeight: REFERENCE_SET_LINE_HEIGHT,
+            }
+      }
     >
       <span
         ref={root}
@@ -470,7 +545,8 @@ export function ReferenceSetStrip({
           // At rest the strip **is** the cell's line, and fills the anchor
           // holding it. While editing it leaves that line — see below.
           flex: 1,
-          ...(editing
+          ...(sheet ? { rowGap: 8 } : {}),
+          ...(floating
             ? {
                 /*
                   The open panel: out of the flow, over the rows below, opaque.
@@ -538,8 +614,11 @@ export function ReferenceSetStrip({
           // `overflow: 'visible'` never reached an assertion at all — the
           // spilled chips cover the cell, and clicking the box timed out on
           // `<td data-column="tag"> intercepts pointer events`.
-          overflow: editing ? 'visible' : 'hidden',
-          ...(editing
+          overflow: editing || sheet ? 'visible' : 'hidden',
+          // Only where a chip was wrapped out of sight: a line that ends on
+          // its last chip has nothing to fade (review of PR #409, D4). The
+          // sheet wraps whole and never fades (PR #399).
+          ...(editing || sheet || hiddenChips.length === 0
             ? {}
             : {
                 WebkitMaskImage: REFERENCE_SET_EDGE_FADE,
@@ -552,7 +631,7 @@ export function ReferenceSetStrip({
           tabIndex={-1}
           aria-label={addLabel ?? `Add a ${adapter.kind}`}
           data-reference-add=""
-          className={REFERENCE_SET_ADD_CLASS}
+          className={sheet ? SHEET_ADD_CLASS : REFERENCE_SET_ADD_CLASS}
           // Still `disabled` while a write travels, where the search box beside
           // it is only `readOnly` — and the difference is not an inconsistency.
           // The rule is that a control which can hold the focus must not be
@@ -618,16 +697,31 @@ export function ReferenceSetStrip({
           +
         </button>
         <span
+          ref={chipLine}
           data-reference-chips=""
           style={{
             display: 'flex',
             // The strip's rule, said again here because a `nowrap` strip holding
             // a `wrap` group is still a cell that grows a line per chip.
-            flexWrap: wrapping ? 'wrap' : 'nowrap',
+            //
+            // At rest it wraps too, into a line nobody sees (review of PR #409,
+            // F-035/F-048): the row gap pushes every chip that does not fit
+            // whole onto a second line, and `maxHeight` with the `hidden`
+            // overflow below keeps only the first. So the rest line ends on a
+            // whole chip — `Frontend ×` rather than `Frontend × Ba` — and the
+            // first chip alone may still end in an ellipsis (`max-w-full`).
+            // 18px holds a chip's 16px and the inherited chip's dashed border.
+            flexWrap: 'wrap',
             alignItems: 'center',
-            gap: 3,
+            alignContent: 'flex-start',
+            columnGap: sheet ? 6 : 3,
+            rowGap: sheet ? 6 : wrapping ? 3 : REST_CHIP_LINE_PX,
+            ...(wrapping ? {} : { maxHeight: REST_CHIP_LINE_PX }),
             minWidth: 0,
             maxWidth: '100%',
+            // On the sheet the chips are the first line of the form, whole,
+            // and the `+` and the search share the line under them.
+            ...(sheet ? { flexBasis: '100%', order: -1 } : {}),
             /*
               A chip may not paint outside this group, because what is beside
               it is the search box — and the box, being later in the DOM, takes
@@ -670,7 +764,7 @@ export function ReferenceSetStrip({
             <span
               key={entry.id}
               data-reference-chip={entry.id}
-              className={REFERENCE_SET_CHIP_CLASS}
+              className={sheet ? SHEET_CHIP_CLASS : REFERENCE_SET_CHIP_CLASS}
             >
               <span className="truncate">{entry.name}</span>
               {conflicted && (
@@ -678,7 +772,7 @@ export function ReferenceSetStrip({
                   type="button"
                   aria-label={keepLabel?.(entry) ?? `Keep ${entry.name} ${adapter.kind}`}
                   disabled={pending}
-                  tabIndex={editing ? undefined : -1}
+                  tabIndex={editing || sheet ? undefined : -1}
                   // The ✕ beside it explains both guards: no focus on press,
                   // out of the tab order while the line clips.
                   onMouseDown={(pressed) => {
@@ -701,7 +795,7 @@ export function ReferenceSetStrip({
                 // shifting a layout nobody asked to move. Tab enters the cell
                 // at the box, the box's focus wraps every chip back on screen,
                 // and the ✕s are focusable there.
-                tabIndex={editing ? undefined : -1}
+                tabIndex={editing || sheet ? undefined : -1}
                 // **The press must not take the focus.** Focus here is what
                 // makes the strip wrap, and a wrap is a re-layout: Chromium
                 // focused this button on `mousedown`, React flushed the
@@ -777,6 +871,21 @@ export function ReferenceSetStrip({
           ))}
         </span>
         {/*
+          How many chips the rest line wrapped out of sight — the Depends on
+          cell's count chip, said as `+N` because here it counts what is not
+          shown rather than the whole set. Its `title` names them; the cell's
+          own card lists the whole set, as before.
+        */}
+        {!editing && hiddenChips.length > 0 && (
+          <span
+            data-reference-hidden-count={hiddenChips.length}
+            title={`Also: ${hiddenChips.join(', ')}`}
+            className="text-muted-foreground shrink-0 text-xs"
+          >
+            +{hiddenChips.length}
+          </span>
+        )}
+        {/*
           The search box takes what the chips leave, and at rest that is
           allowed to be nothing.
 
@@ -831,7 +940,20 @@ export function ReferenceSetStrip({
             }
             closeWhen={(outcome) => outcome === 'landed' || outcome === 'landed-unread'}
             disabled={pending}
-            placeholder={placeholder ?? `Search ${label.toLowerCase()}`}
+            // No placeholder beside a chip at rest: the box is what the chips
+            // leave, often a few pixels, and those pixels drew `ad`, `se`,
+            // `cha` — a word cut mid-letter (UI review F-035/F-048,
+            // 2026-10-13). The `+` says "add" there; the words come back with
+            // the box's 72px floor the moment it is entered.
+            // Proof: on the code before this, `draws no placeholder in a box
+            // too narrow for it` (`e2e/plan-table-review.spec.ts`) failed with
+            // `add` and `search or add` cramped beside chips. Watched
+            // 2026-10-13.
+            placeholder={
+              !editing && (own.length > 0 || inherited.length > 0)
+                ? ''
+                : (placeholder ?? `Search ${label.toLowerCase()}`)
+            }
             data-hint={hint}
             data-fact={fact}
             dataCell={dataCell}
@@ -871,17 +993,32 @@ export function ReferenceSetStrip({
   );
 }
 
-export interface ReferenceSetSheetProps extends ReferenceSetStripProps {
+export interface ReferenceSetSheetProps extends Omit<ReferenceSetStripProps, 'face'> {
   open: boolean;
   onClose: () => void;
+  /**
+   * The sheet's heading and its dialog's name: the field this sheet edits and
+   * the row it edits it on, in words (`Teams for 010 - Onboarding redesign`).
+   *
+   * Separate from {@link ReferenceSetStripProps.label}, which names the search
+   * box and its list and is the table cell's own accessible name. The heading
+   * was `Edit {label}` — `Edit Service or team for 010` on a sheet that edits
+   * teams, which said neither which field nor which work item (F-049).
+   */
+  title: string;
 }
 
-/** Phone presentation of the same directory-set editor. */
+/**
+ * Phone presentation of the same directory-set editor: a bottom sheet laid out
+ * as a form — the heading, the chips the row holds, the search box, and the
+ * picker's options opening under it.
+ */
 export function ReferenceSetSheet({
   label,
   adapter,
   open,
   onClose,
+  title,
   ...stripProps
 }: ReferenceSetSheetProps) {
   if (!open) return null;
@@ -908,12 +1045,29 @@ export function ReferenceSetSheet({
         if (!nextOpen) onClose();
       }}
     >
-      <ModalContent side="bottom" className="min-h-[60vh]" aria-label={`Edit ${label}`}>
-        <button type="button" aria-label={`Close ${label}`} onClick={onClose}>
-          ×
+      {/*
+        One close control, in the corner every other sheet keeps it in. This
+        sheet drew its own `×` as the surface's first child **and** kept the
+        surface's ✕: a flex column stretched the first into a full-width
+        bordered bar over the heading (F-049). The surface's is turned off
+        rather than this one, because `Close {label}` is the name the phone
+        tests and a screen reader already reach it by.
+
+        Proof: with `closeButton` left on, `opens the team sheet titled by its
+        field, chips and search at the top (F-049)` in `e2e/mobile.spec.ts`
+        failed on `toHaveCount(1)` for the sheet's close controls — `Expected: 1 Received: 2`.
+      */}
+      <ModalContent side="bottom" className="min-h-[60vh]" closeButton={false}>
+        <button
+          type="button"
+          aria-label={`Close ${label}`}
+          onClick={onClose}
+          className="absolute top-4 right-4 rounded-sm opacity-70 hover:opacity-100"
+        >
+          <span aria-hidden="true">✕</span>
         </button>
         <ModalHeader>
-          <ModalTitle>Edit {label}</ModalTitle>
+          <ModalTitle>{title}</ModalTitle>
           <ModalDescription>Type to search the directory, or add a new name.</ModalDescription>
         </ModalHeader>
         {/*
@@ -941,7 +1095,7 @@ export function ReferenceSetSheet({
         {adapter.inheritedLabel !== undefined && (
           <p data-reference-inherited="">Inherited: {adapter.inheritedLabel}</p>
         )}
-        <ReferenceSetStrip label={label} adapter={sheetAdapter} {...stripProps} />
+        <ReferenceSetStrip label={label} adapter={sheetAdapter} face="sheet" {...stripProps} />
       </ModalContent>
     </Modal>
   );

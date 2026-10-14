@@ -23,7 +23,9 @@ try {
   const solverVersion = solverLauncher.readRuntimeVersion(process.env.NODE_ENV);
   const callerId = process.env['HOSTNAME'];
   if (callerId === undefined || callerId.length === 0) {
-    throw new Error('HOSTNAME is required for solver supervisor authentication');
+    throw new Error(
+      'HOSTNAME is required for solver supervisor authentication; locally, run `bun run dev:setup` (docs/local-dev.md)',
+    );
   }
   running = await bootBe01({
     appOrigin: cfg.appOrigin,

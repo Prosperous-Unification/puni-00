@@ -2,6 +2,7 @@ import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 
 import { OnboardingScreen } from '@/components/onboarding/onboarding-screen';
+import { SessionFeaturesProvider } from '@/lib/session-features';
 import { fakeDirectoryApi } from '@/modules/directory/fake-directory-api';
 import { browserStorage } from '@/modules/preferences/browser-storage.repository';
 import { type ApplicationServices, installApplicationRuntime } from '@/runtime/application-runtime';
@@ -94,44 +95,67 @@ it.each(['selection', 'switcher'] as const)(
     expect(screen.queryByText('Alpha resources') !== null).toBe(entry === 'switcher');
   },
 );
-function mount(routes: OrganizationRoutes) {
-  vi.stubGlobal('fetch', () =>
-    Promise.resolve(
-      Response.json({
-        state: 'selection_required',
-        memberships: [{ ...current, ssoRequired: false }],
-      }),
+function mount(routes: OrganizationRoutes, mode: 'legacy' | 'activated' = 'activated') {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(() =>
+      Promise.resolve(
+        Response.json({
+          state: 'selection_required',
+          memberships: [{ ...current, ssoRequired: false }],
+        }),
+      ),
     ),
   );
   return render(
-    <OrganizationGate
-      mode="activated"
-      identity={{ userId: 'u1', credential: credentialOf('tok') }}
-      openOwner={() =>
-        createSessionOwner({
-          clientFor: () => fakeDirectoryApi(),
-          projectClientFor: () => fakeProjectApi(),
-          streamDeps: SILENT_STREAM,
-        })
-      }
-      routes={routes}
-      notices={() => ({ announce: () => undefined, close: () => undefined })}
-      onOwner={() => undefined}
-      onSignOut={() => undefined}
-      renderRuntime={(runtime, switcher) => (
-        <>
-          {switcher}
-          <p>
-            Resources{' '}
-            {runtime.organization.kind === 'active'
-              ? runtime.organization.organizationId
-              : 'legacy'}
-          </p>
-        </>
-      )}
-    />,
+    <SessionFeaturesProvider
+      value={mode === 'legacy' ? { onboarding: false, organizations: false } : null}
+    >
+      <OrganizationGate
+        mode={mode}
+        identity={{ userId: 'u1', credential: credentialOf('tok') }}
+        openOwner={() =>
+          createSessionOwner({
+            clientFor: () => fakeDirectoryApi(),
+            projectClientFor: () => fakeProjectApi(),
+            streamDeps: SILENT_STREAM,
+          })
+        }
+        routes={routes}
+        notices={() => ({ announce: () => undefined, close: () => undefined })}
+        onOwner={() => undefined}
+        onSignOut={() => undefined}
+        renderRuntime={(runtime, switcher) => (
+          <>
+            {switcher}
+            <p>
+              Resources{' '}
+              {runtime.organization.kind === 'active'
+                ? runtime.organization.organizationId
+                : 'legacy'}
+            </p>
+          </>
+        )}
+      />
+    </SessionFeaturesProvider>,
   );
 }
+it('starts the inactive deployment runtime without reading membership choices', async () => {
+  mount(
+    {
+      discover: () => {
+        throw new Error('inactive discovery');
+      },
+      select: () => {
+        throw new Error('inactive selection');
+      },
+    },
+    'legacy',
+  );
+  const requests = vi.mocked(fetch);
+  await screen.findByText('Resources legacy');
+  expect(requests).not.toHaveBeenCalled();
+});
 it('requires an explicit choice even for a sole membership', async () => {
   const select = vi.fn(() =>
     Promise.resolve({

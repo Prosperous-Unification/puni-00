@@ -30,6 +30,19 @@ import { expandBranch } from './use-plan-structure';
 import { type TreeRow } from './wbs-rows';
 import { rowWords } from './work-item-words';
 
+/**
+ * Where one walk to the next unestimated leaf landed: the row, the step whose
+ * estimate it is missing, and its 1-based place among the leaves still
+ * missing one. The badge announces it (UI review F-024), because the walk
+ * otherwise moves the caret, opens branches and scrolls with nothing said.
+ */
+export interface GapLanding {
+  rowId: string;
+  stepId: string;
+  at: number;
+  of: number;
+}
+
 const planIsActive = (): boolean => true;
 
 /**
@@ -806,7 +819,8 @@ export function usePlanReadiness({
 
   /**
    * Walks to the next leaf the plan has no estimate for, and asks for the
-   * focus in the cell that estimates it.
+   * focus in the cell that estimates it — and answers where it went, so the
+   * badge can say so ({@link GapLanding}); `null` when nothing is unestimated.
    *
    * The readiness badge's only behaviour. It reads nothing and writes nothing:
    * a plan is judged complete or not by {@link findEstimateGaps}, and this
@@ -819,8 +833,8 @@ export function usePlanReadiness({
    * the way: focusing a cell that is not on screen is a keystroke landing
    * somewhere nobody can see.
    */
-  const walkToNextGap = useCallback(() => {
-    if (gaps.leaves.length === 0) return;
+  const walkToNextGap = useCallback((): GapLanding | null => {
+    if (gaps.leaves.length === 0) return null;
     const at =
       gapVisit === null ? -1 : gaps.leaves.findIndex((leaf) => leaf.rowId === gapVisit.rowId);
     // `-1` is both "nothing visited yet" and "the row visited has since been
@@ -853,6 +867,12 @@ export function usePlanReadiness({
     // 2026-08-06.
     setExpanded((current) => ancestorsOf(next.rowId).reduce(expandBranch, current));
     setGapVisit({ rowId: next.rowId, cell: { rowId: next.rowId, columnId } });
+    return {
+      rowId: next.rowId,
+      stepId,
+      at: ((at + 1) % gaps.leaves.length) + 1,
+      of: gaps.leaves.length,
+    };
   }, [ancestorsOf, gapVisit, gaps.leaves, setExpanded, setGapVisit, unfoldedSteps]);
 
   /**

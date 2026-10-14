@@ -2207,6 +2207,65 @@ export function WbsTable({
       />
     );
   }
+  /*
+    The layout reset, and the whole of why it is handed to the toolbar as
+    `layoutReset` rather than written into it: the toolbar is rendered both in
+    the table's row and in the Plan actions sheet, so a control put inside it
+    reaches the phone by construction. This one is the table's alone — the
+    width half means nothing on a phone card, which has no columns to widen;
+    the sheet instead carries its own Gantt-only reset, for the height, day
+    scale and row-name labels a card does have. The toolbar draws it at the
+    end of its schedule group (UI review F-005), beside Starts and Plan with.
+
+    Offered only while there is something to forget — a dragged column or a
+    dragged chart edge. A control that provably does nothing reads as a broken
+    one. Proof of the height half: the `ganttHeightPx` arm of the condition
+    removed, `a height override alone offers the reset…` failed on `Unable to
+    find … "Reset layout"`. Watched, 2026-08-10.
+
+    Proof of the placement: the reset moved into the toolbar for both
+    renderers, `plan-cards.test.tsx`'s `offers no width control at all, because
+    a card has no columns` failed on `expected <button …(2)></button> to be
+    null` — the control on the sheet at 390px. Watched, 2026-08-09.
+  */
+  const layoutReset =
+    renderer === 'table' &&
+    hasSuccessfulTreeRead &&
+    (widthOverrides.size > 0 ||
+      columnsDiffer ||
+      ganttHeightPx !== null ||
+      ganttDayPx !== DAY_PX ||
+      ganttRungNotice !== null ||
+      !ganttLabelsShown) ? (
+      <Button
+        variant="outline"
+        size="sm"
+        type="button"
+        data-hint="Forget the widths, the hidden columns, the chart height, the day scale and the hidden row names set here, and lay the layout out at its own again"
+        onClick={resetLayout}
+      >
+        Reset layout
+      </Button>
+    ) : null;
+  /*
+    The chart's own reset, on the phone's sheet only — the desktop bar carries
+    its own copy beside the toolbar. Offered once anything about the chart's
+    layout differs from its default.
+  */
+  const sheetResetLayout = (ganttHeightPx !== null ||
+    ganttDayPx !== DAY_PX ||
+    ganttRungNotice !== null ||
+    !ganttLabelsShown) && (
+    <Button
+      variant="outline"
+      size="sm"
+      type="button"
+      data-hint="Forget the chart height, the day scale and the hidden row names, and lay the Gantt out at its own again"
+      onClick={resetGanttSettings}
+    >
+      Reset layout
+    </Button>
+  );
   const toolbarControls = (
     <PlanToolbar
       // Its urgent Find value belongs to one project. Proof: this key removed,
@@ -2261,6 +2320,7 @@ export function WbsTable({
       search={search}
       gaps={gaps}
       walkToNextGap={walkToNextGap}
+      layoutReset={layoutReset}
       stack={stack}
       stepStack={stepStack}
       setCheatSheetOpen={setCheatSheetOpen}
@@ -2278,6 +2338,12 @@ export function WbsTable({
       setMermaidSectionMode={setMermaidSectionMode}
       startDate={startDate}
       chooseEstimateMethod={chooseEstimateMethod}
+      // The saved-plan shelf, which on a phone lives on the sheet and nowhere
+      // else — the header's project row cannot afford it, and
+      // `SavedPlanShelf` carries the 21.4px that says so. Under Schedule,
+      // beside the start date and the method it records. Above `md` the shelf
+      // is in the app header and the sheet is not rendered at all.
+      sheetExtras={{ view: sheetResetLayout, schedule: savedPlansShelf }}
     />
   );
 
@@ -2365,34 +2431,7 @@ export function WbsTable({
           {viewControls}
           {scheduleCue}
           <PlanToolbarSheet active={planActive}>
-            <div aria-busy={busy} className="flex flex-wrap items-center gap-2">
-              {toolbarControls}
-              {(ganttHeightPx !== null ||
-                ganttDayPx !== DAY_PX ||
-                ganttRungNotice !== null ||
-                !ganttLabelsShown) && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  type="button"
-                  data-hint="Forget the chart height, the day scale and the hidden row names, and lay the Gantt out at its own again"
-                  onClick={resetGanttSettings}
-                >
-                  Reset layout
-                </Button>
-              )}
-              {/*
-                The saved-plan shelf, which on a phone lives here and nowhere
-                else — the header's project row cannot afford it, and
-                `SavedPlanShelf` carries the 21.4px that says so.
-
-                Last in the sheet and not in `toolbarControls`, for that
-                array's own reason turned around: it is rendered by *both*
-                faces, and this control is on this one only. Above `md` the
-                shelf is in the app header, and this arm is not rendered at all.
-              */}
-              {savedPlansShelf}
-            </div>
+            <div aria-busy={busy}>{toolbarControls}</div>
           </PlanToolbarSheet>
         </div>
       ) : (
@@ -2405,44 +2444,6 @@ export function WbsTable({
           className="mb-1.5 flex shrink-0 flex-wrap items-center gap-x-1.5 gap-y-1"
         >
           {toolbarControls}
-          {/*
-            The layout reset, and the whole of why it is **here** — the
-            toolbar row's own child — rather than in `toolbarControls`: that
-            array is rendered both in this row and in the Plan actions sheet,
-            so a control put there reaches the phone by construction. The
-            width half stays here because a phone card has no columns to
-            widen; the sheet instead carries its own Gantt-only reset, for
-            the height, day scale and row-name labels a card does have.
-
-            Offered only while there is something to forget — a dragged
-            column or a dragged chart edge. A control that provably does
-            nothing reads as a broken one. Proof of the height half: the
-            `ganttHeightPx` arm of the condition removed, `a height override
-            alone offers the reset…` failed on `Unable to find … "Reset
-            layout"`. Watched, 2026-08-10.
-
-            Proof of the placement: the reset moved into `toolbarControls`,
-            `plan-cards.test.tsx`'s `offers no width control at all, because a
-            card has no columns` failed on `expected <button …(2)></button> to
-            be null` — the control on the sheet at 390px. Watched, 2026-08-09.
-          */}
-          {hasSuccessfulTreeRead &&
-            (widthOverrides.size > 0 ||
-              columnsDiffer ||
-              ganttHeightPx !== null ||
-              ganttDayPx !== DAY_PX ||
-              ganttRungNotice !== null ||
-              !ganttLabelsShown) && (
-              <Button
-                variant="outline"
-                size="sm"
-                type="button"
-                data-hint="Forget the widths, the hidden columns, the chart height, the day scale and the hidden row names set here, and lay the layout out at its own again"
-                onClick={resetLayout}
-              >
-                Reset layout
-              </Button>
-            )}
           {scheduleCue}
         </div>
       )}

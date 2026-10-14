@@ -157,7 +157,8 @@ const COLUMN_HINTS = new Map<string, string>([
   [
     'depends',
     'The rows this one waits for. It starts after each named row’s first estimated step ' +
-      'rather than after that row finishes, so pushing a row you depend on pushes this one too.',
+      'rather than after that row finishes, so pushing a row you depend on pushes this one too. ' +
+      'Search by name, or type numbers — 010, 020.',
   ],
   [
     'priority',
@@ -275,7 +276,8 @@ function pointHint(point: string): string {
  */
 export const STEP_FINAL_HINT =
   'This step’s days for the work item, from its three points. Steps on one item run ' +
-  'in order, so this one waits for the step before it.';
+  'in order, so this one waits for the step before it. The mark in a cell’s corner is ' +
+  'that step’s reading — hover the cell for it in words, or press ? for every mark.';
 
 /** An id no sentence was written for — a typo, or a new column nobody explained. */
 export class UnexplainedColumnError extends Error {

@@ -677,7 +677,9 @@ test.describe('the cell answers the pointer that is in it', () => {
       const pillBox = pill.getBoundingClientRect();
       const cellBox = node.getBoundingClientRect();
       const point = { x: pillBox.left + pillBox.width / 2, y: pillBox.top + pillBox.height / 2 };
-      const hit = document.elementFromPoint(point.x, point.y);
+      // The labelled control under the point: a pill's number is a span of
+      // its own since F-033 (2026-10-13), so it can end in an ellipsis.
+      const hit = document.elementFromPoint(point.x, point.y)?.closest('[aria-label]') ?? null;
       return {
         boxLeft: input.getBoundingClientRect().left,
         cellRight: cellBox.right,

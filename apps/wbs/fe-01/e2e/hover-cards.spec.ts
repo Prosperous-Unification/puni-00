@@ -180,7 +180,9 @@ test.describe('a hover card answers at once, whole, and out past its cell', () =
     expect(await cell.locator('[title]').count()).toBe(0);
     // The sentence is still in the DOM at rest, for the oracles that read the
     // day back out of the table — `e2e/gantt.spec.ts`' own fixture among them.
-    expect(await cell.getAttribute('data-start-said')).toBe('Starts with the project');
+    // Undated, the sentence goes on to say which day of the plan this is and
+    // how to get a date (review of PR #409).
+    expect(await cell.getAttribute('data-start-said')).toMatch(/^Starts with the project — Day 0/);
 
     await cell.hover();
 

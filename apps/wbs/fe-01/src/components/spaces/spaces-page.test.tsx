@@ -100,8 +100,9 @@ describe('the spaces page', () => {
     cleanup();
     stubServer({ 'GET /api/spaces': [() => answer(409, { error: 'organization_required' })] });
     routed(<SpacesPage nav={null} account={null} />);
-    expect((await screen.findByRole('alert')).textContent).toContain('Spaces need an organization');
-    expect(screen.getByRole('link', { name: 'All projects' })).toBeDefined();
+    expect((await screen.findByRole('alert')).textContent).toBe('Spaces need an organization.');
+    expect(screen.getByText(/every project is in All projects/)).toBeDefined();
+    expect(screen.getByRole('link', { name: 'Open All projects' })).toBeDefined();
   });
 
   it('gives the page up to the company sign-in when enforced SSO refuses it', async () => {

@@ -1,4 +1,4 @@
-import { createProject, listTeams } from '@wbs/contracts';
+import { createProject, listMembers, listTeams } from '@wbs/contracts';
 import { afterEach, expect, it, vi } from 'vitest';
 
 import { browserClient } from '@/lib/http';
@@ -11,6 +11,44 @@ import { createSessionOwner, installSessionRuntime } from './session-runtime';
 
 const identity = { userId: 'u1', credential: credentialOf('token') };
 afterEach(() => vi.unstubAllGlobals());
+
+it.each(['no_active_organization', 'not_a_member'])(
+  'legacy organization panels retain page-level %s recovery',
+  async (error) => {
+    vi.stubGlobal('location', { origin: 'http://wbs.test' });
+    vi.stubGlobal('fetch', () => Promise.resolve(Response.json({ error }, { status: 403 })));
+    const refuse = vi.fn();
+    const client = browserClient([listMembers], {
+      organization: { kind: 'legacy' },
+      isCurrent: () => true,
+      refuse,
+    });
+    expect(await client.getApiOrganizationMembers({})).toMatchObject({
+      kind: 'refusal',
+      body: { error },
+    });
+    expect(refuse).not.toHaveBeenCalled();
+  },
+);
+
+it.each(['no_active_organization', 'not_a_member'])(
+  'active organization panels withdraw the runtime on %s',
+  async (error) => {
+    vi.stubGlobal('location', { origin: 'http://wbs.test' });
+    vi.stubGlobal('fetch', () => Promise.resolve(Response.json({ error }, { status: 403 })));
+    const refuse = vi.fn();
+    const client = browserClient([listMembers], {
+      organization: { kind: 'active', organizationId: 'org-a' },
+      isCurrent: () => true,
+      refuse,
+    });
+    expect(await client.getApiOrganizationMembers({})).toMatchObject({
+      kind: 'refusal',
+      body: { error },
+    });
+    expect(refuse).toHaveBeenCalledExactlyOnceWith({ error });
+  },
+);
 
 it('replaces services when the same account switches organizations', async () => {
   const owner = createSessionOwner({

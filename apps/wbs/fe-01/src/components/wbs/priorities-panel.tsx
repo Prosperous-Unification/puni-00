@@ -205,7 +205,14 @@ export function PrioritiesPanel({
           // stays the colour that row will still be.
           const paint = priorityBandStyleOf(bands, bands.at(at)?.startsAt ?? 1);
           return (
-            <li key={`band-${String(at)}`} className="flex items-center gap-2">
+            // Two lines on a phone — the swatch and the name, then the start,
+            // the range and what the band writes — because four controls in
+            // one row clipped the names to "Cri" and pushed the last box past
+            // the modal's edge (F-053). One row from `sm`.
+            <li
+              key={`band-${String(at)}`}
+              className="flex flex-wrap items-center gap-2 max-sm:pb-2 sm:flex-nowrap"
+            >
               <span
                 aria-hidden="true"
                 data-priority-swatch={at}
@@ -213,7 +220,7 @@ export function PrioritiesPanel({
                 style={{ background: paint?.ink ?? 'var(--muted-foreground)' }}
               />
               <Input
-                className="h-8 min-w-0 flex-1"
+                className="h-8 min-w-0 flex-1 max-sm:basis-[calc(100%-1.25rem)]"
                 aria-label={`Name of band ${String(at + 1)}`}
                 value={draft.label}
                 disabled={section.busy}
@@ -222,7 +229,7 @@ export function PrioritiesPanel({
                 }}
               />
               <Input
-                className="h-8 w-16 shrink-0 text-right"
+                className="h-8 w-16 shrink-0 text-right max-sm:ml-5"
                 aria-label={`${draft.label} starts at`}
                 inputMode="numeric"
                 value={draft.startsAt}

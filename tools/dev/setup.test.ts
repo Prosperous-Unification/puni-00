@@ -120,6 +120,14 @@ describe('the seeded env files must agree where two tiers share a secret', () =>
       expect(env.get('AUTH_MODE')).toBe('local');
       expect(env.get('NODE_ENV')).toBe('development');
     }
+    // F-001 (UI review 2026-10-13): be-01 refuses to boot without a solver
+    // supervisor caller id, and a seeded checkout ran `bun run dev` into
+    // `HOSTNAME is required`. The seeded value is a 12-hex Docker-hostname
+    // shape, the only one the supervisor protocol would ever accept.
+    // Proof: without HOSTNAME in be-01/.env.example this failed on `Received
+    // value must be a string: undefined`; watched 2026-10-13.
+    const backend = await read('be-01');
+    expect(backend.get('HOSTNAME')).toMatch(/^[0-9a-f]{12}$/);
   });
 });
 
@@ -144,10 +152,27 @@ describe('existing local backend configuration', () => {
     const root = await makeFakeRepo({
       'be-01': {
         example: 'AUTH_MODE=local\n',
-        env: 'AUTH_MODE="local"\nAPP_ORIGIN="http://localhost:4700"\n',
+        env: 'AUTH_MODE="local"\nAPP_ORIGIN="http://localhost:4700"\nHOSTNAME=000000000000\n',
       },
     });
     expect(await seedApp('be-01', root)).toBe('already-present');
+  });
+  it('diagnoses a local environment with no solver caller id, leaving it unchanged', async () => {
+    const existing = 'AUTH_MODE=local\nAPP_ORIGIN=http://localhost:4200\n';
+    const root = await makeFakeRepo({
+      'be-01': { example: 'AUTH_MODE=local\nHOSTNAME=000000000000\n', env: existing },
+    });
+    // Proof: without the HOSTNAME check in `seedApp` this resolved
+    // 'already-present' and failed on `expected missing-caller refusal`; watched 2026-10-13.
+    await seedApp('be-01', root).then(
+      () => {
+        throw new Error('expected missing-caller refusal');
+      },
+      (error: unknown) => {
+        expect(String(error)).toContain('HOSTNAME=000000000000');
+      },
+    );
+    expect(await Bun.file(join(root, 'apps/wbs/be-01/.env')).text()).toBe(existing);
   });
   it('leaves OIDC configuration on its callback-derived origin', async () => {
     const root = await makeFakeRepo({

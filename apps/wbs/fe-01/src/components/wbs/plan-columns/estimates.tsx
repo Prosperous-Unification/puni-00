@@ -24,6 +24,7 @@ import {
 } from '../plan-render-rows';
 import { READING_CORNER_PX, StepReadingCorner } from '../step-reading';
 import { column } from './column';
+import { unwatchTrioFit, watchTrioFit } from './trio-fit';
 
 function estimateReading(row: PlanRenderRow, stepId: string): EstimateReadings {
   const reading = row.readings.estimateReadings.get(stepId);
@@ -106,9 +107,12 @@ export function createEstimatesColumns({
               whiteSpace: 'nowrap',
             }}
           >
-            {step.name}
-            {step.allowancePercent === 0 ? '' : ` +${String(step.allowancePercent)}%`}{' '}
-            {unfolded ? '▾' : '▸'}
+            {/* The disclosure triangle leads, as it does on a parent row's
+                number (`▾ 010`), so the heading reads as the same control
+                (UI review F-006, 2026-10-13: a trailing `▸` read as
+                decoration). */}
+            {unfolded ? '▾' : '▸'} {step.name}
+            {step.allowancePercent === 0 ? '' : ` +${String(step.allowancePercent)}%`}
           </button>
         ),
         cell: ({ row }) => {
@@ -519,6 +523,22 @@ export function createEstimatesColumns({
                         }),
                   }}
                   value={foldedReading(reading, step.id).combinedValue}
+                  // The trio beside a drawn result is measured, and dropped
+                  // whole when it does not fit (`data-trio-clipped`). Only
+                  // there: a box with no result beside it holds the cell's one
+                  // figure, and a complaint is never quiet.
+                  // Proof: `watchTrioFit` made a no-op, `keeps the initials whole
+                  // and drops a trio that does not fit` in
+                  // `e2e/plan-table-review.spec.ts` failed on `0.5/0.5/1 is
+                  // drawn cut`. Watched 2026-10-13.
+                  onAttach={(box) => {
+                    if (showsResult && problem === null) watchTrioFit(box);
+                    // Proof: the `unobserve` taken out of `unwatchTrioFit`,
+                    // `keeps a refused draft’s ink after a resize` in
+                    // `e2e/plan-table-review.spec.ts` failed on `Expected: not
+                    // "rgba(0, 0, 0, 0)"`. Watched 2026-10-13.
+                    else unwatchTrioFit(box);
+                  }}
                   commit={(typed, baseline) =>
                     live.current.commitCombinedEstimate(row.original, step.id, typed, baseline)
                   }
@@ -544,6 +564,12 @@ export function createEstimatesColumns({
                 // behind, and the card carries the whole of both.
                 <span
                   data-rolled-trio={step.id}
+                  // A parent's trio yields the way its leaves' does.
+                  ref={(rolled) => {
+                    if (rolled === null) return;
+                    if (showsResult) watchTrioFit(rolled);
+                    else unwatchTrioFit(rolled);
+                  }}
                   style={{
                     // **The leaf box's width rule, spelled the same way.**
                     // This span and that box are two spellings of one
@@ -672,10 +698,9 @@ export function createEstimatesColumns({
                     flex: 'none',
                     // The slot, so every row in a staffed column gives up
                     // the same width and the figure before it lands at one
-                    // x. `hidden` rather than an ellipsis: the only form
-                    // that overflows is the assumed `(XX)`, and half a
-                    // bracket reads better than `…` where the card carries
-                    // the whole name anyway.
+                    // x. Both forms fit it whole since 2026-10-13 (F-034:
+                    // `1 · (GH` was cut mid-bracket); `hidden` is only a
+                    // backstop for a script wider than two Latin capitals.
                     width: ASSIGNEE_SLOT_PX,
                     overflow: 'hidden',
                     whiteSpace: 'nowrap',
@@ -683,7 +708,10 @@ export function createEstimatesColumns({
                     color: doing.assumed ? 'var(--muted-foreground)' : undefined,
                   }}
                 >
-                  · {doing.assumed ? `(${initialsOf(doing.name)})` : initialsOf(doing.name)}
+                  {/* `(AL)` with no dot when assumed, as the unfolded `by`
+                      column writes it: the brackets already set it apart, and
+                      the dot is what made `· (WW)` 40px in a 34px slot. */}
+                  {doing.assumed ? `(${initialsOf(doing.name)})` : `· ${initialsOf(doing.name)}`}
                 </span>
               )}
               {doing === null && reading.anyAssignee && (
@@ -792,6 +820,7 @@ export function createEstimatesColumns({
                   rule={rule}
                   doing={doing}
                   problem={problem}
+                  typing={typing}
                   node={reading.node}
                   // Built here, per open card, off `live` at the moment of the
                   // click — never pinned into the column definitions.
@@ -1033,12 +1062,14 @@ export function createEstimatesColumns({
  * and its trio boxes stay full width; the moment one person is named, every row
  * in that column gives up the same 32px and the figures line up again.
  *
- * 32 and not 41: it seats `· WW`, the widest two-initial form, and lets an
- * assumed `· (WW)` clip by 8px rather than charge every row for a parenthesis
- * most plans never draw. The card names whoever it is in full
- * (`folded-step-card.tsx`), which is what makes the clip affordable.
+ * 32 and not 41 until 2026-10-13: it seated `· WW` and let an assumed
+ * `· (WW)` clip by 8px. The UI review (F-034) caught that clip as `1 · (GH` —
+ * half a bracket reads as broken text, not as a cue. The assumed form lost its
+ * dot instead (`(WW)`, 33.2px; `· WW` is 32.5, Chromium, 13px sans-serif,
+ * 2026-10-13), and the slot is 34 so both forms sit whole. What gives way in a
+ * narrow cell is the trio, dropped whole to the card ({@link watchTrioFit}).
  */
-export const ASSIGNEE_SLOT_PX = 32;
+export const ASSIGNEE_SLOT_PX = 34;
 
 /**
  * The type the typed trio recedes to while its cell is not being written in.

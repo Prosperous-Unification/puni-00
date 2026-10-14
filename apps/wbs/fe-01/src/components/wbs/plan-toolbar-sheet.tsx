@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Modal, ModalContent, ModalHeader, ModalTitle, ModalTrigger } from '@/components/ui/modal';
@@ -76,6 +76,37 @@ function closingControlIn(target: EventTarget | null, surface: Element): HTMLBut
  * next time one is added. See {@link closingControlIn} for who reads it.
  */
 export const TAKES_THE_FOCUS = 'data-takes-the-focus';
+
+/**
+ * One purpose's controls on the `Plan actions` sheet: a heading, then the
+ * controls as full-width rows (`[data-sheet-rows]` in `styles.css` sizes them).
+ *
+ * A `<section>` named by its heading, so a screen reader can move between
+ * View, Find and filter, Edit, Export and Schedule as it can between the sheet's
+ * landmarks — the grouping a sighted reader gets from the headings.
+ */
+export function PlanSheetGroup({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}): React.JSX.Element {
+  const headingId = useId();
+  return (
+    <section data-sheet-group={title} aria-labelledby={headingId} className="flex flex-col gap-1">
+      <h3
+        id={headingId}
+        className="text-muted-foreground text-xs font-semibold tracking-wide uppercase"
+      >
+        {title}
+      </h3>
+      <div data-sheet-rows="" className="flex flex-col gap-1">
+        {children}
+      </div>
+    </section>
+  );
+}
 
 /**
  * The phone's `Plan actions` sheet: the whole toolbar, folded behind one

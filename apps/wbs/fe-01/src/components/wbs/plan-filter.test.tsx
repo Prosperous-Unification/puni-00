@@ -10,6 +10,15 @@ import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
 import type * as TableFrameModule from './table-frame';
 import { type SubscriptionHandlers } from './wbs-table';
 
+/**
+ * The Find count, matched on its whole text: since UI review F-016 it reads `3 of 6` with
+ * ` rows` in a visually hidden span, so no single text node holds the sentence.
+ */
+const rowCount =
+  (words: string) =>
+  (_content: string, node: Element | null): boolean =>
+    node?.getAttribute('role') === 'status' && node.textContent === words;
+
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
 
@@ -237,7 +246,7 @@ describe('finding a work item in the tree', () => {
 
     find('back boxes');
 
-    expect(screen.getByText('3 of 6 rows')).toBeDefined();
+    expect(screen.getByText(rowCount('3 of 6 rows'))).toBeDefined();
   });
 
   itDom('clearing the search puts the reader’s own collapse back', async () => {
@@ -307,7 +316,7 @@ describe('finding a work item in the tree', () => {
       expect(numbersOnScreen()).toEqual([]);
     });
     expect(api.rows.map((row) => row.name)).toContain('Trim');
-    expect(screen.getByText('0 of 6 rows')).toBeDefined();
+    expect(screen.getByText(rowCount('0 of 6 rows'))).toBeDefined();
   });
 
   itDom('collapses every branch and opens them all again', async () => {
@@ -618,7 +627,7 @@ describe('narrowing the plan by facet', () => {
     // team. Nothing answers both, and the table says so rather than showing a
     // plan that looks emptied.
     expect(numbersOnScreen()).toEqual([]);
-    expect(screen.getByText('0 of 6 rows')).toBeInTheDocument();
+    expect(screen.getByText(rowCount('0 of 6 rows'))).toBeInTheDocument();
     expect(screen.getByText('No rows match these filters')).toBeInTheDocument();
   });
 

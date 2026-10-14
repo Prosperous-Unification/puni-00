@@ -1,4 +1,5 @@
 import { column } from './column';
+import { undatedDayWords, UNESTIMATED_END_WORDS } from './undated-day';
 
 /** Builds the finish column from the immutable reading attached to each row. */
 export function createFinishColumn() {
@@ -10,7 +11,7 @@ export function createFinishColumn() {
       // Both facts in one `title`, because a cell has one: the day in full,
       // and — where the figure is a guess — what the marker beside it means.
       const unestimated = row.original.schedule !== null && !row.original.schedule.estimated;
-      const said = [finish.iso, unestimated ? 'No estimate yet' : null]
+      const said = [finish.iso, unestimated ? UNESTIMATED_END_WORDS : null, undatedDayWords(finish)]
         .filter((part) => part !== null)
         .join(' — ');
       return (

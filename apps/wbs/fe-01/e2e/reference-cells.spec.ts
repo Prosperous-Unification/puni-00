@@ -285,9 +285,11 @@ test('round-trips every desktop reference set with three reachable values in bot
   await expect(
     page.getByRole('combobox', { name: 'Service or team for 010.1', exact: true }),
   ).toHaveAttribute('placeholder', /^↳ /);
+  // Beside chips at rest the box draws no placeholder at all since the UI
+  // review of 2026-10-13 (F-035): its few pixels cut `add` to `ad`.
   await expect(page.getByRole('combobox', { name: 'Tags for 010.1', exact: true })).toHaveAttribute(
     'placeholder',
-    'add',
+    '',
   );
   await expect(
     cellOf(page, 'Tags for 010.1').locator('[data-reference-inherited-chip]'),
@@ -659,26 +661,35 @@ test.describe('390x844 reference sheets', () => {
       {
         kind: 'team',
         label: 'Service or team for 010',
+        title: 'Teams for',
         trigger: '[data-card-team-field]',
         entries: seeded.teams,
       },
       {
         kind: 'tag',
         label: 'Tags for 010',
+        title: 'Tags for',
         trigger: '[data-card-tags-field]',
         entries: seeded.tags,
       },
       {
         kind: 'service',
         label: 'Services for 010',
+        title: 'Services for',
         trigger: '[data-card-service-field]',
         entries: seeded.services,
       },
     ] as const;
 
     const openSheet = async (field: (typeof fields)[number], owner = parent) => {
+      // An empty field is folded behind the card's `Add…` (F-009).
+      const add = owner.locator(':scope > p [data-card-add]');
+      if ((await add.count()) > 0 && (await add.getAttribute('aria-expanded')) !== 'true') {
+        await add.click();
+      }
       await owner.locator(field.trigger).click();
-      const dialog = page.getByRole('dialog', { name: `Edit ${field.label}` });
+      // Titled by the field and the row (F-049), not `Edit {label}`.
+      const dialog = page.getByRole('dialog', { name: new RegExp(`^${field.title} `) });
       await expect(dialog).toBeVisible();
       return dialog;
     };

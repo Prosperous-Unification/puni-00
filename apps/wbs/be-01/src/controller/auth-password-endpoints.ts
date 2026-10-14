@@ -1,4 +1,9 @@
-import { loginPassword, readPasswordSession, registerPassword } from '@wbs/contracts';
+import {
+  loginPassword,
+  readPasswordSession,
+  registerPassword,
+  type SessionFeatures,
+} from '@wbs/contracts';
 import type { LoginThrottle } from '@wbs/core/module/authentication/login-throttle';
 import { type AuthService, TOKEN_TTL_SECONDS } from '@wbs/core/service/auth.service';
 
@@ -70,11 +75,15 @@ const sessionResponseHeaders = [
 /**
  * Password protocol bindings. Origin admission runs in the adapter; credentials
  * are then validated before mode switches, proxy metadata and authentication.
+ *
+ * `readFeatures` answers the session read's `features`, signed in or out; it
+ * throws when the trusted state behind it is broken, and so does the read.
  */
 export function authPasswordEndpoints(
   auth: AuthService,
   oidc: PasswordOidcOptions | undefined,
   passwordThrottle: LoginThrottle,
+  readFeatures: () => Promise<SessionFeatures>,
   browserSession?: BrowserSessionAuthority,
   appOrigin?: string,
 ) {
@@ -198,6 +207,7 @@ export function authPasswordEndpoints(
       // Proof: catching authentication errors makes the mounted account-store outage receive 401 instead of 500.
       const credential = credentialFromHeaders(Object.fromEntries(request.headers.entries()));
       const user = await auth.authenticate(credential.token);
+      const features = await readFeatures();
       if (user !== null)
         return {
           ok: true,
@@ -215,6 +225,7 @@ export function authPasswordEndpoints(
               scopes: [...user.scopes],
               linkedMethods: await auth.linkedMethods(user.id),
             },
+            features,
           },
           headers: sessionResponseHeaders,
         };
@@ -233,7 +244,12 @@ export function authPasswordEndpoints(
             body: { error: 'invalid_token' },
             headers: sessionResponseHeaders,
           }
-        : { ok: true, status: 200, body: { user: null }, headers: sessionResponseHeaders };
+        : {
+            ok: true,
+            status: 200,
+            body: { user: null, features },
+            headers: sessionResponseHeaders,
+          };
     }),
   ] as const;
 }

@@ -18,13 +18,21 @@ an existing `.env`, and it **fails** rather than skipping if a committed
 `.env.example` is missing — that means the checkout is incomplete, and seeding
 around it only moves the failure to an unexplained crash at serve time.
 
-| File                  | Purpose                                              |
-| --------------------- | ---------------------------------------------------- |
-| `apps/wbs/be-01/.env` | backend config: `PORT`, `DB_PATH`, `INTERNAL_AUTH_*` |
-| `apps/wbs/gw-01/.env` | gateway config: ports, `BE_URL`, JWT signing keys    |
-| `apps/wbs/fe-01/.env` | Vite `VITE_*` vars pointing at local be-01 + gw-01   |
+| File                  | Purpose                                                          |
+| --------------------- | ---------------------------------------------------------------- |
+| `apps/wbs/be-01/.env` | backend config: `PORT`, `DB_PATH`, `INTERNAL_AUTH_*`, `HOSTNAME` |
+| `apps/wbs/gw-01/.env` | gateway config: ports, `BE_URL`, JWT signing keys                |
+| `apps/wbs/fe-01/.env` | Vite `VITE_*` vars pointing at local be-01 + gw-01               |
 
 All three are gitignored. Edit them freely.
+
+`HOSTNAME` is the caller id be-01 names itself by to the solver supervisor, and
+be-01 refuses to start without it (`HOSTNAME is required for solver supervisor
+authentication`). A deployed container gets its Docker hostname; the seeded
+`HOSTNAME=000000000000` stands in on a workstation, where there is no supervisor
+socket and optimization reports itself unavailable. A shell that exports
+`HOSTNAME` overrides the file. A `be-01/.env` seeded before the line existed is
+diagnosed by `bun run dev:setup`: add `HOSTNAME=000000000000` to it.
 
 ## Run all three at once
 

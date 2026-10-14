@@ -157,7 +157,7 @@ describe('step columns fold away', () => {
     expect(screen.queryByLabelText('Dev optimistic for 010')).toBeNull();
     expect(screen.queryByLabelText('Dev assignee for 010')).toBeNull();
     expect(rowFor('010').querySelector('[data-final="step-dev"]')).not.toBeNull();
-    expect(headerTexts()).toContain('Dev ▸');
+    expect(headerTexts()).toContain('▸ Dev');
   });
 
   itDom('shows a nonzero allowance in the step heading', async () => {
@@ -165,7 +165,7 @@ describe('step columns fold away', () => {
     await api.setStepAllowance('p1', 'step-qa', 30);
     render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByRole('button', { name: 'Unfold QA estimates' });
-    expect(headerTexts()).toContain('QA +30% ▸');
+    expect(headerTexts()).toContain('▸ QA +30%');
   });
 
   itDom('unfolds to the trio and the assignee, and folds back', async () => {
@@ -236,17 +236,17 @@ describe('step columns fold away', () => {
 
     expect(screen.getByLabelText('QA optimistic for 010')).toBeDefined();
     expect(screen.getByLabelText('Dev optimistic for 010')).toBeDefined();
-    expect(screen.getByRole('table').style.minWidth).toBe('1630px');
+    expect(screen.getByRole('table').style.minWidth).toBe('1644px');
 
     // Folding one leaves the other open, rather than leaving nothing open.
     fireEvent.click(screen.getByRole('button', { name: 'Fold QA estimates' }));
     expect(screen.queryByLabelText('QA optimistic for 010')).toBeNull();
     expect(screen.getByLabelText('Dev optimistic for 010')).toBeDefined();
-    expect(screen.getByRole('table').style.minWidth).toBe('1378px');
+    expect(screen.getByRole('table').style.minWidth).toBe('1392px');
 
     fireEvent.click(screen.getByRole('button', { name: 'Fold Dev estimates' }));
     expect(screen.queryByLabelText('Dev optimistic for 010')).toBeNull();
-    expect(screen.getByRole('table').style.minWidth).toBe('1126px');
+    expect(screen.getByRole('table').style.minWidth).toBe('1140px');
   });
 
   itDom('says what the fold button does, which is no longer hiding the assignee', async () => {
@@ -523,7 +523,7 @@ describe('assigning from a folded step’s cell with @', () => {
     expect(dev?.getAttribute('data-assumed')).toBeNull();
     // Bracketed and grey: a reading of one assignment, not a second one
     // written down.
-    expect(qa?.textContent).toBe('· (AD)');
+    expect(qa?.textContent).toBe('(AD)');
     expect(qa?.getAttribute('data-assumed')).toBe('step-qa');
     // The palette's own muted ink rather than the `#666` it was: `styles.css`
     // re-points every token under `.dark` and a literal is the one shade that
@@ -1891,6 +1891,23 @@ describe('what the plan is still missing', () => {
     fireEvent.click(theBadge());
 
     expect(document.activeElement).toBe(screen.getByLabelText('QA estimate for 010'));
+  });
+
+  itDom('announces where the walk landed, so the jump is not silent (F-024)', async () => {
+    await rows(2);
+    await estimate('010', 'Dev');
+
+    fireEvent.click(theBadge());
+
+    // Proof: on 2026-10-13, before the badge had a live region, this failed on `expected null
+    // not to be null` — nothing on the page said where the caret had gone.
+    const notice = document.querySelector('[data-gap-notice]');
+    expect(notice).not.toBeNull();
+    expect(notice?.getAttribute('aria-live')).toBe('polite');
+    expect(notice?.textContent).toMatch(/^Unestimated 1 of 2: 010 .*, QA$/);
+
+    fireEvent.click(theBadge());
+    expect(notice?.textContent).toMatch(/^Unestimated 2 of 2: 020 .*, Dev$/);
   });
 
   itDom('moves on to the next leaf on the next click, and wraps at the end', async () => {

@@ -1,5 +1,6 @@
 import {
   type ComponentProps,
+  Fragment,
   type ReactNode,
   useCallback,
   useEffect,
@@ -24,7 +25,7 @@ type PassedThrough = Omit<
  * The height of the box the reader is actually looking at, where that is not
  * the box the text lives in.
  *
- * Under {@link CellInputProps.renderFirstLine} a cell is two boxes: a
+ * Under {@link CellInputProps.renderLine} a cell is two boxes: a
  * `<textarea>` holding the markdown **source**, and an `aria-hidden` box drawing
  * the **rendered** reading over it. Only the textarea is in the flow, so it is
  * the textarea's height that becomes the row's — and the two do not wrap alike.
@@ -120,7 +121,7 @@ export interface CellInputProps extends PassedThrough, Hintable, Factable {
    */
   restShowsFirstLineOnly?: boolean;
   /**
-   * Draws the **first line** of this cell as something other than the raw text
+   * Draws **each line** of this cell as something other than the raw text
    * while nobody is writing in it.
    *
    * The Name cell's only, and what it draws is the name's inline markdown —
@@ -136,12 +137,15 @@ export interface CellInputProps extends PassedThrough, Hintable, Factable {
    * construction rather than by measurement — and is why the browser gate
    * measures the rendered box itself as well as the row it stands in.
    *
-   * The lines under the first are drawn as the text they are: on the card face,
-   * which shows the notes at rest, they are a note nobody asked to have parsed
-   * twice. Where {@link CellInputProps.restShowsFirstLineOnly} is set there are
-   * no such lines to draw.
+   * The lines under the first — the notes, on the card face, which shows them
+   * at rest — go through the same function one line at a time, so a link in a
+   * note reads as a link on a phone exactly as it does in the table's name and
+   * the hover preview's body. They were drawn as raw text until the 2026-10-13
+   * phone review (F-039) found `[design](https://…)` printed verbatim on every
+   * card with notes. Where {@link CellInputProps.restShowsFirstLineOnly} is set
+   * there are no such lines to draw.
    */
-  renderFirstLine?: (line: string) => ReactNode;
+  renderLine?: (line: string) => ReactNode;
   /** What the server says this cell holds, as it should read on screen. */
   value: string;
   /**
@@ -199,7 +203,7 @@ export function CellInput({
   autoSize = false,
   maxRestRows = 4,
   restShowsFirstLineOnly = false,
-  renderFirstLine,
+  renderLine,
   ...rest
 }: CellInputProps) {
   const interaction = usePlanInteractionScope();
@@ -303,7 +307,7 @@ export function CellInput({
 
   /**
    * What the box holds while nobody is writing in it, which is what the
-   * rendered box draws — see {@link CellInputProps.renderFirstLine}.
+   * rendered box draws — see {@link CellInputProps.renderLine}.
    *
    * **Not the `value` prop.** That is what the *server* last said, and the box
    * is deliberately uncontrolled: it also holds a draft be-01 refused (rule 4
@@ -328,9 +332,9 @@ export function CellInput({
   const showsAtRest = useCallback(
     (node: CellElement | null): void => {
       resize(node);
-      if (node !== null && renderFirstLine !== undefined) setRestText(node.value);
+      if (node !== null && renderLine !== undefined) setRestText(node.value);
     },
-    [resize, renderFirstLine],
+    [resize, renderLine],
   );
 
   // Assigned during render rather than in an effect, and that is deliberate:
@@ -368,10 +372,10 @@ export function CellInput({
    */
   useLayoutEffect(() => {
     const node = box.current;
-    if (!autoSize || renderFirstLine === undefined) return;
+    if (!autoSize || renderLine === undefined) return;
     if (!(node instanceof HTMLTextAreaElement)) return;
     resize(node);
-  }, [restText, autoSize, renderFirstLine, resize]);
+  }, [restText, autoSize, renderLine, resize]);
 
   /**
    * Re-measures the clamped height when the window changes size.
@@ -450,7 +454,7 @@ export function CellInput({
         // The hook the two `styles.css` rules hang off: this box's ink goes
         // transparent while it is not being written in, and the rendered box
         // beside it goes away while it is.
-        data-rendered-at-rest={renderFirstLine === undefined ? undefined : ''}
+        data-rendered-at-rest={renderLine === undefined ? undefined : ''}
         ref={(node) => {
           takeNode(node);
           // On attach as well as on change: a row arriving from a refresh has
@@ -487,7 +491,7 @@ export function CellInput({
         }}
       />
     );
-    if (renderFirstLine === undefined) return textBox;
+    if (renderLine === undefined) return textBox;
 
     const { name, notes } = splitNameCell(restText);
     return (
@@ -516,13 +520,28 @@ export function CellInput({
           // layer a caller's utility class outranks.
           className={rest.className}
         >
-          {renderFirstLine(name)}
+          {renderLine(name)}
           {/*
-            The notes, where this face shows them at rest — as the text they
-            are. The newline is the separator `composeNameCell` writes, put back
-            so the two lines read as two lines under `white-space: pre-wrap`.
+            The notes, where this face shows them at rest, each line drawn as
+            the name is. The newlines are the separators `composeNameCell` and
+            the reader wrote, put back so the lines read as lines under
+            `white-space: pre-wrap`; a line's own markdown never spans two.
+
+            Proof: with the notes printed as `\n${notes}` again, `draws a
+            card's notes as inline markdown, as the table draws a name (F-039)`
+            in `e2e/mobile.spec.ts` failed on `Expected substring: "See the
+            design now."` against the raw `[design](https://example.com/design)`.
           */}
-          {!restShowsFirstLineOnly && notes !== '' ? `\n${notes}` : null}
+          {!restShowsFirstLineOnly &&
+            notes !== '' &&
+            notes.split('\n').map((line, at) => (
+              // The index is the line's identity: a note is re-split whole on
+              // every change, and nothing in a line holds state of its own.
+              <Fragment key={at}>
+                {'\n'}
+                {renderLine(line)}
+              </Fragment>
+            ))}
         </span>
       </span>
     );
