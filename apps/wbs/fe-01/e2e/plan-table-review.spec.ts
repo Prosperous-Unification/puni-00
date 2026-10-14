@@ -149,6 +149,92 @@ async function seedReviewPlan(page: Page, testName: string, worker: number): Pro
   return { seeded };
 }
 
+/**
+ * The PUNI plan's numbering (F-057, F-058): three segments with a two-digit
+ * leaf, `010.3.01`, the widest number the Depends on column draws by default.
+ * `Website` (020) waits for three of them, `Launch` (030) for one, and
+ * `Domains` (010.1) for three plain roots' worth of short numbers.
+ */
+async function seedDeepPlan(page: Page, testName: string, worker: number): Promise<SeededPlan> {
+  const seeded = await seedPlan(
+    page,
+    {
+      name: 'Deep numbers',
+      rows: [
+        { ref: 'infra', name: 'Infrastructure' },
+        { ref: 'site', name: 'Website' },
+        { ref: 'launch', name: 'Launch' },
+      ],
+    },
+    identity(testName, worker),
+  );
+  const infra = seeded.rowIds['infra'];
+  const hosts = Array.from({ length: 10 }, (_, index) => `host${String(index)}`);
+  const commands: PlanCommandWire[] = [
+    { kind: 'createWorkItem', ref: 'domains', name: 'Domains', parentId: infra, afterId: null },
+    { kind: 'createWorkItem', ref: 'mail', name: 'Mail', parentId: infra, afterRef: 'domains' },
+    { kind: 'createWorkItem', ref: 'hosting', name: 'Hosting', parentId: infra, afterRef: 'mail' },
+    ...hosts.map((ref, index): PlanCommandWire => ({
+      kind: 'createWorkItem',
+      ref,
+      name: `Host task ${String(index + 1)}`,
+      parentRef: 'hosting',
+      ...(index === 0 ? { afterId: null } : { afterRef: hosts[index - 1] }),
+    })),
+    ...['host0', 'host1', 'host2'].map((ref): PlanCommandWire => ({
+      kind: 'addDependency',
+      workItemId: seeded.rowIds['site'],
+      predecessorRef: ref,
+    })),
+    { kind: 'addDependency', workItemId: seeded.rowIds['launch'], predecessorRef: 'host0' },
+  ];
+  const client = fixtureClient(page);
+  fixtureSuccess(
+    'postApiProjectsByIdCommands',
+    await client.postApiProjectsByIdCommands({
+      params: { id: seeded.projectId },
+      body: { commands },
+    }),
+  );
+  await openSeededPlan(page, seeded);
+  await expect(page.getByLabel('Name of 010.3.10')).toBeVisible();
+  return seeded;
+}
+
+/** What one resting Depends on strip draws, measured: whole chips, cut chips, and its count. */
+async function readDependsStrip(page: Page, rowName: string) {
+  return page
+    .locator('tr', { hasText: rowName })
+    .locator('[data-depends-strip]')
+    .evaluate((strip) => {
+      const line = strip.querySelector('[data-reference-chips]') ?? strip;
+      const edge = line.getBoundingClientRect();
+      const chips = [...strip.querySelectorAll('[data-reference-chip]')].map((chip) => {
+        const box = chip.getBoundingClientRect();
+        const words = chip.querySelector('span') ?? chip;
+        return {
+          text: words.textContent.trim(),
+          drawn:
+            box.top < edge.bottom - 0.5 &&
+            box.left < edge.right &&
+            getComputedStyle(chip).opacity !== '0',
+          whole: box.right <= edge.right + 0.5 && words.scrollWidth <= words.clientWidth,
+          right: box.right,
+        };
+      });
+      const count = strip.querySelector('[data-reference-hidden-count]');
+      return {
+        chips,
+        count: count === null ? null : count.textContent.trim(),
+        countTitle: count?.getAttribute('title') ?? null,
+        countLeft: count?.getBoundingClientRect().left ?? null,
+        bareTotal: strip.querySelector('[data-dep-count]') !== null,
+        fade: getComputedStyle(line).maskImage,
+        stripFade: getComputedStyle(strip).maskImage,
+      };
+    });
+}
+
 async function showEveryColumn(page: Page): Promise<void> {
   await page.getByText('Columns', { exact: true }).click();
   for (const label of ['Links', 'Status', 'Teams', 'Tags', 'Services', 'Types']) {
@@ -204,31 +290,33 @@ test.describe('the plan table, as the UI review read it', () => {
   test('keeps a typed dependency chip inside its cell', async ({ page }, testInfo) => {
     // F-033. Proof, watched 2026-10-13 on the code before this change:
     // failed on `010.s1-dev SS runs past its cell · Received: 17.015625`.
-    // And with `ONE_CHIP_ROOM` at 17px, on `Received: 0.015625` — the `+`
-    // is 15.02px.
+    // Since F-058 (2026-10-14) a chip is never cut, its words included: one
+    // that does not fit whole is hidden and named by the `+N` count's title
+    // (decision D4). Proof: the chip's undrawn style removed, this failed
+    // on `010.s1-dev SS runs past its cell · Received: 27.734375`.
     await page.setViewportSize({ width: 1440, height: 900 });
     await seedReviewPlan(page, 'typed-chips', testInfo.workerIndex);
+    await page.mouse.move(2, 890);
 
     const chips = await page.locator('[data-typed-dependency-chip]').evaluateAll((all) =>
       all.map((chip) => {
         const strip = chip.closest('[data-depends-strip]');
-        // The chip's words, or the chip itself where it draws them bare.
-        const words = chip.querySelector('span') ?? chip;
         if (strip === null) throw new Error('a typed chip outside its strip');
         return {
-          text: chip.textContent,
+          text: chip.textContent.trim(),
           title: chip.getAttribute('title') ?? '',
           past: chip.getBoundingClientRect().right - strip.getBoundingClientRect().right,
-          cut: words.scrollWidth > words.clientWidth,
-          ellipsis: getComputedStyle(words).textOverflow,
+          shown: getComputedStyle(chip).opacity !== '0',
+          countTitle:
+            strip.querySelector('[data-reference-hidden-count]')?.getAttribute('title') ?? '',
         };
       }),
     );
     expect(chips).toHaveLength(3);
     for (const chip of chips) {
-      expect(chip.past, `${chip.text} runs past its cell`).toBeLessThanOrEqual(0);
-      if (chip.cut) expect(chip.ellipsis).toBe('ellipsis');
       expect(chip.title).not.toBe('');
+      if (chip.shown) expect(chip.past, `${chip.text} runs past its cell`).toBeLessThanOrEqual(0);
+      else expect(chip.countTitle).toBe(`Also: ${chip.text}`);
     }
   });
 
@@ -412,14 +500,14 @@ test.describe('the plan table, as the UI review read it', () => {
     );
     expect(
       await teams
-        .locator('[data-reference-strip]')
-        .evaluate((strip) => getComputedStyle(strip).maskImage),
+        .locator('[data-reference-chips]')
+        .evaluate((line) => getComputedStyle(line).maskImage),
     ).not.toBe('none');
     const lone = page.locator('tr', { hasText: 'Sign-up form' }).locator('td[data-column="type"]');
     expect(
       await lone
-        .locator('[data-reference-strip]')
-        .evaluate((strip) => getComputedStyle(strip).maskImage),
+        .locator('[data-reference-chips]')
+        .evaluate((line) => getComputedStyle(line).maskImage),
       'a line that hides nothing wears no fade',
     ).toBe('none');
   });
@@ -471,5 +559,68 @@ test.describe('the plan table, as the UI review read it', () => {
     expect(heights.length).toBeGreaterThan(1);
     expect(new Set(heights).size).toBe(1);
     expect(heights[0]).toBeGreaterThanOrEqual(24);
+  });
+
+  test('draws a dependency number whole and counts what the line hid', async ({
+    page,
+  }, testInfo) => {
+    // F-057 and F-058 (decision D4), on the PUNI plan's numbers at the
+    // default column width. Proof, watched 2026-10-14 on the code before this
+    // change: failed on `010.… is drawn cut` — every chip ellipsised its
+    // number. On this change, each fault alone, watched 2026-10-14: the
+    // column fixed at 84 again failed on `expect(received).toBeGreaterThan
+    // · Received: 0` (the first chip hidden whole, `+3` alone); the count's
+    // render removed, on `Expected: "+2" · Received: null`; the fade put on
+    // every resting strip with chips, on `a line that hides nothing wears no
+    // fade`.
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await seedDeepPlan(page, 'deep-depends', testInfo.workerIndex);
+    await page.mouse.move(2, 890);
+
+    const three = await readDependsStrip(page, 'Website');
+    for (const chip of three.chips.filter(({ drawn }) => drawn))
+      expect(chip.whole, `${chip.text} is drawn cut`).toBe(true);
+    const drawn = three.chips.filter(({ drawn }) => drawn);
+    const hidden = three.chips.filter(({ drawn }) => !drawn).map(({ text }) => text);
+    expect(drawn.length).toBeGreaterThan(0);
+    expect(three.bareTotal, 'a bare total drawn before the chips').toBe(false);
+    expect(hidden.length).toBeGreaterThan(0);
+    expect(three.count).toBe(`+${String(hidden.length)}`);
+    expect(three.countTitle).toBe(`Also: ${hidden.join(', ')}`);
+    // After the chips, never before them beside the `+`.
+    expect(three.countLeft).toBeGreaterThanOrEqual(Math.max(...drawn.map(({ right }) => right)));
+    expect(three.fade).not.toBe('none');
+    // The fade on the chips' line, never over the count: the strip's last
+    // 14px is where `+N` stands, and faded it fell below 4.5:1. Proof: the
+    // fade moved back onto the strip, this failed on `the count stands under
+    // the fade`. Watched 2026-10-14.
+    expect(three.stripFade, 'the count stands under the fade').toBe('none');
+
+    // One dependency: the chip whole, no count, no fade.
+    const one = await readDependsStrip(page, 'Launch');
+    expect(one.chips).toEqual([
+      expect.objectContaining({ text: '010.3.01', drawn: true, whole: true }),
+    ]);
+    expect(one.count).toBeNull();
+    expect(one.fade, 'a line that hides nothing wears no fade').toBe('none');
+  });
+
+  test('says `search` in every empty creatable picker', async ({ page }, testInfo) => {
+    // F-063. Proof, watched 2026-10-14 on the code before this change: failed
+    // on the Teams box's `search or add` beside the others' `search`.
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await seedReviewPlan(page, 'search-word', testInfo.workerIndex);
+    await showEveryColumn(page);
+    const words = await page
+      .locator('tr', { hasText: 'Spike: evaluate' })
+      .locator(
+        ['team', 'tag', 'service', 'type']
+          .map((id) => `td[data-column="${id}"] [data-reference-strip] input`)
+          .join(', '),
+      )
+      .evaluateAll((boxes) =>
+        boxes.flatMap((box) => (box instanceof HTMLInputElement ? [box.placeholder] : [])),
+      );
+    expect(words).toEqual(['search', 'search', 'search', 'search']);
   });
 });

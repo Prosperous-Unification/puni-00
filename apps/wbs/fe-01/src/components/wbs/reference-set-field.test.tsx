@@ -464,7 +464,9 @@ describe('the reference strip on one rest line', () => {
         expect(strip().style.overflow).toBe('hidden');
         // Read back as a property rather than matched against the constant's
         // text: jsdom 30 re-spells `#000` as `rgb(0, 0, 0)` on the way in.
-        expect(strip().style.maskImage).toContain('linear-gradient(to left');
+        expect(
+          strip().querySelector<HTMLElement>('[data-reference-chips]')?.style.maskImage,
+        ).toContain('linear-gradient(to left');
         const count = strip().querySelector('[data-reference-hidden-count]');
         expect(count?.textContent).toMatch(/^\+[1-9]/);
         expect(count?.getAttribute('title')).toMatch(/^Also: /);
@@ -479,6 +481,9 @@ describe('the reference strip on one rest line', () => {
       // cell's own rule, and why both belong to rest alone.
       expect(strip().style.overflow).toBe('visible');
       expect(strip().style.maskImage).toBe('');
+      expect(strip().querySelector<HTMLElement>('[data-reference-chips]')?.style.maskImage).toBe(
+        '',
+      );
     },
   );
 
@@ -650,7 +655,7 @@ describe('ReferenceSetSheet', () => {
         label="Teams"
         title="Teams for 020 - Survey"
         adapter={adapter({ ownIds: [], inheritedLabel: 'Core from 010' })}
-        placeholder="search or add"
+        placeholder="search"
         open
         onClose={vi.fn()}
       />,

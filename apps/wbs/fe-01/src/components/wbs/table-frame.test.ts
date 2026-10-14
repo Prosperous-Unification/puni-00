@@ -9,6 +9,7 @@ import {
   DAY_ENVELOPE,
   DEEPEST_INDENT,
   DEFAULT_COLUMN_SET,
+  dependencyNumberInk,
   FIXED_COLUMNS,
   FLEXIBLE_CAP,
   FLEXIBLE_COLUMNS,
@@ -39,12 +40,20 @@ import {
 } from './table-frame';
 
 /** A plan where somebody has set an earliest start, which is the wider of the two states. */
-const DATED: FrameLayoutState = { hasAnyNotBefore: true, deepestDepth: 0, numberingFrozen: false };
+const DATED: FrameLayoutState = {
+  hasAnyNotBefore: true,
+  deepestDepth: 0,
+  numberingFrozen: false,
+  widestWaitedNumber: '',
+  waitsForSeveral: false,
+};
 /** A plan where nobody has. */
 const UNDATED: FrameLayoutState = {
   hasAnyNotBefore: false,
   deepestDepth: 0,
   numberingFrozen: false,
+  widestWaitedNumber: '',
+  waitsForSeveral: false,
 };
 
 /** Every column of the reset-with-links set, in the order the table renders them. */
@@ -384,6 +393,31 @@ describe('the earliest-start column is as narrow as the plan lets it be', () => 
   });
 });
 
+describe('the Depends on column draws its widest number whole', () => {
+  it('rests at 84px until a waited-for number needs more, and makes room for the count', () => {
+    // UI review F-058: `010.3.01` read `010.…` in the 84px column. Proof:
+    // with `depends` back at a fixed 84, this failed on `expected 84 to be
+    // 95`. Watched 2026-10-14. The browser measurement is
+    // `e2e/plan-table-review.spec.ts`'s `draws a dependency number whole…`.
+    expect(widthFor('depends', UNDATED)).toBe(84);
+    expect(
+      widthFor('depends', { ...UNDATED, widestWaitedNumber: '010', waitsForSeveral: true }),
+    ).toBe(84);
+    expect(widthFor('depends', { ...UNDATED, widestWaitedNumber: '010.1' })).toBe(84);
+    expect(
+      widthFor('depends', { ...UNDATED, widestWaitedNumber: '010.1', waitsForSeveral: true }),
+    ).toBe(95);
+    expect(
+      widthFor('depends', { ...UNDATED, widestWaitedNumber: '010.3.01', waitsForSeveral: true }),
+    ).toBe(112);
+  });
+
+  it('measures a number by its glyphs, a dot narrower than a digit', () => {
+    expect(dependencyNumberInk('010.3.01')).toBeCloseTo(46.81, 2);
+    expect(dependencyNumberInk('')).toBe(0);
+  });
+});
+
 describe('the Number column is as narrow as the plan lets it be', () => {
   it('is 68px until the plan has a third level or a frozen number, and 98px from then on', () => {
     // Dany, 2026-09-13: "why # column is still so wide by default … it does not
@@ -392,8 +426,23 @@ describe('the Number column is as narrow as the plan lets it be', () => {
     expect(declared(['number'], UNDATED)).toEqual({ number: 68 });
     expect(declared(['number'], { ...UNDATED, deepestDepth: 1 })).toEqual({ number: 68 });
     expect(declared(['number'], { ...UNDATED, deepestDepth: 2 })).toEqual({ number: 98 });
-    expect(declared(['number'], { ...UNDATED, numberingFrozen: true })).toEqual({ number: 98 });
-    expect(declared(['number'], { ...UNDATED, deepestDepth: 5, numberingFrozen: true })).toEqual({
+    expect(
+      declared(['number'], {
+        ...UNDATED,
+        numberingFrozen: true,
+        widestWaitedNumber: '',
+        waitsForSeveral: false,
+      }),
+    ).toEqual({ number: 98 });
+    expect(
+      declared(['number'], {
+        ...UNDATED,
+        deepestDepth: 5,
+        numberingFrozen: true,
+        widestWaitedNumber: '',
+        waitsForSeveral: false,
+      }),
+    ).toEqual({
       number: 98,
     });
   });
@@ -1011,6 +1060,8 @@ describe('a column this browser has dragged to another width', () => {
     hasAnyNotBefore: true,
     deepestDepth: 0,
     numberingFrozen: false,
+    widestWaitedNumber: '',
+    waitsForSeveral: false,
     columnWidthOverrides: new Map([['number', 68 + 40]]),
   };
 
@@ -1043,6 +1094,8 @@ describe('a column this browser has dragged to another width', () => {
       hasAnyNotBefore: false,
       deepestDepth: 0,
       numberingFrozen: false,
+      widestWaitedNumber: '',
+      waitsForSeveral: false,
       columnWidthOverrides: new Map([['step-dev-final', 140]]),
     };
 
@@ -1066,6 +1119,8 @@ describe('a column this browser has dragged to another width', () => {
         hasAnyNotBefore: false,
         deepestDepth: 0,
         numberingFrozen: false,
+        widestWaitedNumber: '',
+        waitsForSeveral: false,
         columnWidthOverrides: overrides,
       }),
     ).toBe(110);
@@ -1074,6 +1129,8 @@ describe('a column this browser has dragged to another width', () => {
         hasAnyNotBefore: true,
         deepestDepth: 0,
         numberingFrozen: false,
+        widestWaitedNumber: '',
+        waitsForSeveral: false,
         columnWidthOverrides: overrides,
       }),
     ).toBe(110);
@@ -1092,6 +1149,8 @@ describe('a column this browser has dragged to another width', () => {
     hasAnyNotBefore: true,
     deepestDepth: 0,
     numberingFrozen: false,
+    widestWaitedNumber: '',
+    waitsForSeveral: false,
     columnWidthOverrides: new Map([['name', 300]]),
   };
 

@@ -133,9 +133,9 @@ test.describe('the deps cell rests on one line', () => {
           const box = chip.getBoundingClientRect();
           return { width: box.width, height: box.height };
         }),
-        // The clip engaged for real: more strip content than strip.
-        stripScrollWidth: strip.scrollWidth,
-        stripClientWidth: strip.clientWidth,
+        // The clip engaged for real: the resting line hid chips and counts
+        // them (`+N`, UI review F-057), since chips wrap out of sight whole.
+        hiddenCount: strip.querySelector('[data-reference-hidden-count]')?.textContent ?? '',
         heavy: rowOf('020').getBoundingClientRect().height,
         chipless: rowOf('030').getBoundingClientRect().height,
       };
@@ -150,9 +150,9 @@ test.describe('the deps cell rests on one line', () => {
       expect(chip.height, `chip ${String(at)} has no height`).toBeGreaterThan(0);
     }
     expect(
-      measured.stripScrollWidth,
+      measured.hiddenCount,
       'nothing is clipped, so this test is about an uncrowded cell',
-    ).toBeGreaterThan(measured.stripClientWidth);
+    ).toMatch(/^\+\d+$/);
 
     // The claim: seven chips cost the row nothing. Within a pixel — rect
     // edges are sub-pixel.
@@ -185,6 +185,7 @@ test.describe('the deps cell rests on one line', () => {
           width: box.width,
           height: box.height,
           left: box.left,
+          top: box.top,
           answersToTheChip: at !== null && chip.contains(at),
           answered: at === null ? '(nothing)' : `<${at.tagName.toLowerCase()}>`,
         };
@@ -192,6 +193,7 @@ test.describe('the deps cell rests on one line', () => {
       if (strip === null) throw new Error('no depends strip on the page');
       return {
         stripVisibleRight: strip.getBoundingClientRect().right,
+        stripVisibleBottom: strip.getBoundingClientRect().bottom,
         first: probe('Stop 020 waiting for 030'),
         last: probe('Stop 020 waiting for 090'),
       };
@@ -212,11 +214,13 @@ test.describe('the deps cell rests on one line', () => {
     // invisible for the wrong reason —
     expect(probed.last.width).toBeGreaterThan(0);
     expect(probed.last.height).toBeGreaterThan(0);
-    // — stands wholly past the cell's visible edge —
+    // — stands wholly outside the strip's visible box: past its edge, or (since
+    // UI review F-057) wrapped whole onto the line below that nobody sees —
     expect(
-      probed.last.left,
+      probed.last.left >= probed.stripVisibleRight - 1 ||
+        probed.last.top >= probed.stripVisibleBottom - 1,
       'the last chip is not even clipped, so this fixture stopped overrunning',
-    ).toBeGreaterThanOrEqual(probed.stripVisibleRight - 1);
+    ).toBe(true);
     // — and is invisible where it stands: the pixel at its centre belongs to
     // whatever the table put there instead.
     expect(
@@ -260,11 +264,10 @@ test.describe('the deps cell offers an always-visible add button', () => {
       const strip = at('Stop 020 waiting for 030').closest('[data-depends-strip]');
       if (!(strip instanceof HTMLElement)) throw new Error('no depends strip on the page');
       return {
-        // The clip is engaged: more strip content than strip. Without this the
-        // whole test would be about an uncrowded cell, where nothing is at risk
-        // and the button's placement decides nothing (R5 #16).
-        stripScrollWidth: strip.scrollWidth,
-        stripClientWidth: strip.clientWidth,
+        // The clip is engaged: the resting line hid chips and counts them.
+        // Without this the whole test would be about an uncrowded cell, where
+        // nothing is at risk and the button's placement decides nothing (R5 #16).
+        hiddenCount: strip.querySelector('[data-reference-hidden-count]')?.textContent ?? '',
         add: probe('Make 020 wait for something'),
         chip: probe('Stop 020 waiting for 030'),
         lastChip: probe('Stop 020 waiting for 090'),
@@ -272,9 +275,9 @@ test.describe('the deps cell offers an always-visible add button', () => {
     });
 
     expect(
-      probed.stripScrollWidth,
+      probed.hiddenCount,
       'nothing is clipped, so this test is about an uncrowded cell',
-    ).toBeGreaterThan(probed.stripClientWidth);
+    ).toMatch(/^\+\d+$/);
     // And the clip really does hide what it overruns — the fact the button's
     // placement is chosen against, re-established here so the claim below is
     // read against a cell that is genuinely cutting things off.
@@ -659,8 +662,8 @@ test.describe('the cell answers the pointer that is in it', () => {
     if (box === null) throw new Error('the 030 Depends on cell is not on screen');
 
     // The state this is a test about, established rather than assumed: the
-    // pills really do cover the cell, and the box really is outside it. A
-    // widened column would satisfy every assertion below while proving nothing.
+    // pills really do cover the cell, and the box takes none of it (zero
+    // wide at rest beside chips since UI review F-058). A widened column would satisfy every assertion below while proving nothing.
     const crowded = await cell.evaluate((node) => {
       const strip = node.querySelector('[data-depends-strip]');
       const input = node.querySelector('[data-depends-input]');
@@ -681,17 +684,14 @@ test.describe('the cell answers the pointer that is in it', () => {
       // its own since F-033 (2026-10-13), so it can end in an ellipsis.
       const hit = document.elementFromPoint(point.x, point.y)?.closest('[aria-label]') ?? null;
       return {
-        boxLeft: input.getBoundingClientRect().left,
-        cellRight: cellBox.right,
+        boxWidth: input.getBoundingClientRect().width,
         pointInsideCell: point.x >= cellBox.left && point.x <= cellBox.right,
-        stripOverruns: strip.scrollWidth > strip.clientWidth,
+        stripHides: strip.querySelector('[data-reference-hidden-count]') !== null,
         pillAnswers: hit === null ? '(nothing)' : (hit.getAttribute('aria-label') ?? hit.tagName),
       };
     });
-    expect(crowded.boxLeft, 'the box is still inside its own cell').toBeGreaterThan(
-      crowded.cellRight,
-    );
-    expect(crowded.stripOverruns, 'the strip is not crowded, so this proves nothing').toBe(true);
+    expect(crowded.boxWidth, 'the box still takes room in its own cell').toBeLessThanOrEqual(0.5);
+    expect(crowded.stripHides, 'the strip is not crowded, so this proves nothing').toBe(true);
     expect(crowded.pointInsideCell, 'the probed point is outside the cell').toBe(true);
     expect(crowded.pillAnswers).toMatch(/^Stop 030 waiting for /);
 

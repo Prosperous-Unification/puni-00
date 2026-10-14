@@ -31,6 +31,14 @@ export interface FrameLayoutState {
   /** Whether any row's number is frozen, and so wears the lock the Number column has to hold. */
   numberingFrozen: boolean;
   /**
+   * The widest number any row of the project waits for, by
+   * {@link dependencyNumberInk}, or `''` where no row waits for anything. The
+   * Depends on column is sized to draw it whole ({@link dependsWidthFor}).
+   */
+  widestWaitedNumber: string;
+  /** Whether any row waits for more than one row, and so may need a `+N` beside its chip. */
+  waitsForSeveral: boolean;
+  /**
    * The widths this browser was told by a drag, by the column's **own** id —
    * `<stepId>-final` for a folded step — or absent where nothing has been
    * dragged.
@@ -296,7 +304,10 @@ const COLUMN_WIDTHS = new Map<string, number>([
   // search box after it is clipped, and draws no placeholder there); a longer
   // chip ends in an ellipsis with its words in its `title`. Three folded steps
   // still fit 1280.
-  ['depends', 84],
+  //
+  // **A floor since 2026-10-14** (UI review F-058): the column is sized by
+  // {@link dependsWidthFor}, which widens it to draw the plan's widest
+  // dependency number whole — `010.3.01` asks 112px for chip, `+` and count.
   // A priority, and priorities are short: 48px holds four digits and the 8px of padding
   // the declared width includes, which is a scale running past a thousand. The
   // header is `Prio` for the same reason `Not bef.` is abbreviated — a
@@ -548,7 +559,8 @@ export const DATE_EDITOR_WIDTH = 138;
  *
  * A function of {@link FrameLayoutState} rather than a number, so what a width
  * may depend on is stated in one place and read in one place. Two of them
- * since 2026-09-13 — the Number column joined the earliest-start column; the
+ * since 2026-09-13 — the Number column joined the earliest-start column — and
+ * three since 2026-10-14, when Depends on followed its widest number; the
  * reader's own overrides are the other half of the same state, and they
  * outrank whatever this resolves — see {@link widthFor}.
  */
@@ -567,7 +579,55 @@ const PLAN_WIDTHS = new Map<string, (state: FrameLayoutState) => number>([
       state.numberingFrozen || state.deepestDepth >= 2 ? NUMBER_DEEP_WIDTH : NUMBER_SHALLOW_WIDTH,
   ],
   ['not-before', (state) => (state.hasAnyNotBefore ? NOT_BEFORE_WITH_DAYS : NOT_BEFORE_EMPTY)],
+  ['depends', (state) => dependsWidthFor(state)],
 ]);
+
+/**
+ * How much wider than Arial's {@link dependsWidthFor} lets a number's digits
+ * run: a platform face whose digits are 5% wider (macOS's) still draws an
+ * eight-glyph number whole, and a shallow plan's `010` still rests at 84.
+ */
+const DEPENDS_FACE_SLACK = 1.05;
+
+/** The Depends on column's narrowest default — see its note in {@link COLUMN_WIDTHS}' history above. */
+const DEPENDS_FLOOR = 84;
+
+/**
+ * One dependency number's ink at the chip's 12px type, in px.
+ *
+ * Measured in Chromium on 2026-10-14 (the app's stack resolves to Arial on
+ * Linux): every digit is 6.6875px and the dot 3.34375px, so `010.3.01` is
+ * 46.81 (Chromium draws it at 46.72). A number holds digits and dots only
+ * (`deriveNumbers`); anything else is counted as a digit, the wider of the two.
+ */
+export function dependencyNumberInk(number: string): number {
+  let ink = 0;
+  for (const glyph of number) ink += glyph === '.' ? 3.34375 : 6.6875;
+  return ink;
+}
+
+/**
+ * The Depends on column's default width for this plan, in px: room for the
+ * resting line's `+`, the widest waited-for number as one whole chip, and —
+ * where some row waits for several — the `+N` count beside it (UI review
+ * F-058, decision D4). Never below {@link DEPENDS_FLOOR}.
+ *
+ * Every term is Chromium's, 2026-10-14: the cell's 8px of padding, the `+`'s
+ * 15.02 and 2px gap, a chip's 20px of chrome (padding, gap, `✕`) around its
+ * number, and the count's 2px gap, 13.69 for `+9` and the 2px gap before the
+ * empty search box, with the number's ink widened by
+ * {@link DEPENDS_FACE_SLACK}. A shallow plan's `010` asks for 83.7 with a
+ * count and stays at 84; `010.1` beside a count asks for 94.3 (95);
+ * `010.3.01` for 111.8 (112).
+ * `e2e/plan-table-review.spec.ts` measures the PUNI-shaped case, so a term
+ * that drifts fails there.
+ */
+export function dependsWidthFor(state: FrameLayoutState): number {
+  if (state.widestWaitedNumber === '') return DEPENDS_FLOOR;
+  const chip = 20 + dependencyNumberInk(state.widestWaitedNumber) * DEPENDS_FACE_SLACK;
+  const count = state.waitsForSeveral ? 2 + 13.69 + 2 : 2;
+  return Math.max(DEPENDS_FLOOR, Math.ceil(8 + 15.02 + 2 + chip + count));
+}
 
 /**
  * Every column with a declared width — the two halves of the width table

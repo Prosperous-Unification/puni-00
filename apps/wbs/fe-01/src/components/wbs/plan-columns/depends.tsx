@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import type { TypedDependencyEndpoint } from '@/lib/wbs-api';
 
@@ -12,24 +12,35 @@ import { didLand } from '../live-editing';
 import { DEP_EDGE_FADE, DEP_LIST_WIDTH } from '../plan-cell-props';
 import type { PlanLive } from '../plan-live';
 import {
+  chipLineStyle,
+  HiddenChipCount,
   REFERENCE_SET_ADD_CLASS,
   REFERENCE_SET_CHIP_CLASS,
   REFERENCE_SET_STRIP_STYLE,
+  useHiddenChips,
 } from '../reference-set-field';
 import { dependencyWords, endpointText, TypedDependencyEditor } from '../typed-dependency-editor';
 import { column } from './column';
 
-/**
- * The most a chip may take of its strip at rest: everything but the `+` before
- * it (15.02px in Chromium, so 16) and the 2px gap. One chip therefore never runs past the cell — it is
- * whole, or its words end in an ellipsis with the rest in its `title` or the
- * cell's card — and a second chip is what the edge fade is for.
- */
-const ONE_CHIP_ROOM = 'calc(100% - 18px)';
-
 /** What the dependency list keeps clear of the window's right edge, in px. */
 const LIST_EDGE_GAP = 8;
-const ONE_CHIP_STYLE = { maxWidth: ONE_CHIP_ROOM, flexShrink: 0 } as const;
+/**
+ * A dependency chip keeps its intrinsic width: its words are a number, and a
+ * number cut to `010.…` names nothing (UI review F-058). The shared chip
+ * class's `max-w-full` is lifted for it; a chip that does not fit whole is
+ * wrapped out of sight, or hidden where it is the first, and counted by
+ * {@link HiddenChipCount} (decision D4).
+ */
+const WHOLE_CHIP_STYLE = { maxWidth: 'none', flexShrink: 0 } as const;
+
+/**
+ * A chip the resting line could not draw whole: not painted and not under the
+ * pointer, but still in the accessibility tree — the cell's ✕ buttons are
+ * named controls a reader's element walk must still find, as when a clipped
+ * chip stood past the edge. `visibility: hidden` was the first answer and took
+ * the chip out of that tree with its paint.
+ */
+const UNDRAWN_CHIP_STYLE = { opacity: 0, pointerEvents: 'none' } as const;
 
 /** Builds the depends column family against the stable live cell contract.
  * Tab and Shift+Tab keep the grid walk. Home in an empty search focuses the
@@ -60,6 +71,9 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
       } | null>(null);
       // eslint-disable-next-line react-hooks/rules-of-hooks
       const [announcement, setAnnouncement] = useState('');
+      // The resting line's chip group, measured for what it could not draw.
+      // eslint-disable-next-line react-hooks/rules-of-hooks
+      const chipLine = useRef<HTMLSpanElement>(null);
       // From the tree (`dependenciesOf` walks `flat`), never from the
       // rows on screen: a collapsed or filtered-out dependency has no row
       // to light, and the card naming it is then the only place it is
@@ -90,15 +104,33 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
           ? undefined
           : pickable.find((entry) => entry.id === picker.highlightId);
       const open = picker !== null && entries.length > 0;
-      // How many chips the strip draws. One chip is held inside the strip
-      // whole or with an ellipsis ({@link ONE_CHIP_ROOM}), so only a second
-      // one can run past the edge — and only then is there a cut to fade
-      // (UI review F-033, 2026-10-13).
-      // Proof: the `chipCount > 1` condition dropped, `keeps the truncation
-      // fade on the rested strip, and off the open one` failed on `expected
-      // 'linear-gradient(to left, transparent,…' to be ''`. Watched 2026-10-13.
-      const chipCount = waitingFor.length + typedDependencies.length;
       const resting = picker === null;
+      const hasChips = waitingFor.length > 0 || typedDependencies.length > 0;
+      // The chips the resting line could not draw whole, by the same
+      // measurement as the Tags, Teams, Services and Types strips: `+N` after
+      // the chips with an `Also: …` title, and the edge fade only when
+      // something is hidden (decision D4, UI review F-057).
+      // Proof: the fade's condition widened to every resting strip with
+      // chips, `draws a dependency number whole and counts what the line hid`
+      // (`e2e/plan-table-review.spec.ts`) failed on `a line that hides nothing
+      // wears no fade`. Watched 2026-10-14.
+      // eslint-disable-next-line react-hooks/rules-of-hooks
+      const hiddenChips = useHiddenChips(
+        chipLine,
+        resting,
+        [...waitingFor.map(({ id }) => id), ...typedDependencies.map(({ id }) => id)].join('\0'),
+      );
+      const undrawnStyleOf = (key: string) => {
+        const hidden = hiddenChips.find((chip) => chip.key === key);
+        if (hidden === undefined) return {};
+        // Out of the flow where it overran the line, so a lone chip too wide
+        // for the cell leaves `+ +1` rather than a blank chip-wide gap. It
+        // keeps its width and its static place, so it still measures as too
+        // wide and the answer cannot flicker.
+        return hidden.overruns
+          ? { ...UNDRAWN_CHIP_STYLE, position: 'absolute' as const }
+          : UNDRAWN_CHIP_STYLE;
+      };
       // Nothing to expand where nothing is waited for, and the picker owns
       // the cell while it is open: both boxes hang off the bottom edge of
       // one 110px cell, and the one somebody is typing into is the one they
@@ -172,9 +204,9 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                 squeezed chip's `✕` from folding under its number and growing
                 the one line into two. The fade is the rest state's
                 truncation cue — {@link DEP_EDGE_FADE} says why it belongs to
-                rest and to nothing else. No `+N` marker: counting hidden
-                variable-width pills means real layout measurement for
-                marginal information.
+                rest and to nothing else, and only where the resting line hid
+                a chip, which the `+N` after the chips counts (decision
+                D4).
 
                 **And only with chips**, which is this change's own correction
                 and not a tidy. `wrap` plus the box's `width: 100%` claim
@@ -218,10 +250,7 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
               // clicked into.
               // Proof: excluding typed chips made `wraps a typed-only dependency
               // chip while its picker is open` receive `nowrap`. Watched, 2026-09-28.
-              flexWrap:
-                picker !== null && (waitingFor.length > 0 || typedDependencies.length > 0)
-                  ? 'wrap'
-                  : 'nowrap',
+              flexWrap: picker !== null && hasChips ? 'wrap' : 'nowrap',
               gap: 2,
               whiteSpace: 'nowrap',
               overflow: 'hidden',
@@ -229,9 +258,6 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
               // right edge — the app is LTR-only today, and a
               // logical-direction gradient is not portable syntax.
               direction: 'ltr',
-              ...(resting && chipCount > 1
-                ? { WebkitMaskImage: DEP_EDGE_FADE, maskImage: DEP_EDGE_FADE }
-                : {}),
             }}
           >
             {/*
@@ -354,296 +380,300 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
               +
             </button>
             {/*
-                  How many rows this one waits for, on the leading edge beside
-                  the `+` because that is the only place on a clipping `nowrap`
-                  line that is never cut — the same reason the add affordance is
-                  first (see the block above it).
+                  The chips, in a group of their own so the resting line can
+                  wrap what does not fit out of sight and count it — the
+                  reference strips' {@link chipLineStyle}, shared. Open, the
+                  group takes the line beside the `+` (`flex: 1 1 0%`) and
+                  wraps every chip into reach; the box goes under it.
 
-                  **This is not the `+N` the block above ruled out**, and the
-                  difference is the whole design. That marker was to be the
-                  count of the *hidden* chips, which is a layout fact: it needs
-                  the strip measured, a `ResizeObserver` on every deps cell, and
-                  a number that changes when the column is dragged. This is the
-                  count of the *dependencies*, which is data the cell already
-                  holds — `waitingFor.length`, the same list the sr-only line
-                  and the hover card are built from. It cannot be stale and it
-                  needs nothing measured.
-
-                  Filed by `wbs-e2e-planning-qa` on dev: `020` waits for four
-                  rows, `030` five, `060` six, and every one of them showed two
-                  clipped chips with no count anywhere — so the planner reading
-                  the cell had no way to know the chips were a sample, and the
-                  one dependency that explains the row's start is exactly the
-                  one off the right edge. The fade said "there is more" to
-                  somebody already looking for it; a number says how much more.
-
-                  Only past one, because a single chip is the whole truth and a
-                  `1` beside it is a second way of saying what is already said —
-                  noise in a 110px cell whose every pixel is a chip that does
-                  not fit.
-
-                  `aria-hidden`, and that is deliberate rather than an omission:
-                  the cell already tells a reader `Waiting for 010 - Strip, …`
-                  in full through {@link waitsForId}, so a count spoken beside
-                  it would be a third voice in one cell saying less than the
-                  second.
-
-                  **And no `data-hint` either**, which `hints-are-the-page-s-own`
-                  took off it: this cell draws its own card on hover, listing
-                  every row it waits for by name, and a hint card opening over
-                  the same pixels to say `Waits for 2 rows` is the second
-                  surface the Start cell's own comment refuses. The card is this
-                  cell's one hint. Watched: with the hint back on, three of
-                  `e2e/hover-cards.spec.ts`'s cases failed on `no card opened on
-                  the depends cell · Expected: 1 · Received: 2`.
+                  The data-only total that stood here (`3` beside the `+`,
+                  `waitingFor.length`) is gone: it read as "add 3", counted
+                  the chips on screen as well as the hidden ones, and said it
+                  before them (UI review F-057).
                 */}
-            {waitingFor.length > 1 && (
-              <span data-dep-count={row.original.id} aria-hidden="true" style={{ flexShrink: 0 }}>
-                {waitingFor.length}
-              </span>
-            )}
-            {waitingFor.map(({ id, number }) => (
-              <button
-                key={id}
-                type="button"
-                data-reference-chip={id}
-                className={`${REFERENCE_SET_CHIP_CLASS} border-0`}
-                style={ONE_CHIP_STYLE}
-                aria-label={`Stop ${row.original.number} waiting for ${number}`}
-                // No hint here for the count's reason above: the cell's
-                // own card owns this hover, and the ✕ already answers to
-                // `Stop 020 waiting for 010`.
-                // Out of the tab order while the strip is clipped: a
-                // clipped chip is a native button a sequential Tab could
-                // still reach, invisible, and the browser may scroll the
-                // `overflow: hidden` strip to show what it focused —
-                // shifting the rested layout. With the picker open the
-                // strip wraps, every chip is on screen, and the ✕ is
-                // focusable the way a visible button should be. Keyboard
-                // removal is unchanged: Tab enters the cell at the box,
-                // the picker opens on the focus, the chips are back.
-                // Proof: the condition dropped (chips always focusable),
-                // `keeps clipped chips out of the tab order at rest`
-                // failed on `expected +0 to be -1`. Watched, 2026-08-10.
-                tabIndex={picker === null ? -1 : undefined}
-                // The pill-level hover: this one dependency's row alone,
-                // and the card's emphasis with it. A chip the strip has
-                // clipped simply has no hover target — the cell-level
-                // enter above still lights every dependency's row, which
-                // is the U3→U4 case named in the plan rather than
-                // discovered.
-                onMouseEnter={() => {
-                  // **No guard, since 2026-09-09**, and the cell's own is gone
-                  // with it: while the card stood *under* its cell, a chip of
-                  // the row beneath was what the pointer landed on inside the
-                  // card's passive padding, and narrowing to that chip's row lit
-                  // the wrong plan. The card opens **beside** its cell now, so
-                  // no chip but this card's own row's is ever under it.
-                  live.current.depLights.updateHover((current) =>
-                    current?.rowId === row.original.id && current.pillId === id
-                      ? current
-                      : { rowId: row.original.id, pillId: id },
-                  );
-                }}
-                onMouseLeave={() => {
-                  // Off the pill but still in the cell: back to the whole
-                  // waited-for set, not cleared — the wrapper's own leave
-                  // is what clears. Guarded on this pill's id so a leave
-                  // that lands after the next pill's enter cannot widen
-                  // the hover that enter just narrowed.
-                  // Proof: the restore dropped (leave returning
-                  // `current`), `narrows to the pill's row, and widens
-                  // again when the pill is left` failed on `expected
-                  // ['010'] to deeply equal ['010', '020']`. Watched,
-                  // 2026-08-10.
-                  live.current.depLights.updateHover((current) =>
-                    current?.rowId === row.original.id && current.pillId === id
-                      ? { rowId: row.original.id, pillId: null }
-                      : current,
-                  );
-                }}
-                // The keyboard's reading of the same pill — see
-                // {@link depFocus}. The enter/leave pair above, with focus
-                // in place of the pointer, and one difference: the blur
-                // *clears* where the leave widens. A leave means the
-                // pointer is still in the cell (the wrapper's own leave is
-                // what clears); a blur means nothing of the sort, and
-                // widening on it would leave the cell lit forever once the
-                // focus walked out of the plan from a chip. Focus moving
-                // chip → box relights the cell from the box's own focus,
-                // which fires after this blur.
-                onFocus={() => {
-                  live.current.depLights.updateFocus((current) =>
-                    current?.rowId === row.original.id && current.pillId === id
-                      ? current
-                      : { rowId: row.original.id, pillId: id },
-                  );
-                }}
-                onBlur={() => {
-                  live.current.depLights.updateFocus((current) =>
-                    current?.rowId === row.original.id && current.pillId === id ? null : current,
-                  );
-                }}
-                onClick={() => {
-                  // This button *is* the pill, so the click unmounts it and
-                  // no `mouseleave` or `blur` of its own ever arrives: the
-                  // hover would stay on an id the cell no longer names and
-                  // keep the cut edge's row lit under a pointer that had
-                  // not moved. The pointer *is* still in the cell, so this
-                  // widens to the cell itself — exactly what the leave that
-                  // cannot fire would have done, which is why the light
-                  // goes to the remaining dependencies rather than out.
-                  // Focus is cleared instead, for the reason `onBlur` above
-                  // gives. `depLit` refuses a `pillId` the cell no longer
-                  // names as well: this end is the pointer's truth, that
-                  // end is the paint's.
-                  //
-                  // Proof: this widen dropped, `widens back to the
-                  // remaining dependencies when a pill is deleted under the
-                  // pointer` failed on `expected [] to deeply equal
-                  // ['020']` — the light gone from a cell the pointer was
-                  // still in. Watched, 2026-08-11.
-                  live.current.depLights.updateHover((current) =>
-                    current?.rowId === row.original.id && current.pillId === id
-                      ? { rowId: row.original.id, pillId: null }
-                      : current,
-                  );
-                  live.current.depLights.updateFocus((current) =>
-                    current?.rowId === row.original.id && current.pillId === id ? null : current,
-                  );
-                  void live.current.run((write) =>
-                    write.perform(['tree'], () =>
-                      live.current.commands.removeDependency(row.original.id, id),
-                    ),
-                  );
+            {hasChips && (
+              <span
+                ref={chipLine}
+                data-reference-chips=""
+                style={{
+                  ...chipLineStyle(!resting, 2),
+                  // The containing block an overrunning chip leaves the flow
+                  // into, and is clipped by.
+                  position: 'relative',
+                  ...(resting ? {} : { flex: '1 1 0%' }),
+                  // The fade on the chips' line and not the strip's: the
+                  // strip's last 14px is where the `+N` stands, and faded it
+                  // fell below 4.5:1 (UI review F-057).
+                  ...(resting && hiddenChips.length > 0
+                    ? { WebkitMaskImage: DEP_EDGE_FADE, maskImage: DEP_EDGE_FADE }
+                    : {}),
                 }}
               >
-                <span className="truncate">{number}</span> ✕
-              </button>
-            ))}
-            {typedDependencies.map((dependency) => {
-              const wholeWait =
-                dependency.type === 'FS' &&
-                dependency.predecessor.scope === 'whole' &&
-                dependency.successor.scope === 'whole';
-              const predecessorNumber = endpointText(
-                dependency.predecessor,
-                dependencyRows,
-                dependencySteps,
-                row.original.readings.dependencyStepNodes ?? undefined,
-              );
-              const words = dependencyWords(
-                dependency,
-                dependencyRows,
-                dependencySteps,
-                row.original.readings.dependencyStepNodes ?? undefined,
-              );
-              return (
-                <button
-                  key={dependency.id}
-                  type="button"
-                  className={`${REFERENCE_SET_CHIP_CLASS} border-0`}
-                  style={ONE_CHIP_STYLE}
-                  aria-label={`${wholeWait ? `Stop ${row.original.number} waiting for ${predecessorNumber}. ` : 'Edit dependency: '}${words.label}. Enter to edit. Delete to remove. Escape to return to dependency search.`}
-                  title={`${words.label}. Enter to edit.`}
-                  aria-keyshortcuts="Enter Delete"
-                  data-typed-dependency-chip=""
-                  data-reference-chip={wholeWait ? dependency.predecessor.workItemId : undefined}
-                  tabIndex={picker === null ? -1 : undefined}
-                  onMouseEnter={() => {
-                    live.current.depLights.updateHover(() => ({
-                      rowId: row.original.id,
-                      pillId: dependency.id,
-                    }));
-                  }}
-                  onMouseLeave={() => {
-                    live.current.depLights.updateHover((current) =>
-                      current?.pillId === dependency.id ? null : current,
-                    );
-                  }}
-                  onFocus={() => {
-                    live.current.depLights.updateFocus(() => ({
-                      rowId: row.original.id,
-                      pillId: dependency.id,
-                    }));
-                  }}
-                  onBlur={() => {
-                    live.current.depLights.updateFocus((current) =>
-                      current?.pillId === dependency.id ? null : current,
-                    );
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Escape') {
-                      event.preventDefault();
-                      event.currentTarget.parentElement
-                        ?.querySelector<HTMLInputElement>(
-                          `[data-depends-input="${row.original.id}"]`,
-                        )
-                        ?.focus();
-                      return;
-                    }
-                    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-                      event.preventDefault();
-                      const chips = Array.from(
-                        event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>(
-                          '[data-typed-dependency-chip]',
-                        ) ?? [],
+                {waitingFor.map(({ id, number }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    data-reference-chip={id}
+                    data-rest-chip={id}
+                    className={`${REFERENCE_SET_CHIP_CLASS} border-0`}
+                    style={{
+                      ...WHOLE_CHIP_STYLE,
+                      ...undrawnStyleOf(id),
+                    }}
+                    aria-label={`Stop ${row.original.number} waiting for ${number}`}
+                    // No hint here: the cell's
+                    // own card owns this hover, and the ✕ already answers to
+                    // `Stop 020 waiting for 010`.
+                    // Out of the tab order while the strip is clipped: a
+                    // clipped chip is a native button a sequential Tab could
+                    // still reach, invisible, and the browser may scroll the
+                    // `overflow: hidden` strip to show what it focused —
+                    // shifting the rested layout. With the picker open the
+                    // strip wraps, every chip is on screen, and the ✕ is
+                    // focusable the way a visible button should be. Keyboard
+                    // removal is unchanged: Tab enters the cell at the box,
+                    // the picker opens on the focus, the chips are back.
+                    // Proof: the condition dropped (chips always focusable),
+                    // `keeps clipped chips out of the tab order at rest`
+                    // failed on `expected +0 to be -1`. Watched, 2026-08-10.
+                    tabIndex={picker === null ? -1 : undefined}
+                    // The pill-level hover: this one dependency's row alone,
+                    // and the card's emphasis with it. A chip the strip has
+                    // clipped simply has no hover target — the cell-level
+                    // enter above still lights every dependency's row, which
+                    // is the U3→U4 case named in the plan rather than
+                    // discovered.
+                    onMouseEnter={() => {
+                      // **No guard, since 2026-09-09**, and the cell's own is gone
+                      // with it: while the card stood *under* its cell, a chip of
+                      // the row beneath was what the pointer landed on inside the
+                      // card's passive padding, and narrowing to that chip's row lit
+                      // the wrong plan. The card opens **beside** its cell now, so
+                      // no chip but this card's own row's is ever under it.
+                      live.current.depLights.updateHover((current) =>
+                        current?.rowId === row.original.id && current.pillId === id
+                          ? current
+                          : { rowId: row.original.id, pillId: id },
                       );
-                      const index = chips.indexOf(event.currentTarget);
-                      chips[index + (event.key === 'ArrowDown' ? 1 : -1)]?.focus();
-                      return;
-                    }
-                    if (event.key === 'Enter') {
-                      event.preventDefault();
-                      setEditing({
-                        predecessorId: dependency.predecessor.workItemId,
-                        dependencyId: dependency.id,
-                      });
-                      return;
-                    }
-                    if (event.key !== 'Delete') return;
-                    event.preventDefault();
-                    // Proof: bypassing Delete made `Home reaches typed chips for Enter edit and Delete removal while Tab stays in the grid` fail to find `Dependency removed.`; watched 2026-09-28.
-                    event.currentTarget.parentElement
-                      ?.querySelector<HTMLInputElement>(`[data-depends-input="${row.original.id}"]`)
-                      ?.focus();
-                    void live.current
-                      .run((write) =>
-                        write.perform(['tree'], () =>
-                          live.current.commands.removeTypedDependency(dependency.id),
-                        ),
-                      )
-                      .then((outcome) => {
-                        setAnnouncement(
-                          didLand(outcome) ? 'Dependency removed.' : 'Dependency removal refused.',
-                        );
-                      });
-                  }}
-                  onClick={() => {
-                    if (wholeWait) {
+                    }}
+                    onMouseLeave={() => {
+                      // Off the pill but still in the cell: back to the whole
+                      // waited-for set, not cleared — the wrapper's own leave
+                      // is what clears. Guarded on this pill's id so a leave
+                      // that lands after the next pill's enter cannot widen
+                      // the hover that enter just narrowed.
+                      // Proof: the restore dropped (leave returning
+                      // `current`), `narrows to the pill's row, and widens
+                      // again when the pill is left` failed on `expected
+                      // ['010'] to deeply equal ['010', '020']`. Watched,
+                      // 2026-08-10.
+                      live.current.depLights.updateHover((current) =>
+                        current?.rowId === row.original.id && current.pillId === id
+                          ? { rowId: row.original.id, pillId: null }
+                          : current,
+                      );
+                    }}
+                    // The keyboard's reading of the same pill — see
+                    // {@link depFocus}. The enter/leave pair above, with focus
+                    // in place of the pointer, and one difference: the blur
+                    // *clears* where the leave widens. A leave means the
+                    // pointer is still in the cell (the wrapper's own leave is
+                    // what clears); a blur means nothing of the sort, and
+                    // widening on it would leave the cell lit forever once the
+                    // focus walked out of the plan from a chip. Focus moving
+                    // chip → box relights the cell from the box's own focus,
+                    // which fires after this blur.
+                    onFocus={() => {
+                      live.current.depLights.updateFocus((current) =>
+                        current?.rowId === row.original.id && current.pillId === id
+                          ? current
+                          : { rowId: row.original.id, pillId: id },
+                      );
+                    }}
+                    onBlur={() => {
+                      live.current.depLights.updateFocus((current) =>
+                        current?.rowId === row.original.id && current.pillId === id
+                          ? null
+                          : current,
+                      );
+                    }}
+                    onClick={() => {
+                      // This button *is* the pill, so the click unmounts it and
+                      // no `mouseleave` or `blur` of its own ever arrives: the
+                      // hover would stay on an id the cell no longer names and
+                      // keep the cut edge's row lit under a pointer that had
+                      // not moved. The pointer *is* still in the cell, so this
+                      // widens to the cell itself — exactly what the leave that
+                      // cannot fire would have done, which is why the light
+                      // goes to the remaining dependencies rather than out.
+                      // Focus is cleared instead, for the reason `onBlur` above
+                      // gives. `depLit` refuses a `pillId` the cell no longer
+                      // names as well: this end is the pointer's truth, that
+                      // end is the paint's.
+                      //
+                      // Proof: this widen dropped, `widens back to the
+                      // remaining dependencies when a pill is deleted under the
+                      // pointer` failed on `expected [] to deeply equal
+                      // ['020']` — the light gone from a cell the pointer was
+                      // still in. Watched, 2026-08-11.
+                      live.current.depLights.updateHover((current) =>
+                        current?.rowId === row.original.id && current.pillId === id
+                          ? { rowId: row.original.id, pillId: null }
+                          : current,
+                      );
+                      live.current.depLights.updateFocus((current) =>
+                        current?.rowId === row.original.id && current.pillId === id
+                          ? null
+                          : current,
+                      );
                       void live.current.run((write) =>
                         write.perform(['tree'], () =>
-                          live.current.commands.removeTypedDependency(dependency.id),
+                          live.current.commands.removeDependency(row.original.id, id),
                         ),
                       );
-                      return;
-                    }
-                    setEditing({
-                      predecessorId: dependency.predecessor.workItemId,
-                      dependencyId: dependency.id,
-                    });
-                  }}
-                >
-                  {wholeWait ? (
-                    <>
-                      <span className="truncate">{predecessorNumber}</span> ✕
-                    </>
-                  ) : (
-                    <span className="truncate">{words.chip}</span>
-                  )}
-                </button>
-              );
-            })}
+                    }}
+                  >
+                    <span>{number}</span> ✕
+                  </button>
+                ))}
+                {typedDependencies.map((dependency) => {
+                  const wholeWait =
+                    dependency.type === 'FS' &&
+                    dependency.predecessor.scope === 'whole' &&
+                    dependency.successor.scope === 'whole';
+                  const predecessorNumber = endpointText(
+                    dependency.predecessor,
+                    dependencyRows,
+                    dependencySteps,
+                    row.original.readings.dependencyStepNodes ?? undefined,
+                  );
+                  const words = dependencyWords(
+                    dependency,
+                    dependencyRows,
+                    dependencySteps,
+                    row.original.readings.dependencyStepNodes ?? undefined,
+                  );
+                  return (
+                    <button
+                      key={dependency.id}
+                      type="button"
+                      className={`${REFERENCE_SET_CHIP_CLASS} border-0`}
+                      style={{
+                        ...WHOLE_CHIP_STYLE,
+                        ...undrawnStyleOf(dependency.id),
+                      }}
+                      data-rest-chip={dependency.id}
+                      aria-label={`${wholeWait ? `Stop ${row.original.number} waiting for ${predecessorNumber}. ` : 'Edit dependency: '}${words.label}. Enter to edit. Delete to remove. Escape to return to dependency search.`}
+                      title={`${words.label}. Enter to edit.`}
+                      aria-keyshortcuts="Enter Delete"
+                      data-typed-dependency-chip=""
+                      data-reference-chip={
+                        wholeWait ? dependency.predecessor.workItemId : undefined
+                      }
+                      tabIndex={picker === null ? -1 : undefined}
+                      onMouseEnter={() => {
+                        live.current.depLights.updateHover(() => ({
+                          rowId: row.original.id,
+                          pillId: dependency.id,
+                        }));
+                      }}
+                      onMouseLeave={() => {
+                        live.current.depLights.updateHover((current) =>
+                          current?.pillId === dependency.id ? null : current,
+                        );
+                      }}
+                      onFocus={() => {
+                        live.current.depLights.updateFocus(() => ({
+                          rowId: row.original.id,
+                          pillId: dependency.id,
+                        }));
+                      }}
+                      onBlur={() => {
+                        live.current.depLights.updateFocus((current) =>
+                          current?.pillId === dependency.id ? null : current,
+                        );
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Escape') {
+                          event.preventDefault();
+                          event.currentTarget
+                            .closest('[data-depends-strip]')
+                            ?.querySelector<HTMLInputElement>(
+                              `[data-depends-input="${row.original.id}"]`,
+                            )
+                            ?.focus();
+                          return;
+                        }
+                        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                          event.preventDefault();
+                          const chips = Array.from(
+                            event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>(
+                              '[data-typed-dependency-chip]',
+                            ) ?? [],
+                          );
+                          const index = chips.indexOf(event.currentTarget);
+                          chips[index + (event.key === 'ArrowDown' ? 1 : -1)]?.focus();
+                          return;
+                        }
+                        if (event.key === 'Enter') {
+                          event.preventDefault();
+                          setEditing({
+                            predecessorId: dependency.predecessor.workItemId,
+                            dependencyId: dependency.id,
+                          });
+                          return;
+                        }
+                        if (event.key !== 'Delete') return;
+                        event.preventDefault();
+                        // Proof: bypassing Delete made `Home reaches typed chips for Enter edit and Delete removal while Tab stays in the grid` fail to find `Dependency removed.`; watched 2026-09-28.
+                        event.currentTarget
+                          .closest('[data-depends-strip]')
+                          ?.querySelector<HTMLInputElement>(
+                            `[data-depends-input="${row.original.id}"]`,
+                          )
+                          ?.focus();
+                        void live.current
+                          .run((write) =>
+                            write.perform(['tree'], () =>
+                              live.current.commands.removeTypedDependency(dependency.id),
+                            ),
+                          )
+                          .then((outcome) => {
+                            setAnnouncement(
+                              didLand(outcome)
+                                ? 'Dependency removed.'
+                                : 'Dependency removal refused.',
+                            );
+                          });
+                      }}
+                      onClick={() => {
+                        if (wholeWait) {
+                          void live.current.run((write) =>
+                            write.perform(['tree'], () =>
+                              live.current.commands.removeTypedDependency(dependency.id),
+                            ),
+                          );
+                          return;
+                        }
+                        setEditing({
+                          predecessorId: dependency.predecessor.workItemId,
+                          dependencyId: dependency.id,
+                        });
+                      }}
+                    >
+                      {wholeWait ? (
+                        <>
+                          <span>{predecessorNumber}</span> ✕
+                        </>
+                      ) : (
+                        <span>{words.chip}</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </span>
+            )}
+            {resting && <HiddenChipCount hidden={hiddenChips} />}
             <input
               aria-label={`Add a dependency to ${row.original.number}`}
               role="combobox"
@@ -660,8 +690,8 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
               // at rest what room the box had left drew a sliver of it. The
               // `+` is the cue there. Numbers typed in are the column hint's
               // sentence now (`column-hints.ts`).
-              placeholder={resting && chipCount > 0 ? '' : 'search'}
-              // No hint on this box, for the count chip's reason above:
+              placeholder={resting && hasChips ? '' : 'search'}
+              // No hint on this box:
               // the Depends on cell draws its own card over these pixels,
               // and a second surface saying how to type into the box is
               // the race `start-date-hover-card` removed rather than one
@@ -676,8 +706,22 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
               // minimum would hold an `<input>` at its intrinsic width and
               // push its rect out past the cell. `100%` is still its claim
               // — the whole cell where it has the line to itself, the
-              // remainder where it does not.
-              style={{ width: '100%', minWidth: 0, boxSizing: 'border-box' }}
+              // remainder where it does not. At rest it takes only what the
+              // chip group leaves (`flex: 1 1 0%`): with the group shrinkable,
+              // a `100%` basis beside it would share the cut with the chips
+              // and squeeze a whole chip out of a line it fits on.
+              style={{
+                width: '100%',
+                minWidth: 0,
+                boxSizing: 'border-box',
+                ...(resting ? { flex: '1 1 0%' } : {}),
+                // Beside resting chips the box is empty, borderless (the
+                // grid's `transparent`) and unlabelled, so its 8px of inline
+                // padding and border are room taken from a chip for nothing
+                // anyone can see. They come back with the focus, which opens
+                // the picker and ends `resting`.
+                ...(resting && hasChips ? { paddingInline: 0, borderInlineWidth: 0 } : {}),
+              }}
               data-depends-input={row.original.id}
               // A cell of the keyboard grid, so Tab reaches this box and
               // leaves it again rather than walking the chips' ✕ buttons.

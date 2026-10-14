@@ -32,7 +32,12 @@ import {
   rememberLinksResetTarget,
   rememberWidthOverrides,
 } from './remembered-layout';
-import { clampColumnWidth, FLEXIBLE_FLOOR, type FrameLayoutState } from './table-frame';
+import {
+  clampColumnWidth,
+  dependencyNumberInk,
+  FLEXIBLE_FLOOR,
+  type FrameLayoutState,
+} from './table-frame';
 import type { ChartRead } from './use-plan-read';
 import { type TreeRow } from './wbs-rows';
 
@@ -724,18 +729,45 @@ export function usePlanLayout({
     0,
   );
   const numberingFrozen = flat.some((row) => row.frozenNumber !== null);
+  // What the Depends on cells draw as chips, over the whole project for the
+  // `deepestDepth` reason above. An id with no row is skipped, as the cell
+  // itself skips it (`dependenciesOf`): a deleted predecessor draws no chip.
+  const { widestWaitedNumber, waitsForSeveral } = useMemo(() => {
+    const numberOf = new Map(flat.map((row) => [row.id, row.number]));
+    let widest = '';
+    for (const row of flat) {
+      for (const id of row.dependsOn) {
+        const number = numberOf.get(id);
+        if (number !== undefined && dependencyNumberInk(number) > dependencyNumberInk(widest))
+          widest = number;
+      }
+    }
+    return {
+      widestWaitedNumber: widest,
+      waitsForSeveral: flat.some((row) => row.dependsOn.length > 1),
+    };
+  }, [flat]);
   const frameState = useMemo<FrameLayoutState>(
     () => ({
       hasAnyNotBefore,
       deepestDepth,
       numberingFrozen,
+      widestWaitedNumber,
+      waitsForSeveral,
       // The reader's own answer, which outranks whatever the facts above resolve
       // to. Built here rather than passed to each consumer, so the `<colgroup>`,
       // both minimums and the pinned offsets cannot be answers to two different
       // questions.
       columnWidthOverrides: widthOverrides,
     }),
-    [hasAnyNotBefore, deepestDepth, numberingFrozen, widthOverrides],
+    [
+      hasAnyNotBefore,
+      deepestDepth,
+      numberingFrozen,
+      widestWaitedNumber,
+      waitsForSeveral,
+      widthOverrides,
+    ],
   );
 
   /** What the resize handles on the heading row do with the widths they work out. */

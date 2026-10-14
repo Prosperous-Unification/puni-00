@@ -475,7 +475,9 @@ test.describe('hovering a dependency lights the rows it names', () => {
     page,
   }) => {
     await seed010WaitingForThree(page);
-    const owner = page.getByLabel('Add a dependency to 010');
+    // The cell, not its box: beside resting chips the box takes no width
+    // (UI review F-058), and the card answers the whole cell.
+    const owner = page.getByLabel('Add a dependency to 010').locator('xpath=ancestor::td');
     const card = page.getByRole('tooltip', { name: 'What 010 waits for' });
     const third = card.getByText('040 - Order the installation crew', { exact: true });
 
@@ -788,7 +790,9 @@ test.describe('hovering a dependency lights the rows it names', () => {
         chipWidth: box.width,
         chipHeight: box.height,
         clippedChipIsHoverable: at !== null && chip.contains(at),
-        stripClips: strip.scrollWidth > strip.clientWidth,
+        // Chips wrap out of sight whole and the line counts them (UI review
+        // F-057), so a clip shows as the `+N`.
+        stripClips: strip.querySelector('[data-reference-hidden-count]') !== null,
         cellPoint,
       };
     });
