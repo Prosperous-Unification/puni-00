@@ -1,5 +1,6 @@
 import {
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   realpathSync,
@@ -14,6 +15,7 @@ import { afterAll, expect, test } from 'bun:test';
 import fc from 'fast-check';
 
 import {
+  AuthorityContentionError,
   AuthorityOpenError,
   bootstrapAuthority,
   openAuthority,
@@ -27,14 +29,15 @@ import { acquireClaims } from './claims';
  * `nextGeneration` and the working sessions' write paths. Invariants checked by every command:
  *
  * - I1 one creator: while absent, exactly one bootstrap reports `bootstrapped`; every other
- *   bootstrap, concurrent or later, reports `exists`.
+ *   bootstrap reports `exists` if it finishes within its busy budget, or typed contention.
+ *   After all original workers exit, a contended bootstrap must settle to `exists` in one attempt.
  * - I2 absence is refused: open, inspect and acquire on an absent store report `absent` and leave
  *   no `module-wiki` directory.
  * - I3 inspection is read-only: the database bytes are identical before and after inspect.
  * - I4 identity continuity: acquisitions receive consecutive generations from the model's
  *   `nextGeneration`; no bootstrap resets it.
  * - I5 fencing: of concurrent acquisitions on overlapping paths, at most one succeeds and the
- *   others report the overlap.
+ *   others report overlap or typed contention without consuming a generation.
  * - I6 typed outcomes only: no `corrupt` or untyped failure appears in any run.
  */
 interface Model {
@@ -49,6 +52,7 @@ interface Real {
 
 type Outcome =
   | { readonly kind: 'bootstrapped' }
+  | { readonly kind: 'contended' }
   | { readonly kind: 'opened'; readonly nextGeneration: number; readonly sessions: number }
   | { readonly kind: 'acquired'; readonly generation: number }
   | { readonly kind: 'refused'; readonly failure: string };
@@ -65,6 +69,9 @@ afterAll(() => {
 
 /** The same classification in-process and in a child: typed failure kind or exact message. */
 function classify(error: unknown): Outcome {
+  // Proof: accepting every Error as contention made the classifier test receive `contended`
+  // for a raw busy-message Error instead of `untyped` (2026-10-14).
+  if (error instanceof AuthorityContentionError) return { kind: 'contended' };
   if (error instanceof AuthorityOpenError) return { failure: error.failure, kind: 'refused' };
   const message = error instanceof Error ? error.message : String(error);
   if (message.startsWith('path claim overlaps session ')) {
@@ -217,13 +224,14 @@ class Acquire implements fc.AsyncCommand<Model, Real> {
 }
 
 const WORKER = `
-const [{ AuthorityOpenError, bootstrapAuthority, openAuthority }, { acquireClaims }] =
+const [{ AuthorityContentionError, AuthorityOpenError, bootstrapAuthority, openAuthority }, { acquireClaims }] =
   await Promise.all([import(process.argv[2]), import(process.argv[3])]);
 const job = JSON.parse(process.argv[4]);
 await Bun.write(job.ready, 'ready');
 while (!(await Bun.file(job.start).exists())) Bun.sleepSync(1);
 const clock = { read: () => 1_000_000 };
 function classify(error) {
+  if (error instanceof AuthorityContentionError) return { kind: 'contended' };
   if (error instanceof AuthorityOpenError) return { failure: error.failure, kind: 'refused' };
   const message = error instanceof Error ? error.message : String(error);
   if (message.startsWith('path claim overlaps session ')) return { failure: 'overlap', kind: 'refused' };
@@ -233,7 +241,7 @@ function classify(error) {
 let outcome;
 try {
   if (job.op === 'bootstrap') {
-    bootstrapAuthority(job.root, { clock, busyDelayMilliseconds: 5 }).close();
+    bootstrapAuthority(job.root, { clock, busyDelayMilliseconds: 5, ...job.options }).close();
     outcome = { kind: 'bootstrapped' };
   } else {
     const store = openAuthority(job.root, { clock, busyDelayMilliseconds: 5 });
@@ -255,7 +263,13 @@ console.log(JSON.stringify(outcome));
 `;
 
 type Job =
-  | { readonly op: 'bootstrap' }
+  | {
+      readonly op: 'bootstrap';
+      readonly options?: {
+        readonly maxBusyAttempts: number;
+        readonly busyDelayMilliseconds: number;
+      };
+    }
   | { readonly op: 'acquire'; readonly session: string; readonly path: string };
 
 /**
@@ -323,13 +337,22 @@ class ConcurrentBootstraps implements fc.AsyncCommand<Model, Real> {
       Array.from({ length: this.count }, () => ({ op: 'bootstrap' }) as const),
     );
     const created = outcomes.filter((outcome) => outcome.kind === 'bootstrapped').length;
-    expect(
-      outcomes.filter((outcome) => outcome.kind !== 'bootstrapped'),
-      'I1/I6 losers report exists',
-    ).toEqual(
-      Array.from({ length: this.count - created }, () => ({ failure: 'exists', kind: 'refused' })),
-    );
-    expect(created, 'I1 one creator').toBe(model.present ? 0 : 1);
+    expect(created, 'I1 one original creator').toBe(model.present ? 0 : 1);
+    for (const outcome of outcomes) {
+      if (outcome.kind === 'bootstrapped') continue;
+      if (outcome.kind === 'contended') {
+        // runConcurrently awaited every original worker; settlement is one fresh attempt.
+        expect(runBootstrap(real.root), 'I1 contention settles to exists').toEqual({
+          failure: 'exists',
+          kind: 'refused',
+        });
+      } else {
+        expect(outcome, 'I1/I6 losers report exists').toEqual({
+          failure: 'exists',
+          kind: 'refused',
+        });
+      }
+    }
     model.present = true;
   }
 
@@ -367,10 +390,16 @@ class ConcurrentAcquires implements fc.AsyncCommand<Model, Real> {
     const losers = outcomes.map((_, index) => index).filter((index) => !winners.includes(index));
     const expected: Outcome[] = [...outcomes];
     for (const index of [...winners, ...losers]) {
+      if (outcomes[index].kind === 'contended') continue;
       const request = this.requests[index];
       expected[index] = modelAcquire(model, request.session, request.path);
     }
     expect(outcomes, 'I4/I5/I6 concurrent acquisitions linearize').toEqual(expected);
+    expect(runInspect(real.root), 'I4 contention consumes no generation or claim').toEqual(
+      model.present
+        ? { kind: 'opened', nextGeneration: model.nextGeneration, sessions: model.sessions.size }
+        : { failure: 'absent', kind: 'refused' },
+    );
   }
 
   toString(): string {
@@ -388,6 +417,47 @@ function repository(): string {
 
 const session = fc.constantFrom('session-a', 'session-b', 'session-c', 'session-d');
 const path = fc.constantFrom(...PATHS);
+
+test('the lifecycle classifier accepts only typed contention', async () => {
+  const root = repository();
+  const databasePath = resolveAuthorityDatabasePath(root);
+  mkdirSync(join(databasePath, '..'));
+  const initializerPath = `${databasePath}.initializing`;
+  mkdirSync(initializerPath);
+  let failure: unknown;
+  try {
+    await fc.assert(
+      fc.asyncProperty(fc.scheduler(), async (scheduler) => {
+        // Proof: replacing the production initializer's typed refusal with a raw Error made
+        // this worker return `untyped: authority database remained busy after 1 attempts`
+        // instead of `contended` (2026-10-14).
+        expect(
+          await runConcurrently({ root }, scheduler, [
+            { op: 'bootstrap', options: { maxBusyAttempts: 1, busyDelayMilliseconds: 0 } },
+          ]),
+        ).toEqual([{ kind: 'contended' }]);
+      }),
+      { numRuns: 1, seed: 20261014 },
+    );
+    try {
+      bootstrapAuthority(root, {
+        clock: FIXED_CLOCK,
+        maxBusyAttempts: 1,
+        busyDelayMilliseconds: 0,
+      }).close();
+    } catch (error) {
+      failure = error;
+    }
+  } finally {
+    rmSync(initializerPath, { recursive: true });
+  }
+  expect(failure).toBeInstanceOf(AuthorityContentionError);
+  expect(classify(failure)).toEqual({ kind: 'contended' });
+  expect(classify(new Error('authority database remained busy after 1 attempts'))).toEqual({
+    failure: 'untyped: authority database remained busy after 1 attempts',
+    kind: 'refused',
+  });
+});
 
 test('authority lifecycle matches its model across concurrent processes', async () => {
   // Proof (sabotages, each restored; every one failed this property, seed 20261012, with the

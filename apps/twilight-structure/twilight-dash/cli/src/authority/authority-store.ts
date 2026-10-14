@@ -1625,10 +1625,13 @@ export function openAuthority(
 /**
  * Creates the authority for a repository that has none: the only creator. It takes the
  * `.initializing` directory lock and re-checks absence under it, so two concurrent bootstraps
- * yield one store and one `exists` refusal.
+ * yield one store and one `exists` refusal when initialization completes within the busy budget.
+ * A peer that exhausts that budget throws typed contention; after the creator exits, a fresh
+ * bootstrap refuses `exists` without changing the store.
  *
  * @throws AuthorityOpenError `exists` when a database is already present, and the same
- *   resolution refusals as {@link openAuthority}.
+ *   resolution refusals as {@link openAuthority}; AuthorityContentionError when initialization
+ *   outlasts the configured busy budget.
  */
 export function bootstrapAuthority(
   worktreePath: string,
