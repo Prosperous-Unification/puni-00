@@ -665,3 +665,15 @@ decoder and Navigator external v7/v8 support remain unchanged. Isolated rerun:
 65 pass, 0 fail. Logs: `json-transfer-red.log` and `json-transfer-green.log` in
 `/tmp/puni-release-candidate-evidence`. This corrects test state rather than adding
 a new production safety check.
+
+### Combined mounted unknown-version fixture — 2026-10-14
+
+The broad backend run ended at 2412 pass, 3 skip and 1 fail. The sole failure,
+`mounted unknown version precedes version-specific validation`, supplied v9,
+which this change makes current; it correctly reached the malformed priority
+field instead of returning `unsupported_version`. Changed only that test input
+to unsupported v10. Production parsing remains unchanged. The broad FE UTC
+run ended at 3985 pass and the two stale export fixtures corrected above; its
+Auckland command was skipped by the UTC failure. The complete broad command
+exited1; it is not a green final gate. Focused final checks are recorded in
+`/tmp/puni-release-candidate-evidence/`.
