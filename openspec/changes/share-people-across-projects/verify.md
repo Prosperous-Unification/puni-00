@@ -5254,3 +5254,81 @@ observations above remain historical evidence about the unchanged production pat
 
 No push, merge, live-host operation, full build, full repository gate or exact-SHA h2 gate was
 performed for this restack. Those checks remain outside this local handoff.
+
+## Packaged host recovery artifact (10.4a, 2026-10-14)
+
+Implemented from exact stacked #437 head `48291fae689a850ac640fc471469900d955c8dce`
+in the isolated `/tmp/puni-shared-restore-bundle-sol` clone. Production restore code,
+fixed paths, isolated-only capability and legacy shared refusal are unchanged.
+`wbs-be-01:build-host-restore` bundles 286 modules into the standalone 0.65 MB
+`dist/apps/wbs/be-01-host/shared-people-host-restore.js`; normal backend build depends on it.
+The explicit uncached `test:host-restore` target selects `.smoke.ts`/`.rehearsal.ts` files
+with `./` paths so ordinary Bun discovery does not implicitly require Docker or an artifact.
+
+RED: the outside-checkout smoke failed with ENOENT before the artifact target existed.
+GREEN: `bunx nx run wbs-be-01:test:host-restore --skip-nx-cache`: **4 pass, 0 fail,
+50 assertions**, no skips (`/tmp/puni-host-bundle-green-final.log`). Official pinned runtime:
+`oven/bun:1.4.2@sha256:9114c058aeae42162ee16dd5084b95fe9473970bb6bcb5b232ab1630f0546895`.
+The unchanged bundle is copied into scratch mounted at the fixed production host paths.
+The runtime has no network, checkout, node_modules, live mounts or Docker socket; Docker
+inspection comes from the test-owned executable in scratch. Personal isolated/shared approvals
+are issued through the composed endpoint before stopping that app and copying its database.
+The isolated case proves ranks, durable receipt/consumption and fresh-process retry after later
+rank/membership edits. Shared and physical refusals preserve DELETE journal mode, every table
+snapshot and the SHA-256 of the whole database file. The default sandbox could not reach Docker;
+that initial run failed loudly rather than skipping. Elevated execution supplied the required
+Docker/socket boundary for the scratch-only namespace rehearsal.
+
+Watched faults rebuilt the real production bundle, then ran its actual CLI in that namespace;
+all source edits and bytes were restored after each. Adjacent `Proof:` comments name these:
+
+| Injected fault                                               | Observed failing production-path assertion                                       |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| Artifact externalized to `/missing-production-dependency.js` | Outside-checkout usage assertion instead received missing-module error.          |
+| `SUPPORTED_CAPACITY_MODES` widened to shared                 | Valid approved shared restore changed journal from DELETE to WAL.                |
+| Host pre-opener guard bypassed                               | Valid approved shared restore changed journal from DELETE to WAL.                |
+| Host flock guard bypassed                                    | Competing fixed lock holder was incorrectly admitted with exit 0.                |
+| Stopped-colour guard bypassed                                | Running green was incorrectly admitted with exit 0.                              |
+| Physical identity guard bypassed                             | Foreign green database inode was incorrectly admitted with exit 0.               |
+| Audited host dispatch replaced by legacy dispatch            | Expected durable receipt was absent after isolated rank recovery.                |
+| Receipt retry branch bypassed                                | Fresh CLI retry after later edits refused instead of returning original success. |
+
+Fault logs: `/tmp/puni-host-bundle-proof-{externalized,capability,pre-opener,flock,colour,identity,dispatch,receipt}.log`.
+The missing artifact RED additionally proves incomplete transport. Final restored target is green.
+
+Additional checks (Nx socket isolation disabled explicitly for sandboxed local commands):
+
+- `bun test apps/wbs/be-01/src/{shared-people-host-restore-process.db,shared-people-host-restore.db,shared-people-backup-cli}.test.ts libs/wbs/adapters/store-sqlite/src/{shared-people-restore.db,shared-people-rollback.db}.test.ts --timeout=60000`:
+  **83 pass, 2 skip, 0 fail, 522 assertions**. The two skips are existing opt-in real-daemon
+  blue/green suites; this artifact rehearsal has zero skips.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-be-01:build --skip-nx-cache`:
+  passed, including its host artifact dependency (`/tmp/puni-host-bundle-build-final.log`).
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-be-01:typecheck --skip-nx-cache`:
+  passed including module checks and new scripts (`/tmp/puni-host-bundle-typecheck-final.log`).
+- `bunx eslint apps/wbs/be-01/src apps/wbs/be-01/scripts/shared-people-host*.ts`: passed.
+- Prettier check on all changed code/config/docs: passed.
+- OpenSpec `validate --all --json` using installed 1.13.0 CLI: passed, **189/189** (171 changes, 18 specs).
+- First full SQLite adapter run: **1442 pass, 1 fail**; the performance certification observed
+  checkout status changing during concurrent mutation/rename work. A stable-tree rerun of that
+  exact test passed (**1 pass, 612 assertions**, 36s); final full rerun follows below.
+
+No push, merge, live-host recovery, shared activation or canonical host gate was performed.
+The runtime image must be fetched explicitly before rehearsal (`--pull=never`); absent Docker,
+Bun or image blocks the target. Task 10.4's attended live-host exclusion, independent review,
+canonical exact-SHA gate and capability activation remain open.
+
+Final complete regression evidence, after restoring all faults and holding the tree stable:
+
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-be-01:test --skip-nx-cache`:
+  **2297 pass, 3 skip, 0 fail, 57314 assertions**, 170 files, 562.32s
+  (`/tmp/puni-host-bundle-backend-full.log`). Existing opt-in skips: the two real-daemon
+  blue/green suites and solver-supervisor orphan process boundary acceptance.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-store-sqlite:test --skip-nx-cache`:
+  **1443 pass, 0 fail**, no skips (`/tmp/puni-host-bundle-store-final.log`), including the
+  previously affected stable-tree performance certification.
+- Restored standalone artifact SHA-256:
+  `2de753946f85bdcf9eeb8f3b0c5c5c661b74cf8e243c3968ac4c832fd52f4e1e`.
+
+All final tests used the same unchanged production restore sources as the exact stacked base.
+The isolated clone reused the existing installed dependency tree; no frozen install or canonical
+host gate is claimed for this local checkpoint.
