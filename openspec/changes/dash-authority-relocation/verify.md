@@ -320,3 +320,40 @@ Observed proofs:
 
 Production files remain unchanged. The previous whole-project candidate-check output
 failure remains outside this repair. No push, merge, or host gate was performed.
+
+### Claims repair source lineage pin (2026-10-14 CI follow-up)
+
+Hosted run `38498502358` failed the legacy source corpus pin on PR #438 head
+`a5797d88b879385b52a24a98ada147d81c56f3ea`. Comparing the claims test with its
+pre-repair base `b144be17d` found exactly two added legacy contexts: the persisted
+`apps/fe-01` and `apps/gw-01` disjoint-claim assertions. They are fixture identities
+in `claims.db.test.ts`, correctly classified as `test fixture or proof`; no production
+occurrences or classification rules changed.
+
+- RED: `bun test tools/tool-devsync/src/repo-namespacing-handoff.test.ts
+--test-name-pattern 'every legacy source occurrence and relevant text family is pinned'`
+  exited 1 with fixture contexts 107 → 109, occurrences 322 → 324, observed digest
+  `1c809c1513514d1e09753be99cb3b42882fda2693da8e4aa7d55fd5c7ae1f511`, and
+  `unclassified: []`. Log: `/tmp/claims-lineage-red.log`.
+- GREEN: the same focused test with `--preload ./tools/test/scratch/preload.ts`
+  passed after updating the pin; an adjacent `Proof:` records this observed negative.
+  Log: `/tmp/claims-lineage-green.log`.
+- Complete source lineage file with the preload and `--timeout=30000`: 15 pass,
+  0 fail, 20 assertions. The first sandbox run had 14 pass and one refusal because
+  the production index checker could not create temporary Git objects in the shared
+  object database. Rerunning with filesystem access passed, without source changes.
+  Logs: `/tmp/claims-lineage-suite.log`, `/tmp/claims-lineage-suite-escalated.log`.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_TUI=false bunx nx run
+tool-devsync:lint --outputStyle=stream` passed, uncached.
+- Prettier check for the changed test passed. Pinned OpenSpec validation command
+  `BUN_TMPDIR=/tmp bunx @fission-ai/openspec@1.12.0 validate --all --json` exited 0.
+- Complete authority suite using the target's trusted-dependency environment, preload,
+  and `--timeout=60000`: 158 pass, 0 fail across 11 files, 751 assertions (109.39 s).
+  Command: `TOOL_WIKI_TRUSTED_NODE_MODULES=/tmp/puni-claims-ci-sol/node_modules bun test
+--preload ../../../../tools/test/scratch/preload.ts src/authority --timeout=60000`
+  from `apps/twilight-structure/twilight-dash/cli`.
+  Log: `/tmp/claims-lineage-authority.log`.
+
+The h2puni host gate, whole-project test, build, typecheck, standalone secrets scan,
+and migration lint were not rerun for this test-pin-only follow-up. Normal commit hooks
+remain required. No push or merge was performed.
