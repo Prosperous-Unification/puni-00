@@ -270,6 +270,12 @@ for (const fault of [
   'unlabeled-pvc',
   'public-open',
   'extra-public-policy',
+  'gateway-init',
+  'gateway-pod-init',
+  'gateway-rs-command',
+  'backend-probe-startupProbe',
+  'backend-probe-readinessProbe',
+  'backend-probe-livenessProbe',
 ] as const) {
   it(`kubectl first-start adapter refuses altered cluster transport: ${fault}`, async () => {
     const root = scratchSync('first-start-kubectl-');
@@ -314,9 +320,11 @@ function output(value){console.log(JSON.stringify(value));}
 const deny=(namespace)=>({apiVersion:'networking.k8s.io/v1',kind:'NetworkPolicy',metadata:{name:'default-deny',namespace},spec:{podSelector:{},policyTypes:['Ingress','Egress']}});
 const fence=(name,namespace)=>({apiVersion:'networking.k8s.io/v1',kind:'NetworkPolicy',metadata:{name,namespace},spec:{podSelector:{matchLabels:{'puni.dev/writes':'fenced'}},policyTypes:['Ingress'],ingress:[{}]}});
 const backendPolicies=[deny('wbs-solver'),fence('wbs-backend-writers','wbs-solver')];const appPolicies=[deny('wbs'),fence('wbs-public-ingress','wbs')];
-if(args.includes('kustomize')){output({apiVersion:'v1',kind:'List',items:[...backendPolicies,appPolicies[1]]});process.exit(0);}
+function deploymentFor(tier){const deployment= {metadata:{uid:tier+'-controller',generation:1},spec:{replicas:1,strategy:{type:'Recreate'},template:{metadata:{labels:{'app.kubernetes.io/name':'wbs-backend','app.kubernetes.io/part-of':'wbs','puni.dev/controller':'wbs-backend','puni.dev/writer':'true'}},spec:{containers:[{name:tier,image:request.identity.backendImage,env:[{name:'DB_PATH',value:'/data/wbs.sqlite'},{name:'MIGRATE_ON_STARTUP',value:'false'}],volumeMounts:[{name:'data',mountPath:'/data'},{name:'tmp',mountPath:'/tmp'},{name:'solver-runtime',mountPath:'/run/wbs-solver'}]}],volumes:[{name:'data',persistentVolumeClaim:{claimName:'wbs-data'}},{name:'tmp',emptyDir:{sizeLimit:'256Mi'}},{name:'solver-runtime',hostPath:{path:'/run/puni/solver',type:'Directory'}}]}}},status:{observedGeneration:1,updatedReplicas:1,readyReplicas:1,availableReplicas:1,replicas:1}};if(tier!=='backend')deployment.spec.template.metadata.labels={'app.kubernetes.io/name':'wbs-'+tier,'app.kubernetes.io/part-of':'wbs'};return deployment;}
+if(args.includes('kustomize')){output({apiVersion:'v1',kind:'List',items:[...backendPolicies,appPolicies[1],...['backend','gateway','frontend','mcp'].map(deploymentFor).map((deployment,index)=>({...deployment,apiVersion:'apps/v1',kind:'Deployment',metadata:{...deployment.metadata,name:'wbs-'+['backend','gateway','frontend','mcp'][index],namespace:index===0?'wbs-solver':'wbs'}}))]});process.exit(0);}
 if(args.includes('networkpolicies')){if(!args.includes('wbs-solver')&&fault==='public-open')appPolicies[1].spec.podSelector={};if(!args.includes('wbs-solver')&&fault==='extra-public-policy')appPolicies.push(fence('extra-allow','wbs'));output({items:args.includes('wbs-solver')?backendPolicies:appPolicies});process.exit(0);}
-if(args.some(arg=>arg.startsWith('deployments,'))){output({items:args.includes('wbs')?['gateway','frontend','mcp'].map(tier=>({kind:'Deployment',metadata:{uid:tier+'-controller'},spec:{replicas:0}})):[]});process.exit(0);}
+function gatewayRs(){const deployment=deploymentFor('gateway');const rs={...deployment,kind:'ReplicaSet',metadata:{uid:'gateway-rs',ownerReferences:[{kind:'Deployment',uid:'gateway-controller',controller:true}]}};if(fault==='gateway-rs-command')rs.spec.template.spec.containers[0].command=['touch','/tmp/injected'];return rs;}
+if(args.some(arg=>arg.startsWith('deployments,'))){output({items:args.includes('wbs')?[...['gateway','frontend','mcp'].map(tier=>({...deploymentFor(tier),kind:'Deployment',spec:{...deploymentFor(tier).spec,replicas:0}})),...(fault==='gateway-pod-init'||fault==='gateway-rs-command'?[gatewayRs()]:[])]:[]});process.exit(0);}
 if(args.includes('create')){fs.writeFileSync(path.join(root,'created.json'),fs.readFileSync(0,'utf8')); process.exit(0);}
 if(args.includes('wait'))process.exit(0);
 if(args.includes('logs')){if(fault==='bad-log'){console.log('malformed');process.exit(0);}console.log('PUNI_SQLITE_REPORT '+JSON.stringify(request.restored)); if(!args.some(arg=>arg.includes(request.restore.name)))console.log('PUNI_FIRST_START_OBSERVATION '+JSON.stringify({activation:'DISABLED',replay:request.restored.replay}));process.exit(0);}
@@ -324,8 +332,9 @@ if(args.includes('namespace')){const name=args[args.indexOf('namespace')+1];outp
 if(args.includes('pvc')){output({metadata:{uid:'volume'},status:{phase:'Bound'}});process.exit(0);}
 if(args.some(arg=>arg.startsWith('kustomizations.'))){output({spec:{suspend:true}});process.exit(0);}
 if(args.includes('networkpolicy')){output({spec:{podSelector:{matchLabels:{'puni.dev/writes':'fenced'}}}});process.exit(0);}
+if(args.includes('pods')&&fault==='gateway-pod-init'&&args.includes('wbs')){const template=deploymentFor('gateway').spec.template;template.spec.initContainers=[{name:'rewrite',image:'foreign',command:['touch','/tmp/injected']}];output({items:[{...template,metadata:{...template.metadata,ownerReferences:[{kind:'ReplicaSet',uid:'gateway-rs',controller:true}]},status:{phase:'Running'}}]});process.exit(0);}
 if(args.includes('pods')){output({items:fault==='unlabeled-pvc'?[{metadata:{name:'rogue',namespace:'wbs-solver',labels:{}},spec:{volumes:[{name:'stolen',persistentVolumeClaim:{claimName:'wbs-data'}}],containers:[{name:'rogue',volumeMounts:[{name:'stolen',mountPath:'/database'}]}]},status:{phase:'Running'}}]:[]});process.exit(0);}
-if(args.includes('deployment')){const tier=args[args.indexOf('deployment')+1].replace('wbs-','');const deployment={metadata:{uid:tier+'-controller',generation:1},spec:{replicas:1,strategy:{type:'Recreate'},template:{metadata:{labels:{'app.kubernetes.io/name':'wbs-backend','app.kubernetes.io/part-of':'wbs','puni.dev/controller':'wbs-backend','puni.dev/writer':'true'}},spec:{containers:[{name:tier,image:request.identity.backendImage,env:[{name:'DB_PATH',value:'/data/wbs.sqlite'},{name:'MIGRATE_ON_STARTUP',value:'false'}],volumeMounts:[{name:'data',mountPath:'/data'},{name:'tmp',mountPath:'/tmp'},{name:'solver-runtime',mountPath:'/run/wbs-solver'}]}],volumes:[{name:'data',persistentVolumeClaim:{claimName:'wbs-data'}},{name:'tmp',emptyDir:{sizeLimit:'256Mi'}},{name:'solver-runtime',hostPath:{path:'/run/puni/solver',type:'Directory'}}]}}},status:{observedGeneration:1,updatedReplicas:1,readyReplicas:1,availableReplicas:1,replicas:1}};if(fault==='rollout-image')deployment.spec.template.spec.containers[0].image='foreign';if(fault==='rollout-status')deployment.status.readyReplicas=0;if(fault==='rollout-mount')deployment.spec.template.spec.volumes[0].persistentVolumeClaim.claimName='foreign';output(deployment);process.exit(0);}
+if(args.includes('deployment')){const tier=args[args.indexOf('deployment')+1].replace('wbs-','');const deployment=deploymentFor(tier);if(fault==='rollout-image')deployment.spec.template.spec.containers[0].image='foreign';if(fault==='rollout-status')deployment.status.readyReplicas=0;if(fault==='gateway-init'&&tier==='gateway')deployment.spec.template.spec.initContainers=[{name:'rewrite',image:'foreign',command:['touch','/tmp/injected']}];if(fault.startsWith('backend-probe-')&&tier==='backend')deployment.spec.template.spec.containers[0][fault.replace('backend-probe-','')]={exec:{command:['touch','/data/wbs.sqlite']}};if(fault==='rollout-mount')deployment.spec.template.spec.volumes[0].persistentVolumeClaim.claimName='foreign';output(deployment);process.exit(0);}
 if(args.includes('job')){const isRestore=args[args.indexOf('job')+1]===request.restore.name;const job=isRestore?restore:JSON.parse(fs.readFileSync(path.join(root,'created.json'),'utf8'));job.metadata.uid=isRestore?'restore':'actual';job.status={succeeded:1};const pod=job.spec.template.spec;
 if(isRestore&&fault==='restore-uid')job.metadata.uid='foreign';
 if(isRestore&&fault==='restore-status')job.status.succeeded=0;
@@ -346,6 +355,8 @@ throw new Error('unmodeled kubectl invocation '+args.join(' '));
         }),
       );
     else if (fault.startsWith('restore-')) await refuse(effects.observeRestore(request));
+    else if (fault === 'gateway-pod-init' || fault === 'gateway-rs-command')
+      await refuse(effects.assertSafety(request, false, false));
     else if (fault !== 'none')
       await refuse(effects.observePvc(request, 'first-start-aaaaaaaaaaaaaaaa'));
     else {

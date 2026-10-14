@@ -257,3 +257,26 @@ before mutation.
 - **GIVEN** an existing parked Lease and missing first-start journal
 - **WHEN** a new transaction attempts first-start
 - **THEN** it refuses before any cluster mutation
+
+### Requirement: First-start certifies every effective tier startup template
+
+Before any tier scale, every live tier Deployment and admitted ReplicaSet startup
+template SHALL match the descriptor-digest trusted release render. Actual descendant
+Pods SHALL satisfy the same startup contract during startup/handoff checks. Only
+explicit Kubernetes defaults and Pod scheduling fields SHALL normalize. Added executable
+probes, init containers, commands, lifecycle hooks, mounts or environment entries/references
+SHALL refuse. Live external Secret/ConfigMap value provenance SHALL remain separate
+operational acceptance; the coordinator SHALL bind reference identity without claiming
+external value-byte pinning.
+
+#### Scenario: Backend probe executes a database update
+
+- **GIVEN** the live backend adds an exec startup, readiness or liveness probe
+- **WHEN** first-start checks its startup contract
+- **THEN** it refuses before any scale
+
+#### Scenario: Owned application actor executes unreviewed startup code
+
+- **GIVEN** a live tier Deployment, owned ReplicaSet or descendant Pod adds an init container, command, hook, mount or environment override
+- **WHEN** first-start checks the effective startup template against the trusted release
+- **THEN** it refuses and keeps suspension, both ingress fences and its Lease

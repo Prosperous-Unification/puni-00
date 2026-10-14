@@ -233,7 +233,15 @@ actual tier labels. All tiers stop before restart to drop existing gateway conne
 All namespace Pods, including unlabeled and terminating claim users, and controllers
 are inventoried; only admitted backend descendants and suspended reviewed backups
 can reference the PVC. Backend volumes/mounts and labels are exact; init containers,
-command/args/lifecycle overrides refuse. Missing durable journal with any existing
+command/args/lifecycle overrides refuse. Executable backend startup/readiness/liveness
+probes also refuse. Every live tier Deployment and admitted ReplicaSet template,
+and every actual descendant Pod, must match the descriptor-digest trusted startup
+render before scale and while checking handoff. Full spec comparison admits only
+explicit Kubernetes defaults and actual Pod scheduling fields; extra containers,
+init/ephemeral containers, mounts, env/envFrom, commands, hooks and probes refuse.
+Live Secret/ConfigMap value provenance is separate external acceptance; reference
+identity is bound, and this candidate does not pin external value bytes. Explicit
+backend DB_PATH/MIGRATE_ON_STARTUP entries retain precedence over envFrom. Missing durable journal with any existing
 Lease refuses takeover before mutation. Attended traffic opening separately reviews
 and pins a revision opening both policies; SQLite authority remains disabled.
 

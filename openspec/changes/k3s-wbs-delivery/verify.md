@@ -889,3 +889,47 @@ SQLite journal, and removing public fence makes that negative fail. Staging,
 attended opening, h4 and canonical full host gate remain unverified. The historical
 project socket suite EPERM checks remain unavailable, not passing. No push, merge,
 production cutover or marker activation occurred.
+
+## F11.1d startup repair after second independent high review
+
+The confirmed executable-probe and application-startup acceptances are repaired.
+Backend startup/readiness/liveness exec probes refuse directly. The production
+adapter compares every live tier Deployment, admitted ReplicaSet and actual Pod
+startup template with the descriptor-digest trusted render before scaling and
+during startup/handoff. Complete specs, labels and annotations compare after an
+explicit normalization of Kubernetes defaults and actual Pod scheduling fields.
+Added executable containers/probes, commands/args/hooks, mounts/volumes and env/envFrom
+references refuse. Existing differing ReplicaSet startup templates also refuse;
+operator cleanup or reviewed recovery is required rather than silently adopting them.
+
+Environment reference identity is exact; explicit backend DB_PATH and
+MIGRATE_ON_STARTUP values win over envFrom. Live Secret/ConfigMap value provenance
+remains separate external operational acceptance. No external value-byte pinning
+is claimed, and no SQLite authority enable transition was introduced.
+
+Fresh checks:
+
+- Seven-file focused Bun suite with `--timeout 30000`: exit 0, 244 pass, 0 fail,
+  402 assertions, 29.39s; `/tmp/puni-f11-startup-final-tests.log`. The previous
+  135 tests remain included. One initial default-5s SQLite fixture timeout occurred
+  under host load; a 30s per-test bound permits the real fixture work and retains
+  bounded failure. No assertion was removed.
+- Watched omission of trusted startup comparison: 96 named real-manifest negatives
+  failed across four tiers and Deployment/descendant Pod scopes. Independent kubectl
+  transport negatives for gateway Deployment initContainer, owned ReplicaSet command
+  and actual Pod initContainer also failed. Omission of executable backend probe
+  refusal made each of the three probe negatives fail. Source restored in finally;
+  logs `/tmp/puni-f11-first-start-startup-proofs/{trusted-startup,startup-transport,backend-probes}.log`.
+  The previous 21 watched repair groups remain recorded above.
+- Scoped Nx lint/typecheck with cache skipped: exit 0;
+  `/tmp/puni-f11-startup-static.log`. Initial lint/typecheck caught two unnecessary
+  escapes and a missed recursive-function rename; both were fixed before rerun.
+- Scoped Nx build: exit 0, target and seven dependencies (seven cached);
+  `/tmp/puni-f11-startup-build.log`. Scoped Nx format and `git diff --check`: exit 0;
+  `/tmp/puni-f11-startup-format-check.log`.
+- Pinned OpenSpec 1.12.0 strict validation: exit 0;
+  `/tmp/puni-f11-startup-openspec.log`.
+
+F11.1d stays unchecked for independent re-review and live acceptance. No live
+cluster, push, merge, activation, full host gate or execute.ts Lease race change.
+The prior Docker/k3d, staging and attended-opening proof gaps remain outstanding.

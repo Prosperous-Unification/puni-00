@@ -26,6 +26,7 @@ import {
   type SourcePort,
 } from './first-start-source';
 import { manifestInventory } from './first-start-source';
+import { assertFirstStartStartup } from './first-start-startup';
 import {
   assertAppActors,
   assertPvcControllers,
@@ -221,6 +222,11 @@ export function assertFirstStartBackend(raw: unknown): void {
     !matchesProjection(labels, allowedLabels)
   )
     throw new Error('first-start backend has unadmitted mounts, startup overrides or labels');
+  // Proof: each backend exec-probe negative fails when executable probe admission is omitted.
+  for (const field of ['startupProbe', 'readinessProbe', 'livenessProbe']) {
+    if (Object.hasOwn(container, field) && Object.hasOwn(requireRecord(container[field]), 'exec'))
+      throw new Error('first-start backend executable probe is unadmitted');
+  }
   // Proof: template fixture mutations expose foreign DB/path/PVC, migration startup, subPath,
   // rolling-update overlap and absent writer labels through the production template boundary.
   if (
@@ -237,6 +243,25 @@ export function assertFirstStartBackend(raw: unknown): void {
     throw new Error(
       'first-start backend opens another database or lacks its single writer contract',
     );
+}
+
+function trustedTierTemplate(trusted: readonly unknown[], tier: K8sTier): unknown {
+  const resource = trusted.find((raw) => {
+    const manifest = requireRecord(raw);
+    return (
+      manifest['kind'] === 'Deployment' &&
+      requireRecord(manifest['metadata'])['name'] === `wbs-${tier}`
+    );
+  });
+  if (resource === undefined) throw new Error(`first-start trusted ${tier} Deployment is absent`);
+  return requireRecord(requireRecord(resource)['spec'])['template'];
+}
+function assertControllerStartup(raw: unknown, trusted: unknown): void {
+  const template = requireRecord(requireRecord(requireRecord(raw)['spec'])['template']);
+  const metadata = requireRecord(template['metadata']);
+  const labels = { ...requireRecord(metadata['labels']) };
+  delete labels['pod-template-hash'];
+  assertFirstStartStartup({ ...template, metadata: { ...metadata, labels } }, trusted);
 }
 
 /** Kubectl adapter shares release Lease/fence/readback logic, without changing its journal schema. */
@@ -342,6 +367,9 @@ export function firstStartEffects(settings: KubectlSettings): FirstStartEffects 
     const backups = new Set<string>();
     for (const raw of rows) {
       const controller = requireRecord(raw);
+      if (controller['kind'] === 'Deployment' || controller['kind'] === 'ReplicaSet')
+        assertControllerStartup(controller, trustedTierTemplate(trusted, 'backend'));
+
       if (controller['kind'] !== 'CronJob') continue;
       const metadata = requireRecord(controller['metadata']);
       const expected: unknown = trusted.find((raw) => {
@@ -542,6 +570,13 @@ export function firstStartEffects(settings: KubectlSettings): FirstStartEffects 
       const trusted: unknown = JSON.parse(manifestInventory(await trustedManifest(request)));
       if (!Array.isArray(trusted))
         throw new Error('first-start trusted policy inventory is malformed');
+      const trustedTier = (tier: K8sTier): unknown => trustedTierTemplate(trusted, tier);
+      const assertDeployment = (raw: unknown, tier: K8sTier): void => {
+        assertFirstStartStartup(
+          requireRecord(requireRecord(raw)['spec'])['template'],
+          trustedTier(tier),
+        );
+      };
       const expectedPolicies = (namespace: string): readonly unknown[] =>
         trusted.filter((raw) => {
           const resource = requireRecord(raw);
@@ -553,6 +588,7 @@ export function firstStartEffects(settings: KubectlSettings): FirstStartEffects 
       const backendDeployment = requireRecord(
         await json(['-n', request.namespaces.backend, 'get', 'deployment', 'wbs-backend']),
       );
+      assertDeployment(backendDeployment, 'backend');
       const backendLabels = requireRecord(
         requireRecord(requireRecord(backendDeployment['spec'])['template'])['metadata'],
       )['labels'];
@@ -581,6 +617,7 @@ export function firstStartEffects(settings: KubectlSettings): FirstStartEffects 
         const deployment = requireRecord(
           await json(['-n', request.namespaces.app, 'get', 'deployment', `wbs-${tier}`]),
         );
+        assertDeployment(deployment, tier);
         const labels = requireRecord(
           requireRecord(requireRecord(requireRecord(deployment['spec'])['template'])['metadata'])[
             'labels'
@@ -592,17 +629,41 @@ export function firstStartEffects(settings: KubectlSettings): FirstStartEffects 
         appUids.add(uid);
         assertFirstStartPolicies(liveAppPolicies, appPolicies, labels, 'wbs-public-ingress');
       }
-      assertAppActors(
-        await json([
-          '-n',
-          request.namespaces.app,
-          'get',
-          'deployments,replicasets,statefulsets,daemonsets,replicationcontrollers,jobs,cronjobs,horizontalpodautoscalers',
-        ]),
-        await json(['-n', request.namespaces.app, 'get', 'pods']),
-        appUids,
-        stopped,
-      );
+      const appPods = await json(['-n', request.namespaces.app, 'get', 'pods']);
+      const appControllers = await json([
+        '-n',
+        request.namespaces.app,
+        'get',
+        'deployments,replicasets,statefulsets,daemonsets,replicationcontrollers,jobs,cronjobs,horizontalpodautoscalers',
+      ]);
+      assertAppActors(appControllers, appPods, appUids, stopped);
+      const controllerRows = requireRecord(appControllers)['items'];
+      if (!Array.isArray(controllerRows))
+        throw new Error('first-start app controller inventory is malformed');
+      for (const raw of controllerRows) {
+        const controller = requireRecord(raw);
+        if (controller['kind'] !== 'Deployment' && controller['kind'] !== 'ReplicaSet') continue;
+        const template = requireRecord(requireRecord(controller['spec'])['template']);
+        const labels = requireRecord(requireRecord(template['metadata'])['labels']);
+        const tier = (['gateway', 'frontend', 'mcp'] as const).find(
+          (tier) => labels['app.kubernetes.io/name'] === `wbs-${tier}`,
+        );
+        if (tier === undefined) throw new Error('first-start app controller tier is unadmitted');
+        assertControllerStartup(controller, trustedTier(tier));
+      }
+      const appRows = requireRecord(appPods)['items'];
+      if (!Array.isArray(appRows)) throw new Error('first-start app Pod inventory is malformed');
+      for (const raw of appRows) {
+        const pod = requireRecord(raw);
+        const phase = requireRecord(pod['status'])['phase'];
+        if (phase === 'Succeeded' || phase === 'Failed') continue;
+        const labels = requireRecord(requireRecord(pod['metadata'])['labels']);
+        const tier = (['gateway', 'frontend', 'mcp'] as const).find(
+          (tier) => labels['app.kubernetes.io/name'] === `wbs-${tier}`,
+        );
+        if (tier === undefined) throw new Error('first-start app Pod tier is unadmitted');
+        assertFirstStartStartup(pod, trustedTier(tier), true);
+      }
       const replicaSets = await observeControllers(request, stopped);
       assertPvcWriters(writers, request.pvc.name, stopped, replicaSets);
       if (!stopped) {
@@ -620,6 +681,7 @@ export function firstStartEffects(settings: KubectlSettings): FirstStartEffects 
           const metadata = requireRecord(pod['metadata']);
           const labels = { ...requireRecord(metadata['labels']) };
           delete labels['pod-template-hash'];
+          assertFirstStartStartup(pod, trustedTier('backend'), true);
           assertFirstStartBackend({
             spec: {
               strategy: { type: 'Recreate' },
