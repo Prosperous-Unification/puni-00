@@ -56,6 +56,7 @@ describe('space rollback save, remove and restore', () => {
     expect(snapshot()).toEqual({ spaces: [], members: [] });
 
     expect(rollbackTo(path, FOLDER, BEFORE_SPACES)).toEqual([
+      '20261014130000_add_shared_people_restore_receipts',
       '20261014120000_add_shared_people_restore_approvals',
       '20261012130000_add_step_estimate_unit',
       '20261012120000_add_step_node_attempts',

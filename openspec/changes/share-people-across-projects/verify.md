@@ -52,6 +52,23 @@ helper imported by this suite. Existing commands below record historical paths.
 `WBS_HOST_RESTORE_REAL_DOCKER=1` and an explicitly supplied proof image; live Docker
 fencing was not rerun in this CI fixture repair.
 
+## Stacked hosted CI repair: receipt migration fixtures (2026-10-14)
+
+PR #434 introduces `20261014130000_add_shared_people_restore_receipts` after the
+approval migration. Full-chain literal rollback answers and current-baseline assertions
+include this migration; historical schema comparisons exclude its receipt and consumption
+tables. The unit-refusal fixture remains pinned at the unit migration before corruption.
+The receipt and consumption tables join the schema-validated audit exemptions because
+they carry completion evidence and consent bindings rather than general audit columns.
+
+Before this repair, composed CLI/challenge/audit suites: 56 pass, 3 fail
+(`/tmp/puni-434-red.log`). R5 proof: injecting `auditColumns()` into receipt and consumption
+schema declarations failed the exemption guard naming both entries
+(`/tmp/puni-434-audit-proof-red.log`). The mutation was restored and its observed failure
+is recorded beside the exemptions. All production files and SQL remain byte-identical
+to original PR #434 head `12cf060d8`; only test fixtures, a test filename, and this
+verification record differ. Fresh hosted checks and the locked host gate remain required.
+
 ## Slice 0 — spec
 
 Written on `batch-9/010-4-16-capacity-spec` from main `4bb71e5f`. The change name, the four
