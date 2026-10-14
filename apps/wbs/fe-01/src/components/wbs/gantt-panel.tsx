@@ -3197,7 +3197,9 @@ interface GanttProps {
   scheduleError: 'calendar_range' | 'cycle' | null;
   /**
    * Which chart read this is drawn from — a number that moves whenever a new
-   * one lands.
+   * one lands, and 0 before any has (`NO_CHART_READ`): the plan drawn at 0 is
+   * the empty placeholder, whose links are not known yet (F-065, the detail
+   * switch's never-said default waits for the first read).
    *
    * An open hover surface is closed when this moves, and that is the whole of
    * why it is a prop rather than something the panel could work out. A slice
@@ -3610,6 +3612,15 @@ export function GanttRenderer({
   const [viewportPx, setViewportPx] = useState(0);
   const viewportPxReading = useRef(0);
   /**
+   * Takes {@link scrolledPx} off one scroll box: on its own scroll events, and
+   * whenever a box is mounted — Full puts the chart in a new box at 0.
+   */
+  const readTheScroll = useCallback((port: HTMLElement): void => {
+    if (port.scrollLeft === scrolledPxReading.current) return;
+    scrolledPxReading.current = port.scrollLeft;
+    setScrolledPx(port.scrollLeft);
+  }, []);
+  /**
    * Whether anything is below the fold, off one laid-out scroll box.
    *
    * The box is a parameter rather than the ref: the observer below holds the
@@ -3707,6 +3718,15 @@ export function GanttRenderer({
     if (!(row instanceof HTMLElement)) {
       throw new Error("the chart's scroll box holds no content row to watch");
     }
+    // A new box starts at `scrollLeft` 0, and the caption's month and the
+    // marker-rule density are read off the scroll — so the offset is taken
+    // from the box on screen, not carried over from the one Full replaced.
+    //
+    // Proof: with this line removed, `gantt-panel.test.tsx` `names the month
+    // of the box on screen after Full is switched on and off` failed on
+    // `Unable to find an element with the text: Aug 2026` — the caption still
+    // naming September over a box at 0 (ui-review F-064). Watched 2026-10-14.
+    readTheScroll(port);
     measureTheFold(port);
     measureTheViewport(port);
     measureTheSpan(port);
@@ -3721,12 +3741,16 @@ export function GanttRenderer({
     return () => {
       watch.disconnect();
     };
-  }, [fullScreen, measureTheFold, measureTheSpan, measureTheViewport]);
+  }, [fullScreen, measureTheFold, measureTheSpan, measureTheViewport, readTheScroll]);
   // Dependency arrows and parent summary brackets open with detail shown when
   // either legacy or typed dependencies exist. {@link useGanttDetail} owns the
-  // stored answer; this panel draws the marks and the switch.
+  // stored answer; this panel draws the marks and the switch. Generation 0 is
+  // "no plan read has landed" ({@link GanttProps.generation}): the links are
+  // not known yet, which is not the same as a plan without links (F-065).
   const detail = useGanttDetail(
-    plan.dependencies.length > 0 || (plan.typedDependencies?.length ?? 0) > 0,
+    generation === 0
+      ? null
+      : plan.dependencies.length > 0 || (plan.typedDependencies?.length ?? 0) > 0,
   );
   const detailShown = detail.shown;
   const fullScreenRef = useRef<HTMLDivElement | null>(null);
@@ -6140,11 +6164,7 @@ export function GanttRenderer({
               }
         }
         onScroll={(scrollEvent) => {
-          const nextScrolledPx = scrollEvent.currentTarget.scrollLeft;
-          if (nextScrolledPx !== scrolledPxReading.current) {
-            scrolledPxReading.current = nextScrolledPx;
-            setScrolledPx(nextScrolledPx);
-          }
+          readTheScroll(scrollEvent.currentTarget);
           // The fold moved: a reader who has scrolled to the last row is owed
           // the fade going away, and one who scrolls back up is owed it
           // returning. The event's own target is the box, so nothing here has

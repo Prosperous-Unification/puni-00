@@ -4597,6 +4597,42 @@ describe('the caption follows the scroll', () => {
   });
 
   /**
+   * Full mounts a new scroll box (the overlay wraps the chart in a layer the
+   * panel is not in), and a new box starts at `scrollLeft` 0 — so the caption
+   * has to name the month at 0, not the month the old box was scrolled to.
+   * The same on the way back under the plan. ui-review F-064.
+   */
+  itDom('names the month of the box on screen after Full is switched on and off', () => {
+    augustIntoSeptember();
+    const scrolled = document.querySelector('[data-gantt-panel]');
+    if (!(scrolled instanceof HTMLElement)) throw new Error('the panel is not on the page');
+    scrolled.scrollLeft = 8 * DAY_PX + CHART_PAD_PX;
+    fireEvent.scroll(scrolled);
+    expect(screen.getByText('Sep 2026')).toBeDefined();
+
+    const pressFull = (): void => {
+      const toggle = document.querySelector('[data-gantt-fullscreen-toggle]');
+      if (!(toggle instanceof HTMLElement)) throw new Error('the full-screen switch is not drawn');
+      fireEvent.click(toggle);
+    };
+    pressFull();
+    const full = document.querySelector('[data-gantt-panel]');
+    if (!(full instanceof HTMLElement)) throw new Error('full screen drew no scroll box');
+    expect(full, 'setup: Full mounts a new scroll box').not.toBe(scrolled);
+    expect(full.scrollLeft).toBe(0);
+    expect(screen.getByText('Aug 2026')).toBeDefined();
+    expect(screen.queryByText('Sep 2026')).toBeNull();
+
+    full.scrollLeft = 8 * DAY_PX + CHART_PAD_PX;
+    fireEvent.scroll(full);
+    expect(screen.getByText('Sep 2026')).toBeDefined();
+    pressFull();
+    expect(document.querySelector('[data-gantt-fullscreen]'), 'setup: Full closed').toBeNull();
+    expect(screen.getByText('Aug 2026')).toBeDefined();
+    expect(screen.queryByText('Sep 2026')).toBeNull();
+  });
+
+  /**
    * A scroll reads no rect.
    *
    * The panel's `onScroll` measured **both** the fold and the content row's
@@ -4710,13 +4746,15 @@ const everyGatedMark = (
   });
 
 describe('the detail switch', () => {
+  // Generation 1: a read has landed, so the plan's links are known and the
+  // never-said default is decided on them (F-065). At 0 it waits.
   const drawEveryMark = (plan: GanttPlan = everyGatedMark()) =>
     render(
       <GanttPanel
         plan={plan}
         startDate={MONDAY_START}
         scheduleError={null}
-        generation={0}
+        generation={1}
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
@@ -4784,6 +4822,38 @@ describe('the detail switch', () => {
     expect(typedElbow).toBe(markAttribute('[data-gantt-arrow="A->B"]', 'd'));
     expect(typedHead).toBe(markAttribute('[data-gantt-arrow-head="A->B"]', 'd'));
   });
+
+  /**
+   * The chart can mount before the first plan read lands (generation 0, no
+   * rows, no links). The never-said default waits for that read instead of
+   * being decided on the empty plan, so a plan with links opens with the
+   * detail on however the two arrived (ui-review F-065).
+   *
+   * Proof: on the code before F-065 this failed on `expected 'false' to be
+   * 'true'` — the switch decided off on the empty plan and kept it. Watched
+   * 2026-10-14.
+   */
+  itDom(
+    'decides the never-said detail on the first read, not on the chart mounted before it',
+    () => {
+      const waiting = (generation: number, plan: GanttPlan) => (
+        <GanttPanel
+          plan={plan}
+          startDate={MONDAY_START}
+          scheduleError={null}
+          generation={generation}
+          heightPx={null}
+          onPickRow={() => undefined}
+          onPointRow={() => undefined}
+          pointed={pointedAtRow(null)}
+        />
+      );
+      const drawn = render(waiting(0, planOf({ rows: [], slices: [] })));
+      drawn.rerender(waiting(1, everyGatedMark()));
+      expect(theSwitch().getAttribute('aria-pressed')).toBe('true');
+      expect(countOf('[data-gantt-arrow]')).toBeGreaterThan(0);
+    },
+  );
 
   itDom('opens with both families on a plan with edges, and hides them when asked', () => {
     drawEveryMark();
