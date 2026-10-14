@@ -3999,3 +3999,32 @@ are `/tmp/history-mutations.py`, `/tmp/history-mutations.json` and `/tmp/history
 - `git diff --check` — no whitespace errors.
 
 Nx reported denied Unix plugin sockets and explicitly ran plugins in the main process. Its scoped lint/typecheck targets completed successfully. The full host-wide gate, full monorepo tests/build, live remote acquisition, external provider review/authentication and independently deployed ownership were not run by this bounded worker. The parent integration owner retains the canonical release gate and Astra exact-SHA review.
+
+### Astra P1 correction: preserve BOM in exact Git tree filenames
+
+Independent review of `d8fc5bb8f13d41fbbfb46aa8cdcdd3958faea26d` found that default
+UTF-8 `TextDecoder` strips a leading BOM from each Git filename. A historical tree containing
+only `nested/\uFEFFsource.ts` therefore satisfied the absent selector `nested/source.ts`.
+The decoder now uses `ignoreBOM: true`, preserving the BOM as part of the filename. Both
+acquisition and retained reopen use this shared tree-edge decoder.
+
+The production regression `historical %s tree filenames preserve BOM and refuse absent
+unprefixed selectors` uses real SHA-1 and SHA-256 repositories. Git's exact plain selector
+exits 128. Preparation must refuse with `historical path absent: source.ts` and publish no
+ready state. The test then declares the exact BOM-prefixed path, captures it, deletes the
+source checkout, reopens and reads its exact bytes; the plain path remains unselected.
+
+Observed proof: `bun test apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-objects.test.ts --test-name-pattern 'tree filenames preserve BOM'`
+was RED for both formats before the fix, GREEN afterward (two tests, 12 assertions), then RED
+again after independently omitting only `ignoreBOM: true` from the filename decoder. The
+omission run exited 1 with two named failures; mutated source SHA-256 was
+`15e4a33769c7d294d5176b43b80f9bd78dfffe490b8051a3ff1929613707bdd0`.
+The option was restored before final verification. Local proof outputs are
+`/tmp/history-bom-red.log`, `/tmp/history-bom-omission.log` and `/tmp/history-bom-omission.json`.
+An adjacent `Proof:` comment names this fault and the observed production tests.
+
+Fresh successor checks: the same two-file Bun suite listed above passed 179 tests and 380
+assertions (zero failures, 14.10 seconds); scoped uncached Nx lint passed in 14.2 seconds and
+typecheck in 1.5 seconds. This is a correction restoring the precise existing historical-path
+contract; no new observable contract or external authority was introduced. Full canonical gate
+and independent successor review remain the parent integration owner's work.

@@ -230,7 +230,12 @@ function readTreeEdge(bytes: Uint8Array, component: string, width: number) {
     if (space < offset || nul < space || end > bytes.length)
       throw new Error('historical tree body malformed');
     const mode = Buffer.from(bytes.subarray(offset, space)).toString('ascii');
-    const name = new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(space + 1, nul));
+    // A leading BOM belongs to the Git filename, so decoding must preserve it.
+    // Proof: omitting ignoreBOM accepted nested/\uFEFFsource.ts for an absent nested/source.ts;
+    // both real SHA-1/SHA-256 tree-filename production tests were RED, then GREEN restored.
+    const name = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(
+      bytes.subarray(space + 1, nul),
+    );
     // Proof: malformed mode, traversal name and duplicate name each lost its
     // decoder refusal under independent omissions with the Git hash dependency broken.
     if (

@@ -2148,3 +2148,63 @@ test.each(['bytes', 'objects'] as const)(
     ).toThrow('retained storage ceiling exceeded');
   },
 );
+
+test.each(['sha1', 'sha256'] as const)(
+  'historical %s tree filenames preserve BOM and refuse absent unprefixed selectors',
+  (format) => {
+    const input = historyFixture(format);
+    const repository = input.sourceRepository;
+    const historicalPath = 'nested/\uFEFFsource.ts';
+    renameSync(join(repository, 'nested/source.ts'), join(repository, historicalPath));
+    writeFileSync(join(repository, historicalPath), 'exact BOM filename body\n');
+    git(repository, 'add', '--all');
+    git(repository, 'commit', '--quiet', '-m', 'BOM historical filename');
+    const revision = git(repository, 'rev-parse', 'HEAD');
+    const absent = Bun.spawnSync([
+      '/usr/bin/git',
+      '-C',
+      repository,
+      'show',
+      `${revision}:nested/source.ts`,
+    ]);
+    expect(absent.exitCode).toBe(128);
+    expect(git(repository, 'show', `${revision}:${historicalPath}`)).toBe(
+      'exact BOM filename body',
+    );
+    renameSync(join(repository, historicalPath), join(repository, 'nested/source.ts'));
+    const declarationPath = join(repository, 'declared.json');
+    const declaration = JSON.parse(readFileSync(declarationPath, 'utf8')) as {
+      facts: { at: { revision: string }; path: string }[];
+    };
+    declaration.facts[0].at.revision = revision;
+    writeFileSync(declarationPath, JSON.stringify(declaration));
+    git(repository, 'add', '--all');
+    git(repository, 'commit', '--quiet', '-m', 'head selecting absent plain filename');
+    const { requestIdentity: _identity, schemaVersion: _schema, ...fields } = input.request;
+    const request = createActivationRequest({
+      ...fields,
+      headSha: git(repository, 'rev-parse', 'HEAD'),
+    }).request;
+    const owner = installLocalReviewSource(input.configuration);
+    expect(() => owner.prepare(request)).toThrow('historical path absent: source.ts');
+    expect(readdirSync(input.storeBase)).toEqual([]);
+
+    declaration.facts[0].path = historicalPath;
+    writeFileSync(declarationPath, JSON.stringify(declaration));
+    git(repository, 'add', '--all');
+    git(repository, 'commit', '--quiet', '-m', 'head selecting exact BOM filename');
+    const exactRequest = createActivationRequest({
+      ...fields,
+      headSha: git(repository, 'rev-parse', 'HEAD'),
+    }).request;
+    const prepared = owner.prepare(exactRequest);
+    rmSync(repository, { recursive: true });
+    const candidate = owner.open(exactRequest, prepared.snapshotIdentity, prepared.historyIdentity);
+    expect(candidate.readHistorical(revision, historicalPath)).toEqual(
+      Buffer.from('exact BOM filename body\n'),
+    );
+    expect(() => candidate.readHistorical(revision, 'nested/source.ts')).toThrow(
+      'selector is not retained',
+    );
+  },
+);
