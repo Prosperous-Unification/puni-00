@@ -82,4 +82,4 @@
 - [x] 6.4.17 Refuse unreadable census directories explicitly before shell glob traversal; prove an empty directory remains admissible and a chmod000 hardlink cannot be hidden under reduced capabilities.
 
 - [x] 6.4.18 Repair merged predecessor boot refusal with hash-pinned inert maintenance, exact-ID backup/capture/migrate, durable maintenance/migration receipts and stopped proof before app exposure; preserve the boot admission check and disabled activation.
-- [ ] 6.4.19 Complete authentic predecessor/interruption, snapshot/identity/configuration and watched guard proofs, scoped verification, reviewed BusyBox integration and exact-image rehearsal; obtain combined independent review before publication.
+- [x] 6.4.19 Complete authentic predecessor/interruption, snapshot/identity/configuration and watched guard proofs, scoped verification, reviewed BusyBox integration and exact-image rehearsal; obtain combined independent review before publication.
