@@ -343,13 +343,14 @@ test.describe('the ref column, in a browser', () => {
     // see the note at the top of this test.
     expect(measured.wiredRow, 'the two rows are not the same height').toBe(measured.bareRow);
     expect(measured.wiredCell, 'the two cells are not the same width').toBe(measured.bareCell);
-    // And the column really is the 32px the width table declares (40 until
-    // 2026-09-13), or "the same width" is two cells agreeing about a number
+    // And the column really is the 36px the width table declares (40 until
+    // 2026-09-13, 32 until the UI review of 2026-10-13 gave its heading the
+    // word back), or "the same width" is two cells agreeing about a number
     // nobody chose.
-    expect(measured.wiredCell).toBe(32);
+    expect(measured.wiredCell).toBe(36);
   });
 
-  test('the heading is a drawn link, and the column is ruled off from the name', async ({
+  test('the heading is the word Links, and the column is ruled off from the name', async ({
     page,
   }) => {
     // Dany, 2026-08-31, from a screenshot: "maybe add a vertical line separator
@@ -364,23 +365,18 @@ test.describe('the ref column, in a browser', () => {
     await seed(page);
 
     const heading = page.locator('th[data-column="refs"]');
-    // The word is gone from the ink and still there for a reader who is not
-    // looking at ink: an `aria-hidden` icon alone would leave this column
-    // heading announcing nothing, and a heading is what names every cell below.
+    // **The word again since the UI review of 2026-10-13 (F-043)**: a bare
+    // link glyph read as a control rather than a heading. The header row is
+    // sentence case with no tracking now, where `Links` is 26px, so it sits
+    // inside the 36px column instead of running under `Name`.
     await expect(heading).toHaveAccessibleName(/Links/);
-    expect(await heading.locator('svg').count(), 'the heading draws no link glyph').toBeGreaterThan(
-      0,
-    );
-
-    // Nothing visible sticks out of the 32px the column declares. `sr-only` is
-    // clipped to a 1px box, so it is the icon this measures.
+    await expect(heading).toHaveText('Links');
     const box = await heading.boundingBox();
-    const drawn = await heading.locator('svg').first().boundingBox();
-    if (box === null || drawn === null) throw new Error('the refs heading has no box');
-    expect(box.width).toBe(32);
-    expect(drawn.width, 'the drawn link has no width').toBeGreaterThan(0);
-    expect(drawn.x).toBeGreaterThanOrEqual(box.x);
-    expect(drawn.x + drawn.width).toBeLessThanOrEqual(box.x + box.width);
+    const word = await heading.locator('span').first().boundingBox();
+    if (box === null || word === null) throw new Error('the refs heading has no box');
+    expect(box.width).toBe(36);
+    expect(word.x).toBeGreaterThanOrEqual(box.x);
+    expect(word.x + word.width).toBeLessThanOrEqual(box.x + box.width);
 
     // And the rule. It is an `inset` box-shadow rather than a border, because a
     // border would take a pixel the column's measured width does not include —

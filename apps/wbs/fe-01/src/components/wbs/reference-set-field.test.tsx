@@ -394,8 +394,14 @@ describe('the reference strip on one rest line', () => {
 
     // Both, singly. One `nowrap` beside one `wrap` still wraps, so a check
     // that reads either container alone passes with the bug in the other.
+    // Since the review of PR #409 the chip group wraps at rest too — into a
+    // second line it never shows, so a chip that does not fit is not drawn
+    // cut — and it is held to its one line by its height and its clip.
+    // Proof: the `maxHeight` dropped, this failed on `expected '' to be
+    // '18px'`. Watched 2026-10-13.
     expect(getComputedStyle(strip()).flexWrap).toBe('nowrap');
-    expect(getComputedStyle(chipsOf()).flexWrap).toBe('nowrap');
+    expect(chipsOf().style.maxHeight).toBe('18px');
+    expect(chipsOf().style.overflow).toBe('hidden');
   });
 
   itDom('wraps both containers only while a crowded cell is edited', () => {
@@ -421,20 +427,60 @@ describe('the reference strip on one rest line', () => {
     expect(parseFloat(getComputedStyle(searchOf()).minWidth)).toBe(72);
   });
 
-  itDom('fades and clips the rest line, and does neither while editing', () => {
-    render(<ReferenceSetStrip label="Teams" adapter={crowded()} />);
+  itDom(
+    'clips the rest line, fades it only over hidden chips, and does neither while editing',
+    () => {
+      // Since the review of PR #409 (D4) the fade and a `+N` count say that the
+      // line wrapped chips out of sight — a layout fact, measured with a
+      // ResizeObserver. jsdom has neither, so both are stubbed here: the line's
+      // bottom at 18 and every chip after the first at 40, below it.
+      // Proof: the count's render removed, this failed on `.toMatch()
+      // expects to receive a string, but got undefined`; and with the fade made
+      // unconditional, `a line that hides nothing wears no fade` in
+      // `e2e/plan-table-review.spec.ts` failed on `Expected: "none"`.
+      // Watched 2026-10-14.
+      const observed: (() => void)[] = [];
+      vi.stubGlobal(
+        'ResizeObserver',
+        class {
+          constructor(measure: () => void) {
+            observed.push(measure);
+          }
+          // The effect measures once on its own; jsdom resizes nothing after.
+          observe = vi.fn();
+          disconnect = vi.fn();
+        },
+      );
+      const rect = vi
+        .spyOn(Element.prototype, 'getBoundingClientRect')
+        .mockImplementation(function (this: Element) {
+          const chips = this.parentElement?.querySelectorAll('[data-reference-chip]');
+          const below = this.hasAttribute('data-reference-chip') && chips?.[0] !== this;
+          return DOMRect.fromRect({ x: 0, y: below ? 40 : 0, width: 10, height: 18 });
+        });
+      try {
+        render(<ReferenceSetStrip label="Teams" adapter={crowded()} />);
 
-    expect(strip().style.overflow).toBe('hidden');
-    // Read back as a property rather than matched against the constant's
-    // text: jsdom 30 re-spells `#000` as `rgb(0, 0, 0)` on the way in.
-    expect(strip().style.maskImage).toContain('linear-gradient(to left');
-    fireEvent.focus(screen.getByRole('combobox', { name: 'Teams' }));
-    // The picker's list opens inside this element. A clip or a mask at that
-    // moment cuts the directory somebody has just opened — the Depends-on
-    // cell's own rule, and why both belong to rest alone.
-    expect(strip().style.overflow).toBe('visible');
-    expect(strip().style.maskImage).toBe('');
-  });
+        expect(strip().style.overflow).toBe('hidden');
+        // Read back as a property rather than matched against the constant's
+        // text: jsdom 30 re-spells `#000` as `rgb(0, 0, 0)` on the way in.
+        expect(strip().style.maskImage).toContain('linear-gradient(to left');
+        const count = strip().querySelector('[data-reference-hidden-count]');
+        expect(count?.textContent).toMatch(/^\+[1-9]/);
+        expect(count?.getAttribute('title')).toMatch(/^Also: /);
+      } finally {
+        rect.mockRestore();
+        vi.unstubAllGlobals();
+      }
+      expect(observed.length).toBeGreaterThan(0);
+      fireEvent.focus(screen.getByRole('combobox', { name: 'Teams' }));
+      // The picker's list opens inside this element. A clip or a mask at that
+      // moment cuts the directory somebody has just opened — the Depends-on
+      // cell's own rule, and why both belong to rest alone.
+      expect(strip().style.overflow).toBe('visible');
+      expect(strip().style.maskImage).toBe('');
+    },
+  );
 
   itDom('leaves the flow while it is edited, on a line the anchor keeps', () => {
     render(<ReferenceSetStrip label="Teams" adapter={crowded()} />);
@@ -737,7 +783,7 @@ describe('the Type cell selects one type', () => {
   itDom('rests a flagged conflict on one line', () => {
     render(<ReferenceSetStrip label="Types" adapter={typed(['type-story', 'type-spike'])} />);
     expect(getComputedStyle(strip()).flexWrap).toBe('nowrap');
-    expect(getComputedStyle(chipsOf()).flexWrap).toBe('nowrap');
+    expect(chipsOf().style.maxHeight).toBe('18px');
   });
 
   itDom('keeps adding to the whole set for a many-member kind', async () => {

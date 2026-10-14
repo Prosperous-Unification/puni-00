@@ -86,6 +86,13 @@ export interface FoldedStepCardProps {
    * `null` where the card offers none — a parent, an uncoded older read.
    */
   attemptActions: AttemptActions | null;
+  /**
+   * Whether the cell's box is being typed in. The typing help
+   * ({@link SHORTHAND_HELP}) rides the card only then, or beside a complaint:
+   * on a card a pointer opened it was the same paragraph on every cell of the
+   * plan (UI review F-044, 2026-10-13). Absent reads as not typing.
+   */
+  typing?: boolean;
 }
 
 /**
@@ -132,6 +139,7 @@ export function FoldedStepCard({
   problem,
   node,
   attemptActions,
+  typing = false,
 }: FoldedStepCardProps) {
   const unitWords = estimateUnit === 'minutes' ? 'min' : 'days';
   const finalWords = estimateUnit === 'minutes' ? final : `${final} days`;
@@ -187,111 +195,117 @@ export function FoldedStepCard({
     // Placed diagonally — past this cell and past this row — like every other
     // card a plan cell opens. {@link sidewaysPlacement} picks the side.
     <HoverCard id={id} takesPointer={stepNode !== null} onPointerArrives={onPointerArrives}>
-      {/*
+      {/* `data-step-card` gives every action below one size and rhythm in
+          `styles.css` — three platform buttons of three sizes stacked on three
+          lines was the other half of F-044. */}
+      <div data-step-card="">
+        {/*
         The reading first, in words beside its corner glyph: the glyph is
         what the cell shows, and this is where a reader learns it. Then what
         the attempts came to, and who made the latest and under what
         reference — the lines a reader asking "why is this waiting?" wants.
       */}
-      {node !== null && (
-        <>
-          <div style={{ fontWeight: 600, color: NODE_READING_TOKEN[node.reading] ?? undefined }}>
-            <span aria-hidden="true" style={{ marginRight: 4 }}>
-              {NODE_READING_GLYPH[node.reading]}
-            </span>
-            <span>{NODE_READING_LABEL[node.reading]}</span>
-          </div>
-          {attempted !== null && <div>{attempted}</div>}
-          {lastAttempt !== null && <div>{lastAttempt}</div>}
-        </>
-      )}
-      <div style={{ fontWeight: 600 }}>
-        {stepName} for {number}
-      </div>
-      {stepNode !== null && (
-        <div>
-          <div>{reference === null ? 'Uncoded step' : `${reference} · ${stepName}`}</div>
-          {reference !== null && (
+        {node !== null && (
+          <>
+            <div style={{ fontWeight: 600, color: NODE_READING_TOKEN[node.reading] ?? undefined }}>
+              <span aria-hidden="true" style={{ marginRight: 4 }}>
+                {NODE_READING_GLYPH[node.reading]}
+              </span>
+              <span>{NODE_READING_LABEL[node.reading]}</span>
+            </div>
+            {attempted !== null && <div>{attempted}</div>}
+            {lastAttempt !== null && <div>{lastAttempt}</div>}
+          </>
+        )}
+        <div style={{ fontWeight: 600 }}>
+          {stepName} for {number}
+        </div>
+        {stepNode !== null && (
+          <div>
+            <div>{reference === null ? 'Uncoded step' : `${reference} · ${stepName}`}</div>
+            {reference !== null && (
+              <button
+                type="button"
+                data-card-action
+                onKeyDown={onActionKeyDown}
+                onClick={() => {
+                  copyText(
+                    reference,
+                    `Copied step reference ${reference}.`,
+                    'Could not copy step reference.',
+                  );
+                }}
+              >
+                Copy reference
+              </button>
+            )}
             <button
               type="button"
               data-card-action
               onKeyDown={onActionKeyDown}
               onClick={() => {
-                copyText(
-                  reference,
-                  `Copied step reference ${reference}.`,
-                  'Could not copy step reference.',
-                );
+                const url = new URL(window.location.href);
+                url.searchParams.set('project', projectId);
+                url.searchParams.set('stepNode', stepNode.id);
+                copyText(url.href, 'Copied step link.', 'Could not copy step link.');
               }}
             >
-              Copy reference
+              Copy link
             </button>
-          )}
-          <button
-            type="button"
-            data-card-action
-            onKeyDown={onActionKeyDown}
-            onClick={() => {
-              const url = new URL(window.location.href);
-              url.searchParams.set('project', projectId);
-              url.searchParams.set('stepNode', stepNode.id);
-              copyText(url.href, 'Copied step link.', 'Could not copy step link.');
-            }}
-          >
-            Copy link
+          </div>
+        )}
+        {onAddDependency !== undefined && (
+          <button type="button" onKeyDown={onActionKeyDown} onClick={onAddDependency}>
+            Add dependency from {stepName}
           </button>
-        </div>
-      )}
-      {onAddDependency !== undefined && (
-        <button type="button" onKeyDown={onActionKeyDown} onClick={onAddDependency}>
-          Add dependency from {stepName}
-        </button>
-      )}
-      {/*
+        )}
+        {/*
         The attempts themselves, newest first, and what can be done to them —
         after the copy actions, so F2 still lands on Copy reference and Tab
         walks on into these.
       */}
-      {node !== null && stepNode !== null && (
-        <AttemptsSection
-          node={node}
-          label={reference ?? `${stepName} for ${number}`}
-          actions={attemptActions}
-          onActionKeyDown={onActionKeyDown}
-        />
-      )}
-      {/*
+        {node !== null && stepNode !== null && (
+          <AttemptsSection
+            node={node}
+            label={reference ?? `${stepName} for ${number}`}
+            actions={attemptActions}
+            onActionKeyDown={onActionKeyDown}
+          />
+        )}
+        {/*
         Said in words, not as `2/3/8`: the shorthand is what an estimator types
         into the cell, and a card is read by whoever is looking at the plan.
       */}
-      <div>
-        {estimated
-          ? points.map((each) => `${each.point} ${each.days === '' ? '—' : each.days}`).join(' · ')
-          : 'No estimate yet'}
-      </div>
-      {estimate !== undefined && allowancePercent !== 0 ? (
-        <>
-          <div>
-            Base estimate {auditDays(combinedFigure(estimate, rule))} {unitWords}
-          </div>
-          <div>Allowance +{String(allowancePercent)}%</div>
-          <div>
-            Before rounding {auditDays(beforeRoundingFigure(estimate, rule, allowancePercent))}{' '}
-            {unitWords}
-          </div>
-          <div>Charged {finalWords}</div>
-        </>
-      ) : (
-        final !== '' && <div>Final {finalWords}</div>
-      )}
-      {doing !== null && (
         <div>
-          {doing.name}
-          {doing.assumed &&
-            ' — assumed: they are the only person assigned, so they are taken to be doing this step too'}
+          {estimated
+            ? points
+                .map((each) => `${each.point} ${each.days === '' ? '—' : each.days}`)
+                .join(' · ')
+            : 'No estimate yet'}
         </div>
-      )}
-      {/*
+        {estimate !== undefined && allowancePercent !== 0 ? (
+          <>
+            <div>
+              Base estimate {auditDays(combinedFigure(estimate, rule))} {unitWords}
+            </div>
+            <div>Allowance +{String(allowancePercent)}%</div>
+            <div>
+              Before rounding {auditDays(beforeRoundingFigure(estimate, rule, allowancePercent))}{' '}
+              {unitWords}
+            </div>
+            <div>Charged {finalWords}</div>
+          </>
+        ) : (
+          final !== '' && <div>Final {finalWords}</div>
+        )}
+        {doing !== null && (
+          <div>
+            {doing.name}
+            {doing.assumed &&
+              ' — assumed: they are the only person assigned, so they are taken to be doing this step too'}
+          </div>
+        )}
+        {/*
         Task 7.2's assignee sentence, on the card because the folded cell has no
         `title` to put it in — the decision above `data-folded-assignee`, taken
         2026-08-09 when a native tooltip raced this card over the same pixels.
@@ -303,10 +317,10 @@ export function FoldedStepCard({
         that saves nothing is the tool refusing to store what somebody typed.
         Colouring them alike would make one of the two a lie.
       */}
-      {doing?.outside != null && (
-        <div style={{ color: 'var(--muted-foreground)' }}>{doing.outside}</div>
-      )}
-      {/*
+        {doing?.outside != null && (
+          <div style={{ color: 'var(--muted-foreground)' }}>{doing.outside}</div>
+        )}
+        {/*
         Proof: this line deleted, four tests failed — `a folded step cannot
         hide a complaint`, `sends nothing for a trio that runs backwards, and
         says why`, `lets a box replace what the folded cell was holding`,
@@ -316,16 +330,20 @@ export function FoldedStepCard({
         the folded wrapper, `a folded step cannot hide a complaint` failed on
         `expected 'Fill all three…' to be null`. Both watched, 2026-08-09.
       */}
-      {problem !== null && <div style={{ color: 'var(--destructive)' }}>{problem}</div>}
-      {/*
+        {problem !== null && <div style={{ color: 'var(--destructive)' }}>{problem}</div>}
+        {/*
         The typing help rides the same card so the cell has exactly one hint.
         Last and muted: whoever hovers is reading the plan first and an
-        estimator second.
+        estimator second — and only while somebody is typing, or the cell
+        complains, since F-044.
       */}
-      <div style={{ color: 'var(--muted-foreground)' }}>
-        {estimateUnit === 'minutes'
-          ? SHORTHAND_HELP.replace('Days as', 'Whole minutes as')
-          : SHORTHAND_HELP}
+        {(typing || problem !== null) && (
+          <div style={{ color: 'var(--muted-foreground)' }}>
+            {estimateUnit === 'minutes'
+              ? SHORTHAND_HELP.replace('Days as', 'Whole minutes as')
+              : SHORTHAND_HELP}
+          </div>
+        )}
       </div>
     </HoverCard>
   );

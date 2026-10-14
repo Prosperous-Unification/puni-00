@@ -116,6 +116,10 @@
   --border: oklch(0.929 0.013 255.508);
   --input: oklch(0.929 0.013 255.508);
   --ring: oklch(0.704 0.04 256.788);
+  /* A list that drops over the table (`PICKER_PANEL_STYLE`). Its own token
+     because a 12% black shadow is invisible on the dark page, where a list
+     ran into the rows under it with nothing at its edge (UI review F-022). */
+  --popover-shadow: 0 4px 12px oklch(0 0 0 / 12%);
   /*
    * The one hue shadcn's set does not name and this app needs: what a row
    * matching the Find box is tinted. Every other colour in the grid is a mix of
@@ -180,6 +184,7 @@
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.551 0.027 264.364);
+  --popover-shadow: 0 0 0 1px oklch(1 0 0 / 14%), 0 6px 18px oklch(0 0 0 / 60%);
   --highlight: oklch(0.62 0.12 96);
   --status-done: oklch(0.72 0.15 148);
   --status-in-progress: oklch(0.8 0.14 78);
@@ -765,14 +770,30 @@
     --cell-bg: var(--grid-header);
   }
 
+  /* One header style (UI review F-006, 2026-10-13): sentence case, whole
+     words, one line. Until then this was 10px all-caps with 0.06em tracking,
+     in which `DEPENDS ON` wrapped and `Not before` and `Priority` had to be
+     abbreviated; a step's own name, in a button, kept its typed case beside
+     them. A heading that still does not fit its column ends in an ellipsis
+     rather than a second line, and its words stay on the `<th>`'s hint. */
   [data-grid] thead th {
     box-shadow: inset -1px -1px 0 var(--border);
     color: var(--muted-foreground);
     font-size: 10px;
     font-weight: 600;
-    letter-spacing: 0.06em;
     text-align: left;
-    text-transform: uppercase;
+    white-space: nowrap;
+    /* The cell's own inline `overflow: clip` (`CELL`) is what this ends. */
+    text-overflow: ellipsis;
+    /* The heading row stays 24px tall, the height its wrapped `DEPENDS ON`
+       gave it before this was one line (measured on main, 2026-10-14): the
+       scroll link pairs the table's rows with the Gantt's below two headings
+       of different heights, and the 18px a single line needs left the faces
+       0.31 of a row apart at the end of a 50-row plan
+       (`scroll-stability.e2e.ts`). Vertical geometry is not this change's to
+       move; the extra room centres the words. */
+    height: 24px;
+    vertical-align: middle;
   }
 
   /* The step accordion's toggle, which is a `<button>` in a heading cell: the
@@ -787,6 +808,14 @@
 
   [data-grid] thead button:hover {
     color: var(--foreground);
+  }
+
+  /* A resting trio that does not fit its box whole is not drawn at all
+     (`trio-fit.ts`, UI review F-034): `1/…` beside a figure and initials is a
+     cut word, and the card says the trio in full. Fill rather than `color`,
+     which the box sets inline; the focus gives it back to be typed in. */
+  [data-grid] [data-trio-clipped]:not(:focus) {
+    -webkit-text-fill-color: transparent;
   }
 
   /*
@@ -1804,6 +1833,28 @@
   color: var(--popover-foreground);
   box-shadow: 0 8px 24px rgb(0 0 0 / 18%);
   white-space: normal;
+}
+/* A step card's actions, one size and one rhythm (UI review F-044): they were
+   platform buttons of three widths and heights on three lines. Inline styles
+   still win, which is what keeps an attempt's underlined Remove a link. */
+[data-step-card] button {
+  min-height: 24px;
+  margin: 4px 4px 0 0;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--secondary);
+  color: var(--secondary-foreground);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+[data-step-card] button:hover {
+  background: var(--accent);
+}
+.typed-dependency-customize {
+  /* Beside a row that ends in an ellipsis rather than pushed off by it. */
+  flex: none;
 }
 .typed-dependency-customize::before {
   content: '›';

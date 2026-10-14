@@ -205,7 +205,7 @@ test.describe('the rung glyph, in a browser', () => {
     ).toBeVisible();
   });
 
-  test('shares the 40px column with the widest priority anybody can type', async ({ page }) => {
+  test('shares the 44px column with the widest priority anybody can type', async ({ page }) => {
     await seedPlan(page);
     // Three digits, which is what `table-frame.ts` says the column holds since
     // 2026-09-13 — "`999` beside the glyph is what 32px of room holds, `9999`
@@ -227,7 +227,9 @@ test.describe('the rung glyph, in a browser', () => {
       .locator('td[data-column="priority"]');
     const cellBox = await column.boundingBox();
     if (cellBox === null) throw new Error('the Prio cell has no box to measure');
-    expect(cellBox.width, 'the Prio column grew').toBe(40);
+    // 44 since the UI review of 2026-10-13 (F-006), which paid for the whole
+    // word `Priority` in the heading and nothing in the cell.
+    expect(cellBox.width, 'the Priority column grew').toBe(44);
 
     // And the digits are not clipped inside it. `scrollWidth` against
     // `clientWidth` is what an over-full input answers with — the box's own

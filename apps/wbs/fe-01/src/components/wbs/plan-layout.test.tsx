@@ -280,7 +280,7 @@ describe('the frame the table scrolls inside', () => {
       ['sticky', '0px'],
       ['sticky', '16px'],
       ['sticky', '84px'],
-      ['sticky', '116px'],
+      ['sticky', '120px'],
     ]);
     // Pinned and still flexible: the pin places the Name cell and the colgroup
     // sizes it, and a `width` here would be the second opinion that put a
@@ -289,7 +289,7 @@ describe('the frame the table scrolls inside', () => {
     // again, this failed on `expected '360px' to be ''`. Watched, 2026-08-08.
     expect(cells[3]?.style.width).toBe('');
     expect(cells[1]?.style.width).toBe('68px');
-    expect(cells[2]?.style.width).toBe('32px');
+    expect(cells[2]?.style.width).toBe('36px');
     // And the floor that keeps it readable while the frame is scrolling.
     expect(cells[3]?.style.minWidth).toBe('200px');
     // Opaque, or the row scrolling behind a pinned cell shows through it.
@@ -343,7 +343,7 @@ describe('the widths the table is laid out by', () => {
     // Proof: the colgroup made to declare `360` for a flexible column, this
     // failed on `expected ['24px','93px','360px'] to deeply equal
     // ['24px','93px','']`. Watched, 2026-08-08, when this column was 169px.
-    expect(cols.slice(0, 4).map((col) => col.style.width)).toEqual(['16px', '68px', '32px', '']);
+    expect(cols.slice(0, 4).map((col) => col.style.width)).toEqual(['16px', '68px', '36px', '']);
     for (const [at, col] of cols.entries()) {
       expect(col.style.width === '').toBe(at === 3);
     }
@@ -402,9 +402,9 @@ describe('the widths the table is laid out by', () => {
     // the frame's scrollbar on.
     // 1491 → 1440 and 1239 → 1188 on 2026-09-13: 67px off the fixed columns,
     // 8px onto each of the two steps' folded columns.
-    expect(table.style.minWidth).toBe('1410px');
+    expect(table.style.minWidth).toBe('1428px');
     fireEvent.click(screen.getByRole('button', { name: 'Fold Dev estimates' }));
-    expect(screen.getByRole('table').style.minWidth).toBe('1158px');
+    expect(screen.getByRole('table').style.minWidth).toBe('1176px');
   });
 
   itDom('says nothing in a number cell that is showing the whole number', async () => {
@@ -980,8 +980,8 @@ describe('the widths this browser has dragged', () => {
       // 200 floor, plus the 300 override
       // — as its width and its minimum alike, so the frame keeps the slack
       // above it and scrolls below it.
-      expect(screen.getByRole('table').style.width).toBe('1510px');
-      expect(screen.getByRole('table').style.minWidth).toBe('1510px');
+      expect(screen.getByRole('table').style.width).toBe('1528px');
+      expect(screen.getByRole('table').style.minWidth).toBe('1528px');
     },
   );
 
@@ -1159,7 +1159,7 @@ describe('the widths this browser has dragged', () => {
     await threeRoots();
 
     expect(laidOut()['number']).toBe('240px');
-    expect(laidOut()['not-before']).toBe('56px');
+    expect(laidOut()['not-before']).toBe('60px');
     expect(screen.getByRole('table').style.minWidth).not.toContain('NaN');
   });
 
@@ -1175,7 +1175,7 @@ describe('the widths this browser has dragged', () => {
       await threeRoots();
 
       expect(laidOut()['number']).toBe('68px');
-      expect(laidOut()['depends']).toBe('78px');
+      expect(laidOut()['depends']).toBe('84px');
       expect(laidOut()['tag']).toBe('240px');
     },
   );

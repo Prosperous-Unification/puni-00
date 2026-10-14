@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 
 import {
   Modal,
@@ -186,6 +186,9 @@ export const REFERENCE_SET_EDGE_FADE = 'linear-gradient(to left, transparent, #0
  */
 export const REFERENCE_SET_LINE_HEIGHT = 24;
 
+/** The one chip line a resting strip shows; chips that would start a second wrap out of sight. */
+const REST_CHIP_LINE_PX = 18;
+
 /**
  * Where an open panel sits in the stack.
  *
@@ -205,8 +208,11 @@ export const REFERENCE_SET_ADD_CLASS =
 const SHEET_ADD_CLASS = 'border-border min-w-11 shrink-0 rounded-md border bg-transparent';
 const SHEET_CHIP_CLASS =
   'bg-muted inline-flex max-w-full items-center gap-1 rounded-md pl-3 text-sm';
+// `min-w-0` so `max-w-full` holds: a flex item's automatic minimum is its
+// content, and a minimum outranks a maximum, so a long chip ran past its line
+// instead of ending in an ellipsis (review of PR #409).
 export const REFERENCE_SET_CHIP_CLASS =
-  'bg-muted inline-flex max-w-full items-center gap-0.5 rounded px-1 text-xs';
+  'bg-muted inline-flex max-w-full min-w-0 items-center gap-0.5 rounded px-1 text-xs';
 export const REFERENCE_SET_REMOVE_CLASS = 'shrink-0 border-0 bg-transparent p-0';
 /**
  * The inherited chip's ink: the own chip's box, dimmed and outlined instead of
@@ -221,7 +227,7 @@ export const REFERENCE_SET_REMOVE_CLASS = 'shrink-0 border-0 bg-transparent p-0'
  * two states.
  */
 export const REFERENCE_SET_INHERITED_CHIP_CLASS =
-  'text-muted-foreground border-muted-foreground/40 inline-flex max-w-full items-center gap-0.5 rounded border border-dashed px-1 text-xs';
+  'text-muted-foreground border-muted-foreground/40 inline-flex max-w-full min-w-0 items-center gap-0.5 rounded border border-dashed px-1 text-xs';
 
 /** One line of {@link ReferenceSetStrip}'s hover card. */
 interface ReferenceSetLine {
@@ -297,6 +303,14 @@ export function ReferenceSetStrip({
 }: ReferenceSetStripProps) {
   const sheet = face === 'sheet';
   const root = useRef<HTMLSpanElement>(null);
+  const chipLine = useRef<HTMLSpanElement>(null);
+  /**
+   * The chips the resting line wrapped out of sight, by their words — a layout
+   * fact, so measured: every chip whose top is at or below the line's bottom.
+   * Drawn as `+N` beside the line, and the edge fade follows it, so the line
+   * never hides a chip silently (review of PR #409, decision D4).
+   */
+  const [hiddenChips, setHiddenChips] = useState<readonly string[]>([]);
   const ownIds = unique(adapter.ownIds);
   const holdsOne = holdsOneMember(adapter.kind);
   // Proof: forced false and `flags a type conflict, shows every type, and keeps
@@ -327,6 +341,33 @@ export function ReferenceSetStrip({
    * members is editing this cell as much as somebody typing into it.
    */
   const [editing, setEditing] = useState(false);
+  const chipsKey = [...ownIds, ...(adapter.inheritedEntries ?? []).map((entry) => entry.id)].join(
+    '\0',
+  );
+  useLayoutEffect(() => {
+    const line = chipLine.current;
+    // jsdom has no ResizeObserver and lays nothing out, so nothing there can be
+    // measured as hidden; the count is proven in `e2e/plan-table-review.spec.ts`.
+    if (editing || line === null || typeof ResizeObserver === 'undefined') {
+      setHiddenChips((was) => (was.length === 0 ? was : []));
+      return;
+    }
+    const measure = (): void => {
+      const bottom = line.getBoundingClientRect().bottom;
+      const hidden = [
+        ...line.querySelectorAll('[data-reference-chip], [data-reference-inherited-chip]'),
+      ]
+        .filter((chip) => chip.getBoundingClientRect().top >= bottom - 0.5)
+        .map((chip) => chip.textContent.replace(/[×✓]/g, '').trim());
+      setHiddenChips((was) => (was.join('\0') === hidden.join('\0') ? was : hidden));
+    };
+    measure();
+    const watching = new ResizeObserver(measure);
+    watching.observe(line);
+    return () => {
+      watching.disconnect();
+    };
+  }, [editing, chipsKey]);
   /**
    * Whether the pointer is on this cell — which is the same question as "is the
    * hover card open", subject to the two conditions on it below.
@@ -574,7 +615,10 @@ export function ReferenceSetStrip({
           // spilled chips cover the cell, and clicking the box timed out on
           // `<td data-column="tag"> intercepts pointer events`.
           overflow: editing || sheet ? 'visible' : 'hidden',
-          ...(editing || sheet
+          // Only where a chip was wrapped out of sight: a line that ends on
+          // its last chip has nothing to fade (review of PR #409, D4). The
+          // sheet wraps whole and never fades (PR #399).
+          ...(editing || sheet || hiddenChips.length === 0
             ? {}
             : {
                 WebkitMaskImage: REFERENCE_SET_EDGE_FADE,
@@ -653,14 +697,26 @@ export function ReferenceSetStrip({
           +
         </button>
         <span
+          ref={chipLine}
           data-reference-chips=""
           style={{
             display: 'flex',
             // The strip's rule, said again here because a `nowrap` strip holding
             // a `wrap` group is still a cell that grows a line per chip.
-            flexWrap: wrapping ? 'wrap' : 'nowrap',
+            //
+            // At rest it wraps too, into a line nobody sees (review of PR #409,
+            // F-035/F-048): the row gap pushes every chip that does not fit
+            // whole onto a second line, and `maxHeight` with the `hidden`
+            // overflow below keeps only the first. So the rest line ends on a
+            // whole chip — `Frontend ×` rather than `Frontend × Ba` — and the
+            // first chip alone may still end in an ellipsis (`max-w-full`).
+            // 18px holds a chip's 16px and the inherited chip's dashed border.
+            flexWrap: 'wrap',
             alignItems: 'center',
-            gap: sheet ? 6 : 3,
+            alignContent: 'flex-start',
+            columnGap: sheet ? 6 : 3,
+            rowGap: sheet ? 6 : wrapping ? 3 : REST_CHIP_LINE_PX,
+            ...(wrapping ? {} : { maxHeight: REST_CHIP_LINE_PX }),
             minWidth: 0,
             maxWidth: '100%',
             // On the sheet the chips are the first line of the form, whole,
@@ -815,6 +871,21 @@ export function ReferenceSetStrip({
           ))}
         </span>
         {/*
+          How many chips the rest line wrapped out of sight — the Depends on
+          cell's count chip, said as `+N` because here it counts what is not
+          shown rather than the whole set. Its `title` names them; the cell's
+          own card lists the whole set, as before.
+        */}
+        {!editing && hiddenChips.length > 0 && (
+          <span
+            data-reference-hidden-count={hiddenChips.length}
+            title={`Also: ${hiddenChips.join(', ')}`}
+            className="text-muted-foreground shrink-0 text-xs"
+          >
+            +{hiddenChips.length}
+          </span>
+        )}
+        {/*
           The search box takes what the chips leave, and at rest that is
           allowed to be nothing.
 
@@ -869,7 +940,20 @@ export function ReferenceSetStrip({
             }
             closeWhen={(outcome) => outcome === 'landed' || outcome === 'landed-unread'}
             disabled={pending}
-            placeholder={placeholder ?? `Search ${label.toLowerCase()}`}
+            // No placeholder beside a chip at rest: the box is what the chips
+            // leave, often a few pixels, and those pixels drew `ad`, `se`,
+            // `cha` — a word cut mid-letter (UI review F-035/F-048,
+            // 2026-10-13). The `+` says "add" there; the words come back with
+            // the box's 72px floor the moment it is entered.
+            // Proof: on the code before this, `draws no placeholder in a box
+            // too narrow for it` (`e2e/plan-table-review.spec.ts`) failed with
+            // `add` and `search or add` cramped beside chips. Watched
+            // 2026-10-13.
+            placeholder={
+              !editing && (own.length > 0 || inherited.length > 0)
+                ? ''
+                : (placeholder ?? `Search ${label.toLowerCase()}`)
+            }
             data-hint={hint}
             data-fact={fact}
             dataCell={dataCell}

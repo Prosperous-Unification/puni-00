@@ -285,9 +285,11 @@ test('round-trips every desktop reference set with three reachable values in bot
   await expect(
     page.getByRole('combobox', { name: 'Service or team for 010.1', exact: true }),
   ).toHaveAttribute('placeholder', /^↳ /);
+  // Beside chips at rest the box draws no placeholder at all since the UI
+  // review of 2026-10-13 (F-035): its few pixels cut `add` to `ad`.
   await expect(page.getByRole('combobox', { name: 'Tags for 010.1', exact: true })).toHaveAttribute(
     'placeholder',
-    'add',
+    '',
   );
   await expect(
     cellOf(page, 'Tags for 010.1').locator('[data-reference-inherited-chip]'),

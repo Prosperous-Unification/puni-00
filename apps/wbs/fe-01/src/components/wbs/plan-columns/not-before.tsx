@@ -10,11 +10,12 @@ export function createNotBeforeColumn({ live }: { live: PlanLive }) {
   return column.display({
     id: 'not-before',
     meta: { isEditable: (row) => row.readings.startDate !== null },
-    // Abbreviated, because the column is 84px at its widest and 56 at its
-    // narrowest. The sentence it used to be is on the `<th>`
-    // (`column-hints.ts`) — the same bargain Days, Start, End and Slack
-    // already make.
-    header: () => <span>Not bef.</span>,
+    // The whole words since the UI review of 2026-10-13 (F-006): headers
+    // are sentence case with no tracking now, which is what lets `Not
+    // before` sit on one line in the narrow 60px this column takes when no
+    // row sets a day ({@link NOT_BEFORE_EMPTY} in `table-frame.ts`). The
+    // sentence it stands for is still on the `<th>` (`column-hints.ts`).
+    header: () => <span>Not before</span>,
     cell: ({ row }) => {
       const day = row.original.startNoEarlierThan;
       // The words about that day, or null where nobody has said. Straight

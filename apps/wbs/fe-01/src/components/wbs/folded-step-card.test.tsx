@@ -18,6 +18,49 @@ const UNADDRESSED = {
 };
 
 describe('folded step estimate detail', () => {
+  // F-044 (UI review 2026-10-13): every card a pointer opened ended on the same
+  // typing tutorial. It is for somebody typing into the cell, so it rides the
+  // card only while the cell is being written in, or holds a complaint.
+  // Proof: the condition dropped (help always drawn), the first case failed on
+  // `expected <div …>Days as optimistic… to be null`. Watched 2026-10-13.
+  describe('the typing help', () => {
+    const card = (typing: boolean | undefined, problem: string | null = null) =>
+      render(
+        <FoldedStepCard
+          stepName="Dev"
+          number="010"
+          id="dev-card"
+          points={[{ point: 'realistic', days: '2' }]}
+          final="2"
+          allowancePercent={0}
+          rule={{
+            method: 'pert',
+            pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
+            rounding: 'ceil',
+          }}
+          doing={null}
+          problem={problem}
+          {...(typing === undefined ? {} : { typing })}
+          {...UNADDRESSED}
+        />,
+      );
+
+    it('is left off a card a pointer opened', () => {
+      card(undefined);
+      expect(screen.queryByText(/One number means all three/)).toBeNull();
+    });
+
+    it('is on the card while the cell is being typed in', () => {
+      card(true);
+      expect(screen.getByText(/One number means all three/)).toBeInTheDocument();
+    });
+
+    it('is on the card beside a complaint, which is when it is needed', () => {
+      card(false, 'Fill all three points');
+      expect(screen.getByText(/One number means all three/)).toBeInTheDocument();
+    });
+  });
+
   it('keeps the existing final line for zero allowance', () => {
     render(
       <FoldedStepCard
@@ -410,6 +453,8 @@ it('reads native minutes on the folded step card without a day suffix', () => {
       }}
       doing={null}
       problem={null}
+      // The minute wording of the typing help, which is drawn while typing.
+      typing
     />,
   );
   expect(screen.getByText('Final 2 h 15 min')).toBeInTheDocument();
