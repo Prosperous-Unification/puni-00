@@ -4510,6 +4510,34 @@ the observed fault. The tests exercise actual Elysia admission, source gate and 
 | Widen digest request regex                     | `rejects malformed digests and asserted authority at the request boundary`: storage error 500 instead of boundary 400                |
 | Delete undeclared request fields               | Same boundary case: asserted actorId accepted instead of 400                                                                         |
 
+## Approval migration frozen-order CI correction (2026-10-14)
+
+PR #425 at exact `3ff5b58accd27d6f5f0e59f7da770f87216ca570` failed its workspace job because
+`migrate-down.db.test.ts` did not include `20261014120000_add_shared_people_restore_approvals`
+in its explicit folder/application/rollback order expectations and still named the preceding
+migration as the newest baseline. The failed CI log was read from run `38482218694`, job
+`115590786476`, and retained at `/tmp/shared-restore-pr425-workspace-failed.log`.
+
+A fresh local reproduction gave 13 pass / 7 fail in
+`/tmp/shared-restore-pr425-migrate-down-red.log`. The correction adds the new migration to three
+ascending and four descending lists and updates the one newest-baseline assertion. The lists
+remain frozen, independent expectations; none is generated from the implementation being tested.
+No production migration, rollback guard or application behavior changes.
+
+`bun test libs/wbs/adapters/store-sqlite/src/migrate-down.db.test.ts` then passed all 20 tests,
+170 assertions; `/tmp/shared-restore-pr425-migrate-down-green.log`. Independently omitting the
+new migration from production `readMigrationFolders` and `migrationsToRollback` each produced RED
+in the frozen inventory and full rollback cases:
+`/tmp/shared-restore-pr425-inventory-omit-red.log`,
+`/tmp/shared-restore-pr425-rollback-omit-red.log`. Mutations were restored, and adjacent test
+`Proof:` comments record the observations. A focused run of `migrate-down.db.test.ts`,
+`shared-people-restore-approval.db.test.ts`, `shared-people-rollback.db.test.ts` and the mounted
+approval controller suite passed 62 tests / 345 assertions across four files:
+`/tmp/shared-restore-pr425-focused-green.log`. Scoped ESLint had no diagnostics after the Nx graph
+was created; strict OpenSpec validation passed with zero issues. Formatting and normal hooks
+are repeated before commit. Canonical host gate and fresh remote CI remain pending; no branch
+has been pushed by this correction.
+
 ## Approval checkpoint review fix: refuse removal over restore evidence (2026-10-14)
 
 Astra's P2 review of `7b908e0c0fe94fba32f9f9d27fecabfa004aff86` reproduced a preparatory
