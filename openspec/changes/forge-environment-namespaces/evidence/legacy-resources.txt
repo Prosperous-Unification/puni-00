@@ -1,0 +1,177 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/dev-environment-lifecycle.test.ts:
+135 |       ],
+136 |     };
+137 |     const prepared = await fixture(root, legacy);
+138 |     const outcome = await invoke(root, prepared.executable, action);
+139 |     expect(outcome.exitCode).toBe(1);
+140 |     expect(outcome.stderr).toContain('prior revision');
+                                 ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "prior revision"
+Received: "894 |   const cluster = await connect(root, request.cluster);\n895 |   await requireNoLegacyResources(cluster, request.slug);\n896 |   const uid = process.getuid?.();\n897 |   if (uid === undefined)\n898 |     throw new Error('dev-env needs a POSIX user ID to check worktree ownership');\n899 |   const prefix = await realpath(cluster.record.worktreeRoot);\n                             ^\nENOENT: no such file or directory, lstat '/worktrees'\n    path: \"/worktrees\",\n syscall: \"lstat\",\n   errno: -2,\n    code: \"ENOENT\"\n\n      at async up (/tmp/puni-forge-namespaces/tools/tool-devsync/src/k3s/dev-environment.ts:899:24)\n      at async runDevEnvironment (/tmp/puni-forge-namespaces/tools/tool-devsync/src/k3s/dev-environment.ts:1124:13)\n\nBun v1.4.2 (Linux x64)\n"
+
+      at <anonymous> (/tmp/puni-forge-namespaces/tools/tool-devsync/src/k3s/dev-environment-lifecycle.test.ts:140:28)
+(fail) legacy workload production command boundary > refuses surviving PersistentVolumeClaim on up when the legacy Pod is gone [257.29ms]
+134 |         },
+135 |       ],
+136 |     };
+137 |     const prepared = await fixture(root, legacy);
+138 |     const outcome = await invoke(root, prepared.executable, action);
+139 |     expect(outcome.exitCode).toBe(1);
+                                   ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/tmp/puni-forge-namespaces/tools/tool-devsync/src/k3s/dev-environment-lifecycle.test.ts:139:30)
+(fail) legacy workload production command boundary > refuses surviving PersistentVolumeClaim on status when the legacy Pod is gone [265.01ms]
+134 |         },
+135 |       ],
+136 |     };
+137 |     const prepared = await fixture(root, legacy);
+138 |     const outcome = await invoke(root, prepared.executable, action);
+139 |     expect(outcome.exitCode).toBe(1);
+                                   ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/tmp/puni-forge-namespaces/tools/tool-devsync/src/k3s/dev-environment-lifecycle.test.ts:139:30)
+(fail) legacy workload production command boundary > refuses surviving PersistentVolumeClaim on down when the legacy Pod is gone [317.93ms]
+135 |       ],
+136 |     };
+137 |     const prepared = await fixture(root, legacy);
+138 |     const outcome = await invoke(root, prepared.executable, action);
+139 |     expect(outcome.exitCode).toBe(1);
+140 |     expect(outcome.stderr).toContain('prior revision');
+                                 ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "prior revision"
+Received: "894 |   const cluster = await connect(root, request.cluster);\n895 |   await requireNoLegacyResources(cluster, request.slug);\n896 |   const uid = process.getuid?.();\n897 |   if (uid === undefined)\n898 |     throw new Error('dev-env needs a POSIX user ID to check worktree ownership');\n899 |   const prefix = await realpath(cluster.record.worktreeRoot);\n                             ^\nENOENT: no such file or directory, lstat '/worktrees'\n    path: \"/worktrees\",\n syscall: \"lstat\",\n   errno: -2,\n    code: \"ENOENT\"\n\n      at async up (/tmp/puni-forge-namespaces/tools/tool-devsync/src/k3s/dev-environment.ts:899:24)\n      at async runDevEnvironment (/tmp/puni-forge-namespaces/tools/tool-devsync/src/k3s/dev-environment.ts:1124:13)\n\nBun v1.4.2 (Linux x64)\n"
+
+      at <anonymous> (/tmp/puni-forge-namespaces/tools/tool-devsync/src/k3s/dev-environment-lifecycle.test.ts:140:28)
+(fail) legacy workload production command boundary > refuses surviving Service on up when the legacy Pod is gone [261.93ms]
+134 |         },
+135 |       ],
+136 |     };
+137 |     const prepared = await fixture(root, legacy);
+138 |     const outcome = await invoke(root, prepared.executable, action);
+139 |     expect(outcome.exitCode).toBe(1);
+                                   ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/tmp/puni-forge-namespaces/tools/tool-devsync/src/k3s/dev-environment-lifecycle.test.ts:139:30)
+(fail) legacy workload production command boundary > refuses surviving Service on status when the legacy Pod is gone [285.71ms]
+134 |         },
+135 |       ],
+136 |     };
+137 |     const prepared = await fixture(root, legacy);
+138 |     const outcome = await invoke(root, prepared.executable, action);
+139 |     expect(outcome.exitCode).toBe(1);
+                                   ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/tmp/puni-forge-namespaces/tools/tool-devsync/src/k3s/dev-environment-lifecycle.test.ts:139:30)
+(fail) legacy workload production command boundary > refuses surviving Service on down when the legacy Pod is gone [319.62ms]
+135 |       ],
+136 |     };
+137 |     const prepared = await fixture(root, legacy);
+138 |     const outcome = await invoke(root, prepared.executable, action);
+139 |     expect(outcome.exitCode).toBe(1);
+140 |     expect(outcome.stderr).toContain('prior revision');
+                                 ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "prior revision"
+Received: "894 |   const cluster = await connect(root, request.cluster);\n895 |   await requireNoLegacyResources(cluster, request.slug);\n896 |   const uid = process.getuid?.();\n897 |   if (uid === undefined)\n898 |     throw new Error('dev-env needs a POSIX user ID to check worktree ownership');\n899 |   const prefix = await realpath(cluster.record.worktreeRoot);\n                             ^\nENOENT: no such file or directory, lstat '/worktrees'\n    path: \"/worktrees\",\n syscall: \"lstat\",\n   errno: -2,\n    code: \"ENOENT\"\n\n      at async up (/tmp/puni-forge-namespaces/tools/tool-devsync/src/k3s/dev-environment.ts:899:24)\n      at async runDevEnvironment (/tmp/puni-forge-namespaces/tools/tool-devsync/src/k3s/dev-environment.ts:1124:13)\n\nBun v1.4.2 (Linux x64)\n"
+
+      at <anonymous> (/tmp/puni-forge-namespaces/tools/tool-devsync/src/k3s/dev-environment-lifecycle.test.ts:140:28)
+(fail) legacy workload production command boundary > refuses surviving Ingress on up when the legacy Pod is gone [259.47ms]
+134 |         },
+135 |       ],
+136 |     };
+137 |     const prepared = await fixture(root, legacy);
+138 |     const outcome = await invoke(root, prepared.executable, action);
+139 |     expect(outcome.exitCode).toBe(1);
+                                   ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/tmp/puni-forge-namespaces/tools/tool-devsync/src/k3s/dev-environment-lifecycle.test.ts:139:30)
+(fail) legacy workload production command boundary > refuses surviving Ingress on status when the legacy Pod is gone [265.40ms]
+134 |         },
+135 |       ],
+136 |     };
+137 |     const prepared = await fixture(root, legacy);
+138 |     const outcome = await invoke(root, prepared.executable, action);
+139 |     expect(outcome.exitCode).toBe(1);
+                                   ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/tmp/puni-forge-namespaces/tools/tool-devsync/src/k3s/dev-environment-lifecycle.test.ts:139:30)
+(fail) legacy workload production command boundary > refuses surviving Ingress on down when the legacy Pod is gone [314.87ms]
+135 |       ],
+136 |     };
+137 |     const prepared = await fixture(root, legacy);
+138 |     const outcome = await invoke(root, prepared.executable, action);
+139 |     expect(outcome.exitCode).toBe(1);
+140 |     expect(outcome.stderr).toContain('prior revision');
+                                 ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "prior revision"
+Received: "894 |   const cluster = await connect(root, request.cluster);\n895 |   await requireNoLegacyResources(cluster, request.slug);\n896 |   const uid = process.getuid?.();\n897 |   if (uid === undefined)\n898 |     throw new Error('dev-env needs a POSIX user ID to check worktree ownership');\n899 |   const prefix = await realpath(cluster.record.worktreeRoot);\n                             ^\nENOENT: no such file or directory, lstat '/worktrees'\n    path: \"/worktrees\",\n syscall: \"lstat\",\n   errno: -2,\n    code: \"ENOENT\"\n\n      at async up (/tmp/puni-forge-namespaces/tools/tool-devsync/src/k3s/dev-environment.ts:899:24)\n      at async runDevEnvironment (/tmp/puni-forge-namespaces/tools/tool-devsync/src/k3s/dev-environment.ts:1124:13)\n\nBun v1.4.2 (Linux x64)\n"
+
+      at <anonymous> (/tmp/puni-forge-namespaces/tools/tool-devsync/src/k3s/dev-environment-lifecycle.test.ts:140:28)
+(fail) legacy workload production command boundary > refuses surviving NetworkPolicy on up when the legacy Pod is gone [253.02ms]
+134 |         },
+135 |       ],
+136 |     };
+137 |     const prepared = await fixture(root, legacy);
+138 |     const outcome = await invoke(root, prepared.executable, action);
+139 |     expect(outcome.exitCode).toBe(1);
+                                   ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/tmp/puni-forge-namespaces/tools/tool-devsync/src/k3s/dev-environment-lifecycle.test.ts:139:30)
+(fail) legacy workload production command boundary > refuses surviving NetworkPolicy on status when the legacy Pod is gone [265.63ms]
+134 |         },
+135 |       ],
+136 |     };
+137 |     const prepared = await fixture(root, legacy);
+138 |     const outcome = await invoke(root, prepared.executable, action);
+139 |     expect(outcome.exitCode).toBe(1);
+                                   ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/tmp/puni-forge-namespaces/tools/tool-devsync/src/k3s/dev-environment-lifecycle.test.ts:139:30)
+(fail) legacy workload production command boundary > refuses surviving NetworkPolicy on down when the legacy Pod is gone [339.64ms]
+
+ 0 pass
+ 3 filtered out
+ 12 fail
+ 16 expect() calls
+Ran 12 tests across 1 file. [3.43s]

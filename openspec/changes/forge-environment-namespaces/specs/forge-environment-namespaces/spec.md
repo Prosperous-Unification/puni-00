@@ -36,3 +36,17 @@ The tool SHALL inspect namespace ownership before deletion and SHALL require its
 
 - **WHEN** the namespace is replaced after ownership inspection
 - **THEN** deletion fails its UID precondition and the replacement survives
+
+### Requirement: Legacy workload refusal independent of Pod existence
+
+The tool SHALL inspect shared-namespace Pods, Services, Ingresses, NetworkPolicies and persistent volume claims for the requested slug before up, status or down can change resources or claims. It MUST refuse surviving legacy workloads with a prior-revision teardown instruction even when no legacy Pod exists. It MUST refuse malformed workload-list state.
+
+#### Scenario: Legacy database remains after Pod deletion
+
+- **WHEN** a legacy Pod is absent but its database claim, Service, Ingress or NetworkPolicy remains in `puni-forge`
+- **THEN** up, status and down refuse and preserve those resources, admission ownership and both uniqueness Leases
+
+#### Scenario: Legacy workload list is malformed
+
+- **WHEN** the shared-namespace workload query returns a non-array items field
+- **THEN** the command refuses before releasing admission or Leases

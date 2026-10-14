@@ -51,3 +51,20 @@ The full source-image `dev-env up`, application database writes, browser/HMR and
 The escalated whole `tool-devsync:test` run finished in 584.86 seconds: 587 pass, 1 fail. Its only failure was the production index check rejecting then-untracked new change/source paths; the new files were staged afterwards and the complete index-test file was rerun. No other project test failed.
 
 The complete `repo-namespacing-handoff.test.ts` rerun after staging passed: 15 tests, 0 failures, 20 assertions. Namespace and index suites, the nine scoped Nx lint/typecheck/build tasks, staged-tree formatting and all OpenSpec items were green before the normal commit. Lefthook was installed normally in this clone; no hook bypass was used.
+
+## Astra P2 review repair: legacy resources without a Pod
+
+Review of `bcbe80b27608082175cbbb97a8d524bda5e14f47` reproduced production down with no legacy Pod but a surviving database claim: down reported deletion and released admission/Leases while leaving the claim. The new command-entry query inspects shared-namespace Pods, Services, Ingresses, NetworkPolicies and persistent volume claims for the slug before worktree checks, namespace access or ownership changes. Query selection intentionally does not filter by lab: any legacy workload with that slug prevents adoption. Empty lists continue to permit current namespace and partial-create cleanup; malformed lists refuse.
+
+`dev-environment-lifecycle.test.ts` invokes actual `runDevEnvironment` in subprocesses with a controlled external kubectl boundary. Twelve no-Pod cases cover each of PVC, Service, Ingress and NetworkPolicy on each of up/status/down; they assert refusal, preserved resources/admission/Leases and absence of writes. Two empty-list controls prove status and partial-create teardown still work; a malformed-list negative proves trusted-state failure closes before ownership release. Initially, all thirteen negative cases failed against the previous implementation.
+
+| Guard                    | Injected fault                              | Observed production-path failure                                                                                                                    |
+| ------------------------ | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Legacy resource presence | Removed members.length refusal              | All twelve no-Pod command negatives failed ([output](evidence/legacy-resources.txt)); down otherwise returned success and released admission/Leases |
+| Legacy list shape        | Removed array check with items as an object | Malformed-list down negative failed ([output](evidence/legacy-list-shape.txt)); ownership release proceeded                                         |
+
+Both guards were restored before the final tests. The existing disposable namespace, RBAC, NetworkPolicy and teardown proof was not repeated for this command-entry repair; this repair adds production-command coverage of the missed legacy state. Scoped checks and normal commit evidence follow.
+
+Repair validation: explicit six-file k3s source suite passed 78 tests with 239 assertions; the staged current-index suite passed 15 tests with 20 assertions. Scoped Nx lint/typecheck/build and six prerequisite builds passed (9 tasks, six cached dependency builds). OpenSpec all passed 193 items with zero failures. The existing 9m45s whole-project test run was not repeated; all changed command paths and the relevant index suite were rerun. No new live cluster or production operation was performed.
+
+`nx format:check --all` exited 0 without diagnostics on the staged repair tree. The final normal commit runs fresh staged-file Lefthook formatting/lint/secrets/private-nesting/tool-wiki checks; no hook bypass is used.

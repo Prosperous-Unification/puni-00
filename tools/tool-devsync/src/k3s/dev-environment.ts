@@ -266,14 +266,14 @@ export function requireOwnedWorktree(
   return `${WORKTREE_NODE_ROOT}/${relation.split(sep).join('/')}`;
 }
 
-/** Refuse shared-namespace state before any environment command can alter its claims. */
+/** Refuse a shared-namespace Pod during the early uniqueness check. */
 export function requireMigratedEnvironment(
   slug: string,
   running: readonly RunningEnvironment[],
 ): void {
   for (const environment of running) {
     // Proof: removing this refusal fails the legacy shared-namespace duplicate negative in
-    // dev-environment.test.ts; up, status and down share it before changing any claims.
+    // dev-environment.test.ts; command entry also scans legacy resources independently of Pods.
     if (environment.namespace === FORGE_NAMESPACE && environment.slug === slug) {
       throw new Error(
         'Legacy shared-namespace environment exists; run down with the prior revision before upgrading (its database is deleted)',
@@ -719,6 +719,32 @@ async function connect(root: string, clusterName: string): Promise<Cluster> {
   };
 }
 
+/** Refuse surviving shared-namespace workloads even after their Pod disappeared. */
+async function requireNoLegacyResources(cluster: Cluster, slug: string): Promise<void> {
+  const resources: unknown = JSON.parse(
+    await cluster.kubectl([
+      'get',
+      'pods,services,ingresses,networkpolicies,persistentvolumeclaims',
+      `--namespace=${FORGE_NAMESPACE}`,
+      '-l',
+      `${SLUG_LABEL}=${slug}`,
+      '-o',
+      'json',
+    ]),
+  );
+  const members = field(resources, 'items');
+  // Proof: removing this shape check makes the production down malformed-list negative
+  // release admission and Leases in dev-environment-lifecycle.test.ts.
+  if (!Array.isArray(members)) throw new Error('kubectl returned a malformed legacy workload list');
+  // Proof: removing this refusal fails all twelve no-Pod legacy PVC/Service/Ingress/NetworkPolicy
+  // production up/status/down negatives; down otherwise releases ownership behind the old DB.
+  if (members.length > 0) {
+    throw new Error(
+      'Legacy shared-namespace resources exist; run down with the prior revision before upgrading (its database is deleted)',
+    );
+  }
+}
+
 async function runningEnvironments(cluster: Cluster): Promise<readonly RunningEnvironment[]> {
   return decodeRunningEnvironments(
     await cluster.kubectl([
@@ -866,6 +892,7 @@ export function requireMountedRoot(recorded: string, observed: string, root: str
 async function up(root: string, request: DevEnvironmentRequest): Promise<void> {
   if (request.worktree === undefined) throw new Error('dev-env up requires --worktree');
   const cluster = await connect(root, request.cluster);
+  await requireNoLegacyResources(cluster, request.slug);
   const uid = process.getuid?.();
   if (uid === undefined)
     throw new Error('dev-env needs a POSIX user ID to check worktree ownership');
@@ -991,7 +1018,7 @@ async function up(root: string, request: DevEnvironmentRequest): Promise<void> {
 
 async function down(root: string, request: DevEnvironmentRequest): Promise<void> {
   const cluster = await connect(root, request.cluster);
-  requireMigratedEnvironment(request.slug, await runningEnvironments(cluster));
+  await requireNoLegacyResources(cluster, request.slug);
   const store = admissionStore(cluster);
   // Ownership of the parameters is checked before anything is deleted, so a refused teardown
   // leaves the environment whole rather than its roots admitted behind it.
@@ -1030,7 +1057,7 @@ async function down(root: string, request: DevEnvironmentRequest): Promise<void>
 
 async function status(root: string, request: DevEnvironmentRequest): Promise<void> {
   const cluster = await connect(root, request.cluster);
-  requireMigratedEnvironment(request.slug, await runningEnvironments(cluster));
+  await requireNoLegacyResources(cluster, request.slug);
   const namespace = await readNamespace(cluster, {
     slug: request.slug,
     labId: cluster.record.labId,

@@ -109,7 +109,8 @@ the lab and slug labels, source trust and worktree annotation; teardown uses the
 so it cannot delete a replacement namespace. A failed create keeps the namespace and claims
 for the same pair to retry or tear down. Missing, malformed, foreign or terminating ownership
 refuses adoption. Before upgrading from shared-namespace environments, run `down` using the
-previous checkout; this deletes their databases. This change does not transfer those databases. A NetworkPolicy
+previous checkout; this deletes their databases. All three commands refuse surviving legacy
+Pods, Services, Ingresses, NetworkPolicies or database claims even when the old Pod is gone. This change does not transfer those databases. A NetworkPolicy
 admits only the ingress controller, so one environment cannot call another's tiers.
 
 `up` builds `deploy/dev-src/Dockerfile`, pushes it to the lab registry and, on a lab it owns,
