@@ -1758,6 +1758,7 @@ required approved local access after the sandbox rejected Bun `stdin.flush` with
 No application source changed. Full backend, frontend, build, typecheck, hosted CI,
 and canonical exact-SHA gate were not rerun for this narrow test-budget commit;
 they remain integration checks for its recipient.
+
 ### C2 organization runtime and real browser acceptance — 2026-10-13
 
 The C2 checkout is stacked on repaired C1 `4eaf398c7d4e8cda4b26d589495543c725247b29`. The browser fixture starts real `bootBe01` with enabled browser-session authority and a disposable activated SQLite database. Native login, selection, protected reads and writes pass through the mounted backend. Two pages share its cookie jar. The case proves explicit initial choice, A→B replacement by the second tab, withdrawal of the first tab after the notice despite a delayed A discovery, stale A read/write 409, and an in-flight B directory mutation returning one 409 after an external selection to A that emits no notice. A later focus detects removed membership and withdraws the directory panel. The external selection is deliberately made after the directory request is captured so required focus reconciliation cannot remove its button before the click.
