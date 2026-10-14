@@ -545,3 +545,25 @@ Stop, migration-capture identity and possible-exposure intent SHALL be exclusive
 - **GIVEN** stopped previous writers and stored move/deletion replay metadata or direct blockage unsupported by the incoming digest
 - **WHEN** pre-boot candidate admission runs in read-only one-offs
 - **THEN** it refuses before candidate boot or possible-exposure publication, retains stop intent and starts no writer
+
+### Requirement: Compose admission reads the complete stopped SQLite family without source mutation
+
+Stored fact/replay admission SHALL keep the production directory mounted read-only and run independent production query commands against a private writable copy of the quiescent main database and retained WAL/journal. It SHALL exclude source SHM and refuse required-file absence or unreadability. Candidate/outgoing/idle identity SHALL prove the canonical directory, basename and sidecar mappings together before stop intent. Main-file binds, sidecar shadow mounts, renamed main-file aliases and redirected or dangling sidecar links SHALL refuse before any writer outage.
+
+#### Scenario: Clean WAL close leaves no sidecars
+
+- **GIVEN** every database writer is stopped and clean WAL closure left only the main database in a read-only directory
+- **WHEN** the exact production stored relationship query runs through pre-boot admission
+- **THEN** it succeeds through private scratch SHM creation and the production filenames and bytes remain unchanged
+
+#### Scenario: Retained WAL contains a newer relationship
+
+- **GIVEN** a killed writer left a committed relationship only in WAL, with or without retained SHM
+- **WHEN** independent stored relationship admission runs
+- **THEN** the retained relationship is inventoried and no production file is created, deleted or changed
+
+#### Scenario: Main-file equality conceals different sidecars
+
+- **GIVEN** an outgoing renamed file bind resolves to the candidate main file or a candidate mount shadows only WAL or SHM
+- **WHEN** preflight resolves the database family
+- **THEN** it refuses without stopping blue or publishing stop intent

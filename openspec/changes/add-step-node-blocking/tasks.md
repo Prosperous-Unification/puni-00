@@ -63,3 +63,6 @@
 
 - [x] 6.4.6 Repair Astra's stopped-idle alias, actual database identity and boot-exposure blockers: decode effective merged configuration, private snapshot with forced recreation/no dependencies/no pull, most-specific DB bind resolution for candidate/outgoing/idle before stop, durable possible exposure before boot, and independent read-only fact/replay admission before that exposure. Watch all reported omissions fail, including disposable Docker mutations with verified cleanup.
 - [ ] 6.4.7 Rerun scoped checks and strict validation on the corrected transition; obtain independent Astra review before integrating the separate SQLite activation boundary or deploying.
+
+- [x] 6.4.8 Repair Astra SQLite probe/family blockers with quiescent private main/WAL copies under read-only source mount, production-command clean/retained-WAL proofs, whole-family directory mapping and pre-stop shadow/alias negatives; watch protection omissions fail.
+- [ ] 6.4.9 Obtain Astra re-review of the SQLite family/probe correction before integration or deployment.

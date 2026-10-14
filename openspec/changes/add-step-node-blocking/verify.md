@@ -774,6 +774,10 @@ not the canonical exact-SHA host gate.
 
 ## Compose boot barrier review corrections — 2026-10-14
 
+Historical `bc40ee2` evidence: Astra subsequently reproduced a read-only WAL
+directory failure and main-file-only identity accepting different sidecars. The
+SQLite family correction below supersedes that revision’s safety conclusion.
+
 Astra's three production-path counterexamples are corrected. Candidate preflight
 validates the effective merged Compose config and exact canonical DB file before
 stop intent. Outgoing and idle container Env DB_PATH resolves through the most
@@ -838,3 +842,65 @@ completed successfully (`/tmp/compose-boot-final-format.log`). Pinned OpenSpec
 Fresh explicit Nx Docker target rerun also passed, with PASS and CLEAN for
 `writer-proof-65092cf9`; log `/tmp/compose-boot-final-docker.log`. The target ran
 uncached and verified zero remaining project containers or network.
+
+## Compose SQLite family and read-only probe correction — 2026-10-14
+
+Astra reproduced ordinary SQLite readonly opening a clean WAL database under a
+readonly directory failing with SQLITE_READONLY_DIRECTORY 1544 after writer
+stop. The exact shipped `storedRelationshipTypesCommand` now runs against a
+private writable scratch copy, invoked by production `checkBackendRecovery`.
+Production remains mounted read-only. Every writer must already be proved stopped
+before copying main plus retained WAL/journal; source SHM is omitted. SQLite
+creates only scratch SHM. Optional sidecar absence is modeled ENOENT, while
+unreadability fails. This is a coherent quiescent family copy, not immutable-mode
+SQLite, which would ignore retained WAL.
+
+The resolver now requires one writable directory bind for main/WAL/SHM/journal,
+canonical directory plus basename identity, and matching existing sidecar
+canonical paths. Main-file binds, sidecar shadows, renamed main-file aliases,
+redirected sidecars and dangling WAL symlinks refuse. Outgoing file-bind/WAL
+shadow executor negatives leave blue serving with no stop intent; candidate
+WAL/SHM shadow preparation negatives also refuse before outage. This narrower
+supported layout intentionally rejects equal main-file identities when complete
+family identity cannot be established.
+
+Fresh production-command proofs cover clean close with no sidecars, killed-writer
+committed WAL with absent SHM, and retained WAL plus SHM. A readonly source fixture
+(chmod 0555) inventories filenames and every byte before/after standalone exact
+commands and production admission. Retained WAL's SS relationship is counted; no
+source file changes. Required main-file absence and unreadability, and unreadable
+WAL, fail visibly. The initial unwrapped production query observed errno1544;
+log `/tmp/sqlite-readonly-production-red.log`. The dangling-link negative was
+watched fail before the lstat distinction (`/tmp/sqlite-dangling-red.log`).
+
+Watched restored-production faults:
+
+| Removed protection                   | Observed negative                                                                                                                                          |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Snapshot use in production admission | All three exact-command fixtures failed with readonly-directory errors or source SHM mutation; `/tmp/omit-quiescent-snapshot.log`                          |
+| Complete family mount proof          | Nine resolver/executor/preparation negatives failed, including outgoing file bind and candidate WAL/SHM shadows; `/tmp/omit-sqlite-family-mount-proof.log` |
+| Canonical family equality            | Three renamed-main/redirected-WAL negatives failed; `/tmp/omit-sqlite-family-canonical-proof.log`                                                          |
+| Retained WAL copying                 | Both retained-WAL fixtures lost the stored relationship and failed; `/tmp/omit-retained-wal-copy.log`                                                      |
+
+Adjacent Proof comments name the observed faults. Source changes preserve the
+existing candidate recreation/no-dependencies flags and durable pre-boot exposure.
+No Docker command or live resource was used for this followup: Docker startup
+code is unchanged, and the previous disposable proof remains historical. Full
+host gate, monorepo/build, CI secrets/migration lint and independent Astra
+re-review remain pending. Scoped final results follow below.
+
+Fresh final scoped test command includes the previous eight-file Compose suite
+plus `tools/tool-remote-scripts/src/lib/sqlite-probe.test.ts`:
+**237 pass, 0 fail, 923 expectations**, nine files
+(`/tmp/sqlite-family-final-tests.log`). Initial scoped lint failed on new test
+Database.exec deprecation and import order; these were corrected to Database.run
+and sorted imports. The final uncached scoped lint/typecheck rerun and strict
+validation results are recorded below.
+
+Final uncached scoped Nx lint/typecheck for tool-remote-scripts and wbs-be-01,
+including the dependent backend module target, passed
+(`/tmp/sqlite-family-final-checks.log`). Changed-file Prettier check reported all
+matched files formatted (`/tmp/sqlite-family-final-format-check.log`). Pinned
+OpenSpec1.12.0 strict validation returned one valid change, zero issues
+(`/tmp/sqlite-family-final-openspec.log`). `git diff --check` exited0. These are
+scoped evidence, not the canonical host gate or approval to deploy.

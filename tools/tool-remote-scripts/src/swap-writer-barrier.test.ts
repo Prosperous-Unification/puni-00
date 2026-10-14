@@ -44,7 +44,9 @@ async function fixture(
     | 'database-destination'
     | 'database-env-missing'
     | 'idle-database'
-    | 'preboot-replay' = 'none',
+    | 'preboot-replay'
+    | 'outgoing-file-bind'
+    | 'outgoing-wal-shadow' = 'none',
 ) {
   const root = await mkdtemp(join(tmpdir(), 'compose-writer-'));
   roots.push(root);
@@ -58,7 +60,8 @@ async function fixture(
     captureStateDir: root,
     resolveMount: (path) =>
       Promise.resolve(
-        fault === 'database-alias' && path === '/aliased-data/production.db'
+        (fault === 'database-alias' && path === '/aliased-data/production.db') ||
+          (fault === 'outgoing-file-bind' && path === `${ROOT}/data/other.db`)
           ? `${ROOT}/data/wbs.db`
           : path,
       ),
@@ -111,6 +114,7 @@ async function fixture(
                   ? []
                   : [
                       fault === 'database-file' ||
+                      fault === 'outgoing-file-bind' ||
                       (fault === 'idle-database' && identity === incomingId)
                         ? 'DB_PATH=/data/other.db'
                         : fault === 'database-live' || fault === 'database-alias'
@@ -152,6 +156,19 @@ async function fixture(
                               fault === 'database-destination' ? '/unused-backups' : '/data',
                             RW: true,
                           },
+                          ...(fault === 'outgoing-file-bind' || fault === 'outgoing-wal-shadow'
+                            ? [
+                                {
+                                  Type: 'bind',
+                                  Source: `${ROOT}/data/wbs.db${fault === 'outgoing-wal-shadow' ? '-wal' : ''}`,
+                                  Destination:
+                                    fault === 'outgoing-file-bind'
+                                      ? '/data/other.db'
+                                      : '/data/wbs.db-wal',
+                                  RW: true,
+                                },
+                              ]
+                            : []),
                         ],
                 }),
           })),
@@ -697,16 +714,10 @@ for (const fault of [
   });
 }
 
-test('outgoing container path aliases are admitted only when the host database identity matches', async () => {
+test('renamed outgoing main-file aliases refuse before writer stop', async () => {
   const attempt = await fixture('database-alias');
-  await execute(attempt.plan, image, 'deadbeef', attempt.io);
-  expect(attempt.events).toEqual([
-    'preflight',
-    'stop-blue',
-    'inspect-blue',
-    'inspect-blue',
-    'start',
-  ]);
+  await refuses(execute(attempt.plan, image, 'deadbeef', attempt.io), 'database family');
+  expect(attempt.events).not.toContain('stop');
 });
 
 for (const fault of ['alias', 'ports', 'dependency'] as const) {
@@ -831,7 +842,7 @@ test('a candidate file-bind override cannot switch databases after app environme
         return JSON.stringify(config);
       },
     }),
-    'candidate effective database differs',
+    'database family',
   );
   expect(events).toEqual(['read', 'read', 'read', 'write', 'write', 'config']);
 });
@@ -844,3 +855,46 @@ test('unsupported replay history refuses the incoming digest before boot exposur
   expect(await Bun.file(join(attempt.root, 'be-writer-stop.json')).exists()).toBe(true);
   expect(attempt.isBlueRunning()).toBe(false);
 });
+
+for (const fault of ['outgoing-file-bind', 'outgoing-wal-shadow'] as const) {
+  test(`outgoing SQLite family ambiguity refuses before stop: ${fault}`, async () => {
+    const attempt = await fixture(fault);
+    await refuses(execute(attempt.plan, image, 'deadbeef', attempt.io), 'database family');
+    expect(attempt.isBlueRunning()).toBe(true);
+    expect(attempt.events).not.toContain('stop');
+    expect(await Bun.file(join(attempt.root, 'be-writer-stop.json')).exists()).toBe(false);
+  });
+}
+
+for (const suffix of ['-wal', '-shm']) {
+  test(`candidate SQLite sidecar shadow refuses in preparation: ${suffix}`, async () => {
+    const root = await mkdtemp(join(tmpdir(), 'candidate-sidecar-'));
+    roots.push(root);
+    await mkdir(join(root, 'data'));
+    const sqlite = new Database(join(root, 'data', 'wbs.db'));
+    sqlite.run(
+      'CREATE TABLE __drizzle_migrations(name TEXT); INSERT INTO __drizzle_migrations VALUES ("baseline");',
+    );
+    sqlite.close();
+    const events: string[] = [];
+    const prepared = backendPreparation(root, events);
+    await refuses(
+      prepareBackend('be', 'green', image, '/fixture/be.phase', {
+        ...prepared,
+        runDocker: async (args) => {
+          const config = JSON.parse(await prepared.runDocker(args)) as {
+            services: { 'be-01-green': { volumes: unknown[] } };
+          };
+          config.services['be-01-green'].volumes.push({
+            type: 'bind',
+            source: `${ROOT}/data/wbs.db${suffix}`,
+            target: `/data/wbs.db${suffix}`,
+          });
+          return JSON.stringify(config);
+        },
+      }),
+      'database family',
+    );
+    expect(events).not.toContain('up');
+  });
+}

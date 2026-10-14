@@ -90,6 +90,7 @@ import { writeNewMigrationCapture } from './lib/migration-capture-file';
 import { readPhase, writePhase } from './lib/phase';
 import { type Observed, planSwap, type SwapPlan, type SwapStep } from './lib/reconcile';
 import { mcpExposureEnabled, routedColorFromAdminConfig, siteContext } from './lib/site';
+import { storedSnapshotCommand } from './lib/sqlite-probe';
 import { type Color, parseStateJson, renderStateJson, type Tier } from './lib/state';
 import { runStepCodeBackfill } from './lib/step-code-backfill';
 import {
@@ -1146,7 +1147,14 @@ export async function checkBackendRecovery(
       vocabulary,
     );
     const stored = parseStored(
-      await runDocker(oneOff(candidateImage, vocabulary.storedCommand('recovery').slice(2))),
+      // Proof: bypassing the snapshot here made all three production admission
+      // clean/retained-WAL fixtures fail on readonly opening or source SHM mutation.
+      await runDocker(
+        oneOff(
+          candidateImage,
+          storedSnapshotCommand(vocabulary.storedCommand('recovery').slice(2)),
+        ),
+      ),
       vocabulary,
     );
     const unsupported = stored.filter((row) => !supported.includes(row.value));

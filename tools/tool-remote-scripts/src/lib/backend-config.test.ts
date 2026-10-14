@@ -1,3 +1,7 @@
+import { mkdtemp, realpath, rm, symlink } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { expect, test } from 'bun:test';
 
 import { inspectBackendConfig, resolveDatabaseHost } from './backend-config';
@@ -60,9 +64,9 @@ test('effective candidate database is resolved from its most-specific bind, not 
   expect(decoded.databasePath).toBe('/live/production.db');
 });
 
-test('a more-specific file bind wins over its directory bind', async () => {
-  expect(
-    await resolveDatabaseHost(
+test('a more-specific file bind cannot establish the complete database family', async () => {
+  await refuses(
+    resolveDatabaseHost(
       '/data/wbs.db',
       [
         { type: 'bind', source: `${ROOT}/data`, target: '/data', writable: true },
@@ -75,7 +79,8 @@ test('a more-specific file bind wins over its directory bind', async () => {
       ],
       resolvePath,
     ),
-  ).toBe('/actual-production/production.db');
+    'database family',
+  );
 });
 
 test('canonical host aliases preserve actual database identity', async () => {
@@ -83,7 +88,7 @@ test('canonical host aliases preserve actual database identity', async () => {
     await resolveDatabaseHost(
       '/data/wbs.db',
       [{ type: 'bind', source: '/alias', target: '/data', writable: true }],
-      (path) => Promise.resolve(path === '/alias/wbs.db' ? `${ROOT}/data/wbs.db` : path),
+      (path) => Promise.resolve(path.replace(/^\/alias(?=\/|$)/, `${ROOT}/data`)),
     ),
   ).toBe(`${ROOT}/data/wbs.db`);
 });
@@ -107,3 +112,64 @@ async function refuses(operation: Promise<unknown>, text: string): Promise<void>
   }
   expect(failure).toContain(text);
 }
+
+for (const suffix of ['', '-wal', '-shm', '-journal']) {
+  test(`database family rejects a shadow bind at ${suffix || 'main file'}`, async () => {
+    await refuses(
+      resolveDatabaseHost(
+        '/data/wbs.db',
+        [
+          { type: 'bind', source: `${ROOT}/data`, target: '/data', writable: true },
+          {
+            type: 'bind',
+            source: `${ROOT}/data/wbs.db${suffix}`,
+            target: `/data/wbs.db${suffix}`,
+            writable: true,
+          },
+        ],
+        resolvePath,
+      ),
+      'database family',
+    );
+  });
+}
+
+test('a renamed file alias cannot establish the SQLite family identity', async () => {
+  await refuses(
+    resolveDatabaseHost(
+      '/data/other.db',
+      [{ type: 'bind', source: `${ROOT}/data`, target: '/data', writable: true }],
+      (path) => Promise.resolve(path === `${ROOT}/data/other.db` ? `${ROOT}/data/wbs.db` : path),
+    ),
+    'database family',
+  );
+});
+
+test('a redirected retained WAL cannot establish the SQLite family identity', async () => {
+  await refuses(
+    resolveDatabaseHost(
+      '/data/wbs.db',
+      [{ type: 'bind', source: `${ROOT}/data`, target: '/data', writable: true }],
+      (path) => Promise.resolve(path.endsWith('-wal') ? '/elsewhere/wbs.db-wal' : path),
+    ),
+    'database family',
+  );
+});
+
+test('a dangling WAL link is malformed retained state rather than an absent sidecar', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'database-family-link-'));
+  try {
+    await Bun.write(join(root, 'wbs.db'), 'main');
+    await symlink(join(root, 'missing-wal'), join(root, 'wbs.db-wal'));
+    await refuses(
+      resolveDatabaseHost(
+        '/data/wbs.db',
+        [{ type: 'bind', source: root, target: '/data', writable: true }],
+        realpath,
+      ),
+      'database family',
+    );
+  } finally {
+    await rm(root, { recursive: true });
+  }
+});

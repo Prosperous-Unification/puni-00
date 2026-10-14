@@ -1,3 +1,4 @@
+import { lstat } from 'node:fs/promises';
 import { posix } from 'node:path';
 
 import { containerName, NETWORK } from './docker';
@@ -27,7 +28,11 @@ function readRecord(value: unknown, description: string): Record<string, unknown
   return Object.fromEntries(entries);
 }
 
-/** Resolve an exact DB_PATH through the most-specific writable bind destination. */
+/**
+ * Prove one ordinary directory bind owns the complete SQLite family. File binds,
+ * shadowed sidecars and basename symlinks cannot establish the same WAL identity
+ * as the fixed read-only probe mount, even when the main file resolves identically.
+ */
 export async function resolveDatabaseHost(
   databasePath: string,
   mounts: readonly DatabaseMount[],
@@ -49,8 +54,50 @@ export async function resolveDatabaseHost(
     throw new Error('database path has ambiguous bind destinations');
   if (!selected.source.startsWith('/') || !selected.target.startsWith('/'))
     throw new Error('database bind paths are not absolute');
-  const relative = posix.relative(selected.target, databasePath);
-  return resolvePath(relative === '' ? selected.source : posix.join(selected.source, relative));
+  const directory = posix.dirname(databasePath);
+  const basename = posix.basename(databasePath);
+  // Proof: removing family mount equality admitted main/WAL/SHM/journal file shadows;
+  // all four production resolver negatives failed before writer stop.
+  for (const suffix of ['', '-wal', '-shm', '-journal']) {
+    const familyPath = `${databasePath}${suffix}`;
+    const ownership = mounts.filter(
+      (mount) =>
+        familyPath === mount.target || familyPath.startsWith(`${mount.target.replace(/\/$/, '')}/`),
+    );
+    ownership.sort((left, right) => right.target.length - left.target.length);
+    if (
+      selected.target === databasePath ||
+      ownership.at(0) !== selected ||
+      ownership.at(1)?.target === selected.target
+    )
+      throw new Error('database family has a file bind or shadowed sidecar');
+  }
+  const hostDirectory = await resolvePath(
+    posix.join(selected.source, posix.relative(selected.target, directory)),
+  );
+  const hostFile = posix.join(hostDirectory, basename);
+  // Proof: omitting canonical family equality admitted renamed main-file aliases and redirected WAL; both negatives failed.
+  for (const suffix of ['', '-wal', '-shm', '-journal']) {
+    const expected = `${hostFile}${suffix}`;
+    let actual: string;
+    try {
+      actual = await resolvePath(expected);
+    } catch (cause) {
+      if (suffix !== '' && cause instanceof Error && 'code' in cause && cause.code === 'ENOENT') {
+        // Proof: accepting every realpath ENOENT admitted a dangling WAL symlink; the production resolver negative failed.
+        try {
+          await lstat(expected);
+        } catch (absence) {
+          if (absence instanceof Error && 'code' in absence && absence.code === 'ENOENT') continue;
+          throw absence;
+        }
+        throw new Error('database family has an unresolved sidecar', { cause });
+      }
+      throw cause;
+    }
+    if (actual !== expected) throw new Error('database family has an aliased file');
+  }
+  return hostFile;
 }
 
 /**
