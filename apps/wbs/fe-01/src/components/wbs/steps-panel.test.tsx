@@ -46,7 +46,7 @@ const UNDATED: FrameLayoutState = {
   hasAnyNotBefore: false,
   deepestDepth: 0,
   numberingFrozen: false,
-  widestWaitedNumber: '',
+  widestDependencyChip: null,
   waitsForSeveral: false,
 };
 /** And one where somebody has, which is 28px wider. */
@@ -54,7 +54,7 @@ const DATED: FrameLayoutState = {
   hasAnyNotBefore: true,
   deepestDepth: 0,
   numberingFrozen: false,
-  widestWaitedNumber: '',
+  widestDependencyChip: null,
   waitsForSeveral: false,
 };
 
@@ -668,7 +668,7 @@ describe('how wide the steps make the table', () => {
       hasAnyNotBefore: false,
       deepestDepth: 0,
       numberingFrozen: false,
-      widestWaitedNumber: '',
+      widestDependencyChip: null,
       waitsForSeveral: false,
       columnWidthOverrides: new Map([['step-dev-final', 140]]),
     };

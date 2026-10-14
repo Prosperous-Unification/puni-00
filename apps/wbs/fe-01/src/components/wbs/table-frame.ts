@@ -31,11 +31,12 @@ export interface FrameLayoutState {
   /** Whether any row's number is frozen, and so wears the lock the Number column has to hold. */
   numberingFrozen: boolean;
   /**
-   * The widest number any row of the project waits for, by
-   * {@link dependencyNumberInk}, or `''` where no row waits for anything. The
+   * The widest chip any Depends on cell of the project draws, by
+   * {@link dependencyChipWidth} — over plain waits and typed dependencies
+   * between whole rows — or `null` where no row waits for anything. The
    * Depends on column is sized to draw it whole ({@link dependsWidthFor}).
    */
-  widestWaitedNumber: string;
+  widestDependencyChip: DependencyChipFace | null;
   /** Whether any row waits for more than one row, and so may need a `+N` beside its chip. */
   waitsForSeveral: boolean;
   /**
@@ -583,8 +584,8 @@ const PLAN_WIDTHS = new Map<string, (state: FrameLayoutState) => number>([
 ]);
 
 /**
- * How much wider than Arial's {@link dependsWidthFor} lets a number's digits
- * run: a platform face whose digits are 5% wider (macOS's) still draws an
+ * How much wider than Arial's {@link dependsWidthFor} lets a chip's glyphs
+ * run: a platform face whose glyphs are 5% wider (macOS's) still draws an
  * eight-glyph number whole, and a shallow plan's `010` still rests at 84.
  */
 const DEPENDS_FACE_SLACK = 1.05;
@@ -593,38 +594,54 @@ const DEPENDS_FACE_SLACK = 1.05;
 const DEPENDS_FLOOR = 84;
 
 /**
- * One dependency number's ink at the chip's 12px type, in px.
+ * What one resting Depends on chip draws: its words, and whether a `✕`
+ * follows them — a plain wait (`010.3.01 ✕`) does, a typed one (`020 SS`)
+ * does not.
+ */
+export interface DependencyChipFace {
+  words: string;
+  crossed: boolean;
+}
+
+/**
+ * One resting Depends on chip's width at its 12px type, in px.
  *
  * Measured in Chromium on 2026-10-14 (the app's stack resolves to Arial on
- * Linux): every digit is 6.6875px and the dot 3.34375px, so `010.3.01` is
- * 46.81 (Chromium draws it at 46.72). A number holds digits and dots only
- * (`deriveNumbers`); anything else is counted as a digit, the wider of the two.
+ * Linux): a digit is 6.6875px, a dot or a space 3.34375px, `S` 8.0156px — the
+ * widest of the relationship letters, so any other glyph is counted as one.
+ * `010.3.01` is 46.81 of ink (Chromium draws it at 46.72). The chip adds 8px of
+ * padding, and 12px more for the gap and `✕` of a plain wait: `010.3.01 ✕` is
+ * 66.72 drawn, `030.1 SS` 57.4. The ink is widened by
+ * {@link DEPENDS_FACE_SLACK}.
  */
-export function dependencyNumberInk(number: string): number {
+export function dependencyChipWidth({ words, crossed }: DependencyChipFace): number {
   let ink = 0;
-  for (const glyph of number) ink += glyph === '.' ? 3.34375 : 6.6875;
-  return ink;
+  for (const glyph of words) {
+    ink += /\d/.test(glyph) ? 6.6875 : glyph === '.' || glyph === ' ' ? 3.34375 : 8.0156;
+  }
+  return (crossed ? 20 : 8) + ink * DEPENDS_FACE_SLACK;
 }
 
 /**
  * The Depends on column's default width for this plan, in px: room for the
- * resting line's `+`, the widest waited-for number as one whole chip, and —
- * where some row waits for several — the `+N` count beside it (UI review
- * F-058, decision D4). Never below {@link DEPENDS_FLOOR}.
+ * resting line's `+`, the plan's widest whole-row dependency chip
+ * ({@link FrameLayoutState.widestDependencyChip}), and — where some row waits
+ * for several — the `+N` count beside it (UI review F-058, decision D4).
+ * Never below {@link DEPENDS_FLOOR}.
  *
  * Every term is Chromium's, 2026-10-14: the cell's 8px of padding, the `+`'s
- * 15.02 and 2px gap, a chip's 20px of chrome (padding, gap, `✕`) around its
- * number, and the count's 2px gap, 13.69 for `+9` and the 2px gap before the
- * empty search box, with the number's ink widened by
- * {@link DEPENDS_FACE_SLACK}. A shallow plan's `010` asks for 83.7 with a
- * count and stays at 84; `010.1` beside a count asks for 94.3 (95);
- * `010.3.01` for 111.8 (112).
+ * 15.02 and 2px gap, {@link dependencyChipWidth}, and the count's 2px gap,
+ * 13.69 for `+9` and the 2px gap before the empty search box. A shallow plan's
+ * `010` asks for 83.7 with a count and stays at 84; `010.1` beside a count
+ * asks for 94.3 (95); `010.3.01` for 111.8 (112); a typed `020 SS` beside a
+ * count for 92.1 (93). A node-scoped chip (`010.s1-dev SS`) is not sized
+ * for: it is hidden whole and counted, `+ +1`.
  * `e2e/plan-table-review.spec.ts` measures the PUNI-shaped case, so a term
  * that drifts fails there.
  */
 export function dependsWidthFor(state: FrameLayoutState): number {
-  if (state.widestWaitedNumber === '') return DEPENDS_FLOOR;
-  const chip = 20 + dependencyNumberInk(state.widestWaitedNumber) * DEPENDS_FACE_SLACK;
+  if (state.widestDependencyChip === null) return DEPENDS_FLOOR;
+  const chip = dependencyChipWidth(state.widestDependencyChip);
   const count = state.waitsForSeveral ? 2 + 13.69 + 2 : 2;
   return Math.max(DEPENDS_FLOOR, Math.ceil(8 + 15.02 + 2 + chip + count));
 }

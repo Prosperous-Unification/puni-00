@@ -1162,6 +1162,7 @@ export function WbsTable({
   const { frameState, resizeColumn, resizeGantt, resetGanttSettings, resetLayout, columnsDiffer } =
     usePlanLayout({
       flat,
+      typedDependencies,
       widthOverrides,
       setWidthOverrides,
       projectId,

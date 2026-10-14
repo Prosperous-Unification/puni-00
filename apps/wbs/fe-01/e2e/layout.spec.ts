@@ -34,7 +34,7 @@ const SEEDED_PLAN: FrameLayoutState = {
   hasAnyNotBefore: false,
   deepestDepth: 0,
   numberingFrozen: false,
-  widestWaitedNumber: '',
+  widestDependencyChip: null,
   waitsForSeveral: false,
 };
 const LINKS_SHOWN_HIDDEN_COLUMNS = resetHiddenColumns(true);
@@ -3316,7 +3316,7 @@ test.describe('the table, measured by a browser', () => {
       widthFor('number', {
         ...SEEDED_PLAN,
         numberingFrozen: true,
-        widestWaitedNumber: '',
+        widestDependencyChip: null,
         waitsForSeveral: false,
       }),
     ).toBeGreaterThanOrEqual(needed.contentWidth);

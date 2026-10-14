@@ -5,7 +5,6 @@ import { type DepLights } from './dep-light-store';
 import type { DependsEntry } from './depends-card';
 import { cellKey } from './editable-grid';
 import { undatedDayWords } from './plan-columns/undated-day';
-import { REFERENCE_SET_EDGE_FADE } from './reference-set-field';
 import type { PrintedDay } from './short-date';
 import { type TreeRow } from './wbs-rows';
 
@@ -374,36 +373,6 @@ export const DEP_LIST_WIDTH = 260;
  * and two spellings of one id is a description that silently refers to nothing.
  */
 export const startCardId = (rowId: string): string => `start-${rowId}`;
-
-/**
- * The truncation cue on the Depends on cell's strip: the strip's last 14px
- * fade to transparent, so a line of chips that was clipped visibly runs out
- * rather than ending on what looks like the last chip.
- *
- * Applied at **rest only** — whenever the picker is closed, clipped or not.
- * The rest condition is the picker's state, never a measurement: "fade only
- * when clipped" would need the `scrollWidth` read the `+N` marker was
- * rejected for, and that door stays shut. It is not applied while the picker
- * owns the cell, because the strip wraps then — nothing is clipped, there is
- * nothing to cue, and the box spans the full width, so the mask would fade
- * the focus ring, the caret and the typed text across the last 14px. One
- * known cosmetic cost at rest: the box's `width: 100%` means a chipless
- * row's placeholder tail sits under the fade — recorded in the delta spec,
- * awaiting eyes on dev. A mask rather than a painted gradient, so it holds
- * over a tinted row (`--cell-bg`) as well as a white one.
- *
- * Proof, two faults, both watched 2026-08-10: this taken off the strip,
- * `keeps the truncation fade on the rested strip, and off the open one`
- * failed at rest on `expected '' to contain 'linear-gradient'`; applied
- * unconditionally, the same test failed with the picker open on
- * `expected 'linear-gradient(to right, #000 calc(1…' to be ''`.
- *
- * The value itself lives in `reference-set-field.tsx` since 4b, where the three
- * directory-backed cells clip and fade their rest line by the same rule. Two
- * cells fading by different amounts is a difference a reader would read as
- * meaning something.
- */
-export const DEP_EDGE_FADE = REFERENCE_SET_EDGE_FADE;
 
 /**
  * What a row matching the Find box is tinted, so a hit reads apart from its

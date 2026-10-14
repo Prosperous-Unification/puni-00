@@ -9,7 +9,7 @@ import {
   DAY_ENVELOPE,
   DEEPEST_INDENT,
   DEFAULT_COLUMN_SET,
-  dependencyNumberInk,
+  dependencyChipWidth,
   FIXED_COLUMNS,
   FLEXIBLE_CAP,
   FLEXIBLE_COLUMNS,
@@ -38,13 +38,14 @@ import {
   WIDEST_COLUMN,
   widthFor,
 } from './table-frame';
+import { dependencyChipsOf } from './use-plan-layout';
 
 /** A plan where somebody has set an earliest start, which is the wider of the two states. */
 const DATED: FrameLayoutState = {
   hasAnyNotBefore: true,
   deepestDepth: 0,
   numberingFrozen: false,
-  widestWaitedNumber: '',
+  widestDependencyChip: null,
   waitsForSeveral: false,
 };
 /** A plan where nobody has. */
@@ -52,7 +53,7 @@ const UNDATED: FrameLayoutState = {
   hasAnyNotBefore: false,
   deepestDepth: 0,
   numberingFrozen: false,
-  widestWaitedNumber: '',
+  widestDependencyChip: null,
   waitsForSeveral: false,
 };
 
@@ -393,28 +394,56 @@ describe('the earliest-start column is as narrow as the plan lets it be', () => 
   });
 });
 
-describe('the Depends on column draws its widest number whole', () => {
+describe('the Depends on column draws its widest chip whole', () => {
+  const plain = (words: string) => ({ words, crossed: true });
   it('rests at 84px until a waited-for number needs more, and makes room for the count', () => {
     // UI review F-058: `010.3.01` read `010.…` in the 84px column. Proof:
     // with `depends` back at a fixed 84, this failed on `expected 84 to be
     // 95`. Watched 2026-10-14. The browser measurement is
     // `e2e/plan-table-review.spec.ts`'s `draws a dependency number whole…`.
+    const width = (face: { words: string; crossed: boolean } | null, several = false) =>
+      widthFor('depends', { ...UNDATED, widestDependencyChip: face, waitsForSeveral: several });
     expect(widthFor('depends', UNDATED)).toBe(84);
-    expect(
-      widthFor('depends', { ...UNDATED, widestWaitedNumber: '010', waitsForSeveral: true }),
-    ).toBe(84);
-    expect(widthFor('depends', { ...UNDATED, widestWaitedNumber: '010.1' })).toBe(84);
-    expect(
-      widthFor('depends', { ...UNDATED, widestWaitedNumber: '010.1', waitsForSeveral: true }),
-    ).toBe(95);
-    expect(
-      widthFor('depends', { ...UNDATED, widestWaitedNumber: '010.3.01', waitsForSeveral: true }),
-    ).toBe(112);
+    expect(width(plain('010'), true)).toBe(84);
+    expect(width(plain('010.1'))).toBe(84);
+    expect(width(plain('010.1'), true)).toBe(95);
+    expect(width(plain('010.3.01'), true)).toBe(112);
+    // A typed chip carries its relationship and no ✕.
+    expect(width({ words: '020 SS', crossed: false }, true)).toBe(93);
+    expect(width({ words: '010.3.01 SS', crossed: false }, true)).toBe(121);
   });
 
-  it('measures a number by its glyphs, a dot narrower than a digit', () => {
-    expect(dependencyNumberInk('010.3.01')).toBeCloseTo(46.81, 2);
-    expect(dependencyNumberInk('')).toBe(0);
+  it('measures a chip by its glyphs, a dot or space narrower than a digit', () => {
+    expect(dependencyChipWidth({ words: '010.3.01', crossed: true })).toBeCloseTo(69.15, 2);
+    expect(dependencyChipWidth({ words: '030.1 SS', crossed: false })).toBeCloseTo(59.94, 2);
+  });
+
+  it('sizes for typed dependencies between whole rows, not only plain waits', () => {
+    // Review of PR #457, finding 2: the scan read `dependsOn` alone, so a
+    // plan whose waits are typed rested at 84 whatever its numbers. Proof:
+    // the typed loop emptied in `dependencyChipsOf`, this failed on
+    // `expected { widestDependencyChip: null, …(1) } to deeply equal { Object
+    // (widestDependencyChip, waitsForSeveral) }`. Watched 2026-10-14.
+    const rows = [
+      { id: 'a', number: '010.3.01', dependsOn: [] },
+      { id: 'b', number: '020', dependsOn: [] },
+      { id: 'c', number: '030', dependsOn: [] },
+    ];
+    const typed = (from: string, to: string, type: string, scope: 'whole' | 'node' = 'whole') => ({
+      id: `${from}-${to}`,
+      predecessor: { scope, workItemId: from, ...(scope === 'node' ? { stepId: 's' } : {}) },
+      successor: { scope: 'whole' as const, workItemId: to },
+      type,
+    });
+    expect(dependencyChipsOf(rows, [typed('a', 'b', 'SS'), typed('c', 'b', 'FF')])).toEqual({
+      widestDependencyChip: { words: '010.3.01 SS', crossed: false },
+      waitsForSeveral: true,
+    });
+    // A whole finish-to-start draws as a plain wait; a node-scoped one is not
+    // sized for.
+    expect(dependencyChipsOf(rows, [typed('c', 'b', 'FS'), typed('a', 'c', 'SS', 'node')])).toEqual(
+      { widestDependencyChip: { words: '030', crossed: true }, waitsForSeveral: false },
+    );
   });
 });
 
@@ -430,7 +459,7 @@ describe('the Number column is as narrow as the plan lets it be', () => {
       declared(['number'], {
         ...UNDATED,
         numberingFrozen: true,
-        widestWaitedNumber: '',
+        widestDependencyChip: null,
         waitsForSeveral: false,
       }),
     ).toEqual({ number: 98 });
@@ -439,7 +468,7 @@ describe('the Number column is as narrow as the plan lets it be', () => {
         ...UNDATED,
         deepestDepth: 5,
         numberingFrozen: true,
-        widestWaitedNumber: '',
+        widestDependencyChip: null,
         waitsForSeveral: false,
       }),
     ).toEqual({
@@ -1060,7 +1089,7 @@ describe('a column this browser has dragged to another width', () => {
     hasAnyNotBefore: true,
     deepestDepth: 0,
     numberingFrozen: false,
-    widestWaitedNumber: '',
+    widestDependencyChip: null,
     waitsForSeveral: false,
     columnWidthOverrides: new Map([['number', 68 + 40]]),
   };
@@ -1094,7 +1123,7 @@ describe('a column this browser has dragged to another width', () => {
       hasAnyNotBefore: false,
       deepestDepth: 0,
       numberingFrozen: false,
-      widestWaitedNumber: '',
+      widestDependencyChip: null,
       waitsForSeveral: false,
       columnWidthOverrides: new Map([['step-dev-final', 140]]),
     };
@@ -1119,7 +1148,7 @@ describe('a column this browser has dragged to another width', () => {
         hasAnyNotBefore: false,
         deepestDepth: 0,
         numberingFrozen: false,
-        widestWaitedNumber: '',
+        widestDependencyChip: null,
         waitsForSeveral: false,
         columnWidthOverrides: overrides,
       }),
@@ -1129,7 +1158,7 @@ describe('a column this browser has dragged to another width', () => {
         hasAnyNotBefore: true,
         deepestDepth: 0,
         numberingFrozen: false,
-        widestWaitedNumber: '',
+        widestDependencyChip: null,
         waitsForSeveral: false,
         columnWidthOverrides: overrides,
       }),
@@ -1149,7 +1178,7 @@ describe('a column this browser has dragged to another width', () => {
     hasAnyNotBefore: true,
     deepestDepth: 0,
     numberingFrozen: false,
-    widestWaitedNumber: '',
+    widestDependencyChip: null,
     waitsForSeveral: false,
     columnWidthOverrides: new Map([['name', 300]]),
   };

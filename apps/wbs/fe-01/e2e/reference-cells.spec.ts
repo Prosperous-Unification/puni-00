@@ -510,12 +510,20 @@ test('rests every reference row on one line and opens a crowded cell to reach ev
     await hitsItself(strip.locator('[data-reference-chip]').last()),
     'the clipped chip is still hit-testable, so the rest line does not clip',
   ).toBe(false);
+  // The cue is the `+N` after the chips, and nothing fades: a fade over the
+  // line's end dimmed the last chip's ✕ (D4 as amended 2026-10-14, review of
+  // PR #457). Proof: the fade put back on the chips' line, this failed on
+  // `the rest line fades · Expected: "none"`. Watched 2026-10-14.
+  await expect(
+    strip.locator('[data-reference-hidden-count]'),
+    'the clipped rest line wears no truncation cue',
+  ).toHaveText(/^\+[1-9]/);
   expect(
     await strip
       .locator('[data-reference-chips]')
       .evaluate((node) => getComputedStyle(node).maskImage),
-    'the clipped rest line wears no truncation cue',
-  ).not.toBe('none');
+    'the rest line fades',
+  ).toBe('none');
 
   // Entering the cell is what brings a clipped member back into reach — the
   // state a member is removed from, and therefore the state it must be in.

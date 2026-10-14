@@ -2,6 +2,8 @@ import { type ExpandedState } from '@tanstack/react-table';
 import type * as React from 'react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
+import type { TypedDependencyView } from '@/lib/wbs-api';
+
 import {
   clampedGanttHeight,
   DAY_PX,
@@ -34,7 +36,8 @@ import {
 } from './remembered-layout';
 import {
   clampColumnWidth,
-  dependencyNumberInk,
+  type DependencyChipFace,
+  dependencyChipWidth,
   FLEXIBLE_FLOOR,
   type FrameLayoutState,
 } from './table-frame';
@@ -676,6 +679,52 @@ export function usePlanLayoutEffects({
 }
 
 /**
+ * What the Depends on cells draw as chips, over the whole project for the
+ * `deepestDepth` reason in {@link usePlanLayout}: every plain wait
+ * (`010.3.01 ✕`) and every typed dependency between whole rows (`020 SS`, or
+ * `020 ✕` for a whole finish-to-start) — the chip words `dependencyWords`
+ * prints. Answers the widest of them by {@link dependencyChipWidth}, and
+ * whether any row waits for more than one.
+ *
+ * A node-scoped chip is not sized for: it is hidden whole and counted. An id
+ * with no row is skipped, as the cell itself skips it (`dependenciesOf`).
+ */
+export function dependencyChipsOf(
+  flat: readonly Pick<TreeRow, 'id' | 'number' | 'dependsOn'>[],
+  typedDependencies: readonly TypedDependencyView[],
+): Pick<FrameLayoutState, 'widestDependencyChip' | 'waitsForSeveral'> {
+  const numberOf = new Map(flat.map((row) => [row.id, row.number]));
+  const faces: DependencyChipFace[] = [];
+  for (const row of flat) {
+    for (const id of row.dependsOn) {
+      const number = numberOf.get(id);
+      if (number !== undefined) faces.push({ words: number, crossed: true });
+    }
+  }
+  const waits = new Map(flat.map((row) => [row.id, row.dependsOn.length]));
+  for (const dependency of typedDependencies) {
+    const { predecessor, successor, type } = dependency;
+    if (predecessor.scope !== 'whole' || successor.scope !== 'whole') continue;
+    const number = numberOf.get(predecessor.workItemId);
+    const waited = waits.get(successor.workItemId);
+    if (number === undefined || waited === undefined) continue;
+    faces.push(
+      type === 'FS'
+        ? { words: number, crossed: true }
+        : { words: `${number} ${type}`, crossed: false },
+    );
+    waits.set(successor.workItemId, waited + 1);
+  }
+  let widest: DependencyChipFace | null = null;
+  for (const face of faces)
+    if (widest === null || dependencyChipWidth(face) > dependencyChipWidth(widest)) widest = face;
+  return {
+    widestDependencyChip: widest,
+    waitsForSeveral: [...waits.values()].some((count) => count > 1),
+  };
+}
+
+/**
  * The widths this render lays the table out by, and the three gestures that
  * change them: a column drag, the chart's height drag, and Reset.
  *
@@ -685,6 +734,7 @@ export function usePlanLayoutEffects({
  */
 export function usePlanLayout({
   flat,
+  typedDependencies,
   widthOverrides,
   setWidthOverrides,
   projectId,
@@ -698,6 +748,8 @@ export function usePlanLayout({
   hiddenColumnIds,
 }: {
   flat: TreeRow[];
+  /** The plan's typed dependencies, whose whole-row chips size Depends on. */
+  typedDependencies: readonly TypedDependencyView[];
   widthOverrides: Map<string, number>;
   setWidthOverrides: React.Dispatch<React.SetStateAction<Map<string, number>>>;
   projectId: string;
@@ -729,30 +781,16 @@ export function usePlanLayout({
     0,
   );
   const numberingFrozen = flat.some((row) => row.frozenNumber !== null);
-  // What the Depends on cells draw as chips, over the whole project for the
-  // `deepestDepth` reason above. An id with no row is skipped, as the cell
-  // itself skips it (`dependenciesOf`): a deleted predecessor draws no chip.
-  const { widestWaitedNumber, waitsForSeveral } = useMemo(() => {
-    const numberOf = new Map(flat.map((row) => [row.id, row.number]));
-    let widest = '';
-    for (const row of flat) {
-      for (const id of row.dependsOn) {
-        const number = numberOf.get(id);
-        if (number !== undefined && dependencyNumberInk(number) > dependencyNumberInk(widest))
-          widest = number;
-      }
-    }
-    return {
-      widestWaitedNumber: widest,
-      waitsForSeveral: flat.some((row) => row.dependsOn.length > 1),
-    };
-  }, [flat]);
+  const { widestDependencyChip, waitsForSeveral } = useMemo(
+    () => dependencyChipsOf(flat, typedDependencies),
+    [flat, typedDependencies],
+  );
   const frameState = useMemo<FrameLayoutState>(
     () => ({
       hasAnyNotBefore,
       deepestDepth,
       numberingFrozen,
-      widestWaitedNumber,
+      widestDependencyChip,
       waitsForSeveral,
       // The reader's own answer, which outranks whatever the facts above resolve
       // to. Built here rather than passed to each consumer, so the `<colgroup>`,
@@ -764,7 +802,7 @@ export function usePlanLayout({
       hasAnyNotBefore,
       deepestDepth,
       numberingFrozen,
-      widestWaitedNumber,
+      widestDependencyChip,
       waitsForSeveral,
       widthOverrides,
     ],

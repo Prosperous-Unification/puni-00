@@ -64,7 +64,7 @@ const UNDATED: FrameLayoutState = {
   hasAnyNotBefore: false,
   deepestDepth: 0,
   numberingFrozen: false,
-  widestWaitedNumber: '',
+  widestDependencyChip: null,
   waitsForSeveral: false,
 };
 
@@ -73,7 +73,7 @@ const DATED: FrameLayoutState = {
   hasAnyNotBefore: true,
   deepestDepth: 0,
   numberingFrozen: false,
-  widestWaitedNumber: '',
+  widestDependencyChip: null,
   waitsForSeveral: false,
 };
 

@@ -1295,45 +1295,39 @@ describe('dependencies in the table', () => {
     expect(wrapper.style.whiteSpace).toBe('');
   });
 
-  itDom(
-    'keeps the truncation fade off a line that hides nothing, and off the open one',
-    async () => {
-      // The fade is the *rest* state's truncation cue, and since UI review
-      // F-057 (decision D4) it follows the measured hidden chips, the reference
-      // strips' rule: a resting line that drew every chip wears none. jsdom
-      // lays nothing out, so nothing is hidden here and the strip never fades;
-      // the fade where a chip *is* hidden is Chromium's proof,
-      // `e2e/plan-table-review.spec.ts`'s `draws a dependency number whole…`.
-      // It stays off while the picker owns the cell: the strip wraps then and
-      // the box spans the full width — a mask there fades the focus ring, the
-      // caret and the typed text (codex + agy review, 2026-08-10).
-      // Proof: the fade put back on every resting strip with chips, this failed
-      // on `expected 'linear-gradient(to left, transparent,…' to be ''`. Watched 2026-10-14.
-      await threeRoots();
-      dependOn('030', '010');
-      await waitFor(() => {
-        expect(screen.getByLabelText(/^Stop 030 waiting for 010/)).toBeDefined();
-      });
-      dependOn('030', '020');
-      await waitFor(() => {
-        expect(screen.getByLabelText(/^Stop 030 waiting for 020/)).toBeDefined();
-      });
-      fireEvent.blur(screen.getByLabelText('Add a dependency to 030'));
+  itDom('wears no truncation fade, at rest or open', async () => {
+    // There is no edge fade on the Depends on strip or its chips' line: the
+    // cue that the line hid chips is the `+N` after them (decision D4 as
+    // amended 2026-10-14, review of PR #457 — a fade over the line's end
+    // dimmed the last chip's ✕ to 1.8:1). The count itself is Chromium's
+    // proof, `e2e/plan-table-review.spec.ts`; jsdom lays nothing out.
+    // Proof: the fade put back on every resting strip with chips, this failed
+    // on `expected 'linear-gradient(to left, transparent,…' to be ''`.
+    // Watched 2026-10-14.
+    await threeRoots();
+    dependOn('030', '010');
+    await waitFor(() => {
+      expect(screen.getByLabelText(/^Stop 030 waiting for 010/)).toBeDefined();
+    });
+    dependOn('030', '020');
+    await waitFor(() => {
+      expect(screen.getByLabelText(/^Stop 030 waiting for 020/)).toBeDefined();
+    });
+    fireEvent.blur(screen.getByLabelText('Add a dependency to 030'));
 
-      const { strip } = stripOf('030');
-      const line = (): string =>
-        strip.querySelector<HTMLElement>('[data-reference-chips]')?.style.maskImage ?? '(no line)';
-      expect(strip.style.maskImage).toBe('');
-      expect(line()).toBe('');
+    const { strip } = stripOf('030');
+    const line = (): string =>
+      strip.querySelector<HTMLElement>('[data-reference-chips]')?.style.maskImage ?? '(no line)';
+    expect(strip.style.maskImage).toBe('');
+    expect(line()).toBe('');
 
-      fireEvent.focus(screen.getByLabelText('Add a dependency to 030'));
-      expect(screen.getAllByRole('listbox')).toHaveLength(1);
-      expect(line()).toBe('');
-      // While the picker owns the cell the strip wraps as the cell always did,
-      // so nothing about typing or the open list changes.
-      expect(strip.style.flexWrap).toBe('wrap');
-    },
-  );
+    fireEvent.focus(screen.getByLabelText('Add a dependency to 030'));
+    expect(screen.getAllByRole('listbox')).toHaveLength(1);
+    expect(line()).toBe('');
+    // While the picker owns the cell the strip wraps as the cell always did,
+    // so nothing about typing or the open list changes.
+    expect(strip.style.flexWrap).toBe('wrap');
+  });
 
   itDom('keeps clipped chips out of the tab order at rest', async () => {
     // A clipped chip is a native button a sequential Tab or a reader's focus

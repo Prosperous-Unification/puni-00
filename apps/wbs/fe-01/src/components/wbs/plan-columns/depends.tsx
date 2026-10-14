@@ -9,7 +9,7 @@ import { DependsCard, dependsLine, statusStripStyle } from '../depends-card';
 import { cellKey } from '../editable-grid';
 import { commandChordIn, escapesAnOpenList } from '../keyboard-bindings';
 import { didLand } from '../live-editing';
-import { DEP_EDGE_FADE, DEP_LIST_WIDTH } from '../plan-cell-props';
+import { DEP_LIST_WIDTH } from '../plan-cell-props';
 import type { PlanLive } from '../plan-live';
 import {
   chipLineStyle,
@@ -108,12 +108,11 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
       const hasChips = waitingFor.length > 0 || typedDependencies.length > 0;
       // The chips the resting line could not draw whole, by the same
       // measurement as the Tags, Teams, Services and Types strips: `+N` after
-      // the chips with an `Also: …` title, and the edge fade only when
-      // something is hidden (decision D4, UI review F-057).
-      // Proof: the fade's condition widened to every resting strip with
-      // chips, `draws a dependency number whole and counts what the line hid`
-      // (`e2e/plan-table-review.spec.ts`) failed on `a line that hides nothing
-      // wears no fade`. Watched 2026-10-14.
+      // the chips with an `Also: …` title, and no edge fade (decision D4 as
+      // amended 2026-10-14: `+N` is the cue; a fade dimmed the last chip's ✕).
+      // Proof: the count's render removed, `draws a dependency number whole
+      // and counts what the line hid` (`e2e/plan-table-review.spec.ts`)
+      // failed on `Expected: "+2" · Received: null`. Watched 2026-10-14.
       // eslint-disable-next-line react-hooks/rules-of-hooks
       const hiddenChips = useHiddenChips(
         chipLine,
@@ -171,7 +170,7 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
           // — because the full list now lives in the DependsCard hover
           // and the box's sr-only description, so the cell no longer has
           // to be several lines tall to say it. At rest the strip below
-          // clamps to one clipped line; the fade on it is the cue.
+          // clamps to one clipped line; the `+N` after it is the cue.
           //
           // The positioned ancestor the listbox below is placed against —
           // which is what decides *where* the list opens, not whether it
@@ -202,11 +201,9 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                 rest, whole while somebody is in it). `whiteSpace: 'nowrap'`
                 is not decoration beside `flexWrap`: it is what keeps a
                 squeezed chip's `✕` from folding under its number and growing
-                the one line into two. The fade is the rest state's
-                truncation cue — {@link DEP_EDGE_FADE} says why it belongs to
-                rest and to nothing else, and only where the resting line hid
-                a chip, which the `+N` after the chips counts (decision
-                D4).
+                the one line into two. The rest state's truncation cue is
+                the `+N` after the chips, counting what the line hid
+                (decision D4); there is no edge fade.
 
                 **And only with chips**, which is this change's own correction
                 and not a tidy. `wrap` plus the box's `width: 100%` claim
@@ -254,9 +251,8 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
               gap: 2,
               whiteSpace: 'nowrap',
               overflow: 'hidden',
-              // Pinned, in one line: the mask above fades the *physical*
-              // right edge — the app is LTR-only today, and a
-              // logical-direction gradient is not portable syntax.
+              // Pinned: the `+` leads and the clip cuts the *physical* right
+              // edge — the app is LTR-only today.
               direction: 'ltr',
             }}
           >
@@ -270,8 +266,7 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                   triggers: the box takes the focus, and the box's own
                   `onFocus` opens the picker ready to type.
 
-                  **First, not last.** The strip clips its right edge and fades
-                  the last {@link DEP_EDGE_FADE} pixels of it; a trailing
+                  **First, not last.** The strip clips its right edge; a trailing
                   affordance in a cell waiting on seven rows would be clipped
                   out of sight in exactly the crowded cell that needs it most,
                   and the box's `width: 100%` claim would have pushed it there
@@ -401,12 +396,6 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                   // into, and is clipped by.
                   position: 'relative',
                   ...(resting ? {} : { flex: '1 1 0%' }),
-                  // The fade on the chips' line and not the strip's: the
-                  // strip's last 14px is where the `+N` stands, and faded it
-                  // fell below 4.5:1 (UI review F-057).
-                  ...(resting && hiddenChips.length > 0
-                    ? { WebkitMaskImage: DEP_EDGE_FADE, maskImage: DEP_EDGE_FADE }
-                    : {}),
                 }}
               >
                 {waitingFor.map(({ id, number }) => (

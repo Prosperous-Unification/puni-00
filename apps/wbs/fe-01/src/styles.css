@@ -1253,7 +1253,7 @@
 
   /*
    * A dependency chip. Compact on purpose: seven of them share a 110px column
-   * and rest clipped to one line behind the strip's fade, and the padding is
+   * and rest clipped to one line, counted by `+N`, and the padding is
    * the only thing deciding how many are on screen before the clip. Spacing
    * is the strip's `gap` in `wbs-table.tsx`, not a margin here: a chip's own
    * bottom margin would make the strip's one rested line taller than a
@@ -1268,7 +1268,10 @@
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     background: color-mix(in oklab, var(--muted) 70%, var(--background));
-    color: var(--muted-foreground);
+    /* The reference chips' ink, not `--muted-foreground`: that read 4.35:1 on
+       this fill in the light palette, under the 4.5:1 floor, for the number
+       and the ✕ alike (review of PR #457, measured on the painted ✕). */
+    color: var(--foreground);
     padding: 0 4px;
     line-height: 1.5;
     cursor: pointer;
@@ -1374,29 +1377,6 @@
    * precedent for that one; only the arithmetic in the paragraph above is a
    * light-palette, odd-row snapshot now.
    */
-  /*
-   * The dependency count, between the add affordance and the first chip.
-   *
-   * Reads as a number and not as a chip: no border and no fill, the add
-   * affordance's own quiet. Two bordered tokens on the leading edge would look
-   * like two controls, and this one does nothing when clicked.
-   *
-   * `line-height: 1.5` and `padding: 0 4px` are the chip's, to the pixel, for
-   * the reason `[data-dep-add]` gives above — the chips set the strip's line
-   * box, and anything taller in it makes every deps row taller than every
-   * other row in the table.
-   *
-   * `tabular-nums` so a column of counts lines up on the digit rather than on
-   * whatever the face felt like, which is what the derived figures below do
-   * for the same reason.
-   */
-  [data-grid] td[data-column='depends'] [data-dep-count] {
-    color: var(--muted-foreground);
-    padding: 0 4px;
-    line-height: 1.5;
-    font-variant-numeric: tabular-nums;
-  }
-
   /* The derived figures. Tabular, so a column of them lines up on the decimal
      point rather than on whatever the face felt like. */
   [data-grid] [data-start],
