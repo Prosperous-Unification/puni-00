@@ -4680,3 +4680,77 @@ Checks ran in an isolated `/tmp` clone on `pop-os`, using frozen dependencies.
 Canonical h2puni gate, whole-repository gates/build/browser checks and a new hosted CI
 run remain unverified here. Tasks 10.2–10.4 and shared capability activation remain
 pending. No push, merge or deploy.
+
+## Canonical shared-backup digest checkpoint (10.2a, 2026-10-14)
+
+Base: approved #425 exact `3ff5b58accd27d6f5f0e59f7da770f87216ca570`. Work is isolated on
+`batch-10/shared-restore-fencing-sol`; the published approval branch/worktree remains clean at
+that exact commit. This checkpoint closes **10.2a only**. The host same-process restore entrypoint,
+canonical deploy lock, blue/green database/mount identity, all writable-container exclusion,
+retained read, optional ID diagnostics and flock/process-death proofs remain open in **10.2b**.
+Approval consumption/receipts/shared activation remain open in 10.3/10.4. Existing isolated
+`save|remove|restore` CLI recovery remains compatible and shared backups still refuse bare restore.
+
+`shared-people-backup.ts` now owns the extracted v1 type/parser used by recovery and the new
+`digest <backup-file>` CLI branch. A rank must name an included saved organization. Canonical
+UTF-8 JSON fixes all field ordering and ordinal organization/project ordering before lowercase
+SHA-256; neither whitespace nor object/array presentation order changes the digest. The golden
+fixture is independently specified by these exact bytes:
+
+```text
+{"format":"shared-people-save","version":1,"organizations":[{"organizationId":"org-a","mode":"isolated"},{"organizationId":"org-z","mode":"shared"}],"ranks":[{"projectId":"a1","organizationId":"org-a","position":3,"createdAt":1,"updatedAt":2,"createdBy":"ada"}]}
+```
+
+The independently computed Python hashlib SHA-256 is
+`ea65189d5af61518fddf5bb825351667d2983f08ee9bf08c87ebe4ffd9a18117`, recorded as a literal
+in both tests. CLI tests use a real child Bun process, omitted DB_PATH, a poisoned non-SQLite
+DB_PATH sentinel, pretty/reordered input, and absent/unreadable/malformed/foreign-rank files.
+
+### Fresh checks
+
+- Initial CLI RED before implementation: **1 pass, 2 fail**, digest required DB_PATH or was
+  rejected as an unsupported command. New canonical fixtures were written before implementation.
+- Final:
+  `bun test libs/wbs/adapters/store-sqlite/src/shared-people-backup.test.ts apps/wbs/be-01/src/shared-people-backup-cli.test.ts libs/wbs/adapters/store-sqlite/src/shared-people-rollback.db.test.ts libs/wbs/adapters/store-sqlite/src/shared-people-restore-approval.db.test.ts libs/wbs/adapters/store-sqlite/src/shared-people-audit.db.test.ts apps/wbs/be-01/src/controller/shared-people-restore-approval.controller.db.test.ts --timeout=30000`:
+  **57 pass, 0 fail, 234 assertions**, including isolated save/remove/restore process recovery,
+  shared-restore pre-write refusal, approval/rollback regressions and no-write rank-set refusal.
+- `NX_DAEMON=false bunx nx run-many -t typecheck -p wbs-store-sqlite,wbs-be-01 --parallel=2`:
+  **passed**, three tasks including backend module checks. After adding the production restore
+  relation test, `NX_DAEMON=false bunx nx run wbs-store-sqlite:typecheck` also **passed**.
+- `bunx eslint <six changed/new .ts paths>`: **passed**. An initial editing invocation had no Nx
+  graph and skipped its module-boundary rule; the final invocation ran after Nx graph creation
+  with no warnings or skipped-rule output.
+- `bunx prettier --check <all changed/new .ts/.md paths>` and `git diff --check`: **passed**.
+- `BUN_TMPDIR=/tmp BUN_INSTALL_CACHE_DIR=/tmp/puni-bun-cache bunx @fission-ai/openspec@1.12.0 validate --all --json`:
+  **186 passed, 0 failed**.
+- The fresh worktree's first frozen install failed with DNSResolveFailed. Its lockfile was compared
+  byte-for-byte with the approved worktree; reusing that existing node_modules then running
+  `BUN_TMPDIR=/tmp BUN_INSTALL_CACHE_DIR=/tmp/puni-bun-cache bun install --frozen-lockfile` succeeded:
+  **1573 installs checked, no changes**.
+- No migration changed. Canonical h2puni gate, full repository gates/build/browser checks and
+  real host/container/lock execution are unverified in this local `pop-os` checkpoint. No host
+  fencing claim, push, merge or deployment.
+
+### Watched R5 faults
+
+Each mutation below was injected into the real production parser/CLI dependency and run with
+`bun test <file> -t <named case> --timeout=30000`; source was restored in `finally`. All **20**
+focused fault runs exited 1 with failed assertions, followed by the green regression run above.
+
+| Fault                                                                                                           | Observed negative                                                                              |
+| --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Reorder canonical root fields                                                                                   | Fixed-byte SHA-256 golden failed                                                               |
+| Reorder canonical organization fields                                                                           | Same golden failed                                                                             |
+| Reorder canonical rank fields                                                                                   | Same golden failed                                                                             |
+| Reverse organization sorting                                                                                    | Same golden failed                                                                             |
+| Reverse rank sorting                                                                                            | Ordinal-ID test failed                                                                         |
+| Use localeCompare                                                                                               | Ordinal-ID test failed for Z/a/ä                                                               |
+| Bypass rank-to-saved-organization relation                                                                      | Real digest CLI emitted a forbidden digest instead of refusing                                 |
+| Bypass the same relation for restore                                                                            | Real SQLite recovery accepted an incomplete organization set instead of refusing before writes |
+| Accept version 2                                                                                                | v1-validation negative admitted it                                                             |
+| Bypass organization uniqueness                                                                                  | v1-validation negative admitted duplicate organization                                         |
+| Bypass rank uniqueness                                                                                          | v1-validation negative admitted duplicate project                                              |
+| Use SHA-1 instead of SHA-256                                                                                    | Fixed-byte golden failed                                                                       |
+| Open DB_PATH in digest branch                                                                                   | Poisoned-database process case failed                                                          |
+| Require DB_PATH in digest branch                                                                                | No-database process case failed                                                                |
+| Omit projectId, organizationId, position, createdAt, updatedAt or createdBy from rank normalization, separately | Six independent fixed-byte golden failures                                                     |

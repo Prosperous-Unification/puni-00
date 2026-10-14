@@ -415,3 +415,18 @@ idempotently only for the same actor, operation and digest. A conflicting bindin
 Evidence prevents schema rollback. Approval issuance alone grants no runtime capability and does
 not weaken the existing shared restore refusal. The consuming restore owner, durable receipt,
 writer/deploy exclusion and capability activation follow in ordered slices 10.2–10.4.
+
+### D10.1 Canonical backup digest boundary
+
+`shared-people-backup.ts` owns validated v1 backup shape and normalization for both the existing
+recovery adapter and the offline digest command. Canonical bytes are UTF-8 JSON without whitespace:
+root fields `format,version,organizations,ranks`; organization fields `organizationId,mode`; rank
+fields `projectId,organizationId,position,createdAt,updatedAt,createdBy`. Organization and rank
+arrays sort by ordinal organization/project ID using string comparison, never locale collation.
+All v1 validation remains, and every rank must name an organization present in the complete
+backup. The digest is lowercase SHA-256 of those bytes. File whitespace, object key order and
+array presentation order carry no authority; all normalized saved facts do.
+
+The `digest <backup-file>` CLI branch validates one file read and requires no `DB_PATH` or SQLite
+connection. Existing isolated recovery commands remain compatible; shared restoration still
+refuses. Same-process host lock/container fencing is a distinct pending slice 10.2b.
