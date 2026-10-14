@@ -616,6 +616,7 @@ describe('DELETE /api/projects/:id/steps/:stepId', () => {
         estimates: 1,
         actuals: 0,
         progress: 0,
+        blockages: 0,
         measures: 0,
         attempts: 0,
         assignments: 1,

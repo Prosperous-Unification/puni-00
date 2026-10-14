@@ -667,6 +667,7 @@ describe('StepRepository', () => {
         // number nobody can retype from memory.
         actuals: 0,
         progress: 0,
+        blockages: 0,
         measures: 0,
         attempts: 0,
         assignments: [{ workItemId: 'strip', stepId: qaId, personId: ada.id }],
@@ -740,6 +741,7 @@ describe('StepRepository', () => {
       estimates: 0,
       actuals: 1,
       progress: 0,
+      blockages: 0,
       measures: 0,
       attempts: 0,
       assignments: [],
@@ -747,7 +749,15 @@ describe('StepRepository', () => {
     expect(refused).toEqual({
       ok: false,
       reason: 'in_use',
-      usage: { estimates: 0, actuals: 1, progress: 0, measures: 0, attempts: 0, assignments: [] },
+      usage: {
+        estimates: 0,
+        actuals: 1,
+        progress: 0,
+        blockages: 0,
+        measures: 0,
+        attempts: 0,
+        assignments: [],
+      },
     });
     expect(await steps.findById(qaId)).not.toBeNull();
     expect(await actuals.listByProject(projectId)).toHaveLength(1);
@@ -779,6 +789,7 @@ describe('StepRepository', () => {
       estimates: 0,
       actuals: 0,
       progress: 1,
+      blockages: 0,
       measures: 0,
       attempts: 0,
       assignments: [],
@@ -786,7 +797,15 @@ describe('StepRepository', () => {
     expect(refused).toEqual({
       ok: false,
       reason: 'in_use',
-      usage: { estimates: 0, actuals: 0, progress: 1, measures: 0, attempts: 0, assignments: [] },
+      usage: {
+        estimates: 0,
+        actuals: 0,
+        progress: 1,
+        blockages: 0,
+        measures: 0,
+        attempts: 0,
+        assignments: [],
+      },
     });
     expect(await steps.findById(qaId)).not.toBeNull();
     expect(await progress.listByProject(projectId)).toHaveLength(1);
@@ -820,6 +839,7 @@ describe('StepRepository', () => {
         estimates: 0,
         actuals: 0,
         progress: 1,
+        blockages: 0,
         measures: 0,
         attempts: 0,
         assignments: 0,
@@ -854,7 +874,7 @@ describe('StepRepository', () => {
     const counted = await steps.usageOf(projectId, qaId);
     const refused = await steps.remove(projectId, qaId, false, wrote());
 
-    const usage = { estimates: 0, actuals: 0, progress: 0, measures: 0, attempts: 2 };
+    const usage = { estimates: 0, actuals: 0, progress: 0, blockages: 0, measures: 0, attempts: 2 };
     expect(counted).toEqual({ ...usage, assignments: [] });
     expect(refused).toEqual({ ok: false, reason: 'in_use', usage: { ...usage, assignments: [] } });
     expect(await steps.findById(qaId)).not.toBeNull();
@@ -912,6 +932,7 @@ describe('StepRepository', () => {
       estimates: 0,
       actuals: 0,
       progress: 0,
+      blockages: 0,
       measures: 2,
       attempts: 0,
       assignments: [],
@@ -919,7 +940,15 @@ describe('StepRepository', () => {
     expect(refused).toEqual({
       ok: false,
       reason: 'in_use',
-      usage: { estimates: 0, actuals: 0, progress: 0, measures: 2, attempts: 0, assignments: [] },
+      usage: {
+        estimates: 0,
+        actuals: 0,
+        progress: 0,
+        blockages: 0,
+        measures: 2,
+        attempts: 0,
+        assignments: [],
+      },
     });
     expect(await steps.findById(qaId)).not.toBeNull();
     expect(await measures.listByProject(projectId)).toHaveLength(2);
@@ -975,6 +1004,7 @@ describe('StepRepository', () => {
         estimates: 0,
         actuals: 0,
         progress: 0,
+        blockages: 0,
         measures: 2,
         attempts: 0,
         assignments: 0,
@@ -1006,6 +1036,7 @@ describe('StepRepository', () => {
         estimates: 0,
         actuals: 1,
         progress: 0,
+        blockages: 0,
         measures: 0,
         attempts: 0,
         assignments: 0,

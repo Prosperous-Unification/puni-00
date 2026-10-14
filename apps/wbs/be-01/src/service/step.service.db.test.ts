@@ -28,7 +28,7 @@ import type {
 } from '../repository';
 import { ActualRepository } from '../repository/actual';
 import { CommandJournalRepository } from '../repository/command-journal';
-import { openDrizzle } from '../repository/db';
+import { openDatabase, openDrizzle } from '../repository/db';
 import { DependencyRepository } from '../repository/dependency';
 import { DirectoryRepository } from '../repository/directory';
 import { EstimateRepository } from '../repository/estimate';
@@ -285,6 +285,107 @@ function storeWith(overrides: Partial<StepStore>): StepStore {
 }
 
 describe('StepService.remove', () => {
+  it('refuses direct blockage before opening the deletion transaction, including beneath done progress', async () => {
+    const blockages = new StepBlockageRepository(db, OPEN);
+    await blockages.set({ workItemId: 'strip', stepId: qaId, blockedAt: -12 }, wrote());
+    const removeThroughStore = stepStore.remove.bind(stepStore);
+    let transactionsOpened = 0;
+    stepStore.remove = (...args: Parameters<StepStore['remove']>) => {
+      transactionsOpened += 1;
+      return removeThroughStore(...args);
+    };
+    for (const state of ['unknown', 'done']) {
+      if (state === 'done')
+        await progressStore.set(
+          { workItemId: 'strip', stepId: qaId, state, statedAt: 44 },
+          wrote(),
+        );
+      expect(await steps.remove(projectId, qaId, ownerId, false)).toMatchObject({
+        ok: false,
+        reason: 'in_use',
+        inUse: { blockages: 1 },
+      });
+    }
+    expect(transactionsOpened).toBe(0);
+    expect(await blockages.listByProject(projectId)).toEqual([
+      { workItemId: 'strip', stepId: qaId, blockedAt: -12 },
+    ]);
+    expect(broadcast.published).toEqual([]);
+  });
+
+  it('refuses a blockage arriving after the fast usage count', async () => {
+    const blockages = new StepBlockageRepository(db, OPEN);
+    const service = new StepService({
+      dependencyGraph: sqliteDependencyGraph(db, projectStore),
+      clock: testClock,
+      projects: projectStore,
+      broadcast,
+      steps: storeWith({
+        async usageOf(project, step) {
+          const counted = await stepStore.usageOf(project, step);
+          await blockages.set({ workItemId: 'strip', stepId: qaId, blockedAt: 52 }, wrote());
+          return counted;
+        },
+      }),
+    });
+    expect(await service.remove(projectId, qaId, ownerId, false)).toMatchObject({
+      ok: false,
+      reason: 'in_use',
+      inUse: { blockages: 1 },
+    });
+    expect(await stepStore.findById(qaId)).not.toBeNull();
+    expect(await blockages.listByProject(projectId)).toHaveLength(1);
+    expect(broadcast.published).toEqual([]);
+  });
+
+  it('confirmed cascade counts blockage facts, bumps blockage-only owners and keeps unrelated facts', async () => {
+    const blockages = new StepBlockageRepository(db, OPEN);
+    const workItems = new WorkItemRepository(db, OPEN);
+    await blockages.set({ workItemId: 'strip', stepId: qaId, blockedAt: -12 }, wrote());
+    await blockages.set({ workItemId: 'sand', stepId: devId, blockedAt: 33 }, wrote());
+    const before = await workItems.listByProject(projectId);
+    expect(await stepStore.remove(projectId, qaId, true, wrote())).toMatchObject({
+      ok: true,
+      removal: { blockages: 1, workItemIds: ['strip'] },
+    });
+    expect(await blockages.listByProject(projectId)).toEqual([
+      { workItemId: 'sand', stepId: devId, blockedAt: 33 },
+    ]);
+    const after = await workItems.listByProject(projectId);
+    for (const id of ['strip', 'sand'])
+      expect(after.find((row) => row.id === id)?.revision).toBe(
+        Number(before.find((row) => row.id === id)?.revision) + (id === 'strip' ? 1 : 0),
+      );
+  });
+
+  it('rolls back blockage facts, step and revisions when deletion fails after owner bumps', async () => {
+    const blockages = new StepBlockageRepository(db, OPEN);
+    const workItems = new WorkItemRepository(db, OPEN);
+    await blockages.set({ workItemId: 'strip', stepId: qaId, blockedAt: -12 }, wrote());
+    const before = await workItems.listByProject(projectId);
+    const projectBefore = await projectStore.findById(projectId);
+    const connection = openDatabase(join(dir, 'test.db'));
+    connection.run(
+      "CREATE TRIGGER refuse_step_revision BEFORE UPDATE ON project BEGIN SELECT RAISE(ABORT, 'injected revision failure'); END",
+    );
+    connection.close();
+    let failure: unknown;
+    try {
+      await steps.remove(projectId, qaId, ownerId, true);
+    } catch (caught) {
+      failure = caught;
+    }
+    if (!(failure instanceof Error)) throw new Error('expected a project revision write failure');
+    expect(failure.message).toContain('update "project"');
+    expect(await blockages.listByProject(projectId)).toEqual([
+      { workItemId: 'strip', stepId: qaId, blockedAt: -12 },
+    ]);
+    expect(await stepStore.findById(qaId)).not.toBeNull();
+    expect(await workItems.listByProject(projectId)).toEqual(before);
+    expect(await projectStore.findById(projectId)).toEqual(projectBefore);
+    expect(broadcast.published).toEqual([]);
+  });
+
   it('removes a step nothing points at, without asking again', async () => {
     const outcome = await steps.remove(projectId, qaId, ownerId, false);
 
@@ -313,6 +414,7 @@ describe('StepService.remove', () => {
         estimates: 2,
         actuals: 0,
         progress: 0,
+        blockages: 0,
         measures: 0,
         attempts: 0,
         assignments: 1,
@@ -358,6 +460,7 @@ describe('StepService.remove', () => {
         estimates: 0,
         actuals: 0,
         progress: 0,
+        blockages: 0,
         measures: 2,
         attempts: 0,
         assignments: 0,

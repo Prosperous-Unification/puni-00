@@ -2307,3 +2307,102 @@ describe('deletion blockage preservation', () => {
     expect(states()).toMatchObject([{ work_item_id: strip, step_id: dev, state: 'in_progress' }]);
   });
 });
+
+describe('project-step blockage deletion', () => {
+  const block = () =>
+    h.sqlite.run('INSERT INTO step_blockage (work_item_id, step_id, blocked_at) VALUES (?, ?, ?)', [
+      strip,
+      dev,
+      -52,
+    ]);
+  const snapshot = () =>
+    ['work_item', 'step', 'step_progress', 'step_blockage', 'event_log', 'event_sequencer'].map(
+      (table) => h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all(),
+    );
+
+  it.each(['unknown', 'done'])(
+    'returns typed 409 with direct blockage count beneath %s progress',
+    async (state) => {
+      block();
+      if (state === 'done')
+        expect(
+          (await batch([{ kind: 'setProgress', workItemId: strip, stepId: dev, state }])).status,
+        ).toBe(200);
+      const before = snapshot();
+      const refused = await h.call('ada', 'DELETE', `/api/projects/${project}/steps/${dev}`);
+      expect(refused.status).toBe(409);
+      expect(refused.body).toMatchObject({ error: 'in_use', inUse: { blockages: 1 } });
+      expect(snapshot()).toEqual(before);
+      expect(
+        (await h.call('ada', 'DELETE', `/api/projects/${project}/steps/${dev}?cascade=true`))
+          .status,
+      ).toBe(204);
+      expect(h.sqlite.query('SELECT * FROM step_blockage').all()).toEqual([]);
+      expect(h.sqlite.query('SELECT * FROM step WHERE id = ?').all(dev)).toEqual([]);
+    },
+  );
+
+  it('rolls back the mounted cascade after facts, step and owner revisions have been written', async () => {
+    block();
+    const before = snapshot();
+    const historyBefore = h.sqlite.query('SELECT * FROM command_journal ORDER BY seq').all();
+    h.sqlite.run(
+      "CREATE TRIGGER refuse_project_bump BEFORE UPDATE ON project BEGIN SELECT RAISE(ABORT, 'injected project bump failure'); END",
+    );
+    expect(
+      (await h.call('ada', 'DELETE', `/api/projects/${project}/steps/${dev}?cascade=true`)).status,
+    ).toBe(500);
+    expect(snapshot()).toEqual(before);
+    expect(h.sqlite.query('SELECT * FROM command_journal ORDER BY seq').all()).toEqual(
+      historyBefore,
+    );
+  });
+
+  it.each(['undo', 'redo'] as const)(
+    'refuses deletion %s history after its recorded step is removed',
+    async (direction) => {
+      block();
+      expect((await batch([{ kind: 'deleteWorkItem', workItemId: strip }])).status).toBe(200);
+      if (direction === 'redo')
+        expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+      expect(
+        (await h.call('ada', 'DELETE', `/api/projects/${project}/steps/${dev}?cascade=true`))
+          .status,
+      ).toBe(204);
+      h.sqlite.run(
+        "UPDATE command_journal SET preconditions = json_set(preconditions, '$.expected', json('{}'))",
+      );
+      const before = snapshot();
+      expect((await h.call('ada', 'POST', `/api/projects/${project}/${direction}`)).status).toBe(
+        404,
+      );
+      expect(snapshot()).toEqual(before);
+    },
+  );
+
+  it.each(['undo', 'redo'] as const)(
+    'refuses old first-child %s after confirmed project-step deletion',
+    async (direction) => {
+      block();
+      const created = await batch([
+        { kind: 'createWorkItem', parentId: strip, afterId: null, name: 'Child' },
+      ]);
+      expect(created.status).toBe(200);
+      if (direction === 'redo')
+        expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+      expect(
+        (await h.call('ada', 'DELETE', `/api/projects/${project}/steps/${dev}?cascade=true`))
+          .status,
+      ).toBe(204);
+      const before = snapshot();
+      // Remove revision evidence so step reference validation must itself refuse replay.
+      h.sqlite.run(
+        "UPDATE command_journal SET preconditions = json_set(preconditions, '$.expected', json('{}'))",
+      );
+      expect((await h.call('ada', 'POST', `/api/projects/${project}/${direction}`)).status).toBe(
+        404,
+      );
+      expect(snapshot()).toEqual(before);
+    },
+  );
+});
