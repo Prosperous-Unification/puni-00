@@ -124,11 +124,14 @@ the stronger of its two inks, and a done bar SHALL be drawn opaque.
 
 At the Weeks and Months rungs, where the axis prints only Mondays, the first
 day of each month SHALL carry the month's name (`Oct 2026`) above the day
-numbers, with a boundary down the axis, the chart and the exported SVG. The
-Days axis SHALL print what it printed before.
+numbers, with a boundary down the axis, the chart and the exported SVG. A
+month that begins closer to the axis's end than its name is wide SHALL keep its
+boundary and carry no name, so no name runs past the chart. The Days axis SHALL
+print what it printed before.
 
 When the schedule is narrower than the chart's panel, the calendar SHALL run
-on to the panel's edge without passing it. Every bar with a positive span
+on to the panel's edge without passing it. The same holds in full screen, where
+the panel is the whole window, at every rung, and again on returning from it. Every bar with a positive span
 SHALL be painted at least 4px wide at every rung; its scheduled span is
 unchanged. A done bar narrower than 8px SHALL wear the done green as a 1px
 edge instead of the 2px outline, and no tick; its accessible name still says
@@ -159,3 +162,12 @@ struck through or dashed, and a pressed toggle SHALL be drawn filled.
 - **THEN** the axis names `Oct 2026`, `Nov 2026` and `Dec 2026` where each
   begins, and the chart reaches the panel's right edge without a horizontal
   scrollbar
+
+#### Scenario: full screen at every rung
+
+- **GIVEN** a plan shorter than the window, drawn in full screen at 1440px or
+  1024px
+- **WHEN** the rung is Days, Weeks or Months
+- **THEN** the axis's last column ends less than one column plus the chart's
+  pad short of the window's edge, and the chart does not scroll sideways
+- **AND** after Escape the panel under the plan fills its own width again

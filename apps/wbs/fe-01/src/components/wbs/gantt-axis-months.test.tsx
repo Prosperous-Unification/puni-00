@@ -19,13 +19,16 @@ afterEach(() => {
 /** A Monday ten calendar days before October begins. */
 const START = '2026-09-21';
 
-/** Sixty workdays of work, so the axis runs from late September into December. */
-function drawAt(dayPx: DayPx): void {
+/**
+ * Sixty workdays of work by default, so the axis runs from late September into
+ * December.
+ */
+function drawAt(dayPx: DayPx, workdays = 60): void {
   render(
     <GanttPanel
       plan={planOf({
-        rows: [rowAt('hull', 0, 60)],
-        slices: [sliceAt('hull-dev', 'hull', 0, 60)],
+        rows: [rowAt('hull', 0, workdays)],
+        slices: [sliceAt('hull-dev', 'hull', 0, workdays)],
       })}
       startDate={START}
       scheduleError={null}
@@ -66,6 +69,25 @@ describe('month names on a compressed axis (ui-review F-023)', () => {
       ).not.toBeNull();
     });
   }
+
+  itDom('keeps a month name that has no room before the axis ends off the axis', () => {
+    // Fifty-two workdays end on Tuesday 1 December, so December begins on the
+    // axis's last cell, with one column and the chart's pad after it. "Dec
+    // 2026" there ran past the chart's end and gave a filled full-screen chart
+    // a sideways scrollbar for nothing (ui-review F-062). The boundary stays.
+    drawAt(12, 52);
+    const cells = document.querySelectorAll('[data-gantt-axis] [data-axis-day]');
+    expect(cells.item(cells.length - 1).getAttribute('data-axis-date')).toBe('2026-12-01');
+    // Proof: with the room check removed from `axisMonthWords`, this failed on
+    // `expected [ 'Oct 2026', 'Nov 2026', 'Dec 2026' ] to deeply equal [ 'Oct
+    // 2026', 'Nov 2026' ]`; watched 2026-10-14.
+    expect(monthWordsOnAxis()).toEqual(['Oct 2026', 'Nov 2026']);
+    expect(
+      document
+        .querySelector('[data-axis-date="2026-12-01"]')
+        ?.hasAttribute('data-axis-month-start'),
+    ).toBe(true);
+  });
 
   itDom('leaves the day axis as it was, where every cell prints its date', () => {
     drawAt(28);
