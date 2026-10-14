@@ -1613,14 +1613,13 @@ export function PlanToolbar({
           Chromium) and disagreed with every date in the table (UI review
           F-007). The native field stays underneath for picking and typing: its
           text is transparent until it takes the focus, and the words never
-          take a pointer, so a click still lands on the field.
+          take a pointer, so a click still lands on the field. With no day set
+          the words are "No start date" in the muted ink of a placeholder: the
+          native `mm/dd/yyyy` was the only US-format date in the app (F-059).
         */}
         <span data-start-box className="group relative inline-flex">
           <DateField
-            className={cn(
-              'border-input bg-background h-8 rounded-md border px-2 text-sm',
-              startDate !== null && 'not-focus:text-transparent',
-            )}
+            className="border-input bg-background h-8 rounded-md border px-2 text-sm not-focus:text-transparent"
             aria-label="Project start date"
             disabled={busy}
             {...busyAffordance(busy)}
@@ -1631,15 +1630,16 @@ export function PlanToolbar({
               );
             }}
           />
-          {startDate !== null && (
-            <span
-              aria-hidden="true"
-              data-start-day
-              className="pointer-events-none absolute inset-y-0 left-2 flex items-center text-sm group-focus-within:hidden"
-            >
-              {longIsoDate(startDate)}
-            </span>
-          )}
+          <span
+            aria-hidden="true"
+            data-start-day
+            className={cn(
+              'pointer-events-none absolute inset-y-0 left-2 flex items-center text-sm group-focus-within:hidden',
+              startDate === null && 'text-muted-foreground',
+            )}
+          >
+            {startDate === null ? 'No start date' : longIsoDate(startDate)}
+          </span>
         </span>
       </label>
     </>

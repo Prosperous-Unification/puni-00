@@ -260,4 +260,28 @@ test.describe('the toolbar rows', () => {
     await page.getByLabel('Project start date').focus();
     await expect(page.locator('[data-start-day]')).toBeHidden();
   });
+
+  test('an unset start day reads in the app’s words, not mm/dd/yyyy (F-059)', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openPlan(page);
+    const starts = page.getByLabel('Project start date');
+    await starts.fill('');
+    await starts.press('Enter');
+    await expect(starts).toHaveValue('');
+    await starts.blur();
+    // Proof: on 2026-10-14, before the empty overlay, this failed on `element(s) not found`
+    // — the browser's own `mm/dd/yyyy` was the only text in the box.
+    await expect(page.locator('[data-start-day]')).toHaveText('No start date');
+    const ink = await starts.evaluate((node) => getComputedStyle(node).color);
+    expect(ink, 'the native mm/dd/yyyy shows under the words').toBe('rgba(0, 0, 0, 0)');
+
+    // The native control stays reachable: a click lands on it and the keyboard types a day.
+    await page.locator('[data-start-day]').click({ force: true });
+    await expect(starts).toBeFocused();
+    await expect(page.locator('[data-start-day]')).toBeHidden();
+    await starts.fill('2026-09-21');
+    await starts.press('Enter');
+    await starts.blur();
+    await expect(page.locator('[data-start-day]')).toHaveText('21 Sep 2026');
+  });
 });
