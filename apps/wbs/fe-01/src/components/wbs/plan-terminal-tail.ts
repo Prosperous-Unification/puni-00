@@ -12,9 +12,10 @@ import { PLAN_TERMINAL_ALLOWANCE_REM } from './table-frame';
  * different row on each whenever their viewports or row heights differ (a
  * wrapped name makes a 46px table row against the chart's fixed 28). The
  * follower then clamps at its own end and the faces stop a fraction of a row
- * apart. `scroll-stability.e2e.ts` measured 0.2268 of a row at 1280×800 once
- * the chart's strip took the toolbar's 32px (ui-review F-013, D5, F-055): the
- * fixed tails had matched only by the geometry of the day.
+ * apart. `scroll-stability.e2e.ts` measured 0.2268 of a row at 1280×800 with
+ * the chart's strip at the toolbar's 32px (ui-review F-013, D5, F-055), and
+ * 2.63 rows at a 600px window with the 16px strip: the fixed tails matched
+ * only by the geometry of the day.
  *
  * So the tails are worked out from both faces: the table keeps its picker
  * room ({@link PLAN_TERMINAL_ALLOWANCE_REM}) as a floor, and whichever face would

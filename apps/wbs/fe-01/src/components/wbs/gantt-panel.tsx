@@ -542,29 +542,70 @@ const NOT_BEFORE_CLEARANCE = 0.03;
 const BAR_RADIUS_PX = 3;
 
 /**
- * One control on the chart's own strip — `Names`, `Detail`, `Full`, `⇩`.
+ * One chip on the chart's own toolbar — `Names`, `Detail`, `Full`, `⇩`.
  *
- * **The plan toolbar's control, exactly** (ui-review F-013/F-055, 2026-10-14):
- * `variant: 'outline'` at `size: 'sm'` (32px, `text-xs`), and `square` for the
- * glyph-only `⇩`, as the toolbar's icon buttons take. The strip had its own
- * 16px / 10px metrics until F-055, and the review read them as a second,
- * smaller control vocabulary on one screen. They were pinned by two gates,
- * and both were defects of their own rather than reasons to stay small: the
- * two faces' terminal allowance (see `plan-terminal-tail.ts`) and the marker
- * rule's stale-pixel oracle (see {@link markerPaintKey}).
+ * Through `buttonVariants` rather than a hand-rolled border, for the reason
+ * that table's own note gives: this app's reset leaves every `<button>` its
+ * platform box, so a chrome control that does not go through the variants gets
+ * the platform's idea of one. Three things were measured wrong before this
+ * existed, at 900px in Chromium:
  *
- * Through `buttonVariants` rather than a hand-rolled border, because this
- * app's reset leaves every `<button>` its platform box: a chip with its own
- * class string drew the browser's blue `auto` focus outline instead of the
- * app's ring (measured in Chromium, 2026-08-23).
+ * - keyboard focus drew the **browser's** ring, not the app's. A chip with the
+ *   old class string, appended to this same bar and arrived at by `Tab`, read
+ *   `outline: auto 1px rgb(0, 95, 204)` with no ring in its `box-shadow`;
+ *   every other focusable control in this app answers with `ring-ring`. That
+ *   blue `auto` outline is what Dany called ugly on the sign-in form's reveal,
+ *   which had the same cause.
+ * - `⇩` stood 19px tall where its four neighbours and the scale `<select>`
+ *   stood 16px, because the glyph's line box is taller than the words'.
+ *   `leading-none` and a stated height are what make the row one row.
+ * - every chip carried `ml-1` **and** sat in a `gap-1` row, so the gaps were
+ *   8px between chips and 4px after the caption.
+ *
+ * The ring is `ring-1 ring-offset-1` rather than the variants' `ring-2
+ * ring-offset-2`: on a 16px chip in a 21px bar the wider ring is clipped by
+ * the panel's own top border, which reads as a broken box rather than focus.
+ *
+ * `cn` wraps the variants rather than `buttonVariants({ className })` taking
+ * the overrides, and that is not a style choice. `cva` **appends** `className`
+ * without merging it, so `size: 'default'`'s `h-9` and the base's `ring-2`
+ * both survived alongside `h-4` and `ring-1`, and the stylesheet's order
+ * decided: the first cut drew four 36px chips beside a 16px `<select>`. `cn`
+ * is `tailwind-merge`, which drops the losing half — but only where the two
+ * halves collide, which is why `py-0` is spelled out below. Every number here
+ * was read off `getBoundingClientRect` in Chromium at 900px, and two guesses
+ * at this paragraph were wrong before it: `h-9` was blamed for a height
+ * `py-2` was making, and `box-border` was added for a `box-sizing` that was
+ * already `border-box`.
  *
  * **On and off since ui-review F-013** (2026-10-13): a toggle switched off
  * was dashed and struck through, which the review read as a disabled
  * control. Off is now drawn plain and pressed is drawn filled
- * ({@link CHART_TOGGLE_PRESSED}).
+ * ({@link CHART_TOGGLE_PRESSED}). The review also asked for the toolbar's
+ * 32px size; that is left open in the lane record, because the strip's
+ * metrics are pinned by a gate. The scroll-sync end no longer pins them
+ * (`plan-terminal-tail.ts` fits the two faces' tails, ui-review F-055), and
+ * the marker rule's body ink lost its deterministic 2-pixel residue
+ * ({@link markerPaintKey}); but at 32px `gantt.spec.ts`'s marker-rule oracle
+ * still read delta 40 in columns 123–124 (the arrow head's tip over a bar's
+ * left edge) when run inside the full suite, never alone. Not root-caused, so
+ * the strip stays at 16px (D5, F-055 lane record). A 32px strip also wraps to
+ * two 44px lines at 375 and needs a phone layout of its own.
  */
-const chartChip = (size: 'sm' | 'square' = 'sm'): string =>
-  cn(buttonVariants({ variant: 'outline', size }), CHART_TOGGLE_PRESSED);
+const chartChip = (extra?: string): string =>
+  cn(
+    buttonVariants({ variant: 'outline' }),
+    // `py-0` is load-bearing. `tailwind-merge` resolves a conflict, and
+    // `size: 'default'`'s `py-2` conflicts with nothing here — so it survived,
+    // put 8px above and below a 10px word, and the chips measured 18px against
+    // the scale `<select>`'s 16px. `border-border` for the same reason in the
+    // other direction: `variant: 'outline'` brings `border-input`, and this
+    // bar's border is `border-border`.
+    'h-4 rounded border-border px-1.5 py-0 text-[10px] leading-none font-semibold tracking-wide normal-case',
+    'focus-visible:ring-1 focus-visible:ring-offset-1',
+    CHART_TOGGLE_PRESSED,
+    extra,
+  );
 
 /**
  * How a pressed toggle on the strip is drawn: filled in the accent, so on and
@@ -6014,8 +6055,8 @@ export function GanttRenderer({
    * The surface spans the **whole viewBox**, the {@link CHART_PAD_PX} bands
    * included: a day-0 bar's stroke and anti-aliasing sit in the left band, and
    * a surface over `0..days` alone left those pixels unrepainted — 2 pixels at
-   * delta 7 in body column 11 on every 28px oracle run once the strip took the
-   * toolbar's 32px (ui-review F-055). `gantt-panel.test.tsx` `covers the
+   * delta 7 in body column 11 on every 28px oracle run with the strip at the
+   * toolbar's 32px, tried for ui-review F-055. `gantt-panel.test.tsx` `covers the
    * whole viewBox, pad bands included` holds the extent.
    */
   const markerPaintKey = JSON.stringify(markers.map(({ id, date, color }) => [id, date, color]));
@@ -7324,9 +7365,9 @@ export function GanttRenderer({
         ))}
       <div
         data-gantt-controls
-        className="border-border text-muted-foreground flex flex-wrap items-center gap-1.5 border-t px-2 py-1 text-xs"
+        className="border-border text-muted-foreground flex flex-wrap items-center gap-1 border-t px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase"
       >
-        <span data-gantt-month className="font-semibold tracking-wide uppercase">
+        <span data-gantt-month>
           {(() => {
             if (startDate === null) return 'Workday';
             // The nullish arm is the workday axis's cells, which a dated
@@ -7433,11 +7474,12 @@ export function GanttRenderer({
           data-gantt-day-scale
           title={scaleTitle}
           data-hint={`One day is ${String(dayPx)}px wide. Narrower rungs fit more of the plan on screen at once.`}
-          // The plan toolbar's own `<select>` (`plan-toolbar.tsx`, Mermaid
-          // lanes): `buttonVariants` is for `<button>`, and a `<select>` put
-          // through it loses the platform chevron. The same 32px as the
-          // buttons beside it, plus the app's focus ring.
-          className="border-input bg-background text-foreground focus-visible:ring-ring focus-visible:ring-offset-background h-8 rounded-md border px-2 text-xs focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+          // The chips' look without their element: `buttonVariants` is for
+          // `<button>`, and a `<select>` put through it loses the platform
+          // chevron this corner has no room to redraw. So the four classes the
+          // bar is made of are stated here instead, and the height is the same
+          // `h-4` the chips take.
+          className="border-border hover:bg-accent focus-visible:ring-ring focus-visible:ring-offset-background h-4 rounded border bg-transparent px-1 text-[10px] leading-none font-semibold tracking-wide normal-case transition-colors focus-visible:ring-1 focus-visible:ring-offset-1 focus-visible:outline-none"
           value={dayPx}
           onChange={(pick) => {
             const asked = Number(pick.currentTarget.value);
@@ -7511,7 +7553,7 @@ export function GanttRenderer({
           data-gantt-svg-download
           aria-label="Download this chart as a standalone SVG"
           data-hint="Download this chart as a standalone .svg — every bar, arrow, hand-off and colour, openable with no app around it"
-          className={chartChip('square')}
+          className={chartChip()}
           onClick={downloadGanttSvg}
         >
           ⇩

@@ -78,6 +78,9 @@
       "file": "src/components/wbs/plan-render-rows.test.ts"
     },
     {
+      "file": "src/components/wbs/plan-terminal-tail.test.ts"
+    },
+    {
       "file": "src/components/wbs/plan-viewport.test.ts"
     },
     {

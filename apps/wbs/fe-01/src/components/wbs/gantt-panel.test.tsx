@@ -10749,8 +10749,8 @@ itDom.each([
  * bar's stroke and its anti-aliasing land in that band. A surface spanning
  * only `0..days` left those pixels from the paint before the marker, and the
  * browser oracle (`e2e/gantt.spec.ts`, the marker rule's body ink) measured
- * them as 2 pixels at delta 7 in column 11 on every 28px run with the 32px
- * strip (ui-review F-055).
+ * them as 2 pixels at delta 7 in column 11 on every 28px run with a 32px
+ * strip, tried for ui-review F-055.
  */
 describe('the marker paint surface', () => {
   itDom('covers the whole viewBox, pad bands included', () => {
