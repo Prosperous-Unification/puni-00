@@ -131,7 +131,11 @@ describe(MIGRATION, () => {
   });
 
   it('rolls an empty table back and reapplies without changing existing plan rows', () => {
-    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([MIGRATION]);
+    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+      '20261014130000_add_shared_people_restore_receipts',
+      '20261014120000_add_shared_people_restore_approvals',
+      MIGRATION,
+    ]);
     withDatabase((sqlite) => {
       expect(
         sqlite.query("SELECT name FROM sqlite_master WHERE name = 'step_blockage'").all(),

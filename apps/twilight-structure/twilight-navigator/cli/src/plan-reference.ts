@@ -41,6 +41,8 @@ const PlanDocumentHeader = type({
  * WBS's current document schema supplies the unchanged fields; the versioned header and
  * step and work-item shapes retain the historical wire contract.
  */
+// Proof: retaining the v9 stepBlockages requirement broke valid v7 and v8 exports
+// in plan-reference.test.ts (injected schema dependency fault, 2026-10-14).
 const HistoricalPlanDocument = planDocument
   .omit('document', 'steps', 'workItems', 'stepBlockages')
   .and({
@@ -96,7 +98,11 @@ function decodePlanExport(bytes: Uint8Array, path: string): DecodedPlanExport {
     if (header.document.version === 8) {
       const document = parseOrThrow(CurrentPlanDocument, parsed);
       return {
-        document: { ...document, document: { ...document.document, version: 9 }, stepBlockages: [] },
+        document: {
+          ...document,
+          document: { ...document.document, version: 9 },
+          stepBlockages: [],
+        },
         wireVersion: 8,
       };
     }
