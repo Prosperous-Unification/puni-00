@@ -1100,7 +1100,11 @@ export function jobName(purpose: string, releaseId: string): string {
   return `wbs-${purpose}-${releaseId}`.slice(0, 63).replace(/-+$/, '');
 }
 
-/** Kubernetes defaults may add fields, but may never change any requested replay Job field. */
+/**
+ * Compare pinned Job fields and effective mount options. Omitted mount options still constrain
+ * the database location and access; API defaults may only preserve those pinned semantics.
+ * @see https://kubernetes.io/docs/reference/kubernetes-api/core/pod-v1/#VolumeMount
+ */
 function matchesProjection(observed: unknown, expected: unknown): boolean {
   if (Array.isArray(expected))
     return (
@@ -1112,6 +1116,24 @@ function matchesProjection(observed: unknown, expected: unknown): boolean {
     if (typeof observed !== 'object' || observed === null || Array.isArray(observed)) return false;
     // Boundary: both non-null object shapes were checked; every accessed field stays unknown.
     const fields = observed as Record<string, unknown>;
+    // Boundary: expected is also a non-null, non-array object checked above.
+    const pinned = expected as Record<string, unknown>;
+    if (Object.hasOwn(pinned, 'mountPath') && Object.hasOwn(pinned, 'name')) {
+      // Proof: added subPath/subPathExpr, access or propagation options admitted a foreign
+      // database mount in the reused replay Job tests; explicit Kubernetes defaults still pass.
+      const defaults = {
+        subPath: '',
+        subPathExpr: '',
+        readOnly: false,
+        mountPropagation: 'None',
+        recursiveReadOnly: 'Disabled',
+      };
+      for (const [field, baseline] of Object.entries(defaults)) {
+        const required = Object.hasOwn(pinned, field) ? pinned[field] : baseline;
+        const mounted = Object.hasOwn(fields, field) ? fields[field] : baseline;
+        if (mounted !== required) return false;
+      }
+    }
     return Object.entries(expected).every(([key, value]) => matchesProjection(fields[key], value));
   }
   return observed === expected;

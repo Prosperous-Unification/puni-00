@@ -141,9 +141,12 @@ Journal schema 3 requires these receipts at their recorded phases, validates the
 original bytes and projected fields before claiming the Lease, and refuses legacy
 schema 1/2 journals with the prior-executor/manual-recovery route. A recovery request
 validates old evidence against its original request and takes fresh evidence for its
-new transaction. A resumed pre-smoke transaction rolls back; proven transactions
+new transaction. `recovery-required` still requires the prior forward receipt even
+though it is outside the forward phase list. A resumed pre-smoke transaction rolls back; proven transactions
 finish with their durable receipt. Replay Job reuse additionally compares every
-requested manifest field against the observed Job before reading its output.
+requested manifest field against the observed Job before reading its output. It
+also pins omitted mount options to their effective Kubernetes defaults, so added
+subpaths, changed access or propagation cannot select another database on the PVC.
 
 Inventory is a compatibility kind/count summary, not a digest of all journal rows.
 The writer fence and stopped writer are the authority for its stability. Restore

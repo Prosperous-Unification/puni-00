@@ -142,7 +142,10 @@ export function assertReplayReceipt(
 export function assertReplayProgress(state: ReleaseState, request: ReleaseRequest): void {
   const forward: readonly string[] = FORWARD_PHASES;
   const rollback: readonly string[] = ROLLBACK_PHASES;
+  // Proof: omitting recovery-required admits null prior forward evidence at disk parse and
+  // permits parked-Lease takeover after post-reopen failure in the recovery refusal fixture.
   const needsForward =
+    state.phase === 'recovery-required' ||
     forward.indexOf(state.phase) >= forward.indexOf('replay-checked') ||
     (state.rollbackFrom !== null &&
       forward.indexOf(state.rollbackFrom) >= forward.indexOf('replay-checked'));

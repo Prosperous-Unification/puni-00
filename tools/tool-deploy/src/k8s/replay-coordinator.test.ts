@@ -1,14 +1,14 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import { Database } from 'bun:sqlite';
 import { afterEach, expect, it } from 'bun:test';
 
 import { executeRelease, ReleaseFailedError } from './execute';
 import { CrashSignal, FakeCluster, memoryJournal } from './fake-cluster';
-import { parseJournal } from './journal';
-import type { ReleaseIdentity, ReleaseRequest } from './release';
+import { fileJournal, parseJournal } from './journal';
+import { type ReleaseIdentity, releaseIdOf, type ReleaseRequest } from './release';
 import { buildReplayInventoryCommand } from './replay-capability';
 import type { ReplayCount } from './replay-receipt';
 
@@ -436,3 +436,33 @@ it('refuses rollback when the previous image capability observation changes', as
   expect(fake.writesOpen).toBe(false);
   expect(fake.lease?.parked).toBe('rollback-failed');
 });
+
+for (const fault of ['null', 'missing'] as const) {
+  it(`refuses ${fault} forward evidence from recovery-required on disk before recovery takeover`, async () => {
+    const { fake, journal, path, run } = fixture();
+    fake.faults.set('reconcileDesired', new Error('post-reopen failure'));
+    expect(await rejectedMessage(run())).toContain('recovery-required');
+    const progress = JSON.parse(journal.stored ?? 'null') as CorruptProgress;
+    if (fault === 'null') progress.state.replayForward = null as never;
+    else delete progress.state.replayForward;
+    const bytes = JSON.stringify(progress);
+    const journalPath = join(dirname(path), 'release.json');
+    writeFileSync(journalPath, bytes);
+    const disk = fileJournal(journalPath);
+    expect(() => disk.read()).toThrow('replay receipt');
+    fake.calls.length = 0;
+    const lease = JSON.stringify(fake.lease);
+    const recovery = { ...request, expectedCurrent: incoming, recovers: releaseIdOf(incoming) };
+    expect(
+      await rejectedMessage(
+        executeRelease(recovery, disk, fake, () => undefined, {
+          clock: fake.clock,
+          heartbeatMs: 3_600_000,
+        }),
+      ),
+    ).toContain('replay receipt');
+    expect(fake.calls).toEqual([]);
+    expect(JSON.stringify(fake.lease)).toBe(lease);
+    expect(readFileSync(journalPath, 'utf8')).toBe(bytes);
+  });
+}

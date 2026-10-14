@@ -98,7 +98,7 @@ The release coordinator SHALL inventory retained history under its Lease and wri
 
 ### Requirement: Replay progress and reused Jobs retain their pinned inputs
 
-Resume SHALL refuse missing, malformed, changed or foreign receipt progress before any journal or cluster mutation. Reused replay Jobs SHALL match every requested manifest field before their output is accepted. Refused rollback SHALL retain the fence and parked Lease with explicit failure evidence and a manual completion command.
+Resume SHALL refuse missing, malformed, changed or foreign receipt progress before any journal or cluster mutation. Reused replay Jobs SHALL preserve requested fields and effective mount options, including absent subpath, access and propagation settings, before their output is accepted. Refused rollback SHALL retain the fence and parked Lease with explicit failure evidence and a manual completion command.
 
 #### Scenario: Interrupted evidence is absent or changed
 
@@ -111,3 +111,16 @@ Resume SHALL refuse missing, malformed, changed or foreign receipt progress befo
 - **GIVEN** an existing observation Job for the transaction
 - **WHEN** its observed manifest differs from any pinned field, including image, command or database mount
 - **THEN** its output is refused even if it reports successful completion
+
+#### Scenario: Recovery loses the prior forward receipt
+
+- **GIVEN** a post-reopen failure parked at `recovery-required`
+- **WHEN** a recovery request reads a missing or null prior forward receipt
+- **THEN** disk parsing refuses before Lease takeover, cluster work or journal replacement
+
+#### Scenario: A reused Job changes omitted mount options
+
+- **GIVEN** a replay Job pinning the database PVC root with default mount options
+- **WHEN** the observed Job adds a subpath expression or changes effective access or propagation
+- **THEN** inventory and capability output are refused even when completion and output are valid
+- **AND** equivalent explicit Kubernetes defaults remain accepted

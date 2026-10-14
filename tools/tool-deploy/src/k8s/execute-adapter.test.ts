@@ -742,65 +742,108 @@ describe('backend rollouts through the kubectl adapter', () => {
 });
 
 describe('replay Jobs through kubectl', () => {
-  for (const fault of ['none', 'image', 'command', 'mount', 'status'] as const) {
-    it(`binds reused replay Job output to its image and command: ${fault}`, async () => {
-      const root = scratchSync('wbs-replay-job-');
-      roots.push(root);
-      const image = `be@sha256:${'1'.repeat(64)}`;
-      const kubectl = join(root, 'kubectl');
-      const command = (await import('./replay-capability')).buildReplayCapabilitiesCommand();
-      const observed: Record<string, unknown> = {
-        ...backendTaskJob(
-          { namespaces: { app: 'wbs', backend: 'wbs-solver' } },
-          jobName('replay-kinds', 'tx'),
-          image,
-          {},
-          command,
-        ),
-        status: fault === 'status' ? { failed: 1 } : { succeeded: 1 },
-      };
-      const pod = (
-        observed['spec'] as {
-          template: {
-            spec: {
-              containers: { image: string; command: readonly string[] }[];
-              volumes: { persistentVolumeClaim: { claimName: string } }[];
+  for (const task of ['inventory', 'capabilities'] as const) {
+    for (const fault of [
+      'none',
+      'image',
+      'command',
+      'mount',
+      'subPath',
+      'subPathExpr',
+      'readOnly',
+      'mountPropagation',
+      'recursiveReadOnly',
+      'defaults',
+      'status',
+    ] as const) {
+      it(`binds reused replay ${task} Job output to its image and command: ${fault}`, async () => {
+        const root = scratchSync('wbs-replay-job-');
+        roots.push(root);
+        const image = `be@sha256:${'1'.repeat(64)}`;
+        const kubectl = join(root, 'kubectl');
+        const commands = await import('./replay-capability');
+        const command =
+          task === 'inventory'
+            ? commands.buildReplayInventoryCommand()
+            : commands.buildReplayCapabilitiesCommand();
+        const observed: Record<string, unknown> = {
+          ...backendTaskJob(
+            { namespaces: { app: 'wbs', backend: 'wbs-solver' } },
+            jobName(task === 'inventory' ? 'replay-inventory' : 'replay-kinds', 'tx'),
+            image,
+            {},
+            command,
+          ),
+          status: fault === 'status' ? { failed: 1 } : { succeeded: 1 },
+        };
+        const pod = (
+          observed['spec'] as {
+            template: {
+              spec: {
+                containers: {
+                  image: string;
+                  command: readonly string[];
+                  volumeMounts: Record<string, unknown>[];
+                }[];
+                volumes: { persistentVolumeClaim: { claimName: string } }[];
+              };
             };
-          };
+          }
+        ).template.spec;
+        if (fault === 'image') pod.containers[0].image = `be@sha256:${'2'.repeat(64)}`;
+        if (fault === 'command') pod.containers[0].command = ['echo', '[]'];
+        if (fault === 'mount') pod.volumes[0].persistentVolumeClaim.claimName = 'foreign-database';
+        const mount = pod.containers[0].volumeMounts[0];
+        if (fault === 'subPath' || fault === 'subPathExpr')
+          mount[fault] = 'foreign-database-directory';
+        if (fault === 'readOnly') mount['readOnly'] = true;
+        if (fault === 'mountPropagation') mount['mountPropagation'] = 'HostToContainer';
+        if (fault === 'recursiveReadOnly') mount['recursiveReadOnly'] = 'Enabled';
+        if (fault === 'defaults') {
+          Object.assign(mount, {
+            subPath: '',
+            subPathExpr: '',
+            readOnly: false,
+            mountPropagation: 'None',
+          });
+          Object.assign(pod.containers[0], {
+            imagePullPolicy: 'IfNotPresent',
+            terminationMessagePath: '/dev/termination-log',
+            terminationMessagePolicy: 'File',
+          });
+          Object.assign(pod, { dnsPolicy: 'ClusterFirst', schedulerName: 'default-scheduler' });
         }
-      ).template.spec;
-      if (fault === 'image') pod.containers[0].image = `be@sha256:${'2'.repeat(64)}`;
-      if (fault === 'command') pod.containers[0].command = ['echo', '[]'];
-      if (fault === 'mount') pod.volumes[0].persistentVolumeClaim.claimName = 'foreign-database';
-      writeFileSync(join(root, 'observed.json'), JSON.stringify(observed));
-      writeFileSync(
-        kubectl,
-        `#!/usr/bin/env bash\ncase "$*" in\n*"get job"*"-o name"*) echo job/reused ;;\n*"get job"*) cat '${root}/observed.json' ;;\n*"logs"*) echo '[]' ;;\n*) echo "unexpected $*" >&2; exit 1 ;;\nesac\n`,
-      );
-      chmodSync(kubectl, 0o755);
-      const effects = kubectlEffects({
-        kubectl,
-        kubeconfig: null,
-        context: 'lab',
-        namespaces: { app: 'wbs', backend: 'wbs-solver' },
-        stateDir: root,
-        overlay: root,
-        anonymousProjectsStatus: 200,
-        rolloutTimeoutSeconds: 1,
-        jobTimeoutSeconds: 1,
-        drainTimeoutMs: 1000,
-        leaseDurationSeconds: 20,
-        log: () => undefined,
-      });
-      if (fault === 'none')
-        expect(await effects.observeReplayCapabilities('tx', image)).toEqual({
-          image,
-          capabilities: [],
-        });
-      else
-        expect(await rejection(effects.observeReplayCapabilities('tx', image))).toContain(
-          fault === 'status' ? 'failed' : 'replay Job',
+        writeFileSync(join(root, 'observed.json'), JSON.stringify(observed));
+        writeFileSync(
+          kubectl,
+          `#!/usr/bin/env bash\ncase "$*" in\n*"get job"*"-o name"*) echo job/reused ;;\n*"get job"*) cat '${root}/observed.json' ;;\n*"logs"*) echo '[]' ;;\n*) echo "unexpected $*" >&2; exit 1 ;;\nesac\n`,
         );
-    });
+        chmodSync(kubectl, 0o755);
+        const effects = kubectlEffects({
+          kubectl,
+          kubeconfig: null,
+          context: 'lab',
+          namespaces: { app: 'wbs', backend: 'wbs-solver' },
+          stateDir: root,
+          overlay: root,
+          anonymousProjectsStatus: 200,
+          rolloutTimeoutSeconds: 1,
+          jobTimeoutSeconds: 1,
+          drainTimeoutMs: 1000,
+          leaseDurationSeconds: 20,
+          log: () => undefined,
+        });
+        const observe = () =>
+          task === 'inventory'
+            ? effects.observeReplayInventory('tx', image)
+            : effects.observeReplayCapabilities('tx', image);
+        if (fault === 'none' || fault === 'defaults')
+          expect(await observe()).toEqual(task === 'inventory' ? [] : { image, capabilities: [] });
+        else
+          expect(await rejection(observe())).toContain(
+            fault === 'status' ? 'failed' : 'replay Job',
+          );
+      });
+    }
   }
 });

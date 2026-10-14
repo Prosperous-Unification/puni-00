@@ -38,6 +38,7 @@
   - [x] TDD forward and rollback receipts, phase ordering, exact image and inventory validation, and resume refusal.
   - [x] Bound read-only inventory/image Jobs, verify reused manifests, and retain explicit rollback failure evidence.
   - [x] Watch production-path omission faults and record focused tests, scoped Nx checks, strict OpenSpec and limitations.
+  - [x] Repair Astra P1/P2: pin effective mount options including omitted subpaths, and require prior forward evidence for recovery-required before disk parsing permits takeover.
 - [ ] F11.1 — Before guarded-history import or first rollout, implement the [Kubernetes replay capability prerequisite](../add-step-node-blocking/design.md#kubernetes-pre-cutover-obligation), including rollback refusal before writer reopening and watched nested-marker omission proofs.
   - [x] `tool-fleet:check`: schema, strict YAML, Ansible syntax and real hcloud inventory
         plugin against a fixture API, kustomize and helm rendering, shellcheck, actionlint,
