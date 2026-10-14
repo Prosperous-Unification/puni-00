@@ -2,6 +2,7 @@ import type {
   SavedPlanCompareReply,
   SavedPlanListEntryView,
   SavedPlanListReply,
+  SavedPlanRemoveReply,
   SavedPlanRenameReply,
   SavedPlanSaveReply,
   SavedPlanSideRef,
@@ -37,6 +38,7 @@ export interface SavedPlanRoutes {
   readonly list: (projectId: string) => Promise<SavedPlanListReply>;
   readonly save: (projectId: string, name?: string) => Promise<SavedPlanSaveReply>;
   readonly rename: (savedPlanId: string, name: string) => Promise<SavedPlanRenameReply>;
+  readonly remove: (savedPlanId: string) => Promise<SavedPlanRemoveReply>;
   readonly compare: (
     projectId: string,
     left: SavedPlanSideRef,
@@ -60,9 +62,14 @@ export interface SavedPlans {
   readonly shelf: Store<SavedPlanListState>;
   /** Reads the shelf again, which no broadcast would have caused: the actor's own fast path. */
   readonly refresh: () => void;
-  /** Saves the current plan as a new checkpoint, named by be-01 from its own timestamp. */
-  readonly save: () => Promise<SavedPlanSaveReply>;
+  /**
+   * Saves the current plan as a new checkpoint under `name`, or, with none, under the name
+   * be-01 makes from its own timestamp.
+   */
+  readonly save: (name?: string) => Promise<SavedPlanSaveReply>;
   readonly rename: (savedPlanId: string, name: string) => Promise<SavedPlanRenameReply>;
+  /** Deletes one saved plan, as its creator or the project's owner. */
+  readonly remove: (savedPlanId: string) => Promise<SavedPlanRemoveReply>;
   readonly compare: (
     left: SavedPlanSideRef,
     right: SavedPlanSideRef,

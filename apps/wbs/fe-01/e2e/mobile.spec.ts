@@ -1529,21 +1529,24 @@ test.describe('the same dialog on a desktop, where the density is the point', ()
     await page.getByRole('button', { name: 'Project settings' }).click();
     await expect(page.getByRole('dialog', { name: 'Project settings' })).toBeVisible();
 
-    const done = page.getByRole('button', { name: 'Done' });
+    // Teams' Done is gone with the modal's one commit model (UI review D7, F-060);
+    // Steps' Add step is the dialog's `size="sm"` button to measure instead.
+    await page.getByRole('tab', { name: 'Steps' }).click();
+    const add = page.getByRole('button', { name: 'Add step' });
     const close = page.getByRole('button', { name: 'Close' });
     const account = page.locator('[data-hint="This account"]');
 
     for (const width of [1400, 768]) {
       await page.setViewportSize({ width, height: 900 });
 
-      // `h-9`, which is what `<Button>` is at its default size. Named as the
-      // number rather than as "under 44" because criterion 2 is that the
-      // desktop is *unchanged*, and a `Done` that had grown to 40 would pass
-      // the looser claim while still being a phone's button on a mouse's page.
+      // `h-8`, which is what `<Button size="sm">` is. Named as the number rather
+      // than as "under 44" because criterion 2 is that the desktop is
+      // *unchanged*, and an Add step that had grown to 40 would pass the looser
+      // claim while still being a phone's button on a mouse's page.
       expect(
-        Math.round((await done.boundingBox())?.height ?? 0),
-        `the phone’s floor reached Done at ${String(width)}px`,
-      ).toBe(36);
+        Math.round((await add.boundingBox())?.height ?? 0),
+        `the phone’s floor reached Add step at ${String(width)}px`,
+      ).toBe(32);
 
       // The ✕, which is the control the floor changes most: 25px to 44, and
       // square. Under 44 here is the whole claim.

@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+
 import { unreachable } from '../../lib/http';
 import type {
   SavedPlanListEntryView,
@@ -349,49 +352,136 @@ export function SavedPlansPanel({
       });
   };
 
+  /**
+   * What the last delete said, or `null` while none has anything to say — held
+   * beside the shelf for the rename's reason above.
+   */
+  const [removeRefusal, setRemoveRefusal] = useState<string | null>(null);
+  const remove = (savedPlanId: string) => {
+    setRemoveRefusal(null);
+    void savedPlans
+      .remove(savedPlanId)
+      .then((reply) => {
+        switch (reply.kind) {
+          case 'success': {
+            // A side the reader's own delete took away is moved, not left to
+            // answer `gone`: the reader asked for the row to go, so a picker still
+            // naming it would be the panel arguing with them. A collaborator's
+            // delete still says `gone` — that one is news (AC #4).
+            const next = rows.find((row) => row.id !== savedPlanId);
+            if (left !== null && left !== 'current' && left.saved === savedPlanId) {
+              setLeft(next === undefined ? null : { saved: next.id });
+            }
+            if (right !== 'current' && right.saved === savedPlanId) setRight('current');
+            break;
+          }
+          case 'failure':
+            setRemoveRefusal(
+              `The delete could not be sent (${savedPlanFailureCode(reply.failure)}).`,
+            );
+            break;
+          case 'refusal':
+            setRemoveRefusal(removeWords(reply.body.error));
+            break;
+          default:
+            unreachable(reply);
+        }
+        // On every reply, for the rename's reason: `not_found` is a stale shelf.
+        refresh();
+      })
+      .catch((fault: unknown) => {
+        setRemoveRefusal(
+          `The delete could not be sent (${fault instanceof Error ? fault.message : String(fault)}).`,
+        );
+      });
+  };
+
+  /** The name typed for the next save; empty saves under be-01's own timestamp name. */
+  const [name, setName] = useState('');
+  const saveNamed = () => {
+    const typed = name.trim();
+    save(typed === '' ? undefined : typed);
+    setName('');
+  };
+
   const words = saveWords(saveState);
   return (
     /*
+      The Views panel's anatomy (UI review F-061): a name field and the primary
+      Save on one line, the status under it, the rows, then the comparison.
+
       Deliberately unnamed, with a heading instead. `SavedPlanList` already
       labels its own `<ol>` "Saved plans", and an `aria-label` here would make
-      the region and the list inside it two landmarks of one name — the reader
-      hears the same words twice and cannot tell which one they have landed on.
-      An unnamed `<section>` is generic rather than a landmark, so the heading
-      is what carries the navigation and nothing is said twice.
+      the region and the list inside it two landmarks of one name. The heading is
+      for a screen reader only: the summary that opened the panel already says
+      "Saved plans" on screen, and Views carries no second title either.
     */
-    <section className="saved-plans-panel">
-      <h3 className="saved-plans-panel__heading">Saved plans</h3>
-      <div className="saved-plans-panel__actions">
-        <button type="button" onClick={save} disabled={saveState.kind === 'saving'}>
-          Save plan
-        </button>
-        {/*
-          `status` and not `alert`: a save that was refused is still a refusal of
-          something the reader just asked for and is looking at, and an assertive
-          live region would interrupt a screen reader mid-sentence to say so.
-          AC #1's "without blocking continued planning" is about the editor, and
-          this is the same principle one control down.
-        */}
-        {words !== null && (
-          <p className="saved-plans-panel__save-status" role="status">
-            {words}
-          </p>
-        )}
-      </div>
+    <section className="saved-plans-panel flex flex-col gap-2">
+      <h3 className="saved-plans-panel__heading sr-only">Saved plans</h3>
+      <form
+        className="flex gap-1.5"
+        onSubmit={(event) => {
+          event.preventDefault();
+          saveNamed();
+        }}
+      >
+        <Input
+          className="h-8 flex-1 text-xs"
+          aria-label="Name this plan"
+          placeholder="Name this plan…"
+          value={name}
+          onChange={(event) => {
+            setName(event.currentTarget.value);
+          }}
+        />
+        <Button
+          size="sm"
+          type="submit"
+          disabled={saveState.kind === 'saving'}
+          data-hint="Save the plan as it stands now. With no name, it is named by its time."
+        >
+          Save
+        </Button>
+      </form>
+      {/*
+        `status` and not `alert`: a save that was refused is still a refusal of
+        something the reader just asked for and is looking at, and an assertive
+        live region would interrupt a screen reader mid-sentence to say so.
+        AC #1's "without blocking continued planning" is about the editor, and
+        this is the same principle one control down.
+      */}
+      {words !== null && (
+        <p className="saved-plans-panel__save-status text-muted-foreground text-xs" role="status">
+          {words}
+        </p>
+      )}
       {/*
         Proof: on 2026-09-27, handing the list the retained rows in place of a failed read (s5)
         failed `keeps an open comparison when a background shelf read fails` with `Unable to find an
         accessible element with the role "alert"`.
       */}
-      <SavedPlanList state={shelfState} onRename={rename} />
+      <SavedPlanList
+        state={shelfState}
+        onRename={rename}
+        onCompare={(savedPlanId) => {
+          setLeft({ saved: savedPlanId });
+          setRight('current');
+        }}
+        onRemove={remove}
+      />
       {/*
         `status` and not `alert`, for the same reason the save line is: a refused
-        rename is a refusal of something the reader just asked for and is looking
-        at, and an assertive region would interrupt a screen reader mid-sentence.
+        rename or delete is a refusal of something the reader just asked for and
+        is looking at, and an assertive region would interrupt mid-sentence.
       */}
       {renameRefusal !== null && (
-        <p className="saved-plans-panel__rename-status" role="status">
+        <p className="saved-plans-panel__rename-status text-destructive text-xs" role="status">
           {renameRefusal}
+        </p>
+      )}
+      {removeRefusal !== null && (
+        <p className="saved-plans-panel__remove-status text-destructive text-xs" role="status">
+          {removeRefusal}
         </p>
       )}
       {/*
@@ -401,9 +491,11 @@ export function SavedPlansPanel({
         sentence for a choice the reader was never offered.
       */}
       {rows.length > 0 && left !== null && (
-        <div className="saved-plans-panel__compare">
-          <SavedPlanSidePicker label="Compare" value={left} rows={rows} onChange={setLeft} />
-          <SavedPlanSidePicker label="with" value={right} rows={rows} onChange={setRight} />
+        <div className="saved-plans-panel__compare flex flex-col gap-2 border-t pt-2">
+          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+            <SavedPlanSidePicker label="Compare" value={left} rows={rows} onChange={setLeft} />
+            <SavedPlanSidePicker label="with" value={right} rows={rows} onChange={setRight} />
+          </div>
           {/*
             8.4's affordance, and it is an offer rather than a replacement. The
             comparison below is still the one the reader asked for; this says
@@ -417,16 +509,20 @@ export function SavedPlansPanel({
             than reading out a control the reader has not reached yet.
           */}
           {stale && (
-            <div className="saved-plans-panel__stale">
-              <p role="status">This plan has changed since the comparison below was made.</p>
-              <button
+            <div className="saved-plans-panel__stale flex items-center gap-2 text-xs">
+              <p role="status" className="flex-1">
+                This plan has changed since the comparison below was made.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
                 type="button"
                 onClick={() => {
                   setAsked((n) => n + 1);
                 }}
               >
                 Compare again
-              </button>
+              </Button>
             </div>
           )}
           <SavedPlanComparison state={comparison} />
@@ -434,4 +530,17 @@ export function SavedPlansPanel({
       )}
     </section>
   );
+}
+
+/**
+ * What a refused delete says. `not_found` is the shelf being stale — the row went
+ * before the press — and the refresh that follows takes it away.
+ */
+export function removeWords(error: string): string {
+  if (error === 'not_found') return 'That saved plan has already been deleted.';
+  if (error === 'forbidden') {
+    return 'Only the account that saved this plan, or the project’s owner, can delete it.';
+  }
+  if (error === 'snapshot_busy') return 'This plan is being written to. Try again in a moment.';
+  return `The delete was refused (${error}).`;
 }

@@ -1,12 +1,11 @@
-import { useState } from 'react';
+import { type FocusEvent, type KeyboardEvent, useRef, useState } from 'react';
 
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PRIORITY_BAND_REFUSALS, type PriorityBandView } from '@/lib/wbs-api';
 
 import { priorityBandStyleOf } from './priority-band-style';
 import type { SettingsSectionReport } from './teams-panel';
-import { SectionProblem, useSettingsSection } from './use-settings-section';
+import { AppliedLine, SectionProblem, useSettingsSection } from './use-settings-section';
 
 /** One rung as its three boxes hold it — text, because a half-typed number is text. */
 export interface BandDraft {
@@ -85,12 +84,6 @@ export interface PrioritiesPanelProps extends SettingsSectionReport {
   onChanged: () => Promise<void>;
   /** Recovers after a failed request whose commit outcome is unknown. */
   onRefused?: (thrown: unknown) => Promise<void>;
-  /**
-   * Asks the modal to close — from `Save` once the ladder has landed, and from
-   * `Cancel` with the drafts put back. The panel is clean when it calls this and
-   * says so by calling it; see `TeamsPanelProps.onDone`.
-   */
-  onDone: () => void;
 }
 
 /**
@@ -108,8 +101,13 @@ export interface PrioritiesPanelProps extends SettingsSectionReport {
  * commits per box on blur and each write stands alone. A ladder is five rungs
  * that are only a ladder **together** — moving `High` down to 15 is invalid until
  * `Medium` moves too — so committing per box would refuse every intermediate
- * state somebody has to type through. Here the drafts are held and **Save** sends
- * the whole ladder once. design.md D4.
+ * state somebody has to type through. Here the drafts are held and the whole
+ * ladder is sent once, when the focus **leaves the ladder** or Enter is pressed
+ * in it — moving between its boxes sends nothing. design.md D4, kept under the
+ * settings modal's one commit model (UI review D7, F-060): every section applies
+ * as its field is left, and none has a Save. Escape in a box puts the ladder
+ * back as be-01 has it; a landed ladder offers **Undo**, which sends the one
+ * before it.
  *
  * **The drafts are seeded once, on mount.** The panel is mounted when the modal
  * opens and unmounted when it closes, so a reader who has it shut sees a peer's
@@ -131,9 +129,11 @@ export function PrioritiesPanel({
   onChanged,
   onRefused,
   onDirtyChange,
-  onDone,
+  onBusyChange,
 }: PrioritiesPanelProps) {
   const [drafts, setDrafts] = useState<BandDraft[]>(() => draftsOf(bands));
+  /** The ladder the last applied one replaced, while Undo can still send it back. */
+  const [replaced, setReplaced] = useState<readonly PriorityBandView[] | null>(null);
 
   /**
    * Dirty while the boxes say something the saved ladder does not. Compared
@@ -157,6 +157,7 @@ export function PrioritiesPanel({
     words: PRIORITY_BAND_REFUSALS,
     dirty,
     onDirtyChange,
+    ...(onBusyChange === undefined ? {} : { onBusyChange }),
     onChanged,
     ...(onRefused === undefined ? {} : { onRefused }),
   });
@@ -167,7 +168,15 @@ export function PrioritiesPanel({
     );
   }
 
-  async function save(): Promise<void> {
+  /**
+   * Sends the ladder the boxes hold, if it says something be-01 does not.
+   *
+   * A clean ladder sends nothing: leaving the ladder after merely looking at it
+   * is not an edit. The drafts are kept on a refusal — see
+   * {@link SettingsSection.attempt} — and the sentence says why.
+   */
+  async function apply(): Promise<void> {
+    if (!dirty || section.busy) return;
     const ladder = ladderOfDrafts(drafts);
     if (ladder === null) {
       // Refused without a round trip: a box that is not a whole number is not a
@@ -175,16 +184,42 @@ export function PrioritiesPanel({
       section.refuse('band_start_must_be_a_whole_number_from_1');
       return;
     }
-    // The drafts are kept on a refusal — see {@link SettingsSection.attempt} —
-    // and `onDone` only on the write that landed.
-    if (await section.attempt(() => setBands(ladder))) onDone();
+    const before = [...bands];
+    if (await section.attempt(() => setBands(ladder))) setReplaced(before);
   }
 
-  /** Puts the ladder back as be-01 has it and leaves — the drafts are the only thing to discard. */
-  function cancel(): void {
-    setDrafts(draftsOf(bands));
-    section.clear();
-    onDone();
+  /** Sends back the ladder the last apply replaced, and shows it in the boxes. */
+  async function undo(): Promise<void> {
+    if (replaced === null) return;
+    const previous = replaced;
+    if (await section.attempt(() => setBands(previous))) {
+      setDrafts(draftsOf(previous));
+      setReplaced(null);
+    }
+  }
+
+  /** The ladder's own list, which a focus moving between its boxes stays inside. */
+  const ladder = useRef<HTMLUListElement | null>(null);
+
+  /** Applies once the focus has left the ladder, not as it moves between its boxes. */
+  function onLadderBlur(event: FocusEvent<HTMLInputElement>): void {
+    const next = event.relatedTarget;
+    if (next instanceof Node && ladder.current?.contains(next) === true) return;
+    void apply();
+  }
+
+  function onLadderKey(event: KeyboardEvent<HTMLInputElement>): void {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      void apply();
+      return;
+    }
+    // Escape over an edit puts the ladder back; the modal reads the section as
+    // dirty for this keystroke, so the same key does not also close it.
+    if (event.key === 'Escape' && dirty) {
+      setDrafts(draftsOf(bands));
+      section.clear();
+    }
   }
 
   return (
@@ -197,7 +232,7 @@ export function PrioritiesPanel({
 
       <SectionProblem problem={section.problem} />
 
-      <ul className="flex flex-col gap-2">
+      <ul ref={ladder} className="flex flex-col gap-2">
         {drafts.map((draft, at) => {
           // The swatch is the **saved** ladder's colour for this rung, which is
           // a colour of the rank and not of anything being typed: the rank
@@ -224,6 +259,8 @@ export function PrioritiesPanel({
                 aria-label={`Name of band ${String(at + 1)}`}
                 value={draft.label}
                 disabled={section.busy}
+                onBlur={onLadderBlur}
+                onKeyDown={onLadderKey}
                 onChange={(event) => {
                   edit(at, 'label', event.currentTarget.value);
                 }}
@@ -234,6 +271,8 @@ export function PrioritiesPanel({
                 inputMode="numeric"
                 value={draft.startsAt}
                 disabled={section.busy}
+                onBlur={onLadderBlur}
+                onKeyDown={onLadderKey}
                 onChange={(event) => {
                   edit(at, 'startsAt', event.currentTarget.value);
                 }}
@@ -254,6 +293,8 @@ export function PrioritiesPanel({
                 inputMode="numeric"
                 value={draft.defaultValue}
                 disabled={section.busy}
+                onBlur={onLadderBlur}
+                onKeyDown={onLadderKey}
                 onChange={(event) => {
                   edit(at, 'defaultValue', event.currentTarget.value);
                 }}
@@ -268,20 +309,14 @@ export function PrioritiesPanel({
         still decides only who gets a shared person first.
       </p>
 
-      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-        <Button variant="outline" type="button" disabled={section.busy} onClick={cancel}>
-          Cancel
-        </Button>
-        <Button
-          type="button"
-          disabled={section.busy}
-          onClick={() => {
-            void save();
-          }}
-        >
-          Save
-        </Button>
-      </div>
+      <AppliedLine
+        what="The ladder"
+        undoable={replaced !== null && !dirty}
+        busy={section.busy}
+        onUndo={() => {
+          void undo();
+        }}
+      />
     </div>
   );
 }

@@ -72,6 +72,7 @@ export function browserSavedPlanRoutes(
     list: (projectId) => api.list(projectId),
     save: (projectId, name) => api.save(projectId, name),
     rename: (savedPlanId, name) => api.rename(savedPlanId, name),
+    remove: (savedPlanId) => api.remove(savedPlanId),
     compare: (projectId, left, right) => api.compare(projectId, left, right),
     subscribe: (projectId, onChange) =>
       subscribeToProject({ projectId, sinceSeq: -1, onChange }, streamDeps),

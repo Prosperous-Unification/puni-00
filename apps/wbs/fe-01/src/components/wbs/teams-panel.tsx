@@ -1,6 +1,5 @@
 import { useRef, useState } from 'react';
 
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { CAPACITY_REFUSALS, type TeamCapacityView, type TeamView } from '@/lib/wbs-api';
 
@@ -79,6 +78,14 @@ export function teamsOnThePlan(
  */
 export interface SettingsSectionReport {
   onDirtyChange: (dirty: boolean) => void;
+  /**
+   * Whether a write this section sent is in the air — reported apart from
+   * `onDirtyChange`, which counts it too, so the modal can tell a hold that will
+   * clear by itself (a write travelling) from one the reader must act on (a
+   * draft, a refusal). Optional: a section shown outside the modal has nobody
+   * to tell.
+   */
+  onBusyChange?: (busy: boolean) => void;
 }
 
 export interface TeamsPanelProps extends SettingsSectionReport {
@@ -90,13 +97,6 @@ export interface TeamsPanelProps extends SettingsSectionReport {
   onChanged: () => Promise<void>;
   /** Recovers after a failed request whose commit outcome is unknown. */
   onRefused?: (thrown: unknown) => Promise<void>;
-  /**
-   * Asks the modal to close, once `Done` has landed every number it kept. The
-   * panel is clean by the time it calls this, and says so by calling it: the
-   * modal takes the word rather than waiting for the next dirty report, which
-   * arrives a render later than the click that earned it.
-   */
-  onDone: () => void;
 }
 
 /**
@@ -115,8 +115,15 @@ export interface TeamsPanelProps extends SettingsSectionReport {
  * shell, the trigger, the title and the close. What this component kept is
  * everything inside the shell: the same boxes, the same writes, the same
  * refusals and the same words. What it gave up is deciding when the surface
- * closes — it reports {@link SettingsSectionReport.onDirtyChange} and asks
- * through {@link TeamsPanelProps.onDone} instead.
+ * closes — it reports {@link SettingsSectionReport.onDirtyChange}, and the
+ * modal's ✕ is the way out.
+ *
+ * **No Done** (UI review D7, F-060): every section of the modal applies a field
+ * as it is left. Done used to be the one control whose meaning was "keep this":
+ * on 2026-08-22 a Done that only closed put `teamCapacities: []` on the wire for
+ * a typed `1` (observed on dev by `wbs-e2e-planning-qa`), so it committed every
+ * box. The ✕ carries that meaning now: the click blurs the box, which commits
+ * it, and the modal closes once the write lands — or stays open on the refusal.
  *
  * **Nothing here is optimistic.** Every write re-reads the plan through
  * `onChanged`, and a refused change leaves the box as it was with the refusal on
@@ -130,7 +137,7 @@ export function TeamsPanel({
   onChanged,
   onRefused,
   onDirtyChange,
-  onDone,
+  onBusyChange,
 }: TeamsPanelProps) {
   /**
    * The numbers being typed over the plan's own, by team id.
@@ -165,6 +172,7 @@ export function TeamsPanel({
     words: CAPACITY_REFUSALS,
     dirty: Object.keys(typed).length > 0,
     onDirtyChange,
+    ...(onBusyChange === undefined ? {} : { onBusyChange }),
     onChanged,
     ...(onRefused === undefined ? {} : { onRefused }),
   });
@@ -224,12 +232,10 @@ export function TeamsPanel({
       return Promise.resolve(true);
     }
     // The request already out for this team carrying this very number, if there
-    // is one — `LiveField`'s rule 5, one tier along, and here for its reason.
-    // The ordinary mouse path through `Done` is two gestures over one number:
-    // the click blurs the box, which commits, and then reaches the button,
-    // which commits again. **The answer is the request's own**, so `Done` waits
-    // on what be-01 does with the number already travelling rather than sending
-    // a second copy of it.
+    // is one — `LiveField`'s rule 5, one tier along. A blur and an Enter over one
+    // number are two gestures over one write: **the answer is the request's
+    // own**, so the second waits on what be-01 does with the number already
+    // travelling rather than sending a second copy of it.
     const flying = inFlight.current.get(team.id);
     // `?.` and not a `!== undefined` guard beside it: `asNumber` is
     // `number | null` and never `undefined`, so the optional chain narrows the
@@ -244,8 +250,8 @@ export function TeamsPanel({
    * Sends one number and answers whether be-01 kept it.
    *
    * The boolean is the caller's, not the box's: a blur has nothing left to
-   * decide once the sentence is on screen, but {@link done} does — it may only
-   * close over a surface with nothing left to say.
+   * decide once the sentence is on screen, but a caller that waits on the write
+   * may need to know.
    */
   async function attempt(teamId: string, size: number | null): Promise<boolean> {
     try {
@@ -260,41 +266,11 @@ export function TeamsPanel({
     } finally {
       // Dropped whether it landed or was refused, so the entry only ever covers
       // the window a request is really in the air for. Kept past that, a
-      // refusal could not be retried by pressing `Done` again, and a peer's
+      // refusal could not be retried by leaving the box again, and a peer's
       // change followed by the reader typing the old number back would be
       // answered by a promise that settled a minute ago.
       inFlight.current.delete(teamId);
     }
-  }
-
-  /**
-   * Keeps what is typed, then leaves — which is the whole job of a button
-   * called `Done`.
-   *
-   * It used to be `onOpenChange(false)` alone, and that cleared every draft on
-   * the way out: a capacity typed and confirmed reached be-01 as nothing, the
-   * plan came back unlevelled, and the reader had been told it saved. Blur-only
-   * commit is defensible for a box somebody may merely wander out of; it is not
-   * defensible for the one control on the surface whose meaning is "keep this".
-   * Observed live on dev by `wbs-e2e-planning-qa`, 2026-08-22: `1` typed into
-   * `How many of growth-squad at once`, then `Done`, put `teamCapacities: []`
-   * on the wire and four items of a one-person team on day 0 — and the same
-   * gesture with a Tab in front of it levelled the plan correctly.
-   *
-   * Every box rather than the focused one: the focus may be anywhere by the
-   * time the button is reached, and a second team's typed number is exactly as
-   * unsaved. Sequentially, because one refusal is one sentence, and two
-   * requests racing to write it leave the reader reading about whichever lost.
-   *
-   * A refusal stops the close and stops the loop: the surface is where the
-   * refusal is said, and the number it is about is only on screen while the
-   * surface is.
-   */
-  async function done(): Promise<void> {
-    for (const team of teams) {
-      if (!(await commit(team))) return;
-    }
-    onDone();
   }
 
   return (
@@ -368,18 +344,6 @@ export function TeamsPanel({
           ))}
         </ul>
       )}
-
-      <div className="flex justify-end">
-        <Button
-          variant="outline"
-          type="button"
-          onClick={() => {
-            void done();
-          }}
-        >
-          Done
-        </Button>
-      </div>
     </div>
   );
 }

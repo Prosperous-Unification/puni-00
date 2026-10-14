@@ -296,7 +296,7 @@ describe('closing over an edit', () => {
     },
   );
 
-  itDom('an in-flight write holds the modal open and is shown', async () => {
+  itDom('an in-flight write holds the modal open and says it is saving', async () => {
     // The spec's own scenario: the ladder is saving from the priorities section,
     // the reader has moved to the steps section, and Escape must neither close
     // nor leave them looking at the wrong section for why.
@@ -316,7 +316,7 @@ describe('closing over an edit', () => {
     open();
     fireEvent.click(tab('Priorities'));
     fireEvent.change(screen.getByLabelText('Name of band 1'), { target: { value: 'Blocker' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    fireEvent.keyDown(screen.getByLabelText('Name of band 1'), { key: 'Enter' });
     await settle();
     fireEvent.click(tab('Steps'));
     expect(tab('Steps')).toHaveAttribute('aria-selected', 'true');
@@ -324,13 +324,40 @@ describe('closing over an edit', () => {
     escape();
     await settle();
 
+    // Held open, and said quietly: a write in flight clears by itself, so the
+    // reader is neither moved to its section nor told to finish it (Fable
+    // review of #453, blocking 1). The refusal sentence is for drafts.
     expect(dialog()).toBeInTheDocument();
-    expect(tab('Priorities')).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('alert').textContent).toContain('Priorities has an unsaved edit');
+    expect(tab('Steps')).toHaveAttribute('aria-selected', 'true');
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByRole('status').textContent).toContain('Saving Priorities');
 
-    // And once it lands, the modal closes on its own: `Save` asked to close
-    // when it was clicked, and the refusal was about the window, not the
-    // section. The reader who pressed Save meant "save and leave".
+    // Landed, the ladder is clean once the plan is reread; this harness does not
+    // reread, so the close that follows is `Escape waits for a capacity in flight`.
+    landing.land();
+    await settle();
+  });
+
+  itDom('Escape waits for a capacity in flight, then closes (F-060)', async () => {
+    // The refusal was about the window, not the section, and the reader who
+    // pressed Escape meant "leave" (D7): once nothing is held, it closes.
+    const landing = held();
+    const setCapacity = vi.fn(() => landing.promise);
+    mounted({
+      teams: {
+        teams: [{ id: 't-platform', name: 'Platform', stated: null, rows: 1 }],
+        setCapacity,
+        onChanged: vi.fn(() => Promise.resolve()),
+      },
+    });
+    open();
+    const box = screen.getByLabelText('How many of Platform at once');
+    fireEvent.change(box, { target: { value: '3' } });
+    fireEvent.keyDown(box, { key: 'Enter' });
+    escape();
+    await settle();
+    expect(dialog()).toBeInTheDocument();
+
     landing.land();
     await settle();
     expect(screen.queryByRole('dialog')).toBeNull();
@@ -403,20 +430,114 @@ describe('closing over an edit', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
-  itDom('a section’s own Done closes without waiting for its next report', async () => {
-    // The panel says it is clean by asking; the modal takes its word rather
-    // than reading the dirty report from the previous render, which would make
-    // `Done` a button that has to be clicked twice.
-    const { setCapacity } = mounted();
-    open();
-    fireEvent.change(screen.getByLabelText('How many of Platform at once'), {
-      target: { value: '3' },
+  itDom('the ✕ applies a typed capacity and closes once it lands (F-060)', async () => {
+    // Done's old meaning, "keep this and leave", carried by the ✕ (D7). The
+    // click blurs the box first, which applies it; the close is refused while
+    // the number travels and happens by itself when it lands — no second click.
+    const landing = held();
+    const setCapacity = vi.fn(() => landing.promise);
+    mounted({
+      teams: {
+        teams: [{ id: 't-platform', name: 'Platform', stated: null, rows: 1 }],
+        setCapacity,
+        onChanged: vi.fn(() => Promise.resolve()),
+      },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+    open();
+    const box = screen.getByLabelText('How many of Platform at once');
+    fireEvent.change(box, { target: { value: '3' } });
+    fireEvent.blur(box);
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    await settle();
+    expect(setCapacity).toHaveBeenCalledWith('t-platform', 3);
+    expect(dialog()).toBeInTheDocument();
+
+    landing.land();
+    await settle();
+    // Proof: on 2026-10-14, with the modal's close-once-clear effect removed, this failed on
+    // `expected <div role="dialog" …(8)>…(3)</div> to be null` — still open after the write landed.
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  itDom(
+    'leaving over a write in flight says it is saving, not that an edit is unsaved',
+    async () => {
+      // The ✕ blurs the box, which sends the number; while it travels the modal
+      // neither jumps back to Teams nor shows the red "Finish it or cancel it" —
+      // it says it is saving and closes when the write lands.
+      const landing = held();
+      const setCapacity = vi.fn(() => landing.promise);
+      mounted({
+        teams: {
+          teams: [{ id: 't-platform', name: 'Platform', stated: null, rows: 1 }],
+          setCapacity,
+          onChanged: vi.fn(() => Promise.resolve()),
+        },
+      });
+      open();
+      const box = screen.getByLabelText('How many of Platform at once');
+      fireEvent.change(box, { target: { value: '3' } });
+      fireEvent.blur(box);
+      fireEvent.click(tab('Timezone'));
+      fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+      await settle();
+
+      // Proof: on 2026-10-14, against 6d4d02f33 (no busy report, the refusal
+      // shown on every held close), this failed on `expected <p role="alert"
+      // …(1)></p> to be null` — the "Teams has an unsaved edit" sentence.
+      expect(screen.queryByRole('alert')).toBeNull();
+      expect(tab('Timezone')).toHaveAttribute('aria-selected', 'true');
+      expect(screen.getByRole('status').textContent).toContain('Saving Teams');
+
+      landing.land();
+      await settle();
+      expect(screen.queryByRole('dialog')).toBeNull();
+    },
+  );
+
+  itDom('the ✕ stays open on a refused capacity, with the sentence (F-060)', async () => {
+    const setCapacity = vi.fn(() => Promise.reject(new Error('size_must_be_at_most_1000')));
+    mounted({
+      teams: {
+        teams: [{ id: 't-platform', name: 'Platform', stated: null, rows: 1 }],
+        setCapacity,
+        onChanged: vi.fn(() => Promise.resolve()),
+      },
+    });
+    open();
+    const box = screen.getByLabelText<HTMLInputElement>('How many of Platform at once');
+    fireEvent.change(box, { target: { value: '1001' } });
+    fireEvent.blur(box);
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     await settle();
 
-    expect(setCapacity).toHaveBeenCalledWith('t-platform', 3);
-    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(dialog()).toBeInTheDocument();
+    expect(box.value).toBe('1001');
+    expect(
+      screen
+        .getAllByRole('alert')
+        .map((each) => each.textContent)
+        .join(' '),
+    ).toContain('at most 1000');
+  });
+
+  itDom('no section has its own Save, Cancel or Done (F-060)', async () => {
+    mounted();
+    open();
+    const footers: string[] = [];
+    for (const name of ['Teams', 'Priorities', 'Steps', 'Estimating', 'Optimization', 'Timezone']) {
+      fireEvent.click(tab(name));
+      await settle();
+      const panel = screen.getByRole('tabpanel');
+      for (const button of panel.querySelectorAll('button')) {
+        const words = button.textContent.trim();
+        if (/^(Save|Cancel|Done)\b/.test(words)) footers.push(`${name}: ${words}`);
+      }
+    }
+    // Proof: on 2026-10-14, against the four commit models, this failed listing `Teams: Done`,
+    // `Priorities: Cancel`, `Priorities: Save`, `Estimating: Save weights` and `Timezone: Save
+    // timezone`.
+    expect(footers).toEqual([]);
   });
 
   itDom('Escape over a capacity draft abandons the draft and keeps the modal', async () => {
@@ -660,7 +781,8 @@ describe('the project timezone (step-node-attempts D3)', () => {
       ),
     ).toEqual(['America/New_York', 'Europe/Kyiv', 'UTC']);
     fireEvent.change(box, { target: { value: 'Europe/Kyiv' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save timezone' }));
+    // Applied as the box is left (D7, F-060), not by a Save timezone button.
+    fireEvent.blur(box);
     await waitFor(() => {
       expect(setTimezone).toHaveBeenCalledWith('Europe/Kyiv');
     });
@@ -678,7 +800,7 @@ describe('the project timezone (step-node-attempts D3)', () => {
       expect(box).toBeEnabled();
     });
     fireEvent.change(box, { target: { value: 'Kyiv' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save timezone' }));
+    fireEvent.blur(box);
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'That is not a zone this server knows.',
     );

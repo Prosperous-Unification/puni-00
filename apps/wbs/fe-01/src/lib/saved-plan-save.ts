@@ -110,12 +110,11 @@ function leaveUnclaimed(deps: SaveDeps, projectId: string, answer: SavedPlanSave
 /**
  * The Save plan action: one deliberate press, one immutable checkpoint.
  *
- * **The name is not this hook's to supply, and it does not have one to pass.**
- * `save(projectId)` is called with a single argument — assumption A-1, closed in
- * be-01 at `defaultSavedPlanName`. The record is named from the same
- * `created_at` it is stamped with, so the name and the timestamp beside it on
- * the shelf are one value rendered twice and cannot drift apart. Naming is an
- * edit afterwards (the rename route), not a modal in front of the button.
+ * **The name is the reader's, and optional.** The panel's name field passes what
+ * was typed (UI review F-061: the Views panel names before it saves, and so does
+ * this one now); an empty field saves with no name, and be-01 names the record at
+ * `defaultSavedPlanName` from the same `created_at` it is stamped with
+ * (assumption A-1). Renaming afterwards stays an edit on the row.
  *
  * **A press while a save is in flight is ignored, and that is the difference
  * between one checkpoint and two.** A saved plan is immutable and every save
@@ -140,7 +139,7 @@ function leaveUnclaimed(deps: SaveDeps, projectId: string, answer: SavedPlanSave
 export function useSavedPlanSave(
   deps: SaveDeps,
   projectId: string,
-): { readonly state: SavedPlanSaveState; readonly save: () => void } {
+): { readonly state: SavedPlanSaveState; readonly save: (name?: string) => void } {
   // Seeded rather than always `idle`: a shelf mounted while its project's save
   // is still running must draw the same disabled button the departed one drew,
   // from its very first paint.
@@ -212,91 +211,94 @@ export function useSavedPlanSave(
     };
   }, [deps, projectId, receive]);
 
-  const save = useCallback(() => {
-    // The lock is a map entry and not the `state` above, because two presses in
-    // one React batch both read the same rendered state and would both pass a
-    // `state.kind !== 'saving'` test. The entry is written before the await and
-    // read synchronously, which is the only ordering that makes the guard true.
-    let byProject = runningSaves.get(deps);
-    if (byProject === undefined) {
-      byProject = new Map<string, RunningSave>();
-      runningSaves.set(deps, byProject);
-    }
-    if (byProject.has(projectId)) return;
-    const running: RunningSave = { waiting: new Set([receive]) };
-    const held = byProject;
-    byProject.set(projectId, running);
-    setState({ kind: 'saving' });
+  const save = useCallback(
+    (name?: string) => {
+      // The lock is a map entry and not the `state` above, because two presses in
+      // one React batch both read the same rendered state and would both pass a
+      // `state.kind !== 'saving'` test. The entry is written before the await and
+      // read synchronously, which is the only ordering that makes the guard true.
+      let byProject = runningSaves.get(deps);
+      if (byProject === undefined) {
+        byProject = new Map<string, RunningSave>();
+        runningSaves.set(deps, byProject);
+      }
+      if (byProject.has(projectId)) return;
+      const running: RunningSave = { waiting: new Set([receive]) };
+      const held = byProject;
+      byProject.set(projectId, running);
+      setState({ kind: 'saving' });
 
-    /** One exit for every way a save can end, so no path can skip the release. */
-    const settle = (next: SavedPlanSaveState): void => {
-      // Released before the state writes and never conditionally: the entry
-      // outlives every component, so a lock left latched here is a project
-      // whose Save button never works again for the rest of the session.
-      held.delete(projectId);
-      if (running.waiting.size === 0) {
-        leaveUnclaimed(deps, projectId, next);
+      /** One exit for every way a save can end, so no path can skip the release. */
+      const settle = (next: SavedPlanSaveState): void => {
+        // Released before the state writes and never conditionally: the entry
+        // outlives every component, so a lock left latched here is a project
+        // whose Save button never works again for the rest of the session.
+        held.delete(projectId);
+        if (running.waiting.size === 0) {
+          leaveUnclaimed(deps, projectId, next);
+          return;
+        }
+        for (const waiting of running.waiting) waiting(next);
+      };
+
+      // `deps.save` is an injected boundary, and a synchronous throw from it used
+      // to escape between the `set` above and the `.then` below — leaving the lock
+      // latched with no settle to release it, which is the dead-Save-button state
+      // for the rest of the session (Gemini, round 15; Sol M2, round 16). The
+      // production path cannot do it (`httpSavedPlanApi.save` is `async`, so it
+      // rejects instead), but the type says nothing of the sort and the cost of
+      // saying so here is one `try`.
+      let request: ReturnType<SaveDeps['save']>;
+      try {
+        request = name === undefined ? deps.save(projectId) : deps.save(projectId, name);
+      } catch (fault: unknown) {
+        settle({ kind: 'error', code: codeOf(fault) });
         return;
       }
-      for (const waiting of running.waiting) waiting(next);
-    };
-
-    // `deps.save` is an injected boundary, and a synchronous throw from it used
-    // to escape between the `set` above and the `.then` below — leaving the lock
-    // latched with no settle to release it, which is the dead-Save-button state
-    // for the rest of the session (Gemini, round 15; Sol M2, round 16). The
-    // production path cannot do it (`httpSavedPlanApi.save` is `async`, so it
-    // rejects instead), but the type says nothing of the sort and the cost of
-    // saying so here is one `try`.
-    let request: ReturnType<SaveDeps['save']>;
-    try {
-      request = deps.save(projectId);
-    } catch (fault: unknown) {
-      settle({ kind: 'error', code: codeOf(fault) });
-      return;
-    }
-    void request
-      .then((reply): SavedPlanSaveState => {
-        switch (reply.kind) {
-          case 'success':
-            return { kind: 'saved', savedPlan: reply.body.savedPlan };
-          case 'failure':
-            return { kind: 'error', code: savedPlanFailureCode(reply.failure) };
-          case 'refusal':
-            // Proof: mapping snapshot_busy to error failed the production-path
-            // hook case: expected `{kind:'busy'}`, received
-            // `{kind:'error',code:'snapshot_busy'}` (saved-plan-save.test.ts).
-            switch (reply.body.error) {
-              case 'snapshot_busy':
-                return { kind: 'busy' };
-              case 'quota':
-                return { kind: 'quota', refusal: reply.body.refusal };
-              case 'invalid_params':
-              case 'unauthenticated':
-              case 'unsupported_body_version':
-              case 'not_found':
-              case 'invalid_query':
-              case 'invalid_origin':
-              case 'insufficient_scope':
-              case 'forbidden':
-              case 'invalid_json':
-              case 'invalid_body':
-              case 'organization_context_changed':
-              case 'no_active_organization':
-              case 'not_a_member':
-              case 'sso_required':
-              case 'reauthentication_required':
-                return { kind: 'error', code: reply.body.error };
-              default:
-                return unreachable(reply.body);
-            }
-          default:
-            return unreachable(reply);
-        }
-      })
-      .catch((fault: unknown): SavedPlanSaveState => ({ kind: 'error', code: codeOf(fault) }))
-      .then(settle);
-  }, [deps, projectId, receive]);
+      void request
+        .then((reply): SavedPlanSaveState => {
+          switch (reply.kind) {
+            case 'success':
+              return { kind: 'saved', savedPlan: reply.body.savedPlan };
+            case 'failure':
+              return { kind: 'error', code: savedPlanFailureCode(reply.failure) };
+            case 'refusal':
+              // Proof: mapping snapshot_busy to error failed the production-path
+              // hook case: expected `{kind:'busy'}`, received
+              // `{kind:'error',code:'snapshot_busy'}` (saved-plan-save.test.ts).
+              switch (reply.body.error) {
+                case 'snapshot_busy':
+                  return { kind: 'busy' };
+                case 'quota':
+                  return { kind: 'quota', refusal: reply.body.refusal };
+                case 'invalid_params':
+                case 'unauthenticated':
+                case 'unsupported_body_version':
+                case 'not_found':
+                case 'invalid_query':
+                case 'invalid_origin':
+                case 'insufficient_scope':
+                case 'forbidden':
+                case 'invalid_json':
+                case 'invalid_body':
+                case 'organization_context_changed':
+                case 'no_active_organization':
+                case 'not_a_member':
+                case 'sso_required':
+                case 'reauthentication_required':
+                  return { kind: 'error', code: reply.body.error };
+                default:
+                  return unreachable(reply.body);
+              }
+            default:
+              return unreachable(reply);
+          }
+        })
+        .catch((fault: unknown): SavedPlanSaveState => ({ kind: 'error', code: codeOf(fault) }))
+        .then(settle);
+    },
+    [deps, projectId, receive],
+  );
 
   return { state, save };
 }
@@ -318,7 +320,7 @@ export function saveOf(savedPlans: SavedPlans): SaveDeps {
   // Proof: on 2026-09-27, building a fresh object on every call here (v1) failed `joins a save
   // started before the shelf moved, rather than sending a second` on `expected [ [ 'p1' ],
   // [ 'p1' ] ] to have a length of 1 but got 2`.
-  const deps: SaveDeps = { save: () => savedPlans.save() };
+  const deps: SaveDeps = { save: (_projectId, name) => savedPlans.save(name) };
   savesOf.set(savedPlans, deps);
   return deps;
 }

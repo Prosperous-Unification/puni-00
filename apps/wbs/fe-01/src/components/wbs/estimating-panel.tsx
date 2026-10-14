@@ -1,6 +1,5 @@
-import { useState } from 'react';
+import { type FocusEvent, type KeyboardEvent, useRef, useState } from 'react';
 
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { type RefusalWords } from '@/lib/refusal';
@@ -12,7 +11,7 @@ import {
 } from '@/lib/wbs-api';
 
 import type { SettingsSectionReport } from './teams-panel';
-import { SectionProblem, useSettingsSection } from './use-settings-section';
+import { AppliedLine, SectionProblem, useSettingsSection } from './use-settings-section';
 
 /** The three coefficients as their boxes hold them — text, because a half-typed number is text. */
 export interface WeightDraft {
@@ -107,8 +106,6 @@ export interface EstimatingPanelProps extends SettingsSectionReport {
   onChanged: () => Promise<void>;
   /** Recovers after a failed request whose commit outcome is unknown. */
   onRefused?: (thrown: unknown) => Promise<void>;
-  /** Asks the modal to close, once what was typed has landed. */
-  onDone: () => void;
 }
 
 /**
@@ -126,8 +123,10 @@ export interface EstimatingPanelProps extends SettingsSectionReport {
  * fact.** A rounding is one choice out of four and lands the moment it is
  * picked, the way the reach does one section along. Three weights are only a
  * set **together** — 1/4/1 on its way to 1/1/1 passes through triples nobody
- * means — so they are held as drafts and sent as one triple by `Save`, exactly
- * as a ladder is.
+ * means — so they are held as drafts and sent as one triple when the focus
+ * leaves the three boxes or Enter is pressed in one, exactly as a ladder is.
+ * No Save, under the modal's one commit model (UI review D7, F-060); a triple
+ * that landed offers Undo, and Escape in a box puts the three back.
  *
  * Nothing here is optimistic: every write re-reads the plan, and a refusal is a
  * sentence on this surface rather than a toast in the corner of the page the
@@ -168,9 +167,11 @@ export function EstimatingPanel({
   onChanged,
   onRefused,
   onDirtyChange,
-  onDone,
+  onBusyChange,
 }: EstimatingPanelProps) {
   const [draft, setDraft] = useState<WeightDraft>(() => draftOfWeights(pertWeights));
+  /** The weights the last applied triple replaced, while Undo can still send them back. */
+  const [replaced, setReplaced] = useState<PertWeightsView | null>(null);
   /**
    * Dirty while the boxes say something the saved weights do not. Compared
    * against what be-01 has **now**, so a peer's change that happens to match
@@ -184,22 +185,22 @@ export function EstimatingPanel({
     words: ARITHMETIC_REFUSALS,
     dirty,
     onDirtyChange,
+    ...(onBusyChange === undefined ? {} : { onBusyChange }),
     onChanged,
     ...(onRefused === undefined ? {} : { onRefused }),
   });
 
-  async function write(
-    arithmetic: { pertWeights?: PertWeightsView; estimateRounding?: EstimateRoundingView },
-    done: boolean,
-  ): Promise<void> {
-    // The boxes are kept on a refusal — see {@link SettingsSection.attempt}.
-    // `onDone` only on the write that landed: a `Done` that closed over a
-    // refusal would take the sentence off screen with it.
-    const landed = await section.attempt(() => setArithmetic(arithmetic));
-    if (landed && done) onDone();
+  /** Sends one change; the boxes are kept on a refusal — see {@link SettingsSection.attempt}. */
+  function write(arithmetic: {
+    pertWeights?: PertWeightsView;
+    estimateRounding?: EstimateRoundingView;
+  }): Promise<boolean> {
+    return section.attempt(() => setArithmetic(arithmetic));
   }
 
-  function save(): void {
+  /** Sends the three boxes as one triple, if they say something be-01 does not. */
+  async function apply(): Promise<void> {
+    if (!dirty || section.busy) return;
     const weights = weightsOfDraft(draft);
     if (weights === null) {
       // Refused without a round trip, in the same words `bad_pert_weights`
@@ -207,7 +208,40 @@ export function EstimatingPanel({
       section.refuse('weights_must_be_numbers_at_or_above_zero');
       return;
     }
-    void write({ pertWeights: weights }, true);
+    const before = pertWeights;
+    if (await write({ pertWeights: weights })) setReplaced(before);
+  }
+
+  /** Sends back the weights the last apply replaced, and shows them in the boxes. */
+  async function undo(): Promise<void> {
+    if (replaced === null) return;
+    const previous = replaced;
+    if (await write({ pertWeights: previous })) {
+      setDraft(draftOfWeights(previous));
+      setReplaced(null);
+    }
+  }
+
+  /** The three boxes' own row, which a focus moving between them stays inside. */
+  const weightsRow = useRef<HTMLDivElement | null>(null);
+
+  /** Applies once the focus has left the three boxes, not as it moves between them. */
+  function onWeightsBlur(event: FocusEvent<HTMLInputElement>): void {
+    const next = event.relatedTarget;
+    if (next instanceof Node && weightsRow.current?.contains(next) === true) return;
+    void apply();
+  }
+
+  function onWeightsKey(event: KeyboardEvent<HTMLInputElement>): void {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      void apply();
+      return;
+    }
+    if (event.key === 'Escape' && dirty) {
+      setDraft(draftOfWeights(pertWeights));
+      section.clear();
+    }
   }
 
   const weighed = method === 'pert';
@@ -229,7 +263,7 @@ export function EstimatingPanel({
             ? 'Each point counts this many times, and the total is divided by the three added together — 1, 4 and 1 is the textbook (o + 4r + p) / 6, and 1, 1 and 1 is a plain average.'
             : 'This plan takes one of the three points as it stands, so these weights are not in force. They apply when Plan with is set to PERT.'}
         </p>
-        <div className="flex items-end gap-2">
+        <div ref={weightsRow} className="flex items-end gap-2">
           {(['optimistic', 'realistic', 'pessimistic'] as const).map((point) => (
             <div key={point} className="flex flex-1 flex-col gap-1">
               <Label htmlFor={`pert-weight-${point}`} className="capitalize">
@@ -240,6 +274,8 @@ export function EstimatingPanel({
                 className="h-8"
                 inputMode="decimal"
                 value={draft[point]}
+                onBlur={onWeightsBlur}
+                onKeyDown={onWeightsKey}
                 onChange={(event) => {
                   const typed = event.currentTarget.value;
                   setDraft((current) => ({ ...current, [point]: typed }));
@@ -247,10 +283,15 @@ export function EstimatingPanel({
               />
             </div>
           ))}
-          <Button type="button" size="sm" onClick={save}>
-            Save weights
-          </Button>
         </div>
+        <AppliedLine
+          what="The weights"
+          undoable={replaced !== null && !dirty}
+          busy={section.busy}
+          onUndo={() => {
+            void undo();
+          }}
+        />
       </fieldset>
 
       <fieldset className="flex flex-col gap-2" disabled={section.busy}>
@@ -267,7 +308,7 @@ export function EstimatingPanel({
               // somebody else picked redraws here.
               checked={estimateRounding === rounding}
               onChange={() => {
-                void write({ estimateRounding: rounding }, false);
+                void write({ estimateRounding: rounding });
               }}
             />
             <span className="flex flex-col gap-0.5">

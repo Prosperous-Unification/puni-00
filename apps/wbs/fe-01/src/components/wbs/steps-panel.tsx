@@ -199,6 +199,7 @@ export function StepsPanel({
   onReachChanged,
   onRefused,
   onDirtyChange,
+  onBusyChange,
 }: StepsPanelProps) {
   const [newName, setNewName] = useState('');
   const [newUnit, setNewUnit] = useState<EstimateUnit>('workdays');
@@ -232,6 +233,7 @@ export function StepsPanel({
       Object.keys(allowances).length > 0 ||
       confirming !== null,
     onDirtyChange,
+    ...(onBusyChange === undefined ? {} : { onBusyChange }),
     onChanged,
     ...(onRefused === undefined ? {} : { onRefused }),
   });

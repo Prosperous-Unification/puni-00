@@ -219,8 +219,12 @@ export function openSavedPlans({
       // [ 'list:p1' ]`.
       if (isCurrent()) watch.refresh();
     },
-    save: () => whileCurrent(() => routes.save(projectId)),
+    save: (name) =>
+      whileCurrent(() =>
+        name === undefined ? routes.save(projectId) : routes.save(projectId, name),
+      ),
     rename: (savedPlanId, name) => whileCurrent(() => routes.rename(savedPlanId, name)),
+    remove: (savedPlanId) => whileCurrent(() => routes.remove(savedPlanId)),
     compare: (left, right) => whileCurrent(() => routes.compare(projectId, left, right)),
   };
   // Proof: on 2026-09-27, a close that stops nothing (s3) failed `stops watching when it is closed`

@@ -6,6 +6,7 @@ import type {
   SavedPlanCompareReply,
   SavedPlanListEntryView,
   SavedPlanListReply,
+  SavedPlanRemoveReply,
   SavedPlanRenameReply,
   SavedPlanSaveReply,
 } from '../../lib/saved-plan-api';
@@ -105,6 +106,15 @@ const fakeDeps = (start: readonly SavedPlanListEntryView[] = [ROW]) => {
     shelf = shelf.map((row) => (row.id === savedPlanId ? { ...row, name } : row));
     return Promise.resolve(renameReply());
   });
+  const remove = vi.fn((savedPlanId: string): Promise<SavedPlanRemoveReply> => {
+    shelf = shelf.filter((row) => row.id !== savedPlanId);
+    return Promise.resolve({
+      kind: 'success',
+      representation: 'empty',
+      status: 204,
+      headers: headers(),
+    });
+  });
   const deps: SavedPlanRoutes = {
     available: () => Promise.resolve(true),
     list,
@@ -119,6 +129,7 @@ const fakeDeps = (start: readonly SavedPlanListEntryView[] = [ROW]) => {
     save,
     compare,
     rename,
+    remove,
   };
   return {
     deps,
@@ -126,6 +137,7 @@ const fakeDeps = (start: readonly SavedPlanListEntryView[] = [ROW]) => {
     save,
     compare,
     rename,
+    remove,
     /** What be-01 will answer the *next* read — nobody has been told yet. */
     setShelf: (rows: readonly SavedPlanListEntryView[]) => {
       shelf = [...rows];
@@ -133,6 +145,9 @@ const fakeDeps = (start: readonly SavedPlanListEntryView[] = [ROW]) => {
     broadcast: () => fire?.(),
   };
 };
+
+/** The left picker's label, and not a row's `Compare … with the current plan` button. */
+const COMPARE_PICKER = /^Compare(?! .* with the current plan$)/;
 
 /** Resolves once everything already queued as a microtask has run. */
 const flush = () => act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
@@ -174,13 +189,104 @@ describe('the saved-plans panel', () => {
     render(<SavedPlansPanelOver projectId="p1" routes={wiring.deps} />);
     await flush();
 
-    expect(screen.getByRole('button', { name: 'Save plan' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Save' })).toBeTruthy();
     // Scoped to the list, because a saved plan's name is on screen twice by
     // design: once as a row and once as an option in each picker. An unscoped
     // `getByText` here found two nodes and threw, which is the assertion
     // telling the truth about the surface rather than a fault in it.
     const shelf = screen.getByRole('list', { name: 'Saved plans' });
     expect(within(shelf).getByText(ROW.name)).toBeTruthy();
+  });
+
+  itDom('saves under the name typed beside Save, and clears the field (F-061)', async () => {
+    const wiring = fakeDeps([ROW]);
+    render(<SavedPlansPanelOver projectId="p1" routes={wiring.deps} />);
+    await flush();
+
+    const field = screen.getByRole<HTMLInputElement>('textbox', { name: 'Name this plan' });
+    fireEvent.change(field, { target: { value: '  Before the re-plan  ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await flush();
+
+    // Proof: on 2026-10-14, with the panel's `Save plan` button and no field, this failed on
+    // `Unable to find an accessible element with the role "textbox" and name "Name this plan"`.
+    expect(wiring.save).toHaveBeenCalledWith('p1', 'Before the re-plan');
+    expect(field.value).toBe('');
+
+    // An empty field leaves the name to be-01, which names it by its time.
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await flush();
+    expect(wiring.save).toHaveBeenLastCalledWith('p1');
+  });
+
+  itDom('puts a row on the comparison against the current plan (F-061)', async () => {
+    const wiring = fakeDeps([NEWER, ROW]);
+    render(<SavedPlansPanelOver projectId="p1" routes={wiring.deps} />);
+    await flush();
+    expect(screen.getByLabelText<HTMLSelectElement>(COMPARE_PICKER).value).toBe(NEWER.id);
+
+    fireEvent.click(
+      screen.getByRole('button', { name: `Compare ${ROW.name} with the current plan` }),
+    );
+    await flush();
+
+    // Proof: on 2026-10-14, against the shelf before F-061, this failed on `Unable to find an
+    // accessible element with the role "button" and name "Compare before the re-plan with the
+    // current plan"`.
+    expect(screen.getByLabelText<HTMLSelectElement>(COMPARE_PICKER).value).toBe(ROW.id);
+    expect(wiring.compare).toHaveBeenLastCalledWith('p1', { saved: ROW.id }, 'current');
+  });
+
+  itDom('deletes a row only once the delete is confirmed (F-061)', async () => {
+    const wiring = fakeDeps([NEWER, ROW]);
+    render(<SavedPlansPanelOver projectId="p1" routes={wiring.deps} />);
+    await flush();
+
+    fireEvent.click(screen.getByRole('button', { name: `Delete saved plan ${NEWER.name}` }));
+    // The ✕ asks first: Keep puts the row back as it was and sends nothing.
+    fireEvent.click(screen.getByRole('button', { name: 'Keep' }));
+    expect(wiring.remove).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: `Delete saved plan ${NEWER.name}` }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    await flush();
+
+    // Proof: on 2026-10-14, against the shelf before F-061, this failed on `Unable to find an
+    // accessible element with the role "button" and name "Delete saved plan after the re-plan"`.
+    expect(wiring.remove).toHaveBeenCalledWith(NEWER.id);
+    const shelf = screen.getByRole('list', { name: 'Saved plans' });
+    await waitFor(() => {
+      expect(within(shelf).queryByText(NEWER.name)).toBeNull();
+    });
+    // The deleted plan was the comparison's left side; it moves to the next row rather than
+    // answering that the plan the reader just deleted is gone.
+    // Proof: on 2026-10-14, with the success branch's `setLeft` taken out, this failed on
+    // `expected 'current' to be 'sp1'`.
+    expect(screen.getByLabelText<HTMLSelectElement>(COMPARE_PICKER).value).toBe(ROW.id);
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  itDom('the delete question takes the focus, and Escape answers Keep (F-061)', async () => {
+    const wiring = fakeDeps([ROW]);
+    render(<SavedPlansPanelOver projectId="p1" routes={wiring.deps} />);
+    await flush();
+
+    const cross = screen.getByRole('button', { name: `Delete saved plan ${ROW.name}` });
+    cross.focus();
+    fireEvent.click(cross);
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Keep' }));
+
+    const handled = !fireEvent.keyDown(screen.getByRole('button', { name: 'Keep' }), {
+      key: 'Escape',
+    });
+    // Proof: on 2026-10-14, against 6d4d02f33, this failed on `expected false to be true` —
+    // the question left Escape unhandled, so the popover's dismiss hook closed the panel.
+    expect(handled).toBe(true);
+    expect(screen.queryByRole('button', { name: 'Keep' })).toBeNull();
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: `Delete saved plan ${ROW.name}` }),
+    );
+    expect(wiring.remove).not.toHaveBeenCalled();
   });
 
   itDom('shows a plan the user just saved, with no broadcast to prompt it', async () => {
@@ -198,7 +304,7 @@ describe('the saved-plans panel', () => {
     expect(screen.queryByText(NEWER.name)).toBeNull();
 
     wiring.setShelf([NEWER, ROW]);
-    fireEvent.click(screen.getByRole('button', { name: 'Save plan' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await flush();
 
     expect(wiring.save).toHaveBeenCalledWith('p1');
@@ -216,7 +322,7 @@ describe('the saved-plans panel', () => {
     const wiring = fakeDeps([ROW]);
     render(<SavedPlansPanelOver projectId="p1" routes={wiring.deps} />);
     await flush();
-    const picker: HTMLSelectElement = screen.getByLabelText(/Compare/);
+    const picker: HTMLSelectElement = screen.getByLabelText(COMPARE_PICKER);
     expect(picker.value).toBe(ROW.id);
 
     wiring.setShelf([NEWER, ROW]);
@@ -239,7 +345,7 @@ describe('the saved-plans panel', () => {
     await flush();
 
     expect(screen.getByText('No plans saved yet.')).toBeTruthy();
-    expect(screen.queryByLabelText(/Compare/)).toBeNull();
+    expect(screen.queryByLabelText(COMPARE_PICKER)).toBeNull();
     expect(wiring.compare).not.toHaveBeenCalled();
   });
 
@@ -270,7 +376,7 @@ describe('the saved-plans panel', () => {
     expect(list).toHaveBeenCalledTimes(2);
     expect(screen.getByRole('alert').textContent).toBe('Saved plans could not be read (boom).');
     expect(screen.getByText('No differences.')).toBeTruthy();
-    const leftPicker: HTMLSelectElement = screen.getByLabelText(/Compare/);
+    const leftPicker: HTMLSelectElement = screen.getByLabelText(COMPARE_PICKER);
     const rightPicker: HTMLSelectElement = screen.getByLabelText(/^with/);
     expect(leftPicker.value).toBe(NEWER.id);
     expect(rightPicker.value).toBe(ROW.id);
@@ -294,7 +400,7 @@ describe('the saved-plans panel', () => {
     await flush();
     const calls = wiring.compare.mock.calls.length;
 
-    fireEvent.change(screen.getByLabelText(/Compare/), { target: { value: 'current' } });
+    fireEvent.change(screen.getByLabelText(COMPARE_PICKER), { target: { value: 'current' } });
     await flush();
 
     expect(screen.getByText('Pick two different plans to compare.')).toBeTruthy();

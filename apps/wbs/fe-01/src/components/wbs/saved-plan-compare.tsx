@@ -50,9 +50,10 @@ export function SavedPlanSidePicker({
   onChange: (side: SavedPlanSideRef) => void;
 }) {
   return (
-    <label className="saved-plan-compare__picker">
+    <label className="saved-plan-compare__picker flex min-w-0 items-center gap-1.5">
       {label}{' '}
       <select
+        className="border-input bg-background h-8 max-w-56 min-w-0 rounded-md border px-2 text-xs"
         value={valueOf(value)}
         onChange={(event) => {
           onChange(sideOf(event.target.value));
@@ -156,8 +157,10 @@ function SideSummary({
 }) {
   const words = sideScheduleWords(side, schedule);
   return (
-    <div className={`saved-plan-compare__side saved-plan-compare__side--${which}`}>
-      <span className="saved-plan-compare__side-name">{sideLabel(side, rows)}</span>
+    <div
+      className={`saved-plan-compare__side saved-plan-compare__side--${which} flex flex-col text-xs`}
+    >
+      <span className="saved-plan-compare__side-name font-medium">{sideLabel(side, rows)}</span>
       {/*
         Rendered only when there is something to say. A side WITH a schedule
         gets no sentence rather than "has a schedule": the comparison below
@@ -165,7 +168,9 @@ function SideSummary({
         confirming the ordinary case on both sides would push the differences
         off the top of the panel.
       */}
-      {words === null ? null : <span className="saved-plan-compare__absent">{words}</span>}
+      {words === null ? null : (
+        <span className="saved-plan-compare__absent text-muted-foreground">{words}</span>
+      )}
     </div>
   );
 }
@@ -186,8 +191,8 @@ function SideSummary({
  */
 function Difference({ difference }: { difference: PlanDifferenceView }) {
   return (
-    <li className="saved-plan-compare__difference">
-      <span className="saved-plan-compare__path">{difference.path}</span>{' '}
+    <li className="saved-plan-compare__difference text-xs">
+      <span className="saved-plan-compare__path font-mono">{difference.path}</span>{' '}
       <span className="saved-plan-compare__change">
         <span className="saved-plan-compare__value saved-plan-compare__value--left">
           {diffValueWords(difference.left)}
@@ -211,12 +216,12 @@ function DiffHalf({
 }) {
   if (differences.length === 0) return null;
   return (
-    <section className="saved-plan-compare__half" aria-label={title}>
-      <h4>{title}</h4>
+    <section className="saved-plan-compare__half flex flex-col gap-1" aria-label={title}>
+      <h4 className="text-xs font-medium">{title}</h4>
       {groupByCategory(differences).map((group) => (
         <div key={group.category} className="saved-plan-compare__group">
-          <h5>{group.category}</h5>
-          <ul>
+          <h5 className="text-muted-foreground text-xs">{group.category}</h5>
+          <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
             {group.differences.map((difference) => (
               <Difference key={difference.path} difference={difference} />
             ))}
@@ -243,42 +248,48 @@ function DiffHalf({
  */
 export function SavedPlanComparison({ state }: { state: SavedPlanComparisonState }) {
   if (state.kind === 'idle') {
-    return <p className="saved-plan-compare__note">Pick two plans to compare.</p>;
+    return (
+      <p className="saved-plan-compare__note text-muted-foreground text-xs">
+        Pick two plans to compare.
+      </p>
+    );
   }
   if (state.kind === 'refused') {
-    return <p className="saved-plan-compare__note">{COMPARE_SAME_SIDE}</p>;
+    return (
+      <p className="saved-plan-compare__note text-muted-foreground text-xs">{COMPARE_SAME_SIDE}</p>
+    );
   }
   if (state.kind === 'loading') {
     return (
-      <p className="saved-plan-compare__note" role="status">
+      <p className="saved-plan-compare__note text-muted-foreground text-xs" role="status">
         Comparing…
       </p>
     );
   }
   if (state.kind === 'gone') {
     return (
-      <p className="saved-plan-compare__note" role="alert">
+      <p className="saved-plan-compare__note text-muted-foreground text-xs" role="alert">
         {compareGoneWords(state.savedPlanId)}
       </p>
     );
   }
   if (state.kind === 'unreadable') {
     return (
-      <p className="saved-plan-compare__note" role="alert">
+      <p className="saved-plan-compare__note text-muted-foreground text-xs" role="alert">
         {compareUnreadableWords(state.savedPlanId, state.refusal)}
       </p>
     );
   }
   if (state.kind === 'error') {
     return (
-      <p className="saved-plan-compare__note" role="alert">
+      <p className="saved-plan-compare__note text-muted-foreground text-xs" role="alert">
         The comparison could not be read ({state.code}).
       </p>
     );
   }
   return (
-    <div className="saved-plan-compare">
-      <div className="saved-plan-compare__sides">
+    <div className="saved-plan-compare flex flex-col gap-2">
+      <div className="saved-plan-compare__sides grid grid-cols-2 gap-2">
         <SideSummary
           which="left"
           side={state.left}
@@ -298,7 +309,7 @@ export function SavedPlanComparison({ state }: { state: SavedPlanComparisonState
         from a comparison that failed to draw.
       */}
       {diffIsEmpty(state.diff) ? (
-        <p className="saved-plan-compare__note">No differences.</p>
+        <p className="saved-plan-compare__note text-muted-foreground text-xs">No differences.</p>
       ) : (
         <>
           <DiffHalf title="The plan" differences={state.diff.input} />

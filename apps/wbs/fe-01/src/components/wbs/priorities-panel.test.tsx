@@ -1,5 +1,6 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
+import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { PriorityBandView } from '@/lib/wbs-api';
@@ -22,8 +23,8 @@ afterEach(cleanup);
  * Everything the panel is given, with each call recorded.
  *
  * Rendered bare, without the modal around it — see `teams-panel.test.tsx` for
- * why. The panel's two contracts with the shell, `onDirtyChange` and `onDone`,
- * are recorded so the cases below can watch them kept.
+ * why. The panel's contract with the shell, `onDirtyChange`, is recorded so the
+ * cases below can watch it kept.
  */
 function stubbed(
   bands: readonly PriorityBandView[] = DEFAULT_PRIORITY_BANDS,
@@ -38,17 +39,42 @@ function stubbed(
     await Promise.resolve();
   });
   const onDirtyChange = vi.fn();
-  const onDone = vi.fn();
   render(
     <PrioritiesPanel
       bands={bands}
       setBands={setBands}
       onChanged={onChanged}
       onDirtyChange={onDirtyChange}
-      onDone={onDone}
     />,
   );
-  return { setBands, onChanged, onDirtyChange, onDone };
+  return { setBands, onChanged, onDirtyChange };
+}
+
+/**
+ * The panel over a plan that rereads: `setBands` lands in `bands`, as the modal's
+ * plan read does, so a landed ladder reads as clean and offers its Undo.
+ */
+function rereading(start: readonly PriorityBandView[] = DEFAULT_PRIORITY_BANDS) {
+  const sent: (readonly PriorityBandView[])[] = [];
+  function Plan() {
+    const [bands, setLadder] = useState(start);
+    return (
+      <PrioritiesPanel
+        bands={bands}
+        setBands={async (ladder) => {
+          sent.push(ladder);
+          await Promise.resolve();
+          setLadder(ladder);
+        }}
+        onChanged={async () => {
+          await Promise.resolve();
+        }}
+        onDirtyChange={() => undefined}
+      />
+    );
+  }
+  render(<Plan />);
+  return { sent };
 }
 
 /** Lets the two awaits a save makes — the call, then the reread — settle. */
@@ -58,8 +84,9 @@ async function settle(): Promise<void> {
   });
 }
 
+/** Enter in a box of the ladder, which sends the whole ladder (D7: no Save button). */
 const save = (): void => {
-  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  fireEvent.keyDown(screen.getByLabelText('Name of band 1'), { key: 'Enter' });
 };
 
 describe('what a rung holds, in words', () => {
@@ -146,7 +173,7 @@ describe('the priorities section', () => {
     ).toEqual(['1 to 20', '21 to 40', '41 to 60', '61 to 80', '81 and above']);
   });
 
-  itDom('sends the whole ladder on Save, never one rung of it', async () => {
+  itDom('sends the whole ladder on Enter, never one rung of it', async () => {
     // design.md D4. Contiguity is a fact about five rows together, so a per-rung
     // write would have to pass through states in which the ladder is not one —
     // and a reader on another screen would draw one of them.
@@ -170,36 +197,43 @@ describe('the priorities section', () => {
     expect(onChanged).toHaveBeenCalledTimes(1);
   });
 
-  itDom('holds the drafts until Save, so a cut can be moved past its neighbour', async () => {
-    // The one place this deliberately differs from `TeamsPanel`, which commits
-    // per box on blur. Moving `High` down to 15 is an invalid ladder until
-    // `Medium` moves too, and a panel that committed per box would refuse every
-    // intermediate state somebody has to type through.
-    const { setBands } = stubbed();
+  itDom(
+    'holds the drafts while the focus moves between boxes, so a cut can pass its neighbour',
+    async () => {
+      // The one place this deliberately differs from `TeamsPanel`, which commits
+      // per box on blur. Moving `High` down to 15 is an invalid ladder until
+      // `Medium` moves too, and a panel that committed per box would refuse every
+      // intermediate state somebody has to type through.
+      const { setBands } = stubbed();
 
-    fireEvent.change(screen.getByLabelText('High starts at'), { target: { value: '15' } });
-    fireEvent.blur(screen.getByLabelText('High starts at'));
-    fireEvent.change(screen.getByLabelText('High writes'), { target: { value: '20' } });
-    fireEvent.blur(screen.getByLabelText('High writes'));
-    await settle();
-    // Nothing has been sent yet, which is the claim.
-    expect(setBands).not.toHaveBeenCalled();
+      fireEvent.change(screen.getByLabelText('High starts at'), { target: { value: '15' } });
+      fireEvent.blur(screen.getByLabelText('High starts at'), {
+        relatedTarget: screen.getByLabelText('High writes'),
+      });
+      fireEvent.change(screen.getByLabelText('High writes'), { target: { value: '20' } });
+      fireEvent.blur(screen.getByLabelText('High writes'), {
+        relatedTarget: screen.getByLabelText('Medium starts at'),
+      });
+      await settle();
+      // Nothing has been sent yet, which is the claim.
+      expect(setBands).not.toHaveBeenCalled();
 
-    save();
-    await settle();
-    expect(setBands).toHaveBeenCalledTimes(1);
-    expect(setBands.mock.calls.at(0)?.at(0)?.at(1)).toEqual({
-      startsAt: 15,
-      label: 'High',
-      defaultValue: 20,
-    });
-  });
+      save();
+      await settle();
+      expect(setBands).toHaveBeenCalledTimes(1);
+      expect(setBands.mock.calls.at(0)?.at(0)?.at(1)).toEqual({
+        startsAt: 15,
+        label: 'High',
+        defaultValue: 20,
+      });
+    },
+  );
 
   itDom('says what be-01 refused, in words, and keeps what was typed', async () => {
     const setBands = vi.fn<(bands: readonly PriorityBandView[]) => Promise<void>>(() =>
       Promise.reject(new Error('band_default_must_be_inside_its_own_band')),
     );
-    const { onChanged, onDone } = stubbed(DEFAULT_PRIORITY_BANDS, setBands);
+    const { onChanged } = stubbed(DEFAULT_PRIORITY_BANDS, setBands);
 
     fireEvent.change(screen.getByLabelText('Critical writes'), { target: { value: '90' } });
     save();
@@ -214,8 +248,6 @@ describe('the priorities section', () => {
     // could see.
     expect(screen.getByLabelText<HTMLInputElement>('Critical writes').value).toBe('90');
     expect(onChanged).not.toHaveBeenCalled();
-    // And nothing asked the modal to close over the sentence.
-    expect(onDone).not.toHaveBeenCalled();
   });
 
   itDom('says a sentence when the proxy answers, not the status it answered with', async () => {
@@ -244,39 +276,58 @@ describe('the priorities section', () => {
     expect(screen.getByRole('alert').textContent).toContain('whole number');
   });
 
-  itDom('asks to close once the ladder has landed', async () => {
-    // The panel closes nothing itself; `Save` asks the modal through `onDone`,
-    // and only after the reread — a close before it would show the reader a
-    // plan still in the old names.
-    const { onDone, onChanged } = stubbed();
+  itDom('applies the ladder when the focus leaves it, with no Save to press (F-060)', async () => {
+    // D7: one commit model for the settings modal. The ladder still goes as one
+    // request (design.md D4); what sends it is leaving the ladder, not a button.
+    const { setBands } = stubbed();
+    // Proof: on 2026-10-14, against the panel with Cancel / Save, this failed on `expected
+    // <button …(2)></button> to be null` — the section still had its own footer.
+    expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull();
+
+    fireEvent.change(screen.getByLabelText('Name of band 1'), { target: { value: 'Blocker' } });
+    fireEvent.blur(screen.getByLabelText('Name of band 1'), { relatedTarget: null });
+    await settle();
+
+    expect(setBands).toHaveBeenCalledTimes(1);
+    expect(setBands.mock.calls.at(0)?.at(0)?.at(0)?.label).toBe('Blocker');
+  });
+
+  itDom('a landed ladder offers Undo, which sends the one it replaced (F-060)', async () => {
+    const { sent } = rereading();
 
     fireEvent.change(screen.getByLabelText('Name of band 1'), { target: { value: 'Blocker' } });
     save();
     await settle();
+    // Proof: on 2026-10-14, against the panel with Cancel / Save, this failed on `expected
+    // undefined to be 'Blocker'` — Enter in a box sent nothing.
+    expect(sent.at(-1)?.at(0)?.label).toBe('Blocker');
 
-    expect(onChanged).toHaveBeenCalledTimes(1);
-    expect(onDone).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Undo the ladder' }));
+    await settle();
+
+    expect(sent).toHaveLength(2);
+    expect(sent.at(-1)).toEqual(DEFAULT_PRIORITY_BANDS);
+    expect(screen.getByLabelText<HTMLInputElement>('Name of band 1').value).toBe('Critical');
+    expect(screen.queryByRole('button', { name: 'Undo the ladder' })).toBeNull();
   });
 
-  itDom('Cancel puts the ladder back and asks to close', async () => {
-    // The drafts are the only thing to discard, and they are discarded here
-    // rather than on the way out: the panel says it is clean by asking, and a
-    // box still holding `Blocker` while it said so would be a lie.
-    const { onDone, setBands } = stubbed();
+  itDom('Escape puts the ladder back and sends nothing', async () => {
+    // Cancel's job, on the key every other field in the modal uses for it.
+    const { setBands } = stubbed();
 
     fireEvent.change(screen.getByLabelText('Name of band 1'), { target: { value: 'Blocker' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    fireEvent.keyDown(screen.getByLabelText('Name of band 1'), { key: 'Escape' });
     await settle();
 
     expect(screen.getByLabelText<HTMLInputElement>('Name of band 1').value).toBe('Critical');
-    expect(onDone).toHaveBeenCalledTimes(1);
     expect(setBands).not.toHaveBeenCalled();
   });
 });
 
 describe('what the section tells the modal it is holding', () => {
   itDom(
-    'is clean on mount, dirty from the first keystroke, and clean again on Cancel',
+    'is clean on mount, dirty from the first keystroke, and clean again on Escape',
     async () => {
       const { onDirtyChange } = stubbed();
       expect(onDirtyChange).toHaveBeenLastCalledWith(false);
@@ -284,7 +335,7 @@ describe('what the section tells the modal it is holding', () => {
       fireEvent.change(screen.getByLabelText('Name of band 1'), { target: { value: 'Blocker' } });
       expect(onDirtyChange).toHaveBeenLastCalledWith(true);
 
-      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      fireEvent.keyDown(screen.getByLabelText('Name of band 1'), { key: 'Escape' });
       await settle();
       expect(onDirtyChange).toHaveBeenLastCalledWith(false);
     },
@@ -301,13 +352,11 @@ describe('what the section tells the modal it is holding', () => {
     expect(onDirtyChange).toHaveBeenLastCalledWith(false);
   });
 
-  itDom('stays dirty for as long as the ladder is in the air, then asks to close', async () => {
-    // Held open so the assertion is made in the window the fault lives in. Once
-    // the ladder lands the panel asks the modal to close through `onDone`; in
-    // the modal that unmounts it and the report is withdrawn from the cleanup.
+  itDom('stays dirty for as long as the ladder is in the air', async () => {
+    // Held open so the assertion is made in the window the fault lives in.
     // Rendered bare, the boxes still say `Blocker` against a `bands` prop nobody
-    // has reread, so the honest report here is still `true` — what changes is
-    // that `onDone` has been called.
+    // has reread, so the honest report after it lands is still `true`; in the
+    // modal the reread makes it clean.
     let land = (): void => {
       throw new Error('the ladder never left');
     };
@@ -317,16 +366,15 @@ describe('what the section tells the modal it is holding', () => {
           land = resolve;
         }),
     );
-    const { onDirtyChange, onDone } = stubbed(DEFAULT_PRIORITY_BANDS, setBands);
+    const { onDirtyChange } = stubbed(DEFAULT_PRIORITY_BANDS, setBands);
 
     fireEvent.change(screen.getByLabelText('Name of band 1'), { target: { value: 'Blocker' } });
     save();
     await settle();
     expect(onDirtyChange).toHaveBeenLastCalledWith(true);
-    expect(onDone).not.toHaveBeenCalled();
+    expect(setBands).toHaveBeenCalledTimes(1);
 
     land();
     await settle();
-    expect(onDone).toHaveBeenCalledTimes(1);
   });
 });

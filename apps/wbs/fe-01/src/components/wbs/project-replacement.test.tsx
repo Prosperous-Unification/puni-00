@@ -115,6 +115,7 @@ function heldShelves() {
       }),
     save: notServed,
     rename: notServed,
+    remove: notServed,
     compare: notServed,
     subscribe: (projectId, onChange) => {
       broadcasts.set(projectId, onChange);

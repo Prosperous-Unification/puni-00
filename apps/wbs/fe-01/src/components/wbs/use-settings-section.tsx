@@ -1,5 +1,6 @@
 import { type ReactNode, useEffect, useState } from 'react';
 
+import { Button } from '@/components/ui/button';
 import { type RefusalWords, sentenceForRefusal } from '@/lib/refusal';
 
 import { failureText } from './plan-refusal';
@@ -23,8 +24,8 @@ export interface SettingsSection {
    * Runs one write, re-reads the plan, and answers whether be-01 kept it.
    *
    * The boolean is the caller's: a blur has nothing left to decide once the
-   * sentence is on screen, but a `Done` button does — it may only close over a
-   * surface with nothing left to say.
+   * sentence is on screen, but a group that offers Undo only does so for a write
+   * that landed.
    *
    * A refusal **keeps** what is on screen. The value the reader typed is what
    * the sentence beside it is about, and resetting it to be-01's would leave a
@@ -45,6 +46,8 @@ export interface SettingsSectionOptions {
    */
   dirty: boolean;
   onDirtyChange: (dirty: boolean) => void;
+  /** Told whether a write is in the air, apart from `onDirtyChange` — see `SettingsSectionReport`. */
+  onBusyChange?: (busy: boolean) => void;
   /** Re-reads the plan after a write landed. */
   onChanged: () => Promise<void>;
   /** Optional recovery read after a refusal whose target may have changed. */
@@ -69,7 +72,7 @@ export interface SettingsSectionOptions {
  * longer road.
  */
 export function useSettingsSection(options: SettingsSectionOptions): SettingsSection {
-  const { words, dirty, onDirtyChange, onChanged, onRefused } = options;
+  const { words, dirty, onDirtyChange, onBusyChange, onChanged, onRefused } = options;
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -93,6 +96,16 @@ export function useSettingsSection(options: SettingsSectionOptions): SettingsSec
       onDirtyChange(false);
     },
     [onDirtyChange],
+  );
+  // The travelling half on its own, withdrawn on unmount for the same reason.
+  useEffect(() => {
+    onBusyChange?.(busy);
+  }, [busy, onBusyChange]);
+  useEffect(
+    () => () => {
+      onBusyChange?.(false);
+    },
+    [onBusyChange],
   );
 
   return {
@@ -136,5 +149,47 @@ export function SectionProblem({ problem }: { problem: string | null }): ReactNo
     <p role="alert" className="text-destructive text-sm">
       {problem}
     </p>
+  );
+}
+
+/**
+ * What a section that applies several values together says once they landed —
+ * the priority ladder and the PERT weights — and the way back.
+ *
+ * The settings modal has one commit model (UI review D7, F-060): a field applies
+ * as it is left, and nothing waits for a Save. A single box needs no undo — the
+ * old number is one retype away, as in the table — but a group is five or three
+ * values typed together, so the group that landed offers to send back the one it
+ * replaced. Shown only while the boxes say what landed: a new edit hides it.
+ */
+export function AppliedLine({
+  what,
+  undoable,
+  busy,
+  onUndo,
+}: {
+  /** The group, as a sentence starts it: `The ladder`, `The weights`. */
+  what: string;
+  undoable: boolean;
+  busy: boolean;
+  onUndo: () => void;
+}): ReactNode {
+  if (!undoable) return null;
+  return (
+    <div className="flex items-center gap-2 text-sm">
+      <p role="status" className="text-muted-foreground">
+        {what} is applied.
+      </p>
+      <Button
+        variant="outline"
+        size="sm"
+        type="button"
+        aria-label={`Undo ${what.toLowerCase()}`}
+        disabled={busy}
+        onClick={onUndo}
+      >
+        Undo
+      </Button>
+    </div>
   );
 }
