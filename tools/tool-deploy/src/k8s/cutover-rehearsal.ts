@@ -15,7 +15,6 @@ import { join, resolve } from 'node:path';
 
 import { renderTemplate, siteCaddyTmpl, tierComposeTmpl } from '@tools/compose';
 import type { Tier } from '@tools/deploy-contract';
-import { parseAllDocuments } from 'yaml';
 
 import {
   assertExportSound,
@@ -27,8 +26,14 @@ import {
   parseSqliteReport,
   type SqliteReport,
 } from './cutover';
-import { restoreJob } from './cutover-cli';
+import { prepareCutoverManifests, restoreJob } from './cutover-cli';
+import {
+  createCutoverIdentity,
+  type CutoverIdentity,
+  validateCutoverReplay,
+} from './cutover-replay';
 import { prepareDesiredRevision } from './deploy-repo';
+import { type ReleaseDescriptor, renderDescriptor } from './descriptor';
 import {
   backendTaskJob,
   executeRelease,
@@ -37,9 +42,12 @@ import {
   renderOverlay,
   run,
 } from './execute';
+import { firstStartJournal, type FirstStartRequest, startCutover } from './first-start';
+import { fenceFirstStartManifests, firstStartEffects } from './first-start-adapter';
+import { buildSourceRefPatch } from './first-start-source';
 import { serveGitHttp } from './git-http';
 import { fileJournal } from './journal';
-import { K8S_TIERS, type ReleaseIdentity, releaseIdOf, type ReleaseRequest } from './release';
+import { type ReleaseIdentity, releaseIdOf, type ReleaseRequest } from './release';
 
 const ROOT = resolve(import.meta.dir, '../../../..');
 const PREFIX = 'puni-f11-';
@@ -386,26 +394,7 @@ async function prepareNewSide(identity: ReleaseIdentity): Promise<void> {
     { kubectl, overlay: join(ROOT, 'deploy/k8s/wbs/overlays/local') },
     identity,
   );
-  // The writer must not start on an empty volume before the restore: replicas 0 from the start.
-  const documents = parseAllDocuments(rendered).map((document) => {
-    const object = document.toJS() as {
-      kind?: string;
-      metadata?: { name?: string };
-      spec?: { replicas?: number };
-    };
-    if (
-      object.kind === 'Deployment' &&
-      object.metadata?.name === 'wbs-backend' &&
-      object.spec !== undefined
-    ) {
-      object.spec.replicas = 0;
-    }
-    return JSON.stringify(object);
-  });
-  await k(
-    ['apply', '-f', '-'],
-    `{"apiVersion":"v1","kind":"List","items":[${documents.join(',')}]}`,
-  );
+  await k(['apply', '-f', '-'], prepareCutoverManifests(rendered));
 }
 
 /**
@@ -417,8 +406,9 @@ async function runRestoreJob(
   exported: SqliteReport,
   exportFile: string,
   name: string,
+  binding: CutoverIdentity,
 ): Promise<{ completed: boolean; logs: string }> {
-  await k(['create', '-f', '-'], JSON.stringify(restoreJob(image, exported, name)));
+  await k(['create', '-f', '-'], JSON.stringify(restoreJob(image, exported, name, binding)));
   const selector = `job-name=${name}`;
   // The pod appears after the Job, and a refused restore exits before it is ever Ready.
   let pod = '';
@@ -656,13 +646,18 @@ async function waitApplied(revision: string): Promise<void> {
 }
 
 /** The release's full manifests, committed and pushed to the deploy branch. */
-async function commitRelease(identity: ReleaseIdentity, message: string): Promise<string> {
+async function commitRelease(
+  identity: ReleaseIdentity,
+  message: string,
+  fenced = false,
+): Promise<string> {
+  const rendered = await renderOverlay(
+    { kubectl, overlay: join(ROOT, 'deploy/k8s/wbs/overlays/local') },
+    identity,
+  );
   writeFileSync(
     join(clone, MANIFEST),
-    await renderOverlay(
-      { kubectl, overlay: join(ROOT, 'deploy/k8s/wbs/overlays/local') },
-      identity,
-    ),
+    fenced ? fenceFirstStartManifests(rendered, identity) : rendered,
   );
   git(clone, 'add', MANIFEST);
   git(clone, 'commit', '--quiet', '-m', message);
@@ -809,6 +804,29 @@ async function main(): Promise<void> {
       sourceSha,
       images: { backend: be.cluster, gateway: gw.cluster, frontend: fe.cluster, mcp: mcp.cluster },
     };
+    // Laboratory descriptor binds actual published bytes; its synthetic admission is never staging proof.
+    const descriptor: ReleaseDescriptor = {
+      schemaVersion: 1,
+      ...identity,
+      evidence: { gate: { runId: 1, job: 'gate' }, browser: { runId: 1, job: 'pixels' } },
+      admission: {
+        package: {
+          name: 'twilight-burokrat',
+          version: '0.1.0',
+          integrity: `sha512-${'c'.repeat(86)}==`,
+          toolkitIdentity: 'd'.repeat(64),
+        },
+        activation: { version: 'e'.repeat(40), manifestIdentity: 'f'.repeat(64) },
+      },
+    };
+    const descriptorBytes = renderDescriptor(descriptor);
+    const binding = createCutoverIdentity(
+      descriptorBytes,
+      createHash('sha256').update(descriptorBytes).digest('hex'),
+      be.host,
+      be.cluster,
+    );
+    writeFileSync(join(state, 'cutover-descriptor.json'), descriptorBytes);
     log(`old digests = new digests: ${JSON.stringify(identity.images)}`);
     assertMemory();
 
@@ -867,7 +885,9 @@ async function main(): Promise<void> {
     phase('export-sqlite');
     mkdirSync(join(state, 'export'), { recursive: true });
     const exported = parseSqliteReport(
-      await sh(exportArgv(be.host, join(old, 'data'), 'wbs.db', join(state, 'export'), KNOWN)),
+      await sh(
+        exportArgv(be.host, join(old, 'data'), 'wbs.db', join(state, 'export'), KNOWN, binding),
+      ),
     );
     writeFileSync(join(state, 'export-report.json'), JSON.stringify(exported, null, 2));
     log(
@@ -884,7 +904,7 @@ async function main(): Promise<void> {
 
     const exportFile = join(state, 'export', 'wbs-export.sqlite');
     log('negative: restore without suspending Flux while the source already names the release');
-    const c1 = await commitRelease(identity, 'wbs: cutover release');
+    let c1 = await commitRelease(identity, 'wbs: cutover release');
     await prepareNewSide(identity);
     await waitApplied(c1);
     await until('Flux restarting the writer', 240_000, async () => {
@@ -908,6 +928,7 @@ async function main(): Promise<void> {
       exported,
       exportFile,
       'wbs-cutover-restore-raced',
+      binding,
     );
     assert(
       !raced.completed && raced.logs.includes('already exists; refusing to overwrite it'),
@@ -982,16 +1003,42 @@ async function main(): Promise<void> {
       exported,
       tampered,
       'wbs-cutover-restore-tampered',
+      binding,
     );
     assert(
       !refused.completed && refused.logs.includes(`not ${exported.sha256}`),
       'a tampered export is refused by the restore Job before it reaches /data/wbs.sqlite',
     );
+    log(
+      'reviewed lab retry: retain host export/failed logs, remove refused PVC arrival bytes and marker',
+    );
+    writeFileSync(join(state, 'refused-restore.log'), refused.logs);
+    const clearArrival = backendTaskJob(
+      { namespaces: NAMESPACES },
+      'wbs-cutover-clear-arrival',
+      identity.images.backend,
+      {},
+      [
+        'bun',
+        '-e',
+        "for(const name of ['cutover-incoming.sqlite','cutover-incoming.done']) require('node:fs').rmSync('/data/'+name)",
+      ],
+    );
+    await k(['create', '-f', '-'], JSON.stringify(clearArrival));
+    await k([
+      '-n',
+      'wbs-solver',
+      'wait',
+      '--for=condition=complete',
+      'job/wbs-cutover-clear-arrival',
+      '--timeout=60s',
+    ]);
     const restoredRun = await runRestoreJob(
       identity.images.backend,
       exported,
       exportFile,
       'wbs-cutover-restore',
+      binding,
     );
     assert(restoredRun.completed, 'the restore Job completed with the real export');
     await Bun.sleep(25_000);
@@ -1003,17 +1050,13 @@ async function main(): Promise<void> {
     assert((await lastApplied()).endsWith(c0), 'the suspended unit applied nothing new');
     const restored = parseSqliteReport(restoredRun.logs);
     writeFileSync(join(state, 'restore-report.json'), JSON.stringify(restored, null, 2));
+    validateCutoverReplay(restored.replay, binding, exported.sha256);
     assertRestoredMatches(exported, restored);
     log(
       `restored ${restored.path}: same sha256, migrations and counts; owner uid ${String(restored.ownerUid)}`,
     );
 
     phase('start-tiers');
-    await k(['-n', 'wbs-solver', 'scale', 'deployment', 'wbs-backend', '--replicas=1']);
-    for (const tier of K8S_TIERS) {
-      const namespace = tier === 'backend' ? 'wbs-solver' : 'wbs';
-      await k(['-n', namespace, 'rollout', 'status', `deployment/wbs-${tier}`, '--timeout=300s']);
-    }
     const settings = {
       kubectl,
       kubeconfig: join(state, 'kubeconfig'),
@@ -1028,16 +1071,45 @@ async function main(): Promise<void> {
       leaseDurationSeconds: 20,
       log,
     };
-    await kubectlEffects(settings).persistRelease(identity);
-    const current = await kubectlEffects(settings).currentRelease();
-    assert(
-      current !== null && JSON.stringify(current.images) === JSON.stringify(identity.images),
-      'release record names the restored release; F8 releases can start from it',
+    c1 = await commitRelease(identity, 'wbs: fenced first-start handoff', true);
+    await requestReconcile();
+    await until('fenced first-start source', 240_000, async () =>
+      (await fluxField('gitrepository', '.status.artifact.revision')).endsWith(c1),
     );
-    log('cutover step 8: resume the WBS unit onto the committed release');
+    const uidOf = async (namespace: string, kind: string, name: string): Promise<string> =>
+      (await k(['-n', namespace, 'get', kind, name, '-o', 'jsonpath={.metadata.uid}'])).trim();
+    const first: FirstStartRequest = {
+      environment: 'local',
+      identity: binding,
+      exported,
+      restored,
+      cluster: { context: CONTEXT, uid: await uidOf('default', 'namespace', 'kube-system') },
+      namespaces: {
+        ...NAMESPACES,
+        appUid: await uidOf('default', 'namespace', NAMESPACES.app),
+        backendUid: await uidOf('default', 'namespace', NAMESPACES.backend),
+      },
+      pvc: {
+        name: 'wbs-data',
+        uid: await uidOf(NAMESPACES.backend, 'pvc', 'wbs-data'),
+        path: '/data/wbs.sqlite',
+      },
+      restore: {
+        name: 'wbs-cutover-restore',
+        uid: await uidOf(NAMESPACES.backend, 'job', 'wbs-cutover-restore'),
+      },
+      flux: { ...FLUX, desiredRevision: c1, previousRevision: c0 },
+    };
+    writeFileSync(join(state, 'first-start-request.json'), JSON.stringify(first));
+    log(
+      'cutover step 8: durable first-start admission, every tier, record readback and fenced Flux handoff',
+    );
     const handover = watchBackend();
-    await setSuspended(false);
-    await waitApplied(c1);
+    await startCutover(
+      first,
+      firstStartJournal(join(state, 'first-start-state.json')),
+      firstStartEffects(settings),
+    );
     const handed = await handover.stop();
     const adopted = await kubectlEffects(settings).currentRelease();
     assert(
@@ -1050,11 +1122,65 @@ async function main(): Promise<void> {
     );
 
     phase('smoke-host-override');
+    log('attended laboratory traffic opening after successful fenced first-start handoff');
+    await setSuspended(true);
+    c1 = await commitRelease(identity, 'wbs: attended laboratory traffic opening');
+    const pin: unknown = JSON.parse(
+      await k([
+        '-n',
+        FLUX.namespace,
+        'get',
+        `gitrepositories.source.toolkit.fluxcd.io/${FLUX.gitRepository}`,
+        '-o',
+        'json',
+      ]),
+    );
+    await k([
+      '-n',
+      FLUX.namespace,
+      'patch',
+      `gitrepositories.source.toolkit.fluxcd.io/${FLUX.gitRepository}`,
+      '--type=json',
+      '-p',
+      JSON.stringify(buildSourceRefPatch(pin, { commit: c1 })),
+    ]);
+    await requestReconcile();
+    await until('attended traffic source', 240_000, async () =>
+      (await fluxField('gitrepository', '.status.artifact.revision')).endsWith(c1),
+    );
+    await kubectlEffects(settings).reopenWrites();
+    await kubectlEffects(settings).resumeFlux(
+      { ...FLUX, desiredRevision: c1, previousRevision: c0 },
+      c1,
+    );
     await kubectlEffects(settings).smoke('f11-cutover', identity);
     const listed = await backendGet('/api/projects');
     assert(listed.status === 200, `GET /api/projects with Host: ${SITE} answers 200`);
     for (const name of KNOWN)
       assert(listed.body.includes(name), `known row ${name} is served by k3s`);
+
+    log(
+      'attended laboratory transition from the completed first-start commit pin to the F8 release protocol',
+    );
+    const completedPin: unknown = JSON.parse(
+      await k([
+        '-n',
+        FLUX.namespace,
+        'get',
+        `gitrepositories.source.toolkit.fluxcd.io/${FLUX.gitRepository}`,
+        '-o',
+        'json',
+      ]),
+    );
+    await k([
+      '-n',
+      FLUX.namespace,
+      'patch',
+      `gitrepositories.source.toolkit.fluxcd.io/${FLUX.gitRepository}`,
+      '--type=json',
+      '-p',
+      JSON.stringify(buildSourceRefPatch(completedPin, { branch: 'main' })),
+    ]);
 
     log('F8 deploy:k3s through the WBS Flux unit: publish only while suspended, resume onto it');
     await sh(

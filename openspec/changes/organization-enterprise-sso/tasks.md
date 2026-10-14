@@ -47,11 +47,17 @@
 
   Fault: honour `email_verified` for every enterprise identity, and observe the foreign-domain test fail. Restore and add `Proof:`.
 
-- [x] 2.5 Add the organization page's Company sign-in setup panel: list server connection state; create on a verified unused domain; refresh after create, conflicts and explicit request; start one routed proof form with its server login slug. Super-admin refusal hides setup controls; shared authority loss replaces the whole page. Editing, enforcement, deletion, SCIM and session-policy panels are deferred.
+- [x] 2.5 Add the organization page's Company sign-in setup panel: list server connection state; create on a verified unused domain; refresh after create, conflicts and explicit request; start one routed proof form with its server login slug. Super-admin refusal hides setup controls; shared authority loss replaces the whole page. Editing, deletion, SCIM and enforcement controls are deferred to later slices; session-policy has its own slice.
 
   Red: missing page composition and empty component scaffold; verified and unused domain filtering separately; exact create fields; held duplicate create; conflicts and refresh; forbidden/failure controls; shared access loss; server proof/enforcement/mismatch labels; distinct row slugs; one held proof; 1280/375px drawing and Tab traversal.
 
   Fault: remove each domain predicate, eligibility or pending admission, use a wrong claim id, skip refresh, ignore forbidden/create authority loss, replace the row slug with its connection id, or fail to freeze the pending proof. Watch the production component negative fail, restore and record adjacent `Proof:` comments and `verify.md` evidence.
+
+- [x] 2.7 Add Company sign-in enforcement controls for proven/enforced rows using typed PATCH `{enforced}`. Serialize setup, proof, refresh and enforcement; render server state, modeled refusals and the lockout login link. Fence stale reads after mutation and effect cleanup.
+
+  Red: mounted selected-id/body/header, unproven gating, pending, refusal and StrictMode delayed-GET cases, plus same-render Enable→proof and Refresh→proof submissions. Browser 1280/375px controls and keyboard traversal.
+
+  Fault: replace selected id, boolean or scoped client; bypass proof or pending guard, including the open child form's synchronous owner check; remove read generation, cleanup or mutation admission; retain controls on forbidden or publish stale rows. Watch each mounted negative fail and record `Proof:` beside the check and in `verify.md`.
 
 ## 3. Enforcement
 
@@ -122,3 +128,9 @@
   Fault: skip the audit write for `sso_connection_proven`, and observe the completeness test fail. Restore and add `Proof:`.
 
 - [ ] 5.4 Write `verify.md` with the commands, observed outputs and a failure-proof table for every fault above. Run the gate on the exact SHA.
+
+- [x] 5.5 Add a scoped session-policy administration panel to the organization page. Render absent/configured/loading/failure/refusal; validate optional bounds, serialize mutation, use returned policy, and withdraw on context or credential loss. Mounted tests include delayed responses across runtime withdrawal.
+
+  Red: panel import absent, then focused mounted cases for validation, authority, pending, scoping, reconciliation and late response.
+
+  Fault: relax the minimum, drop authority withdrawal, remove both pending admission guards, change the expected-organization header, and trust the submitted value. On review, hold an older same-runtime GET across a PUT and inject broken read/effect versioning, then remove mutation admission; separately break inline field naming and association. Each observed failure and restoration is recorded in `verify.md`.

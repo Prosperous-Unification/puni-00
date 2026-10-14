@@ -1722,6 +1722,43 @@ Production-path red: add a 409 `organization_context_changed` to both the SSO co
 
 `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-fe-01:typecheck --outputStyle=static` passed both the module and application typechecks against the merged tree. Direct ESLint and Prettier checks of the two changed SSO panel files passed. `bunx @fission-ai/openspec@1.12.0 validate organization-ownership-and-access --json` reported one valid change, zero issues. Normal commit hooks, the new exact-SHA gate, CI and live provider acceptance are pending at this record.
 
+### Cross-process logout CI budget correction — 2026-10-14
+
+Hosted PR #405 run `38501869639` failed the existing mounted logout proof at
+10,137.30 ms while waiting for a worker's ready frame. Three cold application
+processes shared the target's 10 s total budget; neighboring three-process
+restart cases already had scoped 30 s budgets and took about 9.5 s in that run.
+The logout case now declares 30 s under `docs/test-budgets.md`. This is a test-only
+scheduling correction to an existing behavior proof, so it needs no new delta spec.
+
+All commands below ran in an isolated checkout based on main `8f324607`, with
+`--timeout=10000` so the target's default remained in effect. Child-pipe execution
+required approved local access after the sandbox rejected Bun `stdin.flush` with
+`EPERM`. Temporary faults were restored before the final suite:
+
+- Baseline selected test: **1 pass, 0 fail, 11 assertions**, 5,371.55 ms
+  (`/tmp/puni-ci405-baseline.log`).
+- Add `await Bun.sleep(3_500)` before each real worker's ready frame, original
+  budget: **0 pass, 1 fail**, test timeout at 10,039.96 ms with
+  `ready: worker exited 143`, reproducing the hosted signature
+  (`/tmp/puni-ci405-delay-red.log`).
+- Same injected readiness delay with the scoped 30 s budget: **1 pass, 0 fail,
+  11 assertions**, 15,785.91 ms (`/tmp/puni-ci405-delay-green.log`).
+- Increase only the injected readiness delay to 11 s: **0 pass, 1 fail** at
+  10,152.62 ms with `ready: worker deadline`, proving the worker's operation
+  deadline still fails before the broader total budget
+  (`/tmp/puni-ci405-deadline-negative.log`).
+- Restore the worker, then run
+  `bun test apps/wbs/be-01/src/controller/browser-lifecycle.mounted-process.db.test.ts --timeout=10000`:
+  **11 pass, 0 fail, 104 assertions**, 52.67 s
+  (`/tmp/puni-ci405-mounted-green.log`).
+- Direct zero-warning ESLint on the changed test passed; OpenSpec 1.12.0
+  `validate organization-ownership-and-access --json` reported **1 valid, 0 issues**.
+
+No application source changed. Full backend, frontend, build, typecheck, hosted CI,
+and canonical exact-SHA gate were not rerun for this narrow test-budget commit;
+they remain integration checks for its recipient.
+
 ### C2 organization runtime and real browser acceptance — 2026-10-13
 
 The C2 checkout is stacked on repaired C1 `4eaf398c7d4e8cda4b26d589495543c725247b29`. The browser fixture starts real `bootBe01` with enabled browser-session authority and a disposable activated SQLite database. Native login, selection, protected reads and writes pass through the mounted backend. Two pages share its cookie jar. The case proves explicit initial choice, A→B replacement by the second tab, withdrawal of the first tab after the notice despite a delayed A discovery, stale A read/write 409, and an in-flight B directory mutation returning one 409 after an external selection to A that emits no notice. A later focus detects removed membership and withdraws the directory panel. The external selection is deliberately made after the directory request is captured so required focus reconciliation cannot remove its button before the click.

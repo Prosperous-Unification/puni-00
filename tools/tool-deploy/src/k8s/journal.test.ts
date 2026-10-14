@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from 'bun:test';
 import { fileJournal, type JournalRecord } from './journal';
 import { migrationIdentityOf, sealMigrationCapture } from './migration-capture';
 import { initialState, type ReleaseRequest } from './release';
+import { sealReplayReceipt } from './replay-receipt';
 
 const roots: string[] = [];
 afterEach(() => {
@@ -40,11 +41,23 @@ const request: ReleaseRequest = {
   recovers: null,
 };
 
-const fixedState = { ...initialState(request), phase: 'migrated' as const };
+const seed = initialState(request);
+const fixedState = {
+  ...seed,
+  phase: 'migrated' as const,
+  replayForward: sealReplayReceipt(
+    request,
+    seed.transactionId,
+    'forward',
+    [],
+    { image: identity.images.backend, capabilities: [] },
+    { image: identity.images.backend, capabilities: [] },
+  ),
+};
 
 function record(): JournalRecord {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     request,
     state: fixedState,
     history: [{ phase: 'migrated', at: '2026-09-18T00:00:00.000Z' }],
@@ -81,17 +94,19 @@ describe('fileJournal', () => {
 
   it('rejects a newer schema', () => {
     const path = join(directory(), 'release.json');
-    writeFileSync(path, JSON.stringify({ ...record(), schemaVersion: 3 }));
+    writeFileSync(path, JSON.stringify({ ...record(), schemaVersion: 4 }));
     expect(() => fileJournal(path).read()).toThrow('unsupported schema version');
   });
 
-  it('refuses a legacy in-flight journal without replacing its bytes', () => {
-    const path = join(directory(), 'release.json');
-    const legacy = JSON.stringify({ ...record(), schemaVersion: 1 });
-    writeFileSync(path, legacy);
-    expect(() => fileJournal(path).read()).toThrow('legacy migration capture');
-    expect(readFileSync(path, 'utf8')).toBe(legacy);
-  });
+  for (const schemaVersion of [1, 2]) {
+    it(`refuses a legacy in-flight journal schema ${String(schemaVersion)} without replacing its bytes`, () => {
+      const path = join(directory(), 'release.json');
+      const legacy = JSON.stringify({ ...record(), schemaVersion });
+      writeFileSync(path, legacy);
+      expect(() => fileJournal(path).read()).toThrow('legacy migration capture');
+      expect(readFileSync(path, 'utf8')).toBe(legacy);
+    });
+  }
 
   it('rejects a changed capture from disk before returning a journal record', () => {
     const path = join(directory(), 'release.json');

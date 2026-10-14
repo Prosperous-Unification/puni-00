@@ -1,4 +1,4 @@
-/** Evidence that the earlier rows of the test level table require. Paths are workspace-relative. */
+/** Evidence for the complete test level table. Paths are workspace-relative. */
 export interface TestLevelFacts {
   readonly frontendSourceRoot: string;
   readonly manualProcedures: ReadonlySet<string>;
@@ -13,6 +13,53 @@ export interface TestLevelFacts {
 export type TestLevel =
   'manual' | 'conformance' | 'architecture' | 'performance' | 'browser' | 'api' | 'unit' | 'view';
 
+/** Complete declared membership for the first four rows; later classification facts are absent. */
+export type DeclaredTestFacts = Pick<
+  TestLevelFacts,
+  | 'manualProcedures'
+  | 'conformanceFiles'
+  | 'architectureFixtures'
+  | 'performanceFiles'
+  | 'browserFiles'
+>;
+
+/** The earlier rows resolved entirely from declared membership and recorded Playwright collection. */
+export type DeclaredTestLevel = Extract<
+  TestLevel,
+  'manual' | 'conformance' | 'architecture' | 'performance'
+>;
+
+/**
+ * Applies the first four rows in order, returning undefined only when a later row is needed.
+ * @throws when Performance membership is absent from the recorded Playwright collection.
+ */
+export function classifyDeclaredTest(
+  path: string,
+  facts: DeclaredTestFacts,
+): DeclaredTestLevel | undefined {
+  if (facts.manualProcedures.has(path)) return 'manual';
+  // Proof: the ordered-table test's `.db.test.ts` conformance case fails as `api`
+  // when this membership guard is removed (2026-10-09).
+  // Proof: removing or moving this row behind Architecture failed [TEST-AXES-089]'s
+  // production CLI three-way overlap and Conformance-only isolation assertions.
+  if (facts.conformanceFiles.has(path)) return 'conformance';
+  // Proof: removing either declared row or placing Architecture first failed
+  // [TEST-AXES-089]'s real CLI Conformance/Architecture/Performance overlap assertions.
+  if (facts.architectureFixtures.has(path)) return 'architecture';
+  // Proof: removing this row failed [TEST-AXES-087]'s complete real Performance CLI case.
+  if (facts.performanceFiles.has(path)) {
+    // Proof: replacing this guard with `if (false)` made the production classifier
+    // negative accept `elsewhere/check.spec.ts` as Performance (2026-10-09).
+    // Proof: disabling this guard accepted [TEST-AXES-088]'s production CLI classifier
+    // dependency fault that removed recorded Playwright membership.
+    if (!facts.browserFiles.has(path)) {
+      throw new Error(`${path} claims Performance but is not in a declared Playwright suite`);
+    }
+    return 'performance';
+  }
+  return undefined;
+}
+
 /**
  * Classifies a tracked test against the ten-row test-axes table.
  *
@@ -24,19 +71,8 @@ export type TestLevel =
  * when no row recognizes the file.
  */
 export function classifyTestFile(path: string, facts: TestLevelFacts): TestLevel {
-  if (facts.manualProcedures.has(path)) return 'manual';
-  // Proof: the ordered-table test's `.db.test.ts` conformance case fails as `api`
-  // when this membership guard is removed (2026-10-09).
-  if (facts.conformanceFiles.has(path)) return 'conformance';
-  if (facts.architectureFixtures.has(path)) return 'architecture';
-  if (facts.performanceFiles.has(path)) {
-    // Proof: replacing this guard with `if (false)` made the production classifier
-    // negative accept `elsewhere/check.spec.ts` as Performance (2026-10-09).
-    if (!facts.browserFiles.has(path)) {
-      throw new Error(`${path} claims Performance but is not in a declared Playwright suite`);
-    }
-    return 'performance';
-  }
+  const declared = classifyDeclaredTest(path, facts);
+  if (declared !== undefined) return declared;
   if (facts.browserFiles.has(path)) return 'browser';
   // Proof: `.db.test.tsx` reached API and the ordered-table negative received
   // `api` instead of `view`; the exact `.db.test.ts` suffix makes it pass.

@@ -15,6 +15,7 @@ import type { StepProgressStore } from '../../ports/progress-store';
 import type { Broadcaster } from '../../ports/project-event';
 import type { ProjectStore } from '../../ports/project-store';
 import type { Scheduler } from '../../ports/scheduler';
+import type { StepBlockageStore } from '../../ports/step-blockage-store';
 import type { StepNodeAttemptStore } from '../../ports/step-node-attempt-store';
 import type { SubtreeStore } from '../../ports/subtree-store';
 import type { TypedDependencyStore } from '../../ports/typed-dependency-store';
@@ -50,6 +51,7 @@ export const workItemModule = DiBag.createBuilder()
         measureStore,
         progressStore,
         attemptStore,
+        blockageStore,
         directoryStore,
         capacityStore,
         priorityBandStore,
@@ -71,6 +73,7 @@ export const workItemModule = DiBag.createBuilder()
         measureStore: MeasureStore;
         progressStore: StepProgressStore;
         attemptStore: StepNodeAttemptStore;
+        blockageStore: StepBlockageStore;
         directoryStore: DirectoryStore;
         capacityStore: CapacityStore;
         priorityBandStore: PriorityBandStore;
@@ -92,6 +95,7 @@ export const workItemModule = DiBag.createBuilder()
         measures: measureStore,
         progress: progressStore,
         attempts: attemptStore,
+        blockages: blockageStore,
         directory: directoryStore,
         capacity: capacityStore,
         priorityBands: priorityBandStore,

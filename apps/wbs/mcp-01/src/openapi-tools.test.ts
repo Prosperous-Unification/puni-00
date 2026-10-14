@@ -333,6 +333,7 @@ describe('toolsFromDocument, on the generated document', () => {
       'endAttempt',
       'removeAttempt',
       'setStatus',
+      'setStepBlocked',
       'setMeasure',
       'clearMeasure',
       'setAssignee',

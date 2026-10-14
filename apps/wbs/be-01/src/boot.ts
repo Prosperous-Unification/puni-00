@@ -15,6 +15,7 @@ import {
   ProvisioningTokenRepository,
   ScimUserRepository,
   SessionPolicyRepository,
+  SharedPeopleRestoreApprovalRepository,
   SpaceRepository,
   SqliteBrowserAuthLifecycle,
   SqliteBrowserCredentialRevocations,
@@ -23,6 +24,7 @@ import {
 } from '@wbs/store-sqlite';
 import { canonicalOidcEmail } from '@wbs/store-sqlite/canonical-oidc-email';
 import { DrizzleEventLogStore } from '@wbs/store-sqlite/event-log';
+import { readStepBlockageActivation } from '@wbs/store-sqlite/step-blockage-activation';
 import { backfillStepCodes } from '@wbs/store-sqlite/step-code-backfill';
 import { DiBag } from 'di-bag';
 
@@ -317,6 +319,10 @@ export async function bootBe01(
               ...browser,
               projects: services.projects,
               memberships: new OrganizationRepository(db, services.gate),
+              sharedPeopleRestoreApprovals: new SharedPeopleRestoreApprovalRepository(
+                db,
+                services.gate,
+              ),
               domains: new DomainClaimRepository(db, services.gate),
               sessionPolicies: new SessionPolicyRepository(db, services.gate),
               pendingMemberships: new ScimUserRepository(db, services.gate),
@@ -400,11 +406,14 @@ export async function bootBe01(
               } else {
                 opts.logger.info({ port: opts.port }, 'be-01 listening (migrating)');
                 runMigrations(opts.dbPath, opts.migrationsFolder ?? './drizzle');
+                // Proof: post-migration admission check omitted; missing-marker boot completed instead of refusing readiness (2026-10-14).
+                readStepBlockageActivation(db);
                 // The swap's post-`stop-blue` step, here because a process that
                 // migrates itself has no older colour left to wait for.
                 const coded = backfillStepCodes(db, new DrizzleEventLogStore(db, OPEN), Date.now());
                 opts.logger.info({ coded: coded.length }, 'step codes backfilled');
               }
+              if (opts.migrateOnStartup !== true) readStepBlockageActivation(db);
               if (opts.localIdentity !== undefined) {
                 // The one write in the tree whose author is the row it writes:
                 // the fixed local-mode account brings itself into existence, so

@@ -96,6 +96,15 @@ export {
   readCheckRuns,
 } from './policy/check-runs';
 export { extractRelationships } from './relationships';
+export {
+  type DeclarationSource,
+  type DeclaredRelationships,
+  extractDeclaredRelationships,
+  extractDeclaredRelationshipsFromSource,
+  identifyDeclarationExtractor,
+} from './relationships/declarations';
+export { type NxRelationships } from './relationships/nx';
+export { type ExtractorIdentity } from './relationships/typescript';
 export { AuditFinding } from './review/audit';
 export {
   type ExhaustiveFreezeDocuments,

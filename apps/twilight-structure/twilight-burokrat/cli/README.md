@@ -89,6 +89,23 @@ publication and index identities, and index review debt. Every case has an unres
 the observation has absent authentication, `certifies:false`, and no tested-module, coverage or
 admission claim. A refused Performance publication remains a refusal.
 
+`inspect-level-facts <repository> <committed-sha> <external-authority>` observes one complete
+Performance declaration and its exact selected fixture blobs under an external version-1
+authority. The authority pins the commit, candidate, project manifest, declaration, config,
+Playwright project and fixture set. In this first slice, Manual, Conformance and Architecture
+must each be explicitly reviewed empty for that fixture scope; a present Conformance target
+contradicts that assertion. Committed Conformance and Architecture sources await their bounded
+adapters. The output binds source tuples and explicit membership states with absent
+authentication and `certifies:false`; it does not classify tests, read the publication or award
+coverage.
+
+`inspect-manual-observation <repository> <committed-sha> <external-rule-policy> <report-path> --now <UTC instant>`
+wraps the complete `inspect-manual` result with the exact committed candidate identity and
+canonical evaluation instant. The digest binds the entire envelope, including the nested Manual
+verdict, absent authentication and `certifies:false`. Current, stale, failed and overdue results
+all emit JSON; only current exits zero. Invalid evidence and unresolved scenario selection refuse
+without JSON. The command grants no Manual-level, coverage, admission or human-authentication claim.
+
 ## Diagnostic specification sources
 
 `inspect-spec-sources <repository> <committed-sha>` inventories every parsed active canonical
@@ -138,3 +155,12 @@ set before audit evaluation. Evidence payload bytes remain confined to evidence-
 and any declared Gitlink that is still inaccessible is retained in the coverage report and blocks
 acceptance. These commands validate a proposed sweep record. They do not run reviews, activate
 policy, or certify the still-pending operational sweep.
+
+## Plan task consistency
+
+`twib validate-plan-tasks <plan-reference.json> <tasks.json>` strictly checks the two supplied
+documents using [`validatePlanTasks`](src/contracts/validate-plan-tasks.ts). Its deterministic
+`plan-task-consistency` report names the reference digest, canonical task digest, plan and task
+count. It checks historical/current schema pairing and unique task IDs and step IDs/codes.
+This report grants no approval, admission, certification, requirements validation or composite
+dependency closure.

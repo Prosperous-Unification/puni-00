@@ -21,6 +21,7 @@ import {
   refusingDomains,
   refusingEnterpriseConnections,
   refusingMemberships,
+  refusingRestoreApprovals,
 } from '../testing/organization-access-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
 import { inMemoryProjects, projectRow, testProjectService } from '../testing/project-fixture';
@@ -82,6 +83,7 @@ describe('one plan’s history, over HTTP', () => {
     app = buildApp({
       organizations: legacyOrganizationAccess,
       memberships: refusingMemberships,
+      sharedPeopleRestoreApprovals: refusingRestoreApprovals,
       domains: refusingDomains,
       enterpriseConnections: refusingEnterpriseConnections,
       emailVerification: refusingEmailVerification,

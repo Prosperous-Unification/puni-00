@@ -96,7 +96,8 @@ describe('the CI corpus-version-lint boundary', () => {
 
     expect(environment).toEqual({
       EVENT_NAME: '${{ github.event_name }}',
-      PR_BASE_SHA: '${{ github.event.pull_request.base.sha }}',
+      PR_HEAD_SHA: '${{ github.event.pull_request.head.sha }}',
+      PR_NUMBER: '${{ github.event.pull_request.number }}',
       PUSH_BEFORE: '${{ github.event.before }}',
       MERGE_GROUP_BASE_SHA: '${{ github.event.merge_group.base_sha }}',
       DISPATCH_BASE_REF: '${{ inputs.base_ref }}',

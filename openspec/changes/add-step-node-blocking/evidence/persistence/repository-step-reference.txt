@@ -1,0 +1,37 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-blockage.db.test.ts:
+110 |
+111 |   it('refuses corrupted owner/step membership and parent-owned facts on reads', async () => {
+112 |     await set('a', 'dev');
+113 |     connection.db.run('DROP TRIGGER step_blockage_owner_update');
+114 |     connection.db.run("UPDATE step_blockage SET step_id='foreign'");
+115 |     expect(blockages.listByProject('p')).rejects.toThrow(/invalid step reference/);
+                                                       ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-step-blockage-rebuild/libs/wbs/adapters/store-sqlite/src/step-blockage.db.test.ts:115:50)
+(fail) StepBlockageRepository > refuses corrupted owner/step membership and parent-owned facts on reads [220.40ms]
+123 |   it('refuses missing trusted owner and step references on reads', async () => {
+124 |     await set('a', 'dev');
+125 |     connection.db.run('DROP TRIGGER step_blockage_owner_update');
+126 |     connection.db.run('PRAGMA foreign_keys = OFF');
+127 |     connection.db.run("UPDATE step_blockage SET step_id='gone'");
+128 |     expect(blockages.listByProject('p')).rejects.toThrow(/invalid step reference/);
+                                                       ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-step-blockage-rebuild/libs/wbs/adapters/store-sqlite/src/step-blockage.db.test.ts:128:50)
+(fail) StepBlockageRepository > refuses missing trusted owner and step references on reads [130.30ms]
+
+ 0 pass
+ 5 filtered out
+ 2 fail
+ 2 expect() calls
+Ran 2 tests across 1 file. [657.00ms]

@@ -16,6 +16,7 @@ and, once they choose, have lower-priority projects plan around the people highe
   Fast and in CP-SAT.
 - Durable invalidation: booking, availability and topology changes tell affected lower projects
   to re-read, atomically with the originating write.
+- Personal, backup-bound restore approval and atomic audited recovery.
 - fe-01: a load page, a booked/overlapping column in the directory, the `elsewhere` sentence,
   and a settings switch.
 

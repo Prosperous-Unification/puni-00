@@ -21,6 +21,7 @@ const PINNED_COMMAND_KINDS = [
   'setActual',
   'clearActual',
   'setProgress',
+  'setStepBlocked',
   'clearProgress',
   'startAttempt',
   'endAttempt',

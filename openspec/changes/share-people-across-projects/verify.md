@@ -1,5 +1,74 @@
 # verify — share-people-across-projects
 
+## Stacked hosted CI repair: approval migration fixtures (2026-10-14)
+
+The earliest affected head is PR #425 `46b712a183790b701c1cd9c6302c5e361cdb9257`.
+The new approval migration must be named in every literal full-chain rollback answer,
+and both new tables must be excluded from historical schema comparisons after rollback.
+The older-candidate CLI fixture's current baseline now ends at the approval migration.
+The damaged step-unit journal fixture first reverses newer migrations, asserting their
+literal names, so its unchanged-ledger negative covers the unit migration's own transaction.
+The audit source check exempts the two restore tables because neither declares general audit
+columns; the existing exemption guard still validates that boundary. No production behavior
+or SQL changed.
+
+Observed checks in the isolated repair clone:
+
+- Before repair, the migration CLI and email-challenge suites: 51 pass, 2 fail
+  (`/tmp/puni-425-red.log`), naming the missing approval migration.
+- After repair, those same suites: 53 pass, 0 fail
+  (`/tmp/puni-425-focused-green.log`).
+- Calendar, organization-records, and step-unit fixtures: 50 pass, 0 fail
+  (`/tmp/puni-425-boundary-green.log`).
+- Scoped ESLint after generating the Nx graph: exit 0, no diagnostics
+  (`/tmp/puni-425-eslint-green.log`).
+- Both store and backend TypeScript builds: exit 0, no diagnostics
+  (`/tmp/puni-425-typecheck.log`).
+- Pinned `bunx @fission-ai/openspec@1.12.0 validate --all --json`: exit 0,
+  no failed validations (`/tmp/puni-425-openspec.log`).
+
+- Optimizer schema fixture: 18 pass, 0 fail (`/tmp/puni-425-optimizer-green.log`).
+- R5 proof: injected `auditColumns()` into both exempt restore schema declarations;
+  the existing exemption guard failed naming both (`/tmp/puni-425-audit-proof-red.log`).
+- R5 proof: removed the SQL root-object guard; the pinned unit fixture
+  stopped throwing for null journal preconditions (`/tmp/puni-425-unit-proof-red.log`).
+  Both mutations were restored; adjacent `Proof:` comments record the observations.
+
+The initial full store discovery inside the sandbox encountered `EPERM` writing subprocess
+stdin; an unrestricted repeat is required for that concurrency suite. The full host gate
+and fresh hosted checks remain required after the reviewed stack is pushed.
+
+## Stacked hosted CI repair: host restore test tier (2026-10-14)
+
+At PR #431, the tier conformance test failed naming
+`shared-people-host-restore.test.ts opens a database and is not named .db.test.ts`
+(`/tmp/puni-431-tier-red.log`). Renamed it to `shared-people-host-restore.db.test.ts`;
+the opener check and tier selection commands are unchanged. No Nx input change is needed:
+backend `default` already covers its Drizzle tree, and `^production` covers the store
+helper imported by this suite. Existing commands below record historical paths.
+
+`bun test apps/wbs/be-01/src/test-tiers.test.ts apps/wbs/be-01/src/shared-people-host-restore.db.test.ts --timeout=60000`:
+20 pass, 1 skip, 0 fail (`/tmp/puni-431-focused-green.log`). The skipped case requires
+`WBS_HOST_RESTORE_REAL_DOCKER=1` and an explicitly supplied proof image; live Docker
+fencing was not rerun in this CI fixture repair.
+
+## Stacked hosted CI repair: receipt migration fixtures (2026-10-14)
+
+PR #434 introduces `20261014130000_add_shared_people_restore_receipts` after the
+approval migration. Full-chain literal rollback answers and current-baseline assertions
+include this migration; historical schema comparisons exclude its receipt and consumption
+tables. The unit-refusal fixture remains pinned at the unit migration before corruption.
+The receipt and consumption tables join the schema-validated audit exemptions because
+they carry completion evidence and consent bindings rather than general audit columns.
+
+Before this repair, composed CLI/challenge/audit suites: 56 pass, 3 fail
+(`/tmp/puni-434-red.log`). R5 proof: injecting `auditColumns()` into receipt and consumption
+schema declarations failed the exemption guard naming both entries
+(`/tmp/puni-434-audit-proof-red.log`). The mutation was restored and its observed failure
+is recorded beside the exemptions. All production files and SQL remain byte-identical
+to original PR #434 head `12cf060d8`; only test fixtures, a test filename, and this
+verification record differ. Fresh hosted checks and the locked host gate remain required.
+
 ## Slice 0 — spec
 
 Written on `batch-9/010-4-16-capacity-spec` from main `4bb71e5f`. The change name, the four
@@ -4434,3 +4503,870 @@ socket (`EPERM`); the rerun with local socket permission passed 11/11 across bot
 
 The exact-head h2puni gate and OpenSpec validation remain the integration gate; no shared-mode
 activation, binding installation, deployment, or push was performed by this prerequisite.
+
+## Personal shared-backup restore approval checkpoint (010.4.16, 2026-10-14)
+
+Base: exact PR #403 head `2fac0c9c8579c627c05e9e55a19ee66b4ea35fd6` in isolated
+`batch-10/shared-restore-activation-sol`. This checkpoint closes 10.1 only. The release still
+advertises isolated capacity only, and existing shared-backup restore still refuses. Canonical
+digest calculation, stopped-writer/deploy exclusion, approval consumption, mode/rank/audit/event
+transaction, operation receipt and receipt retry remain open in 10.2–10.4. No push, merge or deploy.
+The personal approval endpoint is composed in production and both organization harnesses through
+a required port using the existing source writer. Fixture-only applications supply an explicit
+refusing port rather than an optional production default.
+
+### Commands and observed outcomes
+
+All checks below ran on `pop-os`, not h2puni. The canonical h2puni gate and CI have not run;
+this is an approval slice checkpoint, not an activation or whole-repository gate claim.
+
+- Frozen dependencies: `BUN_TMPDIR=/tmp BUN_INSTALL_CACHE_DIR=/tmp/puni-bun-cache bun install --frozen-lockfile`:
+  checked 1573 installs, no changes. The first attempt without those environment overrides refused
+  because Bun's default temporary directory was read-only.
+- `bun test apps/wbs/be-01/src/controller/shared-people-restore-approval.controller.db.test.ts apps/wbs/be-01/src/controller/delegation.controller.db.test.ts apps/wbs/be-01/src/controller/capacity-mode.controller.db.test.ts libs/wbs/adapters/store-sqlite/src/shared-people-restore-approval.db.test.ts libs/wbs/adapters/store-sqlite/src/shared-people-rollback.db.test.ts libs/wbs/adapters/store-sqlite/src/shared-people-audit.db.test.ts apps/wbs/be-01/src/backup-cli.db.test.ts --timeout=30000`:
+  **78 pass, 0 fail, 292 assertions**. The injected approval-insert trigger intentionally logs the
+  unexpected failure while the mounted request returns 500 and both tables remain empty.
+- `bun test apps/wbs/be-01/src/app.routes.test.ts -t 'complete pinned identity and origin policy inventory' --timeout=30000`:
+  **1 pass, 0 fail, 264 assertions**; the new route is covered by authenticated write scope and
+  the session-cookie origin policy. Other tests in that file were filtered out.
+- `NX_DAEMON=false bunx nx run wbs-be-01:typecheck`: **passed**, including module checks.
+  Nx's sandbox-denied socket fallback ran plugins in the main process.
+- `NX_DAEMON=false bunx nx run-many -t typecheck -p wbs-store-sqlite,wbs-core,wbs-contracts --parallel=2`:
+  **passed**, all four tasks including core module checks.
+- `bunx prettier --check <all changed and new .ts/.md paths>` and `git diff --check`:
+  **passed** after formatting the lint-fixed test arrows.
+- `bunx eslint <all changed and new .ts paths>`: **passed** after import sorting and void-arrow
+  fixes. The initial typecheck also exposed the closed refusal inventory and the required port's
+  fixture callers; both are updated. Two rollback regression expectations initially omitted the
+  newest migration; the final run above includes its empty-schema reversal.
+- `BUN_TMPDIR=/tmp BUN_INSTALL_CACHE_DIR=/tmp/puni-bun-cache bunx @fission-ai/openspec@1.12.0 validate --all --json`:
+  **186 passed, 0 failed**.
+- `bun run tools/tool-git-hooks/src/hooks/migration-lint.ts apps/wbs/be-01/drizzle/20261014120000_add_shared_people_restore_approvals/migration.sql`:
+  **exit 0**. Additive tables/index and adjacent guarded `down.sql`.
+- Full Nx gates, build, browser tests, live identity provider and solver-image execution are
+  unverified in this checkpoint. The existing solver prerequisite and activation boundary are
+  outside the changed approval behavior.
+
+### Watched R5 faults
+
+The initial mounted RED run had **0 pass, 7 fail** against the absent route/schema. Each fault
+below was then injected independently into the production path, its named focused test was run
+with `bun test <file> -t <test> --timeout=30000`, and the original source was restored in `finally`.
+Every mutant exited 1 with an assertion failure; none survived. Adjacent `Proof:` comments name
+the observed fault. The tests exercise actual Elysia admission, source gate and SQLite writes.
+
+| Fault                                          | Observed production-path negative                                                                                                    |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Drop delegation guard                          | `refuses delegated restore approval even for a super-admin`: 200 instead of 403                                                      |
+| Drop legacy guard                              | `requires authentication and an activated organization`: 500 instead of 409                                                          |
+| Bypass super-admin role                        | `refuses an admin without storing an operation`: approval admitted                                                                   |
+| Bypass activation read                         | `refuses issuance before organization activation on the writer`: approval admitted                                                   |
+| Drop operation digest comparison               | `refuses a different backup or actor for existing evidence`: changed backup admitted                                                 |
+| Drop approval actor comparison                 | Same mounted binding case: another person's retry admitted                                                                           |
+| Force approval lookup to org-a                 | `binds one operation digest across organizations without leaking a foreign approval`: second organization's valid consent refused    |
+| Replace principal actor with asserted operator | `persists the authenticated actor and active organization, retrying without new evidence`: refused instead of authenticated approval |
+| Drop membership organization predicate         | `requires super-admin membership in the active organization`: foreign super-admin admitted as local viewer                           |
+| Drop membership actor predicate                | Admin-refusal case: another member's super-admin role used                                                                           |
+| Bypass source gate                             | `waits for the composed writer and refuses membership removed while queued`: evidence appeared under held writer                     |
+| Run transaction body directly on db            | `rolls back the operation when approval insertion fails`: operation survived the late trigger fault                                  |
+| Change immediate to deferred                   | `holds the immediate SQLite writer before reading current membership`: rival demotion succeeded instead of locked                    |
+| Replace down-script counts with SELECT 1       | Both `preserves evidence and ledger on rollback` cases failed (operation-only and approval evidence discarded)                       |
+| Remove stored digest CHECK                     | `rejects malformed operation bindings at durable storage`: malformed digest stored                                                   |
+| Remove nonempty operation CHECK                | Same durable-binding case: empty operation stored                                                                                    |
+| Replace UNIQUE with a plain index              | `rejects duplicate consent and foreign or absent parents`: second consent stored                                                     |
+| Remove organization FK                         | Same parent negative: absent organization admitted                                                                                   |
+| Remove operation FK                            | Same parent negative: absent operation admitted                                                                                      |
+| Widen digest request regex                     | `rejects malformed digests and asserted authority at the request boundary`: storage error 500 instead of boundary 400                |
+| Delete undeclared request fields               | Same boundary case: asserted actorId accepted instead of 400                                                                         |
+
+## Approval checkpoint restack onto merged main (2026-10-14)
+
+The corrected #425 series was replayed from #403 ancestor `2fac0c9c8579c627c05e9e55a19ee66b4ea35fd6`
+onto exact merged main `cdd7bd5887bb8b47665b1be38be50fb8ee3a15d9`. The removal-evidence fix and
+frozen migration-order correction retain identical patches. The approval-contract commit had
+one explicit conflict in `app.routes.test.ts`: main had extracted request bodies/queries into
+`testing/route-requests.ts`. Main's centralized fixtures were retained, and the approval body
+was moved there; no duplicate request maps were restored.
+
+Main also introduced exhaustive organization route/context coverage. The new approval endpoint
+was added to that inventory and given the existing organization-resource mutation policy and
+modeled context refusal. Before that integration, the mounted `covers every mounted organization
+mutation` test issued an approval in org-b for stale org-a browser intent (200 instead of 409):
+`/tmp/shared-restore-restack-context-red.log`. Applying main's existing policy passed the mounted
+context and approval suites: 18 pass / 376 assertions in
+`/tmp/shared-restore-restack-context-green.log`. An adjacent shape `Proof:` comment records this
+observed integration negative. Personal actor/membership and immutable backup binding semantics
+are preserved; no host recovery or runtime capability changes were made by the restack.
+
+The first six-file focused run had 75 pass / one sandbox-only failure because Bun's framed-HTTP
+route test could not listen on localhost (`EPERM`): `/tmp/shared-restore-restack-425-tests.log`.
+That command was rerun with the required localhost permission and passed all 76 tests across
+six files; `/tmp/shared-restore-restack-425-tests-approved.log`. App TypeScript and scoped ESLint
+passed, and strict OpenSpec validation returned zero issues. Normal hooks and formatting were
+repeated before recording the clean review candidate. No remote branch was pushed; canonical
+exact-SHA host gate and fresh remote CI remain pending.
+
+## Approval migration frozen-order CI correction (2026-10-14)
+
+PR #425 at exact `3ff5b58accd27d6f5f0e59f7da770f87216ca570` failed its workspace job because
+`migrate-down.db.test.ts` did not include `20261014120000_add_shared_people_restore_approvals`
+in its explicit folder/application/rollback order expectations and still named the preceding
+migration as the newest baseline. The failed CI log was read from run `38482218694`, job
+`115590786476`, and retained at `/tmp/shared-restore-pr425-workspace-failed.log`.
+
+A fresh local reproduction gave 13 pass / 7 fail in
+`/tmp/shared-restore-pr425-migrate-down-red.log`. The correction adds the new migration to three
+ascending and four descending lists and updates the one newest-baseline assertion. The lists
+remain frozen, independent expectations; none is generated from the implementation being tested.
+No production migration, rollback guard or application behavior changes.
+
+`bun test libs/wbs/adapters/store-sqlite/src/migrate-down.db.test.ts` then passed all 20 tests,
+170 assertions; `/tmp/shared-restore-pr425-migrate-down-green.log`. Independently omitting the
+new migration from production `readMigrationFolders` and `migrationsToRollback` each produced RED
+in the frozen inventory and full rollback cases:
+`/tmp/shared-restore-pr425-inventory-omit-red.log`,
+`/tmp/shared-restore-pr425-rollback-omit-red.log`. Mutations were restored, and adjacent test
+`Proof:` comments record the observations. A focused run of `migrate-down.db.test.ts`,
+`shared-people-restore-approval.db.test.ts`, `shared-people-rollback.db.test.ts` and the mounted
+approval controller suite passed 62 tests / 345 assertions across four files:
+`/tmp/shared-restore-pr425-focused-green.log`. Scoped ESLint had no diagnostics after the Nx graph
+was created; strict OpenSpec validation passed with zero issues. Formatting and normal hooks
+are repeated before commit. Canonical host gate and fresh remote CI remain pending; no branch
+has been pushed by this correction.
+
+## Approval checkpoint review fix: refuse removal over restore evidence (2026-10-14)
+
+Astra's P2 review of `7b908e0c0fe94fba32f9f9d27fecabfa004aff86` reproduced a preparatory
+rollback gap: an isolated organization with one rank and no switch audit could lose that rank
+and have its organization audit fields changed by `removeSharedPeople`, then encounter the
+restore-evidence refusal in `down.sql`. The removal now checks both restore-operation and
+restore-approval tables inside its existing immediate writer transaction, before any mutation.
+The runbook's eligibility requires all three evidence tables to be empty.
+
+Two production-path negatives use one isolated rank and zero switch audits: operation-only
+state and a valid personally issued approval through `SharedPeopleRestoreApprovalRepository`.
+Each snapshots complete rank rows, organization rows including audit fields, switch audits,
+restore operations, approvals and the migration ledger. Removal refuses without changing that
+snapshot; subsequent migration rollback also refuses without changing it.
+
+- RED before the guard: **0 pass, 2 fail**, both at the full-state assertion (rank removed and
+  `organization.updated_at` changed from null to 101).
+- GREEN with the guard: **2 pass, 0 fail**, 13 assertions.
+- R5: independently replace `if (operations.length > 0 || approvals.length > 0)` with `if (false)`
+  in the production removal and run
+  `bun test libs/wbs/adapters/store-sqlite/src/shared-people-rollback.db.test.ts -t 'refuses removal before mutating recovery state' --timeout=30000`:
+  **exit 1, 0 pass, 2 fail**, again at the complete recovery-state assertion. Restored source in
+  `finally`; the adjacent `Proof:` records the injected fault and both observed negatives.
+- Final regressions:
+  `bun test libs/wbs/adapters/store-sqlite/src/shared-people-rollback.db.test.ts libs/wbs/adapters/store-sqlite/src/shared-people-audit.db.test.ts libs/wbs/adapters/store-sqlite/src/shared-people-restore-approval.db.test.ts apps/wbs/be-01/src/controller/shared-people-restore-approval.controller.db.test.ts --timeout=30000`:
+  **47 pass, 0 fail, 191 assertions**, including the existing recovery CLI cases.
+- `NX_DAEMON=false bunx nx run wbs-store-sqlite:typecheck`: **passed**.
+- `bunx eslint libs/wbs/adapters/store-sqlite/src/shared-people-rollback.ts libs/wbs/adapters/store-sqlite/src/shared-people-rollback.db.test.ts`:
+  **passed**.
+- `bunx prettier --check <the five changed .ts/.md paths>` and `git diff --check`: **passed**.
+- `bun run tools/tool-git-hooks/src/hooks/migration-lint.ts apps/wbs/be-01/drizzle/20261014120000_add_shared_people_restore_approvals/migration.sql apps/wbs/be-01/drizzle/20261014120000_add_shared_people_restore_approvals/down.sql`:
+  **exit 0**; the migration files themselves are unchanged by this review fix.
+- `BUN_TMPDIR=/tmp BUN_INSTALL_CACHE_DIR=/tmp/puni-bun-cache bunx @fission-ai/openspec@1.12.0 validate --all --json`:
+  **186 passed, 0 failed**.
+
+This review fix remains within task 10.1. Tasks 10.2–10.4, shared capability activation,
+canonical h2puni gate, whole-repository gates/build/browser checks remain unverified here.
+No push, merge or deploy.
+
+## Restore approval MCP discovery CI repair — 2026-10-14
+
+PR #425 at `a1b050f1800f3f3da595fc58fa0ee4502c3cdbf1` intentionally adds the
+personal approval route to the shared HTTP registry. Hosted run `38496096730`
+failed because the independent MCP operation pin still listed the previous 80 tools.
+Keep discovery consistent with the capacity-mode switch: list the approval operation,
+document 81 tools and its delegated `403 insufficient_scope`, and retain the mounted
+personal authentication guard. Approval only records backup-bound consent; it does not
+restore modes or ranks. No exclusion, runtime behavior or activation capability changed.
+
+- Baseline reproduction:
+  `bun test apps/wbs/mcp-01/src/generated-document.test.ts -t 'pins every generated MCP operation name independently of the registry'`:
+  **exit 1, 0 pass, 1 fail**, with `postApiOrganizationSharedPeopleRestoreApprovals`
+  as the single received-only operation.
+- After updating the independent pin, the same command: **exit 0, 1 pass, 0 fail**.
+- R5 fault: remove only `approveSharedPeopleRestore` from the production `httpShapes`
+  array, retaining its import and the updated pin. The same command:
+  **exit 1, 0 pass, 1 fail**, with that operation as the single expected-only name.
+  Restored the registry in `finally`; an adjacent `Proof:` records this observation.
+- `bun test apps/wbs/mcp-01/src/generated-document.test.ts apps/wbs/mcp-01/src/shape-document.test.ts apps/wbs/mcp-01/src/openapi-tools.test.ts libs/wbs/domain/contracts/src/http/document-from-shapes.test.ts --timeout=30000`:
+  **exit 0, 65 pass, 0 fail, 463 assertions** after restoration.
+- `bun test libs/wbs/adapters/store-sqlite/src/shared-people-rollback.db.test.ts libs/wbs/adapters/store-sqlite/src/shared-people-audit.db.test.ts libs/wbs/adapters/store-sqlite/src/shared-people-restore-approval.db.test.ts apps/wbs/be-01/src/controller/shared-people-restore-approval.controller.db.test.ts apps/wbs/be-01/src/controller/delegation.controller.db.test.ts --timeout=30000`:
+  **exit 0, 68 pass, 0 fail, 260 assertions**. Includes the preserved mounted
+  `refuses delegated restore approval even for a super-admin` negative, which asserts
+  `403 insufficient_scope` and empty operation/approval tables.
+- `NX_DAEMON=false BUN_TMPDIR=/tmp BUN_INSTALL_CACHE_DIR=/tmp/puni-bun-cache bunx nx run wbs-mcp-01:typecheck`:
+  **exit 0**, no cache hit.
+- `BUN_TMPDIR=/tmp BUN_INSTALL_CACHE_DIR=/tmp/puni-bun-cache bunx eslint apps/wbs/mcp-01/src/generated-document.test.ts`:
+  **exit 0**.
+- `BUN_TMPDIR=/tmp BUN_INSTALL_CACHE_DIR=/tmp/puni-bun-cache bunx @fission-ai/openspec@1.12.0 validate --all --json`:
+  **exit 0, 189 passed, 0 failed**.
+
+- `bunx prettier --check apps/wbs/mcp-01/README.md apps/wbs/mcp-01/src/generated-document.test.ts openspec/changes/share-people-across-projects/verify.md` and `git diff --check`: **exit 0**.
+
+Checks ran in an isolated `/tmp` clone on `pop-os`, using frozen dependencies.
+Canonical h2puni gate, whole-repository gates/build/browser checks and a new hosted CI
+run remain unverified here. Tasks 10.2–10.4 and shared capability activation remain
+pending. No push, merge or deploy.
+
+## Canonical shared-backup digest checkpoint (10.2a, 2026-10-14)
+
+Base: approved #425 exact `3ff5b58accd27d6f5f0e59f7da770f87216ca570`. Work is isolated on
+`batch-10/shared-restore-fencing-sol`; the published approval branch/worktree remains clean at
+that exact commit. This checkpoint closes **10.2a only**. The host same-process restore entrypoint,
+canonical deploy lock, blue/green database/mount identity, all writable-container exclusion,
+retained read, optional ID diagnostics and flock/process-death proofs remain open in **10.2b**.
+Approval consumption/receipts/shared activation remain open in 10.3/10.4. Existing isolated
+`save|remove|restore` CLI recovery remains compatible and shared backups still refuse bare restore.
+
+`shared-people-backup.ts` now owns the extracted v1 type/parser used by recovery and the new
+`digest <backup-file>` CLI branch. A rank must name an included saved organization. Canonical
+UTF-8 JSON fixes all field ordering and ordinal organization/project ordering before lowercase
+SHA-256; neither whitespace nor object/array presentation order changes the digest. The golden
+fixture is independently specified by these exact bytes:
+
+```text
+{"format":"shared-people-save","version":1,"organizations":[{"organizationId":"org-a","mode":"isolated"},{"organizationId":"org-z","mode":"shared"}],"ranks":[{"projectId":"a1","organizationId":"org-a","position":3,"createdAt":1,"updatedAt":2,"createdBy":"ada"}]}
+```
+
+The independently computed Python hashlib SHA-256 is
+`ea65189d5af61518fddf5bb825351667d2983f08ee9bf08c87ebe4ffd9a18117`, recorded as a literal
+in both tests. CLI tests use a real child Bun process, omitted DB_PATH, a poisoned non-SQLite
+DB_PATH sentinel, pretty/reordered input, and absent/unreadable/malformed/foreign-rank files.
+
+### Fresh checks
+
+- Initial CLI RED before implementation: **1 pass, 2 fail**, digest required DB_PATH or was
+  rejected as an unsupported command. New canonical fixtures were written before implementation.
+- Final:
+  `bun test libs/wbs/adapters/store-sqlite/src/shared-people-backup.test.ts apps/wbs/be-01/src/shared-people-backup-cli.test.ts libs/wbs/adapters/store-sqlite/src/shared-people-rollback.db.test.ts libs/wbs/adapters/store-sqlite/src/shared-people-restore-approval.db.test.ts libs/wbs/adapters/store-sqlite/src/shared-people-audit.db.test.ts apps/wbs/be-01/src/controller/shared-people-restore-approval.controller.db.test.ts --timeout=30000`:
+  **57 pass, 0 fail, 234 assertions**, including isolated save/remove/restore process recovery,
+  shared-restore pre-write refusal, approval/rollback regressions and no-write rank-set refusal.
+- `NX_DAEMON=false bunx nx run-many -t typecheck -p wbs-store-sqlite,wbs-be-01 --parallel=2`:
+  **passed**, three tasks including backend module checks. After adding the production restore
+  relation test, `NX_DAEMON=false bunx nx run wbs-store-sqlite:typecheck` also **passed**.
+- `bunx eslint <six changed/new .ts paths>`: **passed**. An initial editing invocation had no Nx
+  graph and skipped its module-boundary rule; the final invocation ran after Nx graph creation
+  with no warnings or skipped-rule output.
+- `bunx prettier --check <all changed/new .ts/.md paths>` and `git diff --check`: **passed**.
+- `BUN_TMPDIR=/tmp BUN_INSTALL_CACHE_DIR=/tmp/puni-bun-cache bunx @fission-ai/openspec@1.12.0 validate --all --json`:
+  **186 passed, 0 failed**.
+- The fresh worktree's first frozen install failed with DNSResolveFailed. Its lockfile was compared
+  byte-for-byte with the approved worktree; reusing that existing node_modules then running
+  `BUN_TMPDIR=/tmp BUN_INSTALL_CACHE_DIR=/tmp/puni-bun-cache bun install --frozen-lockfile` succeeded:
+  **1573 installs checked, no changes**.
+- No migration changed. Canonical h2puni gate, full repository gates/build/browser checks and
+  real host/container/lock execution are unverified in this local `pop-os` checkpoint. No host
+  fencing claim, push, merge or deployment.
+
+### Watched R5 faults
+
+Each mutation below was injected into the real production parser/CLI dependency and run with
+`bun test <file> -t <named case> --timeout=30000`; source was restored in `finally`. All **20**
+focused fault runs exited 1 with failed assertions, followed by the green regression run above.
+
+| Fault                                                                                                           | Observed negative                                                                              |
+| --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Reorder canonical root fields                                                                                   | Fixed-byte SHA-256 golden failed                                                               |
+| Reorder canonical organization fields                                                                           | Same golden failed                                                                             |
+| Reorder canonical rank fields                                                                                   | Same golden failed                                                                             |
+| Reverse organization sorting                                                                                    | Same golden failed                                                                             |
+| Reverse rank sorting                                                                                            | Ordinal-ID test failed                                                                         |
+| Use localeCompare                                                                                               | Ordinal-ID test failed for Z/a/ä                                                               |
+| Bypass rank-to-saved-organization relation                                                                      | Real digest CLI emitted a forbidden digest instead of refusing                                 |
+| Bypass the same relation for restore                                                                            | Real SQLite recovery accepted an incomplete organization set instead of refusing before writes |
+| Accept version 2                                                                                                | v1-validation negative admitted it                                                             |
+| Bypass organization uniqueness                                                                                  | v1-validation negative admitted duplicate organization                                         |
+| Bypass rank uniqueness                                                                                          | v1-validation negative admitted duplicate project                                              |
+| Use SHA-1 instead of SHA-256                                                                                    | Fixed-byte golden failed                                                                       |
+| Open DB_PATH in digest branch                                                                                   | Poisoned-database process case failed                                                          |
+| Require DB_PATH in digest branch                                                                                | No-database process case failed                                                                |
+| Omit projectId, organizationId, position, createdAt, updatedAt or createdBy from rank normalization, separately | Six independent fixed-byte golden failures                                                     |
+
+## Host shared-restore preflight checkpoint (10.2b, 2026-10-14)
+
+Base: exact `6030f9872ab25af4ede435207ed76fb8c27db09a` (published draft #427).
+Isolated branch: `batch-10/shared-restore-host-preflight-sol`; published #427 is untouched.
+This checkpoint closes the host preflight only. Shared consumption/receipts and runtime activation
+remain 10.3–10.4; no capability changes, personal-authority assertions or child writers were added.
+
+The host CLI owns the canonical deploy flock in the same process that retains one parsed backup,
+inspects the full Docker inventory, diagnoses optional stored references read-only, and invokes the
+existing isolated restore adapter. Both colours must physically identify the canonical host database;
+every container with a writable mount over it must be stopped. Shared backups still refuse before
+a writable opener, including a backup with valid diagnostic references.
+
+### Fresh local checks
+
+- `bun test apps/wbs/be-01/src/shared-people-host-restore.test.ts apps/wbs/be-01/src/shared-people-backup-cli.test.ts libs/wbs/adapters/store-sqlite/src/shared-people-backup.test.ts libs/wbs/adapters/store-sqlite/src/shared-people-rollback.db.test.ts`:
+  **49 pass, 1 explicit real-Docker skip, 0 fail**, 299 assertions in
+  `/tmp/shared-restore-10.2b-regression.log`. The skipped case was run separately below.
+- `WBS_HOST_RESTORE_REAL_DOCKER=1 WBS_HOST_RESTORE_PROOF_IMAGE=wbs-be-01:f8-v1 bun test apps/wbs/be-01/src/shared-people-host-restore.test.ts`:
+  **15 pass, 0 fail**, 152 assertions, `/tmp/shared-restore-10.2b-docker.log`.
+  Actual temporary blue/green containers and an additional mounted writer were created on the local
+  daemon. The third writer running refused without ranks; stopping it admitted isolated restore.
+  Exact created IDs were removed; the final Docker inventory contained only the pre-existing buildx
+  container. A label-filtered Docker wrapper isolates this test's inventory; container state and
+  mount facts are real Docker inspection, while production always requests the full inventory.
+- `bunx eslint apps/wbs/be-01/src/shared-people-host-restore{,-cli,.test}.ts libs/wbs/adapters/store-sqlite/src/shared-people-restore-diagnostics.ts`:
+  no diagnostics after building the Nx graph; `/tmp/shared-restore-10.2b-lint.log`.
+- `bunx tsc --build apps/wbs/be-01/tsconfig.json --pretty false`: no diagnostics,
+  `/tmp/shared-restore-10.2b-types.log`.
+- `bun build apps/wbs/be-01/src/shared-people-host-restore-cli.ts --target=bun --outfile=/tmp/shared-restore-10.2b-host-cli.js`:
+  281 modules bundled, 0.63 MB; `/tmp/shared-restore-10.2b-build.log`.
+- `bunx @fission-ai/openspec@1.12.0 validate share-people-across-projects --json`:
+  one change passed, zero issues; `/tmp/shared-restore-10.2b-openspec.log`.
+
+### Watched production-path faults
+
+Each mutation was restored before the final GREEN runs. Adjacent production `Proof:` comments
+name these observations. Logs use `/tmp/shared-restore-10.2b-<fault>-red.log`.
+
+| Fault removed/injected                                                                                                                              | Observed RED                                                                                                            |
+| --------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `flock`, `active-writer`                                                                                                                            | Rival admitted while actual SQLite owner held its writer; live colours/third writer restored ranks.                     |
+| `database-file`, `inventory-shape`, `required-colour`, `empty-inventory`, `inventory-complete`, `container-shape`, `container-state`, `mount-shape` | Named boundary refusal lost for directory DB, object/empty/duplicate inventory, missing colour or malformed inspection. |
+| `identity`, `db-path`, `mount-writable`, `mount-ambiguity`                                                                                          | Distinct existing DB inode, noncanonical DB_PATH, readonly/duplicate mapping admitted.                                  |
+| `inspection-exit`, `retained-read`                                                                                                                  | Exit-17 Docker refusal lost; replaced malformed backup pathname reread by writer.                                       |
+| `shared-before-writer`, `readonly-diagnostics`                                                                                                      | Valid-reference shared refusal changed journal mode from DELETE to WAL.                                                 |
+| `references`, `operation-digest`, `approval-operation`, `approval-organization`, `approval-duplicates`, `approval-complete`                         | Missing/duplicate IDs, foreign digest/operation/organization or incomplete consent lost their named diagnostic refusal. |
+| `cli-arguments`                                                                                                                                     | Missing backup, asserted actor, empty/duplicate operation flags lost usage refusal.                                     |
+| `transaction` (existing restore transaction bypassed)                                                                                               | SIGKILL left the first organization's `updated_at` committed instead of null.                                           |
+
+The process-death proof reaches the second organization's restore update, spills more than 1 MB
+of uncommitted WAL bytes from its trigger, observes a real rival flock refusal, then SIGKILLs the
+owner. Organization audit state and probe rows roll back, the same lock inode is immediately
+available, and the successor restore succeeds. A separate process proof kills the owner during a
+live Docker inspection child: the inspector remains alive while the flock is released, proving
+that the child does not inherit the writer owner's lock.
+
+### Read-only h2puni receipt and remaining host constraints
+
+Docker and SSH initially required sandbox escalation; approved read-only access succeeded.
+The bundled production CLI was transported to a temporary host file and run with a temporary
+shared diagnostic backup carrying no approval references. That backup cannot admit a writer even
+if fencing passes. Temporary host files were removed. The real canonical-lock preflight refused:
+
+`database identity differs: /be-01-blue`
+
+Fresh inspection explains the refusal: both colours configure `DB_PATH=/data/wbs.db`, but stopped
+blue binds `/srv/wbs/data` while running green binds `/home/puni1/wbs/data`. The canonical host
+file is `/home/puni1/wbs/data/wbs.db`. Logs:
+`/tmp/shared-restore-10.2b-host-refusal.log`, `/tmp/shared-restore-10.2b-host-identity.log`.
+Fresh symlink-resolved physical evidence (both paths resolve to themselves):
+
+| Colour | Running/status | DB_PATH        | Writable bind source   | Physical DB device/inode        |
+| ------ | -------------- | -------------- | ---------------------- | ------------------------------- |
+| blue   | false / exited | `/data/wbs.db` | `/srv/wbs/data`        | 2049 / 260105 (root, mode 644)  |
+| green  | true / running | `/data/wbs.db` | `/home/puni1/wbs/data` | 2049 / 422761 (puni1, mode 644) |
+
+No production container was stopped/started, no database was written and no lock contents were
+changed. An attended successful production restore remains unverified and blocked by the physical
+colour mismatch and live green writer. They require operator correction/maintenance, not bypasses.
+
+The canonical exact-SHA h2puni gate, full CI and Astra review are pending; this local checkpoint
+claims no host gate or activation. Publication is deliberately deferred until Astra review.
+
+## Astra hardlink-fencing repair (10.2b, 2026-10-14)
+
+Review of `fa47ed1d67dee8a6fce914f47a2719429ed96308` found that physical colour identity could
+pass through a hardlinked database in an alternate mount directory while pathname coverage
+missed that running writer. The retained backup could then restore ranks. The repair requires
+both physically verified colours stopped unconditionally and audits additional writable mounts
+separately. A writable directory on the database's device is conservatively alias-capable even
+when no known path overlaps; snapshot directory scans cannot prove stable hardlink absence.
+Distinct-device sources remain distinguishable by device/inode comparison. No runtime activation
+or shared restore permission changes were made.
+
+Two mounted production-owner regressions first failed against the original code:
+`/tmp/shared-restore-10.2b-alias-original-red.log` (0 pass / 2 fail). Running green through a hardlink
+and a running third writer through a hardlink with both colours stopped are separate cases.
+Each now refuses before the writable opener, leaves ranks absent and preserves DELETE journal
+mode: `/tmp/shared-restore-10.2b-alias-green.log` (2 pass / 10 assertions). Independently bypassing
+the colour shutdown guard and the additional same-device directory check each produced RED in
+`/tmp/shared-restore-10.2b-colour-alias-red.log` and
+`/tmp/shared-restore-10.2b-third-alias-red.log`; both guards have adjacent `Proof:` comments.
+
+Fresh checks after repair:
+
+- The same four-file focused regression command above: **51 pass, 1 explicit real-Docker skip,
+  0 fail**, 309 assertions; `/tmp/shared-restore-10.2b-alias-regression.log`.
+- Real Docker command above: **17 pass, 0 fail**, 168 assertions;
+  `/tmp/shared-restore-10.2b-alias-docker.log`. The actual green and third-writer containers now
+  mount the alternate hardlink directory: each running state refuses with ranks and DELETE mode
+  unchanged, then stopping both admits the isolated restore. Exact created-container cleanup runs.
+- Scoped ESLint and `bunx tsc --build apps/wbs/be-01/tsconfig.json --pretty false`: exit 0 without
+  diagnostics. Scoped formatting and pinned OpenSpec validation were repeated before commit.
+
+### Attended host-operation blockers
+
+Read-only Docker name/mount projection and physical `stat` on h2puni found database device 2049.
+Six additional running containers have writable directory mounts on that same device and would
+be refused by the conservative rule:
+
+| Container             | Same-device writable sources                            |
+| --------------------- | ------------------------------------------------------- |
+| `wbs-dev-src`         | `/home/puni1/wbs-dev/data`, `/home/puni1/wbs-dev/src`   |
+| `netdata`             | `/home/puni1/monitoring/netdata-config`                 |
+| `dev-be-01-blue`      | `/home/puni1/wbs-dev/data`                              |
+| `aivn-studio-dev-src` | `/home/puni1/aivn-dev/src`, `/home/puni1/aivn-dev/data` |
+| `wbs-caddy-1`         | `/home/puni1/wbs/logs`                                  |
+| `aivn-dev-src`        | `/home/puni1/aivn-dev/data`, `/home/puni1/aivn-dev/src` |
+
+Six volume sources are unreadable as `puni1` and remain explicit fail-closed unknowns:
+`/var/lib/docker/volumes/logging-vector-data/_data` (`logging-vector`),
+`/var/lib/docker/volumes/netdatalib/_data` and `netdatacache/_data` (`netdata`),
+`/var/lib/docker/volumes/wbs_caddy_config/_data` and `wbs_caddy_data/_data` (`wbs-caddy-1`),
+`/var/lib/docker/volumes/wbs_registry_data/_data` (`wbs-registry-1`). No inspected writable sources
+were on a distinct device. Receipt: `/tmp/shared-restore-10.2b-alias-host-cost.json`.
+
+These are attended-operation blockers in addition to the physical blue/green mismatch and live
+green recorded above. No production container was stopped or changed, and no production database
+was written. The broad maintenance cost is explicit for Astra's assessment; the preflight does
+not bypass unknown state. Astra rereview and the canonical exact-SHA gate remain pending.
+
+## Host preflight delta-spec completion (10.2b, 2026-10-14)
+
+Astra's rereview of `22614906c5f60e3a3af4291c70f0322089c81e67` found no remaining P0/P1 in the
+hardlink repair but identified the missing R4 delta-spec contract. The new "Host restore excludes
+writers before opening the database for recovery" requirement in
+`specs/shared-people-mode/spec.md` states testable lock, owner-death rollback, physical colour
+identity/shutdown, additional same-device directory, inspection failure, retained-read and
+read-only-diagnostic scenarios. It references the existing canonical digest and combined backup
+requirements instead of replacing their contracts. No implementation or test behavior changed.
+The unchanged proposal remains 393 words, below the 400-word intent limit.
+
+Fresh validation: `bunx @fission-ai/openspec@1.12.0 validate share-people-across-projects --strict --json`
+passed with one valid change and zero issues; `/tmp/shared-restore-10.2b-spec-strict.json`.
+`bun test apps/wbs/be-01/src/shared-people-host-restore.test.ts` passed the local host scenarios;
+`/tmp/shared-restore-10.2b-spec-tests.log`. Its real-Docker case is explicitly skipped in this
+local run; the separate 17-pass real-Docker receipt above remains the latest container proof.
+Formatting and normal commit hooks were repeated for the documentation amendment.
+
+For WBS 010.4.16, successful actual h2puni recovery/activation remains blocked by the six extra
+running same-device containers, six unreadable volume sources, physical colour mismatch and live
+green recorded above. Stopping containers alone does not make unreadable sources inspectable.
+This amendment performed no production action and does not authorize bypassing these blockers.
+Canonical exact-SHA gate, publication and activation remain pending.
+
+## Additional mount-source boundary proofs (10.2b, 2026-10-14)
+
+Astra's review of `88c765283781b45a460ad878553404b77b353e86` required independent production-owner
+proofs for missing and unreadable additional Docker mount sources. The earlier read-only h2puni
+CLI receipt stopped at blue's physical identity mismatch and did not exercise this later boundary.
+
+Two separate mounted preflight tests now keep both verified colours and the extra container
+stopped, then reach the production `realpath(mount.source)` / `stat(source)` boundary:
+
+- An extra writable source that does not exist refuses with `ENOENT`.
+- An existing source beneath an actual mode-000 parent refuses with `EACCES` as the ordinary
+  non-root recovery owner. The parent permission is restored in `finally` for exact cleanup.
+
+Each uses an independent existing database in DELETE journal mode. Its refusal preserves empty
+ranks and DELETE mode, proving the writable opener did not run. Initial GREEN: two pass/eight
+assertions in `/tmp/shared-restore-10.2b-mount-source-green.log`. Substituting the canonical
+database for the mount-source resolver/stat dependency allowed recovery and separately failed
+both tests: `/tmp/shared-restore-10.2b-absent-mount-source-red.log` and
+`/tmp/shared-restore-10.2b-unreadable-mount-source-red.log`. The dependency bypass was restored;
+an adjacent production `Proof:` comment records it. No production behavior was changed.
+
+Fresh checks after those proofs:
+
+- Four-file focused regression command recorded above: **53 pass, 1 explicit real-Docker skip,
+  0 fail**, 317 assertions; `/tmp/shared-restore-10.2b-mount-source-regression.log`.
+- Real-Docker host suite command above: **19 pass, 0 fail**, 176 assertions;
+  `/tmp/shared-restore-10.2b-mount-source-docker.log`. Temporary local Docker IDs were cleaned up.
+- Scoped ESLint and `bunx tsc --build apps/wbs/be-01/tsconfig.json --pretty false`: exit 0,
+  no diagnostics. Formatting and normal commit hooks were repeated.
+- `bunx @fission-ai/openspec@1.12.0 validate share-people-across-projects --strict --json`:
+  one valid change, zero issues; `/tmp/shared-restore-10.2b-mount-source-openspec.json`.
+  The delta spec now explicitly distinguishes an absent extra stopped-container source from its
+  existing unreadable-source scenario. The proposal remains unchanged at 393 words.
+
+WBS 010.4.16 actual h2puni recovery remains blocked by the six additional running same-device
+containers, six unreadable volume sources, physical colour mismatch and running green detailed
+above. These proofs do not claim that stopping containers resolves unreadable source identity.
+No production action, container stop or database write was performed. The exact-SHA canonical
+gate, upstream-stack correction, publication and activation remain pending.
+
+## Installed audited restore transaction (WBS 010.4.16 / 10.3a)
+
+Scope: installed synchronous SQLite restore owner, receipt/consumption schema and host dispatch.
+`SUPPORTED_CAPACITY_MODES` remains `['isolated']`. Shared physical recovery is disabled before
+opening a writable connection; 10.3b, aggregate 10.3 and 10.4 remain open. No live host actions,
+production container stops, deployment or push were performed. The previously recorded h2
+inspection is not a fresh acceptance: blue/green physical identity disagrees, six additional
+running containers have same-device writable directories, and six mount sources are unreadable.
+These remain attended-operation blockers; stopping a container does not fix unreadable sources.
+
+The owner binds the original digest and exact personal approval set on one immediate transaction.
+Current local recorded actors must still be super-admins. Saved organizations must exist; all
+current modes must be isolated and ranks empty. Historical ranks, actual mode changes, attributed
+audits, all owned project events (including unranked projects), stable receipt and consumption
+commit together. Extra isolated organizations survive. Rank-only recovery consumes its approvals
+without a mode audit/event. A cold retry validates completion first and returns the original
+receipt despite later edits; changed digest/IDs or incomplete consumption refuse. Completion
+closes new approval issuance; identical existing personal approval retries remain available.
+The legacy container-local path independently refuses shared backups even in a test-supported
+release. Host dispatch retains the original single backup read and one writer connection.
+
+### RED/GREEN and R5 evidence
+
+Initial missing-owner tests failed; the first installed owner exposed the completion issuance and
+legacy shared bypasses. Host tests then failed with legacy dispatch before audited dispatch was
+installed. Logs: `/tmp/shared-restore-103a-initial-red.log`,
+`/tmp/shared-restore-103a-owner-first-green.log`, `/tmp/shared-restore-103a-host-red.log`.
+
+`python3 /tmp/shared-restore-103a-mutations.py` applied and restored **44 independent production
+faults**, each observed as a failed mounted Bun test (not a parser error). All reported `RED`;
+none survived. Review later identified that receipt-unique failed during fixture setup rather than
+its duplicate assertion; the corrected independent receipt proof below supersedes that evidence. Each has `/tmp/shared-restore-103a-<fault>-red.log` and adjacent production `Proof:`
+comments. Faults were:
+
+- Input/identity/retry: references, operation-digest, receipt-replay, receipt-bindings,
+  receipt-completeness.
+- Eligibility/personal authority: activation, saved-org, current-isolated, empty-ranks,
+  approval-complete, approval-binding, role, member-org, member-actor, issuance-closed.
+- Actual writes/fan-out: actual-mode-only, audit-actor, mode-write, fanout-org, fanout-unranked,
+  null-cause, borrowed-events, borrowed-ranks, receipt-write, consumption-write.
+- Atomicity/exclusion: transaction (late consumption trigger left partial state without outer
+  transaction), immediate (a rival connection demoted before authorization with deferred mode).
+  Independent late event, receipt and consumption trigger negatives preserve all rows on failure.
+- Legacy/host: legacy-shared, host-dispatch, physical-capability (DELETE journal changed on bypass),
+  retained-backup (inspection replaces the backup pathname with malformed JSON).
+- Installed SQLite constraints: receipt-fk, consumption-binding-fk, consumption-receipt-fk,
+  receipt-unique, approval-consumption-unique, org-consumption-unique, check-completed_at,
+  check-organizations, check-ranks, check-mode_changes, check-events, down-completion, down-approval.
+
+Fresh GREEN after restored production code:
+
+- `bun test` on restore, approval, rollback, audit and migrate-down DB suites plus host suite:
+  **104 passed, 1 optional Docker skip, 602 assertions** (six files),
+  `/tmp/shared-restore-103a-regression.log`. An accidentally named nonexistent
+  `project-rank-rollback.db.test.ts` was not loaded; the actual project-rank suite was run below.
+- Caller suites: project-rank, shared-mode, backup parser, backup CLI, approval controller and
+  app routes: **43 passed, 1,245 assertions** (six files),
+  `/tmp/shared-restore-103a-callers-green.log`. The first run proved two frozen rollback lists stale
+  (missing approvals and receipts); minimal expectation updates restored GREEN without changing
+  migration behavior. RED: `/tmp/shared-restore-103a-callers.log`.
+- `WBS_HOST_RESTORE_REAL_DOCKER=1 WBS_HOST_RESTORE_PROOF_IMAGE=wbs-be-01:f8-v1 bun test
+apps/wbs/be-01/src/shared-people-host-restore.test.ts`: **23 passed, 188 assertions**, no skips,
+  `/tmp/shared-restore-103a-docker.log`. Real temporary local Docker mounts/states, flock lifetime,
+  owner SIGKILL/WAL rollback, alias refusal, ENOENT and EACCES source negatives remain GREEN.
+  Test-owned containers are removed; production was not contacted.
+- `bunx tsc --build apps/wbs/be-01/tsconfig.json --pretty false`: exit 0, no diagnostics,
+  `/tmp/shared-restore-103a-types-final.log`.
+- `BUN_TMPDIR=/tmp BUN_INSTALL_CACHE_DIR=/tmp/puni-bun-cache bunx @fission-ai/openspec@1.12.0
+validate share-people-across-projects --strict --json`: one valid change, zero issues,
+  `/tmp/shared-restore-103a-openspec.log`. Bare `openspec` and `bunx openspec` were unavailable;
+  the repo's pinned package invocation above succeeded.
+- Migration lint on the new migration/down pair: exit 0,
+  `/tmp/shared-restore-103a-migration-lint.log`. Forward SQL is additive; down refuses both
+  completion and earlier approval evidence before deleting schema or ledger entries.
+
+Scoped lint, formatting, final diff checks and normal commit hooks are recorded in the completion
+receipt. Full canonical h2 gate and live host acceptance are not run for this local review candidate.
+Astra review precedes any push or activation.
+
+Final scoped ESLint and Prettier checks passed, as did `git diff --check`.
+`validate --all --json` passed all 189 items. Additional `validate --all --strict --json` returned
+183/189: six unchanged main specs have inherited placeholder Purpose warnings (`dev-deploy`,
+`live-plan-snapshot`, `plan-command-registry`, `plan-import`, `saved-plans`,
+`scheduler-optimization`). Each was byte-compared with exact base d16aecf and is unchanged.
+All 171 change artifacts passed even in strict mode, including this change; no unrelated spec
+rewrites were made. Logs: `/tmp/shared-restore-103a-openspec-all{,-normal}.log`.
+
+Final combined command enabled real Docker and selected all twelve suites listed above in one
+Bun invocation: **148 passed, zero failed/skipped, 1,858 assertions** (23.44 seconds),
+`/tmp/shared-restore-103a-combined-final.log`. A read-only Docker label query returned no surviving
+test-owned containers. Final application typecheck exited 0 with no diagnostics; scoped lint,
+Prettier check and diff whitespace checks exited 0. Proposal intent remains 393 words.
+
+### 10.3a review correction: independent receipt uniqueness proof
+
+Astra found an R5 evidence gap in the original combined uniqueness test: removing the receipt
+primary key made `invoke()` fail at consumption foreign-key validation, before the duplicate
+receipt assertion. That failure did not prove duplicate receipts were accepted. Production
+behavior is unchanged in this correction.
+
+The receipt uniqueness test now inserts one valid receipt directly into the migrated database,
+then asserts that the identical second INSERT throws. Consumption uniqueness remains a separate
+test using `invoke()` and dropping only its other organization uniqueness index.
+
+Watched fault: remove only `PRIMARY KEY` from the receipt's `operation_id` declaration in the
+installed migration. The first direct receipt INSERT succeeded; the second INSERT also succeeded,
+and line 537's `toThrow()` assertion failed with **Received function did not throw**. No
+consumption INSERT ran and no foreign-key mismatch occurred. RED receipt:
+`/tmp/shared-restore-103a-receipt-pk-independent-red.log` (0 pass, 1 fail, 24 filtered).
+The migration was restored in a `finally` block. The complete restore-owner DB suite then passed
+**25 tests, 104 assertions**, `/tmp/shared-restore-103a-receipt-pk-green.log`.
+The SQL's adjacent Proof comment now names this independent duplicate assertion precisely.
+
+Correction regression: `bun test` on restore-owner, approval, combined rollback and migrate-down
+DB suites passed **78 tests, 409 assertions**, zero failures/skips,
+`/tmp/shared-restore-103a-receipt-pk-regression.log`. Scoped ESLint, Prettier, migration lint,
+application TypeScript build and strict change OpenSpec validation all exited 0; logs use the
+`/tmp/shared-restore-103a-receipt-pk-` prefix. `git diff --check` passed. Real Docker and live h2
+checks were not repeated for this test/proof-comment-only correction; prior Docker evidence
+remains recorded above. No production behavior, supported mode, host access or push changed.
+
+## 10.3b process-level shared host recovery rehearsal (2026-10-14)
+
+The following original candidate record is historical evidence from the old parent. Fresh
+verification on the corrected #434 parent is recorded in the restack section below; its test
+selection uses the renamed `shared-people-host-restore.db.test.ts`.
+
+Review candidate is based on published/reviewed #434 head
+`12cf060d844e534793b85c2bf08f93cc51d678c5`, isolated branch
+`shared-process-rehearsal-10-3b` in `/tmp/puni-shared-process-rehearsal`.
+Production host owner, CLI, SQLite owner and `SUPPORTED_CAPACITY_MODES = ['isolated']`
+are unchanged. Only the test fixture widens its own child-process release capability;
+there is no production environment, CLI override, new approval authority or live operation.
+
+`shared-people-host-restore-process.db.test.ts` issues approvals through the composed mounted
+application with authenticated distinct Alice/Bob actors. The organization binding uses the
+existing harness selection adapter; production credential/membership/approval issuance remain
+installed. Org A changes to shared and owns two projects, including an unranked project;
+Org B remains isolated and contributes the historical rank. The backup deliberately lists
+organizations out of order and checks its digest against independently constructed canonical
+JSON bytes. `OrganizationHarness.stopForRecovery()` stops the optimizer and closes the source
+and raw connections without deleting the exact database; test cleanup owns its directory.
+A separate Bun fixture invokes the real host owner on that file.
+
+Success asserts exact personal audit attribution, historical rank author/timestamps/position,
+mode and audit times, complete null-cause events/sequences, original digest/counts, and exact
+receipt consumption. The lost-output child exits 73 after commit before printing. After later
+rank/membership edits a cold child returns the same original receipt/completion time, and the
+complete ten-table snapshot stays unchanged. Demotion and deletion of each recorded local
+actor refuse even when that actor is super-admin elsewhere and another local super-admin exists.
+Precommit SIGKILL waits for the receipt-trigger transaction to spill more than 1 MB of WAL,
+checks a rival flock refusal, then proves complete rollback (including probe), automatic lock
+release and successful successor recovery.
+
+Real Docker is explicitly enabled with
+`WBS_HOST_RESTORE_REAL_DOCKER=1 WBS_HOST_RESTORE_PROOF_IMAGE=alpine:3`. Inspection inventory is
+restricted to the test label; each inspected physical mount/state comes from the actual daemon.
+Each real blue/green container and a hardlink-alias extra writer refuses while running. A real
+green mapping a foreign existing database inode refuses; a real stopped extra mount whose source
+is removed or permission-denied refuses. DELETE journal mode remains unchanged on every physical
+refusal, proving the writable WAL opener did not run. With all test-owned writers stopped and
+valid mappings restored, the separate shared process commits its receipt and both consumptions.
+Cleanup removes only captured created container IDs. Synthetic shared cases also prove the
+canonical flock, named colours, extra writer, foreign identity and separate ENOENT/EACCES sources.
+The unchanged production CLI is imported in a child with only test paths redirected by a module
+seam; its real host policy refuses shared before writable open. An inspection child replacing the
+backup pathname with malformed JSON cannot alter the retained approved shared backup.
+
+### Watched production faults
+
+All injections were temporary and restored in `finally`; production files have zero final diff.
+Each command selected the named new test with `bun test ... --test-name-pattern <name>`.
+Each returned exit 1 with an assertion failure, rather than relying solely on process exit.
+Logs are `/tmp/shared-process-fault-<fault>.log`; aggregate receipts are
+`/tmp/shared-process-mutation-receipts.json` (first eleven), with the CLI guard logged separately.
+Adjacent `Proof:` comments identify these observations in the new test suite.
+
+| Injected production fault                                                       | Observed new-test RED                                                                                  |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `legacy-dispatch`: use legacy restore for approved dispatch                     | Lost-output child did not exit 73 with committed receipt                                               |
+| `actor-identity`: replace approval actor predicate with organization predicate  | Deleted recorded local actor admitted using another local super-admin                                  |
+| `local-organization`: replace local organization predicate with actor predicate | Demoted local approver admitted using authority elsewhere                                              |
+| `current-role`: bypass super-admin role check                                   | Demoted personal approver admitted                                                                     |
+| `outer-transaction`: execute owner body directly                                | After SIGKILL the complete snapshot retained modes/audits/events/sequences; full-state equality failed |
+| `receipt-retry`: bypass existing-receipt branch                                 | Cold retry after rank/membership edits refused instead of returning original receipt                   |
+| `early-flock`: close descriptor immediately after Docker fencing                | Live shared SQLite owner's rival flock returned 0; expected 1                                          |
+| `physical-shutdown`: bypass named colour stopped guard                          | Running colour admitted instead of refusing before opener                                              |
+| `mount-source`: resolve canonical DB instead of actual extra mount source       | Absent/unreadable extra source admitted instead of refusing                                            |
+| `pathname-reread`: parse pathname again at audited dispatch                     | Malformed replacement prevented approved retained-backup recovery                                      |
+| `capability-widening`: advertise production shared mode                         | Exact production isolated-only declaration assertion failed                                            |
+| `production-cli-guard`: bypass host capability refusal                          | Unchanged production CLI returned success (0); expected refusal                                        |
+
+### Commands and bounds
+
+- Initial RED: new process suite failed all six initial cases because `stopForRecovery` did not
+  exist, after mounted approvals had succeeded. Test-only lifecycle/child seams then made them GREEN.
+- First complete real Docker process run: **7 passed, 0 failed/skipped, 135 assertions**,
+  9.92 seconds. Subsequent canonical-byte and audit-time assertions are included in final regression.
+- `NX_DAEMON=false bunx nx run wbs-be-01:typecheck`: final exit 0, including module checks,
+  `/tmp/shared-process-nx-typecheck-final.log`. Initial run found one test-only nested-function
+  image narrowing error; introducing a narrowed local string corrected it.
+- Scoped ESLint: exit 0, `/tmp/shared-process-lint-final.log`; scoped Prettier check and
+  `git diff --check`: exit 0. Nx project graph was generated before final lint, so the module
+  boundary rule was available. Initial pre-graph lint warned that rule was skipped.
+- `BUN_TMPDIR=/tmp BUN_INSTALL_CACHE_DIR=/tmp/puni-bun-cache bunx
+@fission-ai/openspec@1.12.0 validate share-people-across-projects --strict --json`: 1/1 valid,
+  no issues; `validate --all --json`: **189/189 valid**. Logs:
+  `/tmp/shared-process-openspec-{change,all}.log`. Bare openspec was unavailable; the pinned
+  repository package command succeeded. Docker socket was denied under default sandbox;
+  authorized local sandbox escalation succeeded. No required local tool remained unavailable.
+
+Task 10.3b closes this local process/physical rehearsal only. Tasks 10.3/10.4 retain their remaining
+integration/activation obligations. Independent Astra review, push, merge, live-host operation
+and the exact-SHA canonical h2 gate have not run for this review candidate and are not claimed.
+
+Final combined recovery regression: **153 passed, zero failed/skipped, 918 assertions**, thirteen
+files, 123.80 seconds. Log: `/tmp/shared-process-regression.log`. Exact command (brace expansion
+selects the thirteen files, including both real Docker cases):
+
+```sh
+WBS_HOST_RESTORE_REAL_DOCKER=1 WBS_HOST_RESTORE_PROOF_IMAGE=alpine:3 bun test \
+  apps/wbs/be-01/src/{shared-people-host-restore-process.db,shared-people-host-restore,shared-people-backup-cli,app}.test.ts \
+  apps/wbs/be-01/src/controller/shared-people-restore-approval.controller.db.test.ts \
+  libs/wbs/adapters/store-sqlite/src/{shared-people-restore,shared-people-restore-approval,shared-people-rollback,shared-people-audit,shared-people-mode,project-rank,migrate-down}.db.test.ts \
+  libs/wbs/adapters/store-sqlite/src/shared-people-backup.test.ts --timeout=30000
+```
+
+Normal lefthook hooks were installed in this isolated clone for the review commit. Final scoped
+format/lint, strict change validation, all-spec validation and whitespace checks are rerun after
+these documentation receipts. Production source files remain byte-identical to the base.
+
+### 10.3b restack onto corrected #434 parent (2026-10-14)
+
+Imported candidate `8838efecf42310422f4a5dfa47adbe9415edf51d` onto corrected parent
+`5f84c464e6328b4ad92e5fb6ecdeb7e16b7dfcee` in `/tmp/puni-shared-restore-ci-repair`.
+The application of the seven candidate paths had no conflicts. The parent correction renamed
+the original host recovery suite to `shared-people-host-restore.db.test.ts`; the current command
+below selects that filename. No production source or migration changed relative to this parent;
+the application changes are confined to test files and test fixtures.
+
+Fresh combined regression, with authorized access to the local Docker daemon, passed **153 tests,
+zero failures/skips, 918 assertions across thirteen files**, in 35.16 seconds. Log:
+`/tmp/shared-process-restack-regression.log`.
+
+```sh
+WBS_HOST_RESTORE_REAL_DOCKER=1 WBS_HOST_RESTORE_PROOF_IMAGE=alpine:3 bun test \
+  apps/wbs/be-01/src/{shared-people-host-restore-process.db,shared-people-host-restore.db,shared-people-backup-cli,app}.test.ts \
+  apps/wbs/be-01/src/controller/shared-people-restore-approval.controller.db.test.ts \
+  libs/wbs/adapters/store-sqlite/src/{shared-people-restore,shared-people-restore-approval,shared-people-rollback,shared-people-audit,shared-people-mode,project-rank,migrate-down}.db.test.ts \
+  libs/wbs/adapters/store-sqlite/src/shared-people-backup.test.ts --timeout=30000
+```
+
+`NX_DAEMON=false bunx nx run wbs-be-01:typecheck` exited 0 with both tasks uncached;
+`/tmp/shared-process-restack-typecheck.log`. Scoped ESLint and Prettier checks exited 0;
+`/tmp/shared-process-restack-{lint,format}.log`. Pinned OpenSpec 1.12.0 strict change validation
+passed 1/1 without issues, and normal all-spec validation passed 189/189;
+`/tmp/shared-process-restack-openspec-{change,all}.log`. Both staged and unstaged whitespace
+checks passed. The twelve watched fault injections were not repeated on this restack; their
+observations above remain historical evidence about the unchanged production paths.
+
+No push, merge, live-host operation, full build, full repository gate or exact-SHA h2 gate was
+performed for this restack. Those checks remain outside this local handoff.
+
+## Packaged host recovery artifact (10.4a, 2026-10-14)
+
+Implemented from exact stacked #437 head `48291fae689a850ac640fc471469900d955c8dce`
+in the isolated `/tmp/puni-shared-restore-bundle-sol` clone. Production restore code,
+fixed paths, isolated-only capability and legacy shared refusal are unchanged.
+`wbs-be-01:build-host-restore` bundles 286 modules into the standalone 0.65 MB
+`dist/apps/wbs/be-01-host/shared-people-host-restore.js`; normal backend build depends on it.
+The explicit uncached `test:host-restore` target selects `.smoke.ts`/`.rehearsal.ts` files
+with `./` paths so ordinary Bun discovery does not implicitly require Docker or an artifact.
+
+RED: the outside-checkout smoke failed with ENOENT before the artifact target existed.
+GREEN: `bunx nx run wbs-be-01:test:host-restore --skip-nx-cache`: **4 pass, 0 fail,
+50 assertions**, no skips (`/tmp/puni-host-bundle-green-final.log`). Official pinned runtime:
+`oven/bun:1.4.2@sha256:9114c058aeae42162ee16dd5084b95fe9473970bb6bcb5b232ab1630f0546895`.
+The unchanged bundle is copied into scratch mounted at the fixed production host paths.
+The runtime has no network, checkout, node_modules, live mounts or Docker socket; Docker
+inspection comes from the test-owned executable in scratch. Personal isolated/shared approvals
+are issued through the composed endpoint before stopping that app and copying its database.
+The isolated case proves ranks, durable receipt/consumption and fresh-process retry after later
+rank/membership edits. Shared and physical refusals preserve DELETE journal mode, every table
+snapshot and the SHA-256 of the whole database file. The default sandbox could not reach Docker;
+that initial run failed loudly rather than skipping. Elevated execution supplied the required
+Docker/socket boundary for the scratch-only namespace rehearsal.
+
+Watched faults rebuilt the real production bundle, then ran its actual CLI in that namespace;
+all source edits and bytes were restored after each. Adjacent `Proof:` comments name these:
+
+| Injected fault                                               | Observed failing production-path assertion                                       |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| Artifact externalized to `/missing-production-dependency.js` | Outside-checkout usage assertion instead received missing-module error.          |
+| `SUPPORTED_CAPACITY_MODES` widened to shared                 | Valid approved shared restore changed journal from DELETE to WAL.                |
+| Host pre-opener guard bypassed                               | Valid approved shared restore changed journal from DELETE to WAL.                |
+| Host flock guard bypassed                                    | Competing fixed lock holder no longer preserved DELETE; observed WAL.            |
+| Stopped-colour guard bypassed                                | Running green no longer preserved DELETE; observed WAL.                          |
+| Physical identity guard bypassed                             | Foreign green database inode no longer preserved DELETE; observed WAL.           |
+| Audited host dispatch replaced by legacy dispatch            | Expected durable receipt was absent after isolated rank recovery.                |
+| Receipt retry branch bypassed                                | Fresh CLI retry after later edits refused instead of returning original success. |
+
+Fault logs: `/tmp/puni-host-bundle-proof-{externalized,capability,pre-opener,flock,colour,identity,dispatch,receipt}.log`.
+The missing artifact RED additionally proves incomplete transport. Final restored target is green.
+
+Additional checks (Nx socket isolation disabled explicitly for sandboxed local commands):
+
+- `bun test apps/wbs/be-01/src/{shared-people-host-restore-process.db,shared-people-host-restore.db,shared-people-backup-cli}.test.ts libs/wbs/adapters/store-sqlite/src/{shared-people-restore.db,shared-people-rollback.db}.test.ts --timeout=60000`:
+  **83 pass, 2 skip, 0 fail, 522 assertions**. The two skips are existing opt-in real-daemon
+  blue/green suites; this artifact rehearsal has zero skips.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-be-01:build --skip-nx-cache`:
+  passed, including its host artifact dependency (`/tmp/puni-host-bundle-build-final.log`).
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-be-01:typecheck --skip-nx-cache`:
+  passed including module checks and new scripts (`/tmp/puni-host-bundle-typecheck-final.log`).
+- `bunx eslint apps/wbs/be-01/src apps/wbs/be-01/scripts/shared-people-host*.ts`: passed.
+- Prettier check on all changed code/config/docs: passed.
+- OpenSpec `validate --all --json` using installed 1.13.0 CLI: passed, **189/189** (171 changes, 18 specs).
+- First full SQLite adapter run: **1442 pass, 1 fail**; the performance certification observed
+  checkout status changing during concurrent mutation/rename work. A stable-tree rerun of that
+  exact test passed (**1 pass, 612 assertions**, 36s); final full rerun follows below.
+
+No push, merge, live-host recovery, shared activation or canonical host gate was performed.
+The runtime image must be fetched explicitly before rehearsal (`--pull=never`); absent Docker,
+Bun or image blocks the target. Task 10.4's attended live-host exclusion, independent review,
+canonical exact-SHA gate and capability activation remain open.
+
+Final complete regression evidence, after restoring all faults and holding the tree stable:
+
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-be-01:test --skip-nx-cache`:
+  **2297 pass, 3 skip, 0 fail, 57314 assertions**, 170 files, 562.32s
+  (`/tmp/puni-host-bundle-backend-full.log`). Existing opt-in skips: the two real-daemon
+  blue/green suites and solver-supervisor orphan process boundary acceptance.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-store-sqlite:test --skip-nx-cache`:
+  **1443 pass, 0 fail**, no skips (`/tmp/puni-host-bundle-store-final.log`), including the
+  previously affected stable-tree performance certification.
+- Restored standalone artifact SHA-256:
+  `2de753946f85bdcf9eeb8f3b0c5c5c661b74cf8e243c3968ac4c832fd52f4e1e`.
+
+All final tests used the same unchanged production restore sources as the exact stacked base.
+The isolated clone reused the existing installed dependency tree; no frozen install or canonical
+host gate is claimed for this local checkpoint.
+
+### 10.4a review corrections
+
+Astra review found that the explicit backend `build.dependsOn` replaced inherited `^build`.
+It now declares `["^build", "build-host-restore"]`, preserving the existing
+`wbs-solver-supervisor-protocol:build` task and the new host artifact task. The owning artifact
+smoke file runs Nx's actual build-graph command and checks both direct task prerequisites.
+Before correction it observed only `wbs-be-01:build-host-restore`. Watched removal of `^build`
+again lost the protocol task; watched removal of `build-host-restore` lost the artifact task.
+Both failed the real graph test with the missing prerequisite named in its assertion.
+The restored graph test passed (1 test, 4 assertions); logs:
+`/tmp/puni-host-bundle-graph-{green,proof-upstream,proof-artifact}.log`.
+
+The three original flock/colour/identity fault-log descriptions above now report their actual
+first observed assertion: DELETE journal became WAL. Their journal assertions threw before
+the later exit-code assertion; no exit 0 observation is claimed for those logs.
+
+This bounded review correction installs the clone's own dependencies with
+`BUN_TMPDIR=/tmp BUN_INSTALL_CACHE_DIR=/tmp/puni-host-bundle-bun-cache bun install --frozen-lockfile`
+(**1573 installs / 1447 packages checked**, Nx **23.2.1**) after removing only the clone's
+node_modules symlink. The earlier full regression evidence retains its stated dependency scope.
+No production restore source changed.
+
+Review correction checks with that locked tree:
+
+- Normal backend build: passed with **two prerequisite tasks** (`^build` protocol plus host bundle),
+  `/tmp/puni-host-bundle-review-build.log`.
+- Explicit uncached packaged target: **5 pass, 0 fail, 54 assertions, no skips**,
+  `/tmp/puni-host-bundle-review-target.log`. The extra test is the production Nx build graph.
+- Backend module/typecheck, scoped scripts lint, changed-file Prettier and OpenSpec all: passed.
+- Locked-dependency standalone artifact SHA-256:
+  `0dbdec39e95602b1413ed103c693f7dd08081c5e9500f0cc10cdf981151652e5`.
+
+The graph child removes inherited FORCE_COLOR so it uses Bun test's NO_COLOR convention;
+this avoids Node's conflicting-colour warning without suppressing stderr or other failures.
+Full backend/SQLite suites were not repeated for this configuration/test/evidence correction;
+the preceding complete suite counts remain evidence for the original checkpoint and dependency
+scope. No push, merge or canonical host gate was performed.

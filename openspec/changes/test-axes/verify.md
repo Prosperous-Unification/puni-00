@@ -2702,3 +2702,489 @@ RED: a test built the actual package executable and toolkit with `buildPackage`,
 Astra's Manual-adapter review exposed an analogous Performance source defect: a real annotated tag-object SHA passed the full-hex syntax check, and `readCandidate` peeled it to a commit. The new production CLI regression first failed because `inspect-performance-sources` emitted success JSON and exited zero. The command now requires the selected revision to equal the requested SHA before publication inspection. GREEN: the annotated-tag test refuses with the named mismatch and no JSON. Disabling only this equality guard made the named production test fail again; it was restored. This correction is scoped to the new Performance source command. Similar exact-SHA questions in preexisting diagnostics require separate review rather than an unbounded shared-reader contract change.
 
 Final focused Performance source and installed dispatch suites passed 19/19 with 90 assertions using the established 60-second timeout. An initial run under Bun's default five-second timeout expired during the existing multi-fault digest test; the rerun passed. Uncached Burokrat typecheck, focused ESLint, strict OpenSpec validation and scenario provenance validation passed. Changed-file Prettier and `git diff --check` passed after formatting this note. No canonical host gate is claimed for the corrected SHA.
+
+### 4.1b.4 Manual observation adapter — 2026-10-13
+
+Initially implemented on an isolated branch stacked at PR #406 exact `699c2571053b49ea21efb4191e94ad7455313464`, then rebased onto its exact-SHA correction `b8006559572846bf4fe81280f24624c630c00e29` for separate review. The real allocator issued TEST-AXES-067 through TEST-AXES-072 and updated the journal. The production `inspect-manual-observation` command wraps the complete real `inspectManual` result, exact committed candidate identity and canonical caller instant with absent authentication, false certification and a full-envelope digest. It preserves current, stale, failed and overdue JSON judgments; only current exits zero. External evidence and B3 refusals remain refusals with no JSON. Installed package dispatch and help include the command.
+
+RED: the first focused production CLI run failed all seven initial adapter assertions at `unknown command: inspect-manual-observation`. GREEN: the completed focused adapter suite passed 11/11. The full existing Manual plus installed dispatch source suites passed 153/153, 435 assertions, zero failures.
+
+R5 watched faults, each restored after the named production test failed: accepted symbolic SHA; disabled staged-selection refusal; disabled inspector-revision join; shifted the inspector instant one millisecond across the deadline; bypassed the inspector (missing report/B3 cases failed); dropped a nested `selectedProcedureDigest`; hashed only schema version; disabled noncurrent exit mapping; disabled extra-operand refusal; removed installed `bin.ts` registration; changed authentication to present; and changed certification to true. The production tests also independently compare selected candidate identity, complete nested Manual result and complete-payload digest, and show staged source changes do not affect the selected commit.
+
+Scoped checks: exact Manual and installed dispatch source tests passed 153/153; uncached `twilight-burokrat:typecheck` passed; strict OpenSpec validation passed; scenario provenance validation returned `{"unidentified":[]}`. Focused ESLint initially found only import order in the new Manual test import; `eslint --fix` corrected it. Final ESLint, Prettier, diff check and test rerun are recorded with the local commit. The canonical h2puni gate, full level classification, trusted receipts, coverage and admission remain outside this worker slice. Tasks 2.1, 2.2 and 4.1 stay open.
+
+#### Exact requested SHA review correction — 2026-10-13
+
+Astra found that an annotated tag object's 40-hex SHA passed syntax validation; `readCandidate` peeled it to a different commit, and the adapter emitted current JSON with exit zero. A production CLI regression using a real annotated tag object first failed because the command exited zero. The adapter now requires the selected commit revision to equal the supplied SHA before inspecting Manual evidence. GREEN: the targeted test passed and emitted a named refusal with no JSON. R5: replacing this equality guard with `if (false)` made the named test fail again at the exit-status assertion; the guard was restored. The new check prevents the tag object from masquerading as the requested commit while preserving the existing symbolic, staged and inspector revision refusals.
+
+#### Rebased branch verification — 2026-10-13
+
+The Manual branch was rebased onto the reviewed Performance source correction `b8006559572846bf4fe81280f24624c630c00e29`; both exact-SHA refusal records were retained. The combined exact source suites for Manual, Performance sources and installed dispatch passed 172/172 with 520 assertions under the established 60-second timeout. Uncached `twilight-burokrat:typecheck`, focused ESLint, changed-file Prettier, strict OpenSpec validation, scenario provenance validation (`{"unidentified":[]}`) and `git diff --check` passed. This rebased branch has not been pushed or run through the canonical host gate; it awaits a separate exact-head architecture review. Tasks 2.1, 2.2 and 4.1 remain open.
+
+#### Canonical gate correction — exiting `/proc` stat ESRCH (2026-10-14)
+
+The canonical h2puni gate on PR #410 exact `7971ea562f0b7a660f633d3699b2a6edfad8e4ff` exposed an exit race: a numeric `/proc` entry remained in the inventory while its process vanished during `readFileSync(stat)`, which raised ESRCH. The identity reader modeled ENOENT alone and consequently refused otherwise converged cleanup. This correction restores TEST-AXES-039: only ENOENT and ESRCH at the identity read boundary mean disappearance. Other read errors and malformed identities still refuse; ownership, pidfd signaling, ancestry and cleanup bounds are unchanged.
+
+The deterministic preload arms after the real owner-spawned wrapper has exited and its stat is absent. One enumeration retains that known exited PID, and one matching stat read throws ESRCH. The production `createPerformanceProcessOwner` → `spawn` → `stop` regression asserts the injection fired, cleanup completed within eight seconds, the TERM-resistant separate-session adopted child was reaped, the exited wrapper stayed absent, the unrelated baseline child stayed alive, and pidfd count returned to baseline.
+
+RED against the exact old production source: the focused regression exited 1, with 0 pass / 1 fail and `Performance cannot read /proc identity` caused by the injected ESRCH (`/tmp/puni-esrch-red.log`). GREEN after the minimal disjunct: exit 0, 1 pass / 0 fail (`/tmp/puni-esrch-green.log`). R5 watched mutation: removed only the ESRCH disjunct; the same regression again exited 1 with 0 pass / 1 fail (`/tmp/puni-esrch-mutation-red.log`). Restored it before final checks; the adjacent `Proof:` comment names the injected fault and observed refusal. Added production constructor-path EIO and malformed-stat refusal tests. Removing the existing absent/invalid start-time parser terms made the malformed-stat test fail (exit 1, 0 pass / 1 fail, `/tmp/puni-esrch-malformed-mutation-red.log`); restored them without changing that parser contract.
+
+Scoped verification ran in isolated `/tmp/puni-esrch-410`, based exactly on the gate SHA. Frozen Bun installation passed after explicitly selecting writable `BUN_TMPDIR=/tmp`; the first install attempt failed EROFS. The initial sandbox process suite passed 25 tests and failed two existing listener tests because local `Bun.serve` listen returned EPERM (confirmed directly); this was not treated as a product failure or success. With approved local listener access the complete process suite passed 27/27, including existing EACCES, pidfd capability/open/signal failures, direct/owned PID reuse, signal identity, ancestry and bounded reaping tests. Uncached `tool-devsync:lint` and `tool-devsync:typecheck` passed. The first lint run identified unsafe array typing in the new test preload; precise `unknown[]` typing corrected it before the passing rerun.
+
+OpenSpec 1.13.0 download failed DNS resolution. The already installed pinned OpenSpec 1.12.0 executable ran `validate --all --json` successfully: 187 items passed, 0 failed (169 changes, 18 specifications), recorded in `/tmp/puni-esrch-openspec-cached.log`. Final restored-state `bun test ./tools/tool-devsync/src/performance-processes.test.ts --timeout=30000` passed 27/27, 137 assertions, zero failures (`/tmp/puni-esrch-process-suite-final.log`). Uncached Nx logs are `/tmp/puni-esrch-lint-final.log` and `/tmp/puni-esrch-typecheck-final.log`. Changed-file Prettier and `git diff --check` exited 0 before committing this candidate (`/tmp/puni-esrch-format-final.log`). The coordinator owns exact-head architecture review, restacking, push and the canonical h2puni gate; no full host gate, full workspace build, CI, WBS certification, deployment or publication is claimed by this worker. Tasks 2.1, 2.2 and 4.1 remain open.
+
+### 4.1b.5 Adjacent exact requested SHA boundaries — 2026-10-13
+
+Implemented on a new isolated branch from reviewed Manual PR #410 exact `7971ea562f0b7a660f633d3699b2a6edfad8e4ff`. The production allocator issued TEST-AXES-073 through TEST-AXES-076. `readCandidate` intentionally peels `${revision}^{commit}`, so full-hex annotated tag objects can select a different commit. Four existing diagnostics now compare the requested SHA to the selected commit immediately after the committed read. Performance inspection also requires a committed selection before comparing identities. The generic candidate reader, Browser and legacy Manual inspectors were not changed.
+
+RED production CLI tests used four real, valid committed fixtures with annotated tag objects. `inspect-spec-sources`, `inspect-test-reports` and `inspect-test-sources` each emitted success JSON with exit zero for a tag-object SHA; their new refusal assertions failed. `inspect-performance` refused later at its manifest-identity check rather than naming the requested/selected mismatch, so its named-refusal assertion failed. A test-only staged-reader fault likewise reached that later manifest check without the required committed-kind refusal. GREEN: all five targeted tests emitted the responsible named refusal with exit one and no JSON.
+
+R5 watched faults: replacing each of the four requested/selected comparisons with `if (false)` separately failed its named annotated-tag production test (one failed test in each targeted run). Replacing the Performance committed-kind check with `if (false)` failed its named staged-reader production test. Every guard was restored before final checks. This preserves upstream failures while preventing a tag object from masquerading as a commit.
+
+The four exact owning source suites passed 172/172 tests with 464 assertions; the dependent Performance source, Manual and installed-dispatch suites passed 172/172 with 520 assertions, both with a 60-second per-test timeout. Uncached `twilight-burokrat:typecheck`, focused ESLint, strict OpenSpec validation and scenario provenance validation (`{"unidentified":[]}`) passed. Changed-file Prettier and `git diff --check` are recorded with the local commit. The canonical host gate, CI, push and certification remain outside this worker slice. Tasks 2.1, 2.2 and 4.1 stay open.
+
+# Proposed 4.1b.6 authority/facts boundary — 2026-10-13
+
+Design-only checkpoint on a new isolated branch from reviewed #412 SHA
+`9d2f7e3c61cf78c903a6f65841c1fdd08d886d92`. No production code, scenario IDs,
+classification or public facts CLI has been added. The pure classifier's bare empty sets and
+devsync's working-tree runner checks cannot establish reviewed absence or immutable authority.
+The proposed first scope is one Performance publication's committed fixture set with explicit
+external authority pins and reviewed-empty semantics. Four authority/completeness questions in
+`design.md` require Astra review before a precise delta spec and production TDD fixtures can be
+written. Task 4.1b.6 remains open; Tasks 2.1/2.2/4.1 and existing noncertifying status remain
+unchanged. `bunx @fission-ai/openspec@1.12.0 validate test-axes --strict` passed, and changed-file
+Prettier completed. No production or R5 checks apply to this design-only checkpoint.
+
+## 4.1b.6a external facts authority — 2026-10-13
+
+After Astra reviewed the design checkpoint, the scope was split: 4.1b.6a implements one
+Performance declaration's strict external authority and committed facts; 4.1b.6b retains the
+Conformance command and Architecture policy adapters. The production allocator proposed and
+issued TEST-AXES-077 through TEST-AXES-080; its proposed journal preserved every prior event
+as an exact prefix. The CLI's unknown-command RED failed all three initial production tests.
+The committed Conformance-target contradiction test and array-valued manifest test each failed
+on a success observation before its guard fix. Other boundary tests were added after the minimal
+implementation and watched fail under the injected guard-off faults below. The installed package
+test failed on missing help/dispatch before
+registration and passed afterward. The diagnostic emits no level, coverage or certification.
+
+R5 guard-off probes were run against the production CLI test file with one fault at a time, then
+restored. Each targeted test exited 1 for a changed named refusal or an unexpected success;
+logs are `/tmp/puni-level-facts-r5-{symbolic-sha,tag-object,candidate-pin,manifest-path,unique-fixtures,outside-scope,conflicting-source,regular-blob,pin-digest,conformance-empty,declaration-config,complete-fixtures,unsupported-conformance,unsupported-architecture,digest-completeness,authentication,certification,manual-only,unknown-key,arity,installed-registration}.log`. The installed-registration fault was run against the packaged executable test. These logs were inspected for assertion failures rather than parse/compiler errors. The selected-blob deletion and working-tree replacement case remained a named refusal; the sentinel config and fixture source would throw if candidate JavaScript executed.
+
+Fresh scoped checks after restoring every fault: owning facts and installed-dispatch suites
+14/14 tests, 85 assertions; uncached `twilight-burokrat:typecheck` and `lint:fast` passed.
+`scenario validate` returned `{"unidentified":[]}` and strict OpenSpec validation passed.
+Changed-file Prettier, `git diff --check` and normal Lefthook hooks are recorded with the
+commit. No host gate, push, publication authenticity or coverage certification is claimed.
+
+Dependent Performance-source/judge suites initially hit Bun's default five-second timeout in
+one existing digest test during the combined run (38 passed, 1 timed out). Re-running the same
+two suites with `--timeout 60000` passed 39/39 tests and 251 assertions. The timeout was a
+harness deadline, not an assertion failure; the longer run is the scoped regression evidence.
+
+## 4.1b.6a UTF-8 and JSON R5 review repair — 2026-10-13
+
+An otherwise valid pinned committed project manifest had one `0xff` byte inside its `name`
+JSON string. The fixture recomputed the manifest digest, committed revision and candidate pin.
+The real `inspect-level-facts` CLI exited 1 with empty stdout and named `project manifest is
+not UTF-8`. Removing only `fatal:true` from `TextDecoder` made that same test fail because the
+CLI emitted success JSON with exit zero; raw fault log:
+`/tmp/puni-level-facts-r5-utf8-fatal.log`. Replacing the neighboring `JSON.parse` with an empty
+record made the malformed external authority test fail its named JSON-refusal assertion on a
+later schema error; raw fault log: `/tmp/puni-level-facts-r5-json-malformed.log`. Both faults
+were restored. Adjacent `Proof:` comments now name the injected faults and observed failures.
+After restoration, the owning facts suite passed 14/14 tests with 71 assertions. Uncached
+typecheck, focused ESLint, changed-file Prettier, `git diff --check` and strict OpenSpec
+validation passed. Normal Lefthook hooks run on the repair commit.
+
+## 4.1b.6b.1 committed Conformance membership — 2026-10-14
+
+Worker source is isolated `/tmp/puni-conformance-facts-sol`, based on exact draft #414 commit
+`ba9b90e9b8221aacee6759cee7fb38767524b34d`. This increment implements committed Conformance
+membership only. The external version-1 authority pins the same manifest path and digest as
+scope; only `test:conformance` is parsed. Exact command-selected regular Git blobs form the
+complete source set, including files outside the Performance scope; only the sorted fixture
+intersection appears in the committed membership's `files`. Shared fixtures appear once in
+source tuples, and an empty committed intersection remains explicit. Manual stays reviewed-empty,
+committed Architecture still refuses, authentication stays absent and certification stays false.
+
+The production allocator command
+`bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts scenario allocate . openspec/changes/test-axes/specs/test-axes/spec.md`
+issued TEST-AXES-081 through TEST-AXES-083. Before applying its proposed spec and journal,
+the entire old journal event sequence was checked equal to the new journal prefix. Proposal:
+`/tmp/puni-conformance-allocation.json`. No IDs were assigned by hand.
+
+Initial production CLI tests failed against the unsupported adapter: 13 passed and seven
+failed with the old unsupported-Conformance refusal or changed named pin expectation, recorded
+in `/tmp/puni-conformance-red.log`. After implementation the facts suite passed 20/20 with
+201 assertions. Adding the SQLite acceptance test first produced a separate RED at its
+success assertion, `/tmp/puni-conformance-sqlite-red.log`; the exact reviewed tuple amendment
+then passed. Tests load the actual store-memory and store-sqlite `test:conformance` manifests,
+copy their exact target envelopes into committed fixture candidates, and inspect them through
+the production CLI. Candidate config/test sentinels throw if executed. Working replacements
+cannot repair selected sources. Packaged accepted-path coverage builds the package to scratch
+and invokes `dist/bin.mjs inspect-level-facts` with a committed overlap candidate.
+
+Architecture review found SQLite's real third input
+`{workspaceRoot}/apps/wbs/be-01/drizzle`, used by its migration fixtures. The exact three-entry
+tuple is allowed only at project root/cwd `libs/wbs/adapters/store-sqlite`; the generic exact
+two-entry tuple remains allowed. Inputs are dependency metadata and add no test sources.
+Wrong paths, order, extra entries, object inputs and the third tuple at other roots refuse.
+No task dependency, configuration or environment override is accepted.
+
+R5 watched faults each caused a named production assertion failure, then source was restored:
+removing pin path/digest comparisons; widening executor/cache/inputs/forwarding schemas;
+removing target/options closed-key constraints, required target shape, cwd comparison or
+SQLite root restriction; disabling command grammar, removing its true end constraint or
+allowing duplicate selectors; omitting complete selected-source reads; removing overlap
+deduplication, returning the entire selection instead of its intersection, or removing
+membership sorting. Logs are `/tmp/puni-conformance-r5-{pin-path,pin-digest,target-executor,target-cache,target-inputs,target-forward,target-options-keys,target-keys,target-cwd,target-required,command,command-end,sqlite-root,duplicates,complete-sources,source-dedup,intersection,order}.log`.
+The dedicated `/tmp/puni-conformance-r5-newline.log` watched removal of the true end constraint
+make a newline-suffixed command exit zero, failing its required-refusal assertion. Selected
+outside-intersection missing and symlinked files and deletion of their committed blob each
+refused despite working repairs. Existing regular-blob and selected-reader guards are reused.
+
+An initial redundant match-length guard was removed after its guard-off fault escaped: Bun
+1.4.2's `new RegExp('^a$').exec('a\\n')` returned null. The final grammar uses a true end
+constraint with the separate watched newline proof above. This escaped preliminary mutation
+is not counted as a proof. Mutation logs were inspected for assertion failures rather than
+compiler or parse failures.
+
+Focused final validation: source facts plus installed-dispatch suites passed 26/26 with
+269 assertions (`/tmp/puni-conformance-final-tests.log`); uncached
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_SOCKET_DIR=/tmp/puni-conformance-nx bunx nx run twilight-burokrat:typecheck --skip-nx-cache`
+exited zero, as did changed-source ESLint, changed-file Prettier,
+`openspec@1.12.0 validate test-axes --strict --json` (one valid change, zero issues),
+scenario provenance validation and `git diff --check`. Initial lint/typecheck reported test-helper typing/import issues, fixed
+before the final runs; one scenario validation invocation omitted the required spec operand
+and printed usage, then the full invocation returned `{"unidentified":[]}`. The coordinator owns the
+canonical host gate, CI and publishing; none is claimed by this worker. Parent 4.1b.6,
+Architecture extraction and Tasks 2.1/2.2/4.1 remain open. No classification, source sync,
+archive, authentication or coverage credit is produced.
+
+### Astra correction: Bun filters are not explicit file operands
+
+Astra rejected local candidate `16a94b863508cb50cb97abfd1dd74566bd6113af` before publication:
+its bare `src/...test.ts` operands are Bun path filters, so treating them as complete literal
+selection can omit nested matching files. The prior scoped success and mutation receipts
+above prove the earlier checks only; they did not establish Bun's selector semantics.
+
+A bounded disposable runtime probe on Bun 1.4.2 created `src/foo.test.ts` and
+`nested/src/foo.test.ts`, each with a distinct passing title. Running
+`bun test src/foo.test.ts --timeout=1000` executed both files (two tests), while
+`bun test ./src/foo.test.ts --timeout=1000` executed only the literal file (one test).
+Receipt: `/tmp/puni-conformance-bun-selector-probe.log`. The [Bun test runner documentation](https://bun.com/docs/test)
+also distinguishes positional filters from explicit `./` or absolute file operands.
+
+Before production changes, new production CLI tests committed a literal file and a nested
+matching decoy: the bare-filter refusal assertion failed on exit zero, and the explicit-file
+acceptance assertion failed on exit one (`/tmp/puni-conformance-filter-red.log`). The devsync
+canonical identity test first failed because it returned `./src/...` rather than `src/...`
+(`/tmp/puni-conformance-devsync-red.log`). The final grammar requires exactly one leading
+`./` on every file operand and strips only that prefix when binding regular selected Git
+blobs. Bare filters, repeated prefixes and unsafe paths refuse. Both real Memory and SQLite
+`test:conformance` commands now use explicit `./src/testing/...` operands. Devsync's existing
+command-membership reader normalizes the same syntactic prefix, and its manifest discovery
+oracle pins the changed commands. No other target was changed.
+
+Watched correction faults were restored after observation:
+
+- Restoring bare-filter parsing together with its old literal binding made the nested-decoy
+  production CLI refusal fail on successful incomplete facts:
+  `/tmp/puni-conformance-r5-bare-filter.log`.
+- Removing adapter prefix normalization made explicit-file inspection fail at selected-source
+  lookup: `/tmp/puni-conformance-r5-explicit-prefix.log`.
+- Removing devsync prefix normalization made the real
+  `bun tools/tool-devsync/src/verify-test-levels-cli.ts` exit one naming
+  `wbs-store-sqlite:test aggregate members differ from declaration`:
+  `/tmp/puni-conformance-r5-devsync-prefix.log`. Restored production verification printed
+  `Verified declared test collections` and exited zero.
+
+The corrected source facts, installed executable dispatch, devsync level and workspace-target
+suites passed 142/142 with 675 assertions across four files
+(`/tmp/puni-conformance-explicit-final-tests.log`). Uncached Nx `typecheck` passed for
+`twilight-burokrat` and `tool-devsync`; changed-source ESLint passed; strict pinned OpenSpec
+1.12.0 validation returned one valid change and zero issues; scenario validation returned
+`{"unidentified":[]}`. The actual updated uncached Nx `wbs-store-memory:test:conformance`
+and `wbs-store-sqlite:test:conformance` targets each ran 73 tests with zero failures, in
+4.0 and 35.5 seconds respectively (`/tmp/puni-conformance-explicit-{memory,sqlite}.log`).
+These focused target runs remain operational and noncertifying. Final changed-file format
+and diff checks precede the correction commit. The coordinator owns final parent restacking,
+exact-head review, host gate and publishing; no push or host gate was performed here.
+
+### WBS 080.39 — 4.1b.6b.2 committed Architecture facts (2026-10-14)
+
+Base: `d4bbcd051173ff758c8b314ac1d82164b2c6507e`, isolated `/tmp/puni-architecture-facts` clone. Production `scenario allocate . openspec/changes/test-axes/specs/test-axes/spec.md` issued TEST-AXES-084..086; the proposed journal's prior event prefix was compared equal before applying its spec and journal. The existing fourteen-rule policy remains unchanged.
+
+Initial production CLI RED: five new cases failed, zero passed, ten assertions. Committed Architecture lost the expected successful observation, pin/policy/source/discovery refusals received the old unsupported-source refusal, and reviewed-empty with a committed policy incorrectly exited zero. Initial implementation GREEN: five passed, zero failed, 76 assertions. Additional regressions cover three-way Performance/Conformance/Architecture overlap, canonical unique complete source tuples, explicit disjoint membership, all fourteen actual policy mappings, selected policy and mapped-source failures despite working repairs, source and packaged CLI dispatch, and runner validation/error order. Candidate fixture/config bodies throw if executed.
+
+The adapter binds exactly `<projectRoot>/src/architecture-fixtures.json`, its digest and every mapped selected regular readable blob, then intersects with the complete Performance fixture scope. Git leaf paths are reduced to immediate child names before the shared unmapped check; a suffix-looking directory with descendants refuses, ordinary nested decoys are ignored. Reviewed-empty refuses a selected fixed policy (including descendants at that path) or a present `test:architecture:level`. Membership is policy-declared. The existing runner still passes bare Bun filters; this slice makes no complete execution-collection claim.
+
+Watched faults were restored after each independent production test run; every listed mutation exited 1 with failed assertions:
+
+| Injected fault                                                                             | Observed production test failure                                                                     |
+| ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| Remove fixed policy-path comparison or digest comparison                                   | TEST-AXES-085 loses the named pin refusal or emits success for changed digest                        |
+| Disable fatal UTF-8 decoding                                                               | TEST-AXES-085 loses the named UTF-8 refusal                                                          |
+| Replace closed policy parse with trust cast; remove nonempty guard                         | TEST-AXES-085 loses schema refusal or the named no-cases refusal                                     |
+| Remove architecture suffix, exact relation, registry or duplicate checks separately        | TEST-AXES-085 loses the specific mapping refusal or accepts duplicate mapping                        |
+| Read mapped sources only inside Performance intersection                                   | TEST-AXES-085 accepts incomplete disjoint source selection; TEST-AXES-084 loses complete tuples      |
+| Discover whole remaining Git paths instead of immediate child names; remove unmapped guard | TEST-AXES-086 accepts an unmapped suffix directory or fixture                                        |
+| Remove policy-presence or target-presence contradiction checks separately                  | TEST-AXES-086 accepts the corresponding reviewed-empty contradiction                                 |
+| Remove Architecture intersection, sort or source deduplication separately                  | TEST-AXES-084 changes disjoint membership, reverses overlap order or duplicates shared source tuples |
+| Change authentication marker or certification marker                                       | TEST-AXES-084 source/package assertions reject the promoted observation                              |
+| Execute candidate config bytes with Function                                               | TEST-AXES-084 source/package commands refuse instead of producing facts                              |
+| Replace JSON decoding with an empty record                                                 | TEST-AXES-084..086 lose expected facts or named refusals                                             |
+| Remove runner stale-report clearing                                                        | TEST-AXES-086 retains stale report after refusal                                                     |
+| Validate all mappings before their IO                                                      | TEST-AXES-086 reports later unknown rule instead of earlier missing fixture                          |
+| Discover architecture directory before policy decoding                                     | TEST-AXES-086 reports directory error instead of malformed policy                                    |
+| Read policy before report directory creation                                               | TEST-AXES-086 reports missing policy instead of report-path EEXIST                                   |
+
+Commands on restored code:
+
+- `bun test apps/twilight-structure/twilight-burokrat/cli/src/evidence/level-facts.test.ts apps/twilight-structure/twilight-burokrat/cli/src/architecture-level.test.ts`: final result recorded below; includes two real package builds and CLI invocations.
+- `bunx tsc --build --force apps/twilight-structure/twilight-burokrat/cli/tsconfig.json`: exit 0, no diagnostics.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx show project twilight-burokrat --json`: exit 0, generated current graph. Changed-file ESLint rerun then exited 0 without diagnostics. The earlier direct ESLint run had skipped `@nx/enforce-module-boundaries` because no ProjectGraph existed; that earlier run did not verify boundaries.
+- Production `scenario validate`: exit 0, `{"unidentified":[]}`.
+- Pinned OpenSpec 1.12.0 `validate test-axes --strict --json`: exit 0, one valid change, zero issues.
+- Scoped Prettier and `git diff --check`: exit 0.
+
+No host-wide gate, real Architecture target execution, publication collection, full source classification, coverage credit, authenticated receipt, admission, sync or archive is claimed. The coordinator owns exact-SHA host gate after independent review; Tasks 2.1/2.2/4.1 remain open.
+
+Final restored-code suite: exit 0, **49 pass, 0 fail, 433 assertions across two files**, 22.69 s. Packaged Conformance and Architecture dispatch both passed. Evidence logs: `/tmp/architecture-final-tests.log`, `/tmp/architecture-mutations.log`, `/tmp/architecture-order-mutations.log`, and the individual `/tmp/architecture-mutation-<fault>.log` files. The first runner precedence assertion expected ENOTDIR; actual Bun mkdir returned EEXIST, so the test was corrected against baseline before rerunning the watched order faults. All final order faults failed their intended assertions on that corrected baseline.
+
+Astra review follow-up (2026-10-14): added the missing production-path negative for the reviewed-empty policy-directory subcondition. TEST-AXES-086 commits `apps/example/src/architecture-fixtures.json/child.json` with no policy file and no Architecture target. Baseline CLI exits 1, emits no JSON and names the Architecture reviewed-empty contradiction. Removing only `entry.path.startsWith(`${policyPath}/`)` then makes that case fail at `expect(exitCode).toBe(1)` with actual exit 0; the mutation log is `/tmp/architecture-mutation-empty-policy-directory.log`. The subcondition was restored and its adjacent Proof comment records the observed failure. No runtime behavior changed.
+
+Follow-up restored-code validation: affected level-facts/runner suites exit 0, **50 pass, 0 fail, 436 assertions**; scoped TypeScript build, changed-file ESLint with current ProjectGraph, strict OpenSpec validation (one valid change, zero issues), scoped Prettier check and `git diff --check` each exit 0. Host gate remains pending coordinator review.
+
+### WBS 080.39 — 4.1b.7 Performance level joins (2026-10-14)
+
+Base: exact `40538f3132d2d941fc0633a8a5021504a36d88b3`, isolated `/tmp/puni-performance-levels` worktree on `performance-levels`. Production `scenario allocate . openspec/changes/test-axes/specs/test-axes/spec.md` issued TEST-AXES-087..090; the proposed journal's existing event prefix was compared equal before applying the proposed spec and journal. Intent, delta specification, design and the ordered task were recorded before implementation.
+
+Initial production CLI RED: 18 tests failed, zero passed, 51 assertions, because the command did not exist. Initial GREEN: 18 passed, zero failed, 93 assertions. Expanded TDD exposed missing comparisons for publication selection config digest, complete authority fixture scope and coherent config/project substitutions in both inspector outputs; those cases exited zero before their joins were added. Packaged wrong-level dispatch preserves the existing launcher summary `Twilight Burokrat validator exited 1`; the test was corrected to that existing contract. A five-subprocess fault test exceeded Bun's default five-second test timeout, so its explicit test budget is 20 seconds; no production timeout changed.
+
+`inspect-performance-levels` consumes the real `inspectLevelFacts` and `inspectPerformanceBundle`; caller JSON is not accepted. It rereads the selected declaration, joins its raw pin, decodes it through the shared decoder and separately compares semantic declaration identity. The pretty-printed committed declaration in the fixture proves raw and semantic digests differ. It joins requested revision, complete candidate, declaration/config/project, both publication config digests, exact declared and recorded cases and fixture scope, and selected fixture path/mode/byte tuples. Only Manual/Conformance/Architecture/Performance rows are supplied to the extracted shared classifier; the Manual set is backed by the real facts contract's explicit reviewed-empty authority. No later-row facts are invented. Source-owner v1 output remains unchanged.
+
+Conformance and Architecture overlaps remain valid facts. The resulting first-match levels yield typed `wrong-level` isolation JSON and exit 1; isolated Performance yields typed `isolated` JSON and exit 0. Both bind both upstream digests, absent authentication, false certification and a complete own payload digest. Throwing candidate fixture/config bodies prove inspection does not execute candidate source. Source and packaged success/wrong-level paths are exercised.
+
+R5 audit: initial independent removal of the local third-snapshot kind or revision comparison did not fail a test, because the complete candidate hash already binds the entire selection. Those duplicate subconditions were removed, with coordinator agreement. The retained full-snapshot identity comparison alone rejects staged, changed-revision and changed-untracked snapshots; it was watched failing when removed. Upstream inspectors retain their exact requested-SHA refusals. After this simplification, all 37 retained primary mutations failed their intended production assertions. Seven additional boundary mutations failed separately, including both selected-entry branches and both case-sort operations. Every mutation was restored before final validation.
+
+| Injected fault                                                                                                    | Observed production assertion failure                                                                                               |
+| ----------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Remove revision or candidate joins                                                                                | TEST-AXES-088 accepts a changed real inspector observation                                                                          |
+| Remove declaration/config path or project joins                                                                   | TEST-AXES-088 emits JSON for the corresponding foreign selection                                                                    |
+| Remove either publication config digest comparison independently                                                  | TEST-AXES-088 accepts the changed public or selection digest                                                                        |
+| Remove complete third-snapshot identity comparison                                                                | TEST-AXES-088 accepts a staged, changed-revision or changed-untracked reader snapshot                                               |
+| Remove declaration entry absence or nonregular mode subconditions separately                                      | TEST-AXES-088 loses its named refusal to TypeError, or accepts the injected nonregular entry                                        |
+| Remove raw declaration pin comparison                                                                             | TEST-AXES-088 accepts a changed raw byte digest                                                                                     |
+| Remove selected declaration config or project comparisons                                                         | TEST-AXES-088 accepts coherent substitutions in both real inspector dependencies                                                    |
+| Remove semantic declaration digest comparison                                                                     | TEST-AXES-088 accepts a changed normalized declaration identity                                                                     |
+| Disable fatal UTF-8, bypass JSON parsing while retaining fatal decoding, or bypass the shared declaration decoder | TEST-AXES-088's third-reader fault with matching raw pin loses each respective encoding/JSON/schema refusal                         |
+| Remove exact recorded-case, Performance membership or authority fixture-scope comparisons separately              | TEST-AXES-088 accepts missing, extra, duplicate or substituted collection/scope or loses the named collection refusal               |
+| Remove source tuple comparison                                                                                    | TEST-AXES-088 accepts missing/duplicate tuples, changed modes or changed content identities                                         |
+| Remove either case sort, recorded source sort, fixture sort or fixture deduplication                              | TEST-AXES-087 refuses equivalent enumerations, changes canonical bindings or duplicates a shared fixture                            |
+| Remove Conformance or Architecture rows; put Architecture before Conformance                                      | TEST-AXES-089 changes classified levels or falsely exits zero for higher-row collection                                             |
+| Remove Performance row or its recorded Playwright membership check                                                | TEST-AXES-087 loses complete classification; TEST-AXES-088 accepts the broken classifier dependency's missing Playwright membership |
+| Remove undefined-classification refusal                                                                           | TEST-AXES-088 emits JSON with an unresolved fixture                                                                                 |
+| Force isolated status or remove CLI wrong-level exit mapping                                                      | TEST-AXES-089 exits zero for typed wrong-level collection                                                                           |
+| Remove CLI arity check or installed registration                                                                  | TEST-AXES-090 accepts extra operands or rejects valid packaged dispatch                                                             |
+| Replace either upstream digest, hash an empty own payload, promote authentication or certification                | TEST-AXES-087 fails its real upstream identity, independent complete-payload digest or nonpromotion assertions                      |
+| Execute selected candidate config bytes with Function                                                             | TEST-AXES-087 refuses instead of emitting facts because the candidate sentinel throws                                               |
+
+Mutation evidence: `/tmp/performance-levels-final-mutations.log` (37 failed variants), `/tmp/performance-levels-boundary-mutations.log` (7 failed variants), and individual `/tmp/performance-levels-mutation-<fault>.log` files. The discarded duplicate-check audit is retained in `/tmp/performance-levels-mutations.log` and is not claimed as successful proof.
+
+Scoped restored-code validation commands:
+
+- `bun test apps/twilight-structure/twilight-burokrat/cli/src/evidence/performance-levels.test.ts apps/twilight-structure/twilight-burokrat/cli/src/evidence/level-facts.test.ts apps/twilight-structure/twilight-burokrat/cli/src/evidence/performance-bundle.test.ts apps/twilight-structure/twilight-burokrat/cli/src/evidence/performance-sources.test.ts libs/shared/domain/test-levels/src/index.test.ts --timeout=60000`: final result below; includes dependent v1 source-owner regressions and packaged dispatch.
+- `bunx tsc --build --force apps/twilight-structure/twilight-burokrat/cli/tsconfig.json libs/shared/domain/test-levels/tsconfig.json`: exit 0, no diagnostics.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx show project twilight-burokrat --json`: exit 0, current graph generated. Changed-file ESLint validates module boundaries with this graph; final result below. An earlier lint run found unused copied fixture imports, import ordering and a numeric template expression; those were corrected before final checks.
+- Production `scenario validate`: exit 0, `{"unidentified":[]}`.
+- Pinned OpenSpec 1.12.0 `validate test-axes --strict --json`: exit 0, one valid change, zero issues.
+- Scoped Prettier and `git diff --check`: final result below.
+
+No host-wide gate or real target execution is claimed. These are synthetic publications inspected through real production readers, with no independently authenticated receipt, coverage, admission, sync or archive. The coordinator owns exact-SHA host gate after independent Astra review. Tasks 2.1/2.2a/2.2/4.1 remain open.
+
+Final restored-code result: **215 pass, 0 fail, 819 assertions across five files**, exit 0 in 83.49 s (`/tmp/performance-levels-final-tests.log`). Both source and packaged isolation results passed; source-owner v1 regressions passed. Scoped typecheck and changed-file ESLint exited 0 without diagnostics, including module-boundary checks using the current graph. Strict OpenSpec and scenario provenance validation passed as above; final scoped format and staged whitespace checks exited 0. No host gate or push was performed by the implementation worker.
+
+Astra metadata follow-up (2026-10-14): declared the exact consumer `apps/twilight-structure/twilight-burokrat/cli/src/evidence/performance-levels.ts` in both shared test-evidence and test-levels README externalConsumers. Production `check-indexes working . HEAD` exited 0 with zero review debt, and its returned consumer sets include the new path for both modules. Targeted `pilot-policy.test.ts --test-name-pattern 'on-disk bootstrap policy' --timeout=60000` exited 0: five pass, zero fail, 25 assertions. Both README Prettier checks and strict OpenSpec validation passed. No safety check or runtime behavior changed, so no new R5 mutation is required. Host gate remains coordinator-owned.
+
+### Task 2.1i — exact Architecture runner selection (2026-10-14)
+
+Base: exact merged #421 `f638342c78553eb0ef3717c4b95e3b6f4be05b54`, isolated `/tmp/puni-architecture-selection` worktree. Production `scenario allocate . openspec/changes/test-axes/specs/test-axes/spec.md` issued TEST-AXES-091; the existing journal event prefix was compared equal before applying the proposed journal/spec. `src/architecture-fixtures.json` remains the sole policy authority. After all existing validation, sorted selected canonical paths receive exactly one literal `./` prefix at Bun invocation; canonical policy/JUnit identities, signature, report clearing, refusal order and errors are preserved.
+
+Baseline runner tests: 13 pass, 0 fail, 53 assertions. Initial production subprocess RED: the one-mapping and two-mapping TEST-AXES-091 cases both failed because bare Bun filters executed `nested/src/architecture/...` decoys and left marker files. Each decoy writes synchronously and throws. GREEN: both cases passed with 17 assertions, absent markers and fresh JUnit containing exactly the mapped canonical cases after starting with stale XML. Watched R5 mutation: removing only `.map((file) => `./${file}`)` again failed both marker-absence assertions (0 pass, 2 fail). The prefix was restored, and its adjacent Proof comment records the injected fault and observation. Logs: `/tmp/architecture-selection-red.log`, `/tmp/architecture-selection-mutation.log`.
+
+| Check                                                                                                                                                                                                                                                                                                                                                                      | Fresh outcome                                                                                                                                                                                                       |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun test ./apps/twilight-structure/twilight-burokrat/cli/src/architecture-level.test.ts ./apps/twilight-structure/twilight-burokrat/cli/src/architecture/*.architecture.test.ts ./apps/twilight-structure/twilight-burokrat/cli/src/evidence/level-facts.test.ts ./apps/twilight-structure/twilight-burokrat/cli/src/evidence/performance-levels.test.ts --timeout=60000` | Exit 0; 100 pass, 0 fail, 693 assertions across 17 files; includes source and packaged CLI checks. Log `/tmp/architecture-selection-tests.log`.                                                                     |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_SOCKET_DIR=/tmp/puni-architecture-selection-nx bunx nx run twilight-burokrat:test:architecture:level --skip-nx-cache`                                                                                                                                                                                                         | Exit 0; fresh JUnit has 14 cases in 14 canonical files, zero failures/errors/skips. Log `/tmp/architecture-selection-target.log`.                                                                                   |
+| `bunx eslint apps/twilight-structure/twilight-burokrat/cli/src/architecture-level.ts apps/twilight-structure/twilight-burokrat/cli/src/architecture-level.test.ts`                                                                                                                                                                                                         | Exit 0 after generating the Nx project graph; module boundary rule ran. Initial run found numeric test-title interpolation and skipped module boundaries without a graph; both were corrected before the final run. |
+| `bunx tsc --noEmit -p apps/twilight-structure/twilight-burokrat/cli/tsconfig.spec.json`                                                                                                                                                                                                                                                                                    | Exit 0.                                                                                                                                                                                                             |
+| Changed-file `bunx prettier --check`, `git diff --check`, pinned `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate test-axes --strict`                                                                                                                                                                                                                       | Exit 0 for all three; OpenSpec reported `Change 'test-axes' is valid`.                                                                                                                                              |
+
+No full raw Nx gate, h2puni exact-SHA gate, push, publication, authenticated receipt, admission, sync or archive was performed. The coordinator owns the exact-SHA host gate after independent review. Tasks 2.1/2.2/4.1 remain open; operational execution grants no certification.
+
+## Task 2.1j — literal find-based Bun operands (2026-10-14)
+
+Base: exact #422 `c474100c5158f213e805db095025e7c94906bac3`; isolated worktree `/tmp/puni-test-axes-21j`. Scenario TEST-AXES-092 is allocated in the existing journal. Scope: the six existing Memory Unit/Conformance, SQLite API/Unit/Conformance and core Unit commands; existing shell-compatible paths only, with no whitespace/glob safety claim. Task 2.1, trusted receipts, coverage and admission remain open.
+
+The production manifest commands now start find at `./src` or `./src/testing`. Memory Unit's exact path exclusion includes the prefix. `collectedFiles` removes exactly one leading `./` for canonical project-relative comparison. Report clearing, no-cases guard, selector-error propagation, command scopes, timeouts and flags are preserved. Literal command replacement fixtures were updated with the changed selectors.
+
+TDD RED: `bun test tools/tool-devsync/src/test-levels.test.ts --test-name-pattern 'executes exact find operands|canonicalizes exactly'` exited 1: zero pass, seven fail. All six real `sh -c` manifest commands executed nested marker/throw decoys outside their selector root; bare Bun operands acted as substring filters. The canonicalization assertion retained unwanted prefixes. GREEN after the bounded changes: exit 0, seven pass, zero fail, 25 assertions. Each Unit/API scratch project selects two files; each Conformance project uses its source filename. Every successful run overwrites stale JUnit with exactly the canonical selected passing cases and leaves decoy markers absent. Memory Unit also excludes a marker/throw Conformance fixture.
+
+Watched production mutations (restored afterward):
+
+- Remove each of the six find prefixes independently, retaining its original matching exclusion: each real command executed its nested decoys and failed the command assertion.
+- Revert only Memory Unit's exclusion to the bare path: the excluded Conformance fixture executed and failed the command assertion.
+- Remove `collectedFiles` canonicalization: the one-prefix assertion and real level collection comparison failed. The assertion also proves a second leading prefix is preserved.
+
+Focused validation:
+
+- `bun test tools/tool-devsync/src/test-levels.test.ts --timeout=60000`: exit 0, 99 pass, zero fail, 342 assertions. Existing selector-error, empty-selection and stale-report cases remain green.
+- `bun test libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts --timeout=30000`: exit 0, 146 pass, zero fail, 11,624 assertions.
+- `bun tools/tool-devsync/src/verify-test-levels-cli.ts`: exit 0, `Verified declared test collections`. An initial overlapping execution observed a temporary uncollected fixture created by the collection tests; sequential execution passed after those tests completed.
+- `bunx tsc --build --force tools/tool-devsync/tsconfig.json`: exit 0 after fixing the test's readonly-array sort with a copied array; initial check caught that test-only type error.
+- `NX_DAEMON=false bunx nx graph --file=/tmp/test-axes-21j-graph.json` then changed-source `bunx eslint`: both exit 0. Nx used its documented in-process fallback when plugin worker sockets were denied; final ESLint had no skipped ProjectGraph boundary warning. Initial ESLint before graph creation skipped module boundaries and is not the final lint evidence.
+- `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate test-axes --strict --json`: exit 0, one valid change, zero issues.
+
+Changed-file format and whitespace checks are recorded after this entry. The canonical h2puni host gate remains coordinator-owned and has not been run by this isolated implementation agent; no whole-tree gate success is claimed.
+
+Final restored-code validation: the 99-test collection/command suite again exited 0 with 342 assertions; changed-file `bunx prettier --check` and `git diff --check` exited 0. Host gate remains pending coordinator review.
+
+## Task 2.2a.4 — Name ownership exact-source review packet (2026-10-14)
+
+Evidence base: exact merged #423 `6043639bc832fa7e68ad8fddbcf724c033d30cc8`, initially clean
+`/tmp/puni-test-axes-21j` worktree, branch `docs/test-axes-name-lineage-packet`. This packet
+records the existing owners' intent and eligibility for later source reconciliation. Its
+classification is **active dependency with approved semantic supersession; source eligibility
+pending human acceptance**. Tasks 2.2a and 2.2 remain open.
+
+Fresh production command on that exact commit:
+
+```sh
+bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts inspect-spec-sources . 6043639bc832fa7e68ad8fddbcf724c033d30cc8 > /tmp/test-axes-name-spec-sources.json
+```
+
+Exit 0: 277 active source inputs, 96 canonical requirements and 1,018 operations;
+`certifies:false`. Candidate identity:
+`ff923deb521d4086a1eeb8400f5fb7bbb9640269b61876ee0f4988a2ce6abe08`.
+Complete observation digest:
+`b533a9a276fc9cca9b6e2fe05f0ce81a813d18cfc732895df92d674f53177555`.
+These identities describe the pinned evidence base, not the later documentation commit.
+The diagnostic reads committed Git blobs and inventories operations; its exit zero does not
+establish selector eligibility, accepted lineage or coverage.
+
+### Exact active sources and ownership
+
+Both files belong to capability `wbs-domain`. File digests below bind the complete selected
+source bytes; fragment digests bind the production parser's raw requirement fragments. Each
+listed operation contains six scenarios.
+
+| Owner/source                                                              | Complete source SHA-256                                            |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| [column-widths-drag spec](../column-widths-drag/specs/wbs-domain/spec.md) | `7b4a90c5e4230eda225a9fee879d1bc6ebdabf70b68350e3899a7595172cf779` |
+| [name-column-drag spec](../name-column-drag/specs/wbs-domain/spec.md)     | `7370ec14fb34363206522bc1408ba88869fc7d55b94ce4290d9457669b0c85bf` |
+
+| Exact source path                                              | Operation | Exact requirement title                                                 | Fragment SHA-256                                                   |
+| -------------------------------------------------------------- | --------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `openspec/changes/column-widths-drag/specs/wbs-domain/spec.md` | ADDED     | A column with a declared width can be dragged to another width          | `3d10305d27221b2730616437f36df82ae37fd0bd6d0eec132fc1cb2a85f9877c` |
+| `openspec/changes/name-column-drag/specs/wbs-domain/spec.md`   | MODIFIED  | A column with a declared width can be dragged to another width          | `a5c33929d2bd60447711769c176606087115bec9099a7c65b0f593f287b78c27` |
+| `openspec/changes/name-column-drag/specs/wbs-domain/spec.md`   | ADDED     | The Name column takes a dragged width, and the viewport keeps the slack | `246f9d1349f2f1c381542ad871c2fc8e364ba88534ef5450752aab2a853750bb` |
+
+The predecessor owns declared-width dragging and its shared layout, persistence and reset
+rules. The successor's [proposal](../name-column-drag/proposal.md) and
+[delta specification](../name-column-drag/specs/wbs-domain/spec.md) explicitly supersede
+its no-Name-handle clause. The same-title MODIFIED block states full-text replacement of the
+still-active predecessor and names its acceptance hold. It is an intentional dependency,
+with no evidence here for changing either operation label.
+
+### Recorded semantic decision and scenario mapping
+
+The [roadmap U1](../../../docs/plans/2026-08-10-ux-batch-and-roadmap.md#u1-name-column-drag-15d)
+and [Dany's 2026-08-10 Answers](../../../docs/plans/2026-08-10-ux-batch-and-roadmap.md#answers--dany-2026-08-10-whatsapp)
+already approve the direction: Name owns its dragged width; Number retains its envelope.
+Name gains a handle, uses its measured header width at gesture start, clamps to 200–600px,
+and shares the existing persistence, sanitizer and reset. With an override the table uses its
+resolved sum and the viewport keeps the slack. Without an override Name retains flexible
+remainder behavior and `widthFor` still refuses a declared width. The owner
+[verification record](../name-column-drag/verify.md#the-task-5-branch-decision) records the
+browser-selected sum-width design. Those historical test observations are owner evidence;
+this documentation slice does not rerun or certify them.
+
+The exact same-title scenario mapping is:
+
+| Predecessor scenario                                            | Successor scenario                                              | Disposition                                                              |
+| --------------------------------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| dragging a fixed column wider                                   | dragging a fixed column wider                                   | Preserved title and behavior                                             |
+| the Name column offers no handle                                | every column offers a handle, the Name column included          | Explicit approved semantic supersession; Name starts from measured width |
+| the floor is the narrower of 36 and the default                 | the floor is the narrower of 36 and the default                 | Preserved title and behavior for the narrow fixed column                 |
+| a resized folded role moves the figure the Phases dialog quotes | a resized folded role moves the figure the Phases dialog quotes | Preserved title and behavior                                             |
+| the ceiling is the same number in both directions               | the ceiling is the same number in both directions               | Preserved title and behavior                                             |
+| a drag does not disturb what is being typed                     | a drag does not disturb what is being typed                     | Preserved title and behavior                                             |
+
+The successor's separate ADDED requirement owns these six additional scenarios:
+
+| Exact scenario title                                  | Additional obligation                                                                       |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| dragging the Name column below the table minimum      | Name widens from its floor; minimum follows; earlier pins remain fixed                      |
+| the viewport keeps the slack                          | Name uses its override; other column envelopes hold; no sideways scroll within the viewport |
+| Name's floor and ceiling                              | Name clamps to 200px and 600px                                                              |
+| a stored Name entry is a claim with Name's own bounds | 300 applies; 150 and 1e9 drop independently                                                 |
+| an undragged Name is still the flexible column        | No declared width; remainder behavior and width lookup refusal survive                      |
+| one reset returns the whole layout, Name included     | Forget shared storage; restore flexible Name and resolved Number default                    |
+
+The retired negative `refuses the flexible column a width and a floor alike, override or not`
+is named in [column-widths-drag verify row 4](../column-widths-drag/verify.md) and explicitly
+superseded in the successor spec/proposal: its injected flexible-floor arm becomes intended
+behavior. This semantic retirement does not authorize dropping the five surviving predecessor
+scenarios, changing identifier history or weakening selector predecessor checks.
+
+### Acceptance holds and proposed later lifecycle
+
+[Column-widths task 7.2](../column-widths-drag/tasks.md#7-gate) and
+[Name task 6.2](../name-column-drag/tasks.md#6-gate) remain unchecked: both require deployment
+to dev and Dany's judgment of the table's feel. The
+[roadmap Lane B](../../../docs/plans/2026-08-10-ux-batch-and-roadmap.md#lane-b--bookkeeping-first-05d)
+requires driving predecessor acceptance to a decision before the archive sweep. Semantic
+approval from August does not establish that either attended acceptance occurred.
+
+Proposed later lifecycle, subject to exact-source review and those acceptance decisions:
+
+1. Record both attended acceptance outcomes in their owning change records, or record an
+   explicit owner decision about a hold; retain them until that evidence exists.
+2. Review and sync the accepted column-widths predecessor into canonical lineage while
+   preserving all its requirements and scenario history, then archive that accepted owner.
+   Archive content remains historical evidence and never becomes selector runtime input.
+3. Reconcile the successor against that canonical predecessor with an explicit representation
+   of the approved no-handle supersession and all five retained scenarios. Resolve any
+   scenario retirement through the identifier/predecessor workflow before selecting it;
+   merely dropping a predecessor scenario would violate the selector's retention check.
+   After successor acceptance, review its Name-specific addition and replacement, sync and
+   archive through the normal workflow, retaining shared persistence/reset obligations.
+4. Run the committed whole-tree `SPEC-SCENARIOS` selector and record every remaining refusal.
+   Neither this proposed sequence nor a successful inventory authorizes a path-order winner.
+
+This packet applies none of that lifecycle: no sync, archive, relabel, source edit, journal
+edit, selector relaxation or human acceptance request. Grouping the fresh diagnostic by exact
+capability/title leaves seven competing groups: leaf status; declared-width dragging; caller
+solver durations; flat trio; folded estimate reading; notes Done/Escape; and marking done's
+fact end. The calendar-axis same-source rename/MODIFIED pair is its declared rename lineage,
+not an eighth competing owner group. All seven groups remain unresolved by this packet; the
+Name classification supplies review evidence only.
+
+### Packet validation and limits
+
+No tests or production-path fault injections are required for these two documentation edits:
+no behavior or safety check changes. The source diagnostic above is a fresh read-only
+observation. Fresh scoped checks:
+
+- `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate test-axes --strict --json`:
+  exit 0; one valid change, zero issues.
+- `bunx prettier --check openspec/changes/test-axes/tasks.md openspec/changes/test-axes/verify.md`:
+  exit 0; both changed files match Prettier style.
+- `git diff --check`: exit 0; no whitespace errors.
+
+The full Nx suite, canonical h2puni gate, deployment, attended UI checks, coverage,
+certification and admission are unperformed by this slice. No push was performed.

@@ -1,5 +1,6 @@
 import {
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   realpathSync,
@@ -15,6 +16,8 @@ import { afterAll, expect, test } from 'bun:test';
 import fc from 'fast-check';
 
 import {
+  type AuthorityClaim,
+  AuthorityContentionError,
   AuthorityOpenError,
   bootstrapAuthority,
   openAuthority,
@@ -28,14 +31,15 @@ import { acquireClaims } from './claims';
  * `nextGeneration` and the working sessions' write paths. Invariants checked by every command:
  *
  * - I1 one creator: while absent, exactly one bootstrap reports `bootstrapped`; every other
- *   bootstrap, concurrent or later, reports `exists`.
+ *   bootstrap reports `exists` if it finishes within its busy budget, or typed contention.
+ *   After all original workers exit, a contended bootstrap must settle to `exists` in one attempt.
  * - I2 absence is refused: open, inspect and acquire on an absent store report `absent` and leave
  *   no `module-wiki` directory.
  * - I3 inspection is read-only: the database bytes are identical before and after inspect.
  * - I4 identity continuity: acquisitions receive consecutive generations from the model's
  *   `nextGeneration`; no bootstrap resets it.
  * - I5 fencing: of concurrent acquisitions on overlapping paths, at most one succeeds and the
- *   others report the overlap.
+ *   others report overlap or typed contention without consuming a generation.
  * - I6 typed outcomes only: no `corrupt` or untyped failure appears in any run.
  */
 interface Model {
@@ -50,16 +54,24 @@ interface Real {
 
 type Outcome =
   | { readonly kind: 'bootstrapped' }
-  | { readonly kind: 'opened'; readonly nextGeneration: number; readonly sessions: number }
+  | { readonly kind: 'contended' }
+  | {
+      readonly kind: 'opened';
+      readonly nextGeneration: number;
+      readonly sessions: readonly {
+        readonly sessionId: string;
+        readonly claims: readonly AuthorityClaim[];
+      }[];
+    }
   | { readonly kind: 'acquired'; readonly generation: number }
   | { readonly kind: 'refused'; readonly failure: string };
 
 const FIXED_CLOCK = { read: () => 1_000_000 };
 /**
- * Uses the store's supported ceilings for process races: at most 4.95 seconds of retry sleeps.
- * CI runs the sibling judge suite concurrently, so a scheduled writer can hold its lock longer
- * than the production default's 245 ms. This fixture checks eventual linearization, while the
- * permanent-holder test checks exhaustion. Production retry bounds remain independently tested.
+ * Uses the store's supported ceilings for the two deliberate stalled-writer tests: at most
+ * 4.95 seconds of retry sleeps. Their 600 ms reserved lock exceeds the worker default's
+ * 245 ms. The released-holder test checks eventual linearization; the permanent-holder test
+ * checks typed exhaustion. Ordinary model jobs retain the worker default or caller override.
  * Proof: a 600 ms reserved lock made the stalled-writer test return three contention failures
  * with the default 50 attempts at 5 ms; the explicit budget preserves one winner and two overlaps.
  */
@@ -75,6 +87,9 @@ afterAll(() => {
 
 /** The same classification in-process and in a child: typed failure kind or exact message. */
 function classify(error: unknown): Outcome {
+  // Proof: accepting every Error as contention made the classifier test receive `contended`
+  // for a raw busy-message Error instead of `untyped` (2026-10-14).
+  if (error instanceof AuthorityContentionError) return { kind: 'contended' };
   if (error instanceof AuthorityOpenError) return { failure: error.failure, kind: 'refused' };
   const message = error instanceof Error ? error.message : String(error);
   if (message.startsWith('path claim overlaps session ')) {
@@ -125,7 +140,9 @@ function runInspect(root: string): Outcome {
       return {
         kind: 'opened',
         nextGeneration: state.nextGeneration,
-        sessions: state.generations.length,
+        sessions: state.generations
+          .map(({ claims, sessionId }) => ({ claims, sessionId }))
+          .sort((left, right) => left.sessionId.localeCompare(right.sessionId)),
       };
     } finally {
       store.close();
@@ -151,6 +168,20 @@ function runAcquire(root: string, session: string, path: string): Outcome {
   } catch (error) {
     return classify(error);
   }
+}
+
+function inspectModel(model: Model): Outcome {
+  if (!model.present) return { failure: 'absent', kind: 'refused' };
+  return {
+    kind: 'opened',
+    nextGeneration: model.nextGeneration,
+    sessions: [...model.sessions]
+      .map(([sessionId, identity]) => ({
+        claims: [{ access: 'write', identity, kind: 'path' } as const],
+        sessionId,
+      }))
+      .sort((left, right) => left.sessionId.localeCompare(right.sessionId)),
+  };
 }
 
 function assertAbsentLeavesNothing(model: Model, real: Real): void {
@@ -189,11 +220,7 @@ class Inspect implements fc.AsyncCommand<Model, Real> {
   async run(model: Model, real: Real): Promise<void> {
     const before = databaseDigest(real.root);
     const outcome = runInspect(real.root);
-    expect(outcome, 'I2/I4 inspect').toEqual(
-      model.present
-        ? { kind: 'opened', nextGeneration: model.nextGeneration, sessions: model.sessions.size }
-        : { failure: 'absent', kind: 'refused' },
-    );
+    expect(outcome, 'I2/I4 inspect').toEqual(inspectModel(model));
     expect(databaseDigest(real.root), 'I3 inspect changed the database').toBe(before);
     assertAbsentLeavesNothing(model, real);
     await Promise.resolve();
@@ -227,14 +254,15 @@ class Acquire implements fc.AsyncCommand<Model, Real> {
 }
 
 const WORKER = `
-const [{ AuthorityOpenError, bootstrapAuthority, openAuthority }, { acquireClaims }] =
+const [{ AuthorityContentionError, AuthorityOpenError, bootstrapAuthority, openAuthority }, { acquireClaims }] =
   await Promise.all([import(process.argv[2]), import(process.argv[3])]);
 const job = JSON.parse(process.argv[4]);
 await Bun.write(job.ready, 'ready');
 while (!(await Bun.file(job.start).exists())) Bun.sleepSync(1);
 const clock = { read: () => 1_000_000 };
-const options = { ...job.options, clock };
+const options = { busyDelayMilliseconds: 5, ...job.options, clock };
 function classify(error) {
+  if (error instanceof AuthorityContentionError) return { kind: 'contended' };
   if (error instanceof AuthorityOpenError) return { failure: error.failure, kind: 'refused' };
   const message = error instanceof Error ? error.message : String(error);
   if (message.startsWith('path claim overlaps session ')) return { failure: 'overlap', kind: 'refused' };
@@ -266,13 +294,19 @@ try {
 console.log(JSON.stringify(outcome));
 `;
 
+interface BusyOptions {
+  readonly maxBusyAttempts: number;
+  readonly busyDelayMilliseconds: number;
+}
+
 type Job =
-  | { readonly op: 'bootstrap' }
+  | { readonly op: 'bootstrap'; readonly options?: BusyOptions }
   | {
       readonly op: 'acquire';
       readonly session: string;
       readonly path: string;
       readonly attemptPath?: string;
+      readonly options?: BusyOptions;
     };
 
 /**
@@ -299,7 +333,6 @@ async function runConcurrently(
           CLAIMS_MODULE,
           JSON.stringify({
             ...job,
-            options: CONCURRENT_BUSY_OPTIONS,
             ready,
             root: real.root,
             start,
@@ -346,13 +379,22 @@ class ConcurrentBootstraps implements fc.AsyncCommand<Model, Real> {
       Array.from({ length: this.count }, () => ({ op: 'bootstrap' }) as const),
     );
     const created = outcomes.filter((outcome) => outcome.kind === 'bootstrapped').length;
-    expect(
-      outcomes.filter((outcome) => outcome.kind !== 'bootstrapped'),
-      'I1/I6 losers report exists',
-    ).toEqual(
-      Array.from({ length: this.count - created }, () => ({ failure: 'exists', kind: 'refused' })),
-    );
-    expect(created, 'I1 one creator').toBe(model.present ? 0 : 1);
+    expect(created, 'I1 one original creator').toBe(model.present ? 0 : 1);
+    for (const outcome of outcomes) {
+      if (outcome.kind === 'bootstrapped') continue;
+      if (outcome.kind === 'contended') {
+        // runConcurrently awaited every original worker; settlement is one fresh attempt.
+        expect(runBootstrap(real.root), 'I1 contention settles to exists').toEqual({
+          failure: 'exists',
+          kind: 'refused',
+        });
+      } else {
+        expect(outcome, 'I1/I6 losers report exists').toEqual({
+          failure: 'exists',
+          kind: 'refused',
+        });
+      }
+    }
     model.present = true;
   }
 
@@ -390,10 +432,17 @@ class ConcurrentAcquires implements fc.AsyncCommand<Model, Real> {
     const losers = outcomes.map((_, index) => index).filter((index) => !winners.includes(index));
     const expected: Outcome[] = [...outcomes];
     for (const index of [...winners, ...losers]) {
+      if (outcomes[index].kind === 'contended') continue;
       const request = this.requests[index];
       expected[index] = modelAcquire(model, request.session, request.path);
     }
     expect(outcomes, 'I4/I5/I6 concurrent acquisitions linearize').toEqual(expected);
+    // Proof: appending `/injected` to each path in production's insertClaim.run made
+    // `concurrent acquisitions preserve exact persisted sessions and claims` fail here on
+    // changed identities while nextGeneration and session counts still matched (2026-10-14).
+    expect(runInspect(real.root), 'I4 contention consumes no generation or claim').toEqual(
+      inspectModel(model),
+    );
   }
 
   toString(): string {
@@ -422,6 +471,7 @@ test('concurrent acquisitions linearize after a stalled writer releases', async 
   const attempts = ['session-a', 'session-d', 'session-c'].map((session) => ({
     attemptPath: join(root, `${session}-attempting`),
     op: 'acquire' as const,
+    options: CONCURRENT_BUSY_OPTIONS,
     path: session === 'session-c' ? 'src' : 'src/b',
     session,
   }));
@@ -456,16 +506,17 @@ test('concurrent acquisition exhausts its finite budget while a writer remains l
   blocker.run('BEGIN IMMEDIATE');
   const attemptPath = join(root, 'attempting');
   const pending = runConcurrently({ root }, fc.schedulerFor([1]), [
-    { attemptPath, op: 'acquire', path: 'src/b', session: 'session-a' },
+    {
+      attemptPath,
+      op: 'acquire',
+      options: CONCURRENT_BUSY_OPTIONS,
+      path: 'src/b',
+      session: 'session-a',
+    },
   ]);
   try {
     while (!existsSync(attemptPath)) await Bun.sleep(1);
-    expect(await pending).toEqual([
-      {
-        failure: 'untyped: authority database remained busy after 100 attempts',
-        kind: 'refused',
-      },
-    ]);
+    expect(await pending).toEqual([{ kind: 'contended' }]);
   } finally {
     blocker.run('ROLLBACK');
     blocker.close();
@@ -479,6 +530,64 @@ test('concurrent acquisition exhausts its finite budget while a writer remains l
     store.close();
   }
 }, 60_000);
+
+// Proof: overriding each job with CONCURRENT_BUSY_OPTIONS timed out this classifier at
+// 3000 ms; preserving its one-attempt override passed in 1151 ms (2026-10-14).
+test('the lifecycle classifier accepts only typed contention', async () => {
+  const root = repository();
+  const databasePath = resolveAuthorityDatabasePath(root);
+  mkdirSync(join(databasePath, '..'));
+  const initializerPath = `${databasePath}.initializing`;
+  mkdirSync(initializerPath);
+  let failure: unknown;
+  try {
+    await fc.assert(
+      fc.asyncProperty(fc.scheduler(), async (scheduler) => {
+        // Proof: replacing the production initializer's typed refusal with a raw Error made
+        // this worker return `untyped: authority database remained busy after 1 attempts`
+        // instead of `contended` (2026-10-14).
+        expect(
+          await runConcurrently({ root }, scheduler, [
+            { op: 'bootstrap', options: { maxBusyAttempts: 1, busyDelayMilliseconds: 0 } },
+          ]),
+        ).toEqual([{ kind: 'contended' }]);
+      }),
+      { numRuns: 1, seed: 20261014 },
+    );
+    try {
+      bootstrapAuthority(root, {
+        clock: FIXED_CLOCK,
+        maxBusyAttempts: 1,
+        busyDelayMilliseconds: 0,
+      }).close();
+    } catch (error) {
+      failure = error;
+    }
+  } finally {
+    rmSync(initializerPath, { recursive: true });
+  }
+  expect(failure).toBeInstanceOf(AuthorityContentionError);
+  expect(classify(failure)).toEqual({ kind: 'contended' });
+  expect(classify(new Error('authority database remained busy after 1 attempts'))).toEqual({
+    failure: 'untyped: authority database remained busy after 1 attempts',
+    kind: 'refused',
+  });
+});
+
+test('concurrent acquisitions preserve exact persisted sessions and claims', async () => {
+  await fc.assert(
+    fc.asyncProperty(fc.scheduler(), async (scheduler) => {
+      const model: Model = { nextGeneration: 1, present: false, sessions: new Map() };
+      const real: Real = { root: repository() };
+      await new Bootstrap().run(model, real);
+      await new ConcurrentAcquires(scheduler, [
+        { path: 'src', session: 'session-a' },
+        { path: 'docs', session: 'session-b' },
+      ]).run(model, real);
+    }),
+    { numRuns: 1, seed: 20261014 },
+  );
+});
 
 test('authority lifecycle matches its model across concurrent processes', async () => {
   // Proof (sabotages, each restored; every one failed this property, seed 20261012, with the

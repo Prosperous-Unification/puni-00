@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/docker.test.ts:
+(pass) step blockage compatibility commands > reads a present release CLI, models an older release, and refuses unavailable source [12.28ms]
+(pass) step blockage compatibility commands > refuses nonregular, dangling and unreadable reader paths [12.25ms]
+1746 |       expect(await read()).toEqual({ exitCode: 0, stdout: '[{"kind":"blocked","count":2}]\n' });
+1747 |       expect((await read(join(directory, 'absent.db'))).exitCode).not.toBe(0);
+1748 |       const { DB_PATH: _path, ...environment } = process.env;
+1749 |       const unset = Bun.spawn(command, { env: environment, stdout: 'pipe', stderr: 'pipe' });
+1750 |       expect(await unset.exited).not.toBe(0);
+1751 |       expect(await new Response(unset.stderr).text()).toContain('DB_PATH must be set');
+                                                             ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "DB_PATH must be set"
+Received: "1 | import { Database } from 'bun:sqlite';\n2 | const path=process.env.DB_PATH;\n3 | \n4 | const db=new Database(path,{readonly:true,create:false});\n             ^\nerror: Cannot open an anonymous database in read-only mode.\n      at new Database (bun:sqlite:259:18)\n      at /tmp/puni-step-blockage-rebuild/[eval]:4:10\n\nBun v1.4.2 (Linux x64)\n"
+
+      at <anonymous> (/tmp/puni-step-blockage-rebuild/tools/tool-remote-scripts/src/lib/docker.test.ts:1751:55)
+(fail) step blockage compatibility commands > counts every stored fact and distinguishes an older schema from an unavailable database [40.73ms]
+
+ 2 pass
+ 112 filtered out
+ 1 fail
+ 14 expect() calls
+Ran 3 tests across 1 file. [85.00ms]

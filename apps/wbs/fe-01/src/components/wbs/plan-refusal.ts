@@ -152,6 +152,10 @@ function historyCode(refusal: RefusalOf<'postApiProjectsByIdUndo'>): string {
     case 'not_a_member':
     case 'sso_required':
     case 'reauthentication_required':
+    case 'step_blockage_inactive':
+      // Proof: omitting this arm made the plan writer's disabled-admission
+      // cases throw `Unexpected response variant: object` instead of reporting
+      // the refusal; watched in plan-writer.test.ts, 2026-10-14.
       return refusal.error;
     default:
       return unreachable(refusal);
@@ -286,6 +290,10 @@ function stepRemoveCode(refusal: RefusalOf<'deleteApiProjectsByIdStepsByStepId'>
     case 'in_use':
     case 'referenced_by_dependency':
     case 'dependency_cycle':
+    case 'step_blockage_inactive':
+      // Proof: omitting this arm made the plan writer's disabled-admission
+      // cases throw `Unexpected response variant: object` instead of reporting
+      // the refusal; watched in plan-writer.test.ts, 2026-10-14.
       return refusal.error;
     default:
       return unreachable(refusal);
@@ -458,6 +466,10 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'minutes_not_integer':
     case 'minutes_above_max':
     case 'unknown_attempt':
+    case 'step_blockage_inactive':
+      // Proof: omitting this arm made the plan writer's disabled-admission
+      // cases throw `Unexpected response variant: object` instead of reporting
+      // the refusal; watched in plan-writer.test.ts, 2026-10-14.
       return refusal.error;
     default:
       return unreachable(refusal);
@@ -694,8 +706,9 @@ export const PLAN_REFUSALS: RefusalWords = {
     // Proof: all six struck, `words each attempt refusal` failed on the first,
     // `node_done`, reading `That change could not be completed (node_done).`;
     // watched 2026-10-12.
+    step_blockage_inactive: 'Step blockage changes are not enabled on this server.',
     node_done:
-      'This step is done — reopen it before starting another attempt. Nothing was changed.',
+      'This step is done — reopen it before starting an attempt or blocking it. Nothing was changed.',
     attempt_running:
       'An attempt at this step is already running — end it before starting another. Nothing was changed.',
     no_running_attempt:

@@ -146,6 +146,12 @@ export const commandDefinitions = {
     description:
       'Mark one step of a work item in progress or done. Accepts stepNodeId in place of the work-item and step pair.',
   }),
+  setStepBlocked: defineCommand('setStepBlocked', {
+    schema: type({ kind: "'setStepBlocked'", ...step, isBlocked: 'boolean' }),
+    scope: 'project',
+    description:
+      'Set or clear direct blockage on one leaf step without changing progress or schedule. Equivalent writes are no-ops; new blockage on done is refused. Accepts stepNodeId in place of the work-item and step pair.',
+  }),
   clearProgress: defineCommand('clearProgress', {
     schema: type({ kind: "'clearProgress'", ...step }),
     scope: 'project',

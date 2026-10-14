@@ -43,6 +43,7 @@ import { priorityBandStyleOf } from './priority-band-style';
 import { ReferenceSetSheet } from './reference-set-field';
 import { type PrintedDay, shortIsoDate } from './short-date';
 import { statusActions } from './status-cell';
+import { StepBlockageSection } from './step-blockage';
 import { nodeReadingOf, type StepNodeReadings, StepReadingInline } from './step-reading';
 import { cardIndentFor } from './table-frame';
 import { dependencyWords, endpointText, TypedDependencyEditor } from './typed-dependency-editor';
@@ -168,6 +169,7 @@ export interface PlanCardsProps {
    */
   attemptsOn?: (row: TreeRow, stepId: string) => StepNodeReadings | null;
   /** What the `Attempts` details can do, the step card's own actions. */
+  setStepBlocked?: (row: TreeRow, stepId: string, isBlocked: boolean) => void;
   attemptActionsOn?: (row: TreeRow, stepId: string) => { label: string; actions: AttemptActions };
   /**
    * The work items this one waits for, in the order it holds them.
@@ -2688,6 +2690,7 @@ export function PlanCards({
   assigneeOn,
   attemptsOn,
   attemptActionsOn,
+  setStepBlocked,
   waitsFor,
   typedWaitsFor,
   dependencyRows,
@@ -3071,6 +3074,31 @@ export function PlanCards({
                     The count remains visible without the project's zone;
                     {@link AttemptsSection} leaves the timed lines and actions out.
                   */}
+                    {!row.rolledUp && attemptsOn !== undefined && (
+                      <details
+                        data-step-blockage={step.id}
+                        className="group text-sm open:basis-full"
+                      >
+                        <summary className={`${DISCLOSURE_SUMMARY} text-muted-foreground text-xs`}>
+                          <span aria-hidden className="transition-transform group-open:rotate-90">
+                            ▸
+                          </span>
+                          Step blockage
+                        </summary>
+                        <StepBlockageSection
+                          blockage={attemptedNode?.blockage ?? null}
+                          label={attempted?.label ?? `${step.name} for ${row.number}`}
+                          tapSized
+                          setBlocked={
+                            setStepBlocked === undefined
+                              ? undefined
+                              : (isBlocked) => {
+                                  setStepBlocked(row, step.id, isBlocked);
+                                }
+                          }
+                        />
+                      </details>
+                    )}
                     {attempted !== null && (
                       <details
                         data-step-attempts={step.id}

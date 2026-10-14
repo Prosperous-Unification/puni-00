@@ -403,3 +403,130 @@ No persistent push worker, booking table, activation route, mode setter, permiss
 frontend work, scheduler/cache version bump or blue/green cache-policy replacement. Keep
 `capacityModes` exactly `['isolated']` and shared restores refused. UI 7 and mode route 8 remain
 ordered prerequisites to activation. Exact-head gate, CI and publication are separate actions.
+
+## D10. Personal approval precedes shared backup restore
+
+A restore operation has one immutable canonical backup digest. Each changed organization supplies
+an approval by a super-admin acting personally through an authenticated request in that active
+organization. The operator supplies IDs to the restore CLI; an asserted actor or session cannot
+create authority. Approval records retain their actor even if that account disappears. Issuance
+rechecks active organization membership inside one immediate writer transaction and retries
+idempotently only for the same actor, operation and digest. A conflicting binding returns 409.
+Evidence prevents schema rollback. Approval issuance alone grants no runtime capability and does
+not weaken the existing shared restore refusal. The consuming restore owner, durable receipt,
+writer/deploy exclusion and capability activation follow in ordered slices 10.2–10.4.
+
+### D10.1 Canonical backup digest boundary
+
+`shared-people-backup.ts` owns validated v1 backup shape and normalization for both the existing
+recovery adapter and the offline digest command. Canonical bytes are UTF-8 JSON without whitespace:
+root fields `format,version,organizations,ranks`; organization fields `organizationId,mode`; rank
+fields `projectId,organizationId,position,createdAt,updatedAt,createdBy`. Organization and rank
+arrays sort by ordinal organization/project ID using string comparison, never locale collation.
+All v1 validation remains, and every rank must name an organization present in the complete
+backup. The digest is lowercase SHA-256 of those bytes. File whitespace, object key order and
+array presentation order carry no authority; all normalized saved facts do.
+
+The `digest <backup-file>` CLI branch validates one file read and requires no `DB_PATH` or SQLite
+connection. Existing isolated recovery commands remain compatible; shared restoration still
+refuses. Same-process host lock/container fencing is a distinct pending slice 10.2b.
+
+### D10.2 Host recovery fencing
+
+The WBS host CLI runs directly on the database host and owns the canonical
+`/home/puni1/wbs/state/deploy.lock` flock for the complete restore lifetime. It never
+launches a writer child. It retains one file read before inspecting Docker and passes
+that parsed backup to the existing recovery adapter. The CLI fixes the production database
+at `/home/puni1/wbs/data/wbs.db`; test IO supplies isolated paths and a Docker executable.
+
+A full `docker ps --all --quiet` inventory followed by inspection must contain both
+`be-01-blue` and `be-01-green`. Their unique DB_PATH must resolve through a writable bind
+mount to the same existing physical database as the host owner. Both verified colours must
+unconditionally be stopped. Additional containers with writable mounts covering that database
+must be stopped, including physical file aliases. A writable directory on the database filesystem
+cannot exclude hardlinks within it, so every running container with such a mount refuses
+conservatively; a recursive snapshot scan cannot establish stable absence. Distinct-device mount
+sources can be excluded by physical device comparison. Missing or malformed inventory, inaccessible paths, ambiguous identity,
+inspection failure and lock contention refuse before opening the writer.
+
+Optional operation/approval IDs check persisted bindings on a read-only snapshot using the
+retained backup's canonical digest. They are diagnostic references, never asserted personal
+authority. A shared backup requires diagnostic evidence for every saved organization changed
+by shared mode or a rank, and still reaches the existing unsupported-mode refusal. Consumption,
+receipt, transactional membership recheck and shared writes remain 10.3; runtime activation
+remains 10.4. The existing container-local isolated CLI is preserved.
+
+### D10.3 Installed audited restore owner
+
+A synchronous SQLite owner borrows the host's retained connection and owns one immediate writer
+transaction. It validates the operation's original canonical digest before any recovery write.
+An existing receipt returns its persisted counts only after digest and exact consumed approval-set
+validation; retry never reapplies current modes/ranks or emits new audits/events, even after later
+edits. New recovery requires activated organization state, every saved organization present, all
+current organizations isolated and no ranks. Extra isolated organizations are preserved.
+
+Changed organizations are exactly the union of saved shared modes and saved rank organizations.
+Each requires one supplied approval, bound to that operation and organization, whose recorded
+personal actor is still a super-admin there on the immediate writer. Extra, duplicate, missing or
+foreign approvals refuse. Historical ranks restore through `restoreProjectRanks(tx)` on the
+borrowed transaction (nested savepoint, no independent writer). Only isolated-to-shared modes
+update organization audit fields and append mode audits attributed to those approvals. Every
+project owned by a mode-changing organization, including unranked projects, receives one durable
+null-cause `elsewhere_changed` event through `recordEventIn(tx)`; rank-only recovery emits none.
+
+Additive receipt and consumption tables persist the original digest, completion time, stable
+organization/rank/mode/event counts and exact approval IDs. Composite references bind receipt to
+operation/digest and consumption to approval/operation/organization. Evidence closes schema
+rollback. Approval issuance may return an existing identical personal approval but cannot add an
+approval to a completed operation. Writes, audit rows, event sequences, receipt and consumption
+commit together or all roll back.
+
+The host retains canonical flock, container fencing and one parsed backup; eligible requests with
+operation IDs use the installed owner on one retained connection. Shared backups still refuse
+before the writable opener while release capability remains isolated-only. The legacy local
+restore adapter refuses shared backups unconditionally, including in a test-supported release.
+Shared physical acceptance, runtime activation and attended live proofs remain 10.3b/10.4.
+
+### D10.3b Process and physical shared recovery rehearsal
+
+The rehearsal obtains both organizations' personal approvals through the mounted authenticated
+application, closes its optimizer/source/raw connections, and hands that same SQLite file to a
+separate Bun host-owner process. One organization changes to shared and owns an unranked project;
+the second remains isolated and restores a historical rank. A test-only child fixture widens its
+own imported capability array. Production paths, CLI options and capability declarations gain no
+override or authority. A separate child imports the unchanged production CLI with only its host
+paths redirected by a test module seam and proves the actual release refusal before writable open.
+
+Precommit SIGKILL waits for a shared transaction to spill WAL pages, compares every affected
+state/evidence table after death, and checks flock exclusion and successor acquisition. A child
+exits after committed recovery without printing its receipt; another cold process returns that
+same receipt after later rank/membership edits, with a complete unchanged-state comparison.
+Physical tests retain DELETE journal mode as the before-writable-open witness. Real daemon
+fixtures use only labelled test-owned containers with production blue/green names; source,
+identity and state facts come from Docker inspect. Each colour and an alias-mounted extra writer
+must refuse while running, foreign database identity and absent/unreadable sources refuse, then
+all stopped test-owned writers permit shared audited recovery. Cleanup removes only created IDs.
+These are local process/daemon proofs. Production activation and attended live-host acceptance
+remain task 10.4, together with independent review and the exact-SHA canonical gate.
+
+### 10.4a Packaged host recovery rehearsal
+
+`wbs-be-01:build-host-restore` bundles the existing production CLI and every JavaScript
+dependency into `dist/apps/wbs/be-01-host/shared-people-host-restore.js` for pinned Bun 1.4.2.
+The normal application build depends on it. The CLI retains its fixed database, deploy-lock and
+Docker executable names; transport needs no repository or node_modules. No recovery authority,
+path override, actor assertion or capability override is added.
+
+The explicit uncached `wbs-be-01:test:host-restore` target first builds that artifact. Its smoke
+copy runs outside the checkout. Its Linux rehearsal copies the same bytes and a stopped composed
+SQLite fixture into scratch storage mounted at `/home/puni1/wbs` in the digest-pinned official
+Bun runtime. Only scratch is mounted; network, Docker socket, live paths, checkout and
+node_modules are absent. A test-owned executable answers Docker inventory queries. Personal
+approvals originate through the composed endpoint before the app stops. The unchanged CLI
+recovers an approved isolated rank, persists receipt/consumption and cold-retries after later
+rank and membership edits. A separately approved shared backup refuses with DELETE journal
+and all table rows and database bytes intact. Missing prerequisites fail rather than skip.
+
+Production remains isolated-only. These tests prove artifact portability and fixed-path host
+policy inside a disposable namespace; live-host exclusion, shared activation, review and the
+canonical exact-SHA gate remain later acceptance work.

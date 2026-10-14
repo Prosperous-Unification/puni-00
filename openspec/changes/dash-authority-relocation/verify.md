@@ -274,3 +274,317 @@ After restoring the ordinary runner, the whole lifecycle file passed: 3 tests, 1
 checks passed again: 3 tests, 10 assertions, 0 failures in 2.07 seconds. Typecheck, ESLint with
 the cached graph, Prettier and `git diff --check` all exited 0. The full host gate and CI remain
 the integration owner's checks.
+
+## Finite contention lifecycle correction (2026-10-14)
+
+PR #408 head `3d1e3b9b158a598293f80bafc3403ee51dd37f6e`, Twilight CI run
+`38484957901`, job `115600060693`, observed a bootstrap peer exhausting 50 attempts at
+5 ms while its creator still ran. The lifecycle oracle called the typed
+`AuthorityContentionError` untyped; the two-bootstrap oracle required unconditional `exists`.
+Production's finite retry budget remains unchanged. Both oracles now allow only typed
+contention, still require exactly one original creator, await every original worker and require
+one fresh bootstrap per contended peer to refuse `exists`. Concurrent acquisitions treat typed
+contention as no state transition and inspect the settled generation, session identities and
+full claim lists against the reference model.
+Claim-race fixtures bootstrap before spawning workers. The spec and JSDoc qualify convergence
+by the configured budget.
+
+| Command                                                                                                                                                                                                                                                   | Observed result                          |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bun test --preload ./tools/test/scratch/preload.ts apps/twilight-structure/twilight-dash/cli/src/authority/{authority-store.db.test.ts,authority-lifecycle.model.test.ts,claims.db.test.ts} --timeout=60000` | 28 pass, 0 fail, 246 assertions, 33.81 s |
+| `bun test …/claims.db.test.ts -t 'exclusive conflict-group'` after the final fixture setup adjustment                                                                                                                                                     | 1 pass, 0 fail                           |
+| `NX_DAEMON=false bunx nx run twilight-dash:lint --skip-nx-cache`                                                                                                                                                                                          | exit 0                                   |
+| `NX_DAEMON=false bunx nx run twilight-dash:typecheck --skip-nx-cache`                                                                                                                                                                                     | exit 0                                   |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                                                                                                                                                                  | 187 passed, 0 failed                     |
+
+The new deterministic faults use a real `authority.sqlite.initializing` directory with
+`maxBusyAttempts: 1` and `busyDelayMilliseconds: 0`, in-process and through the real child
+bootstrap worker. They verify no database is created and the peer's marker survives refusal.
+
+| Injected fault (each restored)                                                                                | Observed negative                                                                                                  |
+| ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Remove production's under-lock `refuseExistingDatabase` call                                                  | initializer settlement test: expected `exists`, received `corrupt`                                                 |
+| Replace production initializer's `AuthorityContentionError` with a raw `Error` carrying the same busy message | child classifier test: expected `contended`, received `untyped: authority database remained busy after 1 attempts` |
+| Accept all `Error` instances as contention in the lifecycle classifier                                        | raw-message canary: expected `untyped`, received `contended`                                                       |
+
+The focused suite passed after fault restoration. Full host gate, build, CI secrets and migration
+lint are not claimed by these scoped checks; the publishing workflow must gate its exact SHA.
+
+### Review correction: compare exact persisted claims
+
+The settled snapshot originally compared only `nextGeneration` and the session count, which
+could miss a changed path or substituted session. `runInspect` now returns session identities
+and full claim lists, sorted by session identity. Both inspection and the concurrent-acquisition
+assertion compare that snapshot to `model.sessions`. A deterministic disjoint two-session
+acquisition case exercises the same concurrent assertion.
+
+Injected production fault: append `/injected` to each path passed to `insertClaim.run`.
+`concurrent acquisitions preserve exact persisted sessions and claims` failed at
+`I4 contention consumes no generation or claim`: `nextGeneration` remained 3 and both sessions
+remained present, but `src` became `src/injected/injected` and `docs` became `docs/injected`.
+The fault was restored and an adjacent `Proof:` records this observation.
+
+Fresh main-based checks after restoration: the same three-file focused command above passed
+29 tests with 251 assertions in 34.13 s. Uncached `twilight-dash:lint` and
+`twilight-dash:typecheck` exited 0; OpenSpec validation passed 189/189; Prettier and
+`git diff --check` passed. The full host gate remains for the publishing workflow's exact SHA.
+
+## Mainline claims worker opening contention (2026-10-14)
+
+Mainline CI run `38493435283` at `b144be17d23415b700707b0fac6f57ac7dbcbffb`
+failed the disjoint half of `two Bun processes atomically refuse overlap and both admit
+disjoint work` (`claims.db.test.ts:308`). Its worker exhausted the production default
+50 attempts with 5 ms delays while `PRAGMA quick_check` met `SQLITE_BUSY` during open.
+Opening occurred outside the worker's catch, so a modeled terminal contention became a
+process exit instead of a typed observation. The success assertion also assumed that a
+concurrent writer would release its lock within that finite production budget.
+
+This is a test fixture repair restoring the bounded-contention contract; no production
+code, retry limit, schema, or CLI behavior changes, so no new OpenSpec change is needed.
+The worker now catches opening and classifies only `AuthorityContentionError` as
+contention. After both original disjoint workers exit, each contended acquisition gets
+one sequential attempt. Assertions require both admissions, the next generation to be
+4, and the literal claim of each disjoint session. Unexpected errors remain failures;
+there is no unbounded retry. Other concurrent test cases retain their existing assertions.
+
+Commands were run in `/tmp/puni-claims-ci-sol`, an independent worktree at the mainline
+SHA above, using the existing workspace dependencies through a `node_modules`
+symlink for the initial runs, then with an in-worktree install using
+`BUN_TMPDIR=/tmp bun install --frozen-lockfile` (exit 0; 1,573 installs checked).
+Logs for the full suite and project lint are `/tmp/puni-claims-ci-full.log` and
+`/tmp/puni-claims-ci-lint.log`.
+
+- Baseline: `bun test --preload ./tools/test/scratch/preload.ts
+./apps/twilight-structure/twilight-dash/cli/src/authority/claims.db.test.ts
+--timeout=60000`: 19 pass, 0 fail.
+- RED: added a real `BEGIN EXCLUSIVE` lock and a worker configured for two zero-delay
+  attempts. The focused opening regression exited 1 at `assertSchemaWithRetry` →
+  `PRAGMA quick_check`, matching the CI failure path before fixture repair.
+- GREEN: the same regression observed typed contention, released the lock, and its
+  single settlement acquired generation 1. The focused claims file passed 21 tests,
+  0 failures, 68 assertions after the final generation/claim assertions were added.
+- Watched classifier mutation: accepting every `Error` as contention failed
+  `a worker preserves corrupt opening failures instead of settling them as contention`:
+  expected `contended: false`, received `true` for a real non-SQLite database file.
+- Watched settlement mutation: returning the contended observation without the one
+  sequential attempt failed `a worker reports bounded opening contention and acquires
+after the lock releases`: expected generation-1 success, received the original
+  two-attempt contention. Both mutations were removed; adjacent `Proof:` comments
+  record them.
+- `bunx tsc --build --force apps/twilight-structure/twilight-dash/cli/tsconfig.json`:
+  exit 0. `NX_DAEMON=false bunx nx run twilight-dash:lint`: exit 0 after replacing an
+  unnecessary indexed-observation guard with paired inputs and observations.
+
+- Full project test command from the target's cwd: `TOOL_WIKI_TRUSTED_NODE_MODULES=/tmp/puni-claims-ci-sol/node_modules
+bun test --preload ../../../../tools/test/scratch/preload.ts src --timeout=60000`:
+  1,549 pass, 3 fail across 40 files (211.49 s). Every authority test passed. Two packaging
+  failures came from absolute symlinked dependencies: the reproducibility copy reached
+  the same real directory twice, and the launcher path check found `/home/df`.
+- After the local frozen install, `bun test --preload ../../../../tools/test/scratch/preload.ts
+src/packaging src/check-runs/run-activation-checks.test.ts --timeout=60000` passed all
+  packaging tests (12 pass total), with one remaining candidate-check failure:
+  `runs the candidate checks for real and writes a ledger the judge accepts` expected
+  measured output containing `relocation fixture check`, received empty output. A focused
+  rerun with Nx dynamic output/TUI disabled reproduced it. This unchanged path remains
+  unresolved and is reported to the PM; it is outside the claims fixture repair.
+
+- Final complete authority suite with local dependencies: the target's command scoped to
+  `src/authority` passed 155 tests across 11 files, 0 failures, 741 assertions (91.40 s).
+  This includes the production terminal-contention, rollback, corruption, fencing,
+  integration-race, and lifecycle model cases.
+- `bunx openspec validate --all --json` could not identify an executable because the
+  unscoped package is not the repository's CLI. The corrected pinned command,
+  `BUN_TMPDIR=/tmp bunx @fission-ai/openspec@1.12.0 validate --all --json`, exited 0.
+
+The host gate, standalone build, secrets scan, and migration lint were not run by this implementer;
+the PM owns the canonical gate and integration. No push or merge was performed.
+
+### Overlap startup readiness recovery (2026-10-14 follow-up)
+
+Review found a second hosted failure in the #431 job log at the overlap readiness
+wait (`claims.db.test.ts` old line 297): a worker can exhaust its opening contention
+budget before emitting readiness. Reporting that typed outcome alone leaves the parent
+waiting for a marker that will never appear. The overlap and conflict-group fixtures now
+prepare both workers asynchronously, observing ordinary exits and signal termination.
+Only typed opening contention restarts a worker, within one 20-second startup deadline;
+other failures retain their original diagnostic. Deadline failure kills and awaits the
+active child. The parent writes the shared acquisition marker only after both workers
+have opened and signaled readiness, retaining simultaneous overlap acquisition and the
+single-winner assertion. Final state requires exactly three generations, the original
+overlap winner unchanged, and both literal disjoint claims.
+
+The target passes `--timeout=60000`; `tools/test/scratch/preload.ts` contains no default
+timeout override. The parent startup deadline remains 20 seconds. A ready child now
+waits at most 40 seconds for acquisition release, so it can await a peer using its full
+startup allowance while remaining below the runner's 60-second per-test ceiling.
+No target or production timeout was increased.
+
+Observed proofs:
+
+- RED: with the old marker-only wait, a worker forced through a real `BEGIN EXCLUSIVE`
+  opening fault exited with typed contention, then the readiness regression failed on
+  `worker readiness absent` after 21.33 seconds. Log: `/tmp/puni-claims-startup-red.log`.
+- GREEN: startup recovery opens a replacement, proves zero generations before acquisition
+  release, then acquires generation 1. Corrupt opening refuses with its original message;
+  an expired startup deadline refuses and reaps its child.
+- Recovery mutation: replacing restart with an injected error failed the real exclusive-lock
+  regression before acquisition release. Log: `/tmp/puni-claims-startup-retry-mutant.log`.
+- Deadline mutation: removing the deadline let the expired-deadline test receive a ready
+  worker instead of refusal. Log: `/tmp/puni-claims-startup-deadline-mutant.log`.
+- Type guard mutation: restarting corrupt openers failed the original-error assertion;
+  observed readiness timeout after repeated restarts. Log:
+  `/tmp/puni-claims-startup-type-mutant.log`. All faults were removed and adjacent `Proof:`
+  comments record them.
+- Final focused claims run with the target's preload and timeout: 24 pass, 0 fail,
+  78 assertions, 31.56 seconds under concurrent lint/typecheck load. Log:
+  `/tmp/puni-claims-startup-focused.log`.
+- Typecheck passed. Nx project lint initially failed because Bun promise matcher declarations
+  return void; the regressions now explicitly await/capture failures. Final
+  `NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_TUI=false bunx nx run twilight-dash:lint
+--outputStyle=stream` passed. The output style exposes diagnostics in this sandbox.
+
+- Complete authority suite using the target's preload, trusted-dependency environment, and
+  `--timeout=60000`: 158 pass, 0 fail across 11 files, 751 assertions (167.47 seconds
+  under shared-host load). Log: `/tmp/puni-claims-startup-authority.log`.
+- Final Prettier check and pinned OpenSpec 1.12.0 validation passed.
+
+Production files remain unchanged. The previous whole-project candidate-check output
+failure remains outside this repair. No push, merge, or host gate was performed.
+
+### Claims repair source lineage pin (2026-10-14 CI follow-up)
+
+Hosted run `38498502358` failed the legacy source corpus pin on PR #438 head
+`a5797d88b879385b52a24a98ada147d81c56f3ea`. Comparing the claims test with its
+pre-repair base `b144be17d` found exactly two added legacy contexts: the persisted
+`apps/fe-01` and `apps/gw-01` disjoint-claim assertions. They are fixture identities
+in `claims.db.test.ts`, correctly classified as `test fixture or proof`; no production
+occurrences or classification rules changed.
+
+- RED: `bun test tools/tool-devsync/src/repo-namespacing-handoff.test.ts
+--test-name-pattern 'every legacy source occurrence and relevant text family is pinned'`
+  exited 1 with fixture contexts 107 → 109, occurrences 322 → 324, observed digest
+  `1c809c1513514d1e09753be99cb3b42882fda2693da8e4aa7d55fd5c7ae1f511`, and
+  `unclassified: []`. Log: `/tmp/claims-lineage-red.log`.
+- GREEN: the same focused test with `--preload ./tools/test/scratch/preload.ts`
+  passed after updating the pin; an adjacent `Proof:` records this observed negative.
+  Log: `/tmp/claims-lineage-green.log`.
+- Complete source lineage file with the preload and `--timeout=30000`: 15 pass,
+  0 fail, 20 assertions. The first sandbox run had 14 pass and one refusal because
+  the production index checker could not create temporary Git objects in the shared
+  object database. Rerunning with filesystem access passed, without source changes.
+  Logs: `/tmp/claims-lineage-suite.log`, `/tmp/claims-lineage-suite-escalated.log`.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_TUI=false bunx nx run
+tool-devsync:lint --outputStyle=stream` passed, uncached.
+- Prettier check for the changed test passed. Pinned OpenSpec validation command
+  `BUN_TMPDIR=/tmp bunx @fission-ai/openspec@1.12.0 validate --all --json` exited 0.
+- Complete authority suite using the target's trusted-dependency environment, preload,
+  and `--timeout=60000`: 158 pass, 0 fail across 11 files, 751 assertions (109.39 s).
+  Command: `TOOL_WIKI_TRUSTED_NODE_MODULES=/tmp/puni-claims-ci-sol/node_modules bun test
+--preload ../../../../tools/test/scratch/preload.ts src/authority --timeout=60000`
+  from `apps/twilight-structure/twilight-dash/cli`.
+  Log: `/tmp/claims-lineage-authority.log`.
+
+The h2puni host gate, whole-project test, build, typecheck, standalone secrets scan,
+and migration lint were not rerun for this test-pin-only follow-up. Normal commit hooks
+remain required. No push or merge was performed.
+
+## Cumulative stabilization integration (2026-10-14)
+
+Isolated clone `/tmp/puni-stabilization-integration-sol` starts at main
+`8f324607e6c73c249faa79733c4cb7a7dddc605b`, verified through the GitHub API.
+Merge commits preserve reviewed heads #430 `75c8b55de05728fbe31afeabe02acfedb5b3bf62`,
+#432 `a93eb9785fa499f38951a2eaac1d0038a39a945d`,
+#438 `a4b443ea9c28c6b3fd2cd2c4c2d473b688109a4c`, and
+#444 `3f4a12428d48c85b11f3ba148c016135df44cfc0` in that order.
+Only this verification file conflicted; both original evidence sections were retained.
+The claims file merged automatically and retains all three fixture bootstraps alongside
+bounded opening settlement and startup recovery. All other original changed files
+match their reviewed branch versions exactly.
+
+Observed local checks on `pop-os`, with Bun 1.4.2 and a frozen local dependency install:
+
+- Authority: `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT
+TOOL_WIKI_TRUSTED_NODE_MODULES=/tmp/puni-stabilization-integration-sol/node_modules
+bun test --preload ./tools/test/scratch/preload.ts
+apps/twilight-structure/twilight-dash/cli/src/authority --timeout=60000`:
+  161 pass, 0 fail, 797 assertions across 11 files (111.11 s).
+- CI and lineage: `bun test --preload ./tools/test/scratch/preload.ts
+tools/tool-git-hooks/src/hooks/{pr-merge-base,corpus-version-base,corpus-lint-workflow,pixels-workflow,gate-workflow}.test.ts
+tools/tool-devsync/src/{toolchain-pins,repo-namespacing-handoff}.test.ts --timeout=30000`:
+  93 pass, 0 fail, 308 assertions across 7 files.
+- SQLite: `bun test --preload ./tools/test/scratch/preload.ts
+libs/wbs/adapters/store-sqlite/src/{db,browser-auth-lifecycle}.db.test.ts --timeout=30000`:
+  27 pass, 0 fail, 92 assertions outside the sandbox. The sandbox run had 26 pass
+  and one `EPERM` at the browser racer `stdin.flush`; the identical elevated run passed.
+- Fresh R5 mutation: removing the production `SQLITE_BUSY_RECOVERY` classifier arm
+  failed `waits out WAL recovery reported as an extended busy error` with
+  `SQLiteError: database is locked` (0 pass, 1 fail). Restored source then passed
+  all 13 `db.db.test.ts` cases with 25 assertions. Existing adjacent `Proof:` and
+  original authority/CI mutation evidence remain intact.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_TUI=false bunx nx run-many
+-t lint typecheck -p tool-git-hooks,tool-devsync,twilight-dash,wbs-store-sqlite
+--skip-nx-cache --output-style=stream`: all eight targets passed, uncached.
+- Pinned OpenSpec 1.12.0 validation: 190/190 valid (172 changes, 18 main specs).
+- Prettier on every changed file and `git diff --check`: passed.
+
+Logs live at `/tmp/stabilization-{claims,ci,sqlite-elevated,sqlite-mutant,sqlite-restored,lint-type,openspec,format-final}.log`.
+The canonical h2puni gate, whole-project tests, builds, hosted CI, standalone secrets
+scan and migration lint remain unrun here. This worker did not push, open a PR,
+merge remotely or queue a gate; the parent owns review and exact-SHA host validation.
+
+## F9 reconciliation after release #458 (2026-10-14)
+
+Merged main `50f5c2b8d286849557e3dace27418d62cff00cde` into reviewed #460 head
+`61176c12111429731730f2c240913496b1f50a5f` in `/tmp/puni-forge-namespaces`.
+Only the lifecycle model test and this evidence file conflicted. Both prior evidence
+histories and the released typed contention classifier, exact persisted session/claim
+assertions, and one-attempt bootstrap override are retained. The worker carries per-job
+options; only the two deliberate stalled-writer tests select the larger finite retry
+budget. Their acquisition-attempt handshake remains, and exhaustion reports typed
+`contended`. There is no production authority delta against merged main.
+
+Observed on `pop-os` with Bun 1.4.2 and existing local dependencies:
+
+- RED: restoring the global `options: CONCURRENT_BUSY_OPTIONS` assignment after
+  `...job` timed out the typed-classifier regression with `--timeout=3000`.
+  GREEN: preserving its one-attempt override passed, 1 test / 5 assertions in 1151 ms.
+  A preliminary 1000 ms limit also timed out the restored fixture during worker startup;
+  that preliminary limit did not distinguish the fault and is not counted as proof.
+- RED: removing per-job options from the stalled-writer fixture yielded three typed
+  `contended` outcomes instead of one generation-1 winner and two overlap refusals,
+  0 pass / 1 fail. GREEN after restoration: 1 pass / 0 fail / 6 assertions (4.99 s).
+  Fault log: `/tmp/forge-reconcile-budget-red.log`. All injected faults were removed.
+- Lifecycle file with the project preload and `--timeout=60000`: 5 pass / 0 fail,
+  129 assertions (125.89 s under concurrent lint/typecheck load).
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_TUI=false bunx nx run-many
+-t lint typecheck -p twilight-dash --skip-nx-cache --output-style=stream`:
+  both targets passed, uncached.
+- Namespace composition: `bun test --preload ./tools/test/scratch/preload.ts
+./tools/tool-devsync/src/k3s/forge-namespace.test.ts
+./tools/tool-devsync/src/k3s/dev-environment.test.ts
+./tools/tool-devsync/src/k3s/dev-environment-lifecycle.test.ts --timeout=30000`:
+  62 pass / 0 fail, 210 assertions (5.32 s). Log: `/tmp/forge-reconcile-namespace.log`.
+- Pinned OpenSpec validation `BUN_TMPDIR=/tmp bunx @fission-ai/openspec@1.12.0
+validate --all --json`: 198/198 valid (180 changes, 18 main specs).
+- Initial complete authority command from the repo root omitted `./` before its source
+  path. Bun substring discovery also collected `dist/out-tsc` emitted by the concurrent
+  typecheck: 163 source tests passed, 11 generated-copy errors failed unresolved judge
+  aliases. This contaminated run is not counted as a passing complete suite.
+  Log: `/tmp/forge-reconcile-authority.log`.
+- Complete authority suite from the target's cwd: `env -u CLAUDECODE
+-u CLAUDE_CODE_ENTRYPOINT
+TOOL_WIKI_TRUSTED_NODE_MODULES=/tmp/puni-forge-namespaces/node_modules
+bun test --preload ../../../../tools/test/scratch/preload.ts ./src/authority
+--timeout=60000`: 163 pass / 0 fail, 807 assertions across 11 files (157.22 s).
+  Log: `/tmp/forge-reconcile-authority-scoped.log`.
+- Prettier check on both reconciled files and `git diff --check`: passed.
+
+Normal merge commit hooks passed format, plaintext secrets, private nesting,
+migration lint and doc caps. Tool Wiki reported `inactive`, `certified: false` because
+its external activation root is not provisioned. The first ESLint hook process
+exhausted Node's default 4 GB heap while checking all main-imported staged paths;
+the commit was retried with `NODE_OPTIONS=--max-old-space-size=8192`.
+
+The parent owns the canonical exact-SHA h2puni gate and review. Whole-project tests,
+standalone build, secrets scan and migration lint were not run independently here.
+No PR merge or deployment was performed.

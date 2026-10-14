@@ -90,9 +90,13 @@ describe('planRelease', () => {
     expect(() => planRelease(request(), state)).toThrow('journal belongs to release other');
   });
 
-  it('undoes only what a crash after writes-closed may have done', () => {
+  it('stops the writer and checks replay before reopening a closed write path', () => {
     const settled = settleInterrupted(at('writes-closed'));
     expect(planRelease(request(), settled).map((s) => s.kind)).toEqual([
+      'rollback-stop-writer',
+      'rollback-check-replay',
+      'rollback-tiers',
+      'rollback-verify',
       'rollback-reopen-writes',
       'rollback-resume-flux',
       'rollback-release-lease',
@@ -103,6 +107,7 @@ describe('planRelease', () => {
     const settled = settleInterrupted(at('gateway-drained'));
     expect(planRelease(request(), settled).map((s) => s.kind)).toEqual([
       'rollback-stop-writer',
+      'rollback-check-replay',
       'rollback-tiers',
       'rollback-verify',
       'rollback-reopen-writes',
@@ -119,6 +124,7 @@ describe('planRelease', () => {
   it('continues a rollback from its journaled rollback phase', () => {
     const state = at('rollback-schema-restored', { rollbackFrom: 'migrated', capture });
     expect(planRelease(request(), state).map((s) => s.kind)).toEqual([
+      'rollback-check-replay',
       'rollback-tiers',
       'rollback-verify',
       'rollback-reopen-writes',

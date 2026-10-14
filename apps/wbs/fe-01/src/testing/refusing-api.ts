@@ -205,6 +205,7 @@ const PROJECT_API_OPERATIONS = {
   createWorkItem: 'postApiProjectsByIdCommands',
   patchWorkItem: 'postApiProjectsByIdCommands',
   setStatus: 'postApiProjectsByIdCommands',
+  setStepBlocked: 'postApiProjectsByIdCommands',
   startAttempt: 'postApiProjectsByIdCommands',
   endAttempt: 'postApiProjectsByIdCommands',
   removeAttempt: 'postApiProjectsByIdCommands',
@@ -1305,6 +1306,16 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
       );
   }
 
+  const setStepBlockedAnswer = answers.setStepBlocked;
+  if (setStepBlockedAnswer !== undefined) {
+    checked.setStepBlocked = (workItemId, stepId, isBlocked) =>
+      throughProjectCommand(
+        FAKE_PROJECT_ID,
+        { kind: 'setStepBlocked', workItemId, stepId, isBlocked },
+        () => setStepBlockedAnswer(workItemId, stepId, isBlocked),
+        () => VOID_COMMAND_RESULT,
+      );
+  }
   const startAttemptAnswer = answers.startAttempt;
   if (startAttemptAnswer !== undefined) {
     checked.startAttempt = (workItemId, stepId, executorPersonId) =>
