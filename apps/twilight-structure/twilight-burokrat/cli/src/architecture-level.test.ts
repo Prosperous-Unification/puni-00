@@ -54,6 +54,47 @@ test('runs only the mapped rule fixture and writes fresh JUnit', () => {
   expect(xml).not.toContain('stale');
 });
 
+for (const count of [1, 2]) {
+  test(`[TEST-AXES-091] executes ${String(count)} exact mapped files without nested matching decoys`, () => {
+    const { root, report, architectureFile } = fixture();
+    const fixtures = [{ ruleId: 'MOD-INDEX', file: architectureFile }];
+    if (count === 2) {
+      const file = 'src/architecture/f7.architecture.test.ts';
+      fixtures.unshift({ ruleId: 'F7', file });
+      writeFileSync(
+        join(root, file),
+        "import { test } from 'bun:test'; test('F7 negative', () => {});\n",
+      );
+    }
+    writeFileSync(
+      join(root, 'src/architecture-fixtures.json'),
+      JSON.stringify({ schemaVersion: 1, fixtures }),
+    );
+    const markers = fixtures.map(({ file, ruleId }) => {
+      const marker = join(root, `${ruleId}-decoy-ran`);
+      const decoy = join(root, 'nested', file);
+      mkdirSync(dirname(decoy), { recursive: true });
+      writeFileSync(
+        decoy,
+        `import { writeFileSync } from 'node:fs'; import { test } from 'bun:test'; test('unselected ${ruleId} decoy', () => { writeFileSync(${JSON.stringify(marker)}, 'ran'); throw new Error('nested decoy executed'); });\n`,
+      );
+      return marker;
+    });
+    writeFileSync(report, '<testsuites><testcase name="stale"/></testsuites>');
+    const invocation = run(root, report);
+    for (const marker of markers) expect(() => readFileSync(marker)).toThrow();
+    expect(invocation.exitCode, stderrOf(invocation)).toBe(0);
+    const xml = readFileSync(report, 'utf8');
+    expect(xml).not.toContain('stale');
+    expect(xml).not.toContain('decoy');
+    expect(xml.match(/<testcase /g)).toHaveLength(count);
+    for (const { file, ruleId } of fixtures) {
+      expect(xml).toContain(`${ruleId} negative`);
+      expect(xml).toContain(`file="${file}"`);
+    }
+  });
+}
+
 test('refuses an unmapped architecture fixture after clearing stale JUnit', () => {
   const { root, report } = fixture();
   writeFileSync(

@@ -828,6 +828,12 @@
       "id": "TEST-AXES-090",
       "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
       "title": "Performance level dispatch preserves inherited refusals and bounded inputs"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-091",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Architecture execution excludes nested matching decoys"
     }
   ]
 }

@@ -720,3 +720,15 @@ The shared test-levels library SHALL expose the earlier first-match rows without
 - **GIVEN** unsupported CLI operands or an inherited facts or publication failure
 - **WHEN** source or installed Performance level dispatch runs
 - **THEN** it refuses without success JSON and preserves existing source-owner version-1 behavior
+
+### Requirement: Architecture runner executes exact mapped files
+
+The Architecture runner SHALL derive execution only from its validated `src/architecture-fixtures.json` policy, sort its selected canonical paths and pass every Bun test operand with exactly one literal `./` prefix. Policy and JUnit file identities SHALL remain canonical bare paths. Existing report clearing, validation order and refusal behavior SHALL be preserved.
+
+#### Scenario: [TEST-AXES-091] Architecture execution excludes nested matching decoys
+
+- **GIVEN** a valid mapped Architecture fixture and an unselected nested file whose path contains the same canonical fixture path, writes a marker and fails
+- **AND** a stale JUnit report
+- **WHEN** the real Architecture runner executes
+- **THEN** the runner succeeds, the decoy marker is absent and fresh JUnit contains only the mapped canonical testcase
+- **AND** with two mapped fixtures every operand excludes its matching nested decoy
