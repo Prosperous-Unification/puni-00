@@ -34,6 +34,9 @@ export class OnboardingRepository implements Onboarding {
    * @throws {OrganizationActivationRefused} When the marker is absent, unreadable or malformed.
    */
   isActive(): Promise<boolean> {
+    // Proof: an always-true answer here failed both pre-activation rows of
+    // be-01's session-features.db.test.ts; the marker's throw is what makes its
+    // broken-marker case answer 500 (a caught refusal answered 200).
     return Promise.resolve(readOrganizationActivation(this.db) === 'activated');
   }
 

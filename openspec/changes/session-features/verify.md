@@ -68,3 +68,22 @@ Fresh focused verification on the reviewed parent:
 
 Full host gate, full suites and publishing are delegated to the root integration review;
 this worker does not run the host gate, push or merge.
+
+## Review fixes (Fable review of #442 at `92c1808dd`, MERGE AFTER FIXES)
+
+On top of `92c1808dd`, add-only commits.
+
+1. The organization gate's startup guard now holds only while the legacy runtime is `loading`.
+   New case `shows the lost state and Sign out when a legacy runtime is refused with
+organizations off` (`organization-gate.test.tsx`, the reviewer's probe through
+   `runtime.resourceScope.refuse({ error: 'unauthenticated' })`). Watched: with the guard on every
+   state it fails `Unable to find role="button" and name "Sign out"` (body "Loading
+   organization…"); with the guard removed `starts the inactive deployment runtime without
+reading membership choices` fails `expected "vi.fn()" to not be called at all, but actually
+been called 1 times`. Fixed: 9 pass. Spec sentence narrowed to the startup window, with a
+   scenario.
+2. Adjacent `Proof:` lines on `readSessionFeatures` (`app.ts`) and `OnboardingRepository.isActive`
+   naming the faults recorded in `session-features.db.test.ts`.
+3. `readFeatures()` moved below the invalid-token 401. New case `refuses an invalid bearer 401
+even when the activation marker is broken`: with the read restored above the refusal,
+   `Expected: 401, Received: 500` (5 pass, 1 fail); fixed 6 pass. Spec scenario added.

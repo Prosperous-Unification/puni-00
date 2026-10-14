@@ -357,7 +357,12 @@ interface InfrastructureRuntime {
 async function readSessionFeatures(
   opts: Pick<AppOptions, 'onboarding' | 'organizationSelection'>,
 ): Promise<SessionFeatures> {
+  // Proof: answering `onboarding: true` whatever the port said failed both
+  // pre-activation rows of session-features.db.test.ts; catching the port's
+  // refusal and answering false made its broken-marker case receive 200, not 500.
   const onboarding = await opts.onboarding.isActive();
+  // Proof: answering `organizations` from `onboarding` alone failed the
+  // activated `disabled` row (no selection composition) of the same test.
   return { onboarding, organizations: onboarding && opts.organizationSelection !== undefined };
 }
 
