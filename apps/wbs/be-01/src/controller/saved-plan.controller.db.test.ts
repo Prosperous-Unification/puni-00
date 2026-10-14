@@ -653,7 +653,7 @@ describe('the saved-plan routes', () => {
       version: 9999,
       // Named rather than matched loosely: the answer has to say what this
       // build *does* know, or an operator cannot tell how far behind it is.
-      supported: [1, 2, 3, 4, 5, 6],
+      supported: [1, 2, 3, 4, 5, 6, 7],
     });
 
     const read = await as(tokens['ada'], `/api/saved-plans/${id}`);
