@@ -4407,3 +4407,30 @@ rerun with its 100 generated histories: **12/12**, 8,796 assertions, 34.31 secon
 ESLint (with graph), forced be-01 TypeScript
 build, Prettier and diff checks were rerun. No production file changed, and local OpenSpec and
 the canonical host gate remain unrun as documented above.
+
+## Shared-person solver image prerequisite (010.4.16)
+
+The local image smoke built the be-01 Dockerfile, pushed it to an ephemeral registry, selected
+its digest, and used the authenticated supervisor socket twice. The retained baseline returned a
+feasible, revalidated answer. The new target has one slice assigned to Ana and her higher-ranked
+booking `[0, 1.01)` quantises to `[0, 49)`; its production-built baseline starts at unit 49.
+The image returned a feasible answer and the client revalidated it against the request sent to
+the supervisor. The real smoke exited 0 and removed its attempt's image tags. No binding was
+installed and the supported mode list was not widened.
+
+Focused results: `solver-image-scenario.test.ts` 2/2, fake-Docker
+`solver-image-smoke.test.ts` 9/9, `shellcheck` exit 0, and
+`wbs-be-01:typecheck` exit 0. The first sandboxed fake-Docker run could not create its Unix
+socket (`EPERM`); the rerun with local socket permission passed 11/11 across both files.
+
+| Injected fault                                                                                       | Observed negative                                                                                                          |
+| ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Replace Ana's fixed calendar with an empty one                                                       | Scenario tests 0/2: missing `[0, 49)` and overlapping feasible answer accepted.                                            |
+| Drop the target slice's Ana assignment                                                               | Scenario tests 0/2: lost person id and overlapping feasible answer accepted.                                               |
+| Remove the image client's feasible-status refusal                                                    | Response test failed: unknown/infeasible no longer got the required status diagnosis.                                      |
+| Replace revalidation with an unconditional published verdict                                         | Response test failed: the unit-0 overlapping feasible answer passed.                                                       |
+| Omit the shared authenticated Docker invocation                                                      | Fake-Docker smoke failed two cases: expected two clients and shared-client failure.                                        |
+| Remove Python's fixed booking insertion from its person constraint and rebuild the real digest image | Baseline call passed; shared call failed with `assignee-double-booked` at unit 0; smoke exit 1. Source restored afterward. |
+
+The exact-head h2puni gate and OpenSpec validation remain the integration gate; no shared-mode
+activation, binding installation, deployment, or push was performed by this prerequisite.

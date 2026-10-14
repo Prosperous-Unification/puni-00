@@ -6,6 +6,7 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # `<workspace>/apps/apps/wbs/be-01/Dockerfile` and `<workspace>/apps` as its build inputs.
 repo_root="$(cd "$script_dir/../../../.." && pwd)"
 attempt_token="$(cat /proc/sys/kernel/random/uuid)"
+attempt_tokens=("$attempt_token")
 # Every tag is unique to this attempt so cleanup removes only what this attempt created.
 image="wbs-be-01:solver-smoke-$attempt_token"
 request="$repo_root/libs/wbs/domain/contracts/solver/fixtures/request/valid-quantised-baseline.json"
@@ -80,6 +81,7 @@ remove_created_images() {
 cleanup() {
   local status=$?
   local cleanup_failed=0
+  local token
   if [ -n "$supervisor_pid" ]; then
     kill "$supervisor_pid" 2>/dev/null || true
     wait "$supervisor_pid" 2>/dev/null || true
@@ -87,11 +89,13 @@ cleanup() {
   docker stop "$registry_name" >/dev/null 2>&1 || true
   # Proof: with this removal failing under `set -e`, solver-image-smoke.test.ts observed the
   # trap exit before any image removal and all three tags left in the fake Docker store.
-  if docker container inspect "wbs-solver-$attempt_token" >/dev/null 2>&1 &&
-    ! docker rm --force "wbs-solver-$attempt_token" >/dev/null; then
-    echo "[solver-image-smoke] could not remove container wbs-solver-$attempt_token" >&2
-    cleanup_failed=1
-  fi
+  for token in "${attempt_tokens[@]}"; do
+    if docker container inspect "wbs-solver-$token" >/dev/null 2>&1 &&
+      ! docker rm --force "wbs-solver-$token" >/dev/null; then
+      echo "[solver-image-smoke] could not remove container wbs-solver-$token" >&2
+      cleanup_failed=1
+    fi
+  done
   rmdir "$socket_directory" 2>/dev/null || true
   # Proof: with this call removed, or run only after a passing smoke, solver-image-smoke.test.ts
   # observed the build and registry tags left in the fake Docker store.
@@ -161,6 +165,19 @@ docker run --rm --name "$caller_name" \
   /run/wbs-solver/supervisor.sock \
   /app/libs/wbs/domain/contracts/solver/fixtures/request/valid-quantised-baseline.json \
   "$attempt_token"
+
+# A second authenticated bind exercises wire 3 with a nonempty fixed person calendar.
+# Proof: removing this invocation made solver-image-smoke.test.ts fail twice (client count and
+# shared-client-failure case); the real digest image published a feasible shared-person answer.
+shared_attempt_token="$(cat /proc/sys/kernel/random/uuid)"
+attempt_tokens+=("$shared_attempt_token")
+docker run --rm --name "$caller_name" \
+  --volume "$socket_directory:/run/wbs-solver:ro" \
+  --entrypoint bun "$solver_image" \
+  /app/apps/wbs/be-01/scripts/solver-supervisor-image-client.ts \
+  /run/wbs-solver/supervisor.sock \
+  shared-person \
+  "$shared_attempt_token"
 
 # CI runs the portable launcher half above. The canonical h2puni gate sets this
 # flag because its puni1 user session owns the persistent systemd timer used by
