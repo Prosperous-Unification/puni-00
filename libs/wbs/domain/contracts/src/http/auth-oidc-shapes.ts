@@ -34,7 +34,7 @@ export const startOidcLogin = defineEndpointShape({
   method: 'GET',
   path: '/api/auth/login',
   operationId: 'getApiAuthLogin',
-  policies: [],
+  policies: [{ kind: 'organization-control' }],
   query: requestSchema(
     type({
       'method?': methodId,
@@ -55,7 +55,7 @@ export const completeOidcLogin = defineEndpointShape({
   method: 'GET',
   path: '/api/auth/okta/callback',
   operationId: 'getApiAuthOktaCallback',
-  policies: [],
+  policies: [{ kind: 'organization-control' }],
   query: requestSchema(type({ '[string]': 'string' })),
   queryMode: 'arbitrary-singleton',
   responses: [{ kind: 'empty', status: 302 }],
@@ -83,7 +83,7 @@ export const listAuthMethods = defineEndpointShape({
   method: 'GET',
   path: '/api/auth/methods',
   operationId: 'getApiAuthMethods',
-  policies: [],
+  policies: [{ kind: 'organization-control' }],
   responses: [
     {
       kind: 'json',
@@ -106,7 +106,10 @@ export const startAuth0Link = defineEndpointShape({
   method: 'POST',
   path: '/api/auth/link/auth0',
   operationId: 'postApiAuthLinkAuth0',
-  policies: [{ kind: 'origin', when: 'always-unsafe-with-session-cookie' }],
+  policies: [
+    { kind: 'organization-control' },
+    { kind: 'origin', when: 'always-unsafe-with-session-cookie' },
+  ],
   body: requestSchema(
     type({ 'password?': 'string', 'method?': methodId, 'organization?': enterpriseLoginSlug }),
   ),
@@ -137,7 +140,7 @@ export const completeAuth0Link = defineEndpointShape({
   method: 'GET',
   path: '/api/auth/link/auth0/callback',
   operationId: 'getApiAuthLinkAuth0Callback',
-  policies: [],
+  policies: [{ kind: 'organization-control' }],
   query: requestSchema(type({ '[string]': 'string' })),
   queryMode: 'arbitrary-singleton',
   responses: [{ kind: 'empty', status: 302 }],
@@ -153,7 +156,7 @@ export const refreshOidcSession = defineEndpointShape({
   method: 'POST',
   path: '/api/auth/refresh',
   operationId: 'postApiAuthRefresh',
-  policies: unsafe,
+  policies: [...unsafe, { kind: 'organization-control' }],
   responses: [{ kind: 'empty', status: 204 }],
   refusals: [
     malformed,
@@ -168,7 +171,7 @@ export const logoutOidcSession = defineEndpointShape({
   method: 'POST',
   path: '/api/auth/logout',
   operationId: 'postApiAuthLogout',
-  policies: unsafe,
+  policies: [...unsafe, { kind: 'organization-control' }],
   responses: [{ kind: 'empty', status: 204 }],
   refusals: [
     malformed,

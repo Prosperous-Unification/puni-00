@@ -4,6 +4,7 @@ import type {
   EmptyRefusalResponse,
   EmptyResponse,
   EndpointShape,
+  ExpectedOrganization,
   ImportRefusal,
   ImportRefusalResponse,
   InternalIdentity,
@@ -185,8 +186,39 @@ export function bind<const S extends EndpointShape>(
 ): Endpoint<S> {
   return {
     shape,
-    handle,
+    handle: async (input) => {
+      // Proof: bypassing this binding made the enabled boot composition write
+      // a stale-cookie project (200 instead of 409) in
+      // organization-context.boot.db.test.ts; watched 2026-10-13.
+      const policy = shape.policies.find((entry) => entry.kind === 'organization-resource');
+      if (policy === undefined) return handle(input);
+      // Proof: removing this guard reached the mounted project handler after
+      // its identity policy was lost; mount.test.ts caught calls=1, watched 2026-10-13.
+      if (!('principal' in input) || !('id' in input.principal))
+        throw new Error(`Organization resource lacks a user identity: ${shape.operationId}`);
+      return handle({
+        ...input,
+        principal: {
+          ...input.principal,
+          organizationOperation: {
+            kind: policy.operation,
+            expected: expectedOrganization(input.request.headers),
+          },
+        },
+      });
+    },
     classifyRequestFailure: options.classifyRequestFailure,
     prevalidate: options.prevalidate,
   };
+}
+
+/** Parses the singleton HTTP precondition once; repeated physical headers are comma-combined by Fetch. */
+function expectedOrganization(headers: Headers): ExpectedOrganization {
+  const value = headers.get('X-WBS-Expected-Organization');
+  if (value === null) return { kind: 'absent' };
+  const organizationId = value.replace(/^[ \t]+|[ \t]+$/g, '');
+  // Proof: accepting the first duplicate made the mounted exactly-one test
+  // admit duplicate org-a values (200); watched 2026-10-13.
+  if (organizationId.length === 0 || organizationId.includes(',')) return { kind: 'invalid' };
+  return { kind: 'present', organizationId };
 }

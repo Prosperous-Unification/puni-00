@@ -1,7 +1,7 @@
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
-import { organizationRefusal } from './organization-refusal';
+import { organizationContextRefusal, organizationRefusal } from './organization-refusal';
 import { planDocumentResponse } from './plan-document-shapes';
 import { project, projectWithSteps } from './project-response';
 import { engineUnavailableRefusal } from './scheduler-shapes';
@@ -50,12 +50,14 @@ export const createProject = defineEndpointShape({
   method: 'POST',
   path: '/api/projects',
   operationId: 'postApiProjects',
-  policies: writePolicies,
+  // Proof: removing this resource policy admitted project creation (200),
+  // failing the mounted mutation inventory; watched 2026-10-13.
+  policies: [...writePolicies, { kind: 'organization-resource', operation: 'mutation' }],
   // Proof: a tolerant body made the mounted undeclared-create test receive 200 instead of 422.
   body: requestSchema(type({ name: 'string' })),
   bodyMedia,
   responses: [{ kind: 'json', status: 200, schema: projectWithSteps }],
-  refusals: [...bodyRefusals, organizationRefusal, forbidden],
+  refusals: [...bodyRefusals, organizationRefusal, organizationContextRefusal, forbidden],
   document: { summary: 'Create a project with its starting steps.' },
 });
 
@@ -71,7 +73,7 @@ export const listProjects = defineEndpointShape({
   method: 'GET',
   path: '/api/projects',
   operationId: 'getApiProjects',
-  policies: readPolicies,
+  policies: [...readPolicies, { kind: 'organization-resource', operation: 'read' }],
   query: requestSchema(
     type({
       'q?': 'string',
@@ -100,7 +102,7 @@ export const listProjects = defineEndpointShape({
       ),
     },
   ],
-  refusals: [...readRefusals, organizationRefusal],
+  refusals: [...readRefusals, organizationRefusal, organizationContextRefusal],
   document: {
     summary: 'List projects; pass limit or q for a page, newest update first.',
     description:
@@ -113,13 +115,14 @@ export const recordProjectOpen = defineEndpointShape({
   method: 'POST',
   path: '/api/projects/:id/opened',
   operationId: 'postApiProjectsByIdOpened',
-  policies: writePolicies,
+  policies: [...writePolicies, { kind: 'organization-resource', operation: 'mutation' }],
   params,
   responses: [{ kind: 'empty', status: 204 }],
   refusals: [
     ...writeRefusals,
     notFound,
     organizationRefusal,
+    organizationContextRefusal,
     { status: 400, schema: responseSchema(type({ error: "'invalid_body'" })) },
   ],
   document: { summary: 'Record this account opening a project.' },
@@ -148,7 +151,10 @@ export const exportProject = defineEndpointShape({
   path: '/api/projects/:id/export',
   operationId: 'getApiProjectsByIdExport',
   // Proof: signed-in alone made the mounted export-scope test receive 404 instead of 403.
-  policies: [{ kind: 'identity', require: 'read-scope' }],
+  policies: [
+    { kind: 'organization-resource', operation: 'read' },
+    { kind: 'identity', require: 'read-scope' },
+  ],
   params,
   query: requestSchema(type({ format: "'json' | 'markdown'" })),
   responses: [
@@ -161,6 +167,7 @@ export const exportProject = defineEndpointShape({
     ...readRefusals,
     notFound,
     organizationRefusal,
+    organizationContextRefusal,
     engineUnavailableRefusal,
     { status: 403, schema: responseSchema(type({ error: "'insufficient_scope'" })) },
     { status: 400, schema: responseSchema(type({ error: "'unsupported_format'" })) },
@@ -174,10 +181,10 @@ export const readProject = defineEndpointShape({
   method: 'GET',
   path: '/api/projects/:id',
   operationId: 'getApiProjectsById',
-  policies: readPolicies,
+  policies: [...readPolicies, { kind: 'organization-resource', operation: 'read' }],
   params,
   responses: [{ kind: 'json', status: 200, schema: projectWithSteps }],
-  refusals: [...readRefusals, notFound, organizationRefusal],
+  refusals: [...readRefusals, notFound, organizationRefusal, organizationContextRefusal],
   document: { summary: 'Read a project and its steps.' },
 });
 
@@ -196,7 +203,7 @@ export const patchProject = defineEndpointShape({
   method: 'PATCH',
   path: '/api/projects/:id',
   operationId: 'patchApiProjectsById',
-  policies: writePolicies,
+  policies: [...writePolicies, { kind: 'organization-resource', operation: 'mutation' }],
   params,
   // Proof: a tolerant patch admitted undeclared fields in the mounted nested-boundary test (422 → 200).
   body: requestSchema(
@@ -224,6 +231,7 @@ export const patchProject = defineEndpointShape({
     ...bodyRefusals,
     notFound,
     organizationRefusal,
+    organizationContextRefusal,
     forbidden,
     {
       status: 422,
@@ -263,7 +271,7 @@ export const retryProjectOptimization = defineEndpointShape({
   method: 'POST',
   path: '/api/projects/:id/optimization/retry',
   operationId: 'postApiProjectsByIdOptimizationRetry',
-  policies: writePolicies,
+  policies: [...writePolicies, { kind: 'organization-resource', operation: 'mutation' }],
   params,
   // Proof: widening objective to string made the production-path Retry test receive 409 instead of 422.
   body: requestSchema(type({ objective: "'pri' | 'time'", inputHash: 'string' }), {
@@ -283,6 +291,7 @@ export const retryProjectOptimization = defineEndpointShape({
     ...bodyRefusals,
     notFound,
     organizationRefusal,
+    organizationContextRefusal,
     forbidden,
     { status: 409, schema: retryRefusal },
   ],

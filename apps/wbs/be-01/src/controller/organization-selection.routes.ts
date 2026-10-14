@@ -1,4 +1,9 @@
-import { listOrganizationMemberships, selectActiveOrganization } from '@wbs/contracts';
+import {
+  listOrganizationMemberships,
+  readActiveOrganization,
+  selectActiveOrganization,
+} from '@wbs/contracts';
+import type { OrganizationAccess } from '@wbs/core';
 import { organizationRefusal } from '@wbs/core/http/organization-refusal';
 
 import { bind } from '../http/endpoint';
@@ -50,9 +55,36 @@ function refusal(outcome: OrganizationSelectionOutcome, allowMembershipRefusal: 
   }
 }
 
-/** Browser selection endpoints; the default production binding refuses both. */
-export function organizationSelectionRoutes(selection: OrganizationSelection) {
+/** Browser organization context operations; the default composition refuses them. */
+export function organizationSelectionRoutes(
+  selection: OrganizationSelection,
+  organizations: OrganizationAccess,
+) {
   return [
+    bind(readActiveOrganization, async ({ principal }) => {
+      if (principal.delegation !== undefined)
+        return { ok: false, status: 403, body: { error: 'insufficient_scope' } } as const;
+      const choices = await selection.list(principal);
+      if (choices.kind !== 'listed') return refusal(choices, false);
+      // Proof: using the first membership without binding/current admission
+      // made unbound and removed discovery answer 200, caught by the mounted
+      // discovery cases; watched 2026-10-13.
+      const resolved = await organizations.resolve(principal);
+      if (!resolved.ok) return organizationRefusal(resolved);
+      if (resolved.access.kind === 'legacy')
+        return { ok: false, status: 403, body: { error: 'onboarding_inactive' } } as const;
+      const { organizationId, role } = resolved.access.scope;
+      const membership = choices.memberships.find(
+        (choice) => choice.organizationId === organizationId,
+      );
+      if (membership === undefined)
+        return { ok: false, status: 403, body: { error: 'not_a_member' } } as const;
+      return {
+        ok: true,
+        status: 200,
+        body: { organizationId, name: membership.name, role },
+      } as const;
+    }),
     bind(listOrganizationMemberships, async ({ principal }) => {
       const outcome = await selection.list(principal);
       if (outcome.kind !== 'listed') return refusal(outcome, false);

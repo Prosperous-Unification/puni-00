@@ -31,15 +31,18 @@ const SRC = new URL('.', import.meta.url).pathname;
  * this check immediately caught `deployed-commit.test.ts`, which makes a temp
  * directory to write a `HEAD` file into and never touches SQLite — it had been
  * renamed into the store tier on that evidence and is back out of it.
- * `OrganizationHarness.open` and `.openComposed` are the fourth and fifth:
+ * `OrganizationHarness.open`, `.openComposed` and `.openComposedWith` openers:
  * each migrates and opens a SQLite file for the organization boundary suites.
- * `BootedBrowserProcess.open` is the sixth: it migrates a file and boots be-01
+ * `BootedBrowserProcess.open` also opens a database: it migrates a file and boots be-01
  * over it.
- * `openScimWorld` is the seventh: it opens an `OrganizationHarness` for the
+ * `openScimWorld` also opens a database: it opens an `OrganizationHarness` for the
  * SCIM suites.
  */
+// Proof: 2026-10-13, omitting openComposedWith failed `names a suite
+// `.db.test.ts` when it opens a database, and only then` for the mounted
+// organization-context suite, despite its real migrated SQLite harness.
 const OPENS_A_DATABASE =
-  /\b(openDrizzle|openDatabase|runMigrations|OrganizationHarness\.open(Composed)?|BootedBrowserProcess\.open|openScimWorld)\b/;
+  /\b(openDrizzle|openDatabase|runMigrations|OrganizationHarness\.open(Composed(With)?)?|BootedBrowserProcess\.open|openScimWorld)\b/;
 
 /** Every `*.test.ts` under `src`, as a path relative to it. */
 function suites(dir = SRC, prefix = ''): string[] {

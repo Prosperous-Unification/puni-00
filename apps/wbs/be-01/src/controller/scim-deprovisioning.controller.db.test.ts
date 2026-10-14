@@ -320,10 +320,16 @@ it('ends a real selected-organization cookie’s browser and gateway access at o
     const created = await h.app.handle(
       new Request('http://localhost/api/projects', {
         method: 'POST',
-        headers: { cookie, origin: 'http://localhost', 'content-type': 'application/json' },
+        headers: {
+          cookie,
+          origin: 'http://localhost',
+          'content-type': 'application/json',
+          'X-WBS-Expected-Organization': 'org-a',
+        },
         body: JSON.stringify({ name: 'A plan' }),
       }),
     );
+    expect(created.status).toBe(200);
     const projectId = ((await created.json()) as { project: { id: string } }).project.id;
     const gatewayPath = `/internal/gateway/projects/${projectId}/browser-access`;
     expect((await browser('/api/projects', 'GET')).status).toBe(200);

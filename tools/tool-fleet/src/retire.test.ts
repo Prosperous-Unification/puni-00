@@ -13,7 +13,9 @@ import { type OperationPlan, sealOperationPlan } from './plan';
 import {
   type CommandRequest,
   type CommandResponse,
+  controllerRequest,
   createProductionApplyDependencies,
+  runBoundedCommand,
 } from './production-apply';
 import { planRetirement } from './retire';
 import { fleetFixture, observationFixture } from './testing/fleet';
@@ -89,6 +91,18 @@ describe('planRetirement', () => {
       if (command === undefined) throw new Error(`Missing retirement shell task ${name}`);
       return command;
     };
+    const drain = tasks.find(
+      (task) => task.name === 'Drain while respecting disruption budgets and local storage refusal',
+    );
+    expect(drain?.['ansible.builtin.command']?.argv).toEqual([
+      'kubectl',
+      '--context',
+      '{{ puni_kube_context }}',
+      'drain',
+      '{{ puni_node_name }}',
+      '--ignore-daemonsets',
+      '--timeout=90s',
+    ]);
     // Controller-side checks never go through a shell and never template remote data into argv.
     const checkTasks = tasks.filter((task) => JSON.stringify(task).includes('cluster-checks.py'));
     expect(checkTasks.length).toBe(6);
@@ -897,6 +911,37 @@ describe('production retirement', () => {
     // retirement playbook against the replacement machine.
   });
 
+  it('preserves captured Ansible stdout on a nonzero drain response', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'fleet-retirement-diagnostics-'));
+    const { planPath, plan } = await prepareRetirement(directory);
+    const controlled = retirementRunner('drain');
+    const run = async (request: CommandRequest): Promise<CommandResponse> => {
+      const response = await controlled.run(request);
+      return response.exitCode === 0
+        ? response
+        : { ...response, stdout: 'owned-fixture-PDB-denial', stderr: '' };
+    };
+    const dependencies = createProductionApplyDependencies(
+      join(import.meta.dir, '../../..'),
+      plan,
+      planPath,
+      run,
+    );
+    const failure = await dependencies
+      .applyEffect(
+        plan,
+        'evict workloads respecting disruption budgets',
+        'effect-3',
+        () => Promise.resolve(),
+        false,
+      )
+      .then(
+        () => null,
+        (cause: unknown) => cause,
+      );
+    expect(String(failure)).toContain('owned-fixture-PDB-denial');
+  });
+
   for (const [tag, label] of [
     ['preflight', 'a lost capability floor or target-affined persistent volume'],
     ['drain', 'a blocked disruption budget'],
@@ -942,4 +987,49 @@ describe('production retirement', () => {
       // failures leave the production apply journal recoverable and cannot reach the receipt.
     });
   }
+});
+
+it('returns captured drain denial before the controller deadline using scaled production budgets', async () => {
+  const root = join(import.meta.dir, '../../..');
+  const plays = parse(await readFile(join(root, 'infra/ansible/playbooks/retire.yml'), 'utf8')) as {
+    tasks: { name: string; 'ansible.builtin.command'?: { argv?: string[] } }[];
+  }[];
+  const argv = plays[0]?.tasks.find(
+    (task) => task.name === 'Drain while respecting disruption budgets and local storage refusal',
+  )?.['ansible.builtin.command']?.argv;
+  const budget = argv?.find((argument) => argument.startsWith('--timeout='));
+  if (budget === undefined) throw new Error('Missing production drain deadline');
+  const matched = /^--timeout=(\d+)([ms])$/.exec(budget);
+  if (matched === null) throw new Error('Unknown production drain duration');
+  const drainSeconds = Number(matched[1]) * (matched[2] === 'm' ? 60 : 1);
+  const controller = controllerRequest(root, 'locked-image', 'sha256:locked', {
+    executable: 'ansible-playbook',
+    arguments: [],
+  });
+  const deadline = controller.arguments.at(controller.arguments.indexOf('timeout') + 3);
+  if (deadline === undefined || !/^\d+s$/.test(deadline))
+    throw new Error('Missing production controller deadline');
+  const controllerSeconds = Number(deadline.slice(0, -1));
+  expect(drainSeconds).toBeLessThan(controllerSeconds);
+  const directory = await mkdtemp(join(tmpdir(), 'fleet-drain-budget-'));
+  const kubectl = join(directory, 'kubectl.ts');
+  const capture = join(directory, 'capture.ts');
+  await writeFile(
+    kubectl,
+    `await Bun.sleep(${String(drainSeconds * 10)}); console.error("Cannot evict pod as it would violate the pod's disruption budget."); process.exit(1);`,
+  );
+  await writeFile(
+    capture,
+    `const child = Bun.spawn([process.execPath, ${JSON.stringify(kubectl)}], { stdout: 'pipe', stderr: 'pipe' }); const [rc, stderr] = await Promise.all([child.exited, new Response(child.stderr).text()]); console.log(JSON.stringify({ rc, stderr })); process.exit(2);`,
+  );
+  const completed = await runBoundedCommand(
+    {
+      executable: 'timeout',
+      arguments: [`${String(controllerSeconds / 100)}s`, process.execPath, capture],
+    },
+    (controllerSeconds + 15) * 10,
+  );
+  expect(completed.exitCode).toBe(2);
+  expect(completed.stdout).toContain('"rc":1');
+  expect(completed.stdout).toContain('Cannot evict pod');
 });

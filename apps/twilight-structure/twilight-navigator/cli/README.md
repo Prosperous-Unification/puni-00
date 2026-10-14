@@ -12,7 +12,7 @@ progress receipt comes back. Burokrat declares and validates both
 
 ## `twin plan-reference`
 
-From the repository root, with a WBS plan export (`GET /api/projects/:id/export`, version 7)
+From the repository root, with a WBS plan export (`GET /api/projects/:id/export`, version 7 or 8)
 and the requirements the plan answers (for example the change's delta spec):
 
 ```sh
@@ -27,10 +27,15 @@ bun apps/twilight-structure/twilight-navigator/cli/src/entrypoint.ts plan-refere
 ```
 
 All seven flags are required, each once. The command writes `tasks.json` (the plan's leaf
-work items with ancestry, per-step estimates in days and dependencies) and
+work items with ancestry, per-step estimates and dependencies) and
 `plan-reference.json` into the existing output directory, each created owner-only and never
 replacing a file, and prints the plan reference digest. The record's `createdAt` is the
 export's `exportedAt`, so the same inputs give the same bytes.
+
+Version 8 writes task schema 2: each `estimates` entry names its `stepCode`, native `unit`
+(`minutes` or `workdays`), and unchanged optimistic, realistic and pessimistic values. Version 7
+retains task schema 1 with `estimateDays` in workdays. The reference records the original wire
+version and hashes the original export bytes. Future versions and undeclared keys are refused.
 
 The plan reference is prepared, not applied: nothing is sent to WBS or Dash.
 
@@ -45,7 +50,7 @@ bun apps/twilight-structure/twilight-navigator/cli/src/entrypoint.ts receipt-to-
 ```
 
 It decodes the progress receipt and plan reference through Burokrat (which verifies their
-digests), checks the task export against the reference's `tasksDigest`, and refuses a receipt
+digests), reads either task schema without rewriting it, checks the task export against the reference's `tasksDigest`, and refuses a receipt
 for another plan reference or an entry naming a task or step code the plan does not hold. It
 writes one owner-only WBS command batch `{ id, commands }`: per entry in receipt order, a
 `setProgress` for the step, then a `setMeasure` for `token_actual` and `hours_actual` when the

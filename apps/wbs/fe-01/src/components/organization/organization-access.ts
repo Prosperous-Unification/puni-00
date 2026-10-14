@@ -23,7 +23,11 @@ export type AccessLoss =
 
 /** The refusal codes every organization route shares that end the page's access. */
 export type LossCode =
-  'onboarding_inactive' | 'unauthenticated' | 'no_active_organization' | 'not_a_member';
+  | 'onboarding_inactive'
+  | 'unauthenticated'
+  | 'organization_context_changed'
+  | 'no_active_organization'
+  | 'not_a_member';
 
 /** What a panel does with one refusal: give the page up, or say a sentence in place. */
 export type RefusalOutcome = { kind: 'lost'; loss: AccessLoss } | { kind: 'message'; text: string };
@@ -36,6 +40,9 @@ export function lostAccess(refusal: LossCode | CredentialRefusal): RefusalOutcom
       return { kind: 'lost', loss: 'inactive' };
     case 'unauthenticated':
       return { kind: 'lost', loss: 'signed_out' };
+    // Proof: removing context handling left panels visible or threw instead
+    // of the page-level loss; credential-refusal-state.test.tsx, watched 2026-10-13.
+    case 'organization_context_changed':
     case 'no_active_organization':
       return { kind: 'lost', loss: 'no_organization' };
     case 'not_a_member':

@@ -38,6 +38,14 @@ _Avoid_: tenant, workspace, account
 One user's association with one organization and the role that governs access there. It is separate from a directory person's service-team membership.
 _Avoid_: team membership, IdP group
 
+**Active organization**:
+The organization selected from a user's current memberships for their present WBS access.
+_Avoid_: default organization, identity-provider organization
+
+**Expected organization**:
+The organization in which a user intends an operation to take place. Naming it does not grant membership or authority.
+_Avoid_: selected authority, tenant override
+
 **Browser credential pair**:
 The verified WBS access credential and organization selection carried together to establish browser organization access.
 _Avoid_: user session, organization cookie alone

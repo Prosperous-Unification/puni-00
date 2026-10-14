@@ -1,7 +1,7 @@
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
-import { organizationRefusal } from './organization-refusal';
+import { organizationContextRefusal, organizationRefusal } from './organization-refusal';
 import { planDocumentRequest } from './plan-document-shapes';
 import { responseSchema } from './schema-shape';
 
@@ -40,6 +40,7 @@ export const importProject = defineEndpointShape({
   // Proof: removing write scope made the mounted valid reader import return 201;
   // moving policy admission after parsing made its malformed request return 400 invalid_body.
   policies: [
+    { kind: 'organization-resource', operation: 'mutation' },
     { kind: 'origin', when: 'always-unsafe-with-session-cookie' },
     { kind: 'identity', require: 'write-scope' },
   ],
@@ -54,6 +55,7 @@ export const importProject = defineEndpointShape({
       schema: responseSchema(type({ error: "'invalid_origin' | 'insufficient_scope'" })),
     },
     organizationRefusal,
+    organizationContextRefusal,
     // A viewer, after organization activation: reading is not importing.
     { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
     {

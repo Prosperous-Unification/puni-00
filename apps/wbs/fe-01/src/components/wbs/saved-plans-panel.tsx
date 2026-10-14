@@ -91,6 +91,7 @@ export function renameWords(
     case 'insufficient_scope':
     case 'invalid_json':
     case 'invalid_body':
+    case 'organization_context_changed':
     case 'no_active_organization':
     case 'not_a_member':
     case 'sso_required':
@@ -254,6 +255,7 @@ export function SavedPlansPanel({
               case 'unsupported_body_version':
               case 'invalid_body':
               case 'invalid_query':
+              case 'organization_context_changed':
               case 'no_active_organization':
               case 'not_a_member':
               case 'sso_required':

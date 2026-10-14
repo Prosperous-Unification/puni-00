@@ -82,6 +82,13 @@ identities without filesystem access. The deterministic observation digest binds
 claims, including authentication absent and `certifies:false`. It runs no tests and awards no
 coverage or admission credit. Historical failure bundles remain diagnostics.
 
+`inspect-performance-sources <repository> <committed-sha> <external-rule-policy>`
+joins cases from that current-success publication to their exact selected fixture blobs and
+unique validated module-index owners in the same commit. It retains the comparison judgment,
+publication and index identities, and index review debt. Every case has an unresolved test level;
+the observation has absent authentication, `certifies:false`, and no tested-module, coverage or
+admission claim. A refused Performance publication remains a refusal.
+
 ## Diagnostic specification sources
 
 `inspect-spec-sources <repository> <committed-sha>` inventories every parsed active canonical

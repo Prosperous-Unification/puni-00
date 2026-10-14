@@ -471,3 +471,27 @@ describe('before activation', () => {
     expect((await h.call('ada', 'GET', '/api/projects')).status).toBe(200);
   });
 });
+
+it('keeps signed delegation writes independent of browser expectation and refuses discovery', async () => {
+  h.activate();
+  for (const expected of [undefined, 'org-b']) {
+    const token = await delegation();
+    expect(
+      (
+        await h.callWith(
+          token,
+          'POST',
+          '/api/projects',
+          { name: 'delegated' },
+          expected === undefined ? {} : { 'X-WBS-Expected-Organization': expected },
+        )
+      ).status,
+    ).toBe(200);
+  }
+  const response = await h.request('/api/organization/active', {
+    headers: { authorization: `Bearer ${await delegation()}` },
+  });
+  expect(response.status).toBe(403);
+  expect(await response.json()).toEqual({ error: 'insufficient_scope' });
+  expect(response.headers.get('cache-control')).toBe('no-store');
+});

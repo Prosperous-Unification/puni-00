@@ -6,7 +6,7 @@ import {
   InternalResumeResponse,
 } from '../internal';
 import { defineEndpointShape } from './endpoint-shape';
-import { organizationRefusal } from './organization-refusal';
+import { organizationContextRefusal, organizationRefusal } from './organization-refusal';
 import { requestSchema, responseSchema } from './schema-shape';
 
 /**
@@ -66,7 +66,7 @@ export const forwardInternal = defineEndpointShape({
   method: 'POST',
   path: '/internal/forward',
   operationId: 'postInternalForward',
-  policies,
+  policies: [...policies, { kind: 'organization-control' }],
   body: requestSchema(InternalForwardRequest),
   bodyMedia,
   responses: [{ kind: 'json', status: 200, schema: responseSchema(InternalForwardResponse) }],
@@ -88,7 +88,7 @@ export const resumeInternal = defineEndpointShape({
   operationId: 'postInternalResume',
   // Replay is a read for the socket's own principal: the gateway forwards that
   // browser credential and be-01 checks every named project before replaying.
-  policies: gatewayBrowserPolicies,
+  policies: [...gatewayBrowserPolicies, { kind: 'organization-control' }],
   body: requestSchema(type({ resume_points: resumePoints, trace_id: 'string' })),
   bodyMedia,
   responses: [{ kind: 'json', status: 200, schema: responseSchema(InternalResumeResponse) }],
@@ -106,7 +106,7 @@ export const gatewayProjectAccess = defineEndpointShape({
   method: 'POST',
   path: '/internal/gateway/projects/:projectId/access',
   operationId: 'postInternalGatewayProjectAccess',
-  policies: [{ kind: 'identity', require: 'gateway-delegation' }],
+  policies: [{ kind: 'organization-control' }, { kind: 'identity', require: 'gateway-delegation' }],
   params: requestSchema(type({ projectId: 'string' })),
   responses: [{ kind: 'empty', status: 204 }],
   refusals: [
@@ -114,6 +114,7 @@ export const gatewayProjectAccess = defineEndpointShape({
     { status: 401, schema: responseSchema(type({ error: "'unauthorized' | 'unauthenticated'" })) },
     { status: 403, schema: responseSchema(type({ error: "'insufficient_scope'" })) },
     organizationRefusal,
+    organizationContextRefusal,
     { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
   ],
   document: { summary: 'Check a gateway delegation against current project access.' },
@@ -128,7 +129,7 @@ export const gatewayBrowserProjectAccess = defineEndpointShape({
   method: 'POST',
   path: '/internal/gateway/projects/:projectId/browser-access',
   operationId: 'postInternalGatewayProjectBrowserAccess',
-  policies: gatewayBrowserPolicies,
+  policies: [...gatewayBrowserPolicies, { kind: 'organization-control' }],
   params: requestSchema(type({ projectId: 'string' })),
   responses: [{ kind: 'empty', status: 204 }],
   refusals: [
@@ -136,6 +137,7 @@ export const gatewayBrowserProjectAccess = defineEndpointShape({
     { status: 401, schema: responseSchema(type({ error: "'unauthorized' | 'unauthenticated'" })) },
     { status: 403, schema: responseSchema(type({ error: "'insufficient_scope'" })) },
     organizationRefusal,
+    organizationContextRefusal,
     { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
   ],
   document: { summary: 'Check a gateway socket principal against current project access.' },

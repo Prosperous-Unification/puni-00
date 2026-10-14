@@ -1,7 +1,7 @@
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
-import { organizationRefusal } from './organization-refusal';
+import { organizationContextRefusal, organizationRefusal } from './organization-refusal';
 import { requestSchema, responseSchema } from './schema-shape';
 
 const params = requestSchema(type({ id: 'string' }));
@@ -68,6 +68,7 @@ const commonRefusals = [
   { status: 400, schema: responseSchema(type({ error: "'invalid_params'" })) },
   { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
   organizationRefusal,
+  organizationContextRefusal,
   {
     status: 501,
     schema: responseSchema(
@@ -115,7 +116,7 @@ export const savePlan = defineEndpointShape({
   method: 'POST',
   path: '/api/projects/:id/saved-plans',
   operationId: 'postApiProjectsByIdSaved-plans',
-  policies: writePolicies,
+  policies: [...writePolicies, { kind: 'organization-resource', operation: 'mutation' }],
   params,
   body: requestSchema(type({ 'name?': 'string > 0' })),
   bodyMedia,
@@ -150,7 +151,7 @@ export const listSavedPlans = defineEndpointShape({
   method: 'GET',
   path: '/api/projects/:id/saved-plans',
   operationId: 'getApiProjectsByIdSaved-plans',
-  policies: readPolicies,
+  policies: [...readPolicies, { kind: 'organization-resource', operation: 'read' }],
   params,
   responses: [
     {
@@ -216,7 +217,7 @@ export const compareSavedPlans = defineEndpointShape({
   method: 'GET',
   path: '/api/projects/:id/saved-plans/compare',
   operationId: 'getApiProjectsByIdSaved-plansCompare',
-  policies: readPolicies,
+  policies: [...readPolicies, { kind: 'organization-resource', operation: 'read' }],
   params,
   query: requestSchema(type({ left: 'string > 0', right: 'string > 0' })),
   responses: [
@@ -257,7 +258,7 @@ export const readSavedPlan = defineEndpointShape({
   method: 'GET',
   path: '/api/saved-plans/:id',
   operationId: 'getApiSaved-plansById',
-  policies: readPolicies,
+  policies: [...readPolicies, { kind: 'organization-resource', operation: 'read' }],
   params,
   responses: [{ kind: 'json', status: 200, schema: responseSchema(type({ savedPlan })) }],
   refusals: [
@@ -276,7 +277,7 @@ export const renameSavedPlan = defineEndpointShape({
   method: 'PATCH',
   path: '/api/saved-plans/:id',
   operationId: 'patchApiSaved-plansById',
-  policies: writePolicies,
+  policies: [...writePolicies, { kind: 'organization-resource', operation: 'mutation' }],
   params,
   body: requestSchema(type({ name: 'string > 0' })),
   bodyMedia,
@@ -296,7 +297,7 @@ export const deleteSavedPlan = defineEndpointShape({
   method: 'DELETE',
   path: '/api/saved-plans/:id',
   operationId: 'deleteApiSaved-plansById',
-  policies: writePolicies,
+  policies: [...writePolicies, { kind: 'organization-resource', operation: 'mutation' }],
   params,
   responses: [{ kind: 'empty', status: 204 }],
   refusals: [

@@ -1,4 +1,5 @@
 import {
+  createProject,
   defineEndpointShape,
   requestSchema,
   responseSchema,
@@ -1475,4 +1476,34 @@ test('distinguishes absent required bodies from explicitly empty form and JSON b
   expect(emptyJson.status).toBe(400);
   expect(await emptyJson.json()).toEqual({ error: 'invalid_json' });
   expect(calls).toBe(1);
+});
+
+test('refuses a resource declaration whose user identity policy was lost', async () => {
+  let calls = 0;
+  const failures: unknown[] = [];
+  const shape = {
+    ...createProject,
+    policies: [{ kind: 'organization-resource', operation: 'mutation' }] as const,
+  };
+  const app = appFor(
+    [
+      bind(shape, () => {
+        calls += 1;
+        return Promise.reject(new Error('resource handler reached without identity'));
+      }),
+    ],
+    (failure) => failures.push(failure),
+  );
+  const response = await app.handle(
+    new Request('https://backend.example/api/projects', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'unsafe' }),
+    }),
+  );
+  expect(response.status).toBe(500);
+  expect(calls).toBe(0);
+  expect(failures).toEqual([
+    new Error('Organization resource lacks a user identity: postApiProjects'),
+  ]);
 });

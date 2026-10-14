@@ -35,8 +35,8 @@ async function declaresInvalidBody(shape: EndpointShape): Promise<boolean> {
 test('declares public health JSON and Prometheus text without request input', () => {
   const document = documentFromShapes([health, metrics]);
   expect([health.operationId, metrics.operationId]).toEqual(['getHealth', 'getMetrics']);
-  expect(health.policies).toEqual([]);
-  expect(metrics.policies).toEqual([]);
+  expect(health.policies).toEqual([{ kind: 'organization-control' }]);
+  expect(metrics.policies).toEqual([{ kind: 'organization-control' }]);
   expect(document.paths['/health']?.['get']?.responses).toMatchObject({
     '200': { content: { 'application/json': {} } },
     '400': { content: { 'application/json': {} } },

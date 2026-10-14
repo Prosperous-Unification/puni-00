@@ -1,7 +1,7 @@
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
-import { organizationRefusal } from './organization-refusal';
+import { organizationContextRefusal, organizationRefusal } from './organization-refusal';
 import { requestSchema, responseSchema } from './schema-shape';
 
 const policies = [{ kind: 'identity', require: 'signed-in' }] as const;
@@ -19,6 +19,7 @@ const refusals = [
   },
   { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
   organizationRefusal,
+  organizationContextRefusal,
 ] as const;
 const namedProject = type({ projectId: 'string', name: 'string' });
 const unavailableProject = namedProject.and({
@@ -34,7 +35,7 @@ export const readPersonLoad = defineEndpointShape({
   method: 'GET',
   path: '/api/people/:personId/load',
   operationId: 'getApiPeopleByPersonIdLoad',
-  policies,
+  policies: [...policies, { kind: 'organization-resource', operation: 'read' }],
   params: requestSchema(type({ personId: 'string' })),
   query,
   responses: [
@@ -82,7 +83,7 @@ export const readOrganizationLoad = defineEndpointShape({
   method: 'GET',
   path: '/api/people/load',
   operationId: 'getApiPeopleLoad',
-  policies,
+  policies: [...policies, { kind: 'organization-resource', operation: 'read' }],
   query,
   responses: [
     {

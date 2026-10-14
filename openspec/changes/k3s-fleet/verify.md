@@ -724,3 +724,142 @@ The fleet rows of the operator guide ran in the k3s-platform verify.md, "F12 ope
   under the local umask 002, 0644 on GitHub). With `COPY --chmod=0444`, the worktree and a
   `--no-cache` build from a 0644, re-dated copy of the context both produced
   `sha256:372f6f433050a5844bc9c4cd657facf993eb505fec96b50838d253787e2462de`, the current lock.
+
+## F5 protected retirement rehearsal — partial implementation (2026-10-13)
+
+WBS070.13 remains **in progress**. Work starts at `16eaa121` in the isolated clone
+`/tmp/puni-f5-drain`; the shared checkout is untouched. The new
+`tool-fleet:rehearse:drain -- --qemu-prefix <locked-prefix>` entry point creates an exclusively
+generated rootless workers lab and invokes production discover, plan and apply. Fixtures are
+managed Deployments; SQLite persists a marker in an actual database on its Pod volume. Plans
+precede blocker introduction so apply must independently detect the live workload. Recovery
+uncordons explicitly and deletes only its owned fixture namespace/PV. Diagnostics and failed
+labs are retained; success requires stateless retirement and unchanged journal/receipt bytes
+on a second apply. Evidence records target UID, namespace, kubeconfig and toolchain hashes.
+
+### Observed local checks
+
+- Focused Bun tests for `drain-rehearsal`, `cluster-checks`, `retire`, and `production-apply`
+  passed (36 tests); final assertion counts are printed by the command. Nx `tool-fleet:lint`
+  and `tool-fleet:typecheck` passed with cache disabled.
+- `bunx @fission-ai/openspec@1.12.0 validate --all --json`: 186/186 passed.
+  `validate k3s-fleet --strict --json`: 1/1 passed with no issues.
+- The required evidence reader separately rejects absent files, an unreadable directory,
+  chmod-000 files, malformed JSON, stale time, mismatched identity and incomplete outcomes.
+- The actual rehearsal invocation exited 1 at `access('/dev/kvm', R_OK | W_OK)` with
+  `ENOENT`, before creating a lab or SSH key. No VM, workload, provider resource or production
+  host was mutated. This environment has Bun, Docker and SSH, but no `/dev/kvm`, QEMU prefix,
+  standalone kubectl or Ansible. Kubectl/Ansible are intended to run in the existing locked
+  controller; installing those tools cannot supply the missing kernel KVM device. The locked
+  QEMU launcher requires `accel=kvm,type=q35`; TCG was not substituted.
+
+### Watched local R5 proofs
+
+Each injected fault ran the relevant production component test, returned exit 1, and was
+restored before validation. The mutation scripts and captured outputs remain at
+`/tmp/fleet-f5-mutations.py`, `/tmp/fleet-f5-reader-mutations.py` and
+`/tmp/fleet-f5-proof-*.log` in this execution environment.
+
+| Boundary                         | Injected fault                                                                                        | Observed test failure                                                                    |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Evidence identity and freshness  | Removed identity equality, then the age bound                                                         | Foreign target and yesterday's evidence were accepted; the corresponding negative failed |
+| Preserved state                  | Removed before/after field equality                                                                   | Changed marker and replacement Pod UID were accepted                                     |
+| Required protected refusal       | Individually removed exit, cordon, service, receipt, journal-state, phase and elapsed-time predicates | Each injected false success/lost-state/late-PDB case was accepted                        |
+| Journal progress                 | Removed exact completed-effect comparison                                                             | A preflight refusal with completed cordon was accepted                                   |
+| Idempotency                      | Removed second-apply equality                                                                         | Changed completed durable state was accepted                                             |
+| Fixture ownership and marker     | Removed namespace/target comparisons or marker restriction                                            | Foreign namespace/target and shell-bearing marker negatives failed                       |
+| Required evidence read/parse     | Substituted empty state for required read or JSON parse                                               | Missing/unreadable/malformed evidence lost its required boundary diagnostic              |
+| Managed forge and SQLite         | Independently removed each label from production `cluster-checks.py`                                  | Managed-Pod negatives observed exit 0 rather than refusal                                |
+| Local PV independent of affinity | Removed the `local` predicate                                                                         | Affinity-free local PV observed exit 0 rather than refusal                               |
+| Eviction protection              | Added `--disable-eviction` to production `retire.yml` argv                                            | New exact-argv assertion failed; the previous test had incorrectly passed this fault     |
+| Failure propagation and receipt  | Removed production command nonzero refusal                                                            | Injected blocked drain no longer rejected apply, failing the no-receipt negative         |
+
+### Acceptance still blocked
+
+The disposable real VM matrix, live pre-cordon refusals, live PDB eviction deadline, actual
+SQLite volume permissions and marker preservation, actual Service continuity, explicit recovery,
+stateless relocation, completed receipt and idempotent second apply have **not run**. Orchestration
+ownership, target drift, tunnel failure and cleanup guards have no live fault proof yet. Local
+fixtures, mocked kubectl replies and adapter failures are component evidence only. The canonical
+host gate, broader F4/cloud/backend, HA removal and upgrade checks were not run in this worker;
+the root PM owns integration, host gate and Astra review. No push or merge is authorized here.
+
+### Astra review repairs for `9c3fdee5` (2026-10-13)
+
+The P1 finding reproduced: the live snapshot producer omitted PVC UID and Deployment/PV
+spec hashes required by its consumer. `collectDrainSnapshot` now returns the shared explicit
+`DrainSnapshot` type, reads the actual PVC UID, hashes actual Deployment/PV specs, and emits
+explicit `not-applicable` storage fields for other cases. The production runner calls this
+same exported producer. Controlled kubectl tests feed its actual snapshots to the actual
+protected-phase collector: a valid local-PV phase passes, while changed claim/Pod UID,
+Deployment/PV spec or marker fails. Removing `claimUid` made both that test and typecheck fail.
+
+The P2 finding also reproduced: nonzero exit plus journal shape accepted unrelated failures.
+`collectProtectedCase` now requires observed refusal text naming the owned PV or fixture Pod.
+Preflight observation has null active effect; no phase is invented from a missing journal
+step. PDB requires the owned eviction attempt and the owned Pod's disruption-budget denial,
+normal Ansible nonzero completion (exit 2 with captured kubectl rc 1), elapsed time between 90 and 180 seconds,
+completed preflight/cordon, and recoverable active eviction. A controller/outer timeout always rejects, including after a genuine denial. An unrelated API failure after a
+real denial rejects acceptance. Nonzero SSH/API errors, missing denial on timeout, denial
+without drain timeout, wrong namespace, and a genuine denial followed by an API failure all
+fail through the same production collector.
+
+An adapter test reproduced lost Ansible stdout on nonzero status. The production adapter now
+preserves stdout and stderr in the propagated error. The outer controller command deadline
+allows 15 bounded seconds for the inner 120-second controller timeout to exit and return its diagnostics. The drain itself is now bounded at 90 seconds, so Ansible can collect kubectl's denial before the controller deadline. Astra reviewed this duration choice: the spec has no 10-minute SLA, the previous effective production ceiling was already 120 seconds, and extending beyond 10 minutes would exceed the 300-second Lease without heartbeat renewal. A slow earlier metrics-server move remains a failed rehearsal, rather than accepted PDB protection.
+The existing real process-group timeout test still proves a hung descendant is killed; a
+transport timeout without the owned denial cannot count as PDB protection. Durable phase
+evidence retains only canonical matched refusal text, and command diagnostics redact the
+retained lab credentials. Retirement inventory no longer copies enrollment credentials.
+
+Watched repair mutations (all restored) removed the owned-refusal check, API-failure rejection,
+normal-completion observation, controller-timeout rejection, elapsed lower bound, preservation comparison, required snapshot
+field, and propagated stdout. Each relevant production producer/collector/adapter negative
+failed. Logs are `/tmp/fleet-f5-proof-repair-*.log`, including the missing-field typecheck log.
+The earlier component-only tests failed to expose P1/P2; the new tests exercise the producer
+and collector used by orchestration. Real VM acceptance remains blocked by absent `/dev/kvm`;
+F5.2/F5.4 and WBS070.13 remain open. This repair is local and unpushed pending Astra rereview.
+
+A scaled subprocess capture test reads the actual production drain argv and actual controller
+timeout argument. Its kubectl stand-in finishes at the scaled 90-second budget, its Ansible
+stand-in captures rc1 plus denial and exits2 before the scaled120-second controller deadline.
+Restoring the old10-minute drain deadline fails the same production-budget contract test.
+This is component-only timing evidence: Docker API access returned permission denied here,
+and real locked Ansible/Kubernetes diagnostics are still unverified until the disposable VM run.
+
+Final repair checks: focused Bun coverage passed 41 tests with 282 assertions; uncached
+`tool-fleet:lint` and `tool-fleet:typecheck` passed. OpenSpec1.12.0 strict validation of
+`k3s-fleet` passed with no issues. The production-budget capture test passed in about one
+second using its declared100× time scaling. No real VM or locked-controller acceptance is
+claimed; `/dev/kvm` is absent and Docker API access is permission denied.
+
+### Complete pinned kubectl diagnostic repair (2026-10-13)
+
+Astra reproduced a false refusal in `212380e8`: normal PDB timeout summaries matched the
+transport-error predicate. A complete realistic default-callback Ansible failed-task JSON
+fixture now carries the command, rc1, captured stdout/stderr and line arrays, pending Pod,
+owned-node summary, pending nodes and final aggregate. The production collector test failed
+before repair and passes after it. These formats were checked against the pinned upstream
+[kubectl drain command](https://raw.githubusercontent.com/kubernetes/kubectl/v0.36.4/pkg/cmd/drain/drain.go)
+and [eviction helper](https://raw.githubusercontent.com/kubernetes/kubectl/v0.36.4/pkg/drain/drain.go).
+
+The collector extracts captured streams and validates the exact owned drain argv before
+classifying them. Expected timeout summary lines are permitted only for the owned Pod,
+namespace, node and `1m30s` duration. Pending resource lists are also checked for foreign
+identities. PDB denial, normal Ansible nonzero completion, preserved workload/service and
+journal progress remain required; API/transport errors and controller124 remain failures.
+
+The complete-fixture negatives cover foreign command node/duration, foreign summary node or
+Pod, extra pending nodes, changed summary duration, missing denial, rc0, API failure after
+denial and controller124. Watched mutations removed the exact summary exception (valid
+fixture failed), captured-command comparator (foreign command accepted), pending-node
+comparison (extra foreign node accepted), and unrelated-error rejection (API failure
+accepted). All mutations were restored. Logs are `/tmp/fleet-f5-proof-p1-*.log`.
+Real VM/locked-controller acceptance is still unavailable: `/dev/kvm` is absent and Docker
+API access is denied. F5.2/F5.4 and WBS070.13 remain open; this repair remains local pending
+Astra rereview.
+
+Final scoped repair checks: 42 focused tests / 294 assertions passed; uncached Nx project
+lint and typecheck passed; strict OpenSpec1.12.0 `k3s-fleet` validation passed with no issues.
+Direct lint identified an unnecessary regex-capture null check, removed before the successful
+project lint run. No host gate or live VM acceptance was run in this worker.

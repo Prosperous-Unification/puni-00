@@ -56,12 +56,13 @@ async function select(username: string, organizationId: string): Promise<string>
   return pair.slice('__Host-wbs_organization='.length);
 }
 
-async function project(username: string, name: string): Promise<string> {
+async function project(username: string, name: string, organizationId: string): Promise<string> {
   const response = await h.app.handle(
     new Request('http://localhost/api/projects', {
       method: 'POST',
       headers: {
         cookie: `__Host-wbs_access=${h.token(username)}; __Host-wbs_organization=${selections.get(username) ?? ''}`,
+        'X-WBS-Expected-Organization': organizationId,
         origin: 'http://localhost',
         'content-type': 'application/json',
       },
@@ -98,8 +99,8 @@ describe.each(HOSTS)('browser-access with a real forwarded organization cookie (
     h.activate();
     selections.set('ada', await select('ada', 'org-a'));
     selections.set('grace', await select('grace', 'org-b'));
-    aProject = await project('ada', 'A plan');
-    bProject = await project('grace', 'B plan');
+    aProject = await project('ada', 'A plan', 'org-a');
+    bProject = await project('grace', 'B plan', 'org-b');
   });
 
   afterEach(async () => {

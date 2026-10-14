@@ -648,6 +648,42 @@
       "id": "TEST-AXES-060",
       "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
       "title": "Performance publication changes during inspection"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-061",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A Performance case binds its exact nested index owner"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-062",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A Performance case lacks unique validated ownership"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-063",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Performance publication and ownership select different identities"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-064",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Performance source diagnosis preserves upstream refusals"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-065",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Performance source observation identity is complete and canonical"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-066",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Performance source diagnosis grants no coverage"
     }
   ]
 }

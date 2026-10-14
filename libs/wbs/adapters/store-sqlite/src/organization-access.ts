@@ -130,6 +130,19 @@ export class SqliteOrganizationAccess implements OrganizationAccess {
       this.now(),
     );
     if (refused !== null) return { ok: false, ...refused };
+    // Proof: bypassing comparison admitted the stale directory write (200);
+    // defaulting absence to authority admitted the missing-header write (200),
+    // and ignoring read evidence exposed B's team to A (200), each caught by
+    // organization-context.controller.db.test.ts; watched 2026-10-13.
+    const operation = principal.organizationOperation;
+    if (principal.delegation === undefined && operation !== undefined) {
+      const expected = operation.expected;
+      if (
+        (operation.kind === 'mutation' || expected.kind !== 'absent') &&
+        (expected.kind !== 'present' || expected.organizationId !== organizationId)
+      )
+        return { ok: false, refusal: 'organization_context_changed' };
+    }
     return {
       ok: true,
       access: { kind: 'scoped', scope: { organizationId, userId, role: read.role } },

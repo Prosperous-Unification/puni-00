@@ -517,3 +517,11 @@ _Avoid_: Working copy, the plan, checkout
 **Candidate**:
 The exact revision or artifact an approval, verification, or release names.
 _Avoid_: Version, latest
+
+**Task export**:
+The leaf tasks of an accepted plan with their ancestry, estimates and dependencies, bound by the plan reference.
+_Avoid_: Task list, plan copy
+
+**Native estimate unit**:
+The minutes or workdays in which a plan step's three-point estimates are authored.
+_Avoid_: Duration unit, converted days

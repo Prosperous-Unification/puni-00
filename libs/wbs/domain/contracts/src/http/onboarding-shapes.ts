@@ -45,7 +45,7 @@ export const readOnboarding = defineEndpointShape({
   method: 'GET',
   path: '/api/onboarding',
   operationId: 'getApiOnboarding',
-  policies,
+  policies: [...policies, { kind: 'organization-control' }],
   responses: [{ kind: 'json', status: 200, schema: responseSchema(state) }],
   refusals: common,
   document: { summary: 'Discover onboarding state.' },
@@ -56,7 +56,7 @@ export const createOnboardingOrganization = defineEndpointShape({
   method: 'POST',
   path: '/api/onboarding/organizations',
   operationId: 'postApiOnboardingOrganizations',
-  policies: writePolicies,
+  policies: [...writePolicies, { kind: 'organization-control' }],
   // Proof: 2026-09-28, admitting a `role` field failed the mounted
   // authority-bearing-body refusal case.
   body: requestSchema(type({ name: 'string' })),
@@ -85,7 +85,7 @@ export const submitOnboardingJoinRequest = defineEndpointShape({
   method: 'POST',
   path: '/api/onboarding/join-requests',
   operationId: 'postApiOnboardingJoinRequests',
-  policies: writePolicies,
+  policies: [...writePolicies, { kind: 'organization-control' }],
   body: requestSchema(type({ organizationId: 'string' })),
   responses: [
     {
@@ -110,7 +110,7 @@ export const createEmailChallenge = defineEndpointShape({
   method: 'POST',
   path: '/api/onboarding/email-challenges',
   operationId: 'postApiOnboardingEmailChallenges',
-  policies: writePolicies,
+  policies: [...writePolicies, { kind: 'organization-control' }],
   body: requestSchema(type({ email: 'string' })),
   responses: [{ kind: 'json', status: 201, schema: responseSchema(type({ expiresAt: 'number' })) }],
   refusals: [
@@ -130,7 +130,7 @@ export const confirmEmailChallenge = defineEndpointShape({
   method: 'POST',
   path: '/api/onboarding/email-challenges/confirm',
   operationId: 'postApiOnboardingEmailChallengesConfirm',
-  policies: writePolicies,
+  policies: [...writePolicies, { kind: 'organization-control' }],
   body: requestSchema(type({ email: 'string', token: 'string' })),
   responses: [
     {

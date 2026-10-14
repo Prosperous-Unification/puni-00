@@ -147,3 +147,13 @@ describe('the spaces page, drawn', () => {
     ).not.toBeNull();
   });
 });
+
+it('withdraws spaces on organization context refusal', async () => {
+  stubServer({ 'GET /api/spaces': [() => answer(409, { error: 'organization_context_changed' })] });
+  routed(<SpacesPage nav={null} account={null} />);
+  expect(
+    await screen.findByText('Your organization changed. Reload before making another change.'),
+  ).toBeDefined();
+  expect(screen.queryByRole('list', { name: 'Spaces' })).toBeNull();
+  expect(screen.queryByLabelText('New space')).toBeNull();
+});

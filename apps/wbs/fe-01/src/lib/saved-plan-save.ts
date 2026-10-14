@@ -281,6 +281,7 @@ export function useSavedPlanSave(
               case 'forbidden':
               case 'invalid_json':
               case 'invalid_body':
+              case 'organization_context_changed':
               case 'no_active_organization':
               case 'not_a_member':
               case 'sso_required':

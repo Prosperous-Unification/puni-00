@@ -138,7 +138,9 @@ async function send(
       method,
       headers: {
         cookie: `__Host-wbs_access=${token}${options.selection === undefined ? '' : `; ${options.selection}`}`,
-        ...(method === 'POST' ? { origin: 'http://localhost' } : {}),
+        ...(method === 'POST'
+          ? { origin: 'http://localhost', 'X-WBS-Expected-Organization': 'org-a' }
+          : {}),
         ...(options.body === undefined ? {} : { 'content-type': 'application/json' }),
         ...options.headers,
       },
@@ -266,6 +268,7 @@ describe('enforced SSO', () => {
           headers: {
             cookie: `__Host-wbs_access=${token}; ${selected.pair ?? ''}`,
             origin: 'http://localhost',
+            'X-WBS-Expected-Organization': 'org-a',
             'content-type': 'application/json',
           },
           body: JSON.stringify({ enforced: true }),
@@ -405,4 +408,66 @@ describe('session policy', () => {
     h.sqlite.run("DELETE FROM organization_session_policy WHERE organization_id = 'org-a'");
     expect((await select(token, 'org-a')).status).toBe(200);
   });
+});
+
+it('applies expected organization to verified OIDC cookie and Bearer writes', async () => {
+  const token = await upstream(SOCIAL);
+  await select(token, 'org-a');
+  const selected = await select(token, 'org-b');
+  if (selected.pair === undefined) throw new Error('OIDC selection cookie is absent');
+  for (const bearer of [false, true]) {
+    for (const expectation of [undefined, '', 'org-a', 'org-b, org-b', 'org-b']) {
+      const before = h.sqlite.query('SELECT * FROM project').all();
+      const response = await h.request('/api/projects', {
+        method: 'POST',
+        headers: {
+          origin: 'http://localhost',
+          'content-type': 'application/json',
+          cookie: bearer ? selected.pair : `__Host-wbs_access=${token}; ${selected.pair}`,
+          ...(bearer ? { authorization: `Bearer ${token}` } : {}),
+          ...(expectation === undefined ? {} : { 'X-WBS-Expected-Organization': expectation }),
+        },
+        body: JSON.stringify({ name: 'OIDC scoped project' }),
+      });
+      expect(response.status).toBe(expectation === 'org-b' ? 200 : 409);
+      if (expectation !== 'org-b') {
+        expect(await response.json()).toEqual({ error: 'organization_context_changed' });
+        expect(h.sqlite.query('SELECT * FROM project').all()).toEqual(before);
+      }
+    }
+  }
+});
+
+it('a matching expectation cannot bypass SSO, membership, viewer or session policy', async () => {
+  const token = await upstream(SOCIAL);
+  const selected = await select(token, 'org-a');
+  const attempt = () =>
+    send(token, 'POST', '/api/projects', { selection: selected.pair, body: { name: 'refused' } });
+  enforce();
+  expect((await attempt()).body).toEqual(SSO_REQUIRED);
+  const active = await send(token, 'GET', '/api/organization/active', { selection: selected.pair });
+  expect(active.body).toEqual(SSO_REQUIRED);
+  h.sqlite.run("UPDATE organization_sso_connection SET enforced = 0 WHERE id = 'conn-a'");
+  h.sqlite.run(
+    "UPDATE organization_membership SET role = 'viewer' WHERE organization_id = 'org-a' AND user_id = ?",
+    [h.userId('mia')],
+  );
+  expect((await attempt()).body).toEqual({ error: 'forbidden' });
+  h.sqlite.run(
+    "UPDATE organization_membership SET role = 'member' WHERE organization_id = 'org-a' AND user_id = ?",
+    [h.userId('mia')],
+  );
+  h.sqlite.run(
+    "INSERT INTO organization_session_policy (organization_id, max_session_seconds, reauthenticate_after_seconds, created_at) VALUES ('org-a', 300, NULL, 1)",
+  );
+  expect((await attempt()).body).toMatchObject({ error: 'reauthentication_required' });
+  expect(
+    (await send(token, 'GET', '/api/organization/active', { selection: selected.pair })).body,
+  ).toMatchObject({ error: 'reauthentication_required' });
+  h.sqlite.run("DELETE FROM organization_session_policy WHERE organization_id = 'org-a'");
+  h.sqlite.run(
+    "DELETE FROM organization_membership WHERE organization_id = 'org-a' AND user_id = ?",
+    [h.userId('mia')],
+  );
+  expect((await attempt()).body).toEqual({ error: 'not_a_member' });
 });

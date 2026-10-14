@@ -1,7 +1,7 @@
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
-import { organizationRefusal } from './organization-refusal';
+import { organizationContextRefusal, organizationRefusal } from './organization-refusal';
 import { requestSchema, responseSchema } from './schema-shape';
 
 /**
@@ -19,12 +19,16 @@ export const readSessionPolicy = defineEndpointShape({
   method: 'GET',
   path: '/api/organization/session-policy',
   operationId: 'getApiOrganizationSession-policy',
-  policies: [{ kind: 'identity', require: 'signed-in' }],
+  policies: [
+    { kind: 'organization-resource', operation: 'read' },
+    { kind: 'identity', require: 'signed-in' },
+  ],
   responses: [{ kind: 'json', status: 200, schema: policyReply }],
   refusals: [
     { status: 400, schema: responseSchema(type({ error: "'invalid_query' | 'invalid_body'" })) },
     { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
     organizationRefusal,
+    organizationContextRefusal,
     { status: 403, schema: responseSchema(type({ error: "'insufficient_scope'" })) },
     { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
   ],
@@ -37,6 +41,7 @@ export const setSessionPolicy = defineEndpointShape({
   path: '/api/organization/session-policy',
   operationId: 'putApiOrganizationSession-policy',
   policies: [
+    { kind: 'organization-resource', operation: 'mutation' },
     { kind: 'origin', when: 'always-unsafe-with-session-cookie' },
     { kind: 'identity', require: 'write-scope' },
   ],
@@ -49,6 +54,7 @@ export const setSessionPolicy = defineEndpointShape({
     },
     { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
     organizationRefusal,
+    organizationContextRefusal,
     {
       status: 403,
       schema: responseSchema(type({ error: "'invalid_origin' | 'insufficient_scope'" })),
