@@ -15,9 +15,9 @@ patches:
         path: /spec/groups/3/rules/1/expr
         value: |-
           (time() - max by (puni_cluster, namespace, cronjob) (
-            kube_cronjob_status_last_successful_time{puni_cluster="platform-production",namespace="observability",cronjob="elastic-snapshot-check"}) > 35 * 60)
+            kube_cronjob_status_last_successful_time{puni_cluster="platform-production",namespace="observability",cronjob="elastic-snapshot-check"}) >= 30 * 60)
           or ((time() - max by (puni_cluster, namespace, cronjob) (
-            kube_cronjob_created{puni_cluster="platform-production",namespace="observability",cronjob="elastic-snapshot-check"}) > 35 * 60)
+            kube_cronjob_created{puni_cluster="platform-production",namespace="observability",cronjob="elastic-snapshot-check"}) >= 30 * 60)
             unless on (puni_cluster, namespace, cronjob)
             kube_cronjob_status_last_successful_time{puni_cluster="platform-production",namespace="observability",cronjob="elastic-snapshot-check"})
           or absent(kube_cronjob_created{puni_cluster="platform-production",namespace="observability",cronjob="elastic-snapshot-check"})

@@ -32,3 +32,8 @@ The platform SHALL validate puni-daily SLM last_success every fifteen minutes, r
 
 - **WHEN** another cluster or namespace has a recent successful check
 - **THEN** it cannot silence the expected platform alert
+
+#### Scenario: Snapshot deadline boundary
+
+- **WHEN** the last successful validation or a never-successful validator creation reaches age thirty-five minutes
+- **THEN** PuniElasticSnapshotStale fires, while remaining quiet at age thirty-four minutes

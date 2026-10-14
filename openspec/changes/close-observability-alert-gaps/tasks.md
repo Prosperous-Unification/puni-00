@@ -11,3 +11,7 @@
 ## 3. Verification
 
 - [x] 3.1 Run real locked promtool and scoped Bun/Nx checks, record mutation proofs and unavailable rollout evidence.
+
+## 4. Review correction: snapshot deadline
+
+- [x] 4.1 Assert no alert at 34m and firing at 35m/39m for stopped and never-successful checks; watch the shipped 35m-plus-5m rule fail, then start its pending period at 30m and update the production substitution.

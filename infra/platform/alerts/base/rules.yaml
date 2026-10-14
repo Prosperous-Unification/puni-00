@@ -170,12 +170,15 @@ spec:
         # kube-state-metrics reports success only after the SLM validator exits zero.
         # Proof: removing this rule failed missing, stale and never-checked cases; dropping its
         # selectors let a foreign successful check silence the foreign-snapshot promtool case.
+        # The five-minute pending period begins at age 30m, so firing starts at age 35m.
+        # Proof: age >35m plus for:5m failed both 35m/39m deadline cases in real promtool
+        # on 2026-10-14; stale and never-successful validators remained silent.
         - alert: PuniElasticSnapshotStale
           expr: >-
             (time() - max by (puni_cluster, namespace, cronjob) (
-              kube_cronjob_status_last_successful_time{puni_cluster="platform-local",namespace="observability",cronjob="elastic-snapshot-check"}) > 35 * 60)
+              kube_cronjob_status_last_successful_time{puni_cluster="platform-local",namespace="observability",cronjob="elastic-snapshot-check"}) >= 30 * 60)
             or ((time() - max by (puni_cluster, namespace, cronjob) (
-              kube_cronjob_created{puni_cluster="platform-local",namespace="observability",cronjob="elastic-snapshot-check"}) > 35 * 60)
+              kube_cronjob_created{puni_cluster="platform-local",namespace="observability",cronjob="elastic-snapshot-check"}) >= 30 * 60)
               unless on (puni_cluster, namespace, cronjob)
               kube_cronjob_status_last_successful_time{puni_cluster="platform-local",namespace="observability",cronjob="elastic-snapshot-check"})
             or absent(kube_cronjob_created{puni_cluster="platform-local",namespace="observability",cronjob="elastic-snapshot-check"})
