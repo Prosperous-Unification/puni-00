@@ -182,3 +182,48 @@ Prepared cutover manifests SHALL hold every Deployment at zero. First-start scal
 - **WHEN** cutover preparation emits manifests
 - **THEN** all Deployment replicas are zero
 - **AND** malformed manifests or an absent/duplicate backend are refused
+
+### Requirement: First-start admission binds the actual restored PVC
+
+The first-start coordinator SHALL use durable state separate from release journal schema 3. Before scaling, it SHALL hold the WBS Lease and closed writer fence, verify Flux suspension and stopped writers, validate matching descriptor-bound export/restore evidence and restore Job identity, and freshly inspect the actual PVC.
+
+#### Scenario: A changed actual volume cannot reuse restore evidence
+
+- **GIVEN** a completed restore Job and matching original reports
+- **WHEN** the mounted database bytes, retained replay inventory or activation authority differs
+- **THEN** no tier scales and the Lease, closed fence and Flux suspension remain held
+
+#### Scenario: Durable evidence precedes the first scale
+
+- **GIVEN** a fresh compatible actual-PVC observation under the Lease and fence
+- **WHEN** first-start proceeds
+- **THEN** admission is persisted and read back before every intended tier starts explicitly at its pinned digest
+- **AND** admission binds original descriptor bytes/pin, export/restore evidence, cluster/context, namespace/PVC UIDs/path, restore Job UID, transaction, all tier images and desired Flux revision
+- **AND** ready rollout and persisted release-record readback precede Flux handoff
+
+#### Scenario: Interrupted scaling repeats the stopped-writer observation
+
+- **GIVEN** a first-start transaction interrupted during scaling
+- **WHEN** its owner resumes the durable request
+- **THEN** every tier stops and a fresh actual-PVC inspection repeats before any restart
+- **AND** foreign, malformed, missing or altered durable admission refuses before mutation
+
+### Requirement: First-start authority stays disabled
+
+The actual image-owned activation authority SHALL exist and validate its migration ledger, singleton marker and exact triggers. Its marker SHALL remain DISABLED. First-start SHALL refuse a nonempty WAL and SHALL never enable authority.
+
+#### Scenario: Activation authority is missing or already enabled
+
+- **GIVEN** a restored database with missing, malformed or unreadable authority, altered triggers, an enabled marker or a nonempty WAL
+- **WHEN** first-start inspects the actual PVC
+- **THEN** admission refuses before scaling
+
+### Requirement: Flux first-start handoff preserves the closed fence
+
+Before resuming Flux, the coordinator SHALL admit the exact desired source tree against its pinned revision and prove that reconciliation preserves the closed writer fence and intended tier/PVC contracts. It SHALL observe matching applied revision and closed fence after reconciliation. An unfenced desired revision SHALL refuse before resume. Traffic opening SHALL remain a separate attended cutover operation.
+
+#### Scenario: A pinned unfenced source cannot open a handoff interval
+
+- **GIVEN** the desired Flux revision pins the intended images but opens writer ingress
+- **WHEN** the coordinator attempts first-start handoff
+- **THEN** it refuses before Flux resumes and preserves the Lease, closed fence and suspension

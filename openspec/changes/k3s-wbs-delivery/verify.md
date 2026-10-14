@@ -753,3 +753,76 @@ execution of this updated rehearsal remains unverified. No live export/import,
 h4 rollout, first-start activation, staging/GitHub Actions acceptance, canonical
 host gate or full workspace gate ran. Existing-host storage documentation now says
 `puni-retain`. No push or production mutation was performed.
+
+## F11.1d first-start partial review candidate — 2026-10-14
+
+Base: exact cumulative candidate `3d6f80b0693b2178d8029e80631aa69f24a0d336`.
+Isolated clone: `/tmp/puni-f11-first-start-sol`; the shared candidate clone was not
+edited. **F11.1d remains open.** The source-tree admission blocker is recorded in
+the design and normative delta spec. The current candidate can detect and close
+an ingress fence opened by Flux after handoff, but it has not proved refusal
+before that opening. It must not be used for live activation.
+
+Implemented scope: separate durable version 1 first-start state/receipt without
+changing release journal schema 3; original descriptor/export/restore and target
+identity binding; WBS Lease, closed fence and suspended Flux; stopped tiers;
+completed restore Job UID/image/command/mount/report; fresh actual mounted SQLite
+inspection; independent retained replay inventory and image-owned disabled
+activation authority; empty WAL; admission persistence/readback before explicit
+all-tier start; digest/rollout verification; persisted release-record readback;
+matching Flux revision and post-handoff fence observation. CLI/rehearsal use the
+coordinator, and descriptor-only release records refuse. A failed or partial
+attempt keeps its Lease/fence/suspension; retry stops tiers and observes again
+with a fresh inspection Job. No activation-enable transition was added.
+
+TDD observations: first-start coordinator and adapter tests initially failed on
+missing implementation modules. The CLI bypass negative failed because the old
+descriptor-only route resolved. The 1ms heartbeat/2ms renewal resume test then
+timed out with unbounded queued heartbeats; pending-renewal suppression fixed it.
+
+### Watched omission proofs
+
+Each of these 37 temporary mutations returned exit 1 with a named failed test;
+original source was restored in `finally` before further checks. Detailed local
+output is retained under `/tmp/puni-f11-first-start-proofs/<fault>.log`.
+
+| Injected fault(s)                                                                                                   | Observed failing production-path negative                                                                                                |
+| ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `actual-bytes`, `actual-replay`, `disabled-authority`                                                               | Coordinator actual bytes/replay/enabled-marker refusal cases                                                                             |
+| `restore-evidence`, `record-readback`, `admission-readback`                                                         | Legacy restore-evidence refusal, missing release-record refusal, corruption after admission persistence                                  |
+| `request-pin`, `receipt-digest`, `receipt-transaction`, `receipt-request`                                           | Foreign resumed request and resealed progress corruption cases before Lease mutation                                                     |
+| `flux-source`                                                                                                       | Foreign desired revision refuses handoff                                                                                                 |
+| `target-preflight`                                                                                                  | Foreign target refuses before Lease, Flux, fence or tier mutation                                                                        |
+| `cluster-uid`, `namespace-uid`, `backend-namespace-uid`, `pvc-uid`                                                  | Actual cluster object boundary refuses each foreign UID                                                                                  |
+| `flux-suspended`, `writer-fence`, `stopped-writers`                                                                 | Actual cluster boundary refuses active reconciliation, open ingress or a running writer                                                  |
+| `backend-db-path`, `backend-migrations`, `backend-pvc`, `backend-mount`, `backend-recreate`, `backend-writer-label` | Production backend template boundary refuses changed DB path, startup migration, foreign claim/subPath, overlap strategy or writer label |
+| `rollout-image`, `rollout-ready`                                                                                    | Kubectl transport refuses a foreign tier image or zero ready replicas                                                                    |
+| `restore-manifest`, `restore-uid`, `restore-completed`                                                              | Kubectl transport refuses replaced restore command, foreign UID or incomplete Job                                                        |
+| `actual-manifest`                                                                                                   | Kubectl transport refuses a replaced actual-PVC observation command                                                                      |
+| `image-owned-authority`, `wal-refusal`                                                                              | Generated image-local command refuses missing marker and a nonempty ignored WAL                                                          |
+| `handoff-fence-count`, `fresh-marker-count`, `observation-marker-shape`, `durable-null`                             | Missing/duplicate handoff policy, duplicate fresh marker, numeric activation observation and literal-null durable file                   |
+
+The existing replay and activation validators are reused. New real SQLite
+fixtures also exercise nested forward/inverse/precondition markers, missing and
+unreadable DB files, missing/changed triggers, missing ledger, enabled marker and
+malformed retained replay. Kubectl transport fixtures exercise restore and actual
+Job command/image/subPath changes, deployment image/readiness/PVC changes and
+fresh Job naming across two observations. Durable tests cover file absence,
+malformation/unreadability, receipt corruption, foreign live Lease refusal,
+renewal loss, parked transaction takeover and serialized heartbeats.
+
+### Scoped command evidence and unavailable checks
+
+- `BUN_TMPDIR=/tmp bun install --frozen-lockfile`: exit 0, 1,573 installs checked.
+- `BUN_TMPDIR=/tmp NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run tool-deploy:lint --outputStyle=stream`: exit 0.
+- The same scoped `tool-deploy:typecheck`: exit 0. `bunx nx run-many -t lint,typecheck,build -p tool-deploy --outputStyle=stream` also passed all three targets and their seven dependency tasks (10 tasks, 5.9s).
+- Final scoped Nx lint/typecheck rerun after target preflight: exit 0 (two tasks, 6.0s). `bunx nx format:check --files=<the 14 changed paths>` and `git diff --check`: exit 0. These are scoped checks; the canonical full host gate remains unrun.
+- `bun test --preload ./tools/test/scratch/preload.ts --timeout=10000 tools/tool-deploy/src/k8s/first-start.test.ts tools/tool-deploy/src/k8s/first-start-adapter.test.ts tools/tool-deploy/src/k8s/cutover-cli.test.ts`: exit 0, 84 pass, 0 fail, 187 assertions across 3 files (26.39s), after adding read-only target admission before mutation.
+- The same scoped `tool-deploy:test`: exit 1, 520 pass, 6 fail and 1 error across 526 tests/26 files. These are sandbox-unavailable socket checks, **not a passing project suite**: four `registry.test.ts` cases and one `git-http.test.ts` case fail with `EPERM: operation not permitted, listen`; `deploy-k3s.test.ts` also fails at top-level `fakeRegistry` setup for that same reason. Focused rerun of registry/Git HTTP reproduces the five socket refusals.
+- `OPENSPEC_TELEMETRY=0 BUN_TMPDIR=/tmp BUN_INSTALL=/tmp/puni-f11-bun bunx @fission-ai/openspec@1.12.0 validate k3s-wbs-delivery --strict`: exit 0, change valid. A first cached-validator attempt caught a scenario displaced by the new requirement; it was restored under its preparation requirement and validation rerun. Plain `bunx openspec` did not name a callable package and was replaced with the pinned package command.
+
+No pre-resume source-tree admission proof, Docker/k3d execution, live cluster
+export/import or first rollout, h4 acceptance, staging/GitHub Actions acceptance,
+canonical host gate, full workspace gate, production cutover, marker activation,
+push or merge was performed. Independent architecture review must decide the
+source-tree admission repair before this candidate can satisfy F11.1d.

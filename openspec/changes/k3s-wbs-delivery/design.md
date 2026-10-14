@@ -188,6 +188,49 @@ failure logs and the host export. That descriptor is not staging proof. No live
 Docker/k3d execution is claimed by this slice. Existing-host storage is
 `puni-retain`; future host topology is outside these admission changes.
 
+## F11.1d first-start candidate
+
+`first-start.ts` uses a separate version 1 state file and sealed receipt; release
+journal schema 3 retains its existing meaning. The receipt binds original descriptor
+bytes and their operator pin, export and restore evidence, context/cluster UID,
+both namespace UIDs, PVC name/UID/path, restore Job name/UID, transaction, every tier
+digest and the desired Flux revision. Before scaling it verifies the completed
+restore Job and freshly runs the independent replay inventory and the backend
+image's `readStepBlockageActivation` against the actual PVC. The authority must be
+present, valid and `DISABLED`; the read-only probe never enables it. A nonempty WAL
+refuses admission because matching main-file bytes cannot certify WAL contents.
+
+The coordinator claims the existing WBS Lease, closes the writer ingress fence,
+suspends Flux, stops every tier, and persists/readbacks actual admission before
+explicitly starting every tier. Deployment path/PVC, disabled startup migrations,
+writer label, Recreate strategy, digest and ready rollout are checked. It persists
+and reads back the release record before handing the matching revision to Flux.
+Failure parks the Lease and preserves fence/suspension. Retry reuses only the
+sealed transaction; it stops tiers and repeats the actual PVC observation with a
+fresh Job name. Changed restored bytes require reviewed recovery. The CLI and
+rehearsal use this coordinator; descriptor-only `release-record` now refuses.
+
+**Review blocker: source-tree admission.** The current candidate checks the source
+SHA before resume and checks the fence again after Flux reports that SHA applied.
+An operator can still name a valid digest-pinned revision containing the ordinary
+open writer NetworkPolicy. The exact unsafe trace is: coordinator checks closed
+fence → coordinator resumes Flux → Flux applies the open policy → callers can
+reach the backend → coordinator detects the open fence → coordinator suspends Flux,
+closes the fence and parks its Lease. Post-handoff refusal does not erase the
+possible acknowledged writes in that interval. No final safety claim or live
+activation is permitted while this gap remains.
+
+Proposed correction for architecture review: before any resume, read the exact
+desired Git tree through a trusted source observation, bind its rendered resource
+bytes/path to the pinned revision, and require the writer NetworkPolicy selector
+to remain fenced plus exact tier digests/PVC and startup contract. Record that
+source admission durably. A production-path negative must pin a real revision
+with matching images and an open writer selector, then prove refusal before
+`resumeFlux`; removing the source check must make the negative fail. Merely
+trusting operator-supplied rendered bytes without proving their commit binding
+cannot close the gap. The laboratory and `handoff-manifests` render a fenced
+revision, but that convention alone is not admission.
+
 The coordinated StepBlockage deletion slice adds own `deletionState` metadata on
 `delete_subtree`/`restore_subtree`. Independent Kubernetes traversal recognizes
 those properties through nested forward/inverse batches, counts `delete_state_v1`

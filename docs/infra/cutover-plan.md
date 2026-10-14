@@ -160,12 +160,25 @@ from a checkout of the authorized commit on h2puni (`/home/puni1/wbs-build`) unl
    arrival artifacts before retrying. `verify-restore` rejects legacy reports and requires
    matching versioned replay evidence, bytes, migrations/counts and owner UID 10001.
 
-8. **First-start admission remains blocked** (`start-tiers`). F11.1c covers export/restore
-   admission and leaves all prepared Deployments at zero. A separate reviewed executor must
-   admit scaling, release-record persistence and Flux handoff against matching restore evidence
-   before this step can be run. Do not substitute manual scale, record or Flux commands for
-   that missing guard. Production cutover is not ready for activation. Steps 9–10 below remain
-   future acceptance instructions after that prerequisite is implemented and reviewed.
+8. **First-start admission remains blocked on review and live acceptance** (`start-tiers`).
+   The F11.1d candidate routes the guarded operation through
+   `bun tools/tool-deploy/src/k8s/cutover-cli.ts first-start --request <reviewed-request.json>
+--state <protected-state-dir>/first-start-state.json --kubeconfig <file> --kubectl <locked-path>`.
+   Its request contains the original descriptor bytes/pin, complete export/restore reports,
+   context/cluster UID, app/backend namespace names/UIDs, PVC name/UID/path, completed restore
+   Job name/UID and Flux unit/revision (see `FirstStartRequest` in
+   [first-start.ts](../../tools/tool-deploy/src/k8s/first-start.ts)). The coordinator freshly
+   observes actual PVC replay and exact disabled activation authority, starts all tiers,
+   verifies their digests/rollout, persists and reads back the release record, then adopts Flux.
+   Descriptor-only `release-record` refuses. `handoff-manifests` renders the desired source
+   with a closed writer fence; preparation still holds every Deployment at zero.
+   **Do not run this candidate:** the pre-resume source-tree admission gap in
+   [the design](../../openspec/changes/k3s-wbs-delivery/design.md#f111d-first-start-candidate)
+   must be closed and independently reviewed first. A matching revision can open ingress
+   before the current post-handoff check detects it. Source and post-handoff closed-fence
+   admission, Docker/k3d/staging evidence and attended acceptance remain required.
+   Step 9 requires a separately reviewed traffic-opening revision; successful first-start
+   leaves ingress fenced and does not enable the SQLite blockage marker.
 
 9. **Smoke with a host override** (`smoke-host-override`) `[operator]`:
    `curl --resolve wbs.bulletpoints.club:443:$NEW_IP https://wbs.bulletpoints.club/` (200) and
