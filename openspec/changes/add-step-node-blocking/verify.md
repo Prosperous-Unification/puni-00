@@ -393,3 +393,10 @@ Each injected fault below produced exit 1; the original production source was re
 - New image capability: `delete_state_v1`. Inventory detects own `deletionState` on `delete_subtree`/`restore_subtree` recursively in **both** stored journal directions, including empty metadata, once per journal row. Existing `moveProgress` snapshots cumulatively require `move_progress_v1`; fact rollback never erases history compatibility obligations.
 - Kubernetes #428/#429 integration was coordinated with F11.1c's worker, who reported its independent inventory and all replay/cutover capability validators now recognize `delete_state_v1` with watched omission proofs. Those edits are on that worker's branch, not this one; parent integration must review both branches together. This branch alone claims Compose protection only.
 - The full exact-SHA host gate, uncached full lint/build, CI secrets/migration lint, browser checks and live release actions were **not run in this bounded worker slice**. Parent integration owns `bin/h2puni-gate.sh <candidate-sha>` and Astra review before merge. The broader WBS feature remains unfinished; task 3.0.4 alone is checked off.
+
+## CI repair: independent delete restore shape refusal (2026-10-14)
+
+- Before repair: `bun test apps/wbs/be-01/src/controller/typed-dependency-lifecycle.controller.db.test.ts --timeout=10000` reported 11 pass, 1 fail: a peer typed relationship bumped the surviving parent revision, so undo refused with `“010” has changed since then.` before restore shape validation.
+- Retained the stale surviving parent scenario and added the same relationship scenario with journal revision evidence refreshed to current owner revisions. The refreshed case asserts the exact peer relationship refusal and unchanged deleted child/relationship state.
+- Watched negative: temporarily bypassed `applyRestore` typed shape validation; `--test-name-pattern 'pinned peer relationship after refreshing'` reported 0 pass, 1 fail, HTTP 500 instead of 409 (the later graph resolver detected a node endpoint on a parent). Restored production code.
+- Repaired file: 13 pass, 0 fail. Canonical gate remains queued by the PM.
