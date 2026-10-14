@@ -411,6 +411,9 @@ function request(path: string, token: string, marker?: string, correlation?: str
   };
 }
 
+// Proof: hosted CI #405 exhausted the 10 s total while starting the third
+// app process. Adding 3.5 s per ready frame reproduced that timeout; the
+// 30 s total passed while the worker's 10 s operation deadline stayed active.
 test('logout in another mounted process denies an old intact selected OIDC pair while independent sessions remain live', async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-mounted-lifecycle-'));
   const path = join(dir, 'shared.db');
@@ -471,7 +474,7 @@ test('logout in another mounted process denies an old intact selected OIDC pair 
   } finally {
     sqlite.close();
   }
-});
+}, 30_000);
 
 for (const expires of ['5m', '-1s']) {
   // Proof: PR CI timed out the current-token restart case at its

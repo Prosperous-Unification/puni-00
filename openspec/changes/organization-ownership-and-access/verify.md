@@ -1721,3 +1721,40 @@ PR #396's CI run 38446983935 merged C1 `4eaf398c7d4e8cda4b26d589495543c725247b29
 Production-path red: add a 409 `organization_context_changed` to both the SSO connection read and create cases, then run `bunx vitest run src/components/organization/sso-connections-panel.test.tsx -t 'authority loss' --no-file-parallelism --maxWorkers=1` from `apps/wbs/fe-01`. It failed 2/8 selected cases: the page loss callback had zero calls in each, and both paths raised `Unexpected response variant: object` through `setupRefusal`. The restored `setupRefusal` maps the code through existing `lostAccess`, with its adjacent `Proof:` comment. The full panel file then passed 27/27.
 
 `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-fe-01:typecheck --outputStyle=static` passed both the module and application typechecks against the merged tree. Direct ESLint and Prettier checks of the two changed SSO panel files passed. `bunx @fission-ai/openspec@1.12.0 validate organization-ownership-and-access --json` reported one valid change, zero issues. Normal commit hooks, the new exact-SHA gate, CI and live provider acceptance are pending at this record.
+
+### Cross-process logout CI budget correction — 2026-10-14
+
+Hosted PR #405 run `38501869639` failed the existing mounted logout proof at
+10,137.30 ms while waiting for a worker's ready frame. Three cold application
+processes shared the target's 10 s total budget; neighboring three-process
+restart cases already had scoped 30 s budgets and took about 9.5 s in that run.
+The logout case now declares 30 s under `docs/test-budgets.md`. This is a test-only
+scheduling correction to an existing behavior proof, so it needs no new delta spec.
+
+All commands below ran in an isolated checkout based on main `8f324607`, with
+`--timeout=10000` so the target's default remained in effect. Child-pipe execution
+required approved local access after the sandbox rejected Bun `stdin.flush` with
+`EPERM`. Temporary faults were restored before the final suite:
+
+- Baseline selected test: **1 pass, 0 fail, 11 assertions**, 5,371.55 ms
+  (`/tmp/puni-ci405-baseline.log`).
+- Add `await Bun.sleep(3_500)` before each real worker's ready frame, original
+  budget: **0 pass, 1 fail**, test timeout at 10,039.96 ms with
+  `ready: worker exited 143`, reproducing the hosted signature
+  (`/tmp/puni-ci405-delay-red.log`).
+- Same injected readiness delay with the scoped 30 s budget: **1 pass, 0 fail,
+  11 assertions**, 15,785.91 ms (`/tmp/puni-ci405-delay-green.log`).
+- Increase only the injected readiness delay to 11 s: **0 pass, 1 fail** at
+  10,152.62 ms with `ready: worker deadline`, proving the worker's operation
+  deadline still fails before the broader total budget
+  (`/tmp/puni-ci405-deadline-negative.log`).
+- Restore the worker, then run
+  `bun test apps/wbs/be-01/src/controller/browser-lifecycle.mounted-process.db.test.ts --timeout=10000`:
+  **11 pass, 0 fail, 104 assertions**, 52.67 s
+  (`/tmp/puni-ci405-mounted-green.log`).
+- Direct zero-warning ESLint on the changed test passed; OpenSpec 1.12.0
+  `validate organization-ownership-and-access --json` reported **1 valid, 0 issues**.
+
+No application source changed. Full backend, frontend, build, typecheck, hosted CI,
+and canonical exact-SHA gate were not rerun for this narrow test-budget commit;
+they remain integration checks for its recipient.
