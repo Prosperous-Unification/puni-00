@@ -393,3 +393,36 @@ Images SHALL advertise `delete_state_v1` separately from command discriminators.
 - **GIVEN** a nested forward or inverse subtree command carries empty deletion metadata and no live blockage facts
 - **WHEN** an image advertises only prior blockage/move replay capabilities
 - **THEN** release admission refuses `delete_state_v1` history before migration or reopening writes
+
+### Requirement: Project-step deletion discloses and removes direct blockage facts atomically
+
+Project-step deletion SHALL count direct blockage facts separately from progress, including facts retained beneath done progress. An unconfirmed deletion SHALL return typed `in_use` conflict with the direct blockage count before opening the deletion transaction when the fast read observes those facts. The transaction SHALL read fresh usage and refuse any blockage fact arriving after that read. Confirmed cascade SHALL explicitly remove only the deleted step's facts, bump every affected owner revision including blockage-only owners, and preserve unrelated facts. Failure SHALL restore facts, step, revisions and events together. Existing journal replay referring to the removed step SHALL refuse before restoring owners or facts.
+
+#### Scenario: Blockage-only and retained done facts require confirmation
+
+- **WHEN** a step holds direct blockage, whether or not its owner also states done progress
+- **THEN** unconfirmed deletion returns 409 `in_use` with `blockages` equal to the number of direct facts and changes nothing
+
+#### Scenario: Late blockage is counted transactionally
+
+- **WHEN** direct blockage arrives after the deletion fast usage read
+- **THEN** an unconfirmed deletion refuses using the fresh transactional count
+
+#### Scenario: Confirmed cascade and failure preserve the transaction boundary
+
+- **WHEN** a confirmed deletion succeeds
+- **THEN** it explicitly removes that step's blockage, reports the count and bumps blockage-only owners while preserving other steps' facts
+- **WHEN** a later transactional write fails
+- **THEN** facts, step, owner/project revisions, events and journal remain as before deletion
+
+#### Scenario: Historical commands cannot replay a removed step
+
+- **WHEN** first-child history still references a step removed by confirmed cascade
+- **THEN** undo and redo refuse before recreating owners or facts even if revision evidence is bypassed
+
+#### Scenario: The confirmation names blockage loss and unknown older-server counts
+
+- **WHEN** a deletion refusal reports `blockages`
+- **THEN** its confirmation states the direct blockage count, including zero
+- **WHEN** an older server omits that wire field
+- **THEN** the confirmation visibly states that the server did not report step blockages and does not represent absence as zero

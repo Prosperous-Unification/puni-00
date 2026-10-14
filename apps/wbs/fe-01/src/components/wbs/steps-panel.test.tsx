@@ -478,6 +478,7 @@ describe('removing a step', () => {
     estimates: 2,
     actuals: 0,
     progress: 0,
+    blockages: 2,
     measures: 0,
     assignments: 1,
     assumedAssignees: [{ workItemId: 'w2', assumedNow: null, assumedAfter: 'p1' }],
@@ -498,7 +499,7 @@ describe('removing a step', () => {
 
     expect(removeStep).toHaveBeenCalledWith('step-qa', false);
     expect(document.body.textContent).toContain(
-      'Removing the step QA would delete 2 estimates and 1 assignment.',
+      'Removing the step QA would delete 2 estimates and 1 assignment. It would also delete 2 step blockages.',
     );
     // The flip, by the work item's **number**: an id in a confirmation is a
     // fact nobody reading the plan can act on.
@@ -767,6 +768,20 @@ describe('what the section tells the modal it is holding', () => {
 });
 
 describe('the sentences on their own', () => {
+  it('discloses direct blockage counts including zero and unknown older-server counts', () => {
+    const usage = {
+      estimates: 0,
+      actuals: 0,
+      progress: 0,
+      measures: 0,
+      assignments: 0,
+      assumedAssignees: [],
+    };
+    expect(usageSentence('QA', { ...usage, blockages: 2 })).toContain('2 step blockages');
+    expect(usageSentence('QA', { ...usage, blockages: 0 })).toContain('0 step blockages');
+    expect(usageSentence('QA', usage)).toContain('The server did not report step blockages.');
+  });
+
   it('the removal sentence says step', () => {
     // A project names its own steps, so one may well be called `Kat` or
     // `Backend` — the sentence somebody agrees to before a removal has to say
@@ -794,7 +809,9 @@ describe('the sentences on their own', () => {
         assignments: 0,
         assumedAssignees: [],
       }),
-    ).toBe('Removing the step QA would delete 1 estimate and 0 assignments.');
+    ).toBe(
+      'Removing the step QA would delete 1 estimate and 0 assignments. The server did not report step blockages.',
+    );
   });
 
   it('says who stops being assumed to do everything', () => {

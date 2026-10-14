@@ -2000,6 +2000,7 @@ export class WorkItemService {
       if (row !== null && row.projectId !== projectId) return true;
     }
     const steps = new Set((await this.opts.projects.stepsOf(projectId)).map((step) => step.id));
+    // Proof: bypassing missing-step references changed removed-step first-child undo/redo from 404 to 409 (step-node-attempt.controller.db.test.ts, 2026-10-14).
     if (references.steps.some((id) => !steps.has(id))) return true;
     const catalogs: [DirectoryCatalog, readonly string[]][] = [
       ['people', references.people],

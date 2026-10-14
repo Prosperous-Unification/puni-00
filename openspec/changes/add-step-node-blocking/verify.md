@@ -400,3 +400,43 @@ Each injected fault below produced exit 1; the original production source was re
 - Retained the stale surviving parent scenario and added the same relationship scenario with journal revision evidence refreshed to current owner revisions. The refreshed case asserts the exact peer relationship refusal and unchanged deleted child/relationship state.
 - Watched negative: temporarily bypassed `applyRestore` typed shape validation; `--test-name-pattern 'pinned peer relationship after refreshing'` reported 0 pass, 1 fail, HTTP 500 instead of 409 (the later graph resolver detected a node endpoint on a parent). Restored production code.
 - Repaired file: 13 pass, 0 fail. Canonical gate remains queued by the PM.
+
+## Task 3.0.5 — project-step deletion closure (2026-10-14)
+
+Base: reviewed/published #433 exact `11500ac09bedc3eaa722749d1417f4d1f80af4b0`. Isolated clone `/tmp/puni-step-delete-sol`, branch `feat/step-blockage-step-delete-sol`. Root checkout unchanged. No push, merge, full host gate or deployment in this worker slice.
+
+### Behavior and focused evidence
+
+Internal `StepHoldings`, `StepUsageRows`, `StepInUse` and `StepRemoval` require a separate `blockages` count. SQLite reads direct facts independent of progress precedence, counts again in the removal transaction, explicitly removes restrictive-FK facts on confirmed cascade and includes blockage-only owners in the revision union. The existing scoped replay reference check refuses removed steps before restoration. HTTP compatibility alone permits an absent older-server count; confirmation text renders unknown explicitly and includes reported zero.
+
+- Initial RED: `bun test apps/wbs/be-01/src/service/step.service.db.test.ts --test-name-pattern 'blockage|blockages'` — four failures, initially reaching the restrictive foreign key instead of the intended refusal/cascade/late revision failure. Initial UI RED: `bunx vitest run src/components/wbs/steps-panel.test.tsx -t 'discloses direct blockage'` from fe-01 — failed because the confirmation omitted `2 step blockages`.
+- `bun test libs/wbs/adapters/store-sqlite/src/step.db.test.ts libs/wbs/application/core/src/http/step.routes.test.ts apps/wbs/be-01/src/controller/step.controller.db.test.ts libs/wbs/domain/contracts/src/http/step-shapes.test.ts libs/wbs/domain/contracts/src/http/refusal.test.ts` — **105 pass, 0 fail, 540 assertions** (`/tmp/step-delete-focused-contracts.log`).
+- `bun test apps/wbs/be-01/src/service/step.service.db.test.ts apps/wbs/be-01/src/controller/step-node-attempt.controller.db.test.ts` — **146 pass, 0 fail, 751 assertions** (`/tmp/step-delete-service-mounted.log`). Expected endpoint error logs accompany injected failures. This run includes direct/retained-done HTTP conflicts, cascade, late-arriving facts, blockage-only owner revision and unrelated-fact preservation, exact rollback, removed-step first-child replay refusal, and existing structural/attempt regressions.
+- Two subsequently added mounted deletion-history undo/redo cases passed **2 tests, 0 failures, 9 assertions** with `bun test apps/wbs/be-01/src/controller/step-node-attempt.controller.db.test.ts --test-name-pattern 'refuses deletion .* history'`. Both deletion and first-child cases erase expected revision evidence and still refuse removed-step replay with scoped 404 before restoration.
+- Final service and OpenAPI shape check: `bun test apps/wbs/be-01/src/service/step.service.db.test.ts libs/wbs/domain/contracts/src/http/step-shapes.test.ts` — **32 pass, 0 fail, 98 assertions** (`/tmp/step-delete-final-small.log`).
+- `bunx vitest run src/components/wbs/steps-panel.test.tsx` from fe-01 — **50 pass, 0 fail** (`/tmp/step-delete-ui.log`). The mounted confirmation discloses two blockage facts; sentence tests include zero and omitted older-server fields. Vite emitted its existing native config loader warning.
+
+### Watched R5 faults
+
+Every mutation exited 1 and was restored before subsequent checks. Detailed logs: `/tmp/step-delete-proof-<fault>.log`.
+
+| Injected fault                                                       | Observed production-path failure                                                   |
+| -------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Omit blockage from shared holdings predicate (`holdings`)            | Blockage-only refusal deletes the step instead of refusing                         |
+| Zero blockage counts (`fresh-count`)                                 | Late-arriving blockage request succeeds instead of returning `in_use`              |
+| Omit explicit blockage deletion (`delete`)                           | Confirmed cascade fails with restrictive foreign key                               |
+| Omit blockage owners from revision union (`owner-bump`)              | Confirmed cascade loses blockage-only owner revision/removal owner set             |
+| Bypass missing-step replay reference validation (`replay-reference`) | First-child undo/redo returns 409 instead of the intended scoped 404 before replay |
+| Bypass older-server unknown branch (`unknown`)                       | Omitted count renders an undefined count instead of the explicit unknown sentence  |
+
+The late project-revision trigger additionally exercises the real transaction failure path after fact deletion, step deletion and owner bumps; service and mounted snapshots show facts, step, owner/project revisions, events and journal restored. No migration, document v8, saved schema6, scheduler16 or replay discriminator/capability changed.
+
+### Scoped verification and delivery boundary
+
+- Scoped TypeScript build: `bunx tsc --build --force libs/wbs/application/core/tsconfig.json libs/wbs/adapters/store-sqlite/tsconfig.json libs/wbs/adapters/store-memory/tsconfig.json apps/wbs/be-01/tsconfig.spec.json apps/wbs/fe-01/tsconfig.json` — passed, no diagnostics (`/tmp/step-delete-types.log`). Initial failures identified existing fixtures needing the new required internal count; those fixtures now report explicit zero.
+- Strict OpenSpec: `bunx @fission-ai/openspec@1.12.0 validate add-step-node-blocking --strict --json` — valid, zero issues. `git diff --check` passed.
+- Final seven-project lint: `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint:fast -p wbs-core,wbs-be-01,wbs-fe-01,wbs-store-sqlite,wbs-store-memory,wbs-domain,wbs-contracts --output-style=static` — all seven passed, 0/7 cache hits, 14.3s (`/tmp/step-delete-lint-final.log`). Initial run failed SQLite import ordering and backend test import/assertion lint; these were corrected before this successful rerun.
+- Final repeated scoped TypeScript build with the command above passed, exit 0 and no diagnostics (`/tmp/step-delete-types-final.log`).
+- `bunx @fission-ai/openspec@1.12.0 validate --all --json` — all registered specs/changes passed (`/tmp/step-delete-openspec-all.log`).
+- Explicit Prettier check over all changed files and `git diff --check` passed before commit.
+- Full canonical host gate, CI secrets/migration checks, full uncached lint/build and browser checks are **not run** in this bounded worker slice. Parent owns Astra review and `bin/h2puni-gate.sh <exact-candidate-sha>` before integration. The broader StepBlockage feature remains unfinished.
