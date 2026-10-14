@@ -120,6 +120,10 @@ describe('fe-01’s test tiers', () => {
     // other way, `…(17) to deeply equal …(18)`: a DOM-free suite paying jsdom
     // for nothing. The partition case failed with each of them too, on `80 to
     // be 79` and `78 to be 79`.
+    // Both organization model suites exercise browserClient's `location.origin`
+    // through a stub, so the DOM-evidence rule places them in the View tier.
+    // Proof: listing them in NODE_SUITES failed this equality by those two
+    // names and the partition count by two; removing the entries restored both.
     const domFree = [
       ...everySuite().filter((suite) => !needsADom(suite) && !isZoned(suite)),
       SELF,

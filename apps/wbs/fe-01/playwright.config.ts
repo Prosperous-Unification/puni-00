@@ -203,7 +203,8 @@ export default defineConfig({
       // Excluded here rather than left to collide with that project's own
       // `testMatch`, which would otherwise also pick it up and fail it under
       // the wrong browser.
-      testIgnore: /lifetime-bfcache\.spec\.ts/,
+      // Proof: removing the activated-fixture arm failed `runs activated organization acceptance only under its dedicated browser config`; the ordinary Playwright list collected its incompatible case.
+      testIgnore: [/lifetime-bfcache\.spec\.ts/, /organization-context\.real\.spec\.ts/],
       use: {
         ...devices['Desktop Chrome'],
         // After the spread, not in the top-level `use`: a project's options

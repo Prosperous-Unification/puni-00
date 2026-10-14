@@ -14,7 +14,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { CONTROL_HEIGHT, FIELD_LABEL_CLASS, FORM_CLASS } from '@/components/ui/control';
 import { Input } from '@/components/ui/input';
-import { browserClient, failureMessage, unreachable } from '@/lib/http';
+import { failureMessage, unreachable } from '@/lib/http';
+import { useResourceClient } from '@/runtime/organization-resources';
 
 import { type RefusedView, refusedView, spaceRefusal } from './space-access';
 import {
@@ -29,7 +30,7 @@ import {
 } from './space-chrome';
 import { useSpacesPolling } from './use-spaces-polling';
 
-const spaces = browserClient([listSpaces, createSpace, renameSpace, removeSpace]);
+const SPACES_SHAPES = [listSpaces, createSpace, renameSpace, removeSpace] as const;
 
 type Space = Extract<ClientReply<typeof listSpaces>, { kind: 'success' }>['body']['spaces'][number];
 type View =
@@ -50,6 +51,7 @@ export function SpacesPage({
   nav: ReactNode;
   account: ReactNode;
 }): React.JSX.Element {
+  const spaces = useResourceClient(SPACES_SHAPES);
   const [view, setView] = useState<View>({ kind: 'loading' });
   const [name, setName] = useState('');
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
@@ -73,7 +75,7 @@ export function SpacesPage({
       default:
         return unreachable(reply);
     }
-  }, []);
+  }, [spaces]);
 
   const refreshSafely = useCallback(
     () =>

@@ -337,6 +337,13 @@ describe('the adopted projects', () => {
     ).toContain('unknown test target declaration wbs-store-memory:test:unknown');
   });
 
+  it('classifies the organization real-backend Browser target outside the report-bound levels', async () => {
+    expect(UNDECLARED_TEST_TARGETS['wbs-fe-01:e2e-organization']).toBe(
+      'Real-backend organization Browser Playwright target without this slice’s report binding.',
+    );
+    await verifyTargetInventory('apps/wbs/fe-01', await readManifest('apps/wbs/fe-01'));
+  });
+
   it('refuses a missing required level target', async () => {
     const manifest = await readManifest('libs/wbs/adapters/store-memory');
     const targets = { ...manifest.targets };

@@ -43,6 +43,12 @@ async function loadConfig(shift?: string) {
   return config;
 }
 
+async function loadOrganizationConfig() {
+  vi.resetModules();
+  const { default: config } = await import('./playwright.organization.config');
+  return config;
+}
+
 function serversOf(config: { webServer?: unknown }): WebServerEntry[] {
   const { webServer } = config;
   if (!Array.isArray(webServer)) throw new Error('the config starts no servers to assert on');
@@ -324,6 +330,20 @@ describe('the browser gate’s port shift', () => {
     expect(callerId).toBe('e2e000000000');
     expect(callerId).toMatch(/^[0-9a-f]{12}$/);
   });
+});
+
+it('runs activated organization acceptance only under its dedicated browser config', async () => {
+  vi.spyOn(process, 'cwd').mockReturnValue(repoRoot);
+  try {
+    const ordinary = await loadConfig();
+    const organization = await loadOrganizationConfig();
+    const spec = 'e2e/organization-context.real.spec.ts';
+    const [defaultProject] = projectsOf(ordinary);
+    expect(matches(defaultProject.testIgnore, spec)).toBe(true);
+    expect(organization.testMatch).toBe('organization-context.real.spec.ts');
+  } finally {
+    vi.restoreAllMocks();
+  }
 });
 
 describe('the Performance browser selection', () => {

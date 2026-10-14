@@ -26,7 +26,7 @@ describe('membership choices', () => {
           }),
       ],
     });
-    render(<MembershipChoices />);
+    render(<MembershipChoices onChoose={() => undefined} />);
     const list = await screen.findByRole('list', { name: 'Your organizations' });
     const [acme, globex] = within(list).getAllByRole('listitem');
     expect(acme.textContent).toContain('Acme');
@@ -34,6 +34,8 @@ describe('membership choices', () => {
     expect(acme.textContent).not.toContain('Locked');
     expect(acme.textContent).not.toContain('company sign-in');
     expect(within(globex).getByText('Locked')).toBeDefined();
+    expect(within(globex).queryByRole('button', { name: 'Choose Globex' })).toBeNull();
+    expect(within(acme).getByRole('button', { name: 'Choose Acme' })).toBeDefined();
     expect(within(globex).getByText(LOCKED_HINT)).toBeDefined();
   });
 

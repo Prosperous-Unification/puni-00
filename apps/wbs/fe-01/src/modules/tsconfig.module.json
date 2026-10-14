@@ -44,6 +44,7 @@
     "channel.ts",
     "store.ts",
     "../lib/http.ts",
+    "../lib/organization-context.ts",
     "../lib/plan-refresh.ts",
     "../lib/refusal.ts",
     "../lib/wbs-api.ts",
