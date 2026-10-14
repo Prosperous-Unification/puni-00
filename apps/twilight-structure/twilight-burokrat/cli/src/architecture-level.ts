@@ -1,17 +1,13 @@
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 
-import { parseOrThrow, type } from '@shared/validation';
 import { SaxesParser } from 'saxes';
 
-import { findRule } from './rules/registry';
-
-const FixturePolicy = type({
-  schemaVersion: '1',
-  fixtures: type({ ruleId: 'string>=1', file: 'string>=1' }).onUndeclaredKey('reject').array(),
-}).onUndeclaredKey('reject');
-
-const ARCHITECTURE_FILE = /^src\/architecture\/[a-z0-9-]+\.architecture\.test\.ts$/;
+import {
+  decodeArchitecturePolicy,
+  validateArchitectureDiscovery,
+  validateArchitectureMapping,
+} from './architecture-policy';
 
 /**
  * Runs the explicitly adopted rule negatives as an isolated Architecture level and writes JUnit.
@@ -19,6 +15,7 @@ const ARCHITECTURE_FILE = /^src\/architecture\/[a-z0-9-]+\.architecture\.test\.t
  * @throws when the policy, selector, fixture, runner or report cannot establish a real run.
  */
 export function runArchitectureLevel(root: string, report: string): void {
+  // Proof: policy IO before mkdir lost [TEST-AXES-086] report-error precedence.
   mkdirSync(dirname(report), { recursive: true });
   // Proof: removing this clear made the unmapped-fixture production negative leave stale JUnit.
   rmSync(report, { force: true });
@@ -26,13 +23,9 @@ export function runArchitectureLevel(root: string, report: string): void {
   const policyPath = join(root, 'src/architecture-fixtures.json');
   const source = new TextDecoder('utf-8', { fatal: true }).decode(readFileSync(policyPath));
   const input: unknown = JSON.parse(source);
-  // Proof: replacing this parse with a trust cast made the malformed-policy production test
-  // run schemaVersion 2 as a green Architecture target instead of refusing it.
-  const policy = parseOrThrow(FixturePolicy, input);
-  // Proof: disabling this guard made the empty-map production negative fail at a later
-  // unmapped-file refusal instead of reporting no-cases at the runner boundary.
-  if (policy.fixtures.length === 0) throw new Error('no-cases: Architecture has no mapped rules');
+  const policy = decodeArchitecturePolicy(input);
 
+  // Proof: discovery before decoding lost [TEST-AXES-086] malformed-policy precedence.
   const architectureRoot = join(root, 'src/architecture');
   const discovered = readdirSync(architectureRoot)
     .filter((name) => name.endsWith('.architecture.test.ts'))
@@ -41,26 +34,8 @@ export function runArchitectureLevel(root: string, report: string): void {
   const selected = new Set<string>();
   const mappedRules = new Set<string>();
   for (const fixture of policy.fixtures) {
-    // Proof: disabling this guard made the mixed-level production test fail at the later
-    // exact rule-file check, which refused F7's src/unit.test.ts with the wrong diagnosis.
-    if (!ARCHITECTURE_FILE.test(fixture.file)) {
-      throw new Error(`Architecture target cannot collect Unit file ${fixture.file}`);
-    }
-    // Proof: disabling this check made the F7-to-MOD-INDEX production negative exit 0 with
-    // MOD-INDEX's passing testcase falsely standing in for F7.
-    const expectedFile = `src/architecture/${fixture.ruleId.toLowerCase()}.architecture.test.ts`;
-    if (fixture.file !== expectedFile) {
-      throw new Error(`Architecture rule ${fixture.ruleId} needs its own fixture: ${expectedFile}`);
-    }
-    // Proof: disabling this check made the unknown-rule production runner negative exit 0.
-    if (findRule(fixture.ruleId) === undefined) {
-      throw new Error(`Architecture mapping names unknown rule ${fixture.ruleId}`);
-    }
-    // Proof: disabling this check made the duplicate-rule production runner negative exit 0.
-    if (mappedRules.has(fixture.ruleId)) {
-      throw new Error(`Architecture rule is mapped twice: ${fixture.ruleId}`);
-    }
-    mappedRules.add(fixture.ruleId);
+    // Proof: validating all mappings ahead of IO lost [TEST-AXES-086] missing-first refusal.
+    validateArchitectureMapping(fixture, mappedRules);
     const absoluteFile = join(root, fixture.file);
     // Proof: disabling this guard made the missing-fixture production negative fail with a raw
     // lstat ENOENT instead of its named mapped-fixture refusal.
@@ -75,11 +50,7 @@ export function runArchitectureLevel(root: string, report: string): void {
     selected.add(fixture.file);
   }
 
-  for (const file of discovered) {
-    // Proof: architecture-level.test.ts adds extra.architecture.test.ts; without this guard the
-    // target silently omits a rule negative while reporting a passing Architecture run.
-    if (!selected.has(file)) throw new Error(`unmapped architecture fixture: ${file}`);
-  }
+  validateArchitectureDiscovery(discovered, selected);
 
   const invocation = Bun.spawnSync(
     [

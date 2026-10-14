@@ -224,3 +224,52 @@ test('refuses an unknown rule, duplicate rule and symlinked fixture', () => {
   );
   expect(() => readFileSync(report)).toThrow();
 });
+
+test('[TEST-AXES-086] runner validates each mapping before its IO while retaining stale-report precedence', () => {
+  const { root, report } = fixture();
+  writeFileSync(report, 'stale');
+  writeFileSync(
+    join(root, 'src/architecture-fixtures.json'),
+    JSON.stringify({
+      schemaVersion: 1,
+      fixtures: [
+        { ruleId: 'F7', file: 'src/architecture/f7.architecture.test.ts' },
+        { ruleId: 'UNKNOWN', file: 'src/architecture/unknown.architecture.test.ts' },
+      ],
+    }),
+  );
+  const invocation = run(root, report);
+  expect(invocation.exitCode).toBe(1);
+  expect(stderrOf(invocation)).toContain(
+    'mapped architecture fixture is missing: src/architecture/f7.architecture.test.ts',
+  );
+  expect(() => readFileSync(report)).toThrow();
+});
+
+test('[TEST-AXES-086] malformed policy precedes directory discovery and report directory creation precedes policy IO', () => {
+  const { root, report } = fixture();
+  rmSync(join(root, 'src/architecture'), { recursive: true });
+  writeFileSync(join(root, 'src/architecture-fixtures.json'), '{"schemaVersion":2,"fixtures":[]}');
+  writeFileSync(report, 'stale');
+  const malformed = run(root, report);
+  expect(malformed.exitCode).toBe(1);
+  expect(stderrOf(malformed)).toContain('schemaVersion');
+  expect(() => readFileSync(report)).toThrow();
+  const blocked = join(root, 'blocked');
+  writeFileSync(blocked, 'file');
+  const directory = run(root, join(blocked, 'report.xml'));
+  expect(directory.exitCode).toBe(1);
+  expect(stderrOf(directory)).toContain('EEXIST');
+  expect(stderrOf(directory)).not.toContain('schemaVersion');
+});
+
+test('[TEST-AXES-086] report directory error precedes missing policy', () => {
+  const { root } = fixture();
+  rmSync(join(root, 'src/architecture-fixtures.json'));
+  const blocked = join(root, 'blocked');
+  writeFileSync(blocked, 'file');
+  const invocation = run(root, join(blocked, 'report.xml'));
+  expect(invocation.exitCode).toBe(1);
+  expect(stderrOf(invocation)).toContain('EEXIST');
+  expect(stderrOf(invocation)).not.toContain('ENOENT');
+});

@@ -2913,3 +2913,48 @@ and `wbs-store-sqlite:test:conformance` targets each ran 73 tests with zero fail
 These focused target runs remain operational and noncertifying. Final changed-file format
 and diff checks precede the correction commit. The coordinator owns final parent restacking,
 exact-head review, host gate and publishing; no push or host gate was performed here.
+
+### WBS 080.39 — 4.1b.6b.2 committed Architecture facts (2026-10-14)
+
+Base: `d4bbcd051173ff758c8b314ac1d82164b2c6507e`, isolated `/tmp/puni-architecture-facts` clone. Production `scenario allocate . openspec/changes/test-axes/specs/test-axes/spec.md` issued TEST-AXES-084..086; the proposed journal's prior event prefix was compared equal before applying its spec and journal. The existing fourteen-rule policy remains unchanged.
+
+Initial production CLI RED: five new cases failed, zero passed, ten assertions. Committed Architecture lost the expected successful observation, pin/policy/source/discovery refusals received the old unsupported-source refusal, and reviewed-empty with a committed policy incorrectly exited zero. Initial implementation GREEN: five passed, zero failed, 76 assertions. Additional regressions cover three-way Performance/Conformance/Architecture overlap, canonical unique complete source tuples, explicit disjoint membership, all fourteen actual policy mappings, selected policy and mapped-source failures despite working repairs, source and packaged CLI dispatch, and runner validation/error order. Candidate fixture/config bodies throw if executed.
+
+The adapter binds exactly `<projectRoot>/src/architecture-fixtures.json`, its digest and every mapped selected regular readable blob, then intersects with the complete Performance fixture scope. Git leaf paths are reduced to immediate child names before the shared unmapped check; a suffix-looking directory with descendants refuses, ordinary nested decoys are ignored. Reviewed-empty refuses a selected fixed policy (including descendants at that path) or a present `test:architecture:level`. Membership is policy-declared. The existing runner still passes bare Bun filters; this slice makes no complete execution-collection claim.
+
+Watched faults were restored after each independent production test run; every listed mutation exited 1 with failed assertions:
+
+| Injected fault                                                                             | Observed production test failure                                                                     |
+| ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| Remove fixed policy-path comparison or digest comparison                                   | TEST-AXES-085 loses the named pin refusal or emits success for changed digest                        |
+| Disable fatal UTF-8 decoding                                                               | TEST-AXES-085 loses the named UTF-8 refusal                                                          |
+| Replace closed policy parse with trust cast; remove nonempty guard                         | TEST-AXES-085 loses schema refusal or the named no-cases refusal                                     |
+| Remove architecture suffix, exact relation, registry or duplicate checks separately        | TEST-AXES-085 loses the specific mapping refusal or accepts duplicate mapping                        |
+| Read mapped sources only inside Performance intersection                                   | TEST-AXES-085 accepts incomplete disjoint source selection; TEST-AXES-084 loses complete tuples      |
+| Discover whole remaining Git paths instead of immediate child names; remove unmapped guard | TEST-AXES-086 accepts an unmapped suffix directory or fixture                                        |
+| Remove policy-presence or target-presence contradiction checks separately                  | TEST-AXES-086 accepts the corresponding reviewed-empty contradiction                                 |
+| Remove Architecture intersection, sort or source deduplication separately                  | TEST-AXES-084 changes disjoint membership, reverses overlap order or duplicates shared source tuples |
+| Change authentication marker or certification marker                                       | TEST-AXES-084 source/package assertions reject the promoted observation                              |
+| Execute candidate config bytes with Function                                               | TEST-AXES-084 source/package commands refuse instead of producing facts                              |
+| Replace JSON decoding with an empty record                                                 | TEST-AXES-084..086 lose expected facts or named refusals                                             |
+| Remove runner stale-report clearing                                                        | TEST-AXES-086 retains stale report after refusal                                                     |
+| Validate all mappings before their IO                                                      | TEST-AXES-086 reports later unknown rule instead of earlier missing fixture                          |
+| Discover architecture directory before policy decoding                                     | TEST-AXES-086 reports directory error instead of malformed policy                                    |
+| Read policy before report directory creation                                               | TEST-AXES-086 reports missing policy instead of report-path EEXIST                                   |
+
+Commands on restored code:
+
+- `bun test apps/twilight-structure/twilight-burokrat/cli/src/evidence/level-facts.test.ts apps/twilight-structure/twilight-burokrat/cli/src/architecture-level.test.ts`: final result recorded below; includes two real package builds and CLI invocations.
+- `bunx tsc --build --force apps/twilight-structure/twilight-burokrat/cli/tsconfig.json`: exit 0, no diagnostics.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx show project twilight-burokrat --json`: exit 0, generated current graph. Changed-file ESLint rerun then exited 0 without diagnostics. The earlier direct ESLint run had skipped `@nx/enforce-module-boundaries` because no ProjectGraph existed; that earlier run did not verify boundaries.
+- Production `scenario validate`: exit 0, `{"unidentified":[]}`.
+- Pinned OpenSpec 1.12.0 `validate test-axes --strict --json`: exit 0, one valid change, zero issues.
+- Scoped Prettier and `git diff --check`: exit 0.
+
+No host-wide gate, real Architecture target execution, publication collection, full source classification, coverage credit, authenticated receipt, admission, sync or archive is claimed. The coordinator owns exact-SHA host gate after independent review; Tasks 2.1/2.2/4.1 remain open.
+
+Final restored-code suite: exit 0, **49 pass, 0 fail, 433 assertions across two files**, 22.69 s. Packaged Conformance and Architecture dispatch both passed. Evidence logs: `/tmp/architecture-final-tests.log`, `/tmp/architecture-mutations.log`, `/tmp/architecture-order-mutations.log`, and the individual `/tmp/architecture-mutation-<fault>.log` files. The first runner precedence assertion expected ENOTDIR; actual Bun mkdir returned EEXIST, so the test was corrected against baseline before rerunning the watched order faults. All final order faults failed their intended assertions on that corrected baseline.
+
+Astra review follow-up (2026-10-14): added the missing production-path negative for the reviewed-empty policy-directory subcondition. TEST-AXES-086 commits `apps/example/src/architecture-fixtures.json/child.json` with no policy file and no Architecture target. Baseline CLI exits 1, emits no JSON and names the Architecture reviewed-empty contradiction. Removing only `entry.path.startsWith(`${policyPath}/`)` then makes that case fail at `expect(exitCode).toBe(1)` with actual exit 0; the mutation log is `/tmp/architecture-mutation-empty-policy-directory.log`. The subcondition was restored and its adjacent Proof comment records the observed failure. No runtime behavior changed.
+
+Follow-up restored-code validation: affected level-facts/runner suites exit 0, **50 pass, 0 fail, 436 assertions**; scoped TypeScript build, changed-file ESLint with current ProjectGraph, strict OpenSpec validation (one valid change, zero issues), scoped Prettier check and `git diff --check` each exit 0. Host gate remains pending coordinator review.
