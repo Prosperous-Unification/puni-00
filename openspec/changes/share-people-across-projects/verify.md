@@ -4641,3 +4641,42 @@ snapshot; subsequent migration rollback also refuses without changing it.
 This review fix remains within task 10.1. Tasks 10.2–10.4, shared capability activation,
 canonical h2puni gate, whole-repository gates/build/browser checks remain unverified here.
 No push, merge or deploy.
+
+## Restore approval MCP discovery CI repair — 2026-10-14
+
+PR #425 at `a1b050f1800f3f3da595fc58fa0ee4502c3cdbf1` intentionally adds the
+personal approval route to the shared HTTP registry. Hosted run `38496096730`
+failed because the independent MCP operation pin still listed the previous 80 tools.
+Keep discovery consistent with the capacity-mode switch: list the approval operation,
+document 81 tools and its delegated `403 insufficient_scope`, and retain the mounted
+personal authentication guard. Approval only records backup-bound consent; it does not
+restore modes or ranks. No exclusion, runtime behavior or activation capability changed.
+
+- Baseline reproduction:
+  `bun test apps/wbs/mcp-01/src/generated-document.test.ts -t 'pins every generated MCP operation name independently of the registry'`:
+  **exit 1, 0 pass, 1 fail**, with `postApiOrganizationSharedPeopleRestoreApprovals`
+  as the single received-only operation.
+- After updating the independent pin, the same command: **exit 0, 1 pass, 0 fail**.
+- R5 fault: remove only `approveSharedPeopleRestore` from the production `httpShapes`
+  array, retaining its import and the updated pin. The same command:
+  **exit 1, 0 pass, 1 fail**, with that operation as the single expected-only name.
+  Restored the registry in `finally`; an adjacent `Proof:` records this observation.
+- `bun test apps/wbs/mcp-01/src/generated-document.test.ts apps/wbs/mcp-01/src/shape-document.test.ts apps/wbs/mcp-01/src/openapi-tools.test.ts libs/wbs/domain/contracts/src/http/document-from-shapes.test.ts --timeout=30000`:
+  **exit 0, 65 pass, 0 fail, 463 assertions** after restoration.
+- `bun test libs/wbs/adapters/store-sqlite/src/shared-people-rollback.db.test.ts libs/wbs/adapters/store-sqlite/src/shared-people-audit.db.test.ts libs/wbs/adapters/store-sqlite/src/shared-people-restore-approval.db.test.ts apps/wbs/be-01/src/controller/shared-people-restore-approval.controller.db.test.ts apps/wbs/be-01/src/controller/delegation.controller.db.test.ts --timeout=30000`:
+  **exit 0, 68 pass, 0 fail, 260 assertions**. Includes the preserved mounted
+  `refuses delegated restore approval even for a super-admin` negative, which asserts
+  `403 insufficient_scope` and empty operation/approval tables.
+- `NX_DAEMON=false BUN_TMPDIR=/tmp BUN_INSTALL_CACHE_DIR=/tmp/puni-bun-cache bunx nx run wbs-mcp-01:typecheck`:
+  **exit 0**, no cache hit.
+- `BUN_TMPDIR=/tmp BUN_INSTALL_CACHE_DIR=/tmp/puni-bun-cache bunx eslint apps/wbs/mcp-01/src/generated-document.test.ts`:
+  **exit 0**.
+- `BUN_TMPDIR=/tmp BUN_INSTALL_CACHE_DIR=/tmp/puni-bun-cache bunx @fission-ai/openspec@1.12.0 validate --all --json`:
+  **exit 0, 189 passed, 0 failed**.
+
+- `bunx prettier --check apps/wbs/mcp-01/README.md apps/wbs/mcp-01/src/generated-document.test.ts openspec/changes/share-people-across-projects/verify.md` and `git diff --check`: **exit 0**.
+
+Checks ran in an isolated `/tmp` clone on `pop-os`, using frozen dependencies.
+Canonical h2puni gate, whole-repository gates/build/browser checks and a new hosted CI
+run remain unverified here. Tasks 10.2–10.4 and shared capability activation remain
+pending. No push, merge or deploy.
