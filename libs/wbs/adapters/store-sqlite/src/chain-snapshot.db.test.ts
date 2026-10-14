@@ -42,6 +42,7 @@ import {
 } from './schema';
 import { nodeDigest } from './testing/node-digest';
 import { openSpaceDatabase } from './testing/space-database';
+import { activateTestStepBlockages } from './testing/step-blockage-activation';
 
 let dir: string;
 let path: string;
@@ -881,6 +882,7 @@ describe('detached live snapshot guards', () => {
     expect(schedules).toBe(4);
   });
   it('captures persisted blockage facts in the aggregate entry from its snapshot', async () => {
+    activateTestStepBlockages(path);
     write(
       "INSERT INTO step_blockage (work_item_id, step_id, blocked_at) VALUES ('a2', 'a2-s0', 123456)",
     );

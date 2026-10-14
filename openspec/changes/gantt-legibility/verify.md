@@ -61,3 +61,43 @@ Updated the copied requirement, half-estimated leaf scenario and caret paragraph
 to the existing renderer behavior. Updated the earlier detail delta's obsolete
 `?` label wording to this change's `no estimate` wording. Renderer behavior was
 not changed during integration.
+
+## Review round 2 (Fable, 2026-10-14)
+
+- D6 fallback order: `number · no estimate` → `number` → nothing. With the phrase ahead of the
+  number (round 1), `gantt-bar-labels.test.tsx` failed on
+  `expected 'no estimate' to be '010 · no estimate'` at two workdays.
+- Done slivers keep a 1px green edge: `gantt-panel-fill.test.tsx` failed with the sliver's edge
+  in its own colour on `expected '#94a3b8' to be '#16a34a'`, and with the 8px floor removed on
+  `expected [ '[stroke-width:2]', …(2) ] to not include '[stroke-width:2]'`.
+- `nx run wbs-fe-01:test` 926 + 3883 + 5 passed; `typecheck` and `lint:fast` successful.
+- Playwright (Gantt, layout and phone suites): 152/153 passed. The one failure,
+  `hover-cards.spec.ts:1075`, reproduced 2 in 5 before merging main and passed 6/6 after; main
+  alone passed 5/5.
+
+## Release pixel investigation — 2026-10-14
+
+PR run `38522362798`, pixels shard 1/4, failed the exact box comparison in
+`gantt-detail.spec.ts`. Before: `{x:203, y:847.0399780273438, width:58,
+height:10.96002197265625}`. After: `{x:203.5, y:847.5399780273438, width:57,
+height:9.96002197265625}`. Center and fill geometry match; the critical stroke
+contracted from 2px to 1px. Independent full dispatch `38522426632` passed the
+same shard at the same prior SHA, as reported by the integration owner.
+
+The failed trace proves the fixture race. At trace time **276557.194 ms**, all
+four bars were still unestimated and critical, with `010 Dev data-finish=0`.
+The baseline box was read around **276580 ms**. The estimate command started
+at **276478.041 ms** and took **136.991 ms**, completing after that baseline.
+At **276693.071 ms**, after the Detail click, `010 Dev` was costed at finish 3
+and `020` had float 3, lost critical status and its 2px outline. The click
+coincided with the pending estimate's schedule refresh; Detail did not change
+the schedule.
+
+The fixture now waits for rendered `010 Dev data-finish=3` before taking the
+baseline. It keeps the exact before/after box comparison and zero retries.
+This is readiness repair, not a tolerance increase or renderer change. The
+four focused component suites passed **314 tests**. Local browser execution
+was refused by the required canonical lock (exit **70**, missing
+`/home/puni1/.cache`). A deterministic delayed estimate/schedule response
+negative and a green browser run on the host remain unverified and must be
+recorded before release approval.

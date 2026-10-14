@@ -1,0 +1,1061 @@
+FAULT omitted-insert-trigger
+FILE apps/wbs/be-01/drizzle/20261014140000_add_step_blockage_activation/migration.sql
+TEST starts disabled
+EXIT 1
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:
+33 | afterEach(() => { rmSync(directory, { recursive: true, force: true }); });
+34 |
+35 | it('starts disabled and refuses an independent writer insert', () => {
+36 |   const sqlite = openDatabase(path);
+37 |   try {
+38 |     expect(() => sqlite.run("INSERT INTO step_blockage (work_item_id,step_id,blocked_at) VALUES ('a','dev',1)")).toThrow('step_blockage_inactive');
+                                                                                                                      ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "step_blockage_inactive"
+
+Received function did not throw
+Received value: {
+  changes: 1,
+  lastInsertRowid: 1,
+}
+
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:38:114)
+(fail) starts disabled and refuses an independent writer insert [108.80ms]
+
+ 0 pass
+ 27 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1.71s]
+
+FAULT omitted-update-trigger
+FILE apps/wbs/be-01/drizzle/20261014140000_add_step_blockage_activation/migration.sql
+TEST disabled writer: UPDATE
+EXIT 1
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:
+78 |     seed.run("INSERT INTO step_blockage (work_item_id,step_id,blocked_at) VALUES ('a','dev',1)");
+79 |     seed.run("UPDATE step_blockage_activation SET state='DISABLED'");
+80 |     seed.close();
+81 |     const writer = openDatabase(path);
+82 |     try {
+83 |       expect(() => writer.run(statement)).toThrow(statement.includes('DELETE FROM project') ? 'FOREIGN KEY constraint failed' : 'step_blockage_inactive');
+                                               ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "step_blockage_inactive"
+
+Received function did not throw
+Received value: {
+  changes: 1,
+  lastInsertRowid: 0,
+}
+
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:83:43)
+(fail) refuses independent disabled writer: UPDATE step_blockage SET blocked_at=2 WHERE work_item_id='a' [112.09ms]
+
+ 0 pass
+ 27 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1.70s]
+
+FAULT omitted-delete-trigger
+FILE apps/wbs/be-01/drizzle/20261014140000_add_step_blockage_activation/migration.sql
+TEST disabled writer: DELETE FROM step_blockage
+EXIT 1
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:
+78 |     seed.run("INSERT INTO step_blockage (work_item_id,step_id,blocked_at) VALUES ('a','dev',1)");
+79 |     seed.run("UPDATE step_blockage_activation SET state='DISABLED'");
+80 |     seed.close();
+81 |     const writer = openDatabase(path);
+82 |     try {
+83 |       expect(() => writer.run(statement)).toThrow(statement.includes('DELETE FROM project') ? 'FOREIGN KEY constraint failed' : 'step_blockage_inactive');
+                                               ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "step_blockage_inactive"
+
+Received function did not throw
+Received value: {
+  changes: 1,
+  lastInsertRowid: 0,
+}
+
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:83:43)
+(fail) refuses independent disabled writer: DELETE FROM step_blockage WHERE work_item_id='a' [109.74ms]
+
+ 0 pass
+ 27 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1.71s]
+
+FAULT sql-marker-count
+FILE apps/wbs/be-01/drizzle/20261014140000_add_step_blockage_activation/migration.sql
+TEST duplicate activation authority
+EXIT 1
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:
+ 99 |       if (fault === 'wrong-id') connection.db.run('UPDATE step_blockage_activation SET id=2');
+100 |       expect(() => probeSchema(connection.db)).toThrow('invalid step blockage activation marker');
+101 |       expect(() => {
+102 |         try { connection.db.run("INSERT INTO step_blockage (work_item_id,step_id,blocked_at) VALUES ('a','dev',1)"); }
+103 |         catch (failure) { throw translateStepBlockageFailure(failure); }
+104 |       }).toThrow('step_blockage_inactive');
+               ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "step_blockage_inactive"
+
+Received function did not throw
+Received value: undefined
+
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:104:10)
+(fail) refuses duplicate activation authority at readiness [118.18ms]
+
+ 0 pass
+ 27 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [1.71s]
+
+FAULT sql-marker-enabled
+FILE apps/wbs/be-01/drizzle/20261014140000_add_step_blockage_activation/migration.sql
+TEST starts disabled
+EXIT 1
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:
+33 | afterEach(() => { rmSync(directory, { recursive: true, force: true }); });
+34 |
+35 | it('starts disabled and refuses an independent writer insert', () => {
+36 |   const sqlite = openDatabase(path);
+37 |   try {
+38 |     expect(() => sqlite.run("INSERT INTO step_blockage (work_item_id,step_id,blocked_at) VALUES ('a','dev',1)")).toThrow('step_blockage_inactive');
+                                                                                                                      ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "step_blockage_inactive"
+
+Received function did not throw
+Received value: {
+  changes: 1,
+  lastInsertRowid: 1,
+}
+
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:38:114)
+(fail) starts disabled and refuses an independent writer insert [103.25ms]
+
+ 0 pass
+ 27 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1.69s]
+
+FAULT flip-forward
+FILE libs/wbs/adapters/store-sqlite/src/command-journal.ts
+TEST empty nested structural forward replay
+EXIT 1
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:
+166 |       for (const undone of [true, false]) {
+167 |         expect(source.uow.run(async ({ stores }) => {
+168 |           source.db.run("UPDATE project SET name='changed',revision=revision+1 WHERE id='p'");
+169 |           await stores.journal.flip('j', undone, {});
+170 |           return { commit: true, value: 'committed' };
+171 |         })).rejects.toBeInstanceOf(StepBlockageInactive);
+                          ^
+error: expect(received).rejects.toBeInstanceOf(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:171:21)
+(fail) refuses empty nested structural forward replay at cursor flip and rolls back its writes [107.91ms]
+
+ 0 pass
+ 27 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1.70s]
+
+FAULT flip-inverse
+FILE libs/wbs/adapters/store-sqlite/src/command-journal.ts
+TEST empty nested structural inverse replay
+EXIT 1
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:
+166 |       for (const undone of [true, false]) {
+167 |         expect(source.uow.run(async ({ stores }) => {
+168 |           source.db.run("UPDATE project SET name='changed',revision=revision+1 WHERE id='p'");
+169 |           await stores.journal.flip('j', undone, {});
+170 |           return { commit: true, value: 'committed' };
+171 |         })).rejects.toBeInstanceOf(StepBlockageInactive);
+                          ^
+error: expect(received).rejects.toBeInstanceOf(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:171:21)
+(fail) refuses empty nested structural inverse replay at cursor flip and rolls back its writes [107.88ms]
+
+ 0 pass
+ 27 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1.71s]
+
+FAULT flip-preconditions
+FILE libs/wbs/adapters/store-sqlite/src/command-journal.ts
+TEST empty nested structural preconditions replay
+EXIT 1
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:
+166 |       for (const undone of [true, false]) {
+167 |         expect(source.uow.run(async ({ stores }) => {
+168 |           source.db.run("UPDATE project SET name='changed',revision=revision+1 WHERE id='p'");
+169 |           await stores.journal.flip('j', undone, {});
+170 |           return { commit: true, value: 'committed' };
+171 |         })).rejects.toBeInstanceOf(StepBlockageInactive);
+                          ^
+error: expect(received).rejects.toBeInstanceOf(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:171:21)
+(fail) refuses empty nested structural preconditions replay at cursor flip and rolls back its writes [118.44ms]
+
+ 0 pass
+ 27 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1.72s]
+
+FAULT down-forward
+FILE apps/wbs/be-01/drizzle/20261014140000_add_step_blockage_activation/down.sql
+TEST down migration over retained forward-history
+EXIT 1
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:
+188 |       sqlite.run(`INSERT INTO command_journal (id,project_id,user_id,seq,kind,payload,inverse,preconditions,undone,created_at)
+189 |         VALUES ('j','p','u',1,'deleteWorkItem',?,?,?,0,1)`, [JSON.stringify(payload),JSON.stringify(inverse),JSON.stringify(preconditions)]);
+190 |     }
+191 |     const before = sqlite.query('SELECT * FROM __drizzle_migrations ORDER BY id').all();
+192 |     sqlite.close();
+193 |     expect(() => rollbackTo(path, FOLDER, '20261014130000_add_shared_people_restore_receipts')).toThrow('stopped-writer recovery integration required');
+                                                                                                      ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "stopped-writer recovery integration required"
+
+Received function did not throw
+Received value: [ "20261014140000_add_step_blockage_activation" ]
+
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:193:97)
+(fail) refuses down migration over retained forward-history without changing the ledger [111.76ms]
+
+ 0 pass
+ 27 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1.70s]
+
+FAULT down-inverse
+FILE apps/wbs/be-01/drizzle/20261014140000_add_step_blockage_activation/down.sql
+TEST down migration over retained inverse-history
+EXIT 1
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:
+188 |       sqlite.run(`INSERT INTO command_journal (id,project_id,user_id,seq,kind,payload,inverse,preconditions,undone,created_at)
+189 |         VALUES ('j','p','u',1,'deleteWorkItem',?,?,?,0,1)`, [JSON.stringify(payload),JSON.stringify(inverse),JSON.stringify(preconditions)]);
+190 |     }
+191 |     const before = sqlite.query('SELECT * FROM __drizzle_migrations ORDER BY id').all();
+192 |     sqlite.close();
+193 |     expect(() => rollbackTo(path, FOLDER, '20261014130000_add_shared_people_restore_receipts')).toThrow('stopped-writer recovery integration required');
+                                                                                                      ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "stopped-writer recovery integration required"
+
+Received function did not throw
+Received value: [ "20261014140000_add_step_blockage_activation" ]
+
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:193:97)
+(fail) refuses down migration over retained inverse-history without changing the ledger [114.36ms]
+
+ 0 pass
+ 27 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1.70s]
+
+FAULT down-preconditions
+FILE apps/wbs/be-01/drizzle/20261014140000_add_step_blockage_activation/down.sql
+TEST down migration over retained preconditions
+EXIT 1
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:
+188 |       sqlite.run(`INSERT INTO command_journal (id,project_id,user_id,seq,kind,payload,inverse,preconditions,undone,created_at)
+189 |         VALUES ('j','p','u',1,'deleteWorkItem',?,?,?,0,1)`, [JSON.stringify(payload),JSON.stringify(inverse),JSON.stringify(preconditions)]);
+190 |     }
+191 |     const before = sqlite.query('SELECT * FROM __drizzle_migrations ORDER BY id').all();
+192 |     sqlite.close();
+193 |     expect(() => rollbackTo(path, FOLDER, '20261014130000_add_shared_people_restore_receipts')).toThrow('stopped-writer recovery integration required');
+                                                                                                      ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "stopped-writer recovery integration required"
+
+Received function did not throw
+Received value: [ "20261014140000_add_step_blockage_activation" ]
+
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:193:97)
+(fail) refuses down migration over retained preconditions without changing the ledger [137.03ms]
+
+ 0 pass
+ 27 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1.75s]
+
+FAULT marker-count
+FILE libs/wbs/adapters/store-sqlite/src/step-blockage-activation.ts
+TEST duplicate activation authority
+EXIT 1
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:
+ 95 |       connection.db.run('CREATE TABLE step_blockage_activation (id,state)');
+ 96 |       if (fault !== 'absent') connection.db.run("INSERT INTO step_blockage_activation VALUES (1,'ENABLED')");
+ 97 |       if (fault === 'duplicate') connection.db.run("INSERT INTO step_blockage_activation VALUES (1,'ENABLED')");
+ 98 |       if (fault === 'malformed') connection.db.run("UPDATE step_blockage_activation SET state='invalid'");
+ 99 |       if (fault === 'wrong-id') connection.db.run('UPDATE step_blockage_activation SET id=2');
+100 |       expect(() => probeSchema(connection.db)).toThrow('invalid step blockage activation marker');
+                                                     ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "invalid step blockage activation marker"
+
+Received function did not throw
+Received value: "ok"
+
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:100:48)
+(fail) refuses duplicate activation authority at readiness [105.53ms]
+
+ 0 pass
+ 27 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1.74s]
+
+FAULT marker-id
+FILE libs/wbs/adapters/store-sqlite/src/step-blockage-activation.ts
+TEST wrong-id activation authority
+EXIT 1
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:
+ 95 |       connection.db.run('CREATE TABLE step_blockage_activation (id,state)');
+ 96 |       if (fault !== 'absent') connection.db.run("INSERT INTO step_blockage_activation VALUES (1,'ENABLED')");
+ 97 |       if (fault === 'duplicate') connection.db.run("INSERT INTO step_blockage_activation VALUES (1,'ENABLED')");
+ 98 |       if (fault === 'malformed') connection.db.run("UPDATE step_blockage_activation SET state='invalid'");
+ 99 |       if (fault === 'wrong-id') connection.db.run('UPDATE step_blockage_activation SET id=2');
+100 |       expect(() => probeSchema(connection.db)).toThrow('invalid step blockage activation marker');
+                                                     ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "invalid step blockage activation marker"
+
+Received function did not throw
+Received value: "ok"
+
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:100:48)
+(fail) refuses wrong-id activation authority at readiness [107.49ms]
+
+ 0 pass
+ 27 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1.72s]
+
+FAULT marker-state
+FILE libs/wbs/adapters/store-sqlite/src/step-blockage-activation.ts
+TEST malformed activation authority
+EXIT 1
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:
+ 95 |       connection.db.run('CREATE TABLE step_blockage_activation (id,state)');
+ 96 |       if (fault !== 'absent') connection.db.run("INSERT INTO step_blockage_activation VALUES (1,'ENABLED')");
+ 97 |       if (fault === 'duplicate') connection.db.run("INSERT INTO step_blockage_activation VALUES (1,'ENABLED')");
+ 98 |       if (fault === 'malformed') connection.db.run("UPDATE step_blockage_activation SET state='invalid'");
+ 99 |       if (fault === 'wrong-id') connection.db.run('UPDATE step_blockage_activation SET id=2');
+100 |       expect(() => probeSchema(connection.db)).toThrow('invalid step blockage activation marker');
+                                                     ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "invalid step blockage activation marker"
+
+Received function did not throw
+Received value: "ok"
+
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:100:48)
+(fail) refuses malformed activation authority at readiness [108.22ms]
+
+ 0 pass
+ 27 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1.72s]
+
+FAULT ledger
+FILE libs/wbs/adapters/store-sqlite/src/step-blockage-activation.ts
+TEST wrong migration and unreadable
+EXIT 1
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:
+126 | });
+127 |
+128 | it('refuses the wrong migration and unreadable connection at readiness', () => {
+129 |   const connection = openConnection(path);
+130 |   connection.db.run("UPDATE __drizzle_migrations SET name='wrong' WHERE name='20261014140000_add_step_blockage_activation'");
+131 |   expect(() => probeSchema(connection.db)).toThrow('missing step blockage activation migration');
+                                                 ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "missing step blockage activation migration"
+
+Received function did not throw
+Received value: "ok"
+
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:131:44)
+(fail) refuses the wrong migration and unreadable connection at readiness [82.25ms]
+
+ 0 pass
+ 27 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1.68s]
+
+FAULT trigger-definitions
+FILE libs/wbs/adapters/store-sqlite/src/step-blockage-activation.ts
+TEST missing insert trigger|changed trigger definition
+EXIT 1
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:
+109 | for (const action of ['insert','update','delete']) {
+110 |   it(`refuses missing ${action} trigger at readiness`, () => {
+111 |     const connection = openConnection(path);
+112 |     try {
+113 |       connection.db.run(`DROP TRIGGER step_blockage_admit_${action}`);
+114 |       expect(() => probeSchema(connection.db)).toThrow('invalid step blockage activation triggers');
+                                                     ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "invalid step blockage activation triggers"
+
+Received function did not throw
+Received value: "ok"
+
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:114:48)
+(fail) refuses missing insert trigger at readiness [109.42ms]
+119 | it('refuses a changed trigger definition at readiness', () => {
+120 |   const connection = openConnection(path);
+121 |   try {
+122 |     connection.db.run('DROP TRIGGER step_blockage_admit_insert');
+123 |     connection.db.run("CREATE TRIGGER step_blockage_admit_insert BEFORE INSERT ON step_blockage BEGIN SELECT 1; END");
+124 |     expect(() => probeSchema(connection.db)).toThrow('invalid step blockage activation triggers');
+                                                   ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "invalid step blockage activation triggers"
+
+Received function did not throw
+Received value: "ok"
+
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:124:46)
+(fail) refuses a changed trigger definition at readiness [65.96ms]
+
+ 0 pass
+ 26 filtered out
+ 2 fail
+ 2 expect() calls
+Ran 2 tests across 1 file. [1.77s]
+
+FAULT readiness-call
+FILE libs/wbs/adapters/store-sqlite/src/health-probe.ts
+TEST malformed activation authority
+EXIT 1
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:
+ 95 |       connection.db.run('CREATE TABLE step_blockage_activation (id,state)');
+ 96 |       if (fault !== 'absent') connection.db.run("INSERT INTO step_blockage_activation VALUES (1,'ENABLED')");
+ 97 |       if (fault === 'duplicate') connection.db.run("INSERT INTO step_blockage_activation VALUES (1,'ENABLED')");
+ 98 |       if (fault === 'malformed') connection.db.run("UPDATE step_blockage_activation SET state='invalid'");
+ 99 |       if (fault === 'wrong-id') connection.db.run('UPDATE step_blockage_activation SET id=2');
+100 |       expect(() => probeSchema(connection.db)).toThrow('invalid step blockage activation marker');
+                                                     ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "invalid step blockage activation marker"
+
+Received function did not throw
+Received value: "ok"
+
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:100:48)
+(fail) refuses malformed activation authority at readiness [108.55ms]
+
+ 0 pass
+ 27 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1.71s]
+
+FAULT boot-call
+FILE apps/wbs/be-01/src/boot.ts
+TEST blockage admission authority
+EXIT 1
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/boot.db.test.ts:
+{"level":"info","time":1791954511536,"service":"be-01","port":0,"msg":"be-01 listening (migrating)"}
+{"level":"info","time":1791954511540,"service":"be-01","coded":0,"msg":"step codes backfilled"}
+{"level":"info","time":1791954511540,"service":"be-01","msg":"migrations applied"}
+1302 |   sqlite.close();
+1303 |   let failure: unknown;
+1304 |   try {
+1305 |     running = await bootBe01({ ...bootOptions(dbPath, 0), migrateOnStartup: true, migrationsFolder: FOLDER }, { openSource: openSqliteSource, makeApp: (options) => { const app = buildApp(options); app.stop = () => Promise.resolve(app); return app; }, startListener: (_app, _port, ready) => { ready(); } });
+1306 |   } catch (cause) { failure = cause; }
+1307 |   expect(reasons(failure)).toContain('invalid step blockage activation marker');
+                                  ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "invalid step blockage activation marker"
+Received: ""
+
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/apps/wbs/be-01/src/boot.db.test.ts:1307:28)
+(fail) refuses boot after migrations when blockage admission authority is missing [125.48ms]
+
+ 0 pass
+ 30 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1.81s]
+
+FAULT disabled-replay
+FILE libs/wbs/adapters/store-sqlite/src/step-blockage-activation.ts
+TEST empty nested structural snapshots
+EXIT 1
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/step-node-attempt.controller.db.test.ts:
+2439 |   const deleted = await batch([{ kind: 'deleteWorkItem', workItemId: strip }]);
+2440 |   expect(deleted.status).toBe(200);
+2441 |   h.sqlite.run("UPDATE step_blockage_activation SET state='DISABLED'");
+2442 |   const deletedState = admissionSnapshot();
+2443 |   const refusedUndo = await h.call('ada', 'POST', `/api/projects/${project}/undo`);
+2444 |   expect(refusedUndo.status).toBe(409);
+                                    ^
+error: expect(received).toBe(expected)
+
+Expected: 409
+Received: 200
+
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/apps/wbs/be-01/src/controller/step-node-attempt.controller.db.test.ts:2444:30)
+(fail) refuses mounted undo and redo of empty nested structural snapshots without cursor or revision changes [332.26ms]
+
+ 0 pass
+ 123 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [2.03s]
+
+FAULT journal-flip
+FILE libs/wbs/adapters/store-sqlite/src/command-journal.ts
+TEST empty nested structural snapshots
+EXIT 1
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/step-node-attempt.controller.db.test.ts:
+2439 |   const deleted = await batch([{ kind: 'deleteWorkItem', workItemId: strip }]);
+2440 |   expect(deleted.status).toBe(200);
+2441 |   h.sqlite.run("UPDATE step_blockage_activation SET state='DISABLED'");
+2442 |   const deletedState = admissionSnapshot();
+2443 |   const refusedUndo = await h.call('ada', 'POST', `/api/projects/${project}/undo`);
+2444 |   expect(refusedUndo.status).toBe(409);
+                                    ^
+error: expect(received).toBe(expected)
+
+Expected: 409
+Received: 200
+
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/apps/wbs/be-01/src/controller/step-node-attempt.controller.db.test.ts:2444:30)
+(fail) refuses mounted undo and redo of empty nested structural snapshots without cursor or revision changes [338.84ms]
+
+ 0 pass
+ 123 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [2.05s]
+
+FAULT http-409
+FILE apps/wbs/be-01/src/http/elysia/mount.ts
+TEST disabled nonempty
+EXIT 1
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/import-export-organization.controller.db.test.ts:
+{"level":"error","time":1791954518124,"service":"be-01","err":{"occurrence_id":"AE_J8AGDNRGGAVW9NNT1Q6F5X6Z68","fingerprint":"fp1_0c421989d36a9725a4b5aca0eb10a2a5","as_json":{"name":"StepBlockageInactive"},"stack":["StepBlockageInactive: step_blockage_inactive","    at translateStepBlockageFailure (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage-activation.ts:58:122)","    at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage.ts:102:41)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+891 |     document.document.version = 9;
+892 |     document.workItems.forEach((row) => Reflect.deleteProperty(row, 'attempts'));
+893 |     document.stepBlockages = [{ workItemId: 'row-1', stepId: 'step-1', blockedAt: -17 }];
+894 |     const before = sqliteState();
+895 |     const refused = await h.call('ada', 'POST', '/api/projects/import', document);
+896 |     expect(refused.status).toBe(409);
+                                 ^
+error: expect(received).toBe(expected)
+
+Expected: 409
+Received: 500
+
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/apps/wbs/be-01/src/controller/import-export-organization.controller.db.test.ts:896:28)
+(fail) v9 direct blockage transfer > refuses disabled nonempty v9 import atomically but permits empty import and export [571.17ms]
+
+ 0 pass
+ 28 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [2.39s]
+
+FAULT sqlite-class
+FILE libs/wbs/adapters/store-sqlite/src/step-blockage-activation.ts
+TEST translates only the exact native sentinel
+EXIT 1
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:
+56 |   const connection = openConnection(path);
+57 |   try {
+58 |     const repository = new StepBlockageRepository(connection.db, OPEN);
+59 |     expect(repository.set({ workItemId: 'a', stepId: 'dev', blockedAt: 1 }, { at: 1, by: 'u' })).rejects.toBeInstanceOf(StepBlockageInactive);
+60 |     const impostor = Object.assign(new Error('step_blockage_inactive'), { code: 'SQLITE_CONSTRAINT_TRIGGER' });
+61 |     expect(translateStepBlockageFailure(impostor)).toBe(impostor);
+                                                        ^
+error: expect(received).toBe(expected)
+
+Expected: 55 | it('translates only the exact native sentinel and Drizzle cause', () => {
+56 |   const connection = openConnection(path);
+57 |   try {
+58 |     const repository = new StepBlockageRepository(connection.db, OPEN);
+59 |     expect(repository.set({ workItemId: 'a', stepId: 'dev', blockedAt: 1 }, { at: 1, by: 'u' })).rejects.toBeInstanceOf(StepBlockageInactive);
+60 |     const impostor = Object.assign(new Error('step_blockage_inactive'), { code: 'SQLITE_CONSTRAINT_TRIGGER' });
+                                            ^
+error: step_blockage_inactive
+ code: "SQLITE_CONSTRAINT_TRIGGER"
+
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:60:40)
+
+Received: 53 |  */
+54 | export function translateStepBlockageFailure(failure: unknown): unknown {
+55 |   let cause = failure;
+56 |   const visited = new Set<Error>();
+57 |   while (cause instanceof Error && !visited.has(cause)) {
+58 |     if (cause.message === SENTINEL && cause.code === 'SQLITE_CONSTRAINT_TRIGGER') return new StepBlockageInactive();
+                                                                                              ^
+StepBlockageInactive: step_blockage_inactive
+      at translateStepBlockageFailure (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage-activation.ts:58:90)
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:61:12)
+
+
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:61:52)
+(fail) translates only the exact native sentinel and Drizzle cause [101.77ms]
+
+ 0 pass
+ 27 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [1.84s]
+
+FAULT wrapped-cause
+FILE libs/wbs/adapters/store-sqlite/src/step-blockage-activation.ts
+TEST translates only the exact native sentinel
+EXIT 1
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:
+54 |
+55 | it('translates only the exact native sentinel and Drizzle cause', () => {
+56 |   const connection = openConnection(path);
+57 |   try {
+58 |     const repository = new StepBlockageRepository(connection.db, OPEN);
+59 |     expect(repository.set({ workItemId: 'a', stepId: 'dev', blockedAt: 1 }, { at: 1, by: 'u' })).rejects.toBeInstanceOf(StepBlockageInactive);
+                                                                                                              ^
+error: expect(received).toBeInstanceOf(expected)
+
+Expected constructor: [class StepBlockageInactive extends Error]
+Received value: 72 | 		const params = query.params.length === 0 ? query.params : fillPlaceholders(query.params, placeholderValues);
+73 | 		logger.logQuery(sql, params);
+74 | 		if (resultKind === "sync") try {
+75 | 			return executors.run(params);
+76 | 		} catch (e) {
+77 | 			throw new DrizzleQueryError(sql, params, e);
+              ^
+DrizzleQueryError: Failed query: insert into "step_blockage" ("work_item_id", "step_id", "blocked_at", "created_at", "updated_at", "created_by") values (?, ?, ?, ?, ?, ?) on conflict ("step_blockage"."work_item_id", "step_blockage"."step_id") do update set "blocked_at" = ?, "updated_at" = ?
+params: a,dev,1,1,1,u,1,1
+  query: "insert into \"step_blockage\" (\"work_item_id\", \"step_id\", \"blocked_at\", \"created_at\", \"updated_at\", \"created_by\") values (?, ?, ?, ?, ?, ?) on conflict (\"step_blockage\".\"work_item_id\", \"step_blockage\".\"step_id\") do update set \"blocked_at\" = ?, \"updated_at\" = ?",
+ params: [
+  "a", "dev", 1, 1, 1, "u", 1, 1
+],
+
+      at run (/tmp/puni-release-candidate-integration-sol/node_modules/drizzle-orm/sqlite-core/async/session.js:77:10)
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage.ts:98:14)
+      at <anonymous> (/tmp/puni-release-candidate-integration-sol/node_modules/drizzle-orm/bun-sqlite/session.js:49:13)
+      at transaction (bun:sqlite:400:27)
+      at transaction (/tmp/puni-release-candidate-integration-sol/node_modules/drizzle-orm/bun-sqlite/session.js:50:25)
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage.ts:90:17)
+      at async writingStep (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-reference.ts:30:11)
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:59:106)
+
+70 | 		const { query, logger, executors, fastPath, resultKind } = this;
+71 | 		const sql = query._sql ? query._sql.join(" ") : query.sql;
+72 | 		const params = query.params.length === 0 ? query.params : fillPlaceholders(query.params, placeholderValues);
+73 | 		logger.logQuery(sql, params);
+74 | 		if (resultKind === "sync") try {
+75 | 			return executors.run(params);
+                         ^
+SQLiteError: step_blockage_inactive
+      errno: 1811,
+ byteOffset: -1,
+       code: "SQLITE_CONSTRAINT_TRIGGER"
+
+      at #run (bun:sqlite:187:20)
+      at run (/tmp/puni-release-candidate-integration-sol/node_modules/drizzle-orm/sqlite-core/async/session.js:75:21)
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage.ts:98:14)
+      at <anonymous> (/tmp/puni-release-candidate-integration-sol/node_modules/drizzle-orm/bun-sqlite/session.js:49:13)
+      at transaction (bun:sqlite:400:27)
+      at transaction (/tmp/puni-release-candidate-integration-sol/node_modules/drizzle-orm/bun-sqlite/session.js:50:25)
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage.ts:90:17)
+      at async writingStep (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-reference.ts:30:11)
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:59:106)
+
+
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:59:106)
+(fail) translates only the exact native sentinel and Drizzle cause [105.45ms]
+
+ 0 pass
+ 27 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1.75s]
+
+FAULT sentinel-code
+FILE libs/wbs/adapters/store-sqlite/src/step-blockage-activation.ts
+TEST preserves genuine SQLite errors
+EXIT 1
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:
+231 |       catch (failure) {
+232 |         if (!(failure instanceof SQLiteError)) throw failure;
+233 |         observed = failure;
+234 |         if (statement.startsWith('SELECT')) failure.message = 'step_blockage_inactive';
+235 |         else failure.message = 'prefix step_blockage_inactive';
+236 |         expect(translateStepBlockageFailure(failure)).toBe(failure);
+                                                            ^
+error: expect(received).toBe(expected)
+
+Expected: 225 | it('preserves genuine SQLite errors with another code or a nonexact sentinel message', () => {
+226 |   const sqlite = openDatabase(path);
+227 |   try {
+228 |     for (const statement of ['SELECT absent_column', "INSERT INTO step_blockage (work_item_id,step_id,blocked_at) VALUES ('a','dev',1)"]) {
+229 |       let observed: SQLiteError | undefined;
+230 |       try { sqlite.run(statement); }
+                         ^
+SQLiteError: step_blockage_inactive
+      errno: 1,
+ byteOffset: 7,
+       code: "SQLITE_ERROR"
+
+      at run (bun:sqlite:318:21)
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:230:20)
+
+Received: 53 |  */
+54 | export function translateStepBlockageFailure(failure: unknown): unknown {
+55 |   let cause = failure;
+56 |   const visited = new Set<Error>();
+57 |   while (cause instanceof Error && !visited.has(cause)) {
+58 |     if (cause instanceof SQLiteError && cause.message === SENTINEL) return new StepBlockageInactive();
+                                                                                ^
+StepBlockageInactive: step_blockage_inactive
+      at translateStepBlockageFailure (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage-activation.ts:58:76)
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:236:16)
+
+
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:236:55)
+(fail) preserves genuine SQLite errors with another code or a nonexact sentinel message [104.62ms]
+
+ 0 pass
+ 27 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1.68s]
+
+FAULT sentinel-message
+FILE libs/wbs/adapters/store-sqlite/src/step-blockage-activation.ts
+TEST preserves genuine SQLite errors
+EXIT 1
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:
+231 |       catch (failure) {
+232 |         if (!(failure instanceof SQLiteError)) throw failure;
+233 |         observed = failure;
+234 |         if (statement.startsWith('SELECT')) failure.message = 'step_blockage_inactive';
+235 |         else failure.message = 'prefix step_blockage_inactive';
+236 |         expect(translateStepBlockageFailure(failure)).toBe(failure);
+                                                            ^
+error: expect(received).toBe(expected)
+
+Expected: 225 | it('preserves genuine SQLite errors with another code or a nonexact sentinel message', () => {
+226 |   const sqlite = openDatabase(path);
+227 |   try {
+228 |     for (const statement of ['SELECT absent_column', "INSERT INTO step_blockage (work_item_id,step_id,blocked_at) VALUES ('a','dev',1)"]) {
+229 |       let observed: SQLiteError | undefined;
+230 |       try { sqlite.run(statement); }
+                         ^
+SQLiteError: prefix step_blockage_inactive
+      errno: 1811,
+ byteOffset: -1,
+       code: "SQLITE_CONSTRAINT_TRIGGER"
+
+      at run (bun:sqlite:318:21)
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:230:20)
+
+Received: 53 |  */
+54 | export function translateStepBlockageFailure(failure: unknown): unknown {
+55 |   let cause = failure;
+56 |   const visited = new Set<Error>();
+57 |   while (cause instanceof Error && !visited.has(cause)) {
+58 |     if (cause instanceof SQLiteError && cause.code === 'SQLITE_CONSTRAINT_TRIGGER') return new StepBlockageInactive();
+                                                                                                ^
+StepBlockageInactive: step_blockage_inactive
+      at translateStepBlockageFailure (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage-activation.ts:58:92)
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:236:16)
+
+
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:236:55)
+(fail) preserves genuine SQLite errors with another code or a nonexact sentinel message [100.44ms]
+
+ 0 pass
+ 27 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [1.68s]
+
+FAULT uow-translation
+FILE libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts
+TEST inactive raw owner cascade
+EXIT 1
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:
+213 |     source.db.run("UPDATE step_blockage_activation SET state='DISABLED'");
+214 |     expect(source.uow.run(() => {
+215 |       source.db.run("UPDATE project SET name='changed',revision=revision+1 WHERE id='p'");
+216 |       source.db.run("DELETE FROM work_item WHERE id='a'");
+217 |       return Promise.resolve({ commit: true, value: 'committed' });
+218 |     })).rejects.toBeInstanceOf(StepBlockageInactive);
+                      ^
+error: expect(received).toBeInstanceOf(expected)
+
+Expected constructor: [class StepBlockageInactive extends Error]
+Received value: 72 | 		const params = query.params.length === 0 ? query.params : fillPlaceholders(query.params, placeholderValues);
+73 | 		logger.logQuery(sql, params);
+74 | 		if (resultKind === "sync") try {
+75 | 			return executors.run(params);
+76 | 		} catch (e) {
+77 | 			throw new DrizzleQueryError(sql, params, e);
+              ^
+DrizzleQueryError: Failed query: DELETE FROM work_item WHERE id='a'
+params:
+  query: "DELETE FROM work_item WHERE id='a'",
+ params: [],
+
+      at run (/tmp/puni-release-candidate-integration-sol/node_modules/drizzle-orm/sqlite-core/async/session.js:77:10)
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:216:17)
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:41:28)
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:218:17)
+
+70 | 		const { query, logger, executors, fastPath, resultKind } = this;
+71 | 		const sql = query._sql ? query._sql.join(" ") : query.sql;
+72 | 		const params = query.params.length === 0 ? query.params : fillPlaceholders(query.params, placeholderValues);
+73 | 		logger.logQuery(sql, params);
+74 | 		if (resultKind === "sync") try {
+75 | 			return executors.run(params);
+                         ^
+SQLiteError: step_blockage_inactive
+      errno: 1811,
+ byteOffset: -1,
+       code: "SQLITE_CONSTRAINT_TRIGGER"
+
+      at #runNoArgs (bun:sqlite:140:25)
+      at run (/tmp/puni-release-candidate-integration-sol/node_modules/drizzle-orm/sqlite-core/async/session.js:75:21)
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:216:17)
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:41:28)
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:218:17)
+
+
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:218:17)
+(fail) maps an inactive raw owner cascade after full production UoW rollback [108.29ms]
+
+ 0 pass
+ 27 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1.69s]
+
+FAULT uow-rollback
+FILE libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts
+TEST inactive raw owner cascade
+EXIT 1
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:
+214 |     expect(source.uow.run(() => {
+215 |       source.db.run("UPDATE project SET name='changed',revision=revision+1 WHERE id='p'");
+216 |       source.db.run("DELETE FROM work_item WHERE id='a'");
+217 |       return Promise.resolve({ commit: true, value: 'committed' });
+218 |     })).rejects.toBeInstanceOf(StepBlockageInactive);
+219 |     expect(source.db.get<{ name: string; revision: number }>("SELECT name,revision FROM project WHERE id='p'")).toEqual({ name: 'Plan', revision: 0 });
+                                                                                                                      ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "name": "Plan",
+-   "revision": 0,
++   "name": "changed",
++   "revision": 1,
+  }
+
+- Expected  - 2
++ Received  + 2
+
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:219:113)
+(fail) maps an inactive raw owner cascade after full production UoW rollback [110.24ms]
+
+ 0 pass
+ 27 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [1.72s]
+
+FAULT down-facts
+FILE apps/wbs/be-01/drizzle/20261014140000_add_step_blockage_activation/down.sql
+TEST down migration over retained facts
+EXIT 1
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:
+188 |       sqlite.run(`INSERT INTO command_journal (id,project_id,user_id,seq,kind,payload,inverse,preconditions,undone,created_at)
+189 |         VALUES ('j','p','u',1,'deleteWorkItem',?,?,?,0,1)`, [JSON.stringify(payload),JSON.stringify(inverse),JSON.stringify(preconditions)]);
+190 |     }
+191 |     const before = sqlite.query('SELECT * FROM __drizzle_migrations ORDER BY id').all();
+192 |     sqlite.close();
+193 |     expect(() => rollbackTo(path, FOLDER, '20261014130000_add_shared_people_restore_receipts')).toThrow('stopped-writer recovery integration required');
+                                                                                                      ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "stopped-writer recovery integration required"
+
+Received function did not throw
+Received value: [ "20261014140000_add_step_blockage_activation" ]
+
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:193:97)
+(fail) refuses down migration over retained facts without changing the ledger [114.18ms]
+
+ 0 pass
+ 27 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1.74s]
+
+FAULT down-history
+FILE apps/wbs/be-01/drizzle/20261014140000_add_step_blockage_activation/down.sql
+TEST down migration over retained forward-history|down migration over retained inverse-history|down migration over retained preconditions
+EXIT 1
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:
+188 |       sqlite.run(`INSERT INTO command_journal (id,project_id,user_id,seq,kind,payload,inverse,preconditions,undone,created_at)
+189 |         VALUES ('j','p','u',1,'deleteWorkItem',?,?,?,0,1)`, [JSON.stringify(payload),JSON.stringify(inverse),JSON.stringify(preconditions)]);
+190 |     }
+191 |     const before = sqlite.query('SELECT * FROM __drizzle_migrations ORDER BY id').all();
+192 |     sqlite.close();
+193 |     expect(() => rollbackTo(path, FOLDER, '20261014130000_add_shared_people_restore_receipts')).toThrow('stopped-writer recovery integration required');
+                                                                                                      ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "stopped-writer recovery integration required"
+
+Received function did not throw
+Received value: [ "20261014140000_add_step_blockage_activation" ]
+
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:193:97)
+(fail) refuses down migration over retained forward-history without changing the ledger [123.49ms]
+188 |       sqlite.run(`INSERT INTO command_journal (id,project_id,user_id,seq,kind,payload,inverse,preconditions,undone,created_at)
+189 |         VALUES ('j','p','u',1,'deleteWorkItem',?,?,?,0,1)`, [JSON.stringify(payload),JSON.stringify(inverse),JSON.stringify(preconditions)]);
+190 |     }
+191 |     const before = sqlite.query('SELECT * FROM __drizzle_migrations ORDER BY id').all();
+192 |     sqlite.close();
+193 |     expect(() => rollbackTo(path, FOLDER, '20261014130000_add_shared_people_restore_receipts')).toThrow('stopped-writer recovery integration required');
+                                                                                                      ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "stopped-writer recovery integration required"
+
+Received function did not throw
+Received value: [ "20261014140000_add_step_blockage_activation" ]
+
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:193:97)
+(fail) refuses down migration over retained inverse-history without changing the ledger [97.56ms]
+188 |       sqlite.run(`INSERT INTO command_journal (id,project_id,user_id,seq,kind,payload,inverse,preconditions,undone,created_at)
+189 |         VALUES ('j','p','u',1,'deleteWorkItem',?,?,?,0,1)`, [JSON.stringify(payload),JSON.stringify(inverse),JSON.stringify(preconditions)]);
+190 |     }
+191 |     const before = sqlite.query('SELECT * FROM __drizzle_migrations ORDER BY id').all();
+192 |     sqlite.close();
+193 |     expect(() => rollbackTo(path, FOLDER, '20261014130000_add_shared_people_restore_receipts')).toThrow('stopped-writer recovery integration required');
+                                                                                                      ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "stopped-writer recovery integration required"
+
+Received function did not throw
+Received value: [ "20261014140000_add_step_blockage_activation" ]
+
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:193:97)
+(fail) refuses down migration over retained preconditions without changing the ledger [71.70ms]
+
+ 0 pass
+ 25 filtered out
+ 3 fail
+ 3 expect() calls
+Ran 3 tests across 1 file. [1.88s]

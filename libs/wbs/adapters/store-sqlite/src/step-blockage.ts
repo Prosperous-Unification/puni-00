@@ -12,6 +12,7 @@ import type { Drizzle } from './db';
 import type { Gate } from './gate';
 import { bumpWorkItems } from './revision';
 import { step, stepBlockage, workItem } from './schema';
+import { translateStepBlockageFailure } from './step-blockage-activation';
 import { writingStep } from './step-reference';
 
 /** Validates the external storage timestamp without coercion or rounding. */
@@ -98,36 +99,46 @@ export class StepBlockageRepository implements StepBlockageStore {
           bumpWorkItems(transaction, [blockage.workItemId], stamp);
         });
       }),
-    );
+    ).catch((cause: unknown) => {
+      throw translateStepBlockageFailure(cause);
+    });
   }
 
   async remove(workItemId: string, stepId: string, stamp: WriteStamp): Promise<void> {
-    await this.gate.enter(async () => {
-      await Promise.resolve();
-      this.db.transaction((transaction) => {
-        // Proof: either pair predicate removed; survivor assertions in pair removal failed; watched 2026-10-13.
-        transaction
-          .delete(stepBlockage)
-          .where(and(eq(stepBlockage.workItemId, workItemId), eq(stepBlockage.stepId, stepId)))
-          .run();
-        bumpWorkItems(transaction, [workItemId], stamp);
+    await this.gate
+      .enter(async () => {
+        await Promise.resolve();
+        this.db.transaction((transaction) => {
+          // Proof: either pair predicate removed; survivor assertions in pair removal failed; watched 2026-10-13.
+          transaction
+            .delete(stepBlockage)
+            .where(and(eq(stepBlockage.workItemId, workItemId), eq(stepBlockage.stepId, stepId)))
+            .run();
+          bumpWorkItems(transaction, [workItemId], stamp);
+        });
+      })
+      .catch((cause: unknown) => {
+        throw translateStepBlockageFailure(cause);
       });
-    });
   }
 
   async moveAll(fromWorkItemId: string, toWorkItemId: string, stamp: WriteStamp): Promise<void> {
-    await this.gate.enter(async () => {
-      await Promise.resolve();
-      this.db.transaction((transaction) => {
-        transaction
-          .update(stepBlockage)
-          .set({ workItemId: toWorkItemId, ...auditOnUpdate(stamp) })
-          .where(eq(stepBlockage.workItemId, fromWorkItemId))
-          .run();
-        // Proof: empty-move guard removed; unchanged-owner revision assertion failed; watched 2026-10-13.
-        if (rowsChanged(transaction, 'moving step blockages') === 0) return;
-        bumpWorkItems(transaction, [fromWorkItemId, toWorkItemId], stamp);
+    await this.gate
+      .enter(async () => {
+        await Promise.resolve();
+        this.db.transaction((transaction) => {
+          transaction
+            .update(stepBlockage)
+            .set({ workItemId: toWorkItemId, ...auditOnUpdate(stamp) })
+            .where(eq(stepBlockage.workItemId, fromWorkItemId))
+            .run();
+          // Proof: empty-move guard removed; unchanged-owner revision assertion failed; watched 2026-10-13.
+          if (rowsChanged(transaction, 'moving step blockages') === 0) return;
+          bumpWorkItems(transaction, [fromWorkItemId, toWorkItemId], stamp);
+        });
+      })
+      .catch((cause: unknown) => {
+        throw translateStepBlockageFailure(cause);
       });
-    });
   }
 }

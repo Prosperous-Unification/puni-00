@@ -3,6 +3,8 @@ import type { Logger } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 import { drizzle, type SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
+export { SQLiteError };
+
 const BUSY_TIMEOUT_MS = 5000;
 
 /**

@@ -623,3 +623,35 @@ This exclusion contract assumes trusted nonadversarial quiescence: tasks retain 
 - **GIVEN** a running mounted target lacks Docker init or has unsupported capabilities/PID mode
 - **WHEN** backend preflight runs
 - **THEN** it refuses before writer stop and reports the attended maintenance prerequisite
+
+### Requirement: Step blockage writers require durable admission
+
+The application SHALL initialize a durable singleton blockage writer admission marker to `DISABLED` in an additive migration. Only exactly one valid `ENABLED` marker SHALL admit insert, update and delete statements on `step_blockage`, including writes from independent SQLite connections and foreign key cascades. Reads and export SHALL remain available while admission is disabled. This slice SHALL provide no production activation command or API.
+
+#### Scenario: Fresh migration and restart retain disabled writers
+
+- **WHEN** the migration is applied and the process restarts
+- **THEN** blockage admission remains disabled and an independent blockage insert is refused by the exact SQLite sentinel `step_blockage_inactive`
+
+#### Scenario: Trusted admission authority is missing or damaged
+
+- **WHEN** the marker is missing, duplicated or malformed, a required trigger is missing or changed, the admission migration is absent, or the database is unreadable
+- **THEN** boot after migration and readiness refuse the database without enabling writers
+
+#### Scenario: Disabled v9 import is atomic
+
+- **WHEN** a mounted v9 import contains direct blockage facts while admission is disabled
+- **THEN** the API returns HTTP 409 `step_blockage_inactive` after rolling back the entire import
+- **AND** empty v9 and supported legacy imports, reads and export remain available
+
+#### Scenario: Structural replay retains its cursor and facts
+
+- **WHEN** disabled undo or redo writes blockage facts or replays blockage-aware nested deletion or move metadata, including empty snapshots or a stored `moveProgress` precondition
+- **THEN** the API returns HTTP 409 `step_blockage_inactive` after rollback and retains journal cursor, facts and revisions
+- **AND** unexpected SQL failures remain unexpected failures rather than `stale_undo` or an activation refusal
+
+#### Scenario: Admission down refuses retained evidence
+
+- **WHEN** blockage facts or relevant nested forward, inverse or precondition journal history remain
+- **THEN** the admission down migration refuses before changing its schema or ledger
+- **AND** the recovery runbook describes the existing lossless save protocol and the refusal of remove or restore until stopped-writer recovery integration is available

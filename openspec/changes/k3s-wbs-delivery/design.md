@@ -188,6 +188,63 @@ failure logs and the host export. That descriptor is not staging proof. No live
 Docker/k3d execution is claimed by this slice. Existing-host storage is
 `puni-retain`; future host topology is outside these admission changes.
 
+## F11.1d first-start candidate
+
+`first-start.ts` uses a separate version 2 state file and sealed receipt; release
+journal schema 3 retains its existing meaning. The receipt binds original descriptor
+bytes and their operator pin, export and restore evidence, context/cluster UID,
+both namespace UIDs, PVC name/UID/path, restore Job name/UID, transaction, every tier
+digest and the desired Flux revision. Before scaling it verifies the completed
+restore Job and freshly runs the independent replay inventory and the backend
+image's `readStepBlockageActivation` against the actual PVC. The authority must be
+present, valid and `DISABLED`; the read-only probe never enables it. A nonempty WAL
+refuses admission because matching main-file bytes cannot certify WAL contents.
+
+The coordinator claims the existing WBS Lease, closes the writer ingress fence,
+suspends Flux, stops every tier, and persists/readbacks actual admission before
+explicitly starting every tier. Deployment path/PVC, disabled startup migrations,
+writer label, Recreate strategy, digest and ready rollout are checked. It persists
+and reads back the release record before handing the matching revision to Flux.
+Failure parks the Lease and preserves fence/suspension. Retry reuses only the
+sealed transaction; it stops tiers and repeats the actual PVC observation with a
+fresh Job name. Changed restored bytes require reviewed recovery. The CLI and
+rehearsal use this coordinator; descriptor-only `release-record` now refuses.
+
+The source repair admits the live referenced GitRepository URL at the desired commit
+before scaling. Its sealed source receipt binds Kustomization/source UIDs, complete
+allowed build/source specs, current-generation artifact, exact Git tree and full
+flattened resource inventory against the trusted fenced release render and record.
+The source subtree must contain only a regular `release.yaml`; transforms, remote
+bases, symlinks and extra files refuse admission. Conditional UID/resourceVersion/spec
+patches pin `spec.ref.commit`, and admission is repeated immediately before conditional
+Kustomization resume. The immutable source pin survives first-start and attended
+opening; the laboratory explicitly returns to its branch protocol afterward.
+
+The historical unsafe trace was: check fence → resume Flux → apply open policy →
+possible acknowledged writes → detect open fence → suspend/fence/park. Post-handoff
+refusal could not erase that interval. Real Git revision negatives now refuse both
+writer-open and public-open source before resume. Independent re-review and live
+acceptance remain required; this repair does not authorize activation.
+
+Both writer and public ingress selectors remain fenced. Backend readers retain their
+gateway/smoke TCP allowance for gateway health. Complete namespace policy inventories
+must match the trusted render and platform default deny; selectors cannot select the
+actual tier labels. All tiers stop before restart to drop existing gateway connections.
+All namespace Pods, including unlabeled and terminating claim users, and controllers
+are inventoried; only admitted backend descendants and suspended reviewed backups
+can reference the PVC. Backend volumes/mounts and labels are exact; init containers,
+command/args/lifecycle overrides refuse. Executable backend startup/readiness/liveness
+probes also refuse. Every live tier Deployment and admitted ReplicaSet template,
+and every actual descendant Pod, must match the descriptor-digest trusted startup
+render before scale and while checking handoff. Full spec comparison admits only
+explicit Kubernetes defaults and actual Pod scheduling fields; extra containers,
+init/ephemeral containers, mounts, env/envFrom, commands, hooks and probes refuse.
+Live Secret/ConfigMap value provenance is separate external acceptance; reference
+identity is bound, and this candidate does not pin external value bytes. Explicit
+backend DB_PATH/MIGRATE_ON_STARTUP entries retain precedence over envFrom. Missing durable journal with any existing
+Lease refuses takeover before mutation. Attended traffic opening separately reviews
+and pins a revision opening both policies; SQLite authority remains disabled.
+
 The coordinated StepBlockage deletion slice adds own `deletionState` metadata on
 `delete_subtree`/`restore_subtree`. Independent Kubernetes traversal recognizes
 those properties through nested forward/inverse batches, counts `delete_state_v1`
@@ -197,3 +254,15 @@ commands remain unguarded. `moveProgress` preconditions independently require
 validators admit this inventory vocabulary but still require each actual image's
 own advertisement. This adds no capability to an old image and does not alter the
 release journal schema. Application deletion behavior remains in its separate slice.
+
+### First-start Lease admission after asynchronous observations
+
+The coordinator installs one synchronous Lease-loss guard after acquisition.
+Every cluster mutation and durable phase write checks that guard after any awaited
+observation; renewals queued behind a failed heartbeat recheck loss before invoking
+the renewal transport. Adapter compound operations check it immediately before each
+local mutating kubectl command, and immutable source pin/resume check it after their
+internal awaited reads. A delayed safety result cannot authorize a tier scale after
+a heartbeat failure. After known loss, no cleanup mutation or phase write is permitted.
+Release/park delegates run only after heartbeat shutdown and pending-renewal drain;
+the separately reviewed shared release-executor Lease protocol remains outside this slice.

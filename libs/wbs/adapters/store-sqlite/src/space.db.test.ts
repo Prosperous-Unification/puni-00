@@ -123,6 +123,7 @@ describe('spaces', () => {
   describe('the rollback', () => {
     it('rolls back while no space exists', () => {
       expect(rollbackTo(path, FOLDER, BEFORE_SPACES)).toEqual([
+        '20261014140000_add_step_blockage_activation',
         '20261014130000_add_shared_people_restore_receipts',
         '20261014120000_add_shared_people_restore_approvals',
         '20261013140000_add_step_node_blockages',

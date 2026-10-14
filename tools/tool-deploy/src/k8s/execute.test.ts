@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
-import { type ExecuteOptions, executeRelease, ReleaseFailedError } from './execute';
+import { type ExecuteOptions, executeRelease, LeaseLostError, ReleaseFailedError } from './execute';
 import { CrashSignal, FakeCluster, memoryJournal } from './fake-cluster';
 import { migrationIdentityOf, sealMigrationCapture, sha256Of } from './migration-capture';
 import {
@@ -702,6 +702,96 @@ describe('executeRelease', () => {
     expect(failed.state.phase).toBe('rolled-back');
     expect(failed.state.failure?.step).toBe('persist-release');
     expectRestored(rejected);
+  });
+
+  for (const losesLease of [false, true]) {
+    it(`drains a delayed heartbeat before parking when renewal ${losesLease ? 'fails' : 'succeeds'}`, async () => {
+      const fake = cluster();
+      fake.unhealthy.add(NEW.images.backend);
+      const journal = memoryJournal();
+      const heartbeatStarted = Promise.withResolvers<undefined>();
+      const heartbeatFinished = Promise.withResolvers<undefined>();
+      const terminalRecorded = Promise.withResolvers<undefined>();
+      let rollbackStarted = false;
+      let parkWrites = 0;
+      const renew = fake.renewLease.bind(fake);
+      fake.renewLease = async (holder: string) => {
+        if (!rollbackStarted) return renew(holder);
+        heartbeatStarted.resolve(undefined);
+        await heartbeatFinished.promise;
+        if (losesLease) throw new Error('delayed heartbeat lost the Lease');
+        await renew(holder);
+        // The kubectl renewal manifest clears the parked annotation.
+        if (fake.lease === null) throw new Error('delayed renewal lost its Lease');
+        fake.lease = { ...fake.lease, parked: null };
+      };
+      fake.rollbackSchema = async () => {
+        rollbackStarted = true;
+        await heartbeatStarted.promise;
+        throw new Error('rollback failed while heartbeat was in flight');
+      };
+      const park = fake.parkLease.bind(fake);
+      fake.parkLease = async (holder: string, phase: string) => {
+        parkWrites++;
+        await park(holder, phase);
+      };
+      const recording = {
+        ...journal,
+        write: (entry: Parameters<typeof journal.write>[0]) => {
+          journal.write(entry);
+          if (entry.state.phase === 'rollback-failed') terminalRecorded.resolve(undefined);
+        },
+      };
+      const settled = executeRelease(request(), recording, fake, quiet, {
+        ...on(fake),
+        heartbeatMs: 1,
+      }).catch((cause: unknown) => cause);
+      await terminalRecorded.promise;
+      const writesBeforeDrain = parkWrites;
+      heartbeatFinished.resolve(undefined);
+      const cause = await settled;
+      expect(writesBeforeDrain).toBe(0);
+      if (losesLease) {
+        expect(cause).toBeInstanceOf(LeaseLostError);
+        expect(String(cause)).toContain('delayed heartbeat lost the Lease');
+        expect(parkWrites).toBe(0);
+      } else {
+        expect(cause).toBeInstanceOf(ReleaseFailedError);
+        expect(fake.lease?.parked).toBe('rollback-failed');
+        expect(parkWrites).toBe(1);
+      }
+      expect(fake.writesOpen).toBe(false);
+      expect(fake.fluxSuspended).toBe(true);
+      expect(journal.read()?.state.phase).toBe('rollback-failed');
+    });
+  }
+
+  it('stops heartbeats throughout a delayed terminal park', async () => {
+    const fake = cluster();
+    fake.unhealthy.add(NEW.images.backend);
+    fake.brokenEffects.add('rollbackSchema');
+    let renewalsDuringPark = 0;
+    let parking = false;
+    const renew = fake.renewLease.bind(fake);
+    fake.renewLease = async (holder: string) => {
+      if (parking) renewalsDuringPark++;
+      await renew(holder);
+    };
+    const park = fake.parkLease.bind(fake);
+    fake.parkLease = async (holder: string, phase: string) => {
+      parking = true;
+      await Bun.sleep(10);
+      await park(holder, phase);
+    };
+    const failed = await failure(
+      executeRelease(request(), memoryJournal(), fake, quiet, {
+        ...on(fake),
+        heartbeatMs: 1,
+      }),
+    );
+    expect(failed.state.phase).toBe('rollback-failed');
+    expect(fake.lease?.parked).toBe('rollback-failed');
+    expect(renewalsDuringPark).toBe(0);
   });
 
   it('never renews the Lease concurrently', async () => {

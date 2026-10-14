@@ -7,6 +7,7 @@ import { ProjectService } from '@wbs/core/module/project/project.resource';
 import type { UndoOutcome } from '@wbs/core/module/work-item/work-item.resource';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
+import { activateTestStepBlockages } from '@wbs/store-sqlite/testing/step-blockage-activation';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
@@ -91,6 +92,7 @@ beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-undo-'));
   path = join(dir, 'test.db');
   runMigrations(path, FOLDER);
+  activateTestStepBlockages(path);
   const db = openDrizzle(path);
 
   const projectStore = new ProjectRepository(db, OPEN);

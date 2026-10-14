@@ -207,49 +207,53 @@ export function authPasswordEndpoints(
       // Proof: catching authentication errors makes the mounted account-store outage receive 401 instead of 500.
       const credential = credentialFromHeaders(Object.fromEntries(request.headers.entries()));
       const user = await auth.authenticate(credential.token);
-      const features = await readFeatures();
-      if (user !== null)
-        return {
-          ok: true,
-          status: 200,
-          body: {
-            // Named fields, never a spread: the principal also carries its
-            // credential's authentication facts (an upstream subject), which
-            // the browser must not be handed.
-            // Proof: the spread made `issues the hardened browser cookie for a
-            // password account in OIDC mode` (oidc.integration.test.ts) receive
-            // an `authentication` member; watched 2026-10-12.
-            user: {
-              id: user.id,
-              username: user.username,
-              scopes: [...user.scopes],
-              linkedMethods: await auth.linkedMethods(user.id),
-            },
-            features,
-          },
-          headers: sessionResponseHeaders,
-        };
       /*
        * No browser session is an ordinary signed-out state. A credential that
-       * was presented still fails closed.
+       * was presented still fails closed, before any feature read: its 401
+       * carries no `features`.
        *
        * Proof: treating every null user as anonymous made the mounted invalid
        * bearer case receive 200 instead of 401; restoring the blanket refusal
        * made the production anonymous case receive 401 instead of 200.
+       * Proof: reading features above this refusal made `refuses an invalid
+       * bearer 401 even when the activation marker is broken`
+       * (session-features.db.test.ts) receive 500; watched 2026-10-14.
        */
-      return credential.presented
-        ? {
-            ok: false,
-            status: 401,
-            body: { error: 'invalid_token' },
-            headers: sessionResponseHeaders,
-          }
-        : {
-            ok: true,
-            status: 200,
-            body: { user: null, features },
-            headers: sessionResponseHeaders,
-          };
+      if (user === null && credential.presented)
+        return {
+          ok: false,
+          status: 401,
+          body: { error: 'invalid_token' },
+          headers: sessionResponseHeaders,
+        };
+      const features = await readFeatures();
+      if (user === null)
+        return {
+          ok: true,
+          status: 200,
+          body: { user: null, features },
+          headers: sessionResponseHeaders,
+        };
+      return {
+        ok: true,
+        status: 200,
+        body: {
+          // Named fields, never a spread: the principal also carries its
+          // credential's authentication facts (an upstream subject), which
+          // the browser must not be handed.
+          // Proof: the spread made `issues the hardened browser cookie for a
+          // password account in OIDC mode` (oidc.integration.test.ts) receive
+          // an `authentication` member; watched 2026-10-12.
+          user: {
+            id: user.id,
+            username: user.username,
+            scopes: [...user.scopes],
+            linkedMethods: await auth.linkedMethods(user.id),
+          },
+          features,
+        },
+        headers: sessionResponseHeaders,
+      };
     }),
   ] as const;
 }

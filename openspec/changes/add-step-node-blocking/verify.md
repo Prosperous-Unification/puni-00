@@ -1092,3 +1092,378 @@ Astra reproduced shell glob enumeration admitting a directory whose entries coul
 Exact final emitted code was bundled and exercised through the real Docker boundary on a disposable cached shipped Caddy image with `--init --cap-drop ALL --pull never --network none`. Empty-directory admission exited0; a readable SQLite hardlink refused; the same hardlink inside chmod000 refused, while direct `ls` returned EACCES. Removing only the new enumeration guard made that unreadable-directory admission exit0: **watched negative failed**. All exact fixture IDs were removed successfully and the fresh temporary directory was removed (`/tmp/puni-unreadable-census-proof-h2.log`). No live resources, privileges or service configuration changed. This real reduced-capability proof covers the capability case raised by review.
 
 Fresh final scoped verification after this repair: the same 14-file command above passed **421 tests, 0 failures, 1,431 assertions** (`/tmp/exec-unreadable-scoped-tests.log`). Uncached Nx lint/typecheck for tool-remote-scripts and tool-compose passed (`/tmp/exec-unreadable-scoped-static.log`); changed-file Prettier, strict OpenSpec 1.12.0 validation and `git diff --check` passed. Full host gate, release-candidate image build, independent re-review and attended production preparation remain pending with the PM.
+
+## Immediate writer admission — 2026-10-14 (task 3.0.6)
+
+Base: `4bb78ec2674869c2bfd18114ef4f39e05d403863`, isolated clone `/tmp/puni-step-blockage-admission-sol`. The existing `20261013140000_add_step_node_blockages` migration and down bytes are unchanged (`git diff --exit-code -- apps/wbs/be-01/drizzle/20261013140000_add_step_node_blockages`, exit 0).
+
+Fresh focused checks:
+
+- `bun test` with explicit `./` operands for `step-blockage-activation.db.test.ts`, `step-blockage.db.test.ts`, `step-blockage-migration.db.test.ts`, `step-blockage-rollback.db.test.ts`, and HTTP `step-blockage-activation.test.ts`, `import-shapes.test.ts`, `step-shapes.test.ts`: exit 0, **63 pass, 0 fail, 233 assertions**. These include default-disabled independent writes, owner cascade, corrupt/missing authority and trigger definitions, wrong migration, unreadable connection, restart, full UoW rollback, all three nested journal inventory sources and guarded down retaining facts/history/ledger.
+- `bun test ./apps/wbs/be-01/src/boot.db.test.ts ./apps/wbs/be-01/src/controller/step-node-attempt.controller.db.test.ts ./apps/wbs/be-01/src/controller/import-export-organization.controller.db.test.ts --test-name-pattern 'blockage admission authority|writer admission is disabled|empty nested structural snapshots|v9 direct blockage transfer' --timeout=30000`: exit 0, **8 pass, 0 fail, 33 assertions**. Boot uses the existing injected listener/app seam because real sandbox listening refuses `EPERM`. Mounted import, deletion, undo and redo use real SQLite and production composition. Unexpected second-insert SQL still returns 500 and rolls back; inactive writes return 409 after rollback.
+- Earlier complete focused backend operands (step-node-attempt, composed import/export, undo service and step service): exit 0, **279 pass, 0 fail, 1250 assertions**. Existing empty and supported legacy import/read/export behavior remains covered.
+- Correct explicit-source adapter sweep: **1491 pass, 12 fail, 12954 assertions**. Eight failures were migration ascending/latest inventories, receipt snapshot scope and existing isolated fixtures requiring explicit admission. After correction, the exact eight targeted regressions pass: **8 pass, 0 fail, 1749 assertions**, including terminal SQLite conformance certification. Four child-process checks remain blocked by sandbox `EPERM` at `stdin.flush`: one browser lifecycle race, two saved-plan concurrency checks, and one saved-plan busy check. They require the composed candidate's host gate. An earlier invalid directory operand collected emitted `dist/out-tsc` tests; that run is discarded as a verification command, not classified as a product regression.
+- `bunx tsc --build --force libs/wbs/adapters/store-sqlite/tsconfig.json apps/wbs/be-01/tsconfig.json`: exit 0 with no diagnostics after final code changes.
+- Touched TypeScript ESLint, Prettier check, strict OpenSpec validation and `git diff --check` are recorded at the admission commit checkpoint below. The initial Nx lint used a sandbox-denied daemon socket and lacked full diagnostics; the final touched-file ESLint uses the generated project graph and supplies the actual evidence.
+- `bun run tools/tool-git-hooks/src/hooks/migration-lint.ts apps/wbs/be-01/drizzle/20261014140000_add_step_blockage_activation/migration.sql`: exit 0. The paired down is exercised both by retained-evidence negatives and successful empty rollback/reapply in the migration tests; destructive statements remain confined to down.
+
+Watched R5 evidence is retained in [writer-admission-omissions.txt](evidence/writer-admission-omissions.txt): **29 independent fault runs, each exit 1 at a named assertion**. Trigger omissions replace their migration statement with harmless `SELECT 1` so the real writer is reached; they produce “Received function did not throw.” Other faults separately omit SQL count/enabled predicates, marker count/id/state, ledger and exact trigger checks, readiness/boot calls, each forward/inverse/precondition inventory, disabled replay admission, mounted 409, native error class/code/exact message/cause traversal, UoW translation/rollback, and down fact/history guards. Removing a trigger while leaving an empty Drizzle statement was rejected as invalid proof and replaced before recording this evidence. [writer-admission-contract-omission.txt](evidence/writer-admission-contract-omission.txt) records the inactive schema discriminator replaced with `writer_disabled`; all five production endpoint schema/OpenAPI assertions fail.
+
+Raw project deletion already reaches the existing step foreign key restriction before fact deletion. Its test proves fact retention and preserves that foreign key error; it is not counted as a new admission-sentinel proof. Mounted work-item deletion reaches the new writer admission guard and retains earlier batch writes, journal and revisions on refusal.
+
+Release checks not claimed here: the exact-SHA h2puni format/test/lint/typecheck/build gate, hosted CI, #450 setter composition, old-writer barrier/F11.1d, and stopped-writer recovery integration. No production enable command or API was added. The existing lossless recovery CLI bytes remain intact; disabled remove/restore and retained-history down refuse visibly, as documented in the production runbook. Parent task 6.3 remains open.
+
+Admission checkpoint: touched TypeScript ESLint with the generated project graph, touched Prettier check, `openspec validate add-step-node-blocking --strict --json`, and `git diff --check` all exit 0. No h2puni gate/build or hosted CI result is inferred from these focused checks.
+
+### Public authoring, tasks 3.1–3.2 (2026-10-14)
+
+Exact base: `5693dccc48d20720729ea4a73404494d417092ad`; isolated clone `/tmp/puni-step-blockage-authoring-sol`. The registry accepts `setStepBlocked` with required boolean `isBlocked`, ID/ref+step or `stepNodeId`. The admitted graph writes and journals nullable exact-time conditional replacements. Equivalence follows ownership/leaf/step validation and precedes stamps, done refusal and writes. Existing replay restores beneath done. No migration, document/saved/scheduler version, replay discriminator/capability or CI trusted-wiki activation changed.
+
+RED: mounted command tests initially received `unknown_kind`/400 instead of 200 or their modeled refusal. GREEN: explicit source-file command below passed **133 tests, 0 failures, 681 assertions, 14 files**. Initial directory-selector run accidentally collected emitted `dist/out-tsc` test JavaScript and failed import resolution; that output was rejected as verification and rerun with explicit source filenames.
+
+```sh
+bun test $(rg --files libs/wbs/application/core/src/module/plan-commands -g '*.test.ts') libs/wbs/application/core/src/service/command-normalizers.test.ts libs/wbs/domain/contracts/src/commands/definitions.test.ts libs/wbs/domain/contracts/src/http/plan-command-shapes.test.ts apps/wbs/be-01/src/controller/step-node-blockage.controller.db.test.ts
+```
+
+Coverage includes ID/node/ref addresses, ownership/viewer/cross-organization refusal before equivalent clears, absent work item/step, parent and done refusals, full no-op SQLite snapshots including journal/history/events/audit/revisions, retained progress and exact-time replay under done, one collected undo/history unit, same-batch retained refresh, canonical scheduler input/full Fast equality, stale fact additions/removals/time changes despite forged unchanged revisions, removed-step and newly-parent replay refusal, and memory/mounted SQLite rollback after a later refusal or injected store refusal/throw. Memory assertions also verify no fanout on rollback. SQLite negative injected exceptions deliberately produce the normal error log and HTTP 500.
+
+Every fault below was applied sequentially to production source, its named test observed failing with exit 1, and source restored before continuing. Adjacent `Proof:` comments identify the observed checks. Logs are `/tmp/puni-authoring-proof-<name>.log` in the worker environment.
+
+| Check               | Injected fault                   | Observed production-path negative                                                                                               |
+| ------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| ownership           | Remove `context.ok` refusal      | `refuses direct service ownership before an equivalent clear` rejected instead of returning a modeled refusal                   |
+| leaf                | Remove leaf predicate            | `refuses a parent even when clearing an absent fact` received success                                                           |
+| project step        | Remove step predicate            | `refuses an unknown service step before an equivalent clear` received success; mounted route has an independent reference guard |
+| equivalent presence | Remove early return              | `equivalent presence and absence change no stored snapshot` observed changed stored snapshot                                    |
+| done                | Remove done predicate            | `refuses new blockage on done and rolls back an earlier batch write` committed forbidden batch                                  |
+| store refusal       | Ignore `unknown_step` outcome    | `rolls back a prior mutation and emits no fanout after a refuse store write` resolved and committed the earlier patch           |
+| boolean intent      | Remove normalizer flag predicate | `refuses missing and nonboolean blockage intent before dispatch` accepted invalid values                                        |
+
+Touched project typecheck passed for `wbs-core`, `wbs-contracts`, `wbs-be-01` and module checks (one unchanged contracts cache hit). Pinned `bunx @fission-ai/openspec@1.12.0 validate --all --json` exited 0. Final lint/format/diff evidence follows. Exact-candidate h2puni heavy gate, build, CI and browser verification remain coordinator work; this local slice does not claim those checks. Activation still requires old incompatible writer drain and Kubernetes F11.1d.
+
+Final local checks:
+
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint -p wbs-core,wbs-contracts,wbs-be-01 --output-style=static`: exit 0; all three passed, one unchanged contracts cache hit.
+- Matching `run-many -t typecheck` command: exit 0; all three plus module checks passed, one unchanged contracts cache hit.
+- After adding mounted transport push-count assertions, the two new test files passed 27 tests, 0 failures, 98 assertions. Both memory and mounted SQLite refusal/throw cases assert no fanout.
+- Final touched-test ESLint: exit 0. Touched-file Prettier check and `git diff --check`: exit 0.
+- `validate add-step-node-blocking --strict --json`: 1 passed, 0 failed, no issues. Normal `validate --all --json`: 196 passed, 0 failed. Additional whole-repo `--strict` run exits 1 on six existing main-spec placeholder Purpose warnings: `dev-deploy`, `live-plan-snapshot`, `plan-command-registry`, `plan-import`, `saved-plans`, `scheduler-optimization`; all 178 change artifacts, including this one, pass. Those untouched main specs remain coordinator scope.
+
+### Setter and disabled admission composition — 2026-10-14
+
+The isolated clone `/tmp/puni-step-setter-integration-sol` merges reviewed setter
+head `809cbe64b568bd62e772be8dd3448a7977313ffa` with admission/base head
+`3d6f80b0693b2178d8029e80631aa69f24a0d336`. Only this design, task and verification
+record conflicted; both slices' records are retained. No production code, migration,
+activation default or production enable interface changes in this integration.
+
+The mounted setter positive fixture now explicitly enables its isolated database.
+Before that fixture correction, its exact-source baseline had 7 pass and 11 fail:
+actual writes correctly received the new inactive refusal. Added default-disabled
+mounted set, retained-clear and undo/redo negatives assert typed 409 and complete
+unchanged fact/progress/owner/project/journal/event snapshots and fanout counts.
+Absent clear remains a 200 exact no-op. Retained facts remain readable and export
+as v9; nonempty reimport of that public setter's export refuses atomically while
+disabled. Enabled set/clear and both replay directions retain exact blocked time,
+including retained facts beneath done. Existing import tests cover enabled remapped
+facts, default-disabled nonempty refusal, empty import/export and legacy input.
+
+A separate test-only compile correction supplies `validateSchema<unknown>` in
+`step-blockage-activation.test.ts`: TypeScript otherwise inferred the first arm
+from a union of refusal schemas and rejected the other arms with TS2345. Runtime
+schema validation and the endpoint union are unchanged; there is no cast.
+
+Fresh scoped evidence:
+
+- `bun install --frozen-lockfile` with `BUN_TMPDIR=/tmp TMPDIR=/tmp`: exit 0;
+  1573 installs checked. The initial install lacked a writable temporary directory
+  and exited 1; that output was not accepted as successful installation.
+- Explicit source-file `bun test` over the plan-commands tests, command normalizers,
+  command definitions/shapes, admission contract, four blockage SQLite suites,
+  mounted setter and mounted import/export: exit 0, **223 pass, 0 fail, 1032
+  assertions, 20 files**. Log `/tmp/puni-setter-integration-tests.log`.
+- After the test-only type correction and formatting, admission contracts plus
+  mounted setter: exit 0, **28 pass, 0 fail, 96 assertions**.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint -p wbs-core,wbs-contracts,wbs-store-sqlite,wbs-be-01 --output-style=static`:
+  exit 0; four projects, zero cache hits. Final touched-test ESLint also exited 0.
+- Matching `run-many -t typecheck`: initial run exposed the TS2345 above; corrected
+  rerun exits 0 for four projects and two module tasks, with two unchanged core
+  tasks read from cache. Contracts, backend and SQLite compilation ran freshly.
+- Pinned `bunx @fission-ai/openspec@1.12.0 validate add-step-node-blocking --strict --json`:
+  exit 0, one change passed, no issues. `validate --all --json`: exit 0,
+  **196 passed, 0 failed** (178 changes, 18 specs).
+
+The existing admission mapping is independently watched through the new setter:
+removing the mounted `StepBlockageInactive` mapping produces 500 instead of the
+expected typed 409 in `refuses a default-disabled set atomically without facts,
+journal or fanout`; test command exits 1, 0 pass, 1 fail. The exact output is
+[setter-admission-http-omission.txt](evidence/setter-admission-http-omission.txt).
+Source was restored before the green reruns. Removing repository translation
+alone still passed because the full unit of work independently translates it;
+that attempt is not counted as a guard proof. No new production safety check was
+introduced, and the previously observed adjacent admission Proof comments remain.
+
+Full h2puni heavy gate/build, hosted CI, browser verification, old-writer barrier,
+Kubernetes F11.1d and stopped-writer recovery integration are unverified here and
+remain coordinator work. This clone is on `pop-os`; no production activation,
+push, merge or deploy is performed by this integration task.
+
+Final merge-index hygiene: `git diff --cached --check` exposed five inherited
+trailing spaces and an extra final blank line in admission's raw omission log.
+Only that evidence file's whitespace was trimmed in separate mechanical commit
+`52129d7194fc5059754e7960b7d8fc77eb114f52`; assertion output is preserved.
+The final `git diff --check 4bb78ec2674869c2bfd18114ef4f39e05d403863 HEAD`
+exits 0. Touched-file Prettier and final `git diff 809cbe64b568bd62e772be8dd3448a7977313ffa --check`
+exit 0. Normal installed lefthook pre-commit/commit-message hooks run successfully;
+its tool-wiki hook visibly reports inactive, uncertified because this isolated
+clone has no external activation root. That optional activation is not inferred
+as certification.
+
+## 2026-10-14 — Step UI authoring (tasks 5.1–5.3)
+
+Isolated clone `/tmp/step-blockage-ui-sol`, based exactly on PR #450
+`c622d20fd26d276f618779fbb085e3cb1aeb79b4`. The UI carries direct facts and canonical
+root identities into the existing retained frontend read. A shared section explains
+direct/dependency/work-item-hold scope and underlying progress, with named roots.
+The desktop folded card and a separate phone Step blockage disclosure send set/clear
+through PlanCommands and `write.perform(['tree'])`. Row Status and schedule inputs
+are unchanged. Clearing a retained done fact is offered; new blockage on done is
+disabled. Tab skips disabled actions. Older reads visibly report unknown blockage,
+including older node-readings absence. Supported malformed cause identities reach
+the existing TanStack router Error Boundary. Actual disabled writer 409 is ordinary
+feedback and retains the fact. No production activation interface was introduced.
+
+The ordinary Playwright runner shares its generated isolated DB identity with its
+fixture workers; positive cases explicitly activate only that test database using
+`activateTestStepBlockages`. This suite runs in the standard production build/preview
+path with the real backend. Initial local-socket sandbox denials were rerun with
+scoped escalation; no live WBS was accessed.
+
+### Commands and observed output
+
+- `CI=1 E2E_PORT_SHIFT=5400 bunx playwright test --config apps/wbs/fe-01/playwright.config.ts apps/wbs/fe-01/e2e/step-blockage.spec.ts`: **6 passed**. Desktop direct/proxy/cause/progress; F2/Tab/Escape set/clear/undo/redo; phone named cause and >=44px target; malformed cause boundary; actual SQLite disabled 409; older metadata unknown/no writer.
+- `bunx vitest run src/components/wbs/step-blockage.test.tsx src/components/wbs/folded-step-card.test.tsx src/components/wbs/plan-cards.test.tsx src/components/wbs/plan-estimates.test.tsx src/components/wbs/plan-writer.test.ts src/modules/plan-commands/plan-commands.feature.test.ts ../../playwright-config.test.ts --maxWorkers=1` from fe-01: **5 files, 249 passed**. The two unmatched writer/config filters were subsequently run at their actual paths.
+- `bunx vitest run src/modules/plan-writer/plan-writer.test.ts --maxWorkers=1`: **7 passed**.
+- `bunx vitest run playwright-config.test.ts --maxWorkers=1`: **18 passed**, after scoped escalation for its existing local-auth socket test.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-fe-01:lint`: **Successfully ran target lint**, no errors. The initial sandbox daemon fallback printed no target verdict and was not accepted as evidence.
+- `bunx tsc --build --force apps/wbs/fe-01/tsconfig.json`: exit **0**.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-fe-01:typecheck:module`: **Successfully ran target typecheck:module**.
+- `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate --all --json`: **196 passed, 0 failed** (178 changes, 18 specs).
+- `git diff --check`: exit **0**.
+
+### Watched production-path negatives
+
+| Injected fault                                         | Observed failing assertion                                                                                                                                                                   |
+| ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Replace both direct/proxy wording with “Step blockage” | Built-preview browser `distinguishes direct and dependency blockage...` failed `getByText('Direct step blockage', { exact: true }).toBeVisible()`; one failed, exit 1.                       |
+| Remove `Cause: {cause}` from rendered section          | Same built-preview browser failed visibility of `Cause: 040.s1-dev · Refund policy · Dev`; one failed, exit 1.                                                                               |
+| Omit incomplete-supported-metadata guard               | Production `stepBlockageOf` test received `Cannot read properties of undefined (reading 'dev')` instead of `Incomplete step blockage metadata`; exit 1.                                      |
+| Omit missing-reading guard                             | Production `stepBlockageOf` negative expected a throw and received none; exit 1.                                                                                                             |
+| Omit missing-blocked-causes guard                      | Production `stepBlockageOf` negative expected a throw and received none; exit 1. Initial empty blocked root collection also failed that throw assertion before the guard was extended.       |
+| Omit unknown-root-identity guard                       | Production `stepBlockageOf` negative expected a throw and received none; exit 1. The browser independently injects `missing-root` into the real read and verifies the router Error Boundary. |
+| Remove done-only new-block disabling                   | Production section test found an enabled new-block button; exit 1. Retained done clear remains enabled.                                                                                      |
+| Include disabled card actions in Tab traversal         | Folded card test expected Remove attempt 2 focus but Copy link retained focus; one failed. Excluding disabled buttons passes.                                                                |
+| Omit phone action touch sizing                         | Production-preview phone assertion expected >=44px and observed the smaller button; one failed. Sized action passes.                                                                         |
+
+All injected production faults were restored. Adjacent Proof comments name the
+watched checks. Browser captures were inspected at 1280 and 375px; review copies
+are `/tmp/step-blockage-preview/direct-desktop.png` and `proxy-phone.png`.
+
+### Ownership and integration
+
+Active PRs #399 (`ui-review/phone`), #409 (`ui-review/plan-table`) and #417
+(`ui-review/integration-1`) overlap the card files. Their worktrees and branches
+were untouched. Applying the complete shared-file patches with
+`GIT_INDEX_FILE=/tmp/step-blockage-compose-final.index git read-tree abd06e9ad`
+and `git apply --cached --3way /tmp/step-blockage-shared.patch` reported both
+`folded-step-card.tsx` and `plan-cards.tsx` **applied cleanly**. This proves patch
+composition only; the coordinator owns merge order and integrated verification.
+
+Not run by this UI worker: the host-wide exact-SHA h2puni gate, packaged Caddy
+browser suite, full backend/domain/import/saved-plan checks, hosted CI, migration
+lint or production activation/deploy. PR #450's known unrelated Burokrat pilot
+index failure is coordinator-owned; it is not repaired by this UI slice.
+
+### Public setter module-index CI repair — 2026-10-14
+
+Exact base: PR #450 head `c622d20fd26d276f618779fbb085e3cb1aeb79b4`;
+isolated clone `/tmp/puni-setter-module-index-ci-sol`. Hosted run `38518467695`
+reported the plan-commands index omitted the new `step-blockage.test.ts`.
+The repair adds its exact path membership between `run-command-batch.ts` and
+`tsconfig.json`; existing membership order and production policy stay unchanged.
+
+Proof: the following production-CLI pilot test first exited 1 with **0 pass,
+1 fail, 53 assertions** and the exact `unindexed candidate path` for that test.
+Adding the membership exited 0 with **1 pass, 0 fail, 60 assertions**. Removing
+only the added membership reproduced exit 1 and the same refusal; the membership
+was restored before subsequent checks. The omission output is retained in
+[setter-module-index-omission.txt](evidence/setter-module-index-omission.txt).
+No production safety check was added or changed.
+
+```sh
+BUN_TMPDIR=/tmp TMPDIR=/tmp TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/node_modules bun test --preload ./tools/test/scratch/preload.ts apps/twilight-structure/twilight-burokrat/cli/src/policy/pilot-policy.test.ts -t 'pins exact pre-index tuples' --timeout=60000
+```
+
+Fresh local evidence:
+
+- Frozen Bun installation exits 0, **1573 installs checked**. The initial install
+  failed with EROFS despite writable temporary paths; repeating with
+  `BUN_INSTALL=/tmp/puni-setter-module-index-bun` and
+  `BUN_INSTALL_CACHE_DIR=/tmp/puni-setter-module-index-bun-cache` succeeded.
+- `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`:
+  exit 0, **39 indexes, empty review debt**.
+- Full `pilot-policy.test.ts` and `indexes.test.ts` with the same scratch preload,
+  trusted dependency root and 60000 ms timeout: exit 0, **81 pass, 0 fail,
+  880 assertions, 2 files**. Log `/tmp/puni-setter-module-index-tests.log`.
+- Touched Markdown Prettier check and `git diff --check`: exit 0.
+- Pinned OpenSpec 1.12.0 `validate add-step-node-blocking --strict --json`:
+  exit 0, **1 passed, 0 failed, no issues**. Normal `validate --all --json`:
+  exit 0, **196 passed, 0 failed**.
+
+Full h2puni heavy gate/build, hosted CI rerun and browser checks remain coordinator
+work and are unverified by this documentation repair. No push, merge, deploy or
+activation was performed.
+
+### Hosted admission fixture corrections — 2026-10-14
+
+Reported CI run `38518185689` failed against release candidate `895eac61a6a9816cbf22ec39cd92648b79b95f88`. Reproduction in isolated clone `/tmp/puni-admission-ci-repair-sol` found five typed-dependency lifecycle assertions expecting successful structural replay while their migrated test database still had disabled writer admission, plus a migration CLI expectation naming the previous latest migration. The original unmigrated boot fixture also expected startup success; a socket-free listener/app seam reached the same production refusal as CI: `no such table: __drizzle_migrations`. Real local listening first refused sandbox `EPERM`, so that initial socket failure is not counted as the admission reproduction.
+
+Only fixtures and expectations changed: the lifecycle suite explicitly activates its own temporary database with `activateTestStepBlockages`, the CLI expects `20261014140000_add_step_blockage_activation`, and the unmigrated boot test asserts readiness refusal and no running process. Production admission, boot, migration and recovery code remain unchanged; no safety check was added or relaxed, so no new production omission proof is required.
+
+Fresh checks:
+
+- `bun test ./apps/wbs/be-01/src/controller/typed-dependency-lifecycle.controller.db.test.ts --timeout=30000` before correction: **8 pass, 5 fail**, each failed assertion receiving 409.
+- `bun test ./apps/wbs/be-01/src/migration-cli.db.test.ts --test-name-pattern 'older newly introduced migration' --timeout=30000` before correction: **0 pass, 1 fail**, actual latest migration `20261014140000_add_step_blockage_activation`.
+- The old successful-start boot expectation with the injected listener seam: **0 pass, 1 fail**, native missing-ledger error above.
+- `bun test ./apps/wbs/be-01/src/migration-cli.db.test.ts ./apps/wbs/be-01/src/controller/typed-dependency-lifecycle.controller.db.test.ts --timeout=30000` after correction: exit 0, **63 pass, 0 fail, 561 assertions**.
+- `bun test ./apps/wbs/be-01/src/boot.db.test.ts --test-name-pattern 'unmigrated database|blockage admission authority|boots committed fan-out' --timeout=30000`: exit 0, **3 pass, 0 fail, 10 assertions**, covering valid migrated startup and both absent-ledger and missing-marker refusal.
+- `bun test ./libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts --timeout=30000`: exit 0, **28 pass, 0 fail, 73 assertions**; default-disabled admission, exact sentinel handling, rollback, restart and retained-history down remain covered.
+- `bunx tsc --build --force apps/wbs/be-01/tsconfig.json`: exit 0, no diagnostics. Touched-file ESLint uses a freshly generated Nx project graph and exits 0 without diagnostics. Touched Prettier check, strict change validation and `git diff --check` also exit 0.
+
+The full boot suite requiring real listening, full hosted CI and exact host gate are not claimed here. The coordinator will integrate this follow-up and requeue the exact candidate gate; no push, merge, deploy or host gate was performed in this repair.
+
+## 2026-10-14 — Astra UI review repairs and #450 composition
+
+Review of `16e0e7e420dca71fe507ac37572ebc7757d25034` found two gaps:
+indexing only top-level tree rows omitted nested blockage roots, and the public
+node projection returned its older-server null before validating supported blockage
+metadata. The cause index now uses the existing flattened rows. The projection
+validates supported blockage metadata before its nullable reading return; a
+fully older read still returns null and renders explicit unknown.
+
+Watched negatives before repair:
+
+- The real-preview nested leaf fixture (explicit child Dev fact, downstream root QA
+  dependency) failed visibility of `Name of 040.1`, with the router Error Boundary
+  shown. It exercises the complete retained read and both desktop and phone layouts.
+- `rejects supported blockage metadata without node readings through the public
+projection` expected an error and received none from `stepNodeReadingsOf`.
+- Restoring the old validation order in a fresh isolated preview database made
+  `supported blockage facts without node readings reach the Error Boundary` fail
+  visibility of `Something went wrong!`. The first combined negative run's second
+  case failed fixture creation because the earlier broken nested plan was last
+  opened; that output was rejected as P2 evidence and replaced by this isolated run.
+- All injected faults were restored; adjacent Proof comments describe both paths.
+
+Pre-composition checks: four focused UI suites **247 passed**, application tsc
+build exit **0**. A targeted lint import-sort finding in the new test was corrected.
+
+Latest authoring parent was fetched locally from
+`/tmp/puni-step-setter-integration-sol` at exact
+`4cae32f5e3ba2984ef94e63b0183685143367871` (repaired #449 parent `9b2f93ba`).
+Read-only merge-tree found no code conflict and only the additive verify.md EOF
+conflict: Step UI authoring evidence versus Public setter module-index CI repair
+and Hosted admission fixture corrections. The isolated merge retains all sections
+and their original exact results. No UI-review branch or worktree was changed.
+
+Combined-tree verification after resolving the evidence conflict:
+
+- `CI=1 E2E_PORT_SHIFT=5400 bunx playwright test --config apps/wbs/fe-01/playwright.config.ts apps/wbs/fe-01/e2e/step-blockage.spec.ts`: **8 passed**. Both new review regressions pass, including nested direct/downstream named causes on desktop and phone and supported missing-reading metadata reaching the router Error Boundary; genuinely older reads remain unknown without write actions.
+- `bunx vitest run src/components/wbs/step-blockage.test.tsx src/components/wbs/folded-step-card.test.tsx src/components/wbs/plan-cards.test.tsx src/components/wbs/plan-estimates.test.tsx --maxWorkers=1` from fe-01: **4 files, 247 passed**.
+- `bunx tsc --build --force apps/wbs/fe-01/tsconfig.json`: exit **0**.
+- `bunx eslint` over the four changed UI production/test files: exit **0** after import sorting.
+- Pinned OpenSpec all validation: **196 passed, 0 failed**.
+- `git diff --check`: exit **0**; no unresolved merge paths.
+- Read-only alternate-index three-way application of both shared card patches against #417 `abd06e9ad`: both **applied cleanly**. The branch was not restacked onto #417.
+
+The full exact-SHA host gate, hosted CI and unrelated Gantt pixel fixture diagnosis remain coordinator-owned. Parent repairs are retained verbatim; this worker adds only the two UI review repairs and their regressions/evidence.
+
+## 2026-10-14 — Whole folded-card accessibility after clipping review
+
+Astra reviewed `8ddf6beba908c22fa4df08cc253df47cc5499116` and identified
+that the additional blockage explanation pushed attempt controls and estimate
+details beyond the table frame. The entire folded card now uses HoverCard's
+scrolling mode. Its measured height ceiling also accounts for the whole row's
+diagonal clearance, rather than the cell wrapper's earlier edge. Existing
+non-scrolling placements and phone disclosures retain their behavior.
+
+The new production-preview case `the whole blocked step card stays inside its
+frame and exposes attempt actions and estimates` first failed containment:
+card bottom **527.25px**, clipping frame bottom **459.75px**. Enabling scrolling
+alone still failed: card bottom **484.9375px**, because the wrapper-relative
+height limit included space occupied by the cleared row. Correcting that limit
+passes containment. Adjacent Proof comments identify both observed faults.
+
+The passing case scrolls to Start attempt, proves the button is the element at
+its hit-test coordinates and clicks it through the real backend. It then reaches
+the Final estimate footer and proves that line is hit-testable. F2 enters Copy
+reference; Tab follows the existing Copy link, Clear blockage, Remove attempt,
+End attempt order while focus scrolls the card; Escape returns to the step cell.
+An intermediate test expected End one Tab too early; its expectation was corrected
+to the existing Remove-before-End action order, with no production reorder.
+
+Fresh scoped verification:
+
+- Ordinary production-preview browser run over step-blockage, hover-cards and card-lanes, filtered to all blockage cases plus the existing notes scrolling/below-room/above-row and informative-card placement cases: **13 passed** (9 blockage cases, 4 existing card cases).
+- FoldedStepCard, HoverCard and plan-estimate component suites: **3 files, 117 passed**.
+- Application tsc build: exit **0**.
+- ESLint over FoldedStepCard, HoverCard and the browser suite: exit **0**.
+- `git diff --check`: exit **0**.
+
+Review captures at `/tmp/step-blockage-preview/direct-desktop.png` and
+`proxy-phone.png` were refreshed from the passing run. The card contents now
+scroll within the visible frame; the browser geometry and hit-target assertions,
+not an unbounded screenshot box, prove access to the footer and attempt action.
+The repaired authoring parent `4cae32f5e3ba2984ef94e63b0183685143367871`
+remains an ancestor. Full exact-SHA host/CI gates and unrelated release fixture
+triage remain coordinator-owned. No push, PR merge, deployment or live write.
+
+## UI cause-index review repair (2026-10-14)
+
+- Shared cause labels now use one `useMemo` after the flattened rows, keyed by
+  `[flat, steps, stepNodes]`; desktop readings and phone step projections reuse it.
+- Production-path call-through probe renders fifty phone rows and five steps,
+  with all blockage disclosures closed. It observes one index build, no further
+  build on an unchanged rerender, and exactly one additional build when a new
+  runtime read supplies a changed cause name. The second index contains that name.
+- Watched negative: the original per-phone-node indexing failed the first count
+  assertion with **251 builds instead of 1** (`/tmp/step-blockage-index-red.log`).
+  The adjacent `Proof:` records that injected fault. The final focused test passed
+  (`/tmp/step-blockage-index-green.log`). Intermediate fixture attempts using name
+  editing and expensive role queries timed out; the final fixture switches the
+  real reader and checks index inputs directly, with a bounded 15-second budget.
+- Focused production-preview Playwright command: `CI=1 E2E_PORT_SHIFT=5400 bunx
+playwright test --config apps/wbs/fe-01/playwright.config.ts
+apps/wbs/fe-01/e2e/step-blockage.spec.ts --grep 'phone disclosure|nested blocked|whole blocked step card|distinguishes direct'`:
+  **4 passed** (32.2s), preserving named nested causes, phone actions and the card
+  geometry/hit-target regression (`/tmp/step-blockage-index-browser.log`).
+- `bunx tsc --project apps/wbs/fe-01/tsconfig.app.json --noEmit`: exit 0.
+- Complete `plan-cards.test.tsx` suite: **141 passed** (17.92s), including
+  unchanged toolbar render-cost checks (`/tmp/step-blockage-index-suite.log`).
+- Touched-source ESLint: exit 0. Pinned OpenSpec validation: exit 0.
+- Full host gate and unrelated browser suites are deferred to the PM release
+  stack; this repair does not push, deploy, or change activation state.
+
+## Compose reconciliation with merged release — 2026-10-14
+
+Astra high re-review passed `b22d50a3de24d3f60cc950f1bcf07971f55075ca` with no P1/P2 findings. The reviewed Compose branch now merges main `50f5c2b8d286849557e3dace27418d62cff00cde` (#458). The only manual conflicts were independently appended design, specification and verification sections; both release admission/authoring semantics and the complete Compose barrier/history are retained. Auto-merged app composition retains main session-feature checks and the pure-ACK forward boundary; the runbook retains disabled SQLite admission, recovery write refusal, attended init prerequisites and Compose interruption authority. No reviewed Compose runtime source changed during reconciliation.
+
+The durable SQLite admission marker remains disabled. Deployment stop/exposure files do not enable it or authorize down, restore, remove or incompatible restart. This reconciliation adds no activation interface or live prerequisite application. Prior release and Compose evidence remains historical, with the fresh reconciliation checks recorded below.
+
+Fresh mounted/app/internal/session/SQLite-admission/public-authoring checks: **61 passed, 0 failed, 194 assertions across six files** (`/tmp/compose-main-reconcile-admission-tests.log`). Uncached scoped Nx lint/typecheck for tool-remote-scripts, tool-compose and wbs-be-01 plus its required dependent task passed (`/tmp/compose-main-reconcile-static.log`). Strict target OpenSpec validation passed; canonical `openspec validate --all --json` passed **197/197**. The additional `--all --strict` experiment failed on six unchanged main-spec placeholder-Purpose warnings: dev-deploy, live-plan-snapshot, plan-command-registry, plan-import, saved-plans and scheduler-optimization (`/tmp/compose-main-reconcile-openspec-all.log`). Those unrelated specs are unchanged here. Changed reconciliation/app/runbook files passed Prettier.
+
+The first 14-file Compose run had **420 passes and one 120-second timeout**, in unchanged bootRelease value-shape validation (`/tmp/compose-main-reconcile-tests.log`), in a run started alongside scoped lint/typecheck. Its source and imported configuration loaders have no reconciliation diff. The exact isolated case then passed in **57.98 seconds, 30 assertions**, without increasing the budget (`/tmp/compose-main-reconcile-boot-retry.log`). The complete suite is rerun sequentially below. This timeout remains part of the evidence rather than being counted as a successful first run.
+
+R5 was repeated on the merged tree: removing only the unreadable-directory enumeration guard made the production-path hidden-hardlink negative fail (`/tmp/compose-main-reconcile-watched.log`). The guard was restored in finally; the exact negative passed (`/tmp/compose-main-reconcile-restored.log`). No reviewed runtime source remains changed. The earlier exact-source real Docker CapDrop proof remains applicable because this merge changed no audit program or Docker execution protocol; no further live or disposable Docker action was required.
+
+Sequential final complete Compose retry: **421 passed, 0 failed, 1,431 assertions across 14 files**, 149.56 seconds (`/tmp/compose-main-reconcile-tests-retry.log`); the prior timeout case passed unchanged in74.49 seconds. Final strict target validation, reconciliation-file formatting and `git diff --check` passed. No timeout budget, application behavior or reviewed Compose runtime code was altered. Independent review of this merge, exact-SHA full host/CI gate, attended init application and activation remain pending; no push, deployment or live change was performed.

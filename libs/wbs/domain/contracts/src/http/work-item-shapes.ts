@@ -7,6 +7,7 @@ import { planCommandsBody } from './plan-command-shapes';
 import type { ParserRefusalCode } from './refusal';
 import { engineUnavailableRefusal } from './scheduler-shapes';
 import { requestSchema, responseSchema } from './schema-shape';
+import { stepBlockageInactiveRefusal } from './step-blockage-refusal';
 import { WORK_ITEM_OUTLINE } from './work-item-fields';
 import { numberedWorkItem, workItemSlice, workItemTree } from './work-item-response';
 
@@ -845,7 +846,7 @@ export const applyProjectCommands = defineEndpointShape({
       schema: responseSchema(appliedResults.and({ undoable: 'boolean', redoable: 'boolean' })),
     },
   ],
-  refusals: batchRefusals,
+  refusals: [...batchRefusals, stepBlockageInactiveRefusal],
   document: { summary: 'Apply a batch of commands to a project, all or none.' },
 });
 
@@ -857,7 +858,7 @@ export const applyDirectoryCommands = defineEndpointShape({
   operationId: 'postApiDirectoryCommands',
   body: planCommandsBody,
   responses: [{ kind: 'json', status: 200, schema: commandResults }],
-  refusals: batchRefusals,
+  refusals: [...batchRefusals, stepBlockageInactiveRefusal],
   document: { summary: 'Apply a batch of directory commands, all or none.' },
 });
 const undoResponses = [
@@ -868,6 +869,7 @@ const undoResponses = [
   },
 ] as const;
 const undoRefusals = [
+  stepBlockageInactiveRefusal,
   ...writeRefusals,
   organizationRefusal,
   organizationContextRefusal,

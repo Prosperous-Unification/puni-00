@@ -134,6 +134,7 @@ describe('shared people restore approval schema', () => {
     it(`preserves evidence and ledger on rollback with approval=${String(withApproval)}`, () => {
       operation();
       if (withApproval) approval();
+      rollbackTo(path, MIGRATIONS_FOLDER, '20261014130000_add_shared_people_restore_receipts');
       const ledger = execute('SELECT * FROM __drizzle_migrations');
       const operations = execute('SELECT * FROM shared_people_restore_operation');
       const approvals = execute('SELECT * FROM shared_people_restore_approval');

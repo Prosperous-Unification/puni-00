@@ -13,6 +13,7 @@ import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
 import type { DependencyEndpoint } from '@wbs/domain';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
+import { activateTestStepBlockages } from '@wbs/store-sqlite/testing/step-blockage-activation';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, expect, it } from 'bun:test';
 
@@ -74,6 +75,7 @@ beforeEach(() => {
   folder = mkdtempSync(join(tmpdir(), 'wbs-typed-lifecycle-'));
   const db = openDrizzle(join(folder, 'test.db'));
   runMigrations(join(folder, 'test.db'), FOLDER);
+  activateTestStepBlockages(join(folder, 'test.db'));
   const projects = new ProjectRepository(db, OPEN);
   const steps = new StepRepository(db, OPEN);
   workItems = new WorkItemRepository(db, OPEN);

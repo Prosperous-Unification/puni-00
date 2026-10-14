@@ -464,7 +464,9 @@ const PARKED_PHASES: ReadonlySet<string> = new Set([
  * The Lease holder is `<transactionId>#<run>`, unique to this process. A resumed run claims
  * the Lease before its first journal write or mutation, every step first renews it, and a
  * background heartbeat keeps it renewed while a step runs; losing it throws
- * {@link LeaseLostError} with nothing journaled, like a crash.
+ * {@link LeaseLostError} with nothing journaled, like a crash. Terminal parking stops the
+ * heartbeat and drains pending renewals before persisting the parked annotation; a failed
+ * pending renewal throws instead of parking a Lease whose ownership is no longer proven.
  */
 export async function executeRelease(
   request: ReleaseRequest,
@@ -628,7 +630,18 @@ export async function executeRelease(
       // the durable evidence of the second, and its journal annotation lets a restart reclaim it.
       if (step.kind !== 'validate' && step.kind !== 'acquire-lease') record(state);
     }
-    if (held.value && PARKED_PHASES.has(state.phase)) await effects.parkLease(holder, state.phase);
+    if (held.value && PARKED_PHASES.has(state.phase)) {
+      // Proof: `stops heartbeats throughout a delayed terminal park` observed nine renewals
+      // during parking with this stop removed. The delayed-heartbeat success test observed
+      // parking before renewal finished with this drain removed.
+      clearInterval(heartbeat);
+      await leaseQueue;
+      // Proof: `drains a delayed heartbeat before parking when renewal fails` parked and
+      // returned ReleaseFailedError with this ownership check removed.
+      if (held.lost !== null)
+        throw new LeaseLostError(`Lease lost before parking: ${messageOf(held.lost)}`);
+      await effects.parkLease(holder, state.phase);
+    }
   } finally {
     clearInterval(heartbeat);
   }
@@ -1105,7 +1118,7 @@ export function jobName(purpose: string, releaseId: string): string {
  * the database location and access; API defaults may only preserve those pinned semantics.
  * @see https://kubernetes.io/docs/reference/kubernetes-api/core/pod-v1/#VolumeMount
  */
-function matchesProjection(observed: unknown, expected: unknown): boolean {
+export function matchesProjection(observed: unknown, expected: unknown): boolean {
   if (Array.isArray(expected))
     return (
       Array.isArray(observed) &&

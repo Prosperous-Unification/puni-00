@@ -520,6 +520,25 @@ trios must be finite, ordered whole minutes within the unit maximum, validated b
 
 ## Step blockage rollback
 
+Migration `20261014140000_add_step_blockage_activation` initializes a constrained
+singleton writer admission marker to `DISABLED`. Restart preserves that state.
+Direct facts remain readable and exportable, but insert, update and delete,
+including nonempty document v9 import and blockage-aware undo or redo, refuse
+`step_blockage_inactive`. Empty import remains usable. Boot and readiness require
+valid marker state, the admission migration and all three exact writer triggers.
+This slice supplies no production activation command or API.
+
+The admission migration's `down.sql` refuses retained facts and relevant nested
+forward/inverse journal history or `moveProgress` preconditions, including empty
+snapshots. It retains its schema and ledger on refusal. The lossless recovery
+file protocol below is preserved, but `remove` and `restore` also reach writer
+admission and refuse on a disabled database. Operational removal or restoration
+on that database is blocked until stopped-writer recovery integration is available;
+do not bypass the marker or drop its triggers. `save` remains a readable capture.
+The commands below describe the existing recovery protocol for databases whose
+writer admission already permits those writes; they do not enable a disabled
+marker or dispose of retained journal history.
+
 Direct blockage is a sparse audited fact on a leaf step node (ADR 0053). The swap
 compares `step-blockage-kinds-cli.ts` with the stored fact inventory before migration
 and again after the outgoing colour stops. A release without that CLI understands

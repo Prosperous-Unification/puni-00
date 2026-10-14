@@ -15,6 +15,7 @@ import { systemTimers } from '@wbs/runtime-portable';
 import { PushClient } from '@wbs/runtime-portable';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
+import { activateTestStepBlockages } from '@wbs/store-sqlite/testing/step-blockage-activation';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
@@ -104,6 +105,7 @@ beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-step-service-'));
   const path = join(dir, 'test.db');
   runMigrations(path, FOLDER);
+  activateTestStepBlockages(path);
   db = openDrizzle(path);
 
   projectStore = new ProjectRepository(db, OPEN);
