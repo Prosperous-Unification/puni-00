@@ -198,3 +198,57 @@ repository history is read, so a squash, rebase or gc of `e57278139` cannot brea
 Documents: ADR 0050 (0048 and 0049 were taken), the pointer line in ADR 0021, `names.md` row and
 bullet, `LLM_README.md` line (139 lines), and three `CONTEXT.md` terms (Generation, Publication
 marker, Authority bootstrap). Dash README lists five commands.
+
+## Finite contention lifecycle correction (2026-10-14)
+
+PR #408 head `3d1e3b9b158a598293f80bafc3403ee51dd37f6e`, Twilight CI run
+`38484957901`, job `115600060693`, observed a bootstrap peer exhausting 50 attempts at
+5 ms while its creator still ran. The lifecycle oracle called the typed
+`AuthorityContentionError` untyped; the two-bootstrap oracle required unconditional `exists`.
+Production's finite retry budget remains unchanged. Both oracles now allow only typed
+contention, still require exactly one original creator, await every original worker and require
+one fresh bootstrap per contended peer to refuse `exists`. Concurrent acquisitions treat typed
+contention as no state transition and inspect the settled generation, session identities and
+full claim lists against the reference model.
+Claim-race fixtures bootstrap before spawning workers. The spec and JSDoc qualify convergence
+by the configured budget.
+
+| Command                                                                                                                                                                                                                                                   | Observed result                          |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT bun test --preload ./tools/test/scratch/preload.ts apps/twilight-structure/twilight-dash/cli/src/authority/{authority-store.db.test.ts,authority-lifecycle.model.test.ts,claims.db.test.ts} --timeout=60000` | 28 pass, 0 fail, 246 assertions, 33.81 s |
+| `bun test …/claims.db.test.ts -t 'exclusive conflict-group'` after the final fixture setup adjustment                                                                                                                                                     | 1 pass, 0 fail                           |
+| `NX_DAEMON=false bunx nx run twilight-dash:lint --skip-nx-cache`                                                                                                                                                                                          | exit 0                                   |
+| `NX_DAEMON=false bunx nx run twilight-dash:typecheck --skip-nx-cache`                                                                                                                                                                                     | exit 0                                   |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                                                                                                                                                                  | 187 passed, 0 failed                     |
+
+The new deterministic faults use a real `authority.sqlite.initializing` directory with
+`maxBusyAttempts: 1` and `busyDelayMilliseconds: 0`, in-process and through the real child
+bootstrap worker. They verify no database is created and the peer's marker survives refusal.
+
+| Injected fault (each restored)                                                                                | Observed negative                                                                                                  |
+| ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Remove production's under-lock `refuseExistingDatabase` call                                                  | initializer settlement test: expected `exists`, received `corrupt`                                                 |
+| Replace production initializer's `AuthorityContentionError` with a raw `Error` carrying the same busy message | child classifier test: expected `contended`, received `untyped: authority database remained busy after 1 attempts` |
+| Accept all `Error` instances as contention in the lifecycle classifier                                        | raw-message canary: expected `untyped`, received `contended`                                                       |
+
+The focused suite passed after fault restoration. Full host gate, build, CI secrets and migration
+lint are not claimed by these scoped checks; the publishing workflow must gate its exact SHA.
+
+### Review correction: compare exact persisted claims
+
+The settled snapshot originally compared only `nextGeneration` and the session count, which
+could miss a changed path or substituted session. `runInspect` now returns session identities
+and full claim lists, sorted by session identity. Both inspection and the concurrent-acquisition
+assertion compare that snapshot to `model.sessions`. A deterministic disjoint two-session
+acquisition case exercises the same concurrent assertion.
+
+Injected production fault: append `/injected` to each path passed to `insertClaim.run`.
+`concurrent acquisitions preserve exact persisted sessions and claims` failed at
+`I4 contention consumes no generation or claim`: `nextGeneration` remained 3 and both sessions
+remained present, but `src` became `src/injected/injected` and `docs` became `docs/injected`.
+The fault was restored and an adjacent `Proof:` records this observation.
+
+Fresh main-based checks after restoration: the same three-file focused command above passed
+29 tests with 251 assertions in 34.13 s. Uncached `twilight-dash:lint` and
+`twilight-dash:typecheck` exited 0; OpenSpec validation passed 189/189; Prettier and
+`git diff --check` passed. The full host gate remains for the publishing workflow's exact SHA.

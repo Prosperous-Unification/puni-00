@@ -261,6 +261,8 @@ test('refuses an existing authority database symlink', () => {
 
 test('two Bun processes atomically refuse overlap and both admit disjoint work', async () => {
   const fixture = fixtureRepository();
+  // Claim races start after bootstrap; lifecycle tests exercise competing creators.
+  openOrBootstrapAuthority(fixture.root, { clock: FIXED_CLOCK }).close();
   const startOverlap = join(fixture.root, 'start-overlap');
   const readyA = join(fixture.root, 'ready-a');
   const readyB = join(fixture.root, 'ready-b');
@@ -326,6 +328,8 @@ test('two Bun processes atomically refuse overlap and both admit disjoint work',
 
 test('two Bun processes serialize exclusive conflict-group claims', async () => {
   const fixture = fixtureRepository();
+  // Claim races start after bootstrap; lifecycle tests exercise competing creators.
+  openOrBootstrapAuthority(fixture.root, { clock: FIXED_CLOCK }).close();
   const start = join(fixture.root, 'start-groups');
   const readyA = join(fixture.root, 'ready-group-a');
   const readyB = join(fixture.root, 'ready-group-b');
@@ -363,6 +367,8 @@ test('two Bun processes serialize exclusive conflict-group claims', async () => 
 
 test('two process expansions preserve the refused owner and commit the disjoint owner', async () => {
   const fixture = fixtureRepository();
+  // Claim races start after bootstrap; lifecycle tests exercise competing creators.
+  openOrBootstrapAuthority(fixture.root, { clock: FIXED_CLOCK }).close();
   for (const [sessionId, worktreePath, path] of [
     ['session-a', fixture.worktreeA, 'docs'],
     ['session-b', fixture.worktreeB, 'libs/contracts'],
