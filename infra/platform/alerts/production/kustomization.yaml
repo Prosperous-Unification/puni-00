@@ -3,3 +3,21 @@ kind: Kustomization
 resources:
   - ../base
   - public-probes.yaml
+patches:
+  - target:
+      kind: PrometheusRule
+      name: puni-platform
+    patch: >
+      - op: replace
+        path: /spec/groups/3/rules/0/expr
+        value: absent(system_memory_usage_bytes{puni_cluster="workers-production",k8s_namespace_name="observability"})
+      - op: replace
+        path: /spec/groups/3/rules/1/expr
+        value: |-
+          (time() - max by (puni_cluster, namespace, cronjob) (
+            kube_cronjob_status_last_successful_time{puni_cluster="platform-production",namespace="observability",cronjob="elastic-snapshot-check"}) > 35 * 60)
+          or ((time() - max by (puni_cluster, namespace, cronjob) (
+            kube_cronjob_created{puni_cluster="platform-production",namespace="observability",cronjob="elastic-snapshot-check"}) > 35 * 60)
+            unless on (puni_cluster, namespace, cronjob)
+            kube_cronjob_status_last_successful_time{puni_cluster="platform-production",namespace="observability",cronjob="elastic-snapshot-check"})
+          or absent(kube_cronjob_created{puni_cluster="platform-production",namespace="observability",cronjob="elastic-snapshot-check"})

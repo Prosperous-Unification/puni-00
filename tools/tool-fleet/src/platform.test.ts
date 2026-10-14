@@ -76,7 +76,7 @@ describe('validatePlatform', () => {
         'otel-agent',
         'velero',
       ],
-      workloadImages: 9,
+      workloadImages: 10,
       secrets: 0,
     });
   });
@@ -214,6 +214,39 @@ describe('validatePlatform', () => {
       'kind: Kustomization\npatches: []\nresources:',
     );
     expect(validatePlatform(root)).rejects.toThrow(/networking.*native Kustomization.*patches/i);
+  });
+
+  it('rejects kube-state-metrics relabeling into the wrong cluster', async () => {
+    const root = await mutablePlatform();
+    await replaceManifestText(
+      root,
+      'infra/platform/observability/prometheus/kube-prometheus-stack.yaml',
+      'replacement: platform-local',
+      'replacement: platform-production',
+    );
+    expect(validatePlatform(root)).rejects.toThrow(/kube-prometheus-stack values.*replacement/);
+  });
+
+  it('rejects a production alert patch selecting the wrong cluster', async () => {
+    const root = await mutablePlatform();
+    await replaceManifestText(
+      root,
+      'infra/platform/alerts/production/kustomization.yaml',
+      'puni_cluster="workers-production"',
+      'puni_cluster="workers-local"',
+    );
+    expect(validatePlatform(root)).rejects.toThrow(/production.*patches differ/);
+  });
+
+  it('rejects a production monitoring patch changing another value', async () => {
+    const root = await mutablePlatform();
+    await replaceManifestText(
+      root,
+      'infra/platform/observability/production/kustomization.yaml',
+      'value: platform-production',
+      'value: platform-local',
+    );
+    expect(validatePlatform(root)).rejects.toThrow(/production.*patches differ/);
   });
 
   it('rejects a generated ConfigMap outside the locked graph', async () => {

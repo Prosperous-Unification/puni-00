@@ -4,6 +4,26 @@ metadata:
   name: elastic-snapshots
   namespace: observability
 data:
+  check.sh: |
+    # Proof: removing errexit changed the request-failure production-script exit from 22 to 1.
+    set -eu
+    policy=$(curl --fail-with-body --silent --show-error --max-time 60 --cacert /es-ca/ca.crt \
+      --user "elastic:${ELASTIC_PASSWORD}" \
+      'https://elasticsearch-es-http.observability.svc:9200/_slm/policy/puni-daily?filter_path=*.last_success.time')
+    policy=${policy//[[:space:]]/}
+    # Proof: bypassing timestamp shape/parsing made missing/malformed production-script cases exit zero.
+    pattern='^\{"puni-daily":\{"last_success":\{"time":([0-9]{1,13})\}\}\}$'
+    if [[ ! $policy =~ $pattern ]]; then
+      echo 'SLM last_success.time is absent or malformed' >&2
+      exit 1
+    fi
+    success=$((10#${BASH_REMATCH[1]} / 1000))
+    now=$(date +%s)
+    # Proof: removing this age guard made stale/future production-script cases exit zero.
+    if (( success > now || now - success > 26 * 3600 )); then
+      echo 'SLM last success is stale or in the future' >&2
+      exit 1
+    fi
   apply.sh: |
     set -eu
     url=https://elasticsearch-es-http.observability.svc:9200
@@ -66,3 +86,53 @@ spec:
           configMap: { name: elastic-snapshots }
         - name: es-ca
           secret: { secretName: elasticsearch-es-http-certs-public }
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: elastic-snapshot-check
+  namespace: observability
+spec:
+  schedule: '*/15 * * * *'
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 300
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 120
+      template:
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile: { type: RuntimeDefault }
+          containers:
+            - name: apply
+              image: docker.elastic.co/elasticsearch/elasticsearch:9.3.8@sha256:f96812864b81e62a9ce7562c4f4bbef1186bb4e8798f814bc6a5f2b84b51b540
+              command: [bash, /settings/check.sh]
+              env:
+                - name: ELASTIC_PASSWORD
+                  valueFrom:
+                    secretKeyRef: { name: elasticsearch-es-elastic-user, key: elastic }
+                - name: PUNI_ENVIRONMENT
+                  valueFrom:
+                    configMapKeyRef: { name: puni-telemetry, key: environment }
+              resources:
+                requests: { cpu: 10m, memory: 32Mi }
+                limits: { cpu: 200m, memory: 128Mi }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: [ALL] }
+              volumeMounts:
+                - { name: settings, mountPath: /settings, readOnly: true }
+                - { name: es-ca, mountPath: /es-ca, readOnly: true }
+          volumes:
+            - name: settings
+              configMap: { name: elastic-snapshots }
+            - name: es-ca
+              secret: { secretName: elasticsearch-es-http-certs-public }

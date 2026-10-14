@@ -157,3 +157,29 @@ spec:
           labels: { severity: warning }
           annotations:
             summary: '{{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} has under 15% free'
+    - name: puni-freshness
+      rules:
+        # Proof: removing this rule failed workers-vanish; dropping its selectors let foreign
+        # cluster/namespace samples silence the foreign-workers promtool case.
+        - alert: PuniWorkersTelemetryMissing
+          expr: absent(system_memory_usage_bytes{puni_cluster="workers-local",k8s_namespace_name="observability"})
+          for: 10m
+          labels: { severity: critical }
+          annotations:
+            summary: Workers host telemetry is missing for 10 minutes
+        # kube-state-metrics reports success only after the SLM validator exits zero.
+        # Proof: removing this rule failed missing, stale and never-checked cases; dropping its
+        # selectors let a foreign successful check silence the foreign-snapshot promtool case.
+        - alert: PuniElasticSnapshotStale
+          expr: >-
+            (time() - max by (puni_cluster, namespace, cronjob) (
+              kube_cronjob_status_last_successful_time{puni_cluster="platform-local",namespace="observability",cronjob="elastic-snapshot-check"}) > 35 * 60)
+            or ((time() - max by (puni_cluster, namespace, cronjob) (
+              kube_cronjob_created{puni_cluster="platform-local",namespace="observability",cronjob="elastic-snapshot-check"}) > 35 * 60)
+              unless on (puni_cluster, namespace, cronjob)
+              kube_cronjob_status_last_successful_time{puni_cluster="platform-local",namespace="observability",cronjob="elastic-snapshot-check"})
+            or absent(kube_cronjob_created{puni_cluster="platform-local",namespace="observability",cronjob="elastic-snapshot-check"})
+          for: 5m
+          labels: { severity: critical }
+          annotations:
+            summary: No recent successful Elastic snapshot freshness check
