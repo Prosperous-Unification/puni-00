@@ -804,6 +804,71 @@ its tool-wiki hook visibly reports inactive, uncertified because this isolated
 clone has no external activation root. That optional activation is not inferred
 as certification.
 
+## 2026-10-14 — Step UI authoring (tasks 5.1–5.3)
+
+Isolated clone `/tmp/step-blockage-ui-sol`, based exactly on PR #450
+`c622d20fd26d276f618779fbb085e3cb1aeb79b4`. The UI carries direct facts and canonical
+root identities into the existing retained frontend read. A shared section explains
+direct/dependency/work-item-hold scope and underlying progress, with named roots.
+The desktop folded card and a separate phone Step blockage disclosure send set/clear
+through PlanCommands and `write.perform(['tree'])`. Row Status and schedule inputs
+are unchanged. Clearing a retained done fact is offered; new blockage on done is
+disabled. Tab skips disabled actions. Older reads visibly report unknown blockage,
+including older node-readings absence. Supported malformed cause identities reach
+the existing TanStack router Error Boundary. Actual disabled writer 409 is ordinary
+feedback and retains the fact. No production activation interface was introduced.
+
+The ordinary Playwright runner shares its generated isolated DB identity with its
+fixture workers; positive cases explicitly activate only that test database using
+`activateTestStepBlockages`. This suite runs in the standard production build/preview
+path with the real backend. Initial local-socket sandbox denials were rerun with
+scoped escalation; no live WBS was accessed.
+
+### Commands and observed output
+
+- `CI=1 E2E_PORT_SHIFT=5400 bunx playwright test --config apps/wbs/fe-01/playwright.config.ts apps/wbs/fe-01/e2e/step-blockage.spec.ts`: **6 passed**. Desktop direct/proxy/cause/progress; F2/Tab/Escape set/clear/undo/redo; phone named cause and >=44px target; malformed cause boundary; actual SQLite disabled 409; older metadata unknown/no writer.
+- `bunx vitest run src/components/wbs/step-blockage.test.tsx src/components/wbs/folded-step-card.test.tsx src/components/wbs/plan-cards.test.tsx src/components/wbs/plan-estimates.test.tsx src/components/wbs/plan-writer.test.ts src/modules/plan-commands/plan-commands.feature.test.ts ../../playwright-config.test.ts --maxWorkers=1` from fe-01: **5 files, 249 passed**. The two unmatched writer/config filters were subsequently run at their actual paths.
+- `bunx vitest run src/modules/plan-writer/plan-writer.test.ts --maxWorkers=1`: **7 passed**.
+- `bunx vitest run playwright-config.test.ts --maxWorkers=1`: **18 passed**, after scoped escalation for its existing local-auth socket test.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-fe-01:lint`: **Successfully ran target lint**, no errors. The initial sandbox daemon fallback printed no target verdict and was not accepted as evidence.
+- `bunx tsc --build --force apps/wbs/fe-01/tsconfig.json`: exit **0**.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-fe-01:typecheck:module`: **Successfully ran target typecheck:module**.
+- `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate --all --json`: **196 passed, 0 failed** (178 changes, 18 specs).
+- `git diff --check`: exit **0**.
+
+### Watched production-path negatives
+
+| Injected fault                                         | Observed failing assertion                                                                                                                                                                   |
+| ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Replace both direct/proxy wording with “Step blockage” | Built-preview browser `distinguishes direct and dependency blockage...` failed `getByText('Direct step blockage', { exact: true }).toBeVisible()`; one failed, exit 1.                       |
+| Remove `Cause: {cause}` from rendered section          | Same built-preview browser failed visibility of `Cause: 040.s1-dev · Refund policy · Dev`; one failed, exit 1.                                                                               |
+| Omit incomplete-supported-metadata guard               | Production `stepBlockageOf` test received `Cannot read properties of undefined (reading 'dev')` instead of `Incomplete step blockage metadata`; exit 1.                                      |
+| Omit missing-reading guard                             | Production `stepBlockageOf` negative expected a throw and received none; exit 1.                                                                                                             |
+| Omit missing-blocked-causes guard                      | Production `stepBlockageOf` negative expected a throw and received none; exit 1. Initial empty blocked root collection also failed that throw assertion before the guard was extended.       |
+| Omit unknown-root-identity guard                       | Production `stepBlockageOf` negative expected a throw and received none; exit 1. The browser independently injects `missing-root` into the real read and verifies the router Error Boundary. |
+| Remove done-only new-block disabling                   | Production section test found an enabled new-block button; exit 1. Retained done clear remains enabled.                                                                                      |
+| Include disabled card actions in Tab traversal         | Folded card test expected Remove attempt 2 focus but Copy link retained focus; one failed. Excluding disabled buttons passes.                                                                |
+| Omit phone action touch sizing                         | Production-preview phone assertion expected >=44px and observed the smaller button; one failed. Sized action passes.                                                                         |
+
+All injected production faults were restored. Adjacent Proof comments name the
+watched checks. Browser captures were inspected at 1280 and 375px; review copies
+are `/tmp/step-blockage-preview/direct-desktop.png` and `proxy-phone.png`.
+
+### Ownership and integration
+
+Active PRs #399 (`ui-review/phone`), #409 (`ui-review/plan-table`) and #417
+(`ui-review/integration-1`) overlap the card files. Their worktrees and branches
+were untouched. Applying the complete shared-file patches with
+`GIT_INDEX_FILE=/tmp/step-blockage-compose-final.index git read-tree abd06e9ad`
+and `git apply --cached --3way /tmp/step-blockage-shared.patch` reported both
+`folded-step-card.tsx` and `plan-cards.tsx` **applied cleanly**. This proves patch
+composition only; the coordinator owns merge order and integrated verification.
+
+Not run by this UI worker: the host-wide exact-SHA h2puni gate, packaged Caddy
+browser suite, full backend/domain/import/saved-plan checks, hosted CI, migration
+lint or production activation/deploy. PR #450's known unrelated Burokrat pilot
+index failure is coordinator-owned; it is not repaired by this UI slice.
+
 ### Public setter module-index CI repair — 2026-10-14
 
 Exact base: PR #450 head `c622d20fd26d276f618779fbb085e3cb1aeb79b4`;
@@ -861,3 +926,115 @@ Fresh checks:
 - `bunx tsc --build --force apps/wbs/be-01/tsconfig.json`: exit 0, no diagnostics. Touched-file ESLint uses a freshly generated Nx project graph and exits 0 without diagnostics. Touched Prettier check, strict change validation and `git diff --check` also exit 0.
 
 The full boot suite requiring real listening, full hosted CI and exact host gate are not claimed here. The coordinator will integrate this follow-up and requeue the exact candidate gate; no push, merge, deploy or host gate was performed in this repair.
+
+## 2026-10-14 — Astra UI review repairs and #450 composition
+
+Review of `16e0e7e420dca71fe507ac37572ebc7757d25034` found two gaps:
+indexing only top-level tree rows omitted nested blockage roots, and the public
+node projection returned its older-server null before validating supported blockage
+metadata. The cause index now uses the existing flattened rows. The projection
+validates supported blockage metadata before its nullable reading return; a
+fully older read still returns null and renders explicit unknown.
+
+Watched negatives before repair:
+
+- The real-preview nested leaf fixture (explicit child Dev fact, downstream root QA
+  dependency) failed visibility of `Name of 040.1`, with the router Error Boundary
+  shown. It exercises the complete retained read and both desktop and phone layouts.
+- `rejects supported blockage metadata without node readings through the public
+projection` expected an error and received none from `stepNodeReadingsOf`.
+- Restoring the old validation order in a fresh isolated preview database made
+  `supported blockage facts without node readings reach the Error Boundary` fail
+  visibility of `Something went wrong!`. The first combined negative run's second
+  case failed fixture creation because the earlier broken nested plan was last
+  opened; that output was rejected as P2 evidence and replaced by this isolated run.
+- All injected faults were restored; adjacent Proof comments describe both paths.
+
+Pre-composition checks: four focused UI suites **247 passed**, application tsc
+build exit **0**. A targeted lint import-sort finding in the new test was corrected.
+
+Latest authoring parent was fetched locally from
+`/tmp/puni-step-setter-integration-sol` at exact
+`4cae32f5e3ba2984ef94e63b0183685143367871` (repaired #449 parent `9b2f93ba`).
+Read-only merge-tree found no code conflict and only the additive verify.md EOF
+conflict: Step UI authoring evidence versus Public setter module-index CI repair
+and Hosted admission fixture corrections. The isolated merge retains all sections
+and their original exact results. No UI-review branch or worktree was changed.
+
+Combined-tree verification after resolving the evidence conflict:
+
+- `CI=1 E2E_PORT_SHIFT=5400 bunx playwright test --config apps/wbs/fe-01/playwright.config.ts apps/wbs/fe-01/e2e/step-blockage.spec.ts`: **8 passed**. Both new review regressions pass, including nested direct/downstream named causes on desktop and phone and supported missing-reading metadata reaching the router Error Boundary; genuinely older reads remain unknown without write actions.
+- `bunx vitest run src/components/wbs/step-blockage.test.tsx src/components/wbs/folded-step-card.test.tsx src/components/wbs/plan-cards.test.tsx src/components/wbs/plan-estimates.test.tsx --maxWorkers=1` from fe-01: **4 files, 247 passed**.
+- `bunx tsc --build --force apps/wbs/fe-01/tsconfig.json`: exit **0**.
+- `bunx eslint` over the four changed UI production/test files: exit **0** after import sorting.
+- Pinned OpenSpec all validation: **196 passed, 0 failed**.
+- `git diff --check`: exit **0**; no unresolved merge paths.
+- Read-only alternate-index three-way application of both shared card patches against #417 `abd06e9ad`: both **applied cleanly**. The branch was not restacked onto #417.
+
+The full exact-SHA host gate, hosted CI and unrelated Gantt pixel fixture diagnosis remain coordinator-owned. Parent repairs are retained verbatim; this worker adds only the two UI review repairs and their regressions/evidence.
+
+## 2026-10-14 — Whole folded-card accessibility after clipping review
+
+Astra reviewed `8ddf6beba908c22fa4df08cc253df47cc5499116` and identified
+that the additional blockage explanation pushed attempt controls and estimate
+details beyond the table frame. The entire folded card now uses HoverCard's
+scrolling mode. Its measured height ceiling also accounts for the whole row's
+diagonal clearance, rather than the cell wrapper's earlier edge. Existing
+non-scrolling placements and phone disclosures retain their behavior.
+
+The new production-preview case `the whole blocked step card stays inside its
+frame and exposes attempt actions and estimates` first failed containment:
+card bottom **527.25px**, clipping frame bottom **459.75px**. Enabling scrolling
+alone still failed: card bottom **484.9375px**, because the wrapper-relative
+height limit included space occupied by the cleared row. Correcting that limit
+passes containment. Adjacent Proof comments identify both observed faults.
+
+The passing case scrolls to Start attempt, proves the button is the element at
+its hit-test coordinates and clicks it through the real backend. It then reaches
+the Final estimate footer and proves that line is hit-testable. F2 enters Copy
+reference; Tab follows the existing Copy link, Clear blockage, Remove attempt,
+End attempt order while focus scrolls the card; Escape returns to the step cell.
+An intermediate test expected End one Tab too early; its expectation was corrected
+to the existing Remove-before-End action order, with no production reorder.
+
+Fresh scoped verification:
+
+- Ordinary production-preview browser run over step-blockage, hover-cards and card-lanes, filtered to all blockage cases plus the existing notes scrolling/below-room/above-row and informative-card placement cases: **13 passed** (9 blockage cases, 4 existing card cases).
+- FoldedStepCard, HoverCard and plan-estimate component suites: **3 files, 117 passed**.
+- Application tsc build: exit **0**.
+- ESLint over FoldedStepCard, HoverCard and the browser suite: exit **0**.
+- `git diff --check`: exit **0**.
+
+Review captures at `/tmp/step-blockage-preview/direct-desktop.png` and
+`proxy-phone.png` were refreshed from the passing run. The card contents now
+scroll within the visible frame; the browser geometry and hit-target assertions,
+not an unbounded screenshot box, prove access to the footer and attempt action.
+The repaired authoring parent `4cae32f5e3ba2984ef94e63b0183685143367871`
+remains an ancestor. Full exact-SHA host/CI gates and unrelated release fixture
+triage remain coordinator-owned. No push, PR merge, deployment or live write.
+
+## UI cause-index review repair (2026-10-14)
+
+- Shared cause labels now use one `useMemo` after the flattened rows, keyed by
+  `[flat, steps, stepNodes]`; desktop readings and phone step projections reuse it.
+- Production-path call-through probe renders fifty phone rows and five steps,
+  with all blockage disclosures closed. It observes one index build, no further
+  build on an unchanged rerender, and exactly one additional build when a new
+  runtime read supplies a changed cause name. The second index contains that name.
+- Watched negative: the original per-phone-node indexing failed the first count
+  assertion with **251 builds instead of 1** (`/tmp/step-blockage-index-red.log`).
+  The adjacent `Proof:` records that injected fault. The final focused test passed
+  (`/tmp/step-blockage-index-green.log`). Intermediate fixture attempts using name
+  editing and expensive role queries timed out; the final fixture switches the
+  real reader and checks index inputs directly, with a bounded 15-second budget.
+- Focused production-preview Playwright command: `CI=1 E2E_PORT_SHIFT=5400 bunx
+playwright test --config apps/wbs/fe-01/playwright.config.ts
+apps/wbs/fe-01/e2e/step-blockage.spec.ts --grep 'phone disclosure|nested blocked|whole blocked step card|distinguishes direct'`:
+  **4 passed** (32.2s), preserving named nested causes, phone actions and the card
+  geometry/hit-target regression (`/tmp/step-blockage-index-browser.log`).
+- `bunx tsc --project apps/wbs/fe-01/tsconfig.app.json --noEmit`: exit 0.
+- Complete `plan-cards.test.tsx` suite: **141 passed** (17.92s), including
+  unchanged toolbar render-cost checks (`/tmp/step-blockage-index-suite.log`).
+- Touched-source ESLint: exit 0. Pinned OpenSpec validation: exit 0.
+- Full host gate and unrelated browser suites are deferred to the PM release
+  stack; this repair does not push, deploy, or change activation state.

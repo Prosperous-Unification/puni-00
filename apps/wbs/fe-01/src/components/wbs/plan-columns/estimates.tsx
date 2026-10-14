@@ -757,6 +757,7 @@ export function createEstimatesColumns({
               )}
               {carded && (
                 <FoldedStepCard
+                  isLeaf={!row.original.rolledUp}
                   stepName={step.name}
                   estimateUnit={step.estimateUnit}
                   projectId={live.current.projectId}
@@ -824,6 +825,13 @@ export function createEstimatesColumns({
                   node={reading.node}
                   // Built here, per open card, off `live` at the moment of the
                   // click — never pinned into the column definitions.
+                  setBlocked={(isBlocked) => {
+                    void live.current.run((write) =>
+                      write.perform(['tree'], () =>
+                        live.current.commands.setStepBlocked(row.original.id, step.id, isBlocked),
+                      ),
+                    );
+                  }}
                   attemptActions={{
                     start: () => {
                       live.current.startAttempt(row.original.id, step.id);

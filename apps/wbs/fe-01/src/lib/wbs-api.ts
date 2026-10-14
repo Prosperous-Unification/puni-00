@@ -566,6 +566,14 @@ export interface WorkItemView {
    * parent and from an older be-01 mid-swap.
    */
   nodeReadings?: Record<string, NodeReadingView | undefined>;
+  /** Absent on older servers; direct facts remain present underneath done progress. */
+  blockages?: Record<string, { blockedAt: number } | undefined>;
+  /** Canonical root identities for each blocked node; omitted keys have no roots. */
+  blockageCauses?: Record<
+    string,
+    | readonly ({ kind: 'step'; nodeId: string } | { kind: 'work-item'; workItemId: string })[]
+    | undefined
+  >;
 }
 
 /**
@@ -1701,6 +1709,8 @@ export interface ProjectApi {
    * entry, one undo (`step-node-attempts` D2).
    */
   startAttempt(id: string, stepId: string, executorPersonId?: string): Promise<void>;
+  /** Sets the direct fact through the admitted project command; typed 409 is normal write feedback. */
+  setStepBlocked(id: string, stepId: string, isBlocked: boolean): Promise<void>;
   /**
    * Ends the node's running attempt now with `outcome`, and `reference` when
    * one was typed. Refused `no_running_attempt`. One undo puts it back running.
@@ -2942,6 +2952,9 @@ export function httpProjectApi(token: string, scope?: ResourceScope): ProjectApi
         on,
         ...(factStart === undefined ? {} : { factStart }),
       });
+    },
+    async setStepBlocked(id, stepId, isBlocked) {
+      await onRow(id, { kind: 'setStepBlocked', workItemId: id, stepId, isBlocked });
     },
     async startAttempt(id, stepId, executorPersonId) {
       await onRow(id, {
