@@ -179,6 +179,8 @@ describe('saved_plan.created_by_id', () => {
     expect(nullable()).toBe(0);
 
     expect(rollbackTo(path, FOLDER, SAVED_PLAN)).toEqual([
+      '20261014130000_add_shared_people_restore_receipts',
+      '20261014120000_add_shared_people_restore_approvals',
       '20261013140000_add_step_node_blockages',
       '20261012130000_add_step_estimate_unit',
       '20261012120000_add_step_node_attempts',
@@ -295,6 +297,8 @@ describe('saved_plan.created_by_id', () => {
    */
   it('leaves a row written before the column reading null', () => {
     expect(rollbackTo(path, FOLDER, SAVED_PLAN)).toEqual([
+      '20261014130000_add_shared_people_restore_receipts',
+      '20261014120000_add_shared_people_restore_approvals',
       '20261013140000_add_step_node_blockages',
       '20261012130000_add_step_estimate_unit',
       '20261012120000_add_step_node_attempts',

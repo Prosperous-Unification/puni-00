@@ -39,6 +39,7 @@ import {
   refusingDomains,
   refusingEnterpriseConnections,
   refusingMemberships,
+  refusingRestoreApprovals,
 } from '../testing/organization-access-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
 import { refusingProjectRanks } from '../testing/project-rank-fixture';
@@ -185,6 +186,7 @@ describe('the calendar-marker routes', () => {
     app = buildApp({
       organizations: legacyOrganizationAccess,
       memberships: refusingMemberships,
+      sharedPeopleRestoreApprovals: refusingRestoreApprovals,
       domains: refusingDomains,
       enterpriseConnections: refusingEnterpriseConnections,
       emailVerification: refusingEmailVerification,

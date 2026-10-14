@@ -346,6 +346,7 @@ type BareRefusalCode =
   // Capacity mode (`share-people-across-projects` 8.1): a mode this release
   // does not list in `SUPPORTED_CAPACITY_MODES`.
   | 'capacity_mode_unsupported'
+  | 'restore_approval_conflict'
   // A project PATCH naming a zone the server runtime does not support
   // (`step-node-attempts` D3).
   | 'invalid_timezone'

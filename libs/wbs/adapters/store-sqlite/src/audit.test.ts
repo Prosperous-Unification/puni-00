@@ -126,6 +126,18 @@ const EXEMPT = new Set([
   'organizationAudit',
   // The same, for a switch of the organization's capacity mode.
   'sharedPeopleAudit',
+  // Restore bindings and consent record their own creation instant; consent
+  // also retains actorId. Neither schema declares general audit columns.
+  // Proof: injecting auditColumns() into both schemas failed `exempts only
+  // tables that carry no audit columns` for both entries (2026-10-14).
+  'sharedPeopleRestoreOperation',
+  'sharedPeopleRestoreApproval',
+  // Immutable completion counts and consumed consent bindings carry no general
+  // audit columns; their operation and approval rows retain the actor and time.
+  // Proof: injecting auditColumns() into both schemas failed `exempts only
+  // tables that carry no audit columns` for both entries (2026-10-14).
+  'sharedPeopleRestoreReceipt',
+  'sharedPeopleRestoreConsumption',
   // Short-lived address proof: challenge rows date creation and each state
   // transition (`revoked_at`, `consumed_at`), with no actor or general audit
   // columns. The exemption assertion below checks the schema.

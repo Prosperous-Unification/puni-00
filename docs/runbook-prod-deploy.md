@@ -329,6 +329,33 @@ when a saved project is no longer owned by its organization or an author is no l
 docker exec be-01-<colour> bun run src/project-rank-rollback-cli.ts restore /data/project-ranks-<date>.json
 ```
 
+## Shared people restore approvals
+
+The approval preparation endpoint is available at
+`POST /api/organization/shared-people/restore-approvals`. A personally authenticated super-admin
+submits `{operationId, backupDigest}` in their active organization. `backupDigest` is the lowercase
+SHA-256 of the canonical shared-people backup, printed offline with:
+
+```sh
+bun run apps/wbs/be-01/src/shared-people-rollback-cli.ts digest <backup-file>
+```
+
+This command needs no `DB_PATH` and opens no database. It validates the complete v1 backup and
+normalizes field/array ordering before hashing; whitespace and presentation order do not change
+the digest. Keep the backup unchanged after approval. The installed host owner fences containers
+and installs audited receipt/consumption recovery, while shared physical acceptance and activation
+remain open in tasks 10.3b–10.4. Preparing approval does not activate shared capacity or permit
+this release to restore a shared backup.
+
+The server supplies the actor and organization from the request identity. Delegations cannot
+approve; neither `actorId` nor `organizationId` is accepted in the body. A retry by the same
+current super-admin for the same operation/digest returns the existing approval. A changed digest
+or approving person returns `409 restore_approval_conflict`; use a fresh operation ID for a new
+restore intent. Keep returned approval IDs for the consuming restore step. Approval evidence is
+retained, and migration rollback refuses once any operation, approval or completion exists.
+A completed operation cannot gain approvals for another organization. An identical existing
+approval retry still requires the same current personally authenticated super-admin.
+
 ## Shared people rollback
 
 The intermediate storage release encodes isolated and shared modes but supports only isolated
@@ -362,8 +389,13 @@ sign-in; WBS has no operator path around it. Then roll back code
 only: with no organization shared, the swap's capacity-modes guard admits an
 older image, and the extra column and table are inert to it.
 
-The procedure below applies while no switch is recorded. The new column's down migration refuses
-while any shared organization **or any project rank** exists. Use the combined recovery procedure instead of removing ranks alone. It preserves all
+The procedure below applies only while no capacity-mode switch, restore operation or restore
+approval is recorded. Check `shared_people_audit`, `shared_people_restore_operation` and
+`shared_people_restore_approval` before preparing a schema rollback. Any row closes that rollback;
+`shared-people-rollback-cli.ts remove` refuses inside its immediate transaction before changing
+modes, ranks or organization audit fields. Restore evidence remains durable even when every
+organization is isolated and no switch audit exists. Do not remove evidence to force a downgrade.
+The new column's down migration also refuses while any shared organization **or any project rank** exists. Use the combined recovery procedure instead of removing ranks alone. It preserves all
 organization identities and semantic modes, including isolated, and every rank field:
 
 ```sh
@@ -380,15 +412,78 @@ docker exec be-01-<colour> bun run src/shared-people-rollback-cli.ts remove /dat
 docker exec be-01-<colour> bun run src/migrate-down-cli.ts --to=<baseline>
 ```
 
-After forwarding the migration again, restore using a release that supports every saved mode.
-This intermediate release refuses backups containing shared mode before writing anything. Restore
+After forwarding the migration again, the legacy container-local restore accepts isolated
+backups only. It always refuses shared backups, including in a later shared-capable release;
+shared recovery must consume approvals through the host owner. This release remains isolated-only. Restore
 requires every saved organization still exists, all current modes isolated, no current ranks, and
 valid rank ownership and authors. Additional isolated organizations remain untouched; additional
-shared organizations refuse. Modes and ranks restore atomically:
+shared organizations refuse. Isolated ranks restore atomically:
 
 ```sh
 docker exec be-01-<colour> bun run src/shared-people-rollback-cli.ts restore /data/shared-people-<date>.json
 ```
+
+### Host recovery preflight
+
+Build this release's host recovery artifact with `bunx nx run wbs-be-01:build-host-restore`
+(the normal `wbs-be-01:build` also builds it). Copy
+`dist/apps/wbs/be-01-host/shared-people-host-restore.js` to
+`/home/puni1/wbs/bin/shared-people-host-restore.js` on h2puni. It runs with the pinned Bun 1.4.2
+and Docker; no checkout or node_modules is needed at the recovery location. Stop every container with a writable mount over the production database
+before invoking it. Both `be-01-blue` and `be-01-green` must be stopped, exist and identify the same
+`/home/puni1/wbs/data/wbs.db` through their configured DB_PATH and mounts. The operator needs
+permission to inspect every mounted host source; absent, unreadable or ambiguous facts refuse. Running containers with writable directory mounts on the database filesystem also refuse: those directories can contain hardlinks to the database. Distinct-device mounts can be excluded by physical device comparison. Plan an attended maintenance window for these containers and for unreadable mount sources.
+
+```sh
+bun /home/puni1/wbs/bin/shared-people-host-restore.js /home/puni1/wbs/data/shared-people-<date>.json
+```
+
+This process takes `/home/puni1/wbs/state/deploy.lock` itself and holds that exact flock through
+one backup read, full Docker inventory inspection, binding checks and the restore transaction.
+The installed audited owner retains that backup and one writer connection through completion. Do not wrap a detached writer with a separate locking process. A killed
+owner releases the flock and SQLite rolls its uncommitted transaction back. The owner never
+starts containers or changes runtime capability.
+
+An offline digest can be supplied to the personal approval endpoint before the attended restore.
+For shared backups this release diagnoses operation/approval references read-only and refuses
+before opening the writer. For an isolated backup, supplying these references requests audited
+rank recovery and consumes the approvals on success:
+
+```sh
+bun /home/puni1/wbs/bin/shared-people-host-restore.js /home/puni1/wbs/data/shared-people-<date>.json \
+  --operation=<operation-id> --approval=<approval-id> --approval=<another-approval-id>
+```
+
+These IDs identify stored bindings; they assert no actor or session authority. The owner requires
+exactly one stored approval per organization with saved ranks or saved shared mode, bound to the
+original canonical digest, and rechecks each recorded person's current super-admin membership
+in that organization on the immediate SQLite writer. All current organizations must be isolated
+and current ranks empty; saved organizations must still exist. Extra isolated organizations survive.
+
+One transaction restores historical ranks, changes saved shared modes in a compatible release,
+and writes receipt plus approval consumption. Only actual isolated-to-shared changes gain an
+audit and durable null-cause events for every owned project, including unranked projects.
+Isolated rank-only recovery records receipt/consumption without mode audits or events. Any failure
+rolls the entire unit back. Keep the returned receipt and exact approval IDs. An identical retry,
+including after process restart or later edits, returns the original receipt/counts without replay;
+a changed backup digest or approval set refuses. Never reuse a completed operation for new intent.
+
+Before transporting the artifact, run `bunx nx run wbs-be-01:test:host-restore`. This uncached
+Linux rehearsal requires Docker and the pinned `oven/bun:1.4.2` image digest
+`sha256:9114c058aeae42162ee16dd5084b95fe9473970bb6bcb5b232ab1630f0546895`; fetch that image
+explicitly if absent. Missing Docker, Bun or the image fails the target. The rehearsal mounts only
+a disposable scratch fixture at the fixed host paths, runs the unchanged bundle without network,
+checkout, dependencies or Docker socket, and uses a test-owned inventory executable. It proves
+approved isolated rank recovery, durable receipt retry, shared refusal before a writer, and
+flock/colour/database identity fencing. This does not establish live-host exclusion.
+
+`SUPPORTED_CAPACITY_MODES` remains `['isolated']`: installed transaction tests do not authorize
+shared physical recovery. Shared physical acceptance, attended exclusion and activation remain
+open in 10.3b/10.4. The existing isolated container-local save/remove/restore commands remain
+available. The recorded h2 inspection has six additional running containers on the database
+filesystem and six unreadable mount sources, plus disagreeing blue/green database identity;
+these remain attended-operation blockers (see the change's verify.md). No production containers
+have been stopped or changed by this checkpoint.
 
 ## Step node attempt rollback
 

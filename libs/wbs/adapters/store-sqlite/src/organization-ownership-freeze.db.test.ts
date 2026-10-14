@@ -132,6 +132,8 @@ describe.each(SIDES)('%s', (side, root, id, catalog) => {
 it('rolls back to the bridge and reapplies', () => {
   db.close();
   expect(rollbackTo(path, FOLDER, ORGANIZATION_BRIDGE)).toEqual([
+    '20261014130000_add_shared_people_restore_receipts',
+    '20261014120000_add_shared_people_restore_approvals',
     '20261013140000_add_step_node_blockages',
     '20261012130000_add_step_estimate_unit',
     '20261012120000_add_step_node_attempts',

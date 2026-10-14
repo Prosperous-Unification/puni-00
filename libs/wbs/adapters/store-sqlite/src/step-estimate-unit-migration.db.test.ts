@@ -131,7 +131,11 @@ it.each([
     // Scope the snapshot to this migration: newer downs commit independently before its refusal.
     // Proof: removing the damaged-journal CASE guard failed all eight cases on a missing throw;
     // persisting optimistic=241 after rollback failed all eight exact-state comparisons (2026-10-14).
-    rollbackTo(path, FOLDER, '20261012130000_add_step_estimate_unit');
+    expect(rollbackTo(path, FOLDER, '20261012130000_add_step_estimate_unit')).toEqual([
+      '20261014130000_add_shared_people_restore_receipts',
+      '20261014120000_add_shared_people_restore_approvals',
+      '20261013140000_add_step_node_blockages',
+    ]);
     const sqlite = seed();
     try {
       sqlite.run("INSERT INTO work_item (id,project_id,position,name) VALUES ('w','p',1,'Work')");
@@ -150,6 +154,8 @@ it.each([
         migrations: sqlite.query('SELECT * FROM __drizzle_migrations').all(),
       });
       const before = read();
+      // Proof: removing the SQL root-object guard made the null-preconditions
+      // case stop throwing at this pinned unit boundary (2026-10-14).
       expect(() => rollbackTo(path, FOLDER, '20261012120000_add_step_node_attempts')).toThrow();
       expect(read()).toEqual(before);
     } finally {

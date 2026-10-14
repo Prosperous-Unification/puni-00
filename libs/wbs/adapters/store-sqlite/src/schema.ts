@@ -3447,3 +3447,107 @@ export const stepBlockage = sqliteTable(
     ),
   ],
 );
+
+/** One restore intent's immutable backup binding; survives approval retries and actor removal. */
+export const sharedPeopleRestoreOperation = sqliteTable(
+  'shared_people_restore_operation',
+  {
+    id: text('id').primaryKey(),
+    backupDigest: text('backup_digest').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('shared_people_restore_operation_digest').on(t.id, t.backupDigest),
+    check('shared_people_restore_operation_id', sql`length(${t.id}) > 0`),
+    check(
+      'shared_people_restore_operation_digest',
+      sql`length(${t.backupDigest}) = 64 AND ${t.backupDigest} NOT GLOB '*[^a-f0-9]*'`,
+    ),
+  ],
+);
+
+/** Personal organization consent. Actor IDs intentionally outlive deleted accounts. */
+export const sharedPeopleRestoreApproval = sqliteTable(
+  'shared_people_restore_approval',
+  {
+    id: text('id').primaryKey(),
+    operationId: text('operation_id')
+      .notNull()
+      .references(() => sharedPeopleRestoreOperation.id),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id),
+    actorId: text('actor_id').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('shared_people_restore_approval_binding').on(t.id, t.operationId, t.organizationId),
+    uniqueIndex('shared_people_restore_approval_operation_organization').on(
+      t.operationId,
+      t.organizationId,
+    ),
+  ],
+);
+
+/** Immutable completion and original backup binding; retry reads these persisted counts. */
+export const sharedPeopleRestoreReceipt = sqliteTable(
+  'shared_people_restore_receipt',
+  {
+    operationId: text('operation_id').primaryKey().notNull(),
+    backupDigest: text('backup_digest').notNull(),
+    completedAt: integer('completed_at').notNull(),
+    organizations: integer('organizations').notNull(),
+    ranks: integer('ranks').notNull(),
+    modeChanges: integer('mode_changes').notNull(),
+    events: integer('events').notNull(),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.operationId, t.backupDigest],
+      foreignColumns: [sharedPeopleRestoreOperation.id, sharedPeopleRestoreOperation.backupDigest],
+    }),
+    check('shared_people_restore_receipt_time', sql`typeof(${t.completedAt}) = 'integer'`),
+    check(
+      'shared_people_restore_receipt_organizations',
+      sql`typeof(${t.organizations}) = 'integer' AND ${t.organizations} >= 0`,
+    ),
+    check(
+      'shared_people_restore_receipt_ranks',
+      sql`typeof(${t.ranks}) = 'integer' AND ${t.ranks} >= 0`,
+    ),
+    check(
+      'shared_people_restore_receipt_modes',
+      sql`typeof(${t.modeChanges}) = 'integer' AND ${t.modeChanges} >= 0`,
+    ),
+    check(
+      'shared_people_restore_receipt_events',
+      sql`typeof(${t.events}) = 'integer' AND ${t.events} >= 0`,
+    ),
+  ],
+);
+
+/** Exact personally issued approval set consumed by one completed restore operation. */
+export const sharedPeopleRestoreConsumption = sqliteTable(
+  'shared_people_restore_consumption',
+  {
+    approvalId: text('approval_id').primaryKey().notNull(),
+    operationId: text('operation_id')
+      .notNull()
+      .references(() => sharedPeopleRestoreReceipt.operationId),
+    organizationId: text('organization_id').notNull(),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.approvalId, t.operationId, t.organizationId],
+      foreignColumns: [
+        sharedPeopleRestoreApproval.id,
+        sharedPeopleRestoreApproval.operationId,
+        sharedPeopleRestoreApproval.organizationId,
+      ],
+    }),
+    uniqueIndex('shared_people_restore_consumption_organization').on(
+      t.operationId,
+      t.organizationId,
+    ),
+  ],
+);

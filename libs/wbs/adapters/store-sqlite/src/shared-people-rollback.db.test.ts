@@ -6,10 +6,12 @@ import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 
 import * as database from './db';
 import { type Connection, type Drizzle, openConnection, openDatabase } from './db';
+import { OPEN } from './gate';
 import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
 import * as rankBackup from './project-rank-rollback';
 import { organization } from './schema';
+import { SharedPeopleRestoreApprovalRepository } from './shared-people-restore-approval';
 import {
   removeSharedPeople,
   restoreSharedPeople,
@@ -155,6 +157,59 @@ describe('combined shared people recovery', () => {
     });
   }
 
+  for (const issued of [false, true])
+    it(`refuses removal before mutating recovery state with issued approval=${String(issued)}`, async () => {
+      execute('DELETE FROM project_rank');
+      execute(
+        "INSERT INTO project_rank (project_id, organization_id, position, created_at, updated_at, created_by) VALUES ('a1', 'org-a', 3, 1, 2, 'ada')",
+      );
+      if (issued) {
+        execute(
+          "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'ada', 'super_admin', 1)",
+        );
+        execute("UPDATE organization_activation SET state = 'activated', activated_at = 1");
+        expect(
+          await new SharedPeopleRestoreApprovalRepository(connection.db, OPEN).approve(
+            'org-a',
+            'restore-1',
+            'a'.repeat(64),
+            'approval-1',
+            { by: 'ada', at: 10 },
+          ),
+        ).toMatchObject({ ok: true });
+      } else {
+        execute(
+          "INSERT INTO shared_people_restore_operation VALUES ('restore-1', '" +
+            'a'.repeat(64) +
+            "', 10)",
+        );
+      }
+      expect(execute('SELECT * FROM shared_people_audit')).toEqual([]);
+      const saved = save();
+      const recoveryState = () => ({
+        ranks: ranks(),
+        organizations: organizationRows(),
+        switches: execute('SELECT * FROM shared_people_audit ORDER BY id'),
+        operations: execute('SELECT * FROM shared_people_restore_operation ORDER BY id'),
+        approvals: execute('SELECT * FROM shared_people_restore_approval ORDER BY id'),
+        ledger: execute('SELECT * FROM __drizzle_migrations ORDER BY id'),
+      });
+      const before = recoveryState();
+      let refusal: unknown;
+      try {
+        removeSharedPeople(connection.db, saved, 101);
+      } catch (cause) {
+        refusal = cause;
+      }
+      expect(recoveryState()).toEqual(before);
+      expect(refusal).toBeInstanceOf(Error);
+      expect(String(refusal)).toContain('shared people restore evidence is recorded');
+      expect(() =>
+        rollbackTo(path, MIGRATIONS_FOLDER, '20261012130000_add_step_estimate_unit'),
+      ).toThrow('shared people restore evidence is recorded');
+      expect(recoveryState()).toEqual(before);
+    });
+
   it('removes modes and ranks together then permits guarded downgrade', () => {
     execute("UPDATE organization SET shared_people=1 WHERE id='org-a'");
     const saved = save();
@@ -164,6 +219,8 @@ describe('combined shared people recovery', () => {
     expect(
       rollbackTo(path, MIGRATIONS_FOLDER, '20261001010000_add_browser_credential_revocations'),
     ).toEqual([
+      '20261014130000_add_shared_people_restore_receipts',
+      '20261014120000_add_shared_people_restore_approvals',
       '20261013140000_add_step_node_blockages',
       '20261012130000_add_step_estimate_unit',
       '20261012120000_add_step_node_attempts',
@@ -325,6 +382,22 @@ describe('combined shared people recovery', () => {
     } finally {
       intercepted.mockRestore();
     }
+  });
+
+  it('refuses restoring ranks outside the saved organization set without any write', () => {
+    const saved = save();
+    removeSharedPeople(connection.db, saved, 101);
+    const incomplete = {
+      ...saved,
+      organizations: saved.organizations.filter(
+        (organization) => organization.organizationId === 'org-a',
+      ),
+    };
+    const before = { saved: save(), organizations: organizationRows() };
+    expect(() => restoreSharedPeople(connection.db, incomplete, 202)).toThrow(
+      'rank organization is absent',
+    );
+    expect({ saved: save(), organizations: organizationRows() }).toEqual(before);
   });
 
   it('refuses malformed and duplicate complete-state backups before any mutation', () => {

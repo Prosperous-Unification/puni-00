@@ -404,6 +404,8 @@ test('rollback independently refuses lifecycle-only and association-only residue
 
 test('rollback removes both empty lifecycle tables and their migration ledger entry', () => {
   expect(rollbackTo(path, MIGRATIONS, PREVIOUS)).toEqual([
+    '20261014130000_add_shared_people_restore_receipts',
+    '20261014120000_add_shared_people_restore_approvals',
     '20261013140000_add_step_node_blockages',
     '20261012130000_add_step_estimate_unit',
     '20261012120000_add_step_node_attempts',
