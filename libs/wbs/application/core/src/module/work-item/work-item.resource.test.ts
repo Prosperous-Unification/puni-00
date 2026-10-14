@@ -233,6 +233,107 @@ describe('the pools a row spends slots in', () => {
   });
 });
 
+describe('deleting blocked work items', () => {
+  it('restores exact root leaf blockage beneath done through delete undo redo', async () => {
+    const leaf = await add('Blocked leaf');
+    await serviceOptions.blockages.set({ workItemId: leaf, stepId, blockedAt: -30 }, WROTE);
+    await progress.set({ workItemId: leaf, stepId, state: 'done', statedAt: 25 }, WROTE);
+    expect((await service.remove(leaf, OWNER, null)).ok).toBe(true);
+    expect(await serviceOptions.blockages.listByProject(projectId)).toEqual([]);
+    expect((await service.undo(projectId, OWNER)).ok).toBe(true);
+    expect(await serviceOptions.blockages.listByProject(projectId)).toEqual([
+      { workItemId: leaf, stepId, blockedAt: -30 },
+    ]);
+    expect(await progress.listByProject(projectId)).toEqual([
+      { workItemId: leaf, stepId, state: 'done', statedAt: 25 },
+    ]);
+    expect((await service.redo(projectId, OWNER)).ok).toBe(true);
+    expect(await serviceOptions.blockages.listByProject(projectId)).toEqual([]);
+  });
+
+  it.each([true, false])(
+    'hands up deletion blockage only with all direct former leaves (%s)',
+    async (unanimous) => {
+      const parent = await add('Parent');
+      const branch = await add('Branch', parent);
+      const first = await add('First', branch);
+      const second = await add('Second', branch, first);
+      await serviceOptions.blockages.set({ workItemId: first, stepId, blockedAt: -30 }, WROTE);
+      if (unanimous)
+        await serviceOptions.blockages.set({ workItemId: second, stepId, blockedAt: -10 }, WROTE);
+      await progress.set({ workItemId: first, stepId, state: 'done', statedAt: 20 }, WROTE);
+      await progress.set({ workItemId: second, stepId, state: 'done', statedAt: 30 }, WROTE);
+      expect((await service.remove(branch, OWNER, 'cascade')).ok).toBe(true);
+      expect(await serviceOptions.blockages.listByProject(projectId)).toEqual(
+        unanimous ? [{ workItemId: parent, stepId, blockedAt: -10 }] : [],
+      );
+      expect(await progress.listByProject(projectId)).toEqual([
+        { workItemId: parent, stepId, state: 'done', statedAt: 30 },
+      ]);
+      expect((await service.undo(projectId, OWNER)).ok).toBe(true);
+      expect(await serviceOptions.blockages.listByProject(projectId)).toContainEqual({
+        workItemId: first,
+        stepId,
+        blockedAt: -30,
+      });
+      expect((await service.redo(projectId, OWNER)).ok).toBe(true);
+    },
+  );
+
+  it('reports a refused deletion blockage hand-up', async () => {
+    const parent = await add('Parent');
+    const leaf = await add('Leaf', parent);
+    await serviceOptions.blockages.set({ workItemId: leaf, stepId, blockedAt: 10 }, WROTE);
+    const refused = new WorkItemService({
+      ...serviceOptions,
+      blockages: { ...serviceOptions.blockages, set: () => Promise.resolve('unknown_step') },
+    });
+    const rejection = await refused.remove(leaf, OWNER, null).then(
+      () => 'resolved',
+      (error: unknown) => String(error),
+    );
+    expect(rejection).toContain('cannot replace deletion blockage');
+  });
+
+  it('reports refused historical progress restoration during deletion undo', async () => {
+    const parent = await add('Parent');
+    const leaf = await add('Leaf', parent);
+    await progress.set({ workItemId: parent, stepId, state: 'in_progress', statedAt: -30 }, WROTE);
+    await progress.set({ workItemId: leaf, stepId, state: 'done', statedAt: 20 }, WROTE);
+    expect((await service.remove(leaf, OWNER, null)).ok).toBe(true);
+    const refused = new WorkItemService({
+      ...serviceOptions,
+      progress: { ...progress, set: () => Promise.resolve('unknown_step') },
+    });
+    const rejection = await refused.undo(projectId, OWNER).then(
+      () => 'resolved',
+      (error: unknown) => String(error),
+    );
+    expect(rejection).toContain('cannot restore historical parent progress');
+  });
+
+  it('refuses new parent progress before restore deletes any hand-up facts', async () => {
+    const parent = await add('Parent');
+    const leaf = await add('Leaf', parent);
+    await serviceOptions.blockages.set({ workItemId: leaf, stepId, blockedAt: 10 }, WROTE);
+    await service.remove(leaf, OWNER, null);
+    await progress.set({ workItemId: parent, stepId, state: 'done', statedAt: 99 }, WROTE);
+    const current = await workItems.findById(parent);
+    if (current === null) throw new Error('missing parent');
+    const entry = (await serviceOptions.journal.entriesFor(projectId, OWNER)).at(-1);
+    if (entry === undefined) throw new Error('missing delete journal');
+    await serviceOptions.journal.flip(entry.id, false, {
+      ...(entry.preconditions as Record<string, unknown>),
+      expected: { [parent]: current.revision },
+    });
+    expect(await service.undo(projectId, OWNER)).toMatchObject({ ok: false, reason: 'stale_undo' });
+    expect(await workItems.findById(leaf)).toBeNull();
+    expect(await progress.listByProject(projectId)).toEqual([
+      { workItemId: parent, stepId, state: 'done', statedAt: 99 },
+    ]);
+  });
+});
+
 describe('creating work items', () => {
   it('numbers roots in the order they are added', async () => {
     const first = await add('Strip the old wiring');

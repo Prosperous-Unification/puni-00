@@ -468,6 +468,9 @@ The swap also checks the incoming image's replay capabilities against both
 `replace_blockage` requires its command capability. `move.expectedProgress` and
 `Preconditions.moveProgress` require `move_progress_v1`, including empty snapshots;
 the capability is counted once per journal entry, independently of live facts.
+Subtree commands carrying own `deletionState` metadata require `delete_state_v1`
+in either nested journal direction, including empty collections. A deletion parent
+progress snapshot also retains the cumulative `move_progress_v1` requirement.
 An empty blockage table does not make older code safe while a stored undo or redo
 still names the new command. The fact rollback CLI does not remove journal
 history. Use a compatible image or let the normal bounded journal retention

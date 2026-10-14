@@ -142,6 +142,7 @@ import {
   boundEstimateUnits,
   type CompensatingCommand,
   type CompensatingReferences,
+  type DeletionState,
   estimateStepsOf,
   expectedProgressOwnersOf,
   type Preconditions,
@@ -3568,6 +3569,8 @@ export class WorkItemService {
     // left to read and the restore would put the branch back reading as work
     // nobody had started.
     const storedProgress = await this.opts.progress.listByProject(workItem.projectId);
+    // Proof: omitting deletion capture left an orphaned fact and failed root-leaf delete/undo; watched 2026-10-14.
+    const storedBlockages = await this.opts.blockages.listByProject(workItem.projectId);
     // Read before anything is deleted, for the same cascade the two above name,
     // and in every metric at once: one read feeds three folds, which is what
     // `listByProject` takes no metric for.
@@ -3581,6 +3584,15 @@ export class WorkItemService {
     const survivor = workItem.parentId;
     const doomed = children.length === 0 || strategy === 'cascade' ? subtreeOf(rows, id) : [id];
     const inside = new Set(doomed);
+    const deletedBlockages = storedBlockages.filter((fact) => inside.has(fact.workItemId));
+    const previousParentProgress = storedProgress.filter((fact) => fact.workItemId === survivor);
+    const previousParentBlockages = storedBlockages.filter((fact) => fact.workItemId === survivor);
+    const deletionState: DeletionState = {
+      blockages: deletedBlockages,
+      parentId: survivor,
+      parentBlockages: previousParentBlockages,
+      restoredParentProgress: previousParentProgress,
+    };
     // Read before anything is deleted, for the attempts' cascade: the marks go
     // with their work items, and an undo that wrote back only the attempts
     // would let a number removed while it was a node's highest be issued again.
@@ -3650,6 +3662,10 @@ export class WorkItemService {
       // the parent's reading is now the whole branch's, and the day it was last
       // spoken about is the honest answer to "when was this said".
       const statedHandedUp: StoredProgress[] = [];
+      const blockedHandedUp: StoredStepBlockage[] = [];
+      const formerLeaves = doomed
+        .map((owner) => rowOf(rows, owner))
+        .filter((row) => !rows.some((child) => child.parentId === row.id));
       // And the figures that are not days, folded per metric — the same argument
       // the actuals make, three times, because `rollUpMeasures` takes one metric
       // at a time so that a token and an hour can never be added together. A
@@ -3658,6 +3674,18 @@ export class WorkItemService {
       // that rule stops holding.
       const measuredHandedUp: StoredMeasure[] = [];
       if (parentId !== null && rows.filter((row) => row.parentId === parentId).length === 1) {
+        for (const step of await this.opts.projects.stepsOf(workItem.projectId)) {
+          const facts = deletedBlockages.filter((fact) => fact.stepId === step.id);
+          // Proof: changing every to some handed up partial QA agreement; mounted deletion fold failed, watched 2026-10-14.
+          if (formerLeaves.every((leaf) => facts.some((fact) => fact.workItemId === leaf.id))) {
+            blockedHandedUp.push({
+              workItemId: parentId,
+              stepId: step.id,
+              // Proof: seeding with zero changed -10 to 0 in mounted deletion hand-up; watched 2026-10-14.
+              blockedAt: Math.max(...facts.map((fact) => fact.blockedAt)),
+            });
+          }
+        }
         const totals = rollUp(rows, storedEstimates);
         for (const [stepId, days] of totals.get(id) ?? []) {
           handedUp.push({ workItemId: parentId, stepId, ...days });
@@ -3728,12 +3756,11 @@ export class WorkItemService {
       // journal record; mounted node-and-whole delete restored 0 instead of 2
       // relationships on undo, watched 2026-09-27.
       const removedTyped = await this.opts.typedDependencies.removeAllFor(doomed, stamp);
+      await this.replaceDeletionBlockages(workItem.projectId, deletedBlockages, true, stamp);
       await this.opts.workItems.remove(doomed, [], stamp);
+      await this.replaceDeletionBlockages(workItem.projectId, blockedHandedUp, false, stamp);
       // The parent becoming a leaf again takes a readiness or hold only where
       // every former leaf agreed on it (`add-work-item-statuses`).
-      const formerLeaves = doomed
-        .map((each) => rowOf(rows, each))
-        .filter((row) => !rows.some((child) => child.parentId === row.id));
       const statementsHandedUp =
         parentId !== null && rows.filter((row) => row.parentId === parentId).length === 1
           ? {
@@ -3771,6 +3798,7 @@ export class WorkItemService {
           withRemovedTyped(
             {
               do: 'delete_subtree',
+              deletionState: { ...deletionState, handedBlockages: blockedHandedUp },
               rootId: id,
               expectedSubtree: doomed,
               remove: doomed,
@@ -3790,6 +3818,7 @@ export class WorkItemService {
           withRemovedTyped(
             {
               do: 'restore_subtree',
+              deletionState: { ...deletionState, parentBlockages: blockedHandedUp },
               rows: doomed.map((each) => rowOf(rows, each)),
               rootPosition: workItem.position,
               reparented: [],
@@ -3860,9 +3889,11 @@ export class WorkItemService {
         touched: [
           ...new Set([
             ...handedUp.map((each) => each.workItemId),
+            ...(survivor === null ? [] : [survivor]),
             ...(handUpStep === undefined ? [] : [handUpStep.forward.workItemId]),
           ]),
         ],
+        moveProgressOwners: survivor === null ? [] : [survivor],
         before: rows,
       });
       return { ok: true, value: null };
@@ -3892,6 +3923,7 @@ export class WorkItemService {
       forward: withRemovedTyped(
         {
           do: 'delete_subtree',
+          deletionState,
           rootId: id,
           expectedSubtree: subtreeOf(rows, id),
           remove: [id],
@@ -3909,6 +3941,7 @@ export class WorkItemService {
       inverse: withRemovedTyped(
         {
           do: 'restore_subtree',
+          deletionState,
           rows: [workItem],
           rootPosition: workItem.position,
           // Everyone the promotion rewrote, back where they were: the children
@@ -3954,7 +3987,8 @@ export class WorkItemService {
       // The promoted rows are preconditions because putting them back under the
       // restored parent is part of the undo. The ends of the edges that left
       // are not, for the reason given in the cascade branch above.
-      touched: promoted.map((each) => each.id),
+      touched: [...promoted.map((each) => each.id), ...(survivor === null ? [] : [survivor])],
+      moveProgressOwners: survivor === null ? [] : [survivor],
       before: rows,
     });
     return { ok: true, value: null };
@@ -5572,6 +5606,15 @@ export class WorkItemService {
       readCommand(entry.inverse),
     ]);
 
+    // Proof: removing required metadata validation accepted a deletion whose progress snapshot was removed (200 vs 500); watched 2026-10-14.
+    for (const owner of deletionParentsOf([payload.forward, readCommand(entry.inverse)])) {
+      if (
+        preconditions.moveProgress === undefined ||
+        !Object.hasOwn(preconditions.moveProgress, owner)
+      )
+        throw new Error(`journal deletion state has no complete progress snapshot for ${owner}`);
+    }
+
     const replayReferences = referencesOf(command);
     for (const [owner, facts] of Object.entries(preconditions.moveProgress ?? {})) {
       // Proof: omitting owners with empty snapshots admitted foreign-project metadata; watched 2026-10-14.
@@ -5616,12 +5659,13 @@ export class WorkItemService {
     for (const [owner, expected] of Object.entries(preconditions.moveProgress ?? {})) {
       const current = await this.opts.progress.listByWorkItems(projectId, [owner]);
       // Proof: bypassing this pre-batch comparison deleted changed recorded destination facts during mounted/memory redo; watched 2026-10-14.
+      // Proof: bypassing this comparison lost peer deletion-parent progress (200 vs 409); watched 2026-10-14.
       if (!matchesProgress(current, expected)) {
         await this.opts.journal.discard(entry.id);
         return {
           ok: false,
           reason: 'stale_undo',
-          detail: 'move destination progress changed since this command.',
+          detail: 'progress on a guarded work item changed since this command.',
           entryId: entry.id,
         };
       }
@@ -6345,6 +6389,46 @@ export class WorkItemService {
     return { ok: true, detail: null };
   }
 
+  /** Replaces captured facts conditionally while each owner is a leaf; throws on store refusal. */
+  private async replaceDeletionBlockages(
+    projectId: string,
+    facts: readonly StoredStepBlockage[],
+    isClear: boolean,
+    stamp: WriteStamp,
+  ): Promise<void> {
+    for (const fact of facts) {
+      const replaced = await this.apply(
+        projectId,
+        {
+          do: 'replace_blockage',
+          ...fact,
+          expectedBlockedAt: isClear ? fact.blockedAt : null,
+          replacementBlockedAt: isClear ? null : fact.blockedAt,
+        },
+        stamp,
+      );
+      // Proof: removing this refusal resolved the refused deletion hand-up test; watched 2026-10-14.
+      if (!replaced.ok) throw new Error(`cannot replace deletion blockage: ${replaced.detail}`);
+    }
+  }
+
+  /** Refuses complete parent blockage drift before restore can clear facts or create children. */
+  private async deletionRefusal(
+    projectId: string,
+    state: DeletionState,
+  ): Promise<ApplyOutcome | null> {
+    if (state.parentId === null) return null;
+    // Proof: bypassing equality exposed an unrecorded parent fact during insertion (500 vs 409); watched 2026-10-14.
+    if (
+      !matchesBlockages(
+        await this.opts.blockages.listByWorkItems(projectId, [state.parentId]),
+        state.parentBlockages,
+      )
+    )
+      return { ok: false, detail: 'the deletion parent blockage changed since this command.' };
+    return null;
+  }
+
   private async applyDelete(
     projectId: string,
     command: Extract<CompensatingCommand, { do: 'delete_subtree' }>,
@@ -6363,8 +6447,23 @@ export class WorkItemService {
     if (now.size !== then.size || [...then].some((id) => !now.has(id))) {
       return { ok: false, detail: 'work has been added or removed under that row since then.' };
     }
+    if (command.deletionState !== undefined) {
+      const refused = await this.deletionRefusal(projectId, command.deletionState);
+      if (refused !== null) return refused;
+      // Proof: bypassing complete-set equality deleted an added subtree fact on redo (200 vs 409); watched 2026-10-14.
+      if (
+        !matchesBlockages(
+          await this.opts.blockages.listByWorkItems(projectId, command.remove),
+          command.deletionState.blockages,
+        )
+      )
+        return { ok: false, detail: 'the deleted subtree blockage changed since this command.' };
+    }
     const root = rows.find((row) => row.id === command.rootId);
     if (root === undefined) throw new Error('delete root disappeared after its existence check');
+    // Proof: removing this binding accepted persisted metadata naming a different removal parent (200 vs 500); watched 2026-10-14.
+    if (command.deletionState !== undefined && command.deletionState.parentId !== root.parentId)
+      throw new Error('journal deletion state names the wrong removal parent');
     const removed = new Set(command.remove);
     const reparented = new Map(command.reparented.map((row) => [row.id, row]));
     const projected = rows
@@ -6388,6 +6487,8 @@ export class WorkItemService {
     if (attemptsRefused !== null) return attemptsRefused;
     await this.opts.dependencies.removeAllFor(command.remove, stamp);
     await this.opts.typedDependencies.removeAllFor(command.remove, stamp);
+    if (command.deletionState !== undefined)
+      await this.replaceDeletionBlockages(projectId, command.deletionState.blockages, true, stamp);
     await this.opts.workItems.remove(command.remove, command.reparented, stamp);
     for (const each of command.setEstimates) await this.opts.estimates.set(each, stamp);
     // The hand-up again, actuals with estimates. A re-applied delete that put
@@ -6398,6 +6499,13 @@ export class WorkItemService {
     // that put back the figures and not the reading would leave the surviving
     // parent reporting a finished branch's work as work nobody has started.
     for (const each of command.setProgress) await this.opts.progress.set(each, stamp);
+    if (command.deletionState !== undefined)
+      await this.replaceDeletionBlockages(
+        projectId,
+        command.deletionState.handedBlockages ?? [],
+        false,
+        stamp,
+      );
     // And the figures that are not days, per metric as they were folded. A
     // re-applied delete that handed up the days and not the tokens would leave
     // the surviving parent reporting a fortnight of work that cost nothing.
@@ -6514,6 +6622,16 @@ export class WorkItemService {
     const attemptsRefused = await this.attemptsRefusal(projectId, command.attempts ?? []);
     if (attemptsRefused !== null) return attemptsRefused;
 
+    if (command.deletionState !== undefined) {
+      const refused = await this.deletionRefusal(projectId, command.deletionState);
+      if (refused !== null) return refused;
+      await this.replaceDeletionBlockages(
+        projectId,
+        command.deletionState.parentBlockages,
+        true,
+        stamp,
+      );
+    }
     await this.opts.subtrees.insertSubtree(
       {
         rows: command.rows.map((row) => ({
@@ -6541,6 +6659,17 @@ export class WorkItemService {
       },
       stamp,
     );
+    if (command.deletionState !== undefined) {
+      // Proof: skipping these writes lost historical parent state/time in mounted deletion undo; watched 2026-10-14.
+      for (const fact of command.deletionState.restoredParentProgress) {
+        const written = await this.opts.progress.set(fact, stamp);
+        // Proof: ignoring store refusal resolved the refused historical progress restoration test; watched 2026-10-14.
+        if (written !== 'written')
+          throw new Error(`cannot restore historical parent progress: ${written}`);
+      }
+      // Proof: skipping this restore lost the exact done-leaf blockage on mounted undo; watched 2026-10-14.
+      await this.replaceDeletionBlockages(projectId, command.deletionState.blockages, false, stamp);
+    }
     // The attempts after the rows they hang off: off the surviving parent
     // first (the redo of a first-child create), then onto the restored rows,
     // verbatim with their numbers.
@@ -6684,6 +6813,7 @@ export class WorkItemService {
       touched: [...new Set(recordings.flatMap((each) => each.recording.touched))],
       // Proof: omitting collected owners let a collected move redo delete changed progress; watched 2026-10-14.
       moveProgressOwners: [
+        // Proof: omitting collection owners made mounted collected deletion undo refuse damaged metadata (500 vs 200); watched 2026-10-14.
         ...new Set(recordings.flatMap((each) => each.recording.moveProgressOwners ?? [])),
       ],
       before: only.recording.before,
@@ -7491,4 +7621,34 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
     projectRevision: project.revision,
     ...(optimization === undefined ? {} : { optimization }),
   };
+}
+
+/** Compares whole sparse blockage sets independently of repository order. */
+function matchesBlockages(
+  current: readonly StoredStepBlockage[],
+  expected: readonly StoredStepBlockage[],
+): boolean {
+  return (
+    current.length === expected.length &&
+    expected.every((fact) =>
+      current.some(
+        (held) =>
+          held.workItemId === fact.workItemId &&
+          held.stepId === fact.stepId &&
+          held.blockedAt === fact.blockedAt,
+      ),
+    )
+  );
+}
+
+/** Parents whose deletion snapshots require complete pre-batch progress guards. */
+function deletionParentsOf(commands: readonly CompensatingCommand[]): string[] {
+  return commands.flatMap((command) =>
+    command.do === 'batch'
+      ? deletionParentsOf(command.steps)
+      : (command.do === 'delete_subtree' || command.do === 'restore_subtree') &&
+          command.deletionState?.parentId != null
+        ? [command.deletionState.parentId]
+        : [],
+  );
 }

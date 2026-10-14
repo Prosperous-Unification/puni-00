@@ -773,6 +773,7 @@ async function assertSupported(
   // `refuses FS-only code with stored FF before migration and stops green`
   // fail on `Expected value: StringContaining "FF (2)"; Unable to find property`.
   // Proof: bypassing move_progress_v1 membership before migration or after stop failed the older/prior-image refusal cases; watched 2026-10-14.
+  // Proof: bypassing membership admitted delete_state_v1 before/after writer stop; both deletion admission negatives failed, watched 2026-10-14.
   const unsupported = stored.filter((row) => !supported.includes(row.value));
   if (unsupported.length === 0) return;
 

@@ -203,6 +203,7 @@ describe('step blockage replay compatibility probes', () => {
     expect(JSON.parse(await new Response(candidate.stdout).text())).toEqual([
       'replace_blockage',
       'move_progress_v1',
+      'delete_state_v1',
     ]);
   });
 
@@ -329,6 +330,47 @@ describe('step blockage replay compatibility probes', () => {
         expect(await probe.exited).toBe(0);
         expect(JSON.parse(await new Response(probe.stdout).text())).toEqual([
           { kind: 'move_progress_v1', count: 1 },
+        ]);
+      } finally {
+        db.close();
+        rmSync(directory, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it.each(['forward', 'inverse', 'both'] as const)(
+    'inventories nested empty deletion state in %s',
+    async (side) => {
+      const directory = scratchSync('wbs-delete-replay-history-');
+      const path = join(directory, 'plan.db');
+      const db = new Database(path);
+      try {
+        db.run(
+          'CREATE TABLE command_journal (payload text NOT NULL,inverse text NOT NULL,preconditions text NOT NULL)',
+        );
+        const plain = { do: 'patch' };
+        const nested = {
+          do: 'batch',
+          steps: [{ do: 'batch', steps: [{ do: 'restore_subtree', deletionState: {} }] }],
+        };
+        db.run('INSERT INTO command_journal VALUES (?,?,?)', [
+          JSON.stringify({ forward: side === 'inverse' ? plain : nested }),
+          JSON.stringify(side === 'forward' ? plain : nested),
+          '{}',
+        ]);
+        db.run('INSERT INTO command_journal VALUES (?,?,?)', [
+          JSON.stringify({ forward: plain }),
+          JSON.stringify(plain),
+          '{}',
+        ]);
+        const probe = Bun.spawn(storedStepBlockageReplayKindsCommand('green').slice(2), {
+          env: { ...process.env, DB_PATH: path },
+          stdout: 'pipe',
+          stderr: 'pipe',
+        });
+        expect(await probe.exited).toBe(0);
+        expect(JSON.parse(await new Response(probe.stdout).text())).toEqual([
+          { kind: 'delete_state_v1', count: 1 },
         ]);
       } finally {
         db.close();

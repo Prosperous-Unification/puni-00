@@ -3,6 +3,7 @@ import { formatStepNodeId, serializeSchedule } from '@wbs/domain';
 import { canonicalScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 
+import { SubtreeRepository } from '../repository/work-item';
 import { fastScheduler } from '../service/optimizer-wiring';
 import { type Answer, OrganizationHarness } from '../testing/organization-harness';
 
@@ -1965,5 +1966,344 @@ describe('move blockage closure', () => {
     expect((await move(moving, destination)).status).toBe(500);
     h.sqlite.run('DROP TRIGGER refuse_move');
     expect(snapshot(true)).toEqual(before);
+  });
+});
+
+describe('deletion blockage preservation', () => {
+  async function create(name: string, parentId: string | null): Promise<string> {
+    const answer = await batch([{ kind: 'createWorkItem', parentId, afterId: null, name }]);
+    if (answer.status !== 200) throw new Error(`create refused: ${JSON.stringify(answer)}`);
+    const owner = (answer.body as { results: { id: string }[] }).results.at(0)?.id;
+    if (owner === undefined) throw new Error('missing created owner');
+    return owner;
+  }
+  function block(owner: string, step: string, at: number): void {
+    h.sqlite.run('INSERT INTO step_blockage (work_item_id, step_id, blocked_at) VALUES (?, ?, ?)', [
+      owner,
+      step,
+      at,
+    ]);
+  }
+  const facts = () =>
+    h.sqlite
+      .query(
+        'SELECT work_item_id, step_id, blocked_at FROM step_blockage ORDER BY work_item_id, step_id',
+      )
+      .all();
+  const states = () =>
+    h.sqlite
+      .query(
+        'SELECT work_item_id, step_id, state, stated_at FROM step_progress ORDER BY work_item_id, step_id',
+      )
+      .all();
+  const snapshot = () => ({
+    facts: facts(),
+    states: states(),
+    rows: h.sqlite.query('SELECT * FROM work_item ORDER BY id').all(),
+    events: h.sqlite.query('SELECT * FROM event_log ORDER BY seq').all(),
+    journal: h.sqlite.query('SELECT * FROM command_journal ORDER BY seq').all(),
+  });
+  const remove = (owner: string, strategy: 'cascade' | 'promote' | null = null) =>
+    batch([
+      { kind: 'deleteWorkItem', workItemId: owner, ...(strategy === null ? {} : { strategy }) },
+    ]);
+  const undo = () => h.call('ada', 'POST', `/api/projects/${project}/undo`);
+  const redo = () => h.call('ada', 'POST', `/api/projects/${project}/redo`);
+
+  it('preserves root leaf exact done blockage and time through mounted delete undo redo', async () => {
+    expect(
+      (await batch([{ kind: 'setProgress', workItemId: strip, stepId: dev, state: 'done' }]))
+        .status,
+    ).toBe(200);
+    block(strip, dev, -30);
+    const before = { facts: facts(), states: states() };
+    expect((await remove(strip)).status).toBe(200);
+    expect(facts()).toEqual([]);
+    expect((await undo()).status).toBe(200);
+    expect({ facts: facts(), states: states() }).toEqual(before);
+    expect((await redo()).status).toBe(200);
+    expect(facts()).toEqual([]);
+  });
+
+  it('folds deletion progress while handing up only unanimous direct blockage including negative times', async () => {
+    const branch = await create('Branch', strip);
+    const first = await create('First', branch);
+    const second = await create('Second', branch);
+    block(first, dev, -30);
+    block(second, dev, -10);
+    block(first, qa, 123);
+    expect(
+      (
+        await batch([
+          { kind: 'setProgress', workItemId: first, stepId: dev, state: 'done' },
+          { kind: 'setProgress', workItemId: second, stepId: dev, state: 'done' },
+        ])
+      ).status,
+    ).toBe(200);
+    const before = { facts: facts(), states: states() };
+    expect((await remove(branch, 'cascade')).status).toBe(200);
+    expect(facts()).toEqual([{ work_item_id: strip, step_id: dev, blocked_at: -10 }]);
+    expect(states()).toMatchObject([{ work_item_id: strip, step_id: dev, state: 'done' }]);
+    expect((await undo()).status).toBe(200);
+    expect({ facts: facts(), states: states() }).toEqual(before);
+    expect((await redo()).status).toBe(200);
+    expect(facts()).toEqual([{ work_item_id: strip, step_id: dev, blocked_at: -10 }]);
+  });
+
+  it.each(['state', 'time', 'extra', 'missing'] as const)(
+    'refuses parent progress %s before undo removal with unchanged revisions',
+    async (fault) => {
+      const leaf = await create('Child', strip);
+      block(leaf, dev, 10);
+      expect(
+        (await batch([{ kind: 'setProgress', workItemId: leaf, stepId: dev, state: 'done' }]))
+          .status,
+      ).toBe(200);
+      expect((await remove(leaf)).status).toBe(200);
+      if (fault === 'state')
+        h.sqlite.run("UPDATE step_progress SET state = 'in_progress' WHERE work_item_id = ?", [
+          strip,
+        ]);
+      if (fault === 'time')
+        h.sqlite.run('UPDATE step_progress SET stated_at = -44 WHERE work_item_id = ?', [strip]);
+      if (fault === 'extra')
+        h.sqlite.run(
+          "INSERT INTO step_progress (work_item_id, step_id, state, stated_at) VALUES (?, ?, 'done', 44)",
+          [strip, qa],
+        );
+      if (fault === 'missing')
+        h.sqlite.run('DELETE FROM step_progress WHERE work_item_id = ?', [strip]);
+      const before = snapshot();
+      expect((await undo()).status).toBe(409);
+      const after = snapshot();
+      expect({ ...after, journal: [] }).toEqual({ ...before, journal: [] });
+      expect(after.journal).toHaveLength(before.journal.length - 1);
+    },
+  );
+
+  it.each(['changed', 'missing', 'extra'] as const)(
+    'refuses subtree blockage %s on redo without losing facts',
+    async (fault) => {
+      block(strip, dev, 10);
+      expect((await remove(strip)).status).toBe(200);
+      expect((await undo()).status).toBe(200);
+      if (fault === 'changed')
+        h.sqlite.run('UPDATE step_blockage SET blocked_at = 20 WHERE work_item_id = ?', [strip]);
+      if (fault === 'missing')
+        h.sqlite.run('DELETE FROM step_blockage WHERE work_item_id = ?', [strip]);
+      if (fault === 'extra') block(strip, qa, 30);
+      const before = snapshot();
+      expect((await redo()).status).toBe(409);
+      expect({ ...snapshot(), journal: [] }).toEqual({ ...before, journal: [] });
+    },
+  );
+
+  it('refuses unrecorded parent blockage before undo changes a leaf into a parent', async () => {
+    const leaf = await create('Child', strip);
+    block(leaf, dev, 10);
+    expect((await remove(leaf)).status).toBe(200);
+    block(strip, qa, 20);
+    const before = snapshot();
+    expect((await undo()).status).toBe(409);
+    expect({ ...snapshot(), journal: [] }).toEqual({ ...before, journal: [] });
+  });
+
+  it('retains historical parent progress through deletion undo redo', async () => {
+    const leaf = await create('Child', strip);
+    h.sqlite.run(
+      "INSERT INTO step_progress (work_item_id, step_id, state, stated_at) VALUES (?, ?, 'in_progress', -123)",
+      [strip, dev],
+    );
+    expect(
+      (await batch([{ kind: 'setProgress', workItemId: leaf, stepId: dev, state: 'done' }])).status,
+    ).toBe(200);
+    const before = states();
+    expect((await remove(leaf)).status).toBe(200);
+    expect(states()).toMatchObject([{ work_item_id: strip, state: 'done' }]);
+    expect((await undo()).status).toBe(200);
+    expect(states()).toEqual(before);
+    expect((await redo()).status).toBe(200);
+    expect(states()).toMatchObject([{ work_item_id: strip, state: 'done' }]);
+  });
+
+  it('preserves child blockage while deleting and undoing its parent by promotion', async () => {
+    const child = await create('Child', strip);
+    block(child, dev, 10);
+    const before = facts();
+    expect((await remove(strip, 'promote')).status).toBe(200);
+    expect(facts()).toEqual(before);
+    expect((await undo()).status).toBe(200);
+    expect(facts()).toEqual(before);
+    expect((await redo()).status).toBe(200);
+    expect(facts()).toEqual(before);
+  });
+
+  it('rolls back a mixed delete batch after a later refusal', async () => {
+    block(strip, dev, 10);
+    const before = snapshot();
+    expect(
+      (
+        await batch([
+          { kind: 'deleteWorkItem', workItemId: strip },
+          { kind: 'patchWorkItem', workItemId: 'missing', patch: { name: 'Lost' } },
+        ])
+      ).status,
+    ).toBe(404);
+    expect(snapshot()).toEqual(before);
+  });
+
+  it('rolls back all restore writes after a blockage insertion fails midway', async () => {
+    block(strip, dev, 10);
+    block(strip, qa, 20);
+    expect((await remove(strip)).status).toBe(200);
+    const before = snapshot();
+    h.sqlite.run(
+      `CREATE TRIGGER fail_blockage BEFORE INSERT ON step_blockage WHEN NEW.step_id = '${qa}' BEGIN SELECT RAISE(ABORT, 'injected blockage failure'); END`,
+    );
+    expect((await undo()).status).toBe(500);
+    expect(snapshot()).toEqual(before);
+  });
+  it('rebases parent rename and progress through deletion flip and neighboring replay', async () => {
+    const leaf = await create('Child', strip);
+    block(leaf, dev, 10);
+    expect(
+      (
+        await batch([
+          { kind: 'patchWorkItem', workItemId: strip, patch: { name: 'Before deletion' } },
+        ])
+      ).status,
+    ).toBe(200);
+    expect((await remove(leaf)).status).toBe(200);
+    for (const direction of ['undo', 'undo', 'redo', 'redo', 'undo'] as const) {
+      expect((await h.call('ada', 'POST', `/api/projects/${project}/${direction}`)).status).toBe(
+        200,
+      );
+    }
+    expect(facts()).toEqual([{ work_item_id: leaf, step_id: dev, blocked_at: 10 }]);
+  });
+
+  it('preserves a collected mounted deletion and parent patch as one undo unit', async () => {
+    const leaf = await create('Child', strip);
+    block(leaf, dev, 10);
+    const before = facts();
+    expect(
+      (
+        await batch([
+          { kind: 'deleteWorkItem', workItemId: leaf },
+          { kind: 'patchWorkItem', workItemId: strip, patch: { name: 'After deletion' } },
+        ])
+      ).status,
+    ).toBe(200);
+    expect((await undo()).status).toBe(200);
+    expect(facts()).toEqual(before);
+    expect((await redo()).status).toBe(200);
+    expect(facts()).toEqual([{ work_item_id: strip, step_id: dev, blocked_at: 10 }]);
+  });
+
+  it('refuses deletion replay whose complete parent progress snapshot was removed', async () => {
+    const leaf = await create('Child', strip);
+    expect((await remove(leaf)).status).toBe(200);
+    h.sqlite.run(
+      "UPDATE command_journal SET preconditions = json_remove(preconditions, '$.moveProgress') WHERE kind = 'delete'",
+    );
+    const before = snapshot();
+    expect((await undo()).status).toBe(500);
+    expect(snapshot()).toEqual(before);
+  });
+  it.each(['null', 'owner', 'time', 'duplicate', 'parent', 'progress'] as const)(
+    'refuses malformed persisted deletion metadata %s without writes',
+    async (fault) => {
+      block(strip, dev, 10);
+      expect((await remove(strip)).status).toBe(200);
+      const journal = h.sqlite
+        .query<{ id: string; inverse: string }, []>(
+          "SELECT id, inverse FROM command_journal WHERE kind = 'delete' ORDER BY seq DESC LIMIT 1",
+        )
+        .get();
+      if (journal === null) throw new Error('missing deletion journal');
+      const inverse = JSON.parse(journal.inverse) as {
+        deletionState: {
+          blockages: { workItemId: string; stepId: string; blockedAt: number }[];
+          parentId: string | null;
+          restoredParentProgress: unknown;
+        } | null;
+      };
+      const metadata = inverse.deletionState;
+      if (metadata === null) throw new Error('missing deletion state');
+      const first = metadata.blockages.at(0);
+      if (first === undefined) throw new Error('missing recorded blockage');
+      if (fault === 'null') inverse.deletionState = null;
+      if (fault === 'owner') first.workItemId = 'stray';
+      if (fault === 'time') first.blockedAt = 1.5;
+      if (fault === 'duplicate') metadata.blockages.push({ ...first });
+      if (fault === 'parent') metadata.parentId = '';
+      if (fault === 'progress') metadata.restoredParentProgress = null;
+      h.sqlite.run('UPDATE command_journal SET inverse = ? WHERE id = ?', [
+        JSON.stringify(inverse),
+        journal.id,
+      ]);
+      const before = snapshot();
+      const inserting = spyOn(SubtreeRepository.prototype, 'insertSubtree');
+      try {
+        expect((await undo()).status).toBe(500);
+        expect(inserting).not.toHaveBeenCalled();
+        expect(snapshot()).toEqual(before);
+      } finally {
+        inserting.mockRestore();
+      }
+    },
+  );
+
+  it('refuses deletion metadata that names a different removal parent', async () => {
+    const other = await create('Other', null);
+    expect((await remove(strip)).status).toBe(200);
+    expect((await undo()).status).toBe(200);
+    const journal = h.sqlite
+      .query<{ id: string; payload: string; preconditions: string }, []>(
+        "SELECT id, payload, preconditions FROM command_journal WHERE kind = 'delete' ORDER BY seq DESC LIMIT 1",
+      )
+      .get();
+    if (journal === null) throw new Error('missing delete entry');
+    const payload = JSON.parse(journal.payload) as {
+      forward: { deletionState: { parentId: string | null } };
+    };
+    const preconditions = JSON.parse(journal.preconditions) as Record<string, unknown>;
+    payload.forward.deletionState.parentId = other;
+    h.sqlite.run('UPDATE command_journal SET payload = ?, preconditions = ? WHERE id = ?', [
+      JSON.stringify(payload),
+      JSON.stringify({ ...preconditions, moveProgress: { [other]: [] } }),
+      journal.id,
+    ]);
+    const before = snapshot();
+    expect((await redo()).status).toBe(500);
+    expect(snapshot()).toEqual(before);
+  });
+  it('keeps an empty deletion parent revision tracked after flip', async () => {
+    const leaf = await create('Child', strip);
+    expect((await remove(leaf)).status).toBe(200);
+    expect((await undo()).status).toBe(200);
+    h.sqlite.run("UPDATE work_item SET name = 'Peer edit', revision = revision + 1 WHERE id = ?", [
+      strip,
+    ]);
+    const before = snapshot();
+    expect((await redo()).status).toBe(409);
+    expect({ ...snapshot(), journal: [] }).toEqual({ ...before, journal: [] });
+  });
+
+  it('rebases deletion parent timestamps only through neighboring progress writes', async () => {
+    const leaf = await create('Child', strip);
+    expect(
+      (await batch([{ kind: 'setProgress', workItemId: leaf, stepId: dev, state: 'done' }])).status,
+    ).toBe(200);
+    expect((await remove(leaf)).status).toBe(200);
+    expect(
+      (await batch([{ kind: 'setProgress', workItemId: strip, stepId: dev, state: 'in_progress' }]))
+        .status,
+    ).toBe(200);
+    for (const direction of ['undo', 'undo', 'redo', 'redo'] as const)
+      expect((await h.call('ada', 'POST', `/api/projects/${project}/${direction}`)).status).toBe(
+        200,
+      );
+    expect(states()).toMatchObject([{ work_item_id: strip, step_id: dev, state: 'in_progress' }]);
   });
 });

@@ -1147,6 +1147,63 @@ describe('execute, stored vocabulary rollback guard', () => {
     },
   );
 
+  it.each(['before', 'after'] as const)(
+    'refuses deletion replay capability at %s writer stop',
+    async (phase) => {
+      let inventories = 0;
+      const attempt = await runGuard(
+        '["FS"]',
+        '[]',
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        { supported: '[]', stored: () => '[]' },
+        phase === 'after',
+        {
+          supported: '["replace_blockage","move_progress_v1"]',
+          stored: () => {
+            inventories++;
+            return phase === 'after' && inventories === 1
+              ? '[]'
+              : '[{"kind":"delete_state_v1","count":1}]';
+          },
+        },
+        true,
+      );
+      expect(attempt.caught).toHaveProperty(
+        'message',
+        expect.stringContaining('delete_state_v1 (1)'),
+      );
+      if (phase === 'before') expect(attempt.ran).toContainEqual(['stop', 'be-01-green']);
+      expect(attempt.ran.some((args) => args.includes('src/migrate-cli.ts'))).toBe(
+        phase === 'after',
+      );
+      if (phase === 'after') expect(attempt.ran).toContainEqual(['stop', 'be-01-blue']);
+      if (phase === 'after') expect(attempt.phases).not.toContain('committed');
+    },
+  );
+
+  it('admits deletion history with the matching capability', async () => {
+    const attempt = await runGuard(
+      '["FS"]',
+      '[]',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { supported: '[]', stored: () => '[]' },
+      false,
+      {
+        supported: '["replace_blockage","move_progress_v1","delete_state_v1"]',
+        stored: () => '[{"kind":"delete_state_v1","count":1}]',
+      },
+    );
+    expect(attempt.caught).toBeUndefined();
+  });
+
   it('admits guarded move history only with the matching capability', async () => {
     const attempt = await runGuard(
       '["FS"]',
