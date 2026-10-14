@@ -523,6 +523,45 @@ test('[TEST-AXES-058] requires a full committed SHA', () => {
     'full committed SHA',
   );
 });
+
+test('[TEST-AXES-076] Performance publication diagnostic refuses an annotated tag-object SHA before bundle IO', async () => {
+  const setup = fixture();
+  git(setup.root, ['tag', '-a', 'performance-bundle-tag', '-m', 'annotated tag', setup.revision]);
+  const tagObject = git(setup.root, ['rev-parse', 'performance-bundle-tag^{tag}']);
+  expect(tagObject).not.toBe(setup.revision);
+  const call = await invokeCli(['inspect-performance', setup.root, tagObject, setup.policyPath]);
+  expect(call.exitCode).toBe(1);
+  expect(call.stderr).toContain(
+    'Performance inspection selected revision differs from requested SHA',
+  );
+  expect(call.stdout).toBe('');
+});
+
+test('[TEST-AXES-076] Performance publication diagnostic refuses a faulted noncommitted reader selection', () => {
+  const setup = fixture();
+  const modulePath = join(import.meta.dir, '..', 'inventory', 'read-candidate.ts');
+  const preload = join(setup.root, 'fault-preload.ts');
+  writeFileSync(
+    preload,
+    `import { mock } from 'bun:test';\nconst actual = await import(${JSON.stringify(`${modulePath}?real-fault`)});\nmock.module(${JSON.stringify(modulePath)}, () => ({ ...actual, readCandidate: (...args) => { const selected = actual.readCandidate(...args); return { ...selected, selection: { ...selected.selection, kind: 'staged' } }; } }));\n`,
+  );
+  const call = Bun.spawnSync(
+    [
+      process.execPath,
+      'run',
+      `--preload=${preload}`,
+      join(import.meta.dir, '..', 'cli.ts'),
+      'inspect-performance',
+      setup.root,
+      setup.revision,
+      setup.policyPath,
+    ],
+    { stdout: 'pipe', stderr: 'pipe' },
+  );
+  expect(call.exitCode).toBe(1);
+  expect(call.stderr.toString()).toContain('Performance inspection selection is not committed');
+  expect(call.stdout.toString()).toBe('');
+});
 test('[TEST-AXES-058] CLI refuses additional operands', async () => {
   const setup = fixture();
   const invocation = await invokeCli([

@@ -42,6 +42,7 @@ import {
 } from './schema';
 import { nodeDigest } from './testing/node-digest';
 import { openSpaceDatabase } from './testing/space-database';
+import { activateTestStepBlockages } from './testing/step-blockage-activation';
 
 let dir: string;
 let path: string;
@@ -879,6 +880,20 @@ describe('detached live snapshot guards', () => {
     if (observed.kind !== 'shared') throw new Error('aggregate observation unavailable');
     expect(observed.entries.map(({ plan }) => plan.project.id)).toEqual(['a1', 'a2', 'a3', 'a4']);
     expect(schedules).toBe(4);
+  });
+  it('captures persisted blockage facts in the aggregate entry from its snapshot', async () => {
+    activateTestStepBlockages(path);
+    write(
+      "INSERT INTO step_blockage (work_item_id, step_id, blocked_at) VALUES ('a2', 'a2-s0', 123456)",
+    );
+    const observed = await livePlans().readAggregate('ada', access);
+    if (observed.kind !== 'shared') throw new Error('aggregate observation unavailable');
+    expect(observed.entries.find(({ plan }) => plan.project.id === 'a2')?.plan.blockages).toEqual([
+      { workItemId: 'a2', stepId: 'a2-s0', blockedAt: 123456 },
+    ]);
+    expect(observed.entries.find(({ plan }) => plan.project.id === 'a1')?.plan.blockages).toEqual(
+      [],
+    );
   });
   it('keeps the incoming basis and full input identity across rename and unrelated rank changes', async () => {
     const store = livePlans();

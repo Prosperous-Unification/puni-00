@@ -1,0 +1,49 @@
+[
+  {
+    "fault": "legacy live read refusal",
+    "exit": 1,
+    "failed": [
+      "(fail) dependencies > refuses a stored legacy predecessor absent from the project [10.21ms]"
+    ],
+    "output_file": "legacy-live-read-refusal.txt"
+  },
+  {
+    "fault": "missing graph predecessor",
+    "exit": 1,
+    "failed": [
+      "(fail) nodeReadingsOf > throws on an edge naming a node the graph does not hold [1.23ms]"
+    ],
+    "output_file": "missing-graph-predecessor.txt"
+  },
+  {
+    "fault": "missing graph successor",
+    "exit": 1,
+    "failed": [
+      "(fail) step blockage projection > refuses an absent successor before projecting any visible node [0.77ms]"
+    ],
+    "output_file": "missing-graph-successor.txt"
+  },
+  {
+    "fault": "stored cycle compatibility",
+    "exit": 1,
+    "failed": [
+      "(fail) dependencies > still reads a project whose dependencies contain a cycle [13.22ms]"
+    ],
+    "output_file": "stored-cycle-compatibility.txt"
+  },
+  {
+    "fault": "root forwarding",
+    "exit": 1,
+    "failed": [
+      "(fail) nodeReadingsOf > propagates a direct row hold around a cycle and into downstream nodes [0.84ms]",
+      "(fail) nodeReadingsOf > converges an external root through a silent cycle and into downstream work [0.20ms]"
+    ],
+    "output_file": "root-forwarding.txt"
+  },
+  {
+    "fault": "finite root deduplication",
+    "timeout_seconds": 5,
+    "failed": ["external-root cycle test did not terminate"],
+    "output_file": "finite-root-deduplication.txt"
+  }
+]

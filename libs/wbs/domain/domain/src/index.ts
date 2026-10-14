@@ -156,6 +156,7 @@ export type * from './step-values';
 // number is a name rather than a place, so the order has to be stated: two
 // groupings would disagree about which work item is second, and the first two
 // of those are drawn on the same screen.
+export * from './step-blockage';
 export * from './stored-vocabularies';
 export * from './tree-order';
 export * from './typed-dependency';

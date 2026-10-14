@@ -11,13 +11,14 @@ const stepKinds = [
   ['setActual', { days: 2 }],
   ['clearActual', {}],
   ['setProgress', { state: 'done' }],
+  ['setStepBlocked', { isBlocked: true }],
   ['clearProgress', {}],
   ['setMeasure', { metric: 'hours', value: 2 }],
   ['clearMeasure', { metric: 'hours' }],
   ['setAssignee', { personId: null }],
 ] as const;
 
-test('normalizes all nine step-node commands to the original pair', () => {
+test('normalizes all step-node commands to the original pair', () => {
   for (const [kind, fields] of stepKinds) {
     const normalized = commandNormalizers[kind]({ kind, stepNodeId: nodeId, ...fields } as never);
     expect(normalized).toMatchObject({
@@ -130,4 +131,17 @@ test('defaults missing assignee to null', () => {
     stepId: 'build',
     personId: null,
   });
+});
+
+test('refuses missing and nonboolean blockage intent before dispatch', () => {
+  for (const isBlocked of [undefined, null, 'true', 1]) {
+    expect(() =>
+      commandNormalizers.setStepBlocked({
+        kind: 'setStepBlocked',
+        workItemId: 'leaf',
+        stepId: 'dev',
+        isBlocked,
+      } as never),
+    ).toThrow('isBlocked_must_be_true_or_false');
+  }
 });

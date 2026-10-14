@@ -32,6 +32,99 @@ function silentBroadcaster(): Broadcaster {
 }
 
 describe('the admitted working batch baseline', () => {
+  it('keeps blockage calls inside the project and batch lifetime and refreshes successful writes', async () => {
+    const source = openMemorySource();
+    const stamp = { at: 1, by: OWNER };
+    const owner = workItemRow({ id: 'blockage-owner', projectId: 'project-a' });
+    const foreign = workItemRow({ id: 'foreign-owner', projectId: 'project-b' });
+    await source.stores.workItems.insert(owner, [], stamp);
+    await source.stores.workItems.insert(foreign, [], stamp);
+    let revision = 0;
+    let fails = false;
+    const facts: { workItemId: string; stepId: string; blockedAt: number }[] = [];
+    const stores = {
+      ...source.stores,
+      workItems: {
+        ...source.stores.workItems,
+        listByProject: async (projectId: string) =>
+          (await source.stores.workItems.listByProject(projectId)).map((row) => ({
+            ...row,
+            revision: row.id === owner.id ? revision : row.revision,
+          })),
+        listByIds: async (projectId: string, ids: readonly string[]) =>
+          (await source.stores.workItems.listByIds(projectId, ids)).map((row) => ({
+            ...row,
+            revision: row.id === owner.id ? revision : row.revision,
+          })),
+      },
+      blockages: {
+        listByProject: (projectId: string) =>
+          Promise.resolve(
+            facts.filter(({ workItemId }) => projectId === 'project-a' && workItemId === owner.id),
+          ),
+        listByWorkItems: (projectId: string, ids: readonly string[]) =>
+          Promise.resolve(
+            facts.filter(({ workItemId }) => projectId === 'project-a' && ids.includes(workItemId)),
+          ),
+        set: (fact: (typeof facts)[number]) => {
+          if (fails) throw new Error('injected write failure');
+          facts.push(fact);
+          revision += 1;
+          return Promise.resolve('written' as const);
+        },
+        remove: (workItemId: string, stepId: string) => {
+          if (fails) throw new Error('injected write failure');
+          facts.splice(
+            0,
+            facts.length,
+            ...facts.filter((fact) => fact.workItemId !== workItemId || fact.stepId !== stepId),
+          );
+          revision += 1;
+          return Promise.resolve();
+        },
+        moveAll: () => {
+          revision += 1;
+          return Promise.resolve();
+        },
+      },
+    };
+    const plan = createWorkingPlan({ stores }, 'project-a');
+    const borrowed = plan.stores.blockages;
+    const fact = { workItemId: owner.id, stepId: 'dev', blockedAt: 123 };
+    try {
+      expect((await plan.stores.workItems.listByProject('project-a'))[0]?.revision).toBe(0);
+      expect(await borrowed.set(fact, stamp)).toBe('written');
+      expect(await borrowed.listByWorkItems('project-a', [owner.id])).toEqual([fact]);
+      // Proof: removing blockage refreshRows left the retained owner at revision 0.
+      expect((await plan.stores.workItems.listByProject('project-a'))[0]?.revision).toBe(1);
+      fails = true;
+      expect(await refusesCall(() => borrowed.remove(owner.id, fact.stepId, stamp))).toBe(true);
+      expect(await borrowed.listByProject('project-a')).toEqual([fact]);
+      expect((await plan.stores.workItems.listByProject('project-a'))[0]?.revision).toBe(1);
+      fails = false;
+      // Proof: bypassing the scope owner guard let a foreign fact write succeed.
+      expect(
+        await refusesCall(() => borrowed.set({ ...fact, workItemId: foreign.id }, stamp)),
+      ).toBe(true);
+      expect(
+        await refusesCall(() => borrowed.set({ ...fact, workItemId: 'missing-owner' }, stamp)),
+      ).toBe(true);
+      expect(await refusesCall(() => borrowed.remove(foreign.id, fact.stepId, stamp))).toBe(true);
+      expect(await refusesCall(() => borrowed.moveAll(owner.id, foreign.id, stamp))).toBe(true);
+      // Proof: replacing the project guard with only a lifetime guard let this read succeed.
+      expect(await refusesCall(() => borrowed.listByProject('project-b'))).toBe(true);
+      expect(await refusesCall(() => borrowed.listByWorkItems('project-b', [owner.id]))).toBe(true);
+      await borrowed.remove(owner.id, fact.stepId, stamp);
+      expect(await borrowed.listByProject('project-a')).toEqual([]);
+      expect((await plan.stores.workItems.listByProject('project-a'))[0]?.revision).toBe(2);
+      plan.close();
+      // Proof: returning the raw store allowed this borrowed read after close.
+      expect(await refusesCall(() => borrowed.listByProject('project-a'))).toBe(true);
+      expect(await refusesCall(() => borrowed.set(fact, stamp))).toBe(true);
+    } finally {
+      await source.close();
+    }
+  });
   it('passes typed links through the batch and refuses cross-project and closed access', async () => {
     const source = openMemorySource();
     const plan = createWorkingPlan({ stores: source.stores }, 'project-a');

@@ -946,9 +946,8 @@ const DONE_BAR_CLASSES = '[stroke-width:2]';
  * one. `data-critical` rides along for the browser gate, which needs to find the
  * bar before it can measure it.
  *
- * An unestimated bar is only ever drawn with the detail switch on, and when it
- * is it has to be told apart from the costed bars beside it at a glance — see
- * {@link ASSUMED_BAR_CLASSES}.
+ * An unestimated bar is drawn in both detail states and must remain visually
+ * distinct from the costed bars beside it — see {@link ASSUMED_BAR_CLASSES}.
  *
  * `[stroke-width:2]` and not a border: strokes here carry
  * `vector-effect="non-scaling-stroke"`, so 2 is 2 CSS pixels at any zoom of a
@@ -2081,8 +2080,7 @@ export function barFacts(
     // drawn a width nobody gave it and the schedule spends none of it, and the
     // sentence that says so has to be as findable as the dates above it. See
     // {@link ASSUMED_SLICE_WORKDAYS}.
-    // Only ever reached with the detail switch on, which is the only state an
-    // unestimated slice has a bar to say anything about itself in.
+    // Unestimated bars expose this accessible description in both detail states.
     //
     // Proof: this line deleted, so the width nobody gave was stated nowhere but
     // in the paint. `draws no mark for a slice nobody estimated until the detail

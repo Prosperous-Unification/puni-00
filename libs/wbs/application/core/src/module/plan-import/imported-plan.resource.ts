@@ -1,4 +1,4 @@
-import type { PriorityBand } from '@wbs/domain';
+import type { PriorityBand, StoredStepBlockage } from '@wbs/domain';
 
 import type { CalendarMarker } from '../../ports/calendar-marker-store';
 import type { ResourceAccess } from '../../ports/organization-access';
@@ -165,6 +165,14 @@ export class ImportedPlanResource {
   async setTimezone(projectId: string, timezone: string, stamp: WriteStamp): Promise<void> {
     if (!(await this.#scope.stores.projects.setTimezone(projectId, timezone, stamp)))
       throw new Error(`created project refused its timezone: ${projectId}`);
+  }
+
+  /** Restores an exact imported fact within the admitted unit of work; refuses a lost step. */
+  async restoreBlockage(fact: StoredStepBlockage, stamp: WriteStamp): Promise<void> {
+    const written = await this.#scope.stores.blockages.set(fact, stamp);
+    // Proof: bypassing refusal resolved `rolls back direct blockage import after refused`, leaking the import (2026-10-14).
+    if (written !== 'written')
+      throw new Error(`created project refused its blockage: ${fact.workItemId}/${fact.stepId}`);
   }
 
   /** Writes one attempt verbatim under its own number onto a created leaf. */

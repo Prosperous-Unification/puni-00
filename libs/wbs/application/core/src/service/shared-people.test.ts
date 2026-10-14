@@ -84,6 +84,7 @@ function plan(
     actuals: [],
     progress: [],
     measures: [],
+    stepBlockages: [],
     capacity: new Map(),
     priorityBands: [],
     people: people.map((id) => ({ id, name: id, teamIds: [] })),

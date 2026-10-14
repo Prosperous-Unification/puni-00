@@ -534,7 +534,9 @@ export function sidewaysPlacement(
  * One more thing is measured rather than fixed: {@link HoverCardProps.scrolls}
  * — a card holding a document is as tall as the room its side of the cell has
  * ({@link SidewaysPlacement.maxHeight}), because below the cell is not where the
- * room is for a row in the lower half of the table.
+ * room is for a row in the lower half of the table. The scrollbox is capped
+ * after the whole row’s diagonal clearance, keeping its bottom or top inside
+ * the clipping frame.
  */
 export function HoverCard({
   label,
@@ -666,7 +668,16 @@ export function HoverCard({
       bottom: Math.min(window.innerHeight, port?.bottom ?? window.innerHeight),
     };
     const placement = sidewaysPlacement(cell, box, frame);
-    setSideways(placement);
+    const row = wrapper.closest('tr')?.getBoundingClientRect();
+    const roomPastRow =
+      placement.align === 'top'
+        ? frame.bottom - (row?.bottom ?? cell.bottom)
+        : (row?.top ?? cell.top) - frame.top;
+    // Proof: retaining the wrapper-only ceiling made the preview `whole blocked step card` bottom 484.9375px exceed its 459.75px frame (2026-10-14).
+    setSideways({
+      ...placement,
+      maxHeight: Math.max(0, Math.min(placement.maxHeight, roomPastRow)),
+    });
     setRoomBeside(
       (placement.side === 'right' ? frame.right - cell.right : cell.left - frame.left) -
         ANCHOR_GAP_PX,
@@ -674,7 +685,6 @@ export function HoverCard({
     // How far the card has to hang to clear the **row** it belongs to, measured
     // from the wrapper it is positioned in: `100%` is that wrapper, and a
     // wrapper is a line box inside a row rather than the row itself.
-    const row = wrapper.closest('tr')?.getBoundingClientRect();
     setPastTheRow(
       row === undefined ? null : { below: row.bottom - cell.top, above: cell.bottom - row.top },
     );

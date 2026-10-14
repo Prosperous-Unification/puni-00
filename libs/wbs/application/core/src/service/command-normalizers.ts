@@ -779,6 +779,16 @@ export const commandNormalizers = {
     ...normalizeStepAddress(raw),
     state: parseProgress(raw),
   }),
+  setStepBlocked: (raw: CommandInput<'setStepBlocked'>) => {
+    // Proof: removing flag check accepted missing/nonboolean intent in the normalizer negative; watched 2026-10-14.
+    if (typeof raw.isBlocked !== 'boolean')
+      throw new CommandNormalizationError('isBlocked_must_be_true_or_false');
+    return {
+      kind: 'setStepBlocked' as const,
+      ...normalizeStepAddress(raw),
+      isBlocked: raw.isBlocked,
+    };
+  },
   clearProgress: (raw: CommandInput<'clearProgress'>) => ({
     kind: 'clearProgress' as const,
     ...normalizeStepAddress(raw),

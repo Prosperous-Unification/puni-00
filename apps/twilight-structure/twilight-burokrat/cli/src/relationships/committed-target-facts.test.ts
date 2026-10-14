@@ -79,6 +79,8 @@ describe('current nx-target facts in the committed relationship declarations', (
       // `env` lines the extractor does not read (`Expected - 0, Received + 4`). The same fault
       // had passed a comparison against Nx's own resolution and then failed the host gate in
       // pilot-policy.test.ts (2026-09-20).
+      // Proof (2026-10-14): omitting Navigator's source glob from check.wiki-cli.test failed
+      // both declaration comparisons on the missing input, matching the production pilot refusal.
       for (const fact of facts) {
         const live = targets.find(
           (target) => target.project === fact.project && target.target === fact.target,

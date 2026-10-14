@@ -162,6 +162,13 @@ test.describe('the project settings control, in a browser', () => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await freshProject(page);
 
+    // Export / Import joins the toolbar only after its initial plan read;
+    // Add work item is already visible while that read is pending.
+    // Proof: delaying the initial work-items GET by 2s made this budget case
+    // fail without this wait (16 controls required, 15 received); with it the
+    // same delayed read passed. Watched in Chromium on 2026-10-14.
+    await expect(page.locator('[data-toolbar] [data-export]')).toBeVisible();
+
     // Precondition first, so the budget below cannot be met by a bar that
     // simply lost its controls: the one control is there and the three are not.
     await expect(page.getByRole('button', { name: 'Project settings' })).toBeVisible();

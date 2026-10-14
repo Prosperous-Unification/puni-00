@@ -1,77 +1,21 @@
-import { type CapacityMode, SUPPORTED_CAPACITY_MODES } from '@wbs/domain';
+import { SUPPORTED_CAPACITY_MODES } from '@wbs/domain';
 import { asc, eq, sql } from 'drizzle-orm';
 
 import { auditOnUpdate } from './audit';
 import { type Drizzle, openReadOnlyConnection } from './db';
+import { restoreProjectRanks, saveProjectRanks } from './project-rank-rollback';
 import {
-  readSavedProjectRanks,
-  restoreProjectRanks,
-  type SavedProjectRank,
-  saveProjectRanks,
-} from './project-rank-rollback';
-import { organization, projectRank, sharedPeopleAudit } from './schema';
+  organization,
+  projectRank,
+  sharedPeopleAudit,
+  sharedPeopleRestoreApproval,
+  sharedPeopleRestoreOperation,
+} from './schema';
+import { readSharedPeopleBackup, type SavedSharedPeople } from './shared-people-backup';
 import { decodeSharedPeople } from './shared-people-mode';
+export type { SavedSharedPeople } from './shared-people-backup';
 
 type Reader = Pick<Drizzle, 'select'>;
-interface SavedOrganizationMode {
-  readonly organizationId: string;
-  readonly mode: CapacityMode;
-}
-
-/** Complete versioned mode/rank state; isolated organizations are included so stale backups cannot erase changes. */
-export interface SavedSharedPeople {
-  readonly format: 'shared-people-save';
-  readonly version: 1;
-  readonly organizations: readonly SavedOrganizationMode[];
-  readonly ranks: readonly SavedProjectRank[];
-}
-
-const compareIds = (left: string, right: string) => (left < right ? -1 : left > right ? 1 : 0);
-function invalid(): never {
-  throw new Error('invalid shared people save');
-}
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-/** Validates the complete external backup once, retaining its deterministic canonical field order. */
-function readSaved(saved: unknown): SavedSharedPeople {
-  // Proof: accepting version 2 fails the malformed-backup production remove/restore test.
-  if (
-    !isRecord(saved) ||
-    Object.keys(saved).length !== 4 ||
-    saved['format'] !== 'shared-people-save' ||
-    saved['version'] !== 1 ||
-    !Array.isArray(saved['organizations'])
-  )
-    invalid();
-  const organizations: SavedOrganizationMode[] = saved['organizations']
-    .map((candidate: unknown): SavedOrganizationMode => {
-      // Proof: accepting an invalid semantic mode fails the malformed-backup test.
-      if (
-        !isRecord(candidate) ||
-        Object.keys(candidate).length !== 2 ||
-        typeof candidate['organizationId'] !== 'string' ||
-        candidate['organizationId'] === '' ||
-        (candidate['mode'] !== 'isolated' && candidate['mode'] !== 'shared')
-      )
-        invalid();
-      return { organizationId: candidate['organizationId'], mode: candidate['mode'] };
-    })
-    .sort((left, right) => compareIds(left.organizationId, right.organizationId));
-  const ranks = readSavedProjectRanks({
-    format: 'project-rank-save',
-    version: 1,
-    ranks: saved['ranks'],
-  }).ranks.sort((left, right) => compareIds(left.projectId, right.projectId));
-  // Proof: independently bypassing either uniqueness clause fails its duplicate-backup refusal.
-  if (
-    new Set(organizations.map((each) => each.organizationId)).size !== organizations.length ||
-    new Set(ranks.map((each) => each.projectId)).size !== ranks.length
-  )
-    invalid();
-  return { format: 'shared-people-save', version: 1, organizations, ranks };
-}
 
 function currentState(db: Reader): SavedSharedPeople {
   const organizations = db
@@ -108,12 +52,12 @@ export function saveSharedPeople(dbPath: string): SavedSharedPeople {
  * Clears both facts atomically only when the complete backup still matches; stale input throws before writes.
  * Partial organization updates stamp the supplied instant; all audit fields roll back on failure.
  *
- * @throws once any capacity-mode switch is recorded in `shared_people_audit`: that table's rollback
- * refuses then, so the migrate-down this prepares is closed and clearing the modes would only lose
- * them (docs/runbook-prod-deploy.md#shared-people-rollback).
+ * @throws once any capacity-mode switch, restore operation or restore approval is recorded:
+ * their schema rollback refuses then, so the migrate-down this prepares is closed and clearing
+ * modes or ranks would only lose them (docs/runbook-prod-deploy.md#shared-people-rollback).
  */
 export function removeSharedPeople(db: Drizzle, backup: unknown, at: number) {
-  const saved = readSaved(backup);
+  const saved = readSharedPeopleBackup(backup);
   // Proof: removing this transaction leaves partial state after the late remove-write failure.
   return db.transaction(
     (tx) => {
@@ -127,6 +71,22 @@ export function removeSharedPeople(db: Drizzle, backup: unknown, at: number) {
       if (switches.length > 0)
         throw new Error(
           'shared people switches are recorded: the schema rollback is closed; see docs/runbook-prod-deploy.md#shared-people-rollback',
+        );
+      const operations = tx
+        .select({ id: sharedPeopleRestoreOperation.id })
+        .from(sharedPeopleRestoreOperation)
+        .limit(1)
+        .all();
+      const approvals = tx
+        .select({ id: sharedPeopleRestoreApproval.id })
+        .from(sharedPeopleRestoreApproval)
+        .limit(1)
+        .all();
+      // Proof: bypassing this guard failed both issued-approval=false/true recovery-state negatives:
+      // the isolated rank vanished and organization updated_at changed before down.sql refused.
+      if (operations.length > 0 || approvals.length > 0)
+        throw new Error(
+          'shared people restore evidence is recorded: the schema rollback is closed; see docs/runbook-prod-deploy.md#shared-people-rollback',
         );
       const current = currentState(tx);
       // Proof: bypassing equality makes each stale mode/rank/organization test mutate state.
@@ -151,16 +111,20 @@ export function removeSharedPeople(db: Drizzle, backup: unknown, at: number) {
 
 /**
  * Restores into isolated, unranked existing saved organizations; extra isolated organizations
- * stay untouched. Release capability is checked before any mutation; SQLite encoding alone
- * never grants shared runtime support.
+ * stay untouched. Shared input always refuses here, regardless of release capability: only
+ * the audited restore owner can consume personal approvals. Capability is checked before mutation.
  * Partial organization updates are stamped at the supplied instant; rank audit fields stay historical.
  * Rank ownership/authors are checked by the existing rank recovery within this immediate transaction.
  */
 export function restoreSharedPeople(db: Drizzle, backup: unknown, at: number) {
-  const saved = readSaved(backup);
+  const saved = readSharedPeopleBackup(backup);
   for (const each of saved.organizations) {
     const mode = each.mode;
-    // Proof: bypassing capability validation reaches the injected first-write trap for shared restoration.
+    // Proof: bypassing this guard restored shared mode with test-supported capability through the legacy path.
+    if (mode === 'shared')
+      throw new Error(
+        'unsupported capacity mode shared; legacy restore cannot consume personal approvals',
+      );
     if (!SUPPORTED_CAPACITY_MODES.includes(mode))
       throw new Error(`unsupported capacity mode ${mode}; restore requires a compatible release`);
   }

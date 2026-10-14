@@ -16,6 +16,7 @@ import { pathToFileURL } from 'node:url';
 import { afterAll, expect, test } from 'bun:test';
 
 import {
+  AuthorityContentionError,
   AuthorityOpenError,
   type AuthorityOpenFailure,
   bootstrapAuthority,
@@ -123,7 +124,7 @@ test('bootstrap refuses an existing authority', () => {
 });
 
 const BOOTSTRAP_WORKER = `
-const [{ AuthorityOpenError, bootstrapAuthority }] = await Promise.all([import(process.argv[2])]);
+const [{ AuthorityContentionError, AuthorityOpenError, bootstrapAuthority }] = await Promise.all([import(process.argv[2])]);
 const [repository, readyPath, startPath] = process.argv.slice(3);
 await Bun.write(readyPath, 'ready');
 while (!(await Bun.file(startPath).exists())) Bun.sleepSync(1);
@@ -131,11 +132,13 @@ try {
   bootstrapAuthority(repository, { clock: { read: () => 1_000_000 }, busyDelayMilliseconds: 5 }).close();
   console.log('bootstrapped');
 } catch (error) {
-  console.log(error instanceof AuthorityOpenError ? error.failure : String(error));
+  if (error instanceof AuthorityContentionError) console.log('contention');
+  else if (error instanceof AuthorityOpenError) console.log(error.failure);
+  else throw error;
 }
 `;
 
-test('two bootstraps yield one creator and one exists refusal', async () => {
+test('two bootstraps yield one creator and settle typed contention to exists', async () => {
   const storeModule = pathToFileURL(join(import.meta.dir, 'authority-store.ts')).href;
   for (let round = 0; round < 8; round += 1) {
     const root = repository();
@@ -165,12 +168,42 @@ test('two bootstraps yield one creator and one exists refusal', async () => {
         return stdout.trim();
       }),
     );
-    expect(outcomes.sort()).toEqual(['bootstrapped', 'exists']);
+    expect(outcomes.filter((outcome) => outcome === 'bootstrapped')).toHaveLength(1);
+    for (const outcome of outcomes) {
+      expect(['bootstrapped', 'exists', 'contention']).toContain(outcome);
+      if (outcome === 'contention') {
+        // Both original workers have exited: one fresh attempt must now see the creator's store.
+        expect(failureOf(() => bootstrapAuthority(root, { clock: FIXED_CLOCK })).failure).toBe(
+          'exists',
+        );
+      }
+    }
     const store = openAuthority(root, { clock: FIXED_CLOCK });
     expect(store.inspect()).toEqual({ generations: [], integrations: [], nextGeneration: 1 });
     store.close();
   }
 }, 60_000);
+
+test('an initializer exceeding the budget refuses with typed contention and settles after release', () => {
+  const root = repository();
+  const databasePath = resolveAuthorityDatabasePath(root);
+  mkdirSync(join(databasePath, '..'));
+  const initializerPath = `${databasePath}.initializing`;
+  mkdirSync(initializerPath);
+  const options = { clock: FIXED_CLOCK, maxBusyAttempts: 1, busyDelayMilliseconds: 0 };
+  try {
+    expect(() => bootstrapAuthority(root, options)).toThrow(AuthorityContentionError);
+    expect(() => openAuthority(root, options)).toThrow(AuthorityContentionError);
+    expect(existsSync(databasePath)).toBe(false);
+    expect(existsSync(initializerPath)).toBe(true);
+  } finally {
+    rmSync(initializerPath, { recursive: true });
+  }
+  bootstrapAuthority(root, options).close();
+  // Proof: removing the production under-lock exists refusal made this settlement receive
+  // `corrupt` instead of `exists` (2026-10-14).
+  expect(failureOf(() => bootstrapAuthority(root, options)).failure).toBe('exists');
+});
 
 test('open creates no directory', () => {
   const root = repository();

@@ -6,6 +6,7 @@ import type { MembershipRefusal } from './organization-access';
 import type { Project } from './project-values';
 import type { PlanInputReads } from './saved-plan-capture-values';
 import type { EngineUnavailable, ScheduleRead } from './scheduler';
+import type { StoredStepBlockage } from './step-blockage-store';
 import type { StoredAttempt } from './step-node-attempt-store';
 import type { Step } from './step-store';
 import type { LabelledWorkItem } from './work-item-values';
@@ -83,6 +84,7 @@ export type LivePlanRead =
        * live metadata the work-item read carries and no saved plan captures.
        */
       readonly attempts: readonly StoredAttempt[];
+      readonly blockages: readonly StoredStepBlockage[];
       readonly seq: number;
     };
 

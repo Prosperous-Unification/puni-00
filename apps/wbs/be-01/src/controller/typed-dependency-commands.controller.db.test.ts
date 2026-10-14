@@ -12,6 +12,7 @@ import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
 import { AuthService } from '@wbs/core/service/auth.service';
 import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
 import { type DependencyEndpoint, sliceKey } from '@wbs/domain';
+import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, expect, it } from 'bun:test';
@@ -54,6 +55,7 @@ import {
   refusingDomains,
   refusingEnterpriseConnections,
   refusingMemberships,
+  refusingRestoreApprovals,
 } from '../testing/organization-access-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
 import { refusingProjectRanks } from '../testing/project-rank-fixture';
@@ -135,6 +137,7 @@ beforeEach(() => {
       measures: new StepMeasureRepository(db, OPEN),
       progress: new StepProgressRepository(db, OPEN),
       attempts: new StepNodeAttemptRepository(db, OPEN),
+      blockages: new StepBlockageRepository(db, OPEN),
       dependencies,
       typedDependencies: typed,
       directory,
@@ -153,6 +156,7 @@ beforeEach(() => {
     savedPlans: testSavedPlanService(),
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
+    sharedPeopleRestoreApprovals: refusingRestoreApprovals,
     domains: refusingDomains,
     enterpriseConnections: refusingEnterpriseConnections,
     emailVerification: refusingEmailVerification,
@@ -192,6 +196,7 @@ beforeEach(() => {
           measures: scope.stores.measures,
           progress: scope.stores.progress,
           attempts: scope.stores.attempts,
+          blockages: scope.stores.blockages,
           dependencies: scope.stores.dependencies,
           typedDependencies: scope.stores.typedDependencies,
           directory: scope.stores.directory,

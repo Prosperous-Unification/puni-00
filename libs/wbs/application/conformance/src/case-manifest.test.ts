@@ -58,7 +58,9 @@ describe('the closed case manifest', () => {
     }).toThrow('duplicate registered cases');
   });
 
-  it('contains the twenty-three source families and exact history mechanisms', () => {
+  it('contains the complete source families and exact history mechanisms', () => {
+    // Proof (2026-10-14): deleting the production blockage family failed this inventory;
+    // replacing its case ID with blockages.set:broken failed the exact case assertion below.
     expect(Object.keys(CASE_MANIFEST)).toEqual([
       'livePlans',
       'projects',
@@ -77,6 +79,7 @@ describe('the closed case manifest', () => {
       'measures',
       'progress',
       'attempts',
+      'blockages',
       'dependencies',
       'typedDependencies',
       'subtrees',
@@ -84,6 +87,7 @@ describe('the closed case manifest', () => {
       'savedPlans',
       'savedPlanCapture',
     ]);
+    expect(CASE_MANIFEST.blockages).toEqual(['blockages.set:read-remove']);
     expect(SUPPLEMENTAL_CASE_MANIFEST).toEqual({
       common: ['history.batch:independent-commit', 'history.batch:independent-rollback'],
       immediateBusy: ['history.batch:busy-does-not-wait'],

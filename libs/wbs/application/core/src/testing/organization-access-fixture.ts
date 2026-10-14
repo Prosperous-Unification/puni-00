@@ -2,6 +2,7 @@ import type { DomainChallenges } from '../ports/domain-challenges';
 import type { EnterpriseConnections } from '../ports/enterprise-connections';
 import type { MembershipAdministration } from '../ports/membership-administration';
 import type { OrganizationAccess } from '../ports/organization-access';
+import type { SharedPeopleRestoreApprovals } from '../ports/shared-people-restore-approvals';
 
 /**
  * Pre-activation access for suites that are not about organizations: every
@@ -69,4 +70,9 @@ export const refusingEnterpriseConnections: EnterpriseConnections = {
     Promise.reject(new Error('an enterprise subject was resolved in a suite not about SSO')),
   linkThroughConnection: () =>
     Promise.reject(new Error('a link was routed through a connection in a suite not about SSO')),
+};
+
+/** A fixture without durable restore authority explicitly refuses approval issuance. */
+export const refusingRestoreApprovals: SharedPeopleRestoreApprovals = {
+  approve: () => Promise.resolve({ ok: false, refusal: 'forbidden' }),
 };

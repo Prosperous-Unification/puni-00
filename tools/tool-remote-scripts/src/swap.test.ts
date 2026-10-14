@@ -3,6 +3,7 @@ import { chmodSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { scratchSync } from '@tools/test-scratch';
+import { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { assembleCaddyfile } from './lib/caddy';
@@ -13,12 +14,16 @@ import {
   holdKindsCommand,
   readinessKindsCommand,
   relationshipTypesCommand,
+  stepBlockageKindsCommand,
+  stepBlockageReplayKindsCommand,
   storedAttemptOutcomesCommand,
   storedCapacityModesCommand,
   storedEstimateUnitsCommand,
   storedHoldsCommand,
   storedReadinessesCommand,
   storedRelationshipTypesCommand,
+  storedStepBlockageReplayKindsCommand,
+  storedStepBlockagesCommand,
 } from './lib/docker';
 import { drain } from './lib/drain';
 import { type EnvLayout, envLayout } from './lib/env';
@@ -63,11 +68,33 @@ async function failureMessage(operation: Promise<unknown>): Promise<string> {
   }
 }
 
-function withCapturedMigrationIo(io: SwapExecutionIo): SwapExecutionIo {
+function withCapturedMigrationIo(
+  io: SwapExecutionIo,
+  blockages: { supported: string; stored: (read: number) => string } = {
+    supported: '["blocked"]',
+    stored: () => '[]',
+  },
+  replay: { supported: string; stored: (read: number) => string } = {
+    supported: '["replace_blockage"]',
+    stored: () => '[]',
+  },
+): SwapExecutionIo {
+  let blockageReads = 0;
+  let replayReads = 0;
   const captures = new Map<string, string>();
   return {
     ...io,
     sh: async (args) => {
+      if (JSON.stringify(args) === JSON.stringify(stepBlockageKindsCommand('be-01-green')))
+        return blockages.supported;
+      if (JSON.stringify(args) === JSON.stringify(storedStepBlockagesCommand('be-01-green')))
+        return blockages.stored(++blockageReads);
+      if (JSON.stringify(args) === JSON.stringify(stepBlockageReplayKindsCommand('be-01-green')))
+        return replay.supported;
+      if (
+        JSON.stringify(args) === JSON.stringify(storedStepBlockageReplayKindsCommand('be-01-green'))
+      )
+        return replay.stored(++replayReads);
       if (args[0] === 'exec' && args[2] === 'printenv' && args[3] === 'DB_PATH') {
         return '/data/wbs.db\n';
       }
@@ -957,6 +984,16 @@ describe('execute, stored vocabulary rollback guard', () => {
       supported: '["workdays","minutes"]',
       stored: () => '[]',
     },
+    blockages: { supported: string; stored: (read: number) => string } = {
+      supported: '["blocked"]',
+      stored: () => '[]',
+    },
+    afterStop = false,
+    replay: { supported: string; stored: (read: number) => string } = {
+      supported: '["replace_blockage"]',
+      stored: () => '[]',
+    },
+    commit = false,
   ) {
     const ran: string[][] = [];
     const phases: string[] = [];
@@ -1020,16 +1057,336 @@ describe('execute, stored vocabulary rollback guard', () => {
     let caught: unknown;
     try {
       await execute(
-        { tier: 'be', from: 'blue', to: 'green', steps: ['stored-vocabularies', 'migrate'] },
+        {
+          tier: 'be',
+          from: 'blue',
+          to: 'green',
+          steps: afterStop
+            ? [
+                'stored-vocabularies',
+                'migrate',
+                'stop-blue',
+                'stored-vocabularies-after-stop',
+                ...(commit ? ['commit' as const] : []),
+              ]
+            : ['stored-vocabularies', 'migrate'],
+        },
         'registry/be-01@sha256:abc',
         'deadbeef',
-        withCapturedMigrationIo(io),
+        withCapturedMigrationIo(io, blockages, replay),
       );
     } catch (error) {
       caught = error;
     }
     return { ran, phases, caught };
   }
+
+  it('refuses an image without step blockage support before migration', async () => {
+    const attempt = await runGuard(
+      '["FS"]',
+      '[]',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { supported: '[]', stored: () => '[{"kind":"blocked","count":2}]' },
+    );
+    expect(attempt.caught).toHaveProperty(
+      'message',
+      expect.stringMatching(/blocked \(2\).*step-blockage-rollback-cli.ts/is),
+    );
+    expect(attempt.ran.some((args) => args.includes('src/migrate-cli.ts'))).toBe(false);
+    expect(attempt.ran.at(-1)).toEqual(['stop', 'be-01-green']);
+  });
+
+  it('allows an older image over no step blockage and checks inventory', async () => {
+    let reads = 0;
+    const attempt = await runGuard(
+      '["FS"]',
+      '[]',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      {
+        supported: '[]',
+        stored: () => {
+          reads++;
+          return '[]';
+        },
+      },
+    );
+    expect(attempt.caught).toBeUndefined();
+    expect(reads).toBe(1);
+  });
+
+  it.each(['[]', '["replace_blockage"]'])(
+    'refuses an image with capabilities %s before migration over guarded move history',
+    async (supported) => {
+      const attempt = await runGuard(
+        '["FS"]',
+        '[]',
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        { supported: '[]', stored: () => '[]' },
+        false,
+        { supported, stored: () => '[{"kind":"move_progress_v1","count":1}]' },
+      );
+      expect(attempt.caught).toHaveProperty(
+        'message',
+        expect.stringContaining('move_progress_v1 (1)'),
+      );
+      expect(attempt.ran.some((args) => args.includes('src/migrate-cli.ts'))).toBe(false);
+      expect(attempt.ran).toContainEqual(['stop', 'be-01-green']);
+      expect(attempt.ran).not.toContainEqual(['stop', 'be-01-blue']);
+    },
+  );
+
+  it.each(['before', 'after'] as const)(
+    'refuses deletion replay capability at %s writer stop',
+    async (phase) => {
+      let inventories = 0;
+      const attempt = await runGuard(
+        '["FS"]',
+        '[]',
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        { supported: '[]', stored: () => '[]' },
+        phase === 'after',
+        {
+          supported: '["replace_blockage","move_progress_v1"]',
+          stored: () => {
+            inventories++;
+            return phase === 'after' && inventories === 1
+              ? '[]'
+              : '[{"kind":"delete_state_v1","count":1}]';
+          },
+        },
+        true,
+      );
+      expect(attempt.caught).toHaveProperty(
+        'message',
+        expect.stringContaining('delete_state_v1 (1)'),
+      );
+      if (phase === 'before') expect(attempt.ran).toContainEqual(['stop', 'be-01-green']);
+      expect(attempt.ran.some((args) => args.includes('src/migrate-cli.ts'))).toBe(
+        phase === 'after',
+      );
+      if (phase === 'after') expect(attempt.ran).toContainEqual(['stop', 'be-01-blue']);
+      if (phase === 'after') expect(attempt.phases).not.toContain('committed');
+    },
+  );
+
+  it('admits deletion history with the matching capability', async () => {
+    const attempt = await runGuard(
+      '["FS"]',
+      '[]',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { supported: '[]', stored: () => '[]' },
+      false,
+      {
+        supported: '["replace_blockage","move_progress_v1","delete_state_v1"]',
+        stored: () => '[{"kind":"delete_state_v1","count":1}]',
+      },
+    );
+    expect(attempt.caught).toBeUndefined();
+  });
+
+  it('admits guarded move history only with the matching capability', async () => {
+    const attempt = await runGuard(
+      '["FS"]',
+      '[]',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { supported: '[]', stored: () => '[]' },
+      false,
+      {
+        supported: '["replace_blockage","move_progress_v1"]',
+        stored: () => '[{"kind":"move_progress_v1","count":1}]',
+      },
+    );
+    expect(attempt.caught).toBeUndefined();
+  });
+
+  it.each(['[]', '["replace_blockage"]'])(
+    'refuses guarded move history added after first check for capabilities %s',
+    async (supported) => {
+      const directory = scratchSync('wbs-move-replay-after-stop-');
+      const path = join(directory, 'plan.db');
+      const db = new Database(path);
+      try {
+        db.run(
+          'CREATE TABLE command_journal (payload text NOT NULL,inverse text NOT NULL,preconditions text NOT NULL)',
+        );
+        const inventory = async () => {
+          const probe = Bun.spawn(storedStepBlockageReplayKindsCommand('green').slice(2), {
+            env: { ...process.env, DB_PATH: path },
+            stdout: 'pipe',
+            stderr: 'pipe',
+          });
+          expect(await probe.exited).toBe(0);
+          return new Response(probe.stdout).text();
+        };
+        const before = await inventory();
+        db.run('INSERT INTO command_journal VALUES (?,?,?)', [
+          JSON.stringify({ forward: { do: 'patch' } }),
+          JSON.stringify({
+            do: 'batch',
+            steps: [{ do: 'batch', steps: [{ do: 'move', expectedProgress: [] }] }],
+          }),
+          JSON.stringify({ moveProgress: { destination: [] } }),
+        ]);
+        const after = await inventory();
+        expect(JSON.parse(after)).toEqual([{ kind: 'move_progress_v1', count: 1 }]);
+        let reads = 0;
+        const attempt = await runGuard(
+          '["FS"]',
+          '[]',
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          { supported: '[]', stored: () => '[]' },
+          true,
+          { supported, stored: () => (++reads === 1 ? before : after) },
+          true,
+        );
+        expect(attempt.caught).toHaveProperty(
+          'message',
+          expect.stringContaining('move_progress_v1 (1)'),
+        );
+        expect(reads).toBe(2);
+        expect(attempt.ran).toContainEqual(['stop', 'be-01-blue']);
+        expect(attempt.ran.some((args) => args.includes('src/migrate-cli.ts'))).toBe(true);
+        expect(attempt.phases).not.toContain('committed');
+      } finally {
+        db.close();
+        rmSync(directory, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it('refuses an older image over blockage replay history even when the fact table is empty', async () => {
+    const attempt = await runGuard(
+      '["FS"]',
+      '[]',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { supported: '[]', stored: () => '[]' },
+      false,
+      { supported: '[]', stored: () => '[{"kind":"replace_blockage","count":2}]' },
+    );
+    // Proof: removing the journal vocabulary let this empty-fact swap reach migration.
+    expect(attempt.caught).toHaveProperty(
+      'message',
+      expect.stringMatching(/replace_blockage \(2\)/),
+    );
+    expect(attempt.ran.some((args) => args.includes('src/migrate-cli.ts'))).toBe(false);
+  });
+
+  it('refuses nested replay history added after the first check with no blockage facts', async () => {
+    const directory = scratchSync('wbs-replay-after-stop-');
+    const path = join(directory, 'plan.db');
+    const db = new Database(path);
+    try {
+      db.run(
+        "CREATE TABLE command_journal (payload text NOT NULL,inverse text NOT NULL,preconditions text NOT NULL DEFAULT '{}')",
+      );
+      const inventory = async () => {
+        const child = Bun.spawn(storedStepBlockageReplayKindsCommand('green').slice(2), {
+          env: { ...process.env, DB_PATH: path },
+          stdout: 'pipe',
+          stderr: 'pipe',
+        });
+        expect(await child.exited).toBe(0);
+        return new Response(child.stdout).text();
+      };
+      const before = await inventory();
+      const replace = { do: 'replace_blockage' };
+      db.run('INSERT INTO command_journal (payload,inverse) VALUES (?,?)', [
+        JSON.stringify({ forward: { do: 'batch', steps: [{ do: 'batch', steps: [replace] }] } }),
+        JSON.stringify({ do: 'batch', steps: [replace] }),
+      ]);
+      const after = await inventory();
+      expect(before).toBe('[]\n');
+      expect(JSON.parse(after)).toEqual([{ kind: 'replace_blockage', count: 2 }]);
+      let replayReads = 0;
+      let factReads = 0;
+      const attempt = await runGuard(
+        '["FS"]',
+        '[]',
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        {
+          supported: '[]',
+          stored: () => {
+            factReads++;
+            return '[]';
+          },
+        },
+        true,
+        { supported: '[]', stored: () => (++replayReads === 1 ? before : after) },
+        true,
+      );
+      // Proof: omitting the second replay guard admits nested history added before blue stops.
+      expect(attempt.caught).toHaveProperty(
+        'message',
+        expect.stringContaining('replace_blockage (2)'),
+      );
+      expect(replayReads).toBe(2);
+      expect(factReads).toBe(2);
+      expect(attempt.ran.some((args) => args.includes('src/migrate-cli.ts'))).toBe(true);
+      expect(attempt.ran).toContainEqual(['stop', 'be-01-blue']);
+      expect(attempt.phases).toContain('old-stopped');
+      expect(attempt.phases).not.toContain('committed');
+    } finally {
+      db.close();
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses a step blockage written after the first check once blue stops', async () => {
+    let reads = 0;
+    const attempt = await runGuard(
+      '["FS"]',
+      '[]',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { supported: '[]', stored: () => (++reads === 1 ? '[]' : '[{"kind":"blocked","count":1}]') },
+      true,
+    );
+    expect(attempt.caught).toHaveProperty(
+      'message',
+      expect.stringContaining('step-blockage-rollback-cli.ts'),
+    );
+    expect(reads).toBe(2);
+    expect(attempt.phases).toContain('old-stopped');
+  });
 
   it('refuses FS-only code with stored FF before migration and stops green', async () => {
     const attempt = await runGuard('["FS"]', '[{"type":"FF","count":2}]');

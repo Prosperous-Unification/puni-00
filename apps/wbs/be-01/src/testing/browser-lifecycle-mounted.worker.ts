@@ -10,6 +10,7 @@ import { createLogger } from '@wbs/observability';
 import {
   type BrowserAuthLifecycle,
   OrganizationRepository,
+  SharedPeopleRestoreApprovalRepository,
   SqliteBrowserAuthLifecycle,
   SqliteBrowserCredentialRevocations,
   SqliteOrganizationAccess,
@@ -203,6 +204,7 @@ const app = buildApp(
       oidcCredentialEvidence(verifier, oidc),
     ),
     memberships: new OrganizationRepository(db, OPEN),
+    sharedPeopleRestoreApprovals: new SharedPeopleRestoreApprovalRepository(db, OPEN),
     domains: refusingDomains,
     enterpriseConnections: refusingEnterpriseConnections,
     emailVerification: refusingEmailVerification,

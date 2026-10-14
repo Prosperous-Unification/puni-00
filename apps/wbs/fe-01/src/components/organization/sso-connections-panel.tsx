@@ -3,6 +3,7 @@ import {
   createSsoConnection,
   listOrganizationDomains,
   listSsoConnections,
+  updateSsoConnection,
 } from '@wbs/contracts';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -31,7 +32,12 @@ import {
   STATUS_CLASS,
 } from './organization-section';
 
-const SSO_SHAPES = [listSsoConnections, listOrganizationDomains, createSsoConnection] as const;
+const SSO_SHAPES = [
+  listSsoConnections,
+  listOrganizationDomains,
+  createSsoConnection,
+  updateSsoConnection,
+] as const;
 type Connection = Extract<
   ClientReply<typeof listSsoConnections>,
   { kind: 'success' }
@@ -58,6 +64,8 @@ export function SsoConnectionsPanel({
 }): React.JSX.Element {
   // Proof: an unscoped client failed the captured-header, runtime-refusal and
   // late-row SSO tests; reads and create now share the owning runtime's scope.
+  // Proof: replacing this with a stable global client failed the enforcement
+  // selected-row test: PATCH lost X-WBS-Expected-Organization (2026-10-13).
   const settings = useResourceClient(SSO_SHAPES);
   const [view, setView] = useState<View>({ kind: 'loading' });
   const [domainClaimId, setDomainClaimId] = useState('');
@@ -70,15 +78,26 @@ export function SsoConnectionsPanel({
   const [sending, setSending] = useState(false);
   const [proving, setProving] = useState(false);
   const [message, setMessage] = useState('');
+  const [lockout, setLockout] = useState<{ slug: string; domain: string } | null>(null);
   const [fault, setFault] = useState<Error | null>(null);
+  const readPending = useRef(false);
+  const readGeneration = useRef(0);
+  const lifetimeGeneration = useRef(0);
 
   const refresh = useCallback(async () => {
+    const read = ++readGeneration.current;
+    const lifetime = lifetimeGeneration.current;
+    readPending.current = true;
     setView({ kind: 'loading' });
     setProof(null);
     const [connections, domains] = await Promise.all([
       settings['getApiOrganizationSso-connections']({}),
       settings.getApiOrganizationDomains({}),
     ]);
+    // Proof: a held first StrictMode GET overwrote a successful PATCH until
+    // cleanup and mutation admission invalidated its panel-local read generation.
+    if (read !== readGeneration.current || lifetime !== lifetimeGeneration.current) return;
+    readPending.current = false;
     // Read both replies before rendering rows: either route can revoke access.
     // Proof: 2026-10-13, omitting onAccessLost failed all five
     // `hands read authority loss` production cases.
@@ -117,9 +136,19 @@ export function SsoConnectionsPanel({
   }, [settings, onAccessLost]);
 
   useEffect(() => {
+    const lifetime = ++lifetimeGeneration.current;
+    const reads = readGeneration;
+    const mountedLifetime = lifetimeGeneration;
     void refresh().catch((cause: unknown) => {
-      setFault(new Error('Unexpected company sign-in read failure', { cause }));
+      if (lifetime === lifetimeGeneration.current)
+        setFault(new Error('Unexpected company sign-in read failure', { cause }));
     });
+    return () => {
+      // Proof: removing cleanup invalidation made a held GET refusal call
+      // onAccessLost after unmount (2026-10-13).
+      ++reads.current;
+      ++mountedLifetime.current;
+    };
   }, [refresh]);
   if (fault !== null) throw fault;
 
@@ -140,7 +169,7 @@ export function SsoConnectionsPanel({
     // Proof: 2026-10-13, removing pending admission failed `blocks repeated
     // submissions while create is held` with two production requests. Removing
     // proof admission also failed the held-proof test with an extra create request.
-    if (pending.current || proofPending.current) return;
+    if (pending.current || proofPending.current || readPending.current) return;
     // Proof: 2026-10-13, removing eligibility admission failed `refuses a
     // forged unused-domain selection before posting` with a production POST.
     if (!eligible.some((claim) => claim.id === domainClaimId)) {
@@ -148,6 +177,8 @@ export function SsoConnectionsPanel({
       return;
     }
     pending.current = true;
+    ++readGeneration.current;
+    const lifetime = lifetimeGeneration.current;
     setSending(true);
     setMessage('');
     try {
@@ -161,6 +192,7 @@ export function SsoConnectionsPanel({
           loginSlug: loginSlug.trim(),
         },
       });
+      if (lifetime !== lifetimeGeneration.current) return;
       switch (reply.kind) {
         case 'success':
           setMessage('Connection recorded. Start a proof sign-in to verify its identity prefix.');
@@ -192,10 +224,102 @@ export function SsoConnectionsPanel({
           return unreachable(reply);
       }
     } catch (cause) {
-      setFault(new Error('Unexpected company sign-in creation failure', { cause }));
+      if (lifetime === lifetimeGeneration.current)
+        setFault(new Error('Unexpected company sign-in creation failure', { cause }));
     } finally {
       pending.current = false;
-      setSending(false);
+      if (lifetime === lifetimeGeneration.current) setSending(false);
+    }
+  }
+
+  async function enforce(connection: Connection) {
+    // Proof: removing pending admission and the disabled control made a forced
+    // second-row click send another PATCH while the first was held (2026-10-13).
+    // Proof: omitting the read admission guard sent a PATCH while a refresh
+    // GET was held in the same render (2026-10-13).
+    if (pending.current || proofPending.current || readPending.current || view.kind !== 'ready')
+      return;
+    // Proof: removing the unproven disabled predicate exposed its enable
+    // control in the two-row mounted test (2026-10-13).
+    if (!connection.enforced && connection.provenAt === null) return;
+    pending.current = true;
+    // Proof: removing mutation admission's read invalidation let an earlier
+    // same-render refresh GET replace a successful PATCH (2026-10-13).
+    ++readGeneration.current;
+    const lifetime = lifetimeGeneration.current;
+    setSending(true);
+    setMessage('');
+    setLockout(null);
+    try {
+      const reply = await settings['patchApiOrganizationSso-connectionsById']({
+        // Proof: substituting loginSlug failed the exact selected-id test;
+        // using the old boolean failed the held-disable body test (2026-10-13).
+        params: { id: connection.id },
+        body: { enforced: !connection.enforced },
+      });
+      if (lifetime !== lifetimeGeneration.current) return;
+      switch (reply.kind) {
+        case 'success':
+          // Proof: replacing the server row with the requested boolean failed
+          // the authoritative-returned-slug test after PATCH.
+          setView((current) =>
+            current.kind === 'ready'
+              ? {
+                  ...current,
+                  connections: current.connections.map((row) =>
+                    row.id === connection.id ? reply.body.connection : row,
+                  ),
+                }
+              : current,
+          );
+          setProof((current) => (current?.id === connection.id ? reply.body.connection : current));
+          setMessage(
+            reply.body.connection.enforced
+              ? 'Enforcement enabled. Members must sign in through this company connection to access the organization; they may need to sign in again.'
+              : 'Enforcement disabled. Members may need to sign in again.',
+          );
+          return;
+        case 'failure':
+          setMessage(failureMessage(reply.failure));
+          return;
+        case 'refusal': {
+          const outcome = setupRefusal(reply.body);
+          if (outcome.kind === 'lost') {
+            onAccessLost(outcome.loss);
+            return;
+          }
+          setMessage(
+            reply.body.error === 'not_found'
+              ? 'That company connection no longer exists. The connection list has been refreshed.'
+              : outcome.text,
+          );
+          // Proof: bypassing this branch left enforcement controls available
+          // after a forbidden PATCH in the mounted test (2026-10-13).
+          if (reply.body.error === 'forbidden' || reply.body.error === 'insufficient_scope') {
+            setProof(null);
+            setView({ kind: 'failure', message: outcome.text });
+            return;
+          }
+          if (reply.body.error === 'enforcement_would_lock_out_actor') {
+            // Proof: substituting connection.id failed the selected-row
+            // login-link href test (2026-10-13).
+            setLockout({ slug: connection.loginSlug, domain: connection.domain });
+          }
+          // Reconcile conflicts from the server while retaining the explanation.
+          // Proof: skipping this read left a proven row enabled after an
+          // unproven refusal in the mounted test (2026-10-13).
+          if (reply.status === 409 || reply.body.error === 'not_found') await refresh();
+          return;
+        }
+        default:
+          return unreachable(reply);
+      }
+    } catch (cause) {
+      if (lifetime === lifetimeGeneration.current)
+        setFault(new Error('Unexpected company sign-in enforcement failure', { cause }));
+    } finally {
+      pending.current = false;
+      if (lifetime === lifetimeGeneration.current) setSending(false);
     }
   }
 
@@ -207,7 +331,13 @@ export function SsoConnectionsPanel({
         className={`self-start ${CONTROL_HEIGHT}`}
         disabled={sending || proving || view.kind === 'loading'}
         onClick={() => {
-          if (pending.current || proofPending.current) return;
+          if (
+            pending.current ||
+            proofPending.current ||
+            readPending.current ||
+            view.kind === 'loading'
+          )
+            return;
           void refresh().catch((cause: unknown) => {
             setFault(new Error('Unexpected company sign-in refresh failure', { cause }));
           });
@@ -345,6 +475,29 @@ export function SsoConnectionsPanel({
                       : `Proven: ${new Date(connection.provenAt).toLocaleString()}`}
                     . {connection.enforced ? 'Enforced' : 'Not enforced'}.
                   </p>
+                  {connection.provenAt === null && !connection.enforced && (
+                    <p className="m-0 text-sm">
+                      Complete a proof sign-in before enabling enforcement.
+                    </p>
+                  )}
+                  {connection.provenAt !== null && (
+                    <p className="m-0 text-sm">
+                      Enforcement requires members to sign in through this company connection to
+                      access the organization. Changing it may require them to sign in again.
+                    </p>
+                  )}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className={`self-start ${CONTROL_HEIGHT}`}
+                    aria-label={`${connection.enforced ? 'Disable' : 'Enable'} enforcement for ${connection.domain}`}
+                    disabled={
+                      sending || proving || (!connection.enforced && connection.provenAt === null)
+                    }
+                    onClick={() => void enforce(connection)}
+                  >
+                    {connection.enforced ? 'Disable enforcement' : 'Enable enforcement'}
+                  </Button>
                   {connection.lastPrefixMismatchAt !== null && (
                     <p className={ALERT_CLASS}>
                       Last prefix mismatch:{' '}
@@ -359,7 +512,7 @@ export function SsoConnectionsPanel({
                     disabled={sending || proving}
                     aria-label={`Start proof for ${connection.domain}`}
                     onClick={() => {
-                      if (pending.current || proofPending.current) return;
+                      if (pending.current || proofPending.current || readPending.current) return;
                       setProof(connection);
                     }}
                   >
@@ -388,6 +541,10 @@ export function SsoConnectionsPanel({
                 // Proof: 2026-10-13, omitting this prop failed `blocks the
                 // selected proof form while a create request is held`.
                 disabled={sending}
+                // The child can submit before the disabled prop rerenders.
+                // Proof: removing this admission failed both same-render
+                // Enable→proof and Refresh→proof mounted tests (2026-10-13).
+                canStart={() => !pending.current && !readPending.current && !proofPending.current}
                 onPendingChange={(active) => {
                   proofPending.current = active;
                   // Proof: 2026-10-13, forcing this false failed `freezes the
@@ -404,13 +561,21 @@ export function SsoConnectionsPanel({
           {message}
         </p>
       )}
+      {lockout !== null && (
+        <a href={`/api/auth/login?organization=${encodeURIComponent(lockout.slug)}`}>
+          Sign in through {lockout.domain}
+        </a>
+      )}
     </OrganizationSection>
   );
 }
 
 type SetupRefusal = Extract<
   ClientReply<
-    typeof listSsoConnections | typeof createSsoConnection | typeof listOrganizationDomains
+    | typeof listSsoConnections
+    | typeof createSsoConnection
+    | typeof listOrganizationDomains
+    | typeof updateSsoConnection
   >,
   { kind: 'refusal' }
 >['body'];
@@ -436,6 +601,14 @@ function setupRefusal(refusal: SetupRefusal): RefusalOutcome {
       return said('That login slug is already in use. Choose another.');
     case 'not_found':
       return said('That domain claim no longer exists.');
+    case 'sso_connection_unproven':
+      return said(
+        'Complete a proof sign-in before enabling enforcement. The connection list has been refreshed.',
+      );
+    case 'enforcement_would_lock_out_actor':
+      return said(
+        'Your current sign-in cannot access this organization after enforcement. Sign in through this company connection first.',
+      );
     case 'insufficient_scope':
       return said(READ_ONLY);
     case 'invalid_query':

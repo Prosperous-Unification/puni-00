@@ -59,6 +59,7 @@ import { PlanToolbarSheet } from './plan-toolbar-sheet';
 import { createPointedRows, type PointedRows } from './pointed-row-store';
 import { rememberGanttDayPx, rememberGanttLabels } from './remembered-layout';
 import { statusOffersOf, type StatusRow } from './status-offers';
+import { blockageLabelsOf } from './step-blockage';
 import { stepNodeReadingsOf } from './step-reading';
 import {
   CELL,
@@ -1023,6 +1024,13 @@ export function WbsTable({
     return out;
   }, [workItems]);
 
+  // Proof: indexing only top-level workItems made `nested blocked leaf and its downstream node retain named causes in both layouts` reach the router Error Boundary (2026-10-14).
+  // Proof: per-node indexing made `builds the shared blockage index once per input change across fifty phone rows and five steps` observe 251 builds instead of one (2026-10-14).
+  const causeLabels = useMemo(
+    () => blockageLabelsOf(flat, steps, stepNodes),
+    [flat, steps, stepNodes],
+  );
+
   const attemptActions = useAttemptActions({
     commands,
     run,
@@ -1483,7 +1491,7 @@ export function WbsTable({
         if (hiddenColumnIds.includes(step.id)) continue;
         const doing = assigneeOn(row, step.id);
         const anyAssignee = anyAssigneeOn(step.id);
-        const node = stepNodeReadingsOf(row, step.id, peopleById, chartRead.timezone);
+        const node = stepNodeReadingsOf(row, step.id, peopleById, chartRead.timezone, causeLabels);
         if (unfoldedSteps.includes(step.id)) {
           estimateReadings.set(step.id, {
             layout: 'unfolded',
@@ -1565,6 +1573,7 @@ export function WbsTable({
     anyAssigneeOn,
     assigneeOn,
     busy,
+    causeLabels,
     chartRead.timezone,
     combinedProblem,
     combinedValue,
@@ -2587,8 +2596,13 @@ export function WbsTable({
               mentionOptions={mentionOptions}
               assigneeOn={assigneeOn}
               attemptsOn={(row, stepId) =>
-                stepNodeReadingsOf(row, stepId, peopleById, chartRead.timezone)
+                stepNodeReadingsOf(row, stepId, peopleById, chartRead.timezone, causeLabels)
               }
+              setStepBlocked={(row, stepId, isBlocked) => {
+                void run((write) =>
+                  write.perform(['tree'], () => commands.setStepBlocked(row.id, stepId, isBlocked)),
+                );
+              }}
               attemptActionsOn={(row, stepId) => ({
                 label: attemptNodeLabel(row, stepId, steps, stepNodes),
                 actions: {
