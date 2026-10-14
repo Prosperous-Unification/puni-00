@@ -4,6 +4,12 @@
 
 The backup lab SHALL create verification Jobs from the release-rendered `wbs-solver/sqlite-backup-verify` CronJob and SHALL use the production runner, backend image and trusted admission policy.
 
+#### Scenario: Scheduled backup cannot race the known snapshot proof
+
+- **GIVEN** a rendered release overlay for the disposable backup lab
+- **WHEN** the lab prepares its initial apply
+- **THEN** every CronJob has `spec.suspend: true`, both shipped Job templates are preserved for manual runs, and verification still requires the manually captured object key, digest and complete migration set
+
 #### Scenario: Known migrated backup verifies
 
 - **GIVEN** the lab has backed up a migrated database containing its known project

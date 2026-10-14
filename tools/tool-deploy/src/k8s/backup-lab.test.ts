@@ -1,11 +1,13 @@
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { scratchAsync } from '@tools/test-scratch';
 import { Database } from 'bun:sqlite';
 import { describe, expect, it } from 'bun:test';
+import { parseAllDocuments } from 'yaml';
 
-import { requireVerification, VERIFICATION_FAULT_SCRIPT } from './backup-lab';
+import { prepareBackupLab, requireVerification, VERIFICATION_FAULT_SCRIPT } from './backup-lab';
 
 describe('scheduled verification lab evidence', () => {
   it('refuses a failed known-backup verification', () => {
@@ -190,6 +192,49 @@ describe('verification lab faults through the production CLI', () => {
       expect(refused.stderr).toContain('No SQLite backup report under f10-absent/wbs/');
     } finally {
       await fixture.server.stop(true);
+    }
+  });
+});
+
+interface LabResource {
+  readonly kind: string;
+  readonly metadata: { readonly name: string };
+  readonly spec: { readonly suspend?: boolean; readonly jobTemplate?: unknown };
+}
+
+describe('backup lab schedule isolation', () => {
+  it('refuses a CronJob whose trusted spec is absent or null', () => {
+    for (const spec of [undefined, null]) {
+      expect(() => prepareBackupLab(JSON.stringify({ kind: 'CronJob', spec }))).toThrow(
+        'CronJob spec',
+      );
+    }
+  });
+
+  it('suspends both shipped CronJobs before apply while preserving their manual Job templates', () => {
+    const manifests = ['backup.yaml', 'verify-cronjob.yaml'].map((name) =>
+      readFileSync(join(import.meta.dir, '../../../../deploy/k8s/wbs/base', name), 'utf8'),
+    );
+    const rendered = manifests.join('\n---\n');
+    const prepared = JSON.parse(prepareBackupLab(rendered)) as { items: LabResource[] };
+    const crons = prepared.items.filter(
+      (resource: { kind: string }) => resource.kind === 'CronJob',
+    );
+    expect(crons).toHaveLength(2);
+    for (const name of ['sqlite-backup', 'sqlite-backup-verify']) {
+      const shipped = manifests
+        .flatMap((manifest) =>
+          parseAllDocuments(manifest).map((document) => document.toJS() as LabResource),
+        )
+        .flatMap((resource) => (resource.kind === 'CronJob' ? [resource] : []))
+        .find((resource) => resource.metadata.name === name);
+      const isolated = crons.find(
+        (resource: { metadata: { name: string } }) => resource.metadata.name === name,
+      );
+      if (shipped === undefined || isolated === undefined)
+        throw new Error(`Missing shipped CronJob ${name}`);
+      expect(isolated.spec.suspend).toBe(true);
+      expect(isolated.spec.jobTemplate).toEqual(shipped.spec.jobTemplate);
     }
   });
 });

@@ -6,3 +6,5 @@
 - [x] 4. Derive the verification Pod from the actual rendered CronJob and observe locked prior Bun-image denial and backend-digest admission on the disposable Kubernetes API. Add adjacent observed Proof comments.
 - [x] 5. Run scoped Bun/Nx, changed-file format and OpenSpec validation; record evidence and limitations, delete disposable resources, and prepare a normal commit.
 - [ ] 6. Complete the full shipped-CronJob execution on disposable k3d after the repository-locked MinIO image becomes publicly retrievable. The rehearsal currently stops at its 401 image-pull failure; the local S3 fixture does not certify this slice.
+
+- [x] 7. Review repair: suspend the lab CronJobs before initial apply; watch the production transformation regression fail with `suspend` undefined, restore suspension and verify both shipped manual Job templates remain equal. Preserve the exact snapshot key/digest/migration assertion.

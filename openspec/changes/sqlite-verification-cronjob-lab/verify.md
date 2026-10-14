@@ -35,3 +35,13 @@ Both temporary production-runner mutations were restored byte-for-byte. The comm
 Deleted the disposable cluster and registry, then removed their remaining named network after the registry endpoint was gone. Fresh Docker queries returned no containers or networks matching `puni-f11-backup`. Deleted the task-owned kubeconfig; the user's current context was never changed.
 
 Full k3d backup/restore/verification Job success and fault outcomes remain **unverified** because of the locked MinIO registry failure. The local S3 protocol fixture proves runner/injector behavior, not the CronJob's runtime networking, mounted ConfigMap or scratch volume. The API proof establishes image admission only. Host maintenance, cloud storage, production rollout and the full h2puni gate remain outside this worker's scoped validation and with the coordinating agent.
+
+## Review repair: isolate CronJob schedules
+
+Review identified that an hourly scheduled backup could become newer than the manual backup before the known-snapshot verification. `prepareBackupLab` now suspends every CronJob before the production initial apply and retains both shipped Job templates unchanged. The verification still compares the exact manually captured object key, digest and complete migration set. No production CronJob manifest or release coordinator changes.
+
+The production transformation regression reads both shipped manifests. Before suspension, it failed with `Expected: true, Received: undefined`; after suspension, it confirms both CronJobs are suspended and their Job templates remain identical. A missing/null CronJob spec is refused explicitly; its initial regression failed because the transformation returned an apply list instead of throwing. Adjacent Proof comments record both observations.
+
+The original live MinIO registry blocker is unchanged. This repair was verified through the same preparation function used by the executable initial apply; full live CronJob execution remains unverified.
+
+Repair validation: scoped `tool-deploy:test` passed **335 tests, 0 failures, 982 assertions** across 22 files. Scoped uncached `tool-deploy:lint` and `tool-deploy:typecheck`, changed-file Prettier and pinned OpenSpec 1.12.0 validation passed. No live cluster was recreated for this repair; the full h2puni gate remains with the coordinator. The build target was not repeated for this preparation-only change; fresh typecheck compiled the edited sources.

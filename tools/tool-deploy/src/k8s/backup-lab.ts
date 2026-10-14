@@ -232,6 +232,36 @@ const s3Env = ['endpoint', 'bucket', 'region', 'access-key-id', 'secret-access-k
   valueFrom: { secretKeyRef: { name: 'sqlite-backup-s3', key } },
 }));
 
+/**
+ * Build the initial lab apply with the backend writer stopped and CronJob schedules suspended.
+ * Job templates remain intact for manual runs. Throws when a rendered CronJob lacks its spec.
+ */
+export function prepareBackupLab(rendered: string): string {
+  const resources = parseAllDocuments(rendered).map((document) => {
+    // renderOverlay emits committed Kubernetes manifests; only these authored resource fields
+    // are read here, with missing CronJob state refused before the lab can apply it.
+    const object = document.toJS() as {
+      kind?: string;
+      metadata?: { name?: string };
+      spec?: { replicas?: number; suspend?: boolean } | null;
+    };
+    if (object.kind === 'Deployment' && object.metadata?.name === 'wbs-backend' && object.spec)
+      object.spec.replicas = 0;
+    if (object.kind === 'CronJob') {
+      if (object.spec === undefined || object.spec === null) {
+        // Proof: the absent/null-spec regression returned an unsafe apply list without this guard.
+        throw new Error('Rendered backup lab CronJob spec is absent');
+      }
+      // Proof: the production initial-apply regression saw suspend undefined without this line;
+      // restored suspension preserves both shipped jobTemplates for manually created Jobs.
+      object.spec.suspend = true;
+    }
+    return JSON.stringify(object);
+  });
+
+  return `{"apiVersion":"v1","kind":"List","items":[${resources.join(',')}]}`;
+}
+
 /** Require the scheduled verification's expected outcome and, for faults, its specific cause. */
 export function requireVerification(
   name: string,
@@ -434,17 +464,7 @@ async function main(): Promise<void> {
       log,
     };
     const rendered = await renderOverlay(settings, identity);
-    const items = parseAllDocuments(rendered).map((document) => {
-      const object = document.toJS() as {
-        kind?: string;
-        metadata?: { name?: string };
-        spec?: { replicas?: number };
-      };
-      if (object.kind === 'Deployment' && object.metadata?.name === 'wbs-backend' && object.spec)
-        object.spec.replicas = 0;
-      return JSON.stringify(object);
-    });
-    await k(['apply', '-f', '-'], `{"apiVersion":"v1","kind":"List","items":[${items.join(',')}]}`);
+    await k(['apply', '-f', '-'], prepareBackupLab(rendered));
     const cronImage = (
       await k([
         '-n',
