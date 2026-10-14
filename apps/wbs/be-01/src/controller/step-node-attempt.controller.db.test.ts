@@ -1299,3 +1299,671 @@ describe('first-child blockage preservation', () => {
     expect(snapshot()).toEqual(before);
   });
 });
+
+describe('move blockage closure', () => {
+  const snapshot = (journal = false) =>
+    [
+      'work_item',
+      'step_progress',
+      'step_blockage',
+      ...(journal ? ['command_journal'] : []),
+      'event_log',
+      'event_sequencer',
+    ].map((table) => h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all());
+  const facts = () =>
+    h.sqlite
+      .query(
+        'SELECT work_item_id, step_id, blocked_at FROM step_blockage ORDER BY work_item_id, step_id',
+      )
+      .all();
+  const block = (owner: string, step: string, at: number) =>
+    h.sqlite.run('INSERT INTO step_blockage (work_item_id, step_id, blocked_at) VALUES (?, ?, ?)', [
+      owner,
+      step,
+      at,
+    ]);
+  async function create(name: string, parentId: string | null = null): Promise<string> {
+    const created = await batch([{ kind: 'createWorkItem', parentId, afterId: null, name }]);
+    expect(created.status).toBe(200);
+    const id = (created.body as { results?: { id?: string }[] }).results?.[0]?.id;
+    if (id === undefined) throw new Error('move fixture row missing');
+    return id;
+  }
+  async function move(owner: string, parentId: string | null) {
+    return batch([{ kind: 'moveWorkItem', workItemId: owner, parentId, afterId: null }]);
+  }
+  async function arranged() {
+    const moving = await create('Moving', strip);
+    const destination = await create('Destination');
+    block(moving, dev, -10);
+    block(destination, dev, -20);
+    block(destination, qa, -30);
+    expect(
+      (
+        await batch([
+          { kind: 'setProgress', workItemId: moving, stepId: dev, state: 'in_progress' },
+          { kind: 'setProgress', workItemId: destination, stepId: dev, state: 'done' },
+        ])
+      ).status,
+    ).toBe(200);
+    return { moving, destination };
+  }
+
+  it('preserves exact mounted move facts and progress through one undo redo', async () => {
+    const { moving, destination } = await arranged();
+    const before = facts();
+    expect((await move(moving, destination)).status).toBe(200);
+    const after = facts();
+    expect(after).toEqual(
+      [
+        { work_item_id: moving, step_id: dev, blocked_at: -10 },
+        { work_item_id: strip, step_id: dev, blocked_at: -10 },
+      ].sort((a, b) => a.work_item_id.localeCompare(b.work_item_id)),
+    );
+    const states = () =>
+      h.sqlite
+        .query('SELECT work_item_id, step_id, state FROM step_progress ORDER BY work_item_id')
+        .all();
+    expect(states()).toEqual([{ work_item_id: moving, step_id: dev, state: 'in_progress' }]);
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+    expect(facts()).toEqual(before);
+    expect(states()).toEqual(
+      [
+        { work_item_id: moving, step_id: dev, state: 'in_progress' },
+        { work_item_id: destination, step_id: dev, state: 'done' },
+      ].sort((a, b) => a.work_item_id.localeCompare(b.work_item_id)),
+    );
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/redo`)).status).toBe(200);
+    expect(facts()).toEqual(after);
+    expect(states()).toEqual([{ work_item_id: moving, step_id: dev, state: 'in_progress' }]);
+  });
+
+  it('hands up each mounted step only when every former leaf has a direct fact', async () => {
+    const moving = await create('Branch', strip);
+    const first = await create('First', moving);
+    const second = await create('Second', moving);
+    block(first, dev, -30);
+    block(second, dev, -10);
+    block(first, qa, 123);
+    expect(
+      (await batch([{ kind: 'setProgress', workItemId: first, stepId: dev, state: 'done' }]))
+        .status,
+    ).toBe(200);
+    const incoming = facts();
+    expect((await move(moving, null)).status).toBe(200);
+    expect(
+      h.sqlite
+        .query('SELECT step_id, blocked_at FROM step_blockage WHERE work_item_id = ?')
+        .all(strip),
+    ).toEqual([{ step_id: dev, blocked_at: -10 }]);
+    expect(h.sqlite.query('SELECT * FROM step_progress WHERE work_item_id = ?').all(strip)).toEqual(
+      [],
+    );
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+    expect(facts()).toEqual(incoming);
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/redo`)).status).toBe(200);
+    expect(
+      h.sqlite
+        .query('SELECT step_id, blocked_at FROM step_blockage WHERE work_item_id = ?')
+        .all(strip),
+    ).toEqual([{ step_id: dev, blocked_at: -10 }]);
+  });
+
+  async function historicalMove() {
+    const moving = await create('Child', strip);
+    h.sqlite.run(
+      'INSERT INTO step_progress (work_item_id, step_id, state, stated_at) VALUES (?, ?, ?, ?)',
+      [strip, dev, 'done', 123],
+    );
+    expect((await move(moving, null)).status).toBe(200);
+    return moving;
+  }
+
+  it('preserves exact mounted historical progress through last-child move undo redo', async () => {
+    const moving = await historicalMove();
+    const historical = h.sqlite.query('SELECT * FROM step_progress').all();
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+    expect(h.sqlite.query('SELECT * FROM step_progress').all()).toEqual(historical);
+    expect(
+      h.sqlite
+        .query<{ parent_id: string }, [string]>('SELECT parent_id FROM work_item WHERE id = ?')
+        .get(moving)?.parent_id,
+    ).toBe(strip);
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/redo`)).status).toBe(200);
+    expect(h.sqlite.query('SELECT * FROM step_progress').all()).toEqual(historical);
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+    expect(h.sqlite.query('SELECT * FROM step_progress').all()).toEqual(historical);
+  });
+
+  it.each(['state', 'time', 'extra', 'missing'] as const)(
+    'refuses %s historical progress during mounted move undo with unchanged revisions',
+    async (fault) => {
+      await historicalMove();
+      if (fault === 'state')
+        h.sqlite.run(
+          "UPDATE step_progress SET state = 'in_progress' WHERE work_item_id = ? AND step_id = ?",
+          [strip, dev],
+        );
+      if (fault === 'time')
+        h.sqlite.run(
+          'UPDATE step_progress SET stated_at = 456 WHERE work_item_id = ? AND step_id = ?',
+          [strip, dev],
+        );
+      if (fault === 'extra')
+        h.sqlite.run(
+          'INSERT INTO step_progress (work_item_id, step_id, state, stated_at) VALUES (?, ?, ?, ?)',
+          [strip, qa, 'done', 456],
+        );
+      if (fault === 'missing')
+        h.sqlite.run('DELETE FROM step_progress WHERE work_item_id = ? AND step_id = ?', [
+          strip,
+          dev,
+        ]);
+      const before = snapshot();
+      expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(409);
+      expect(snapshot()).toEqual(before);
+    },
+  );
+
+  it('excludes unrelated owners from historical move replay revisions', async () => {
+    const unrelated = await create('Unrelated');
+    await historicalMove();
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/redo`)).status).toBe(200);
+    h.sqlite.run('UPDATE work_item SET revision = revision + 1 WHERE id = ?', [unrelated]);
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+  });
+
+  it('requires empty leaf progress for a legacy move without a snapshot', async () => {
+    const moving = await historicalMove();
+    h.sqlite.run('UPDATE command_journal SET inverse = ? WHERE kind = ?', [
+      JSON.stringify({ do: 'move', workItemId: moving, parentId: strip, afterId: null }),
+      'move',
+    ]);
+    const before = snapshot();
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(409);
+    expect(snapshot()).toEqual(before);
+  });
+
+  it('compares historical progress order independently and preserves every stored column', async () => {
+    const moving = await create('Child', strip);
+    h.sqlite.run(
+      'INSERT INTO step_progress (work_item_id, step_id, state, stated_at) VALUES (?, ?, ?, ?)',
+      [strip, dev, 'done', 123],
+    );
+    h.sqlite.run(
+      'INSERT INTO step_progress (work_item_id, step_id, state, stated_at) VALUES (?, ?, ?, ?)',
+      [strip, qa, 'in_progress', -30],
+    );
+    expect((await move(moving, null)).status).toBe(200);
+    const historical = h.sqlite.query('SELECT * FROM step_progress ORDER BY step_id').all();
+    h.sqlite.run('UPDATE command_journal SET inverse = ? WHERE kind = ?', [
+      JSON.stringify({
+        do: 'move',
+        workItemId: moving,
+        parentId: strip,
+        afterId: null,
+        expectedProgress: [
+          { workItemId: strip, stepId: qa, state: 'in_progress', statedAt: -30 },
+          { workItemId: strip, stepId: dev, state: 'done', statedAt: 123 },
+        ],
+      }),
+      'move',
+    ]);
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+    expect(h.sqlite.query('SELECT * FROM step_progress ORDER BY step_id').all()).toEqual(
+      historical,
+    );
+  });
+
+  it.each(['owner', 'step', 'state', 'time', 'duplicate'] as const)(
+    'refuses malformed persisted historical move progress (%s)',
+    async (fault) => {
+      const moving = await historicalMove();
+      const historical = { workItemId: strip, stepId: dev, state: 'done', statedAt: 123 };
+      const malformed =
+        fault === 'owner'
+          ? { ...historical, workItemId: moving }
+          : fault === 'step'
+            ? { ...historical, stepId: 7 }
+            : fault === 'state'
+              ? { ...historical, state: 'unknown' }
+              : fault === 'time'
+                ? { ...historical, statedAt: 1.5 }
+                : historical;
+      h.sqlite.run('UPDATE command_journal SET inverse = ? WHERE kind = ?', [
+        JSON.stringify({
+          do: 'move',
+          workItemId: moving,
+          parentId: strip,
+          afterId: null,
+          expectedProgress: fault === 'duplicate' ? [historical, historical] : [malformed],
+        }),
+        'move',
+      ]);
+      const before = snapshot(true);
+      expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(500);
+      expect(snapshot(true)).toEqual(before);
+    },
+  );
+
+  it('refuses a historical move snapshot naming a step outside the project', async () => {
+    const moving = await historicalMove();
+    h.sqlite.run('UPDATE command_journal SET inverse = ? WHERE kind = ?', [
+      JSON.stringify({
+        do: 'move',
+        workItemId: moving,
+        parentId: strip,
+        afterId: null,
+        expectedProgress: [
+          { workItemId: strip, stepId: 'foreign-step', state: 'done', statedAt: 123 },
+        ],
+      }),
+      'move',
+    ]);
+    const before = snapshot(true);
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(404);
+    expect(snapshot(true)).toEqual(before);
+  });
+
+  it('rebases neighboring parent edits across historical move undo redo', async () => {
+    const moving = await create('Child', strip);
+    h.sqlite.run(
+      'INSERT INTO step_progress (work_item_id, step_id, state, stated_at) VALUES (?, ?, ?, ?)',
+      [strip, dev, 'done', 123],
+    );
+    block(moving, dev, 234);
+    expect(
+      (await batch([{ kind: 'patchWorkItem', workItemId: strip, patch: { name: 'Renamed' } }]))
+        .status,
+    ).toBe(200);
+    const historical = h.sqlite.query('SELECT * FROM step_progress').all();
+    expect((await move(moving, null)).status).toBe(200);
+    for (const direction of ['undo', 'undo', 'redo', 'redo', 'undo'] as const) {
+      expect((await h.call('ada', 'POST', `/api/projects/${project}/${direction}`)).status).toBe(
+        200,
+      );
+      expect(h.sqlite.query('SELECT * FROM step_progress').all()).toEqual(historical);
+    }
+  });
+
+  it('refuses a guarded historical move snapshot without a destination', async () => {
+    const moving = await historicalMove();
+    h.sqlite.run('UPDATE command_journal SET inverse = ? WHERE kind = ?', [
+      JSON.stringify({
+        do: 'move',
+        workItemId: moving,
+        parentId: null,
+        afterId: null,
+        expectedProgress: [],
+      }),
+      'move',
+    ]);
+    const before = snapshot(true);
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(500);
+    expect(snapshot(true)).toEqual(before);
+  });
+
+  it('tracks the historical owner revision after redo before the second undo', async () => {
+    await historicalMove();
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/redo`)).status).toBe(200);
+    h.sqlite.run('UPDATE work_item SET revision = revision + 1 WHERE id = ?', [strip]);
+    const before = snapshot();
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(409);
+    expect(snapshot()).toEqual(before);
+  });
+
+  it.each(['undo', 'redo'] as const)(
+    'refuses residual leaf progress atomically on move %s despite unchanged revisions',
+    async (direction) => {
+      const { moving, destination } = await arranged();
+      expect((await move(moving, destination)).status).toBe(200);
+      if (direction === 'redo')
+        expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+      const owner = direction === 'undo' ? strip : destination;
+      h.sqlite.run(
+        'INSERT INTO step_progress (work_item_id, step_id, state, stated_at) VALUES (?, ?, ?, ?)',
+        [owner, qa, 'done', 456],
+      );
+      const before = snapshot();
+      expect((await h.call('ada', 'POST', `/api/projects/${project}/${direction}`)).status).toBe(
+        409,
+      );
+      expect(snapshot()).toEqual(before);
+    },
+  );
+
+  it.each(['undo', 'redo'] as const)(
+    'refuses other-step residual leaf blockage atomically on move %s despite unchanged revisions',
+    async (direction) => {
+      const moving = await create('Moving', strip);
+      const destination = await create('Destination');
+      block(moving, dev, 123);
+      block(destination, dev, 234);
+      expect((await move(moving, destination)).status).toBe(200);
+      if (direction === 'redo')
+        expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+      block(direction === 'undo' ? strip : destination, qa, 456);
+      const before = snapshot();
+      expect((await h.call('ada', 'POST', `/api/projects/${project}/${direction}`)).status).toBe(
+        409,
+      );
+      expect(snapshot()).toEqual(before);
+    },
+  );
+
+  it.each(['undo', 'redo'] as const)(
+    'refuses changed expected blockage atomically on move %s',
+    async (direction) => {
+      const { moving, destination } = await arranged();
+      expect((await move(moving, destination)).status).toBe(200);
+      if (direction === 'redo')
+        expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+      h.sqlite.run(
+        'UPDATE step_blockage SET blocked_at = 456 WHERE work_item_id = ? AND step_id = ?',
+        [direction === 'undo' ? strip : destination, dev],
+      );
+      const before = snapshot();
+      expect((await h.call('ada', 'POST', `/api/projects/${project}/${direction}`)).status).toBe(
+        409,
+      );
+      expect(snapshot()).toEqual(before);
+    },
+  );
+
+  /** Proof: bypassing exact comparison or committing a refused SQLite UOW failed the second-fact refusal and snapshot; watched 2026-10-14. */
+  it.each(['state', 'time', 'missing'] as const)(
+    'refuses a changed recorded destination progress %s before redo clears it',
+    async (fault) => {
+      const { moving, destination } = await arranged();
+      expect((await move(moving, destination)).status).toBe(200);
+      expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+      if (fault === 'state')
+        h.sqlite.run(
+          "UPDATE step_progress SET state = 'in_progress' WHERE work_item_id = ? AND step_id = ?",
+          [destination, dev],
+        );
+      if (fault === 'time')
+        h.sqlite.run(
+          'UPDATE step_progress SET stated_at = 456 WHERE work_item_id = ? AND step_id = ?',
+          [destination, dev],
+        );
+      if (fault === 'missing')
+        h.sqlite.run('DELETE FROM step_progress WHERE work_item_id = ? AND step_id = ?', [
+          destination,
+          dev,
+        ]);
+      const before = snapshot();
+      expect((await h.call('ada', 'POST', `/api/projects/${project}/redo`)).status).toBe(409);
+      expect(snapshot()).toEqual(before);
+    },
+  );
+
+  it('rebases cleared destination progress timestamps through neighboring progress undo redo', async () => {
+    const moving = await create('Incoming');
+    expect(
+      (await batch([{ kind: 'setProgress', workItemId: strip, stepId: dev, state: 'done' }]))
+        .status,
+    ).toBe(200);
+    expect((await move(moving, strip)).status).toBe(200);
+    for (const direction of ['undo', 'undo', 'redo', 'redo'] as const) {
+      expect((await h.call('ada', 'POST', `/api/projects/${project}/${direction}`)).status).toBe(
+        200,
+      );
+    }
+    expect(h.sqlite.query('SELECT * FROM step_progress WHERE work_item_id = ?').all(strip)).toEqual(
+      [],
+    );
+  });
+
+  function replaceMoveProgress(moveProgress: unknown): void {
+    const row = h.sqlite
+      .query<{ id: string; preconditions: string }, []>(
+        "SELECT id, preconditions FROM command_journal WHERE kind = 'move' ORDER BY seq DESC LIMIT 1",
+      )
+      .get();
+    if (row === null) throw new Error('move history missing');
+    const preconditions = JSON.parse(row.preconditions) as Record<string, unknown>;
+    h.sqlite.run('UPDATE command_journal SET preconditions = ? WHERE id = ?', [
+      JSON.stringify({ ...preconditions, moveProgress }),
+      row.id,
+    ]);
+  }
+
+  it.each(['map', 'owner', 'duplicate'] as const)(
+    'refuses malformed persisted destination progress preconditions (%s)',
+    async (fault) => {
+      const { moving, destination } = await arranged();
+      expect((await move(moving, destination)).status).toBe(200);
+      const fact = { workItemId: destination, stepId: dev, state: 'done', statedAt: 123 };
+      replaceMoveProgress(
+        fault === 'map'
+          ? null
+          : { [destination]: fault === 'owner' ? [{ ...fact, workItemId: moving }] : [fact, fact] },
+      );
+      const before = snapshot(true);
+      expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(500);
+      expect(snapshot(true)).toEqual(before);
+    },
+  );
+
+  it('scopes destination progress metadata step references before replay', async () => {
+    const { moving, destination } = await arranged();
+    expect((await move(moving, destination)).status).toBe(200);
+    replaceMoveProgress({
+      [destination]: [
+        { workItemId: destination, stepId: 'foreign-step', state: 'done', statedAt: 123 },
+      ],
+    });
+    const before = snapshot(true);
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(404);
+    expect(snapshot(true)).toEqual(before);
+  });
+
+  it('preserves stale destination snapshots when neighboring replay revisions do not match', async () => {
+    const moving = await create('Incoming');
+    expect(
+      (await batch([{ kind: 'setProgress', workItemId: strip, stepId: dev, state: 'done' }]))
+        .status,
+    ).toBe(200);
+    expect((await move(moving, strip)).status).toBe(200);
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+    const path = `$.expected."${strip}"`;
+    h.sqlite.run(
+      "UPDATE command_journal SET preconditions = json_set(preconditions, ?, json_extract(preconditions, ?) - 1) WHERE kind = 'move'",
+      [path, path],
+    );
+    const guarded = () =>
+      h.sqlite
+        .query<{ snapshot: string }, []>(
+          "SELECT json_extract(preconditions, '$.moveProgress') AS snapshot FROM command_journal WHERE kind = 'move'",
+        )
+        .get()?.snapshot;
+    const expected = guarded();
+    expect(expected).toBeDefined();
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/redo`)).status).toBe(200);
+    expect(guarded()).toBe(expected);
+    const before = snapshot();
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/redo`)).status).toBe(409);
+    expect(snapshot()).toEqual(before);
+  });
+
+  it('guards destination progress before a collected move replay batch', async () => {
+    const { moving, destination } = await arranged();
+    expect(
+      (
+        await batch([
+          { kind: 'moveWorkItem', workItemId: moving, parentId: destination, afterId: null },
+          {
+            kind: 'patchWorkItem',
+            workItemId: destination,
+            patch: { name: 'Renamed destination' },
+          },
+        ])
+      ).status,
+    ).toBe(200);
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+    h.sqlite.run(
+      "UPDATE step_progress SET state = 'in_progress' WHERE work_item_id = ? AND step_id = ?",
+      [destination, dev],
+    );
+    const before = snapshot();
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/redo`)).status).toBe(409);
+    expect(snapshot()).toEqual(before);
+  });
+
+  it('scopes empty destination progress metadata owners before replay', async () => {
+    const { moving, destination } = await arranged();
+    expect((await move(moving, destination)).status).toBe(200);
+    const foreignProject = await h.call('ada', 'POST', '/api/projects', { name: 'Other plan' });
+    expect(foreignProject.status).toBe(200);
+    const foreignId = (foreignProject.body as { project: { id: string } }).project.id;
+    const created = await h.call('ada', 'POST', `/api/projects/${foreignId}/commands`, {
+      commands: [
+        { kind: 'createWorkItem', parentId: null, afterId: null, name: 'Other destination' },
+      ],
+    });
+    expect(created.status).toBe(200);
+    const owner = (created.body as { results: { id: string }[] }).results.at(0)?.id;
+    if (owner === undefined) throw new Error('foreign metadata fixture missing');
+    replaceMoveProgress({ [owner]: [] });
+    const before = snapshot(true);
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(404);
+    expect(snapshot(true)).toEqual(before);
+  });
+
+  it('preserves stale move progress through an unrelated rename undo redo', async () => {
+    const moving = await create('Incoming');
+    expect(
+      (await batch([{ kind: 'setProgress', workItemId: strip, stepId: dev, state: 'done' }]))
+        .status,
+    ).toBe(200);
+    expect(
+      (await batch([{ kind: 'patchWorkItem', workItemId: strip, patch: { name: 'Renamed' } }]))
+        .status,
+    ).toBe(200);
+    expect((await move(moving, strip)).status).toBe(200);
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+    h.sqlite.run(
+      "UPDATE step_progress SET state = 'in_progress', stated_at = 456 WHERE work_item_id = ? AND step_id = ?",
+      [strip, dev],
+    );
+    const facts = h.sqlite.query('SELECT * FROM step_progress ORDER BY rowid').all();
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/redo`)).status).toBe(200);
+    expect(h.sqlite.query('SELECT * FROM step_progress ORDER BY rowid').all()).toEqual(facts);
+    const before = snapshot();
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/redo`)).status).toBe(409);
+    expect(snapshot()).toEqual(before);
+  });
+
+  it.each(['state', 'time', 'missing', 'extra', 'batch'] as const)(
+    'preserves unrelated QA %s through neighboring Dev progress undo redo',
+    async (fault) => {
+      const moving = await create('Incoming');
+      if (fault !== 'extra')
+        h.sqlite.run(
+          'INSERT INTO step_progress (work_item_id, step_id, state, stated_at) VALUES (?, ?, ?, ?)',
+          [strip, qa, 'done', 123],
+        );
+      expect(
+        (
+          await batch([
+            { kind: 'setProgress', workItemId: strip, stepId: dev, state: 'done' },
+            ...(fault === 'batch'
+              ? [{ kind: 'patchWorkItem', workItemId: strip, patch: { name: 'Renamed' } }]
+              : []),
+          ])
+        ).status,
+      ).toBe(200);
+      expect((await move(moving, strip)).status).toBe(200);
+      expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+      const guarded = () =>
+        h.sqlite
+          .query<{ snapshot: string }, []>(
+            "SELECT json_extract(preconditions, '$.moveProgress') AS snapshot FROM command_journal WHERE kind = 'move'",
+          )
+          .get()?.snapshot;
+      const expected = guarded();
+      expect(expected).toBeDefined();
+      if (fault === 'state' || fault === 'batch')
+        h.sqlite.run(
+          "UPDATE step_progress SET state = 'in_progress' WHERE work_item_id = ? AND step_id = ?",
+          [strip, qa],
+        );
+      if (fault === 'time')
+        h.sqlite.run(
+          'UPDATE step_progress SET stated_at = 456 WHERE work_item_id = ? AND step_id = ?',
+          [strip, qa],
+        );
+      if (fault === 'missing')
+        h.sqlite.run('DELETE FROM step_progress WHERE work_item_id = ? AND step_id = ?', [
+          strip,
+          qa,
+        ]);
+      if (fault === 'extra')
+        h.sqlite.run(
+          'INSERT INTO step_progress (work_item_id, step_id, state, stated_at) VALUES (?, ?, ?, ?)',
+          [strip, qa, 'in_progress', 456],
+        );
+      expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+      expect((await h.call('ada', 'POST', `/api/projects/${project}/redo`)).status).toBe(200);
+      expect(guarded()).toBe(expected);
+      const before = snapshot();
+      expect((await h.call('ada', 'POST', `/api/projects/${project}/redo`)).status).toBe(409);
+      expect(snapshot()).toEqual(before);
+    },
+  );
+
+  it('rebases Dev writes while preserving untouched QA snapshots', async () => {
+    const moving = await create('Incoming');
+    h.sqlite.run(
+      'INSERT INTO step_progress (work_item_id, step_id, state, stated_at) VALUES (?, ?, ?, ?)',
+      [strip, qa, 'done', 123],
+    );
+    expect(
+      (await batch([{ kind: 'setProgress', workItemId: strip, stepId: dev, state: 'done' }]))
+        .status,
+    ).toBe(200);
+    expect((await move(moving, strip)).status).toBe(200);
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+    const qaRows = () =>
+      h.sqlite
+        .query('SELECT * FROM step_progress WHERE work_item_id = ? AND step_id = ?')
+        .all(strip, qa);
+    const untouched = qaRows();
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+    expect(qaRows()).toEqual(untouched);
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/redo`)).status).toBe(200);
+    expect(qaRows()).toEqual(untouched);
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/redo`)).status).toBe(200);
+    expect(qaRows()).toEqual([]);
+  });
+
+  it('rolls back earlier replay steps when a later destination replacement refuses', async () => {
+    const { moving, destination } = await arranged();
+    expect((await move(moving, destination)).status).toBe(200);
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/undo`)).status).toBe(200);
+    h.sqlite.run(
+      'UPDATE step_blockage SET blocked_at = 456 WHERE work_item_id = ? AND step_id = ?',
+      [destination, qa],
+    );
+    const before = snapshot();
+    expect((await h.call('ada', 'POST', `/api/projects/${project}/redo`)).status).toBe(409);
+    expect(snapshot()).toEqual(before);
+  });
+
+  /** Proof: committing the exception path left destination facts cleared and failed the exact snapshot; watched 2026-10-14. */
+  it('rolls back destination clears when the SQLite parent_id write fails', async () => {
+    const { moving, destination } = await arranged();
+    const before = snapshot(true);
+    h.sqlite.run(
+      "CREATE TRIGGER refuse_move BEFORE UPDATE OF parent_id ON work_item WHEN NEW.parent_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM step_blockage WHERE work_item_id = NEW.parent_id) AND NOT EXISTS (SELECT 1 FROM step_progress WHERE work_item_id = NEW.parent_id) BEGIN SELECT RAISE(ABORT, 'injected move failure'); END",
+    );
+    expect((await move(moving, destination)).status).toBe(500);
+    h.sqlite.run('DROP TRIGGER refuse_move');
+    expect(snapshot(true)).toEqual(before);
+  });
+});

@@ -809,6 +809,8 @@ describe('every cached target declares what it reads', () => {
     // Proof: omitting the blockage recovery CLI input failed this scan naming wbs-store-sqlite.
     // With that input omitted from test and test:api, a real Nx task-hasher probe ignored a CLI
     // edit; declaring it made both hashes change, without changing project edges (2026-10-14).
+    // Proof: omitting the replay-capability CLI input failed this scan naming tool-remote-scripts;
+    // the real Nx task hash ignored a CLI edit with the input omitted and changed with it declared (2026-10-14).
     expect(undeclared).toBeEmpty();
   });
 });

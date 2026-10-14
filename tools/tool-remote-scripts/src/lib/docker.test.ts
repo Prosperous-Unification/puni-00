@@ -190,6 +190,22 @@ describe('relationship type commands', () => {
 });
 
 describe('step blockage replay compatibility probes', () => {
+  it('advertises guarded move semantics through the candidate CLI', async () => {
+    const candidate = Bun.spawn(
+      [
+        'bun',
+        'run',
+        join(import.meta.dir, '../../../../apps/wbs/be-01/src/step-blockage-replay-kinds-cli.ts'),
+      ],
+      { stdout: 'pipe', stderr: 'pipe' },
+    );
+    expect(await candidate.exited).toBe(0);
+    expect(JSON.parse(await new Response(candidate.stdout).text())).toEqual([
+      'replace_blockage',
+      'move_progress_v1',
+    ]);
+  });
+
   it('reads the candidate CLI and treats only a genuinely absent older CLI as empty', async () => {
     const directory = scratchSync('wbs-replay-reader-');
     try {
@@ -265,7 +281,9 @@ describe('step blockage replay compatibility probes', () => {
       // Proof: treating a missing command_journal as empty made this exit 0.
       expect(missing.exitCode).not.toBe(0);
       expect(missing.stderr).toContain('command journal table is missing');
-      db.run('CREATE TABLE command_journal (payload text NOT NULL,inverse text NOT NULL)');
+      db.run(
+        "CREATE TABLE command_journal (payload text NOT NULL,inverse text NOT NULL,preconditions text NOT NULL DEFAULT '{}')",
+      );
       expect((await read()).exitCode).toBe(0);
       chmodSync(path, 0o000);
       // Proof: overriding denied database permissions in the probe made this exit 0.
@@ -277,12 +295,99 @@ describe('step blockage replay compatibility probes', () => {
     }
   });
 
+  it.each(['forward', 'inverse', 'preconditions', 'empty-map'] as const)(
+    'inventories guarded move capability from %s with no blockage commands',
+    async (side) => {
+      const directory = scratchSync('wbs-move-replay-history-');
+      const path = join(directory, 'plan.db');
+      const db = new Database(path);
+      try {
+        db.run(
+          'CREATE TABLE command_journal (payload text NOT NULL,inverse text NOT NULL,preconditions text NOT NULL)',
+        );
+        const plain = { do: 'move', workItemId: 'child', parentId: 'parent', afterId: null };
+        const nested = {
+          do: 'batch',
+          steps: [{ do: 'batch', steps: [{ ...plain, expectedProgress: [] }] }],
+        };
+        db.run('INSERT INTO command_journal VALUES (?,?,?)', [
+          JSON.stringify({ forward: side === 'forward' ? nested : plain }),
+          JSON.stringify(side === 'inverse' ? nested : plain),
+          JSON.stringify(
+            side === 'preconditions'
+              ? { moveProgress: { parent: [] } }
+              : side === 'empty-map'
+                ? { moveProgress: {} }
+                : {},
+          ),
+        ]);
+        const probe = Bun.spawn(storedStepBlockageReplayKindsCommand('green').slice(2), {
+          env: { ...process.env, DB_PATH: path },
+          stdout: 'pipe',
+          stderr: 'pipe',
+        });
+        expect(await probe.exited).toBe(0);
+        expect(JSON.parse(await new Response(probe.stdout).text())).toEqual([
+          { kind: 'move_progress_v1', count: 1 },
+        ]);
+      } finally {
+        db.close();
+        rmSync(directory, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it('counts guarded move semantics once per journal row and refuses malformed preconditions', async () => {
+    const directory = scratchSync('wbs-move-replay-count-');
+    const path = join(directory, 'plan.db');
+    const db = new Database(path);
+    try {
+      db.run(
+        'CREATE TABLE command_journal (payload text NOT NULL,inverse text NOT NULL,preconditions text NOT NULL)',
+      );
+      const guarded = { do: 'move', expectedProgress: [] };
+      db.run('INSERT INTO command_journal VALUES (?,?,?)', [
+        JSON.stringify({ forward: guarded }),
+        JSON.stringify({ do: 'batch', steps: [guarded] }),
+        JSON.stringify({ moveProgress: { parent: [] } }),
+      ]);
+      const read = async () => {
+        const probe = Bun.spawn(storedStepBlockageReplayKindsCommand('green').slice(2), {
+          env: { ...process.env, DB_PATH: path },
+          stdout: 'pipe',
+          stderr: 'pipe',
+        });
+        return {
+          code: await probe.exited,
+          output: await new Response(probe.stdout).text(),
+          error: await new Response(probe.stderr).text(),
+        };
+      };
+      expect(await read()).toEqual({
+        code: 0,
+        output: '[{"kind":"move_progress_v1","count":1}]\n',
+        error: '',
+      });
+      for (const preconditions of ['null', '[]', '"bad"']) {
+        db.run('UPDATE command_journal SET preconditions = ?', [preconditions]);
+        const refused = await read();
+        expect(refused.code).not.toBe(0);
+        expect(refused.error).toContain('journal preconditions are malformed');
+      }
+    } finally {
+      db.close();
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
   it('counts nested forward and inverse replay with no live facts, refusing malformed history', async () => {
     const directory = scratchSync('wbs-replay-history-');
     const path = join(directory, 'plan.db');
     const db = new Database(path);
     try {
-      db.run('CREATE TABLE command_journal (payload text NOT NULL,inverse text NOT NULL)');
+      db.run(
+        "CREATE TABLE command_journal (payload text NOT NULL,inverse text NOT NULL,preconditions text NOT NULL DEFAULT '{}')",
+      );
       const replace = {
         do: 'replace_blockage',
         workItemId: 'leaf',
@@ -290,7 +395,7 @@ describe('step blockage replay compatibility probes', () => {
         expectedBlockedAt: null,
         replacementBlockedAt: 123,
       };
-      db.run('INSERT INTO command_journal VALUES (?,?)', [
+      db.run('INSERT INTO command_journal (payload,inverse) VALUES (?,?)', [
         JSON.stringify({
           label: 'nested',
           forward: { do: 'batch', steps: [{ do: 'batch', steps: [replace] }] },

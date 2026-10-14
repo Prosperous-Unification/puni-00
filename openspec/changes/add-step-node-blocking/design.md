@@ -87,3 +87,76 @@ an image vocabulary plus an independent database inventory at both existing guar
 phases. Missing source/database state refuses; only genuine older CLI/table absence
 has the modeled empty vocabulary/inventory. Command-history compatibility remains
 an explicit prerequisite when new journal variants are enabled in the command slice.
+
+## Move closure (task 3.0.3)
+
+A true reparent into a current leaf captures its progress and blockage before any
+write. The forward journal clears destination readiness/hold, progress and exact
+blockage facts, moves the incoming subtree, then sets agreed readiness/hold and
+blockage on the old parent if it lost its last child. The inverse clears those
+handed-up facts, moves the subtree back, restores destination progress and exact
+blockage, then restores readiness/hold. Every step runs while its fact owner is a
+leaf. Progress restoration keeps the existing `set_progress` replay timestamp
+semantics. No new progress hand-up is added.
+
+Blockage agreement is per project step over every former leaf in the moved
+subtree: each must hold a direct fact, including facts retained on done nodes.
+The old parent's blocked time is the maximum of those timestamps, with no zero
+seed so negative timestamps remain valid. Incoming subtree facts are preserved.
+Replay into a current leaf compares its complete progress set against an explicit
+optional `expectedProgress` snapshot captured on the old parent before its last
+child departed. Equality is order-independent over owner, step, state and stated
+time; absent snapshot means an empty set. Exact historical rows survive in place,
+including audit columns, because clearing and restating them would change their
+provenance. Added, removed or changed progress refuses replay even when revisions
+were forged unchanged. Any residual blockage still refuses unconditionally after
+the recorded clears. Move snapshot owners remain revision-tracked across both
+journal directions through `expectedProgressOwnersOf`; other command owner tracking
+is unchanged. Same-parent
+reorder and existing-parent progress history are preserved. Work-item deletion,
+project-step deletion and the public blockage setter remain separate slices.
+
+## Destination progress preconditions and release compatibility
+
+A replay leaf guard runs after recorded destination clear commands, so it cannot
+protect a known step that those commands would already have deleted. A move that
+clears destination progress records its destination owners in optional
+`Preconditions.moveProgress`. The full owner/step/state/stated-time set is checked
+before any batch step, preserving added, removed or changed facts on refusal.
+Owner keys, owner-bound rows and unique steps are validated at the journal read
+boundary; owners and steps participate in scope checks. Collected command batches
+retain these owners and capture the final committed set.
+
+Undo continues restamping restored destination progress. Successful flip captures
+that actual current set for the next direction. Neighboring replay retains the
+existing revision-equality condition and captures guarded owner sets before the
+selected command applies. Its exact progress write pairs come only from that
+selected direction, recursively including batches and explicit structural rows.
+The complete captured set outside those pairs must match the recorded set,
+including absence; a mismatch retains the full stale snapshot. On a match, only
+written pairs take their actual post-replay values, and unwritten pairs retain
+their recorded values. Rename has no progress write pairs and cannot accept a
+silent step change. A Dev write can restamp Dev without accepting a changed,
+added or removed QA fact. No owner-wide write permission is inferred. This is
+separate from the inverse move's unchanged historical-parent allowance.
+
+The existing candidate CLI now advertises replay capabilities
+`replace_blockage` and `move_progress_v1` separately from decoder discriminators.
+Compose's independent database probe inventories nested forward/inverse move
+snapshot fields and precondition snapshot metadata, including empty arrays/maps,
+requiring `move_progress_v1` once per journal row. Both existing swap phases refuse
+an older or prior image lacking the token even with no blockage facts/commands.
+Malformed trusted preconditions refuse the inventory. Fact recovery cannot erase
+journal compatibility obligations.
+
+### Kubernetes pre-cutover obligation
+
+Compose is the currently enabled release path. The prepared Kubernetes delivery
+path does not yet enforce this replay capability check. Before importing guarded
+history or the first Kubernetes rollout, F11 must compare an independent database
+replay inventory with incoming/previous image digest capabilities after the writer
+stops and before capture/migrate. Rollback must check before `rolloutTiers` or
+`reopenWrites`; refusal must retain the fence and lease. Required proofs cover
+nested inverse/precondition markers and watched omissions. Migration capability
+capture/restore alone is insufficient. This slice implements Compose protection
+and records the Kubernetes prerequisite without claiming it is protected.

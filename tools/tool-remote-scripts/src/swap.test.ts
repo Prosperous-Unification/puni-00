@@ -1122,6 +1122,109 @@ describe('execute, stored vocabulary rollback guard', () => {
     expect(reads).toBe(1);
   });
 
+  it.each(['[]', '["replace_blockage"]'])(
+    'refuses an image with capabilities %s before migration over guarded move history',
+    async (supported) => {
+      const attempt = await runGuard(
+        '["FS"]',
+        '[]',
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        { supported: '[]', stored: () => '[]' },
+        false,
+        { supported, stored: () => '[{"kind":"move_progress_v1","count":1}]' },
+      );
+      expect(attempt.caught).toHaveProperty(
+        'message',
+        expect.stringContaining('move_progress_v1 (1)'),
+      );
+      expect(attempt.ran.some((args) => args.includes('src/migrate-cli.ts'))).toBe(false);
+      expect(attempt.ran).toContainEqual(['stop', 'be-01-green']);
+      expect(attempt.ran).not.toContainEqual(['stop', 'be-01-blue']);
+    },
+  );
+
+  it('admits guarded move history only with the matching capability', async () => {
+    const attempt = await runGuard(
+      '["FS"]',
+      '[]',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { supported: '[]', stored: () => '[]' },
+      false,
+      {
+        supported: '["replace_blockage","move_progress_v1"]',
+        stored: () => '[{"kind":"move_progress_v1","count":1}]',
+      },
+    );
+    expect(attempt.caught).toBeUndefined();
+  });
+
+  it.each(['[]', '["replace_blockage"]'])(
+    'refuses guarded move history added after first check for capabilities %s',
+    async (supported) => {
+      const directory = scratchSync('wbs-move-replay-after-stop-');
+      const path = join(directory, 'plan.db');
+      const db = new Database(path);
+      try {
+        db.run(
+          'CREATE TABLE command_journal (payload text NOT NULL,inverse text NOT NULL,preconditions text NOT NULL)',
+        );
+        const inventory = async () => {
+          const probe = Bun.spawn(storedStepBlockageReplayKindsCommand('green').slice(2), {
+            env: { ...process.env, DB_PATH: path },
+            stdout: 'pipe',
+            stderr: 'pipe',
+          });
+          expect(await probe.exited).toBe(0);
+          return new Response(probe.stdout).text();
+        };
+        const before = await inventory();
+        db.run('INSERT INTO command_journal VALUES (?,?,?)', [
+          JSON.stringify({ forward: { do: 'patch' } }),
+          JSON.stringify({
+            do: 'batch',
+            steps: [{ do: 'batch', steps: [{ do: 'move', expectedProgress: [] }] }],
+          }),
+          JSON.stringify({ moveProgress: { destination: [] } }),
+        ]);
+        const after = await inventory();
+        expect(JSON.parse(after)).toEqual([{ kind: 'move_progress_v1', count: 1 }]);
+        let reads = 0;
+        const attempt = await runGuard(
+          '["FS"]',
+          '[]',
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          { supported: '[]', stored: () => '[]' },
+          true,
+          { supported, stored: () => (++reads === 1 ? before : after) },
+          true,
+        );
+        expect(attempt.caught).toHaveProperty(
+          'message',
+          expect.stringContaining('move_progress_v1 (1)'),
+        );
+        expect(reads).toBe(2);
+        expect(attempt.ran).toContainEqual(['stop', 'be-01-blue']);
+        expect(attempt.ran.some((args) => args.includes('src/migrate-cli.ts'))).toBe(true);
+        expect(attempt.phases).not.toContain('committed');
+      } finally {
+        db.close();
+        rmSync(directory, { recursive: true, force: true });
+      }
+    },
+  );
+
   it('refuses an older image over blockage replay history even when the fact table is empty', async () => {
     const attempt = await runGuard(
       '["FS"]',
@@ -1148,7 +1251,9 @@ describe('execute, stored vocabulary rollback guard', () => {
     const path = join(directory, 'plan.db');
     const db = new Database(path);
     try {
-      db.run('CREATE TABLE command_journal (payload text NOT NULL,inverse text NOT NULL)');
+      db.run(
+        "CREATE TABLE command_journal (payload text NOT NULL,inverse text NOT NULL,preconditions text NOT NULL DEFAULT '{}')",
+      );
       const inventory = async () => {
         const child = Bun.spawn(storedStepBlockageReplayKindsCommand('green').slice(2), {
           env: { ...process.env, DB_PATH: path },
@@ -1160,7 +1265,7 @@ describe('execute, stored vocabulary rollback guard', () => {
       };
       const before = await inventory();
       const replace = { do: 'replace_blockage' };
-      db.run('INSERT INTO command_journal VALUES (?,?)', [
+      db.run('INSERT INTO command_journal (payload,inverse) VALUES (?,?)', [
         JSON.stringify({ forward: { do: 'batch', steps: [{ do: 'batch', steps: [replace] }] } }),
         JSON.stringify({ do: 'batch', steps: [replace] }),
       ]);

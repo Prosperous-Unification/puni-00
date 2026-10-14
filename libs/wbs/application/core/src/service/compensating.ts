@@ -100,7 +100,18 @@ export type CompensatingCommand =
   | { do: 'add_typed_dependency'; dependency: StoredTypedDependency }
   | { do: 'remove_typed_dependency'; dependency: StoredTypedDependency }
   | { do: 'update_typed_dependency'; from: StoredTypedDependency; to: StoredTypedDependency }
-  | { do: 'move'; workItemId: string; parentId: string | null; afterId: string | null }
+  /**
+   * Historical destination progress may remain in place through inverse reparenting
+   * only when the complete snapshot still matches. Absence requires no progress.
+   * These are comparison facts, never progress writes or new statement timestamps.
+   */
+  | {
+      do: 'move';
+      workItemId: string;
+      parentId: string | null;
+      afterId: string | null;
+      expectedProgress?: StoredProgress[];
+    }
   /**
    * One press of `Arrange by schedule`: every work item of every sibling group
    * whose order changed, at the position it now holds.
@@ -386,6 +397,8 @@ export function stepOfRevisionKey(key: string): string | null {
  * refuses. See `openspec/changes/conditional-undo/design.md`.
  */
 export interface Preconditions {
+  /** Exact destination progress sets checked before any move replay batch can clear them. */
+  moveProgress?: Record<string, StoredProgress[]>;
   /** Immutable units from the original write; absent only in legacy workday-only journals. */
   estimateUnits?: Record<string, EstimateUnit>;
   expected: Revisions;
@@ -393,6 +406,9 @@ export interface Preconditions {
 }
 
 export const STEP_BLOCKAGE_REPLAY_KINDS = ['replace_blockage'] as const;
+
+/** Persisted replay semantics understood by this image, distinct from command discriminators. */
+export const STEP_BLOCKAGE_REPLAY_CAPABILITIES = ['replace_blockage', 'move_progress_v1'] as const;
 
 const COMMANDS = [
   'patch',
@@ -427,12 +443,13 @@ const COMMANDS = [
  *
  * The discriminator is checked recursively through batches so an older
  * release cannot silently skip a nested command. The conditional blockage
- * variant also validates its pair and nullable safe-integer times before
+ * variant validates its pair and nullable safe-integer times, and move snapshots
+ * validate exact destination ownership, stored state/time and unique steps before
  * replay; malformed trusted history must not read as an absent fact. Other
  * fields were written by this process from typed values one statement earlier,
  * and a second schema for every legacy command would be a second definition.
  *
- * @throws when the value is not an object, or names a command this release has no branch for.
+ * @throws for missing/unknown commands or malformed conditional blockage/progress metadata.
  */
 export function readCommand(value: unknown): CompensatingCommand {
   if (typeof value !== 'object' || value === null || !('do' in value)) {
@@ -463,10 +480,60 @@ export function readCommand(value: unknown): CompensatingCommand {
     )
       throw new Error('a journal blockage replacement is malformed');
   }
+  if (named === 'move' && 'expectedProgress' in value) {
+    // Proof: removing this boundary admitted a mounted guarded move with no destination; watched 2026-10-14.
+    if (!('parentId' in value) || typeof value.parentId !== 'string')
+      throw new Error('a journal move progress snapshot has no destination');
+    readMoveProgress(value.expectedProgress, value.parentId);
+  }
   // The one cast in this file: known discriminators and nested commands have
-  // been checked, and the new conditional blockage fields have their boundary
+  // been checked, and conditional blockage/move progress fields have their boundary
   // validation. Legacy fields remain this process's own writing.
   return value as CompensatingCommand;
+}
+
+/** Validates one complete sparse progress set bound to its recorded owner. */
+function readMoveProgress(value: unknown, owner: string): StoredProgress[] {
+  // Proof: bypassing array validation changed named refusal to a raw iteration failure; watched 2026-10-14.
+  if (!Array.isArray(value)) throw new Error('a journal move progress snapshot is not an array');
+  const facts: readonly unknown[] = value;
+  const steps = new Set<string>();
+  return facts.map((fact) => {
+    // Proof: skipping field validation admitted malformed persisted snapshot fields; watched 2026-10-14.
+    if (
+      typeof fact !== 'object' ||
+      fact === null ||
+      !('workItemId' in fact) ||
+      fact.workItemId !== owner ||
+      !('stepId' in fact) ||
+      typeof fact.stepId !== 'string' ||
+      fact.stepId.length === 0 ||
+      !('state' in fact) ||
+      (fact.state !== 'done' && fact.state !== 'in_progress') ||
+      !('statedAt' in fact) ||
+      typeof fact.statedAt !== 'number' ||
+      !Number.isSafeInteger(fact.statedAt)
+    )
+      throw new Error('a journal move progress snapshot is malformed');
+    // Proof: accepting duplicate steps failed the mounted duplicate-snapshot case; watched 2026-10-14.
+    if (steps.has(fact.stepId)) throw new Error('a journal move progress snapshot repeats a step');
+    steps.add(fact.stepId);
+    return { workItemId: owner, stepId: fact.stepId, state: fact.state, statedAt: fact.statedAt };
+  });
+}
+
+/** Validates snapshot owner keys as well as each complete owner-bound progress set. */
+function readMoveProgressOwners(value: unknown): Record<string, StoredProgress[]> {
+  // Proof: bypassing map validation changed named trusted-history refusal to a raw error; watched 2026-10-14.
+  if (typeof value !== 'object' || value === null || Array.isArray(value))
+    throw new Error('journal move progress owners are not a map');
+  return Object.fromEntries(
+    Object.entries(value).map(([owner, facts]) => {
+      // Proof: skipping owner validation admitted an empty owner key; watched 2026-10-14.
+      if (owner.length === 0) throw new Error('journal move progress has an empty owner');
+      return [owner, readMoveProgress(facts, owner)];
+    }),
+  );
 }
 
 /** The `{label, forward}` a journal entry's payload is, checked the same far and no further. */
@@ -479,7 +546,7 @@ export function readPayload(value: unknown): JournalPayload {
   return { label, forward: readCommand(forward) };
 }
 
-/** The two revision maps a journal entry's preconditions are. */
+/** Stored replay preconditions, validating revisions and optional unit/progress metadata. */
 export function readPreconditions(value: unknown): Preconditions {
   if (typeof value !== 'object' || value === null || !('expected' in value) || !('from' in value)) {
     throw new Error(`a journal entry holds no preconditions: ${JSON.stringify(value)}`);
@@ -487,6 +554,9 @@ export function readPreconditions(value: unknown): Preconditions {
   return {
     expected: readRevisions(value.expected),
     from: readRevisions(value.from),
+    ...('moveProgress' in value
+      ? { moveProgress: readMoveProgressOwners(value.moveProgress) }
+      : {}),
     ...('estimateUnits' in value ? { estimateUnits: readEstimateUnits(value.estimateUnits) } : {}),
   };
 }
@@ -564,8 +634,31 @@ function readRevisions(value: unknown): Revisions {
   return out;
 }
 
+/** Exact progress pairs written by this command, including explicit structural rows and nested batches. */
+export function progressKeysOf(command: CompensatingCommand): ProgressKey[] {
+  switch (command.do) {
+    case 'set_progress':
+    case 'clear_progress':
+      return [{ workItemId: command.workItemId, stepId: command.stepId }];
+    case 'restore_subtree':
+      // Proof: omitting removedProgress failed exact structural write attribution; watched 2026-10-14.
+      return [...command.progress, ...command.removedProgress].map(({ workItemId, stepId }) => ({
+        workItemId,
+        stepId,
+      }));
+    case 'delete_subtree':
+      // Proof: omitting these writes failed exact delete progress attribution; watched 2026-10-14.
+      return command.setProgress.map(({ workItemId, stepId }) => ({ workItemId, stepId }));
+    case 'batch':
+      // Proof: skipping nested keys failed the nested progress attribution case; watched 2026-10-14.
+      return command.steps.flatMap(progressKeysOf);
+    default:
+      return [];
+  }
+}
+
 /**
- * Every work item a command will have written to once it has been applied.
+ * Every work item a command writes or whose historical progress it promises to preserve.
  *
  * This is what the **next** set of preconditions is read from, so it has to
  * name everything and may name rows that will not exist afterwards — the ones
@@ -608,7 +701,7 @@ export function touchedBy(command: CompensatingCommand): string[] {
         ]),
       ];
     case 'move':
-      return [command.workItemId];
+      return [...new Set([command.workItemId, ...expectedProgressOwnersOf(command)])];
     case 'set_frozen':
       return command.updates.map((each) => each.id);
     case 'set_step_allowance':
@@ -644,6 +737,18 @@ export function touchedBy(command: CompensatingCommand): string[] {
       // undo would overwrite without checking its revision.
       return [...new Set(command.steps.flatMap(touchedBy))];
   }
+}
+
+/**
+ * Owners whose unchanged historical progress a move promises to retain. Both
+ * journal directions must track them across flip/rebase even when only the
+ * inverse move carries the snapshot. Other command owners are excluded.
+ */
+export function expectedProgressOwnersOf(command: CompensatingCommand): string[] {
+  if (command.do === 'batch') return [...new Set(command.steps.flatMap(expectedProgressOwnersOf))];
+  return command.do === 'move'
+    ? [...new Set((command.expectedProgress ?? []).map(({ workItemId }) => workItemId))]
+    : [];
 }
 
 /**
@@ -741,6 +846,8 @@ function collectReferences(command: CompensatingCommand, found: CompensatingRefe
       return;
     case 'move':
       rows(command.workItemId, command.parentId, command.afterId);
+      // Proof: omitting snapshot references returned 409 instead of scoped 404 for a foreign step; watched 2026-10-14.
+      (command.expectedProgress ?? []).forEach(onStep);
       return;
     case 'set_positions':
       command.placements.forEach(placed);

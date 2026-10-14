@@ -2292,3 +2292,220 @@ function setFamilyCommand(family: ValueFamily, workItemId: string, stepId: strin
     return { kind: 'setProgress', workItemId, stepId, state: 'in_progress' };
   return { kind: 'setMeasure', workItemId, stepId, metric: 'token_actual', value: 2 };
 }
+
+/** Proof: committing refused staged batches failed both exact snapshots; watched 2026-10-14. */
+describe('transactional memory move blockage closure', () => {
+  async function seeded() {
+    const source = openMemorySource();
+    const graph = compose(source.stores, silentBroadcaster());
+    await source.stores.users.create(
+      { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
+      { at: 1, by: OWNER },
+    );
+    const created = await graph.projects.create('Move closure', OWNER);
+    const projectId = created.project.id;
+    const step = created.steps[0];
+    await source.stores.steps.add(
+      { id: step.id, projectId, name: step.name, allowancePercent: 0, estimateUnit: 'workdays' },
+      { at: 1, by: OWNER },
+    );
+    for (const id of ['parent', 'destination', 'moving']) {
+      await source.stores.workItems.insert(
+        workItemRow({ id, projectId, parentId: id === 'moving' ? 'parent' : null }),
+        [],
+        { at: 1, by: OWNER },
+      );
+    }
+    await source.stores.blockages.set(
+      { workItemId: 'moving', stepId: step.id, blockedAt: -10 },
+      { at: 1, by: OWNER },
+    );
+    await source.stores.blockages.set(
+      { workItemId: 'destination', stepId: step.id, blockedAt: -20 },
+      { at: 1, by: OWNER },
+    );
+    await source.stores.progress.set(
+      { workItemId: 'destination', stepId: step.id, state: 'done', statedAt: 1 },
+      { at: 1, by: OWNER },
+    );
+    const snapshot = () =>
+      Promise.all([
+        source.stores.workItems.listByProject(projectId),
+        source.stores.progress.listByProject(projectId),
+        source.stores.blockages.listByProject(projectId),
+      ]);
+    return { source, graph, projectId, stepId: step.id, snapshot };
+  }
+
+  it('rolls back cleared facts and moved rows when a later batch command refuses', async () => {
+    const { source, graph, projectId, snapshot } = await seeded();
+    try {
+      const before = await snapshot();
+      const runner = runnerOver(source, graph);
+      expect(
+        await runner.run(projectId, OWNER, [
+          { kind: 'moveWorkItem', workItemId: 'moving', parentId: 'destination', afterId: null },
+          { kind: 'moveWorkItem', workItemId: 'moving', parentId: 'missing', afterId: null },
+        ]),
+      ).toMatchObject({ ok: false });
+      expect(await snapshot()).toEqual(before);
+    } finally {
+      await source.close();
+    }
+  });
+
+  it('rolls back an earlier handed blockage clear when move undo finds new progress', async () => {
+    const { source, graph, projectId, stepId, snapshot } = await seeded();
+    try {
+      const runner = runnerOver(source, graph);
+      expect(
+        await runner.run(projectId, OWNER, [
+          { kind: 'moveWorkItem', workItemId: 'moving', parentId: 'destination', afterId: null },
+        ]),
+      ).toMatchObject({ ok: true });
+      await source.stores.progress.set(
+        { workItemId: 'parent', stepId, state: 'done', statedAt: 456 },
+        { at: 2, by: OWNER },
+      );
+      const before = await snapshot();
+      expect(await runner.undo(projectId, OWNER)).toMatchObject({ ok: false });
+      expect(await snapshot()).toEqual(before);
+    } finally {
+      await source.close();
+    }
+  });
+  it.each(['state', 'time', 'extra', 'missing'] as const)(
+    'rolls back %s historical progress refusal through the memory runner',
+    async (fault) => {
+      const { source, graph, projectId, stepId, snapshot } = await seeded();
+      try {
+        await source.stores.progress.set(
+          { workItemId: 'parent', stepId, state: 'done', statedAt: 123 },
+          { at: 1, by: OWNER },
+        );
+        const runner = runnerOver(source, graph);
+        expect(
+          await runner.run(projectId, OWNER, [
+            { kind: 'moveWorkItem', workItemId: 'moving', parentId: 'destination', afterId: null },
+          ]),
+        ).toMatchObject({ ok: true });
+        if (fault === 'state' || fault === 'time')
+          await source.stores.progress.set(
+            {
+              workItemId: 'parent',
+              stepId,
+              state: fault === 'state' ? 'in_progress' : 'done',
+              statedAt: fault === 'time' ? 456 : 123,
+            },
+            { at: 2, by: OWNER },
+          );
+        if (fault === 'extra') {
+          await source.stores.steps.add(
+            {
+              id: 'extra-step',
+              projectId,
+              name: 'QA',
+              allowancePercent: 0,
+              estimateUnit: 'workdays',
+            },
+            { at: 2, by: OWNER },
+          );
+          await source.stores.progress.set(
+            { workItemId: 'parent', stepId: 'extra-step', state: 'done', statedAt: 456 },
+            { at: 2, by: OWNER },
+          );
+        }
+        if (fault === 'missing')
+          await source.stores.progress.remove('parent', stepId, { at: 2, by: OWNER });
+        const before = await snapshot();
+        expect(await runner.undo(projectId, OWNER)).toMatchObject({ ok: false });
+        expect(await snapshot()).toEqual(before);
+      } finally {
+        await source.close();
+      }
+    },
+  );
+  it.each(['state', 'time', 'missing'] as const)(
+    'refuses known destination progress %s before the memory redo clears it',
+    async (fault) => {
+      const { source, graph, projectId, stepId, snapshot } = await seeded();
+      try {
+        const runner = runnerOver(source, graph);
+        expect(
+          await runner.run(projectId, OWNER, [
+            { kind: 'moveWorkItem', workItemId: 'moving', parentId: 'destination', afterId: null },
+          ]),
+        ).toMatchObject({ ok: true });
+        expect(await runner.undo(projectId, OWNER)).toMatchObject({ ok: true });
+        const previous = (
+          await source.stores.progress.listByWorkItems(projectId, ['destination'])
+        ).at(0);
+        if (previous === undefined) throw new Error('restored destination progress missing');
+        if (fault === 'missing')
+          await source.stores.progress.remove('destination', stepId, { at: 2, by: OWNER });
+        else
+          await source.stores.progress.set(
+            {
+              ...previous,
+              state: fault === 'state' ? 'in_progress' : previous.state,
+              statedAt: fault === 'time' ? 456 : previous.statedAt,
+            },
+            { at: 2, by: OWNER },
+          );
+        const before = await snapshot();
+        expect(await runner.redo(projectId, OWNER)).toMatchObject({ ok: false });
+        expect(await snapshot()).toEqual(before);
+      } finally {
+        await source.close();
+      }
+    },
+  );
+  it.each(['rename', 'progress'] as const)(
+    'does not launder stale destination facts through memory %s replay',
+    async (kind) => {
+      const { source, graph, projectId, stepId, snapshot } = await seeded();
+      try {
+        const qa = (await source.stores.projects.stepsOf(projectId)).find(
+          ({ id }) => id !== stepId,
+        );
+        if (qa === undefined) throw new Error('memory project has no second step');
+        await source.stores.steps.add(
+          { id: qa.id, projectId, name: qa.name, allowancePercent: 0, estimateUnit: 'workdays' },
+          { at: 1, by: OWNER },
+        );
+        await source.stores.progress.set(
+          { workItemId: 'destination', stepId: qa.id, state: 'done', statedAt: 123 },
+          { at: 1, by: OWNER },
+        );
+        const runner = runnerOver(source, graph);
+        const previous: PlanCommand =
+          kind === 'rename'
+            ? { kind: 'patchWorkItem', workItemId: 'destination', patch: { name: 'Renamed' } }
+            : { kind: 'setProgress', workItemId: 'destination', stepId, state: 'in_progress' };
+        expect(await runner.run(projectId, OWNER, [previous])).toMatchObject({ ok: true });
+        expect(
+          await runner.run(projectId, OWNER, [
+            { kind: 'moveWorkItem', workItemId: 'moving', parentId: 'destination', afterId: null },
+          ]),
+        ).toMatchObject({ ok: true });
+        expect(await runner.undo(projectId, OWNER)).toMatchObject({ ok: true });
+        await source.stores.progress.set(
+          {
+            workItemId: 'destination',
+            stepId: kind === 'rename' ? stepId : qa.id,
+            state: 'in_progress',
+            statedAt: 456,
+          },
+          { at: 2, by: OWNER },
+        );
+        expect(await runner.undo(projectId, OWNER)).toMatchObject({ ok: true });
+        expect(await runner.redo(projectId, OWNER)).toMatchObject({ ok: true });
+        const before = await snapshot();
+        expect(await runner.redo(projectId, OWNER)).toMatchObject({ ok: false });
+        expect(await snapshot()).toEqual(before);
+      } finally {
+        await source.close();
+      }
+    },
+  );
+});

@@ -1213,7 +1213,7 @@ export function stepBlockageReplayKindsCommand(container: string): string[] {
   ];
 }
 
-/** Counts new replay variants recursively in both persisted directions, independent of image code. */
+/** Inventories replay semantics in both directions and preconditions, independent of image code. */
 export function storedStepBlockageReplayKindsCommand(container: string): string[] {
   return [
     'exec',
@@ -1228,10 +1228,14 @@ try {
   const exists=db.query("SELECT name FROM sqlite_master WHERE type='table' AND name='command_journal'").get();
   if (exists===null) throw new Error('command journal table is missing');
   let count=0;
+  let moves=0;
+  let hasGuardedMove=false;
   const legacy=new Set('patch set_estimate clear_estimate set_actual clear_actual set_measure clear_measure set_progress clear_progress assign restore_attempt remove_attempt add_dependency remove_dependency add_typed_dependency remove_typed_dependency update_typed_dependency move set_frozen set_step_allowance set_positions delete_subtree restore_subtree'.split(' '));
   function visit(command) {
     if (typeof command!=='object'||command===null||Array.isArray(command)||typeof command.do!=='string') throw new Error('journal command is malformed');
     if (command.do==='replace_blockage') { count++; return; }
+    // Proof: omitting this marker lost nested forward/inverse snapshot history; watched 2026-10-14.
+    if (command.do==='move'&&Object.hasOwn(command,'expectedProgress')) hasGuardedMove=true;
     if (command.do==='batch') {
       if (!Array.isArray(command.steps)) throw new Error('journal batch is malformed');
       for (const step of command.steps) visit(step);
@@ -1239,13 +1243,19 @@ try {
     }
     if (!legacy.has(command.do)) throw new Error('journal command kind is unknown');
   }
-  for (const row of db.query('SELECT payload,inverse FROM command_journal').all()) {
+  for (const row of db.query('SELECT payload,inverse,preconditions FROM command_journal').all()) {
     const payload=JSON.parse(row.payload);
     if (typeof payload!=='object'||payload===null||Array.isArray(payload)||!Object.hasOwn(payload,'forward')) throw new Error('journal payload is malformed');
+    const preconditions=JSON.parse(row.preconditions);
+    // Proof: bypassing this boundary admitted arrays/strings and replaced null's named failure; watched 2026-10-14.
+    if (typeof preconditions!=='object'||preconditions===null||Array.isArray(preconditions)) throw new Error('journal preconditions are malformed');
+    // Proof: omitting this marker lost precondition-only and empty-map history; watched 2026-10-14.
+    hasGuardedMove=Object.hasOwn(preconditions,'moveProgress');
     visit(payload.forward);
     visit(JSON.parse(row.inverse));
+    if (hasGuardedMove) moves++;
   }
-  console.log(JSON.stringify(count===0?[]:[{kind:'replace_blockage',count}]));
+  console.log(JSON.stringify([...(count===0?[]:[{kind:'replace_blockage',count}]),...(moves===0?[]:[{kind:'move_progress_v1',count:moves}])]));
 } finally {db.close();}`,
   ];
 }
