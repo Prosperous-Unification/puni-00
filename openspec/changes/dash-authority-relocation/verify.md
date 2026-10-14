@@ -198,3 +198,73 @@ repository history is read, so a squash, rebase or gc of `e57278139` cannot brea
 Documents: ADR 0050 (0048 and 0049 were taken), the pointer line in ADR 0021, `names.md` row and
 bullet, `LLM_README.md` line (139 lines), and three `CONTEXT.md` terms (Generation, Publication
 marker, Authority bootstrap). Dash README lists five commands.
+
+## Mainline claims worker opening contention (2026-10-14)
+
+Mainline CI run `38493435283` at `b144be17d23415b700707b0fac6f57ac7dbcbffb`
+failed the disjoint half of `two Bun processes atomically refuse overlap and both admit
+disjoint work` (`claims.db.test.ts:308`). Its worker exhausted the production default
+50 attempts with 5 ms delays while `PRAGMA quick_check` met `SQLITE_BUSY` during open.
+Opening occurred outside the worker's catch, so a modeled terminal contention became a
+process exit instead of a typed observation. The success assertion also assumed that a
+concurrent writer would release its lock within that finite production budget.
+
+This is a test fixture repair restoring the bounded-contention contract; no production
+code, retry limit, schema, or CLI behavior changes, so no new OpenSpec change is needed.
+The worker now catches opening and classifies only `AuthorityContentionError` as
+contention. After both original disjoint workers exit, each contended acquisition gets
+one sequential attempt. Assertions require both admissions, the next generation to be
+4, and the literal claim of each disjoint session. Unexpected errors remain failures;
+there is no unbounded retry. Other concurrent test cases retain their existing assertions.
+
+Commands were run in `/tmp/puni-claims-ci-sol`, an independent worktree at the mainline
+SHA above, using the existing workspace dependencies through a `node_modules`
+symlink for the initial runs, then with an in-worktree install using
+`BUN_TMPDIR=/tmp bun install --frozen-lockfile` (exit 0; 1,573 installs checked).
+Logs for the full suite and project lint are `/tmp/puni-claims-ci-full.log` and
+`/tmp/puni-claims-ci-lint.log`.
+
+- Baseline: `bun test --preload ./tools/test/scratch/preload.ts
+./apps/twilight-structure/twilight-dash/cli/src/authority/claims.db.test.ts
+--timeout=60000`: 19 pass, 0 fail.
+- RED: added a real `BEGIN EXCLUSIVE` lock and a worker configured for two zero-delay
+  attempts. The focused opening regression exited 1 at `assertSchemaWithRetry` →
+  `PRAGMA quick_check`, matching the CI failure path before fixture repair.
+- GREEN: the same regression observed typed contention, released the lock, and its
+  single settlement acquired generation 1. The focused claims file passed 21 tests,
+  0 failures, 68 assertions after the final generation/claim assertions were added.
+- Watched classifier mutation: accepting every `Error` as contention failed
+  `a worker preserves corrupt opening failures instead of settling them as contention`:
+  expected `contended: false`, received `true` for a real non-SQLite database file.
+- Watched settlement mutation: returning the contended observation without the one
+  sequential attempt failed `a worker reports bounded opening contention and acquires
+after the lock releases`: expected generation-1 success, received the original
+  two-attempt contention. Both mutations were removed; adjacent `Proof:` comments
+  record them.
+- `bunx tsc --build --force apps/twilight-structure/twilight-dash/cli/tsconfig.json`:
+  exit 0. `NX_DAEMON=false bunx nx run twilight-dash:lint`: exit 0 after replacing an
+  unnecessary indexed-observation guard with paired inputs and observations.
+
+- Full project test command from the target's cwd: `TOOL_WIKI_TRUSTED_NODE_MODULES=/tmp/puni-claims-ci-sol/node_modules
+bun test --preload ../../../../tools/test/scratch/preload.ts src --timeout=60000`:
+  1,549 pass, 3 fail across 40 files (211.49 s). Every authority test passed. Two packaging
+  failures came from absolute symlinked dependencies: the reproducibility copy reached
+  the same real directory twice, and the launcher path check found `/home/df`.
+- After the local frozen install, `bun test --preload ../../../../tools/test/scratch/preload.ts
+src/packaging src/check-runs/run-activation-checks.test.ts --timeout=60000` passed all
+  packaging tests (12 pass total), with one remaining candidate-check failure:
+  `runs the candidate checks for real and writes a ledger the judge accepts` expected
+  measured output containing `relocation fixture check`, received empty output. A focused
+  rerun with Nx dynamic output/TUI disabled reproduced it. This unchanged path remains
+  unresolved and is reported to the PM; it is outside the claims fixture repair.
+
+- Final complete authority suite with local dependencies: the target's command scoped to
+  `src/authority` passed 155 tests across 11 files, 0 failures, 741 assertions (91.40 s).
+  This includes the production terminal-contention, rollback, corruption, fencing,
+  integration-race, and lifecycle model cases.
+- `bunx openspec validate --all --json` could not identify an executable because the
+  unscoped package is not the repository's CLI. The corrected pinned command,
+  `BUN_TMPDIR=/tmp bunx @fission-ai/openspec@1.12.0 validate --all --json`, exited 0.
+
+The host gate, standalone build, secrets scan, and migration lint were not run by this implementer;
+the PM owns the canonical gate and integration. No push or merge was performed.

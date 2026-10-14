@@ -22,13 +22,15 @@ import { openOrBootstrapAuthority } from './testing/open-or-bootstrap';
 const FIXED_CLOCK = { read: () => 1_000_000 };
 
 const WORKER_SOURCE = `
-const [{ openOrBootstrapAuthority }, { acquireClaims, expandClaims }] = await Promise.all([
+const [{ openOrBootstrapAuthority }, { acquireClaims, expandClaims }, { AuthorityContentionError }] = await Promise.all([
   import(process.argv[2]),
   import(process.argv[3]),
+  import(process.argv[5]),
 ]);
 const input = JSON.parse(process.argv[4]);
-const store = openOrBootstrapAuthority(input.worktreePath, { clock: { read: () => 1_000_000 }, ...input.options });
+let store;
 try {
+  store = openOrBootstrapAuthority(input.worktreePath, { clock: { read: () => 1_000_000 }, ...input.options });
   if (input.readyPath) await Bun.write(input.readyPath, 'ready');
   if (input.startPath) {
     for (let attempt = 0; attempt < 5000 && !require('node:fs').existsSync(input.startPath); attempt += 1) {
@@ -41,9 +43,10 @@ try {
     : acquireClaims(store, input.request);
   console.log(JSON.stringify({ ok: true, output }));
 } catch (error) {
-  console.log(JSON.stringify({ ok: false, message: error instanceof Error ? error.message : String(error) }));
+  // Proof: classifying every Error as contention made the corrupt-opening test observe true.
+  console.log(JSON.stringify({ ok: false, contended: error instanceof AuthorityContentionError, message: error instanceof Error ? error.message : String(error) }));
 } finally {
-  store.close();
+  store?.close();
 }
 `;
 
@@ -100,13 +103,21 @@ function spawnWorker(fixture: FixtureRepository, input: WorkerInput) {
   const storeModule = pathToFileURL(join(import.meta.dir, 'testing', 'open-or-bootstrap.ts')).href;
   const claimsModule = pathToFileURL(join(import.meta.dir, 'claims.ts')).href;
   return Bun.spawn(
-    [process.execPath, fixture.worker, storeModule, claimsModule, JSON.stringify(input)],
+    [
+      process.execPath,
+      fixture.worker,
+      storeModule,
+      claimsModule,
+      JSON.stringify(input),
+      pathToFileURL(join(import.meta.dir, 'authority-store.ts')).href,
+    ],
     { cwd: input.worktreePath, stderr: 'pipe', stdout: 'pipe' },
   );
 }
 
 interface WorkerObservation {
   readonly ok: boolean;
+  readonly contended?: boolean;
   readonly message?: string;
   readonly output?: { readonly generation: number; readonly sessionId: string };
 }
@@ -120,6 +131,18 @@ async function observation(child: ReturnType<typeof spawnWorker>): Promise<Worke
   if (exitCode !== 0) throw new Error(`worker exited ${String(exitCode)}: ${stderr}`);
   // Test boundary: the worker emits this closed shape from the literal above.
   return JSON.parse(stdout.trim()) as WorkerObservation;
+}
+
+/** After concurrent workers exit, one sequential attempt must settle typed contention. */
+async function settleWorker(
+  fixture: FixtureRepository,
+  input: WorkerInput,
+  observed: WorkerObservation,
+): Promise<WorkerObservation> {
+  // Proof: removing settlement left the exclusive-lock test at ok: false after release;
+  // classifying corruption as contention failed the corrupt-opening test (2026-10-14).
+  if (observed.contended !== true) return observed;
+  return observation(spawnWorker(fixture, input));
 }
 
 /**
@@ -259,6 +282,47 @@ test('refuses an existing authority database symlink', () => {
   );
 });
 
+test('a worker reports bounded opening contention and acquires after the lock releases', async () => {
+  const fixture = fixtureRepository();
+  openOrBootstrapAuthority(fixture.root, { clock: FIXED_CLOCK }).close();
+  const blocker = new Database(resolveAuthorityDatabasePath(fixture.root));
+  blocker.run('BEGIN EXCLUSIVE');
+  const input: WorkerInput = {
+    kind: 'acquire',
+    worktreePath: fixture.worktreeA,
+    request: claim('session-opening', fixture.worktreeA, 'apps/opening'),
+    options: { maxBusyAttempts: 2, busyDelayMilliseconds: 0 },
+  };
+  let contended: WorkerObservation;
+  try {
+    contended = await observation(spawnWorker(fixture, input));
+    expect(contended).toMatchObject({ ok: false, contended: true });
+  } finally {
+    blocker.run('ROLLBACK');
+    blocker.close();
+  }
+  expect(await settleWorker(fixture, input, contended)).toMatchObject({
+    ok: true,
+    output: { generation: 1, sessionId: 'session-opening' },
+  });
+});
+
+test('a worker preserves corrupt opening failures instead of settling them as contention', async () => {
+  const fixture = fixtureRepository();
+  const databasePath = resolveAuthorityDatabasePath(fixture.root);
+  mkdirSync(join(databasePath, '..'));
+  writeFileSync(databasePath, 'not sqlite');
+  const input: WorkerInput = {
+    kind: 'acquire',
+    worktreePath: fixture.worktreeA,
+    request: claim('session-corrupt', fixture.worktreeA, 'apps/corrupt'),
+  };
+  const refused = await observation(spawnWorker(fixture, input));
+  expect(refused).toMatchObject({ ok: false, contended: false });
+  expect(refused.message).toContain('authority database corrupt or incompatible');
+  expect(await settleWorker(fixture, input, refused)).toBe(refused);
+});
+
 test('two Bun processes atomically refuse overlap and both admit disjoint work', async () => {
   const fixture = fixtureRepository();
   const startOverlap = join(fixture.root, 'start-overlap');
@@ -305,23 +369,44 @@ test('two Bun processes atomically refuse overlap and both admit disjoint work',
   expect(overlapState.generations).toHaveLength(1);
   expect(overlapState.generations[0]?.claims).toHaveLength(2);
 
-  const disjoint = await Promise.all([
-    observation(
-      spawnWorker(fixture, {
-        kind: 'acquire',
-        worktreePath: fixture.worktreeA,
-        request: claim('session-c', fixture.worktreeA, 'apps/fe-01'),
-      }),
-    ),
-    observation(
-      spawnWorker(fixture, {
-        kind: 'acquire',
-        worktreePath: fixture.worktreeB,
-        request: claim('session-d', fixture.worktreeB, 'apps/gw-01'),
-      }),
-    ),
-  ]);
+  const disjointInputs: readonly WorkerInput[] = [
+    {
+      kind: 'acquire',
+      worktreePath: fixture.worktreeA,
+      request: claim('session-c', fixture.worktreeA, 'apps/fe-01'),
+    },
+    {
+      kind: 'acquire',
+      worktreePath: fixture.worktreeB,
+      request: claim('session-d', fixture.worktreeB, 'apps/gw-01'),
+    },
+  ];
+  // Production's finite busy budget may expire while a gate host deschedules the writer.
+  // Wait for both original workers to exit before settling any typed contention once.
+  const concurrent = await Promise.all(
+    disjointInputs.map(async (input) => ({
+      input,
+      observed: await observation(spawnWorker(fixture, input)),
+    })),
+  );
+  const disjoint: WorkerObservation[] = [];
+  for (const { input, observed } of concurrent) {
+    disjoint.push(await settleWorker(fixture, input, observed));
+  }
   expect(disjoint.map(({ ok }) => ok)).toEqual([true, true]);
+  const final = openOrBootstrapAuthority(fixture.root, { clock: FIXED_CLOCK });
+  try {
+    const state = final.inspect();
+    expect(state.nextGeneration).toBe(4);
+    expect(state.generations.find(({ sessionId }) => sessionId === 'session-c')?.claims).toEqual([
+      { access: 'write', identity: 'apps/fe-01', kind: 'path' },
+    ]);
+    expect(state.generations.find(({ sessionId }) => sessionId === 'session-d')?.claims).toEqual([
+      { access: 'write', identity: 'apps/gw-01', kind: 'path' },
+    ]);
+  } finally {
+    final.close();
+  }
 });
 
 test('two Bun processes serialize exclusive conflict-group claims', async () => {
