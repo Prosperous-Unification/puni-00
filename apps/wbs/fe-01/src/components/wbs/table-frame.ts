@@ -236,7 +236,12 @@ const COLUMN_WIDTHS = new Map<string, number>([
   // **40 → 32 on 2026-09-13** ("links … a bit smaller"): 24px of mark room, so
   // three 6px marks with 2px between them (22) and the fourth family is the
   // overflow mark — `MOST_MARKS` in `external-ref-marks.ts` moved with it.
-  ['refs', 32],
+  //
+  // **32 → 36 on 2026-10-13** (UI review F-043): the heading is the word
+  // `Links` again, 26.1px at the header's sentence-case 10px in Chromium, plus
+  // the 8px of padding. The marks keep `MOST_MARKS`; the column is off by
+  // default, so the folded budget does not pay for the 4px.
+  ['refs', 36],
   // The dependency chips (`030 ✕`) and the box that adds another.
   //
   // **110 → 86 on 2026-08-31, and this is where the `refs` column's 40px comes
@@ -284,7 +289,14 @@ const COLUMN_WIDTHS = new Map<string, number>([
   // clipped at 86. Part of the day's compaction ("you can make all columns
   // smaller"), which took 67px off the fixed set and gave every one of them to
   // the Name column — the one-pixel margins above are history now.
-  ['depends', 78],
+  //
+  // **78 → 84 on 2026-10-13** (UI review F-033): a typed chip, `030.1 SS`, is
+  // 57.4px in Chromium and was cut at the cell edge. 84 seats the add
+  // affordance and one typed chip whole (76 of room: 15 + 2 + 57.4; the empty
+  // search box after it is clipped, and draws no placeholder there); a longer
+  // chip ends in an ellipsis with its words in its `title`. Three folded steps
+  // still fit 1280.
+  ['depends', 84],
   // A priority, and priorities are short: 48px holds four digits and the 8px of padding
   // the declared width includes, which is a scale running past a thousand. The
   // header is `Prio` for the same reason `Not bef.` is abbreviated — a
@@ -302,7 +314,11 @@ const COLUMN_WIDTHS = new Map<string, number>([
   // asked for the column smaller ("prio - a bit smaller") knowing the scale is
   // unbounded; `999` beside the glyph is what 32px of room holds, `9999` clips,
   // and the browser test probes with three digits since.
-  ['priority', 40],
+  //
+  // **40 → 44 on 2026-10-13** (UI review F-006): no header abbreviates, and
+  // `Priority` is 35px at the header's sentence-case 10px in Chromium — 43
+  // with the padding. The cell's figure budget is unchanged.
+  ['priority', 44],
   ['team', 120],
   // The tag cell. 120 like the team's, because it holds the same kind of thing
   // — a name somebody typed, or several — and a narrower one would clip
@@ -398,7 +414,11 @@ const COLUMN_WIDTHS = new Map<string, number>([
   // three off by default (see INITIAL_HIDDEN_COLUMNS). It was 88 while the cell
   // read a word; `status-at-a-glance` moved it between `#` and Links, where a
   // word would not fit and a column that wide would push Name off the screen.
-  ['status', 28],
+  // **28 → 40 on 2026-10-13** (UI review F-043): the heading is the word
+  // `Status`, 30.6px at the header's sentence-case 10px in Chromium plus the
+  // padding; the cells are still one glyph. Off by default, so the folded
+  // budget does not pay for it.
+  ['status', 40],
   ['fact-start', DATE_COLUMN_WIDTH],
   ['fact-end', DATE_COLUMN_WIDTH],
   // No `notes`: a work item's notes are typed under its name, in the Name
@@ -499,9 +519,13 @@ const NOT_BEFORE_WITH_DAYS = 84;
 
 /**
  * The earliest-start column's width where no row in the project sets a day, in
- * px — an em-dash on every row, and a heading that abbreviates.
+ * px — an em-dash on every row under the heading `Not before`.
+ *
+ * 56 with the heading abbreviated to `Not bef.` until the UI review of
+ * 2026-10-13 (F-006); `Not before` is 50px at the header's sentence-case 10px
+ * in Chromium, so 58 with the padding and 60 to keep a subpixel off the edge.
  */
-const NOT_BEFORE_EMPTY = 56;
+const NOT_BEFORE_EMPTY = 60;
 
 /**
  * How wide the date editor is laid out while it is open, in px.

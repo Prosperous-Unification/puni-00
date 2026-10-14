@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { MembershipChoices } from '@/components/organization/membership-choices';
 import { browserClient, failureMessage, unreachable } from '@/lib/http';
+import { useFeatureReachable } from '@/lib/session-features';
 
 import { clearLinkOutcome, readLinkOutcome } from './auth0-link';
 import { EmailVerification } from './email-verification';
@@ -26,15 +27,24 @@ type View =
   | { kind: 'fault'; error: Error }
   | { kind: 'ready'; state: Discovery };
 
-/** Signed-in routing is inert until the activation marker admits onboarding. */
+/**
+ * Signed-in routing is inert until the activation marker admits onboarding.
+ * When the session read reported onboarding off, the screen starts inactive and
+ * never asks (`session-features`); otherwise the read's refusal decides it.
+ */
 export function OnboardingScreen({
   children,
   onSignOut,
+  renderOrganization,
 }: {
   children: React.ReactNode;
   onSignOut: () => void;
+  renderOrganization?: (mode: 'legacy' | 'activated') => React.ReactNode;
 }): React.JSX.Element {
-  const [view, setView] = useState<View>({ kind: 'loading' });
+  const reachable = useFeatureReachable('onboarding');
+  const [view, setView] = useState<View>(() =>
+    reachable ? { kind: 'loading' } : { kind: 'inactive' },
+  );
   // Read in an initializer and cleared in an effect, as `AuthForm` does with
   // its SSO error, so StrictMode's second run neither mutates nor erases it.
   const [linkOutcome] = useState(readLinkOutcome);
@@ -84,10 +94,11 @@ export function OnboardingScreen({
   }, []);
 
   useEffect(() => {
+    if (!reachable) return;
     void refresh().catch((cause: unknown) => {
       setView({ kind: 'fault', error: new Error('Unexpected onboarding failure', { cause }) });
     });
-  }, [refresh]);
+  }, [reachable, refresh]);
 
   async function createOrganization(event: React.SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -155,7 +166,7 @@ export function OnboardingScreen({
     return (
       <>
         {notice}
-        {children}
+        {renderOrganization === undefined ? children : renderOrganization('legacy')}
       </>
     );
   if (view.kind === 'failure')
@@ -168,6 +179,13 @@ export function OnboardingScreen({
       </>
     );
   const state = view.state;
+  if (state.state === 'selection_required' && renderOrganization !== undefined)
+    return (
+      <>
+        {notice}
+        {renderOrganization('activated')}
+      </>
+    );
   return (
     <main className="bg-background text-foreground mx-auto max-w-xl p-8 font-sans">
       {notice}

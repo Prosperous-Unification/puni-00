@@ -12,6 +12,8 @@ import {
   WHERE_ORDER,
 } from './keyboard-bindings';
 import type { PlanRenderer } from './plan-renderer';
+import { NODE_READING_GLYPH, NODE_READING_LABEL, STATUS_GLYPH, STATUS_LABEL } from './status-cell';
+import { NODE_READING_TOKEN, STATUS_TOKEN } from './status-palette';
 
 export type { KeyPress } from './keyboard-bindings';
 // The predicate moved to `keyboard-bindings.ts`, where `isPageShortcut` can
@@ -50,6 +52,28 @@ export interface KeyboardCheatSheetProps {
 }
 
 const TITLE_ID = 'keyboard-cheat-sheet-title';
+const MARKS_TITLE_ID = 'keyboard-cheat-sheet-marks';
+
+/**
+ * Every mark the plan draws in place of a word, with the word — the legend the
+ * UI review found missing (F-036, 2026-10-13): a row's status glyph, a step
+ * cell's corner reading, and the triangle beside an assignee from outside the
+ * row's team. Read off the same tables the cells draw from, so a glyph that
+ * changes there changes here.
+ */
+const PLAN_MARKS: readonly { glyph: string; word: string; ink: string | null }[] = [
+  ...(Object.keys(STATUS_LABEL) as (keyof typeof STATUS_LABEL)[]).map((status) => ({
+    glyph: STATUS_GLYPH[status],
+    word: STATUS_LABEL[status],
+    ink: STATUS_TOKEN[status],
+  })),
+  ...(['skipped', 'waiting'] as const).map((reading) => ({
+    glyph: NODE_READING_GLYPH[reading],
+    word: `${NODE_READING_LABEL[reading]} (a step's reading)`,
+    ink: NODE_READING_TOKEN[reading],
+  })),
+  { glyph: '△', word: 'Assigned outside the team', ink: null },
+];
 
 /**
  * What a Tab can land on, as a selector.
@@ -261,6 +285,31 @@ export function KeyboardCheatSheet({ onClose, renderer, altStyle }: KeyboardChea
             </section>
           ),
         )}
+        <section aria-labelledby={MARKS_TITLE_ID} className="mt-4">
+          <h3
+            id={MARKS_TITLE_ID}
+            className="text-muted-foreground mb-1.5 text-xs font-semibold tracking-wide uppercase"
+          >
+            Marks in the plan
+          </h3>
+          <p className="text-muted-foreground mb-1.5 text-sm">
+            A row’s status, and in a step cell’s corner that step’s own reading. Hovering a cell
+            says its mark in words.
+          </p>
+          <dl className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1 text-sm">
+            {PLAN_MARKS.map((mark) => (
+              <Fragment key={mark.word}>
+                <dt
+                  className="w-5 text-center"
+                  style={{ color: mark.ink ?? 'var(--muted-foreground)' }}
+                >
+                  {mark.glyph}
+                </dt>
+                <dd>{mark.word}</dd>
+              </Fragment>
+            ))}
+          </dl>
+        </section>
       </div>
     </div>
   );

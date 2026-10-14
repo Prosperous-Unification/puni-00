@@ -22,6 +22,13 @@ export type OnboardingAnswer<T> =
 
 /** One signed-in user's onboarding reads and transactional mutations. */
 export interface Onboarding {
+  /**
+   * Whether onboarding answers at all on this deployment: false exactly when
+   * every other method would refuse `onboarding_inactive`.
+   *
+   * @throws When the trusted state that decides it cannot be read; never false for that.
+   */
+  isActive(): Promise<boolean>;
   discover(userId: string): Promise<OnboardingAnswer<OnboardingState>>;
   createOrganization(
     userId: string,

@@ -202,8 +202,11 @@ test.describe('the steps surface, in a browser', () => {
     // 1230 on 2026-09-13**: the day's compaction took 59px off the fixed set
     // this fixture shows (67 less the hidden Links column's 8), the folded
     // step column grew 96 → 104, three times over, and the Number column
-    // reads its 68px shallow width on a plan with no third level.
-    await expect(page.getByText('3 steps need ≥1230px of width to sit side by side')).toBeVisible();
+    // reads its 68px shallow width on a plan with no third level. **1230 →
+    // 1244 on 2026-10-13** (UI review F-006/F-033): Depends on +6, Priority
+    // +4 and the undated Not before +4, for whole-word headings and a typed
+    // chip that fits.
+    await expect(page.getByText('3 steps need ≥1244px of width to sit side by side')).toBeVisible();
     await page.keyboard.press('Escape');
 
     const threeSteps = await columnsOnScreen(page);

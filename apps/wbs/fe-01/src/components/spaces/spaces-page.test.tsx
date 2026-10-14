@@ -4,10 +4,10 @@ import {
   createRouter,
   RouterProvider,
 } from '@tanstack/react-router';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { cleanup, fireEvent, render, screen, within } from '@/testing/organization-render';
 import { answerEmpty, answerJson as answer, stubServer } from '@/testing/stub-server';
 
 import { SpacesPage } from './spaces-page';
@@ -100,8 +100,9 @@ describe('the spaces page', () => {
     cleanup();
     stubServer({ 'GET /api/spaces': [() => answer(409, { error: 'organization_required' })] });
     routed(<SpacesPage nav={null} account={null} />);
-    expect((await screen.findByRole('alert')).textContent).toContain('Spaces need an organization');
-    expect(screen.getByRole('link', { name: 'All projects' })).toBeDefined();
+    expect((await screen.findByRole('alert')).textContent).toBe('Spaces need an organization.');
+    expect(screen.getByText(/every project is in All projects/)).toBeDefined();
+    expect(screen.getByRole('link', { name: 'Open All projects' })).toBeDefined();
   });
 
   it('gives the page up to the company sign-in when enforced SSO refuses it', async () => {

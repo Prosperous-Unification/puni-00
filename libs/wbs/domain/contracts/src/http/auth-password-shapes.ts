@@ -18,7 +18,20 @@ const signedIn = responseSchema(
 );
 const scope = type("'read' | 'write' | 'editor'");
 const methodId = type("'google' | 'github' | 'email' | 'apple'");
-/** `linkedMethods`: catalogue methods of the account's mapped identities, read from the store; be-01 always sends it, older fixtures omit it. */
+/**
+ * Which deployment-wide features answer on this backend: `onboarding` is the
+ * activation marker admitting onboarding, `organizations` additionally needs the
+ * organization selection composition. A client skips a feature's reads when it
+ * is false (`openspec/changes/session-features`).
+ */
+export const sessionFeatures = type({ onboarding: 'boolean', organizations: 'boolean' });
+/** The deployment features a session read reports; see {@link sessionFeatures}. */
+export type SessionFeatures = typeof sessionFeatures.infer;
+/**
+ * `linkedMethods`: catalogue methods of the account's mapped identities, read from the store.
+ * `features`: {@link sessionFeatures}, answered signed in and signed out alike.
+ * be-01 always sends both; older backends and fixtures omit them.
+ */
 const currentUser = responseSchema(
   type({
     user: type({
@@ -27,6 +40,7 @@ const currentUser = responseSchema(
       scopes: scope.array(),
       'linkedMethods?': methodId.array(),
     }).or('null'),
+    'features?': sessionFeatures,
   }),
 );
 

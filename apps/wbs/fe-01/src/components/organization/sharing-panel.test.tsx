@@ -1,6 +1,6 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { cleanup, fireEvent, render, screen, waitFor } from '@/testing/organization-render';
 import { answerJson as answer, stubServer } from '@/testing/stub-server';
 
 import { type AccessLoss } from './organization-access';

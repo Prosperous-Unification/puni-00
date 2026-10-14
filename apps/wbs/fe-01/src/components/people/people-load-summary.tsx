@@ -2,13 +2,14 @@ import { Link } from '@tanstack/react-router';
 import { type ClientReply, readOrganizationLoad } from '@wbs/contracts';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 
-import { browserClient, failureMessage, unreachable } from '@/lib/http';
+import { failureMessage, unreachable } from '@/lib/http';
 import type { DirectoryManagement } from '@/modules/directory-management/contract';
+import { useResourceClient } from '@/runtime/organization-resources';
 
 import { loadRefusalWords } from './load-refusal';
 import type { LoadWindow } from './load-window';
 
-const people = browserClient([readOrganizationLoad]);
+const PEOPLE_SHAPES = [readOrganizationLoad] as const;
 
 type OrganizationLoad = Extract<
   ClientReply<typeof readOrganizationLoad>,
@@ -51,6 +52,7 @@ export function usePeopleLoad(
   window: LoadWindow,
   directory: Pick<DirectoryManagement, 'subscribe' | 'snapshot'>,
 ): PeopleLoadView {
+  const people = useResourceClient(PEOPLE_SHAPES);
   const shown = useSyncExternalStore(directory.subscribe, directory.snapshot);
   const [view, setView] = useState<PeopleLoadView>({ kind: 'loading' });
   const [fault, setFault] = useState<Error | null>(null);
@@ -81,7 +83,7 @@ export function usePeopleLoad(
     return () => {
       current = false;
     };
-  }, [window.from, window.to, shown]);
+  }, [people, window.from, window.to, shown]);
   if (fault !== null) throw fault;
   return view;
 }

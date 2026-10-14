@@ -44,6 +44,7 @@ export class BootedBrowserProcess {
   static async open(
     browserSessionAuthority: BootOptions['browserSessionAuthority'],
     oidc?: OidcRouteOptions,
+    appOrigin = BOOTED_ORIGIN,
   ): Promise<BootedBrowserProcess> {
     const dir = mkdtempSync(join(tmpdir(), 'wbs-booted-browser-'));
     const dbPath = join(dir, 'test.db');
@@ -51,7 +52,7 @@ export class BootedBrowserProcess {
     let composed: { app: ReturnType<typeof buildApp>; options: AppOptions } | undefined;
     const running = await bootBe01(
       {
-        appOrigin: oidc?.appOrigin ?? BOOTED_ORIGIN,
+        appOrigin: oidc?.appOrigin ?? appOrigin,
         dbPath,
         port: 0,
         logger: createLogger({ service: 'be-01', level: 'error' }),
@@ -95,9 +96,9 @@ export class BootedBrowserProcess {
   /** Registers `username` through the mounted route and keeps its native token. */
   async register(username: string): Promise<void> {
     const res = await this.app.handle(
-      new Request(`${BOOTED_ORIGIN}/api/auth/register`, {
+      new Request(`${this.options.appOrigin}/api/auth/register`, {
         method: 'POST',
-        headers: { origin: BOOTED_ORIGIN, 'content-type': 'application/json' },
+        headers: { origin: this.options.appOrigin, 'content-type': 'application/json' },
         body: JSON.stringify({ username, password: 'correct-horse' }),
       }),
     );

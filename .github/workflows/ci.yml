@@ -1112,6 +1112,10 @@ jobs:
       - name: Layout gate
         run: bun run e2e -- --shard=${{ matrix.shard }}/4
 
+      - name: Activated organization context
+        if: ${{ matrix.shard == 1 }}
+        run: bunx nx run wbs-fe-01:e2e-organization
+
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:

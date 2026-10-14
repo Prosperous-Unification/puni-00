@@ -77,16 +77,18 @@ test.describe('what the chart’s detail switch hides, in a browser', () => {
     expect(box.height, 'the assumed bar is drawn with no height').toBeGreaterThan(0);
 
     // And it still says it is a guess rather than passing for costed work: the
-    // dashes, the lighter fill and the `?` are what carry that.
+    // dashes, the lighter fill and `no estimate` are what carry that.
     const painted = await assumed.first().evaluate((bar) => {
       const style = getComputedStyle(bar);
       return { dash: style.strokeDasharray, fill: style.fillOpacity };
     });
     expect(painted.dash, 'the assumed bar is not dashed').not.toBe('none');
     expect(Number(painted.fill)).toBeLessThan(1);
-    await expect(page.locator('[data-gantt-bar-label]').filter({ hasText: '?' })).not.toHaveCount(
-      0,
-    );
+    // `number · no estimate` (or `no estimate` on a narrow bar) since
+    // ui-review F-037, where it used to lead with `?`.
+    await expect(
+      page.locator('[data-gantt-bar-label]').filter({ hasText: 'no estimate' }),
+    ).not.toHaveCount(0);
 
     // Non-vacuity: the costed bar on `010` is drawn too, so the assertions above
     // are not holding of a chart that draws nothing — and it is *not* assumed,

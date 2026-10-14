@@ -55,6 +55,14 @@ export const buttonVariants = cva(
   },
 );
 
+/**
+ * The classes that lay a `ghost` button out as one row of a menu: the full
+ * width of the panel, its words from the left edge, at body weight. One
+ * constant so the Export / Import menu and its Import with AI trigger read as
+ * the row ⋯ menu does (UI review F-031) rather than as a column of buttons.
+ */
+export const MENU_ITEM = 'w-full justify-start font-normal';
+
 export type ButtonVariant = NonNullable<VariantProps<typeof buttonVariants>['variant']>;
 export type ButtonSize = NonNullable<VariantProps<typeof buttonVariants>['size']>;
 

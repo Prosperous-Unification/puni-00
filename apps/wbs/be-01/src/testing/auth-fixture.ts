@@ -43,3 +43,9 @@ export function testLocalAuthService(identity: AuthenticatedUser): AuthService {
     localIdentity: identity,
   });
 }
+
+/** The session read's features on a deployment before activation, for direct endpoint tests. */
+export const NO_SESSION_FEATURES = { onboarding: false, organizations: false } as const;
+
+/** Answers {@link NO_SESSION_FEATURES}, the `readFeatures` of an endpoint test. */
+export const readNoSessionFeatures = () => Promise.resolve(NO_SESSION_FEATURES);

@@ -279,8 +279,14 @@ test('a clipped reference cell says its whole set on hover', async ({ page }) =>
     await chips.nth(2).evaluate((chip) => {
       const box = chip.getBoundingClientRect();
       const clipper = chip.closest('td');
-      if (clipper === null) return false;
-      return box.right > clipper.getBoundingClientRect().right;
+      const line = chip.closest('[data-reference-chips]');
+      if (clipper === null || line === null) return false;
+      // Past the cell's edge, or — since the review of PR #409, which stopped
+      // drawing a chip cut — wrapped onto the rest line's hidden second line.
+      return (
+        box.right > clipper.getBoundingClientRect().right ||
+        box.top >= line.getBoundingClientRect().bottom
+      );
     }),
     'the fixture is not a clipped cell — the card would have nothing to add',
   ).toBe(true);

@@ -654,7 +654,7 @@ describe('the chart under a plan being edited', () => {
     await waitFor(() => {
       expect(bar()?.getAttribute('data-start')).toBe('16');
     });
-    expect(rowFor('010').querySelector('[data-start]')?.textContent).toBe('16');
+    expect(rowFor('010').querySelector('[data-start]')?.textContent).toBe('day 16');
   });
 
   itDom('says on the bar why the date that holds it is there', async () => {

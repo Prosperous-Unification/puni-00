@@ -61,6 +61,7 @@ import type {
 import type { IsoDate } from '@wbs/domain/workday';
 
 import { browserClient, unreachable } from './http';
+import type { ResourceScope } from './organization-context';
 import { type RefusalWords, sentenceForRefusal } from './refusal';
 
 /**
@@ -2483,8 +2484,8 @@ async function directoryRemove(
   return { ok: true };
 }
 
-export function httpDirectoryApi(token: string): DirectoryApi {
-  const client = browserClient(WBS_SHAPES);
+export function httpDirectoryApi(token: string, scope?: ResourceScope): DirectoryApi {
+  const client = browserClient(WBS_SHAPES, scope);
   return {
     async listPeople() {
       return jsonBody(listPeopleShape, await client.getApiPeople({ headers: auth(token) })).people;
@@ -2572,8 +2573,8 @@ export function httpDirectoryApi(token: string): DirectoryApi {
   };
 }
 
-export function httpProjectApi(token: string): ProjectApi {
-  const client = browserClient(PROJECT_SHAPES);
+export function httpProjectApi(token: string, scope?: ResourceScope): ProjectApi {
+  const client = browserClient(PROJECT_SHAPES, scope);
   /**
    * The directory client, spread into the answer below rather than delegated
    * method by method: the thirteen vocabulary members {@link ProjectApi} shares
@@ -2586,7 +2587,7 @@ export function httpProjectApi(token: string): ProjectApi {
    * nothing typed can reach them from a plan. Segregating them would mean a
    * third interface for no caller.
    */
-  const directory = httpDirectoryApi(token);
+  const directory = httpDirectoryApi(token, scope);
   /**
    * Which project each work item this client has seen belongs to — learned
    * from every tree it reads and every row it creates, because the batch route

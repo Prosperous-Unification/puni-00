@@ -1,6 +1,6 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@/testing/organization-render';
 import { answerEmpty, answerJson as answer, stubServer } from '@/testing/stub-server';
 
 import { OrganizationPage } from './organization-page';
@@ -27,6 +27,7 @@ const offer = (id: string, email: string, fields: Record<string, unknown> = {}) 
 function stubPage(routes: Parameters<typeof stubServer>[0]) {
   return stubServer({
     'GET /api/organization/sso-connections': [() => answer(200, { connections: [] })],
+    'GET /api/organization/session-policy': [() => answer(200, { policy: null })],
     'GET /api/organization/join-requests': [() => answer(200, { requests: [] })],
     'GET /api/organization/domains': [() => answer(200, { domains: [] })],
     'GET /api/organization/members': [() => answer(200, { members: [] })],
@@ -46,6 +47,7 @@ describe('organization page', () => {
     stubPage({ 'GET /api/organization/invitations': [() => answer(200, { invitations: [] })] });
     renderPage();
     expect(await screen.findByRole('region', { name: 'Company sign-in' })).toBeDefined();
+    expect(await screen.findByRole('region', { name: 'Session policy' })).toBeDefined();
   });
 
   it('shows whether the organization shares its people', async () => {
@@ -135,6 +137,7 @@ describe('organization page drawing', () => {
       'Join requests',
       'Domains',
       'Company sign-in',
+      'Session policy',
       'Shared people',
     ]) {
       const region = await screen.findByRole('region', { name });
@@ -275,7 +278,7 @@ describe('organization invitations', () => {
 
   it.each([
     ['not_a_member', 'You no longer have access to this organization.'],
-    ['no_active_organization', 'No organization is selected for this session.'],
+    ['no_active_organization', 'This session has no organization.'],
     ['onboarding_inactive', 'Organization administration is not active yet.'],
   ])('renders the %s list refusal as the page state', async (error, copy) => {
     stubPage({ 'GET /api/organization/invitations': [() => answer(403, { error })] });
@@ -307,6 +310,7 @@ describe('organization invitations', () => {
   it('drops every panel when another panel loses access', async () => {
     stubServer({
       'GET /api/organization/sso-connections': [() => answer(200, { connections: [] })],
+      'GET /api/organization/session-policy': [() => answer(200, { policy: null })],
       'GET /api/organization/invitations': [
         () => answer(200, { invitations: [offer('a', 'ada@acme.test')] }),
       ],

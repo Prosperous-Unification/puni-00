@@ -24,7 +24,14 @@ type View =
  * hint, never as an entry to choose. A failed read is a failure state, never
  * an empty list.
  */
-export function MembershipChoices(): React.JSX.Element {
+export function MembershipChoices({
+  onChoose,
+  disabled = false,
+}: {
+  onChoose?: (organizationId: string) => void;
+  disabled?: boolean;
+}): React.JSX.Element {
+  // Proof: selecting the sole discovered membership failed `requires an explicit choice even for a sole membership` (c2-fault-sole).
   const [view, setView] = useState<View>({ kind: 'loading' });
   const [fault, setFault] = useState<Error | null>(null);
 
@@ -49,13 +56,26 @@ export function MembershipChoices(): React.JSX.Element {
   return (
     <ul aria-label="Your organizations" className="m-0 flex list-none flex-col gap-2 p-0">
       {view.memberships.map((membership) => (
-        <MembershipEntry key={membership.organizationId} membership={membership} />
+        <MembershipEntry
+          key={membership.organizationId}
+          membership={membership}
+          onChoose={onChoose}
+          disabled={disabled}
+        />
       ))}
     </ul>
   );
 }
 
-function MembershipEntry({ membership }: { membership: Membership }): React.JSX.Element {
+function MembershipEntry({
+  membership,
+  onChoose,
+  disabled,
+}: {
+  membership: Membership;
+  onChoose?: (organizationId: string) => void;
+  disabled: boolean;
+}): React.JSX.Element {
   const locked = membership.ssoRequired;
   // Proof: 2026-10-12, ignoring `ssoRequired` here failed `shows an
   // SSO-enforced organization locked, with the company sign-in hint`.
@@ -69,6 +89,17 @@ function MembershipEntry({ membership }: { membership: Membership }): React.JSX.
           {locked ? 'Locked' : ROLE_NAMES[membership.role]}
         </span>
       </div>
+      {!locked && onChoose !== undefined && (
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => {
+            onChoose(membership.organizationId);
+          }}
+        >
+          Choose {membership.name}
+        </button>
+      )}
       {locked && (
         <p className="text-muted-foreground mt-1 text-sm">
           Requires its company sign-in. Sign out, then sign in with your company.

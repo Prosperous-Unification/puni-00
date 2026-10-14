@@ -629,6 +629,8 @@ describe('every test-running target answers the same from an agent shell', () =>
         }
       }
     }
+    // Proof: omitting the new e2e-organization target's agent-output env made
+    // this inventory name `wbs-fe-01:e2e-organization` as exposed.
     expect(exposed.sort()).toEqual([]);
   }, 30_000);
 });

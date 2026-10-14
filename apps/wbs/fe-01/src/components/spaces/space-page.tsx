@@ -21,7 +21,8 @@ import {
   SELECT_CLASS,
 } from '@/components/ui/control';
 import { STATUS_GLYPH, STATUS_LABEL } from '@/components/wbs/status-cell';
-import { browserClient, failureMessage, unreachable } from '@/lib/http';
+import { failureMessage, unreachable } from '@/lib/http';
+import { useResourceClient, useResourceScope } from '@/runtime/organization-resources';
 
 import { InProgressList, type InProgressState, readInProgress } from './in-progress-list';
 import { singleFlight } from './single-flight';
@@ -37,14 +38,14 @@ import {
 import { type SpaceGanttInput, spaceGanttLanesOf } from './space-gantt';
 import { useSpacesPolling } from './use-spaces-polling';
 
-const client = browserClient([
+const CLIENT_SHAPES = [
   readSpace,
   readSpaceRollUps,
   addSpaceProject,
   removeSpaceProject,
   moveSpaceProject,
   listProjects,
-]);
+] as const;
 
 type SpaceRead = Extract<ClientReply<typeof readSpace>, { kind: 'success' }>['body'];
 type Row = SpaceRead['rows'][number];
@@ -98,6 +99,8 @@ export function SpacePage({
   nav: ReactNode;
   account: ReactNode;
 }): React.JSX.Element {
+  const client = useResourceClient(CLIENT_SHAPES);
+  const scope = useResourceScope();
   const [view, setView] = useState<View>({ kind: 'loading' });
   const [rollUps, setRollUps] = useState<Readonly<Record<string, RollUpState>>>({});
   /** "In progress now", kept between reads so a refresh never blanks it. */
@@ -143,7 +146,7 @@ export function SpacePage({
         }
       }
     },
-    [spaceId],
+    [client, spaceId],
   );
 
   const refresh = useCallback(async () => {
@@ -177,7 +180,7 @@ export function SpacePage({
         // space.`: the removed project's leaf stayed listed.
         await Promise.all([
           loadRollUps(reply.body.rows),
-          readInProgress(spaceId).then(setInProgress),
+          readInProgress(spaceId, scope).then(setInProgress),
         ]);
         return;
       }
@@ -191,7 +194,7 @@ export function SpacePage({
       default:
         return unreachable(reply);
     }
-  }, [spaceId, loadRollUps]);
+  }, [client, scope, spaceId, loadRollUps]);
 
   /** The mount, the polls and every write's re-read share one read in flight. */
   const reads = useMemo(() => singleFlight(refresh), [refresh]);

@@ -188,7 +188,11 @@ async function renameSelectedProject(page: Page, to: string): Promise<void> {
  * reopened.
  */
 async function openPicker(page: Page): Promise<void> {
-  await page.getByRole('heading', { name: 'WBS tool v2' }).click();
+  // Blurred directly rather than by clicking the brand: below 1024 the brand is visually
+  // hidden (`AppHeader`), and a click aimed at it lands on the page links instead.
+  await page.getByRole('combobox', { name: 'Project' }).evaluate((node) => {
+    if (node instanceof HTMLElement) node.blur();
+  });
   await page.getByRole('combobox', { name: 'Project' }).click();
   await expect(page.getByRole('listbox', { name: 'Projects' })).toBeVisible();
 }
@@ -408,7 +412,7 @@ test.describe('the header bar, measured by a browser', () => {
     await expect(bar.getByRole('link', { name: 'Plan' })).toBeVisible();
     await expect(bar.getByRole('link', { name: 'Directory' })).toBeVisible();
     await expect(bar.getByRole('combobox', { name: 'Project' })).toBeVisible();
-    await expect(bar.getByRole('heading', { name: /^Online \(/ })).toBeVisible();
+    await expect(bar.getByRole('heading', { name: 'Online', exact: true })).toBeVisible();
 
     await bar.getByRole('button', { name: signedInAs }).click();
     await expect(page.getByRole('menu', { name: `Signed in as ${signedInAs}` })).toBeVisible();
@@ -443,6 +447,143 @@ test.describe('the header bar, measured by a browser', () => {
     await page.getByLabel('Password').fill('correct-horse');
     await page.getByRole('button', { name: 'Sign in with password' }).click();
     await expect(page.getByRole('button', { name: 'password-qa' })).toBeVisible();
+  });
+});
+
+/**
+ * The bar against the UI review of 2026-10-13: a picker you can read, a roster
+ * that does not clip, two rows on a phone with finger-sized controls, and one
+ * row off a project.
+ */
+test.describe('the header bar, read by eye and measured', () => {
+  test('keeps the picker readable and the roster unclipped from 900 up (F-011)', async ({
+    page,
+  }) => {
+    await renameSelectedProject(page, LONG_PROJECT_NAME);
+    // The roster: the section that carries the roster as its fact card. Not `header section`
+    // alone — the Saved plans shelf is a section too, and comes first.
+    const roster = page.getByRole('banner').locator('section[data-fact]');
+    await expect(roster).toHaveAttribute('data-fact', /^Online: .*local-dev \(you\)/);
+    const read: string[] = [];
+    for (const width of [1440, 1280, 1024, 900]) {
+      await page.setViewportSize({ width, height: 800 });
+      const measured = await roster.evaluate((section) => {
+        const picker = document.querySelector('[role="combobox"][aria-label="Project"]');
+        if (!(picker instanceof HTMLInputElement)) throw new Error('the bar has no picker');
+        const list = section.querySelector('ul');
+        // A laid-out list (not the `sr-only` one below 1440): every name on its one visible
+        // line must end inside the list's box; a name that does not fit has dropped whole.
+        const cut =
+          list === null || getComputedStyle(list).position === 'absolute'
+            ? []
+            : [...list.querySelectorAll('li')]
+                .filter((name) => {
+                  const box = name.getBoundingClientRect();
+                  const bound = list.getBoundingClientRect();
+                  const onTheLine = box.top < bound.bottom;
+                  const clipped = name.scrollWidth > name.clientWidth + 1;
+                  return onTheLine && (box.right > bound.right + 0.5 || clipped);
+                })
+                .map((name) => name.textContent);
+        return {
+          pickerWidth: Math.round(picker.getBoundingClientRect().width),
+          ellipsis: getComputedStyle(picker).textOverflow,
+          listShown: list !== null && getComputedStyle(list).position !== 'absolute',
+          cut,
+        };
+      });
+      if (measured.pickerWidth < 144)
+        read.push(`${String(width)}: picker ${String(measured.pickerWidth)}px`);
+      if (measured.ellipsis !== 'ellipsis') read.push(`${String(width)}: no ellipsis`);
+      if (measured.cut.length > 0) read.push(`${String(width)}: cut ${measured.cut.join(',')}`);
+      if (width === 1440 && !measured.listShown) read.push('1440: no roster line to measure');
+    }
+    // Proof: on 2026-10-13, against the bar before this change, this failed on `1280: no
+    // ellipsis`, `1024: picker 53px`, `1024: no ellipsis`, `900: picker 26px`, `900: no
+    // ellipsis`. With the roster collapse back at `xl` (1280) it failed on `1280: cut
+    // local-dev (you)`, the review's 74px of room for 79px of name.
+    expect(read).toEqual([]);
+  });
+
+  test('is two rows on a phone, with 44px project controls (F-010, F-041)', async ({ page }) => {
+    await renameSelectedProject(page, LONG_PROJECT_NAME);
+    await page.setViewportSize({ width: 375, height: 812 });
+    const bar = page.getByRole('banner');
+    const controls = [
+      bar.getByRole('combobox', { name: 'Project' }),
+      bar.getByRole('button', { name: 'Rename project' }),
+      bar.getByRole('button', { name: 'Create new project' }),
+    ];
+    const heights: number[] = [];
+    for (const control of controls)
+      heights.push(Math.round((await control.boundingBox())?.height ?? 0));
+    // Proof: on 2026-10-13, before this change, this failed reading [32, 32, 32].
+    expect(heights).toEqual([44, 44, 44]);
+    const height = Math.round((await bar.boundingBox())?.height ?? 0);
+    // Two 44px rows, a 4px gap and the bar's padding and border: 101px. Three rows were 137.
+    expect(height, 'the phone header is more than two rows').toBeLessThanOrEqual(104);
+    const ellipsis = await controls[0].evaluate((node) => getComputedStyle(node).textOverflow);
+    expect(ellipsis).toBe('ellipsis');
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(overflow, 'the phone header scrolls sideways').toBe(0);
+  });
+
+  test('is one row off a project on a phone (F-047)', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto('/directory');
+    const bar = page.getByRole('banner');
+    await expect(bar.getByRole('link', { name: 'Directory' })).toBeVisible();
+    const height = Math.round((await bar.boundingBox())?.height ?? 0);
+    // Proof: on 2026-10-13, before this change, this failed on `Expected: <= 56 · Received:
+    // 101` — a second row holding only the account menu.
+    expect(height, 'the Directory header kept a second row').toBeLessThanOrEqual(56);
+  });
+
+  test('draws the account menu in one control style (F-017)', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.getByRole('banner').getByRole('button', { name: signedInAs }).click();
+    const logOut = page.getByRole('menuitem', { name: 'Log out' });
+    await expect(logOut).toBeFocused();
+    const read = await logOut.evaluate((node) => {
+      const style = getComputedStyle(node);
+      const menu = node.closest('[role="menu"]');
+      if (menu === null) throw new Error('Log out is in no menu');
+      return {
+        outline: style.outlineStyle,
+        border: style.borderTopWidth,
+        lit: style.backgroundColor !== 'rgba(0, 0, 0, 0)',
+        textLeft: Math.round(
+          node.getBoundingClientRect().left + Number.parseFloat(style.paddingLeft),
+        ),
+        menuLeft: Math.round(menu.getBoundingClientRect().left),
+      };
+    });
+    // Proof: on 2026-10-13, before this change, this failed on `lit: false` — the focused
+    // Log out had no fill, only the bordered box the capture shows. With `border-0` dropped
+    // from the row it failed on `border: "2px"` (the platform's button border).
+    expect({ outline: read.outline, border: read.border, lit: read.lit }).toEqual({
+      outline: 'none',
+      border: '0px',
+      lit: true,
+    });
+    // The Theme answers are one segmented control: no answer wears a border of its own.
+    const themeBorders = await page
+      .getByRole('group', { name: 'Theme' })
+      .getByRole('menuitemradio')
+      .evaluateAll((items) => items.map((item) => getComputedStyle(item).borderTopWidth));
+    expect(themeBorders).toEqual(['0px', '0px', '0px']);
+    const signedInLeft = await page
+      .getByRole('menu')
+      .locator('p')
+      .first()
+      .evaluate((node) =>
+        Math.round(
+          node.getBoundingClientRect().left + Number.parseFloat(getComputedStyle(node).paddingLeft),
+        ),
+      );
+    expect(read.textLeft, 'Log out does not start on the menu’s text edge').toBe(signedInLeft);
   });
 });
 

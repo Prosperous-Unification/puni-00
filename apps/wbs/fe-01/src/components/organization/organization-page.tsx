@@ -1,13 +1,18 @@
 import { type ReactNode, useState } from 'react';
 
 import { AppHeader } from '@/components/chrome/app-header';
+import { buttonVariants } from '@/components/ui/button';
+import { useFeatureReachable } from '@/lib/session-features';
+import { cn } from '@/lib/utils';
 
+import { AccessState } from './access-state';
 import { CredentialRefusalState } from './credential-refusal-state';
 import { DomainsPanel } from './domains-panel';
 import { InvitationsPanel } from './invitations-panel';
 import { JoinRequestsPanel } from './join-requests-panel';
 import { MembersPanel } from './members-panel';
 import { type AccessLoss, lossCopy } from './organization-access';
+import { SessionPolicyPanel } from './session-policy-panel';
 import { SharingPanel } from './sharing-panel';
 import { SsoConnectionsPanel } from './sso-connections-panel';
 
@@ -27,7 +32,10 @@ export function OrganizationPage({
   nav: ReactNode;
   account: ReactNode;
 }): React.JSX.Element {
-  const [loss, setLoss] = useState<AccessLoss | null>(null);
+  // A deployment the session read reported without organizations starts in
+  // the state the panels' refusals would reach, and mounts no panel to ask.
+  const reachable = useFeatureReachable('organizations');
+  const [loss, setLoss] = useState<AccessLoss | null>(reachable ? null : 'inactive');
   return (
     <>
       <AppHeader nav={nav} account={account} />
@@ -53,6 +61,8 @@ export function OrganizationPage({
               <DomainsPanel onAccessLost={setLoss} />
               {/* Proof: omitting this panel failed `composes company sign-in setup on the organization page` (2026-10-13). */}
               <SsoConnectionsPanel onAccessLost={setLoss} />
+              {/* Proof: omitting this panel failed the session-policy composition test (2026-10-13). */}
+              <SessionPolicyPanel onAccessLost={setLoss} />
               {/*
                * Proof: 2026-10-11, leaving this panel out failed `shows whether
                * the organization shares its people`.
@@ -60,9 +70,17 @@ export function OrganizationPage({
               <SharingPanel onAccessLost={setLoss} />
             </>
           ) : typeof loss === 'string' ? (
-            <p role="alert" className="text-sm">
-              {lossCopy(loss)}
-            </p>
+            <AccessState
+              {...lossCopy(loss)}
+              action={
+                // A document load rather than a router link: a session that
+                // ended has to meet the startup check again to be asked to
+                // sign in, and the other losses lose nothing by it.
+                <a className={cn(buttonVariants(), 'no-underline')} href="/">
+                  Open the plan
+                </a>
+              }
+            />
           ) : (
             // Proof: 2026-10-12, rendering only the headline sentence here failed
             // `replaces the panels with the company sign-in state and its link wording`.

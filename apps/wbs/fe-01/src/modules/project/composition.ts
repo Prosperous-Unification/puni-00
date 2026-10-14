@@ -1,3 +1,4 @@
+import type { ResourceScope } from '@/lib/organization-context';
 import { type ProjectStreamDeps, subscribeToProject } from '@/lib/project-stream';
 import { httpSavedPlanApi, savedPlansAvailable } from '@/lib/saved-plan-api';
 import type { ProjectApi } from '@/lib/wbs-api';
@@ -61,8 +62,11 @@ export function projectServicesOver(
  * plans, not a read of the project at a sequence, so there is nothing for it to
  * resume from. The plan feed owns that conversation on its own socket.
  */
-export function browserSavedPlanRoutes(streamDeps?: ProjectStreamDeps): SavedPlanRoutes {
-  const api = httpSavedPlanApi();
+export function browserSavedPlanRoutes(
+  streamDeps?: ProjectStreamDeps,
+  scope?: ResourceScope,
+): SavedPlanRoutes {
+  const api = httpSavedPlanApi(scope);
   return {
     available: savedPlansAvailable,
     list: (projectId) => api.list(projectId),

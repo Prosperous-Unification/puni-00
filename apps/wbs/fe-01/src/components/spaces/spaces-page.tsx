@@ -9,12 +9,16 @@ import {
 import { type ReactNode, useCallback, useEffect, useState } from 'react';
 
 import { AppHeader } from '@/components/chrome/app-header';
+import { AccessState } from '@/components/organization/access-state';
 import { CredentialRefusalState } from '@/components/organization/credential-refusal-state';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { CONTROL_HEIGHT, FIELD_LABEL_CLASS, FORM_CLASS } from '@/components/ui/control';
 import { Input } from '@/components/ui/input';
-import { browserClient, failureMessage, unreachable } from '@/lib/http';
+import { failureMessage, unreachable } from '@/lib/http';
+import { useFeatureReachable } from '@/lib/session-features';
+import { cn } from '@/lib/utils';
+import { useResourceClient } from '@/runtime/organization-resources';
 
 import { type RefusedView, refusedView, spaceRefusal } from './space-access';
 import {
@@ -29,7 +33,7 @@ import {
 } from './space-chrome';
 import { useSpacesPolling } from './use-spaces-polling';
 
-const spaces = browserClient([listSpaces, createSpace, renameSpace, removeSpace]);
+const SPACES_SHAPES = [listSpaces, createSpace, renameSpace, removeSpace] as const;
 
 type Space = Extract<ClientReply<typeof listSpaces>, { kind: 'success' }>['body']['spaces'][number];
 type View =
@@ -50,7 +54,15 @@ export function SpacesPage({
   nav: ReactNode;
   account: ReactNode;
 }): React.JSX.Element {
-  const [view, setView] = useState<View>({ kind: 'loading' });
+  const spaces = useResourceClient(SPACES_SHAPES);
+  // Spaces belong to an organization: a deployment the session read reported
+  // without organizations shows what the list's `organization_required` would,
+  // and neither reads nor polls.
+  const reachable = useFeatureReachable('organizations');
+  const [view, setView] = useState<View>(() =>
+    reachable ? { kind: 'loading' } : refusedView(spaceRefusal({ error: 'organization_required' })),
+  );
+
   const [name, setName] = useState('');
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
   const [message, setMessage] = useState('');
@@ -73,14 +85,16 @@ export function SpacesPage({
       default:
         return unreachable(reply);
     }
-  }, []);
+  }, [spaces]);
 
   const refreshSafely = useCallback(
     () =>
-      refresh().catch((cause: unknown) => {
-        setFault(new Error('Unexpected space list failure', { cause }));
-      }),
-    [refresh],
+      reachable
+        ? refresh().catch((cause: unknown) => {
+            setFault(new Error('Unexpected space list failure', { cause }));
+          })
+        : Promise.resolve(),
+    [reachable, refresh],
   );
 
   useEffect(() => {
@@ -139,14 +153,19 @@ export function SpacesPage({
           {view.kind === 'credential' ? (
             <CredentialRefusalState refusal={view.refusal} />
           ) : view.kind === 'refused' ? (
-            <>
-              <p role="alert" className={STATUS_CLASS}>
-                {view.message}
-              </p>
-              <p className={STATUS_CLASS}>
-                <AllProjectsLink />
-              </p>
-            </>
+            <AccessState
+              headline={view.message}
+              detail={view.detail}
+              action={
+                <Link
+                  to="/spaces/$spaceId"
+                  params={{ spaceId: 'all' }}
+                  className={cn(buttonVariants(), 'no-underline')}
+                >
+                  Open All projects
+                </Link>
+              }
+            />
           ) : (
             <Card className="border-border">
               <CardContent className="flex flex-col gap-4">

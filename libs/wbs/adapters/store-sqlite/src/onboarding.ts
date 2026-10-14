@@ -28,6 +28,15 @@ export class OnboardingRepository implements Onboarding {
     private readonly gate: Gate,
   ) {}
 
+  /**
+   * The activation marker decides it, as it decides every `onboarding_inactive` below.
+   *
+   * @throws {OrganizationActivationRefused} When the marker is absent, unreadable or malformed.
+   */
+  isActive(): Promise<boolean> {
+    return Promise.resolve(readOrganizationActivation(this.db) === 'activated');
+  }
+
   /** Existing memberships take precedence over verification after activation. */
   discover(userId: string): Promise<OnboardingAnswer<OnboardingState>> {
     return Promise.resolve(

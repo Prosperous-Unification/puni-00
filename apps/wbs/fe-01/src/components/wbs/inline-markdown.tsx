@@ -283,7 +283,7 @@ export function InlineMarkdown({ children, linksFollowable = false }: InlineMark
 
 /**
  * A name, drawn the way a grid draws it — the argument `CellInput`'s
- * `renderFirstLine` takes.
+ * `renderLine` takes.
  *
  * A module constant rather than a lambda at each call site for two reasons, one
  * of them load-bearing: `columns` in `wbs-table.tsx` must depend on nothing that

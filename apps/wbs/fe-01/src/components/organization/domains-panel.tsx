@@ -10,7 +10,8 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { browserClient, failureMessage, unreachable } from '@/lib/http';
+import { failureMessage, unreachable } from '@/lib/http';
+import { useResourceClient } from '@/runtime/organization-resources';
 
 import {
   type AccessLoss,
@@ -32,13 +33,13 @@ import {
   STATUS_CLASS,
 } from './organization-section';
 
-const domains = browserClient([
+const DOMAINS_SHAPES = [
   listOrganizationDomains,
   createDomainChallenge,
   verifyDomainClaim,
   rotateDomainProof,
   releaseDomainClaim,
-]);
+] as const;
 
 type DomainClaim = Extract<
   ClientReply<typeof listOrganizationDomains>,
@@ -62,6 +63,7 @@ export function DomainsPanel({
 }: {
   onAccessLost: (loss: AccessLoss) => void;
 }): React.JSX.Element {
+  const domains = useResourceClient(DOMAINS_SHAPES);
   const [view, setView] = useState<View>({ kind: 'loading' });
   const [domain, setDomain] = useState('');
   const [challenge, setChallenge] = useState<ShownChallenge | null>(null);
@@ -98,7 +100,7 @@ export function DomainsPanel({
       default:
         return unreachable(reply);
     }
-  }, [onAccessLost]);
+  }, [domains, onAccessLost]);
 
   useEffect(() => {
     void refresh().catch((cause: unknown) => {

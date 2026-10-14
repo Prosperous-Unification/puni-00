@@ -9,7 +9,7 @@ import { describe, expect, it } from 'bun:test';
 import { errors } from 'jose';
 
 import { buildApp } from '../app';
-import { inMemoryUsers, testAuthService } from '../testing/auth-fixture';
+import { inMemoryUsers, NO_SESSION_FEATURES, testAuthService } from '../testing/auth-fixture';
 import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { testCapacityService } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
@@ -322,6 +322,7 @@ describe('OIDC browser routes', () => {
         scopes: ['read', 'write', 'editor'],
         linkedMethods: [],
       },
+      features: NO_SESSION_FEATURES,
     });
   });
 
