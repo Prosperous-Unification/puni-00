@@ -188,17 +188,14 @@ test.use({
   video: process.env['WBS_SCROLL_VIDEO'] === '0' ? 'off' : 'on',
 });
 
-test('50-row plan reaches matching terminal positions from either face', async ({ page }) => {
-  const seeded = await seedRenderingPlan(page, {
-    rows: 50,
-    steps: 2,
-    density: 'sparse',
-    wrappedEvery: 5,
-  });
-  await page.goto('/');
-  await page.getByRole('button', { name: 'Gantt', exact: true }).click();
-  await expect(page.locator('[data-gantt-label]')).toHaveCount(50);
-
+/**
+ * Drives each face to each end and returns how far apart the two faces' first
+ * rows are, in rows, per driver and terminal.
+ */
+async function terminalMismatches(
+  page: Page,
+  ids: readonly string[],
+): Promise<{ label: string; mismatch: number; driverGap: number }[]> {
   const positions = async () =>
     page.evaluate(() => {
       const first = (port: Element, selector: string, edge: number) => {
@@ -225,8 +222,8 @@ test('50-row plan reaches matching terminal positions from either face', async (
         gantt: first(panel, '[data-gantt-label]', axis),
       };
     });
-  const indexes = new Map(seeded.ids.map((id, index) => [id, index]));
-
+  const indexes = new Map(ids.map((id, index) => [id, index]));
+  const measured: { label: string; mismatch: number; driverGap: number }[] = [];
   for (const driver of ['[data-table-frame]', '[data-gantt-panel]'] as const) {
     for (const terminal of ['end', 'start'] as const) {
       for (let settle = 0; settle < 3; settle += 1) {
@@ -245,16 +242,73 @@ test('50-row plan reaches matching terminal positions from either face', async (
               : node.scrollTop,
           terminal,
         );
-      expect(driverGap, `${driver} driver does not roll back at ${terminal}`).toBeLessThanOrEqual(
-        1,
-      );
       const paired = await positions();
-      const mismatch = Math.abs(
-        (indexes.get(paired.table.id) ?? -1) +
-          paired.table.cut -
-          ((indexes.get(paired.gantt.id) ?? -1) + paired.gantt.cut),
+      measured.push({
+        label: `${driver} at ${terminal}`,
+        driverGap,
+        mismatch: Math.abs(
+          (indexes.get(paired.table.id) ?? -1) +
+            paired.table.cut -
+            ((indexes.get(paired.gantt.id) ?? -1) + paired.gantt.cut),
+        ),
+      });
+    }
+  }
+  return measured;
+}
+
+test('50-row plan reaches matching terminal positions from either face', async ({ page }) => {
+  const seeded = await seedRenderingPlan(page, {
+    rows: 50,
+    steps: 2,
+    density: 'sparse',
+    wrappedEvery: 5,
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Gantt', exact: true }).click();
+  await expect(page.locator('[data-gantt-label]')).toHaveCount(50);
+
+  for (const { label, mismatch, driverGap } of await terminalMismatches(page, seeded.ids)) {
+    expect(driverGap, `${label}: the driver rolls back`).toBeLessThanOrEqual(1);
+    expect(mismatch, `${label}: mismatched faces`).toBeLessThanOrEqual(0.1);
+  }
+});
+
+/**
+ * The two faces end together **whatever their heights**: the table's and the
+ * chart's tails are fitted to each other (`plan-terminal-tail.ts`) rather than
+ * one fixed 13rem each, which matched only where the two viewports happened to
+ * agree (ui-review F-055). Window heights move the table's share; the chart's
+ * is 40vh, so both move, by different amounts.
+ *
+ * Proof: with `fitPlanTerminalTails` not installed (both tails the fixed
+ * 13rem), this failed on `600px tall: [data-gantt-panel] at end: mismatched
+ * faces` (`Expected: <= 0.1, Received: 2.630327309921583`). Watched
+ * 2026-10-14.
+ */
+test('the two faces end together at any window height', async ({ page }) => {
+  const seeded = await seedRenderingPlan(page, {
+    rows: 50,
+    steps: 2,
+    density: 'sparse',
+    wrappedEvery: 5,
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Gantt', exact: true }).click();
+  await expect(page.locator('[data-gantt-label]')).toHaveCount(50);
+
+  for (const height of [600, 700, 900, 1100]) {
+    await page.setViewportSize({ width: 1280, height });
+    await painted(page);
+    await painted(page);
+    for (const { label, mismatch, driverGap } of await terminalMismatches(page, seeded.ids)) {
+      expect(
+        driverGap,
+        `${String(height)}px tall: ${label}: the driver rolls back`,
+      ).toBeLessThanOrEqual(1);
+      expect(mismatch, `${String(height)}px tall: ${label}: mismatched faces`).toBeLessThanOrEqual(
+        0.1,
       );
-      expect(mismatch, `${driver} leaves mismatched faces at ${terminal}`).toBeLessThanOrEqual(0.1);
     }
   }
 });

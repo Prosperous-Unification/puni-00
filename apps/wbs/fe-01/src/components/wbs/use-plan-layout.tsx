@@ -15,6 +15,7 @@ import {
 import { DEFAULT_SECTION_MODE, type SectionMode } from './plan-mermaid';
 import type { PlanRenderer } from './plan-renderer';
 import { linkPlanScroll } from './plan-scroll-link';
+import { fitPlanTerminalTails } from './plan-terminal-tail';
 import type { ViewportEntry } from './plan-viewport';
 import {
   forgetGanttDayPx,
@@ -614,7 +615,14 @@ export function usePlanLayoutEffects({
     // Proof: omitting rendererRows, `a windowed table and the complete Gantt
     // stay on the same logical row` failed on `Expected: 53 · Received: 0`.
     // Watched in Chromium, 2026-09-08.
-    return linkPlanScroll(frame, panel, rendererRows);
+    const unlink = linkPlanScroll(frame, panel, rendererRows);
+    // The two faces end on one row only if their tails are fitted to each
+    // other (ui-review F-055).
+    const unfit = fitPlanTerminalTails(frame, panel, rendererRows);
+    return () => {
+      unfit();
+      unlink();
+    };
   }, [ganttOpen, renderer, chartRead.generation, frameRef, rendererRows]);
 
   /**

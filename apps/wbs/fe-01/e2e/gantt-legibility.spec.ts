@@ -255,6 +255,58 @@ test.describe('Gantt legibility (ui-review 2026-10-13)', () => {
     );
   });
 
+  /**
+   * One control vocabulary on one screen: the chart's strip is drawn at the
+   * plan toolbar's size, measured against the toolbar's own `Gantt` button
+   * (`outline`, `sm`). D5 held the strip at 16px / 10px until the two gates
+   * that pinned it were fixed (ui-review F-055).
+   *
+   * Proof: on the 16px strip this failed on `Names is 16px tall, the toolbar
+   * 32px` (`Expected: 32, Received: 16`). Watched 2026-10-14.
+   */
+  test('the strip’s controls are the toolbar’s size (F-055)', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await seedEveryBarColour(page);
+    const metricsOf = (selector: string) =>
+      page.locator(selector).evaluate((control) => {
+        const style = getComputedStyle(control);
+        return {
+          height: control.getBoundingClientRect().height,
+          fontSize: style.fontSize,
+          radius: style.borderTopLeftRadius,
+        };
+      });
+    const toolbar = await page
+      .getByRole('button', { name: 'Gantt', exact: true })
+      .evaluate((control) => {
+        const style = getComputedStyle(control);
+        return {
+          height: control.getBoundingClientRect().height,
+          fontSize: style.fontSize,
+          radius: style.borderTopLeftRadius,
+        };
+      });
+    expect(toolbar.height, 'setup: the toolbar button is 32px').toBe(32);
+    for (const [name, selector] of [
+      ['Names', '[data-gantt-labels-toggle]'],
+      ['Detail', '[data-gantt-detail-toggle]'],
+      ['the day scale', '[data-gantt-day-scale]'],
+      ['Full', '[data-gantt-fullscreen-toggle]'],
+      ['the SVG download', '[data-gantt-svg-download]'],
+    ] as const) {
+      const strip = await metricsOf(selector);
+      expect(strip.height, `${name} is ${String(strip.height)}px tall, the toolbar 32px`).toBe(
+        toolbar.height,
+      );
+      // The glyph-only `⇩` is a `square` button, as the toolbar's icon
+      // buttons are, and those draw their glyph at `text-sm`.
+      if (selector !== '[data-gantt-svg-download]') {
+        expect(strip.fontSize, `${name}’s type size`).toBe(toolbar.fontSize);
+      }
+      expect(strip.radius, `${name}’s corners`).toBe(toolbar.radius);
+    }
+  });
+
   test('labels never overlap one another on the chart (F-012)', async ({ page }) => {
     await seedEveryBarColour(page);
     const boxes = await page.locator('[data-gantt-bar-label]').evaluateAll((labels) =>

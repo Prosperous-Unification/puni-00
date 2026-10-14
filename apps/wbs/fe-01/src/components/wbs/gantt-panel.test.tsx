@@ -6992,8 +6992,10 @@ describe('the height the panel is drawn at', () => {
   itDom('has the table’s reachable terminal extent', () => {
     const panel = panelAt(400, null, 50);
     const allowance = panel.querySelector<HTMLElement>('[data-gantt-terminal-allowance]');
-    expect(allowance?.style.height).toBe(PLAN_TERMINAL_ALLOWANCE);
-    expect(allowance?.style.height).toBe(TABLE_FRAME.paddingBottom);
+    // The table's picker room until `fitPlanTerminalTails` fits the two
+    // faces' tails to each other; both read the same fallback.
+    expect(allowance?.style.height).toBe(`var(--plan-chart-tail, ${PLAN_TERMINAL_ALLOWANCE})`);
+    expect(TABLE_FRAME.paddingBottom).toBe(`var(--plan-table-tail, ${PLAN_TERMINAL_ALLOWANCE})`);
   });
 
   itDom('does not force a short fitted chart to overflow', () => {
@@ -10740,3 +10742,44 @@ itDom.each([
     expect(surfaceOn('minute-dev')).toHaveTextContent(`${words} · placed on the working calendar`);
   },
 );
+
+/**
+ * The transparent surface a marker change remounts has to repaint the whole
+ * drawn canvas, pad bands included: the viewBox starts at `-pad`, and a day-0
+ * bar's stroke and its anti-aliasing land in that band. A surface spanning
+ * only `0..days` left those pixels from the paint before the marker, and the
+ * browser oracle (`e2e/gantt.spec.ts`, the marker rule's body ink) measured
+ * them as 2 pixels at delta 7 in column 11 on every 28px run with the 32px
+ * strip (ui-review F-055).
+ */
+describe('the marker paint surface', () => {
+  itDom('covers the whole viewBox, pad bands included', () => {
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [rowAt('strip', 0, 10)],
+          slices: [sliceAt('strip-dev', 'strip', 0, 10)],
+        })}
+        startDate="2026-08-24"
+        scheduleError={null}
+        generation={1}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointed={pointedAtRow(null)}
+      />,
+    );
+    const chart = document.querySelector('[data-gantt-chart]');
+    const surface = document.querySelector('[data-gantt-paint-surface]');
+    if (chart === null || surface === null) throw new Error('no chart or paint surface drawn');
+    const [minX, minY, width, height] = (chart.getAttribute('viewBox') ?? '')
+      .split(' ')
+      .map(Number);
+    // Proof: with the surface back at `x={0} width={days}`, this failed on
+    // `expected +0 to be -0.42857142857142855`. Watched 2026-10-14.
+    expect(Number(surface.getAttribute('x'))).toBe(minX);
+    expect(Number(surface.getAttribute('y'))).toBe(minY);
+    expect(Number(surface.getAttribute('width'))).toBe(width);
+    expect(Number(surface.getAttribute('height'))).toBe(height);
+  });
+});
