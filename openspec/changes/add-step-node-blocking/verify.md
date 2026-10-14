@@ -843,3 +843,21 @@ Fresh local evidence:
 Full h2puni heavy gate/build, hosted CI rerun and browser checks remain coordinator
 work and are unverified by this documentation repair. No push, merge, deploy or
 activation was performed.
+
+### Hosted admission fixture corrections — 2026-10-14
+
+Reported CI run `38518185689` failed against release candidate `895eac61a6a9816cbf22ec39cd92648b79b95f88`. Reproduction in isolated clone `/tmp/puni-admission-ci-repair-sol` found five typed-dependency lifecycle assertions expecting successful structural replay while their migrated test database still had disabled writer admission, plus a migration CLI expectation naming the previous latest migration. The original unmigrated boot fixture also expected startup success; a socket-free listener/app seam reached the same production refusal as CI: `no such table: __drizzle_migrations`. Real local listening first refused sandbox `EPERM`, so that initial socket failure is not counted as the admission reproduction.
+
+Only fixtures and expectations changed: the lifecycle suite explicitly activates its own temporary database with `activateTestStepBlockages`, the CLI expects `20261014140000_add_step_blockage_activation`, and the unmigrated boot test asserts readiness refusal and no running process. Production admission, boot, migration and recovery code remain unchanged; no safety check was added or relaxed, so no new production omission proof is required.
+
+Fresh checks:
+
+- `bun test ./apps/wbs/be-01/src/controller/typed-dependency-lifecycle.controller.db.test.ts --timeout=30000` before correction: **8 pass, 5 fail**, each failed assertion receiving 409.
+- `bun test ./apps/wbs/be-01/src/migration-cli.db.test.ts --test-name-pattern 'older newly introduced migration' --timeout=30000` before correction: **0 pass, 1 fail**, actual latest migration `20261014140000_add_step_blockage_activation`.
+- The old successful-start boot expectation with the injected listener seam: **0 pass, 1 fail**, native missing-ledger error above.
+- `bun test ./apps/wbs/be-01/src/migration-cli.db.test.ts ./apps/wbs/be-01/src/controller/typed-dependency-lifecycle.controller.db.test.ts --timeout=30000` after correction: exit 0, **63 pass, 0 fail, 561 assertions**.
+- `bun test ./apps/wbs/be-01/src/boot.db.test.ts --test-name-pattern 'unmigrated database|blockage admission authority|boots committed fan-out' --timeout=30000`: exit 0, **3 pass, 0 fail, 10 assertions**, covering valid migrated startup and both absent-ledger and missing-marker refusal.
+- `bun test ./libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts --timeout=30000`: exit 0, **28 pass, 0 fail, 73 assertions**; default-disabled admission, exact sentinel handling, rollback, restart and retained-history down remain covered.
+- `bunx tsc --build --force apps/wbs/be-01/tsconfig.json`: exit 0, no diagnostics. Touched-file ESLint uses a freshly generated Nx project graph and exits 0 without diagnostics. Touched Prettier check, strict change validation and `git diff --check` also exit 0.
+
+The full boot suite requiring real listening, full hosted CI and exact host gate are not claimed here. The coordinator will integrate this follow-up and requeue the exact candidate gate; no push, merge, deploy or host gate was performed in this repair.
