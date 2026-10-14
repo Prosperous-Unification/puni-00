@@ -91,6 +91,7 @@ import {
   openSqliteSourceWithNonAtomicSubtreeFault,
   sqliteLateWriteControl,
 } from './faults';
+import { activateTestStepBlockages } from './step-blockage-activation';
 
 const MIGRATIONS = new URL('../../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 type ExistingFamily = Exclude<keyof ExistingStoreOpeners, 'savedPlans' | 'savedPlanCapture'>;
@@ -185,6 +186,7 @@ async function seedSqliteSource(
   try {
     const dbPath = join(directory, 'source.db');
     runMigrations(dbPath, MIGRATIONS);
+    activateTestStepBlockages(dbPath);
     source = openSource({ dbPath });
     const seed = DETERMINISTIC_SEED;
     for (const [index, ownerId] of seed.ownerIds.entries()) {

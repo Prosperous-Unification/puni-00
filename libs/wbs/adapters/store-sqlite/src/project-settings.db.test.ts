@@ -202,6 +202,7 @@ describe('the project settings migration', () => {
       // cannot make: a migration that also dropped a column would still pass
       // every line above.
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        '20261014140000_add_step_blockage_activation',
         '20261014130000_add_shared_people_restore_receipts',
         '20261014120000_add_shared_people_restore_approvals',
         '20261013140000_add_step_node_blockages',
@@ -268,6 +269,7 @@ describe('the project settings migration', () => {
     try {
       runMigrations(db.path, FOLDER);
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        '20261014140000_add_step_blockage_activation',
         '20261014130000_add_shared_people_restore_receipts',
         '20261014120000_add_shared_people_restore_approvals',
         '20261013140000_add_step_node_blockages',
@@ -376,6 +378,7 @@ describe('the project settings migration', () => {
       const migratedDdl = projectDdl(db.path);
 
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        '20261014140000_add_step_blockage_activation',
         '20261014130000_add_shared_people_restore_receipts',
         '20261014120000_add_shared_people_restore_approvals',
         '20261013140000_add_step_node_blockages',

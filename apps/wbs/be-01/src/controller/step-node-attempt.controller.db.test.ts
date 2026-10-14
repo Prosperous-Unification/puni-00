@@ -1,6 +1,7 @@
 import type { ScheduleRead } from '@wbs/core';
 import { formatStepNodeId, serializeSchedule } from '@wbs/domain';
 import { canonicalScheduleInput } from '@wbs/domain/canonical-schedule-input';
+import { activateTestStepBlockages } from '@wbs/store-sqlite/testing/step-blockage-activation';
 import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 
 import { SubtreeRepository } from '../repository/work-item';
@@ -25,6 +26,7 @@ beforeEach(async () => {
 });
 
 async function populate(): Promise<void> {
+  activateTestStepBlockages(h.sqlite.filename);
   await h.register('ada');
   h.organization('org-a');
   h.member('org-a', 'ada', 'member');
@@ -751,6 +753,7 @@ describe('persisted step blockage on the live work-item read', () => {
         };
         const baseline = await capture();
         expect(baseline.tree.slices.length).toBeGreaterThan(1);
+
         h.sqlite.run(
           'INSERT INTO step_blockage (work_item_id, step_id, blocked_at) VALUES (?, ?, ?)',
           [strip, dev, 123456],
@@ -821,6 +824,7 @@ describe('persisted step blockage on the live work-item read', () => {
         ).workItems;
       };
       const baseline = await read();
+
       h.sqlite.run(
         'INSERT INTO step_blockage (work_item_id, step_id, blocked_at) VALUES (?, ?, ?)',
         [strip, qa, 123456],
@@ -867,6 +871,7 @@ describe('persisted step blockage on the live work-item read', () => {
         { kind: 'setProgress', workItemId: child, stepId: dev, state: 'done' },
       ]);
       expect(progressed.status).toBe(200);
+
       h.sqlite.run(
         'INSERT INTO step_blockage (work_item_id, step_id, blocked_at) VALUES (?, ?, ?)',
         [child, dev, 111],
@@ -917,6 +922,7 @@ describe('persisted step blockage on the live work-item read', () => {
       ]);
       expect(linked.status).toBe(200);
       const unblockedRunning = await read();
+
       h.sqlite.run(
         'INSERT INTO step_blockage (work_item_id, step_id, blocked_at) VALUES (?, ?, ?)',
         [sibling, qa, 222],
@@ -1176,11 +1182,13 @@ describe('first-child blockage preservation', () => {
       (await batch([{ kind: 'setProgress', workItemId: strip, stepId: dev, state: 'in_progress' }]))
         .status,
     ).toBe(200);
+
     h.sqlite.run('INSERT INTO step_blockage (work_item_id, step_id, blocked_at) VALUES (?, ?, ?)', [
       strip,
       dev,
       123,
     ]);
+
     h.sqlite.run('INSERT INTO step_blockage (work_item_id, step_id, blocked_at) VALUES (?, ?, ?)', [
       strip,
       qa,
@@ -1237,6 +1245,7 @@ describe('first-child blockage preservation', () => {
         'INSERT INTO step_blockage (work_item_id, step_id, blocked_at) VALUES (?, ?, ?)',
         [strip, dev, 123],
       );
+
       h.sqlite.run(
         'INSERT INTO step_blockage (work_item_id, step_id, blocked_at) VALUES (?, ?, ?)',
         [strip, qa, 789],
@@ -2405,4 +2414,50 @@ describe('project-step blockage deletion', () => {
       expect(snapshot()).toEqual(before);
     },
   );
+});
+
+function admissionSnapshot() {
+  return Object.fromEntries(
+    ['work_item', 'step_blockage', 'command_journal', 'plan_event', 'project'].map((table) => [
+      table,
+      h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all(),
+    ]),
+  );
+}
+
+it('refuses mounted deletion with retained facts atomically while writer admission is disabled', async () => {
+  h.sqlite.run('INSERT INTO step_blockage (work_item_id,step_id,blocked_at) VALUES (?,?,?)', [
+    strip,
+    dev,
+    17,
+  ]);
+  h.sqlite.run("UPDATE step_blockage_activation SET state='DISABLED'");
+  const before = admissionSnapshot();
+  const refused = await batch([
+    { kind: 'patchWorkItem', workItemId: strip, patch: { name: 'changed' } },
+    { kind: 'deleteWorkItem', workItemId: strip },
+  ]);
+  expect(refused.status).toBe(409);
+  expect(refused.body).toEqual({ error: 'step_blockage_inactive' });
+  expect(admissionSnapshot()).toEqual(before);
+});
+
+it('refuses mounted undo and redo of empty nested structural snapshots without cursor or revision changes', async () => {
+  const deleted = await batch([{ kind: 'deleteWorkItem', workItemId: strip }]);
+  expect(deleted.status).toBe(200);
+  h.sqlite.run("UPDATE step_blockage_activation SET state='DISABLED'");
+  const deletedState = admissionSnapshot();
+  const refusedUndo = await h.call('ada', 'POST', `/api/projects/${project}/undo`);
+  expect(refusedUndo.status).toBe(409);
+  expect(refusedUndo.body).toEqual({ error: 'step_blockage_inactive' });
+  expect(admissionSnapshot()).toEqual(deletedState);
+  activateTestStepBlockages(h.sqlite.filename);
+  const undone = await h.call('ada', 'POST', `/api/projects/${project}/undo`);
+  expect(undone.status).toBe(200);
+  h.sqlite.run("UPDATE step_blockage_activation SET state='DISABLED'");
+  const restoredState = admissionSnapshot();
+  const refusedRedo = await h.call('ada', 'POST', `/api/projects/${project}/redo`);
+  expect(refusedRedo.status).toBe(409);
+  expect(refusedRedo.body).toEqual({ error: 'step_blockage_inactive' });
+  expect(admissionSnapshot()).toEqual(restoredState);
 });

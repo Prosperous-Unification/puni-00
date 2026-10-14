@@ -344,6 +344,8 @@ it('does not add approvals to a completed operation while preserving an identica
 });
 it('refuses rollback over receipt/consumption evidence without removing its ledger entry', () => {
   invoke();
+  // Scope the snapshot to receipts; newer empty admission down commits independently.
+  rollbackTo(path, MIGRATIONS_FOLDER, '20261014130000_add_shared_people_restore_receipts');
   const before = snapshot();
   const ledger = execute('SELECT * FROM __drizzle_migrations');
   expect(() =>

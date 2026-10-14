@@ -1,5 +1,6 @@
 import { formatStepNodeId } from '@wbs/domain';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
+import { activateTestStepBlockages } from '@wbs/store-sqlite/testing/step-blockage-activation';
 import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 
 import { type Answer, OrganizationHarness } from '../testing/organization-harness';
@@ -76,6 +77,9 @@ const flip = (direction: 'undo' | 'redo') =>
   h.call('ada', 'POST', `/api/projects/${project}/${direction}`);
 
 describe('public step blockage commands over mounted SQLite', () => {
+  beforeEach(() => {
+    activateTestStepBlockages(h.sqlite.filename);
+  });
   it('writes both addresses, preserves progress, and replays exact time beneath done', async () => {
     expect(
       (await batch([{ kind: 'setStepBlocked', workItemId: strip, stepId: dev, isBlocked: true }]))
@@ -307,6 +311,90 @@ describe('public step blockage commands over mounted SQLite', () => {
       expect(snapshot().filter((_, index) => index !== 4)).toEqual(
         before.filter((_, index) => index !== 4),
       );
+    },
+  );
+});
+
+describe('public step blockage commands with disabled writer admission', () => {
+  it('refuses a default-disabled set atomically without facts, journal or fanout', async () => {
+    expect(h.sqlite.query('SELECT state FROM step_blockage_activation').all()).toEqual([
+      { state: 'DISABLED' },
+    ]);
+    const before = snapshot();
+    const pushedBefore = pushes;
+    expect(
+      await batch([
+        { kind: 'patchWorkItem', workItemId: strip, patch: { name: 'Changed' } },
+        { kind: 'setStepBlocked', workItemId: strip, stepId: dev, isBlocked: true },
+      ]),
+    ).toEqual({ status: 409, body: { error: 'step_blockage_inactive' } });
+    expect(snapshot()).toEqual(before);
+    expect(facts()).toEqual([]);
+    expect(pushes).toBe(pushedBefore);
+  });
+
+  it('keeps a default-disabled absent clear an exact no-op', async () => {
+    const before = snapshot();
+    const pushedBefore = pushes;
+    expect(
+      (await batch([{ kind: 'setStepBlocked', workItemId: strip, stepId: dev, isBlocked: false }]))
+        .status,
+    ).toBe(200);
+    expect(snapshot()).toEqual(before);
+    expect(pushes).toBe(pushedBefore);
+  });
+
+  it('retains the readable exported fact when a disabled clear refuses atomically', async () => {
+    activateTestStepBlockages(h.sqlite.filename);
+    expect(
+      (await batch([{ kind: 'setStepBlocked', workItemId: strip, stepId: dev, isBlocked: true }]))
+        .status,
+    ).toBe(200);
+    const blocked = facts();
+    h.sqlite.run("UPDATE step_blockage_activation SET state = 'DISABLED'");
+    const before = snapshot();
+    const pushedBefore = pushes;
+    expect(
+      await batch([
+        { kind: 'patchWorkItem', workItemId: strip, patch: { name: 'Changed' } },
+        { kind: 'setStepBlocked', workItemId: strip, stepId: dev, isBlocked: false },
+      ]),
+    ).toEqual({ status: 409, body: { error: 'step_blockage_inactive' } });
+    expect(snapshot()).toEqual(before);
+    expect(facts()).toEqual(blocked);
+    expect(pushes).toBe(pushedBefore);
+    expect((await h.call('ada', 'GET', `/api/projects/${project}/work-items`)).status).toBe(200);
+    const exported = await h.call('ada', 'GET', `/api/projects/${project}/export?format=json`);
+    expect(exported.status).toBe(200);
+    expect(exported.body).toMatchObject({
+      document: { version: 9 },
+      stepBlockages: [{ workItemId: strip, stepId: dev, blockedAt: blocked[0]?.blocked_at }],
+    });
+    expect(await h.call('ada', 'POST', '/api/projects/import', exported.body)).toEqual({
+      status: 409,
+      body: { error: 'step_blockage_inactive' },
+    });
+    expect(snapshot()).toEqual(before);
+  });
+
+  it.each(['undo', 'redo'] as const)(
+    'refuses disabled setter %s without fact, cursor, revision or fanout changes',
+    async (direction) => {
+      activateTestStepBlockages(h.sqlite.filename);
+      expect(
+        (await batch([{ kind: 'setStepBlocked', workItemId: strip, stepId: dev, isBlocked: true }]))
+          .status,
+      ).toBe(200);
+      if (direction === 'redo') expect((await flip('undo')).status).toBe(200);
+      h.sqlite.run("UPDATE step_blockage_activation SET state = 'DISABLED'");
+      const before = snapshot();
+      const pushedBefore = pushes;
+      expect(await flip(direction)).toEqual({
+        status: 409,
+        body: { error: 'step_blockage_inactive' },
+      });
+      expect(snapshot()).toEqual(before);
+      expect(pushes).toBe(pushedBefore);
     },
   );
 });

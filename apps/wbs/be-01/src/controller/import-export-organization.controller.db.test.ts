@@ -1,4 +1,5 @@
 import { planDocumentFixture } from '@wbs/core/testing/plan-document-fixture';
+import { activateTestStepBlockages } from '@wbs/store-sqlite/testing/step-blockage-activation';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
@@ -885,7 +886,27 @@ it('round-trips minute units through the composed import/export and refuses malf
 });
 
 describe('v9 direct blockage transfer', () => {
+  it('refuses disabled nonempty v9 import atomically but permits empty import and export', async () => {
+    const document = planDocumentFixture();
+    document.document.version = 9;
+    document.workItems.forEach((row) => Reflect.deleteProperty(row, 'attempts'));
+    document.stepBlockages = [{ workItemId: 'row-1', stepId: 'step-1', blockedAt: -17 }];
+    const before = sqliteState();
+    const refused = await h.call('ada', 'POST', '/api/projects/import', document);
+    expect(refused.status).toBe(409);
+    expect(refused.body).toEqual({ error: 'step_blockage_inactive' });
+    expect(sqliteState()).toEqual(before);
+    document.stepBlockages = [];
+    const imported = await h.call('ada', 'POST', '/api/projects/import', document);
+    expect(imported.status).toBe(201);
+    const projectId = (imported.body as { projectId: string }).projectId;
+    const exported = await h.call('ada', 'GET', `/api/projects/${projectId}/export?format=json`);
+    expect(exported.status).toBe(200);
+    expect(exported.body).toMatchObject({ stepBlockages: [] });
+  });
+
   it('imports remapped facts and captures them in the mounted export', async () => {
+    activateTestStepBlockages(h.sqlite.filename);
     const document = planDocumentFixture();
     document.document.version = 9;
     document.workItems.forEach((row) => Reflect.deleteProperty(row, 'attempts'));
@@ -918,6 +939,7 @@ describe('v9 direct blockage transfer', () => {
   });
 
   it('rolls back the entire scoped import after the first real blockage insert', async () => {
+    activateTestStepBlockages(h.sqlite.filename);
     const document = planDocumentFixture();
     document.document.version = 9;
     document.workItems.forEach((row) => Reflect.deleteProperty(row, 'attempts'));

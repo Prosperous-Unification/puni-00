@@ -25,6 +25,7 @@ import { person, project, step, tag, workItem, workItemTag } from './schema';
 import { StepRepository } from './step';
 import { StepBlockageRepository } from './step-blockage';
 import { nodeDigest } from './testing/node-digest';
+import { activateTestStepBlockages } from './testing/step-blockage-activation';
 import { TypedDependencyRepository } from './typed-dependency';
 import { UserRepository } from './user';
 import { WorkItemRepository } from './work-item';
@@ -135,6 +136,7 @@ describe('capturing a project’s plan input', () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-saved-plan-capture-'));
     path = join(dir, 'test.db');
     runMigrations(path, FOLDER);
+    activateTestStepBlockages(path);
     sqlite = openDatabase(path);
     const seed = openConnection(path);
     const db = seed.db;

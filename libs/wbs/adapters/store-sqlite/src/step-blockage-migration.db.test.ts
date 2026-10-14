@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { openDatabase } from './db';
 import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
+import { activateTestStepBlockages } from './testing/step-blockage-activation';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const MIGRATION = '20261013140000_add_step_node_blockages';
@@ -18,6 +19,7 @@ beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'wbs-step-blockage-migration-'));
   path = join(directory, 'plan.db');
   runMigrations(path, FOLDER);
+  activateTestStepBlockages(path);
   const sqlite = openDatabase(path);
   try {
     sqlite.run(
@@ -119,7 +121,9 @@ describe(MIGRATION, () => {
 
   it('refuses rollback over a fact, keeping the schema and migration ledger', () => {
     withDatabase((sqlite) => insert(sqlite));
-    expect(() => rollbackTo(path, FOLDER, BASELINE)).toThrow(/step-blockage-rollback-cli.ts/);
+    expect(() => rollbackTo(path, FOLDER, BASELINE)).toThrow(
+      /stopped-writer recovery integration required/,
+    );
     withDatabase((sqlite) => {
       expect(sqlite.query('SELECT blocked_at FROM step_blockage').all()).toEqual([
         { blocked_at: 1 },
@@ -132,6 +136,7 @@ describe(MIGRATION, () => {
 
   it('rolls an empty table back and reapplies without changing existing plan rows', () => {
     expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+      '20261014140000_add_step_blockage_activation',
       '20261014130000_add_shared_people_restore_receipts',
       '20261014120000_add_shared_people_restore_approvals',
       MIGRATION,
@@ -142,6 +147,7 @@ describe(MIGRATION, () => {
       ).toEqual([]);
     });
     runMigrations(path, FOLDER);
+    activateTestStepBlockages(path);
     withDatabase((sqlite) => {
       insert(sqlite);
       expect(sqlite.query('SELECT id FROM work_item ORDER BY id').all()).toEqual([

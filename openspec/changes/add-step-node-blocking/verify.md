@@ -666,6 +666,40 @@ decoder and Navigator external v7/v8 support remain unchanged. Isolated rerun:
 `/tmp/puni-release-candidate-evidence`. This corrects test state rather than adding
 a new production safety check.
 
+### Combined mounted unknown-version fixture — 2026-10-14
+
+The broad backend run ended at 2412 pass, 3 skip and 1 fail. The sole failure,
+`mounted unknown version precedes version-specific validation`, supplied v9,
+which this change makes current; it correctly reached the malformed priority
+field instead of returning `unsupported_version`. Changed only that test input
+to unsupported v10. Production parsing remains unchanged. The broad FE UTC
+run ended at 3985 pass and the two stale export fixtures corrected above; its
+Auckland command was skipped by the UTC failure. The complete broad command
+exited1; it is not a green final gate. Focused final checks are recorded in
+`/tmp/puni-release-candidate-evidence/`.
+
+## Immediate writer admission — 2026-10-14 (task 3.0.6)
+
+Base: `4bb78ec2674869c2bfd18114ef4f39e05d403863`, isolated clone `/tmp/puni-step-blockage-admission-sol`. The existing `20261013140000_add_step_node_blockages` migration and down bytes are unchanged (`git diff --exit-code -- apps/wbs/be-01/drizzle/20261013140000_add_step_node_blockages`, exit 0).
+
+Fresh focused checks:
+
+- `bun test` with explicit `./` operands for `step-blockage-activation.db.test.ts`, `step-blockage.db.test.ts`, `step-blockage-migration.db.test.ts`, `step-blockage-rollback.db.test.ts`, and HTTP `step-blockage-activation.test.ts`, `import-shapes.test.ts`, `step-shapes.test.ts`: exit 0, **63 pass, 0 fail, 233 assertions**. These include default-disabled independent writes, owner cascade, corrupt/missing authority and trigger definitions, wrong migration, unreadable connection, restart, full UoW rollback, all three nested journal inventory sources and guarded down retaining facts/history/ledger.
+- `bun test ./apps/wbs/be-01/src/boot.db.test.ts ./apps/wbs/be-01/src/controller/step-node-attempt.controller.db.test.ts ./apps/wbs/be-01/src/controller/import-export-organization.controller.db.test.ts --test-name-pattern 'blockage admission authority|writer admission is disabled|empty nested structural snapshots|v9 direct blockage transfer' --timeout=30000`: exit 0, **8 pass, 0 fail, 33 assertions**. Boot uses the existing injected listener/app seam because real sandbox listening refuses `EPERM`. Mounted import, deletion, undo and redo use real SQLite and production composition. Unexpected second-insert SQL still returns 500 and rolls back; inactive writes return 409 after rollback.
+- Earlier complete focused backend operands (step-node-attempt, composed import/export, undo service and step service): exit 0, **279 pass, 0 fail, 1250 assertions**. Existing empty and supported legacy import/read/export behavior remains covered.
+- Correct explicit-source adapter sweep: **1491 pass, 12 fail, 12954 assertions**. Eight failures were migration ascending/latest inventories, receipt snapshot scope and existing isolated fixtures requiring explicit admission. After correction, the exact eight targeted regressions pass: **8 pass, 0 fail, 1749 assertions**, including terminal SQLite conformance certification. Four child-process checks remain blocked by sandbox `EPERM` at `stdin.flush`: one browser lifecycle race, two saved-plan concurrency checks, and one saved-plan busy check. They require the composed candidate's host gate. An earlier invalid directory operand collected emitted `dist/out-tsc` tests; that run is discarded as a verification command, not classified as a product regression.
+- `bunx tsc --build --force libs/wbs/adapters/store-sqlite/tsconfig.json apps/wbs/be-01/tsconfig.json`: exit 0 with no diagnostics after final code changes.
+- Touched TypeScript ESLint, Prettier check, strict OpenSpec validation and `git diff --check` are recorded at the admission commit checkpoint below. The initial Nx lint used a sandbox-denied daemon socket and lacked full diagnostics; the final touched-file ESLint uses the generated project graph and supplies the actual evidence.
+- `bun run tools/tool-git-hooks/src/hooks/migration-lint.ts apps/wbs/be-01/drizzle/20261014140000_add_step_blockage_activation/migration.sql`: exit 0. The paired down is exercised both by retained-evidence negatives and successful empty rollback/reapply in the migration tests; destructive statements remain confined to down.
+
+Watched R5 evidence is retained in [writer-admission-omissions.txt](evidence/writer-admission-omissions.txt): **29 independent fault runs, each exit 1 at a named assertion**. Trigger omissions replace their migration statement with harmless `SELECT 1` so the real writer is reached; they produce “Received function did not throw.” Other faults separately omit SQL count/enabled predicates, marker count/id/state, ledger and exact trigger checks, readiness/boot calls, each forward/inverse/precondition inventory, disabled replay admission, mounted 409, native error class/code/exact message/cause traversal, UoW translation/rollback, and down fact/history guards. Removing a trigger while leaving an empty Drizzle statement was rejected as invalid proof and replaced before recording this evidence. [writer-admission-contract-omission.txt](evidence/writer-admission-contract-omission.txt) records the inactive schema discriminator replaced with `writer_disabled`; all five production endpoint schema/OpenAPI assertions fail.
+
+Raw project deletion already reaches the existing step foreign key restriction before fact deletion. Its test proves fact retention and preserves that foreign key error; it is not counted as a new admission-sentinel proof. Mounted work-item deletion reaches the new writer admission guard and retains earlier batch writes, journal and revisions on refusal.
+
+Release checks not claimed here: the exact-SHA h2puni format/test/lint/typecheck/build gate, hosted CI, #450 setter composition, old-writer barrier/F11.1d, and stopped-writer recovery integration. No production enable command or API was added. The existing lossless recovery CLI bytes remain intact; disabled remove/restore and retained-history down refuse visibly, as documented in the production runbook. Parent task 6.3 remains open.
+
+Admission checkpoint: touched TypeScript ESLint with the generated project graph, touched Prettier check, `openspec validate add-step-node-blocking --strict --json`, and `git diff --check` all exit 0. No h2puni gate/build or hosted CI result is inferred from these focused checks.
+
 ### Public authoring, tasks 3.1–3.2 (2026-10-14)
 
 Exact base: `5693dccc48d20720729ea4a73404494d417092ad`; isolated clone `/tmp/puni-step-blockage-authoring-sol`. The registry accepts `setStepBlocked` with required boolean `isBlocked`, ID/ref+step or `stepNodeId`. The admitted graph writes and journals nullable exact-time conditional replacements. Equivalence follows ownership/leaf/step validation and precedes stamps, done refusal and writes. Existing replay restores beneath done. No migration, document/saved/scheduler version, replay discriminator/capability or CI trusted-wiki activation changed.
@@ -699,3 +733,62 @@ Final local checks:
 - After adding mounted transport push-count assertions, the two new test files passed 27 tests, 0 failures, 98 assertions. Both memory and mounted SQLite refusal/throw cases assert no fanout.
 - Final touched-test ESLint: exit 0. Touched-file Prettier check and `git diff --check`: exit 0.
 - `validate add-step-node-blocking --strict --json`: 1 passed, 0 failed, no issues. Normal `validate --all --json`: 196 passed, 0 failed. Additional whole-repo `--strict` run exits 1 on six existing main-spec placeholder Purpose warnings: `dev-deploy`, `live-plan-snapshot`, `plan-command-registry`, `plan-import`, `saved-plans`, `scheduler-optimization`; all 178 change artifacts, including this one, pass. Those untouched main specs remain coordinator scope.
+
+### Setter and disabled admission composition — 2026-10-14
+
+The isolated clone `/tmp/puni-step-setter-integration-sol` merges reviewed setter
+head `809cbe64b568bd62e772be8dd3448a7977313ffa` with admission/base head
+`3d6f80b0693b2178d8029e80631aa69f24a0d336`. Only this design, task and verification
+record conflicted; both slices' records are retained. No production code, migration,
+activation default or production enable interface changes in this integration.
+
+The mounted setter positive fixture now explicitly enables its isolated database.
+Before that fixture correction, its exact-source baseline had 7 pass and 11 fail:
+actual writes correctly received the new inactive refusal. Added default-disabled
+mounted set, retained-clear and undo/redo negatives assert typed 409 and complete
+unchanged fact/progress/owner/project/journal/event snapshots and fanout counts.
+Absent clear remains a 200 exact no-op. Retained facts remain readable and export
+as v9; nonempty reimport of that public setter's export refuses atomically while
+disabled. Enabled set/clear and both replay directions retain exact blocked time,
+including retained facts beneath done. Existing import tests cover enabled remapped
+facts, default-disabled nonempty refusal, empty import/export and legacy input.
+
+A separate test-only compile correction supplies `validateSchema<unknown>` in
+`step-blockage-activation.test.ts`: TypeScript otherwise inferred the first arm
+from a union of refusal schemas and rejected the other arms with TS2345. Runtime
+schema validation and the endpoint union are unchanged; there is no cast.
+
+Fresh scoped evidence:
+
+- `bun install --frozen-lockfile` with `BUN_TMPDIR=/tmp TMPDIR=/tmp`: exit 0;
+  1573 installs checked. The initial install lacked a writable temporary directory
+  and exited 1; that output was not accepted as successful installation.
+- Explicit source-file `bun test` over the plan-commands tests, command normalizers,
+  command definitions/shapes, admission contract, four blockage SQLite suites,
+  mounted setter and mounted import/export: exit 0, **223 pass, 0 fail, 1032
+  assertions, 20 files**. Log `/tmp/puni-setter-integration-tests.log`.
+- After the test-only type correction and formatting, admission contracts plus
+  mounted setter: exit 0, **28 pass, 0 fail, 96 assertions**.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint -p wbs-core,wbs-contracts,wbs-store-sqlite,wbs-be-01 --output-style=static`:
+  exit 0; four projects, zero cache hits. Final touched-test ESLint also exited 0.
+- Matching `run-many -t typecheck`: initial run exposed the TS2345 above; corrected
+  rerun exits 0 for four projects and two module tasks, with two unchanged core
+  tasks read from cache. Contracts, backend and SQLite compilation ran freshly.
+- Pinned `bunx @fission-ai/openspec@1.12.0 validate add-step-node-blocking --strict --json`:
+  exit 0, one change passed, no issues. `validate --all --json`: exit 0,
+  **196 passed, 0 failed** (178 changes, 18 specs).
+
+The existing admission mapping is independently watched through the new setter:
+removing the mounted `StepBlockageInactive` mapping produces 500 instead of the
+expected typed 409 in `refuses a default-disabled set atomically without facts,
+journal or fanout`; test command exits 1, 0 pass, 1 fail. The exact output is
+[setter-admission-http-omission.txt](evidence/setter-admission-http-omission.txt).
+Source was restored before the green reruns. Removing repository translation
+alone still passed because the full unit of work independently translates it;
+that attempt is not counted as a guard proof. No new production safety check was
+introduced, and the previously observed adjacent admission Proof comments remain.
+
+Full h2puni heavy gate/build, hosted CI, browser verification, old-writer barrier,
+Kubernetes F11.1d and stopped-writer recovery integration are unverified here and
+remain coordinator work. This clone is on `pop-os`; no production activation,
+push, merge or deploy is performed by this integration task.
