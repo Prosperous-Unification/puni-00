@@ -16,6 +16,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { CONTROL_HEIGHT, FIELD_LABEL_CLASS, FORM_CLASS } from '@/components/ui/control';
 import { Input } from '@/components/ui/input';
 import { failureMessage, unreachable } from '@/lib/http';
+import { useFeatureReachable } from '@/lib/session-features';
 import { cn } from '@/lib/utils';
 import { useResourceClient } from '@/runtime/organization-resources';
 
@@ -54,7 +55,14 @@ export function SpacesPage({
   account: ReactNode;
 }): React.JSX.Element {
   const spaces = useResourceClient(SPACES_SHAPES);
-  const [view, setView] = useState<View>({ kind: 'loading' });
+  // Spaces belong to an organization: a deployment the session read reported
+  // without organizations shows what the list's `organization_required` would,
+  // and neither reads nor polls.
+  const reachable = useFeatureReachable('organizations');
+  const [view, setView] = useState<View>(() =>
+    reachable ? { kind: 'loading' } : refusedView(spaceRefusal({ error: 'organization_required' })),
+  );
+
   const [name, setName] = useState('');
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
   const [message, setMessage] = useState('');
@@ -81,10 +89,12 @@ export function SpacesPage({
 
   const refreshSafely = useCallback(
     () =>
-      refresh().catch((cause: unknown) => {
-        setFault(new Error('Unexpected space list failure', { cause }));
-      }),
-    [refresh],
+      reachable
+        ? refresh().catch((cause: unknown) => {
+            setFault(new Error('Unexpected space list failure', { cause }));
+          })
+        : Promise.resolve(),
+    [reachable, refresh],
   );
 
   useEffect(() => {

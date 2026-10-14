@@ -2,6 +2,7 @@ import { type ReactNode, useState } from 'react';
 
 import { AppHeader } from '@/components/chrome/app-header';
 import { buttonVariants } from '@/components/ui/button';
+import { useFeatureReachable } from '@/lib/session-features';
 import { cn } from '@/lib/utils';
 
 import { AccessState } from './access-state';
@@ -30,7 +31,10 @@ export function OrganizationPage({
   nav: ReactNode;
   account: ReactNode;
 }): React.JSX.Element {
-  const [loss, setLoss] = useState<AccessLoss | null>(null);
+  // A deployment the session read reported without organizations starts in
+  // the state the panels' refusals would reach, and mounts no panel to ask.
+  const reachable = useFeatureReachable('organizations');
+  const [loss, setLoss] = useState<AccessLoss | null>(reachable ? null : 'inactive');
   return (
     <>
       <AppHeader nav={nav} account={account} />

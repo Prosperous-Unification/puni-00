@@ -5,7 +5,13 @@ import { jwtVerify, SignJWT } from 'jose';
 
 import { buildApp } from '../app';
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
-import { inMemoryUsers, TEST_JWT_KEY, testAuthService } from '../testing/auth-fixture';
+import {
+  inMemoryUsers,
+  NO_SESSION_FEATURES,
+  readNoSessionFeatures,
+  TEST_JWT_KEY,
+  testAuthService,
+} from '../testing/auth-fixture';
 import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { testCapacityService } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
@@ -302,7 +308,7 @@ describe('GET /api/auth/me', () => {
     // error on every signed-out page; TASK-299 observed it twice under StrictMode.
     const res = await app().handle(new Request('http://localhost/api/auth/me'));
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ user: null });
+    expect(await res.json()).toEqual({ user: null, features: NO_SESSION_FEATURES });
   });
 
   it('keeps every session response out of stores and varies intermediaries by credential', async () => {
@@ -396,7 +402,7 @@ function heldLogins(maxConcurrentLogins?: number, now?: () => number) {
     maxConcurrent: maxConcurrentLogins ?? 8,
   });
   const application = now === undefined ? app(auth, maxConcurrentLogins) : null;
-  const timedLogin = authPasswordEndpoints(auth, undefined, throttle)[1];
+  const timedLogin = authPasswordEndpoints(auth, undefined, throttle, readNoSessionFeatures)[1];
   const requests: Promise<{ status: number }>[] = [];
   let refused = 0;
   const login = (username: string, ip: string): Promise<{ status: number }> => {

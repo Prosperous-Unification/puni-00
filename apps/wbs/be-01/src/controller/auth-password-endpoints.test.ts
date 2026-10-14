@@ -4,7 +4,13 @@ import { expect, spyOn, test } from 'bun:test';
 
 import type { User } from '../repository';
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
-import { inMemoryUsers, TEST_JWT_KEY, testAuthService } from '../testing/auth-fixture';
+import {
+  inMemoryUsers,
+  NO_SESSION_FEATURES,
+  readNoSessionFeatures,
+  TEST_JWT_KEY,
+  testAuthService,
+} from '../testing/auth-fixture';
 import { testClock } from '../testing/clock-fixture';
 import { authPasswordEndpoints } from './auth-password-endpoints';
 
@@ -25,6 +31,7 @@ test('direct password bindings preserve service refusals and local bearer sessio
     auth,
     undefined,
     new LoginThrottle({ now: () => testClock.now(), maxConcurrent: 8 }),
+    readNoSessionFeatures,
   );
   const credentials = { username: 'ada', password: 'lovelace99' };
   const registered = await endpoints[0].handle({
@@ -71,6 +78,7 @@ test('direct me binding distinguishes signed out, invalid credentials and store 
     auth,
     undefined,
     new LoginThrottle({ now: () => testClock.now(), maxConcurrent: 8 }),
+    readNoSessionFeatures,
   );
   const registered = await auth.register('ada', 'lovelace99');
   if (!registered.ok) throw new Error('fixture registration refused');
@@ -94,6 +102,7 @@ test('direct me binding distinguishes signed out, invalid credentials and store 
         scopes: ['read', 'write', 'editor'],
         linkedMethods: [],
       },
+      features: NO_SESSION_FEATURES,
     },
   });
   expect(
@@ -112,7 +121,12 @@ test('direct me binding distinguishes signed out, invalid credentials and store 
       ...input,
       request: { ...input.request, headers: new Headers() },
     }),
-  ).toEqual({ ok: true, status: 200, body: { user: null }, headers: sessionHeaders });
+  ).toEqual({
+    ok: true,
+    status: 200,
+    body: { user: null, features: NO_SESSION_FEATURES },
+    headers: sessionHeaders,
+  });
 
   const failure = new Error('account lookup unavailable');
   const lookup = spyOn(users, 'findById').mockRejectedValue(failure);
@@ -132,6 +146,7 @@ test('direct login releases its reservation after an account-store failure', asy
     auth,
     undefined,
     new LoginThrottle({ now: () => testClock.now(), maxConcurrent: 1 }),
+    readNoSessionFeatures,
   );
   const input = {
     params: {},
@@ -173,6 +188,7 @@ test('OIDC password success keeps the token in the hardened access cookie', asyn
     auth,
     { passwordLoginEnabled: true, passwordRegisterEnabled: false },
     new LoginThrottle({ now: () => testClock.now(), maxConcurrent: 8 }),
+    readNoSessionFeatures,
   );
   const login = await endpoints[1].handle({
     params: {},

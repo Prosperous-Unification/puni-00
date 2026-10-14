@@ -4,7 +4,13 @@ import { expect, spyOn, test } from 'bun:test';
 
 import { authPasswordEndpoints } from '../../controller/auth-password-endpoints';
 import { bunPasswordHasher, joseTokenCodec } from '../../runtime/bun-runtime';
-import { inMemoryUsers, TEST_JWT_KEY, testAuthService } from '../../testing/auth-fixture';
+import {
+  inMemoryUsers,
+  NO_SESSION_FEATURES,
+  readNoSessionFeatures,
+  TEST_JWT_KEY,
+  testAuthService,
+} from '../../testing/auth-fixture';
 import { testClock } from '../../testing/clock-fixture';
 import type { IdentityResolver } from '../endpoint';
 import { mountEndpoints } from './mount';
@@ -24,6 +30,7 @@ function mounted(
       auth,
       oidc,
       new LoginThrottle({ now: () => testClock.now(), maxConcurrent }),
+      readNoSessionFeatures,
     ),
     { appOrigin, resolveIdentity: unusedIdentity, reportUnexpectedFailure: () => undefined },
   );
@@ -127,10 +134,11 @@ test('mounted local register, login and me preserve JSON status and content type
   expect(me.status).toBe(200);
   expect(await me.json()).toEqual({
     user: { ...session.user, scopes: ['read', 'write', 'editor'], linkedMethods: [] },
+    features: NO_SESSION_FEATURES,
   });
   const missing = await app.handle(new Request('https://backend.example/api/auth/me'));
   expect(missing.status).toBe(200);
-  expect(await missing.json()).toEqual({ user: null });
+  expect(await missing.json()).toEqual({ user: null, features: NO_SESSION_FEATURES });
   const invalid = await app.handle(
     new Request('https://backend.example/api/auth/me', {
       headers: { authorization: 'Bearer invalid' },
