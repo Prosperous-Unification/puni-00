@@ -212,6 +212,8 @@ describe('backup lab schedule isolation', () => {
   });
 
   it('suspends both shipped CronJobs before apply while preserving their manual Job templates', () => {
+    // Proof: without base/**/* and backup-sqlite.ts in tool-deploy:test inputs, the production
+    // workspace index reported both this dynamic manifest directory and the CLI runner missing.
     const manifests = ['backup.yaml', 'verify-cronjob.yaml'].map((name) =>
       readFileSync(join(import.meta.dir, '../../../../deploy/k8s/wbs/base', name), 'utf8'),
     );

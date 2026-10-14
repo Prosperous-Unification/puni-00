@@ -8,3 +8,5 @@
 - [ ] 6. Complete the full shipped-CronJob execution on disposable k3d after the repository-locked MinIO image becomes publicly retrievable. The rehearsal currently stops at its 401 image-pull failure; the local S3 fixture does not certify this slice.
 
 - [x] 7. Review repair: suspend the lab CronJobs before initial apply; watch the production transformation regression fail with `suspend` undefined, restore suspension and verify both shipped manual Job templates remain equal. Preserve the exact snapshot key/digest/migration assertion.
+
+- [x] 8. CI repair: declare the dynamic shipped base-manifest subtree and exact production backup runner in `tool-deploy:test` inputs; watch the production workspace index report both missing declarations before the edit, then pass after it.
