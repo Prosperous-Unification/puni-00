@@ -665,3 +665,37 @@ decoder and Navigator external v7/v8 support remain unchanged. Isolated rerun:
 65 pass, 0 fail. Logs: `json-transfer-red.log` and `json-transfer-green.log` in
 `/tmp/puni-release-candidate-evidence`. This corrects test state rather than adding
 a new production safety check.
+
+### Public authoring, tasks 3.1–3.2 (2026-10-14)
+
+Exact base: `5693dccc48d20720729ea4a73404494d417092ad`; isolated clone `/tmp/puni-step-blockage-authoring-sol`. The registry accepts `setStepBlocked` with required boolean `isBlocked`, ID/ref+step or `stepNodeId`. The admitted graph writes and journals nullable exact-time conditional replacements. Equivalence follows ownership/leaf/step validation and precedes stamps, done refusal and writes. Existing replay restores beneath done. No migration, document/saved/scheduler version, replay discriminator/capability or CI trusted-wiki activation changed.
+
+RED: mounted command tests initially received `unknown_kind`/400 instead of 200 or their modeled refusal. GREEN: explicit source-file command below passed **133 tests, 0 failures, 681 assertions, 14 files**. Initial directory-selector run accidentally collected emitted `dist/out-tsc` test JavaScript and failed import resolution; that output was rejected as verification and rerun with explicit source filenames.
+
+```sh
+bun test $(rg --files libs/wbs/application/core/src/module/plan-commands -g '*.test.ts') libs/wbs/application/core/src/service/command-normalizers.test.ts libs/wbs/domain/contracts/src/commands/definitions.test.ts libs/wbs/domain/contracts/src/http/plan-command-shapes.test.ts apps/wbs/be-01/src/controller/step-node-blockage.controller.db.test.ts
+```
+
+Coverage includes ID/node/ref addresses, ownership/viewer/cross-organization refusal before equivalent clears, absent work item/step, parent and done refusals, full no-op SQLite snapshots including journal/history/events/audit/revisions, retained progress and exact-time replay under done, one collected undo/history unit, same-batch retained refresh, canonical scheduler input/full Fast equality, stale fact additions/removals/time changes despite forged unchanged revisions, removed-step and newly-parent replay refusal, and memory/mounted SQLite rollback after a later refusal or injected store refusal/throw. Memory assertions also verify no fanout on rollback. SQLite negative injected exceptions deliberately produce the normal error log and HTTP 500.
+
+Every fault below was applied sequentially to production source, its named test observed failing with exit 1, and source restored before continuing. Adjacent `Proof:` comments identify the observed checks. Logs are `/tmp/puni-authoring-proof-<name>.log` in the worker environment.
+
+| Check               | Injected fault                   | Observed production-path negative                                                                                               |
+| ------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| ownership           | Remove `context.ok` refusal      | `refuses direct service ownership before an equivalent clear` rejected instead of returning a modeled refusal                   |
+| leaf                | Remove leaf predicate            | `refuses a parent even when clearing an absent fact` received success                                                           |
+| project step        | Remove step predicate            | `refuses an unknown service step before an equivalent clear` received success; mounted route has an independent reference guard |
+| equivalent presence | Remove early return              | `equivalent presence and absence change no stored snapshot` observed changed stored snapshot                                    |
+| done                | Remove done predicate            | `refuses new blockage on done and rolls back an earlier batch write` committed forbidden batch                                  |
+| store refusal       | Ignore `unknown_step` outcome    | `rolls back a prior mutation and emits no fanout after a refuse store write` resolved and committed the earlier patch           |
+| boolean intent      | Remove normalizer flag predicate | `refuses missing and nonboolean blockage intent before dispatch` accepted invalid values                                        |
+
+Touched project typecheck passed for `wbs-core`, `wbs-contracts`, `wbs-be-01` and module checks (one unchanged contracts cache hit). Pinned `bunx @fission-ai/openspec@1.12.0 validate --all --json` exited 0. Final lint/format/diff evidence follows. Exact-candidate h2puni heavy gate, build, CI and browser verification remain coordinator work; this local slice does not claim those checks. Activation still requires old incompatible writer drain and Kubernetes F11.1d.
+
+Final local checks:
+
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint -p wbs-core,wbs-contracts,wbs-be-01 --output-style=static`: exit 0; all three passed, one unchanged contracts cache hit.
+- Matching `run-many -t typecheck` command: exit 0; all three plus module checks passed, one unchanged contracts cache hit.
+- After adding mounted transport push-count assertions, the two new test files passed 27 tests, 0 failures, 98 assertions. Both memory and mounted SQLite refusal/throw cases assert no fanout.
+- Final touched-test ESLint: exit 0. Touched-file Prettier check and `git diff --check`: exit 0.
+- `validate add-step-node-blocking --strict --json`: 1 passed, 0 failed, no issues. Normal `validate --all --json`: 196 passed, 0 failed. Additional whole-repo `--strict` run exits 1 on six existing main-spec placeholder Purpose warnings: `dev-deploy`, `live-plan-snapshot`, `plan-command-registry`, `plan-import`, `saved-plans`, `scheduler-optimization`; all 178 change artifacts, including this one, pass. Those untouched main specs remain coordinator scope.

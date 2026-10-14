@@ -4658,6 +4658,77 @@ export class WorkItemService {
   }
 
   /**
+   * Sets the independent direct blockage fact on a project leaf. Validates
+   * ownership, leaf and step before equivalence; equivalent presence changes
+   * no stamps, events or journal. New blockage on done is refused, while a
+   * retained fact may be cleared. Conditional replay preserves its exact time,
+   * including restoration beneath done, without changing progress or schedule.
+   */
+  async setStepBlocked(
+    id: string,
+    actorId: string,
+    stepId: string,
+    isBlocked: boolean,
+  ): Promise<WorkItemOutcome<null>> {
+    const context = await this.contextFor(id, actorId);
+    // Proof: removing refusal made direct ownership negative reject instead of returning its refusal; watched 2026-10-14.
+    if (!context.ok) return context;
+    const { rows, workItem } = context.value;
+    // Proof: removing leaf guard let mounted absent-parent clear succeed; watched 2026-10-14.
+    if (rows.some((row) => row.parentId === id)) return { ok: false, reason: 'rolled_up' };
+    // Proof: removing step guard let unknown-service-step clear succeed; watched 2026-10-14.
+    if (!(await this.holdsStep(workItem.projectId, stepId)))
+      return { ok: false, reason: 'unknown_step' };
+    const before =
+      (await this.opts.blockages.listByWorkItems(workItem.projectId, [id])).find(
+        (fact) => fact.workItemId === id && fact.stepId === stepId,
+      )?.blockedAt ?? null;
+    // Proof: removing equivalence changed the mounted no-op full snapshot; watched 2026-10-14.
+    if ((before !== null) === isBlocked) return { ok: true, value: null };
+    // Proof: removing done guard committed the mounted forbidden batch; watched 2026-10-14.
+    if (isBlocked && (await this.storedProgress(workItem.projectId, id, stepId)) === 'done')
+      return { ok: false, reason: 'node_done' };
+    const stamp = this.clock.stampFor(actorId);
+    const after = isBlocked ? stamp.at : null;
+    if (after === null) {
+      await this.opts.blockages.remove(id, stepId, stamp);
+    } else {
+      const written = await this.opts.blockages.set(
+        { workItemId: id, stepId, blockedAt: after },
+        stamp,
+      );
+      // Proof: ignoring store refusal committed the memory batch's prior patch; watched 2026-10-14.
+      if (written !== 'written') throw new Error(`cannot set step blockage: ${written}`);
+    }
+    await this.announceTree(workItem.projectId);
+    await this.record(
+      workItem.projectId,
+      stamp,
+      'step_blockage',
+      `${isBlocked ? 'block' : 'unblock'} a step on ${quoteName(workItem.name)}`,
+      {
+        forward: {
+          do: 'replace_blockage',
+          workItemId: id,
+          stepId,
+          expectedBlockedAt: before,
+          replacementBlockedAt: after,
+        },
+        inverse: {
+          do: 'replace_blockage',
+          workItemId: id,
+          stepId,
+          expectedBlockedAt: after,
+          replacementBlockedAt: before,
+        },
+        touched: [id],
+        before: rows,
+      },
+    );
+    return { ok: true, value: null };
+  }
+
+  /**
    * Takes the statement back, leaving the step reading as not started.
    *
    * Idempotent, and not refused on a rolled-up row, for exactly the reasons

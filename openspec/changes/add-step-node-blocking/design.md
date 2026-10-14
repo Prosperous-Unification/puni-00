@@ -203,3 +203,11 @@ Navigator accepts external v7 and v8: both strict wire shapes exclude the new
 root field, while their internal adapters supply v9 and empty facts. External v9
 remains refused. Version 7 retains task schema1 with workday estimates; version 8
 retains task schema2 with native estimate units. Schedule calculations and progress are independent of these facts.
+
+## Public blockage authoring (tasks 3.1–3.2)
+
+`setStepBlocked` uses the project registry, semantic step address normalizer and admitted batch graph. It accepts a work-item ID/ref with step ID or one `stepNodeId`, with required boolean `isBlocked`. The resource validates ownership, leaf and project step before equivalence. Equal presence returns before generating a stamp, writing, recording or announcing, including retained blockage beneath done. A new blockage on done refuses `node_done`; clearing retained blockage remains allowed.
+
+Changes record the touched owner and paired conditional `replace_blockage` commands with nullable before/after times. Existing replay compares the exact fact despite unchanged revisions, restores its original time beneath done and refuses a removed step or an owner that became a parent. No migration, document/saved/scheduler version or replay capability changes belong to this slice.
+
+The command is a new blockage writer. Activation requires incompatible old writers to drain before command or import writes are enabled; Kubernetes F11.1d remains a release prerequisite. Local authoring coverage does not discharge either activation obligation.
