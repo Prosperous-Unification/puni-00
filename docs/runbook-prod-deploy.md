@@ -425,14 +425,17 @@ docker exec be-01-<colour> bun run src/shared-people-rollback-cli.ts restore /da
 
 ### Host recovery preflight
 
-The host recovery owner runs directly on h2puni from this release's checkout, with Bun and
-Docker available. Stop every container with a writable mount over the production database
+Build this release's host recovery artifact with `bunx nx run wbs-be-01:build-host-restore`
+(the normal `wbs-be-01:build` also builds it). Copy
+`dist/apps/wbs/be-01-host/shared-people-host-restore.js` to
+`/home/puni1/wbs/bin/shared-people-host-restore.js` on h2puni. It runs with the pinned Bun 1.4.2
+and Docker; no checkout or node_modules is needed at the recovery location. Stop every container with a writable mount over the production database
 before invoking it. Both `be-01-blue` and `be-01-green` must be stopped, exist and identify the same
 `/home/puni1/wbs/data/wbs.db` through their configured DB_PATH and mounts. The operator needs
 permission to inspect every mounted host source; absent, unreadable or ambiguous facts refuse. Running containers with writable directory mounts on the database filesystem also refuse: those directories can contain hardlinks to the database. Distinct-device mounts can be excluded by physical device comparison. Plan an attended maintenance window for these containers and for unreadable mount sources.
 
 ```sh
-bun apps/wbs/be-01/src/shared-people-host-restore-cli.ts /home/puni1/wbs/data/shared-people-<date>.json
+bun /home/puni1/wbs/bin/shared-people-host-restore.js /home/puni1/wbs/data/shared-people-<date>.json
 ```
 
 This process takes `/home/puni1/wbs/state/deploy.lock` itself and holds that exact flock through
@@ -447,7 +450,7 @@ before opening the writer. For an isolated backup, supplying these references re
 rank recovery and consumes the approvals on success:
 
 ```sh
-bun apps/wbs/be-01/src/shared-people-host-restore-cli.ts /home/puni1/wbs/data/shared-people-<date>.json \
+bun /home/puni1/wbs/bin/shared-people-host-restore.js /home/puni1/wbs/data/shared-people-<date>.json \
   --operation=<operation-id> --approval=<approval-id> --approval=<another-approval-id>
 ```
 
@@ -464,6 +467,15 @@ Isolated rank-only recovery records receipt/consumption without mode audits or e
 rolls the entire unit back. Keep the returned receipt and exact approval IDs. An identical retry,
 including after process restart or later edits, returns the original receipt/counts without replay;
 a changed backup digest or approval set refuses. Never reuse a completed operation for new intent.
+
+Before transporting the artifact, run `bunx nx run wbs-be-01:test:host-restore`. This uncached
+Linux rehearsal requires Docker and the pinned `oven/bun:1.4.2` image digest
+`sha256:9114c058aeae42162ee16dd5084b95fe9473970bb6bcb5b232ab1630f0546895`; fetch that image
+explicitly if absent. Missing Docker, Bun or the image fails the target. The rehearsal mounts only
+a disposable scratch fixture at the fixed host paths, runs the unchanged bundle without network,
+checkout, dependencies or Docker socket, and uses a test-owned inventory executable. It proves
+approved isolated rank recovery, durable receipt retry, shared refusal before a writer, and
+flock/colour/database identity fencing. This does not establish live-host exclusion.
 
 `SUPPORTED_CAPACITY_MODES` remains `['isolated']`: installed transaction tests do not authorize
 shared physical recovery. Shared physical acceptance, attended exclusion and activation remain

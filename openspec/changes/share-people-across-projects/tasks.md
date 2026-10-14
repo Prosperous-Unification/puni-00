@@ -508,6 +508,11 @@ sequence`, `push failure retains durable event`, `expired replay requires snapsh
 - [ ] 10.3 One immediate restore transaction rechecks and consumes every changed organization's
       personal approval/membership, restores modes/ranks, records per-org audits, all-project durable
       elsewhere_changed events, receipt and consumption. Fail atomically and retry by receipt.
+- [x] 10.4a Package the existing production host CLI as a WBS-owned Bun artifact; normal build
+      dependency, outside-checkout smoke and explicit uncached scratch-only Linux rehearsal of
+      unchanged bytes. Prove approved isolated receipt/cold retry, approved shared pre-opener
+      refusal, fixed flock/colour/identity guards and watched production mutations. Production
+      remains isolated-only; this closes no attended live-host acceptance.
 - [ ] 10.4 Prove late failures, missing approvals, demotion, foreign bindings, replay and exclusion;
       update runbook, review and exact-SHA canonical gate before activating supported modes.
 

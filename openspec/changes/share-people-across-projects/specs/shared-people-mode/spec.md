@@ -1006,3 +1006,38 @@ This rehearsal SHALL add no production environment or CLI capability override.
 - **THEN** shared recovery refuses before writable open
 - **AND** with valid identical database mappings and every test-owned writer stopped, shared recovery commits
 - **AND** the unchanged production CLI still refuses shared recovery while production supports only isolated mode
+
+### Requirement: Packaged host recovery retains production policy
+
+The WBS build SHALL produce a standalone Bun host recovery bundle. The normal backend build
+SHALL depend on that bundle. An explicit uncached Linux rehearsal SHALL execute its unchanged
+bytes against scratch fixtures at the fixed production paths, without a checkout, node_modules,
+network, real Docker socket or live host mounts. Missing required Docker, Bun or the pinned
+runtime image SHALL fail the rehearsal.
+
+#### Scenario: Bundle transports outside the checkout
+
+- **GIVEN** the backend host recovery target built its bundle
+- **WHEN** only that artifact is copied outside the checkout and invoked with pinned Bun without arguments
+- **THEN** the production usage refusal is reached without resolving repository dependencies
+
+#### Scenario: Approved isolated rank recovery and cold retry
+
+- **GIVEN** composed personal approval for an isolated backup and stopped colours mapping the fixed database inode
+- **WHEN** the unchanged bundle restores that backup inside the scratch-only Linux namespace
+- **THEN** ranks, receipt and approval consumption commit through the audited restore owner
+- **AND** a fresh process retry after later rank and membership edits returns original counts without replay
+
+#### Scenario: Approved shared backup remains unsupported before writer opening
+
+- **GIVEN** a valid shared backup with composed personal approval and DELETE journal mode
+- **WHEN** this isolated-only bundle attempts recovery in the scratch-only namespace
+- **THEN** it refuses unsupported shared capacity before opening a writable connection
+- **AND** all tables, database bytes and DELETE journal mode remain unchanged
+
+#### Scenario: Packaged recovery retains host exclusion
+
+- **GIVEN** a competing fixed deploy flock, running green colour or foreign green database inode
+- **WHEN** the unchanged bundle attempts recovery
+- **THEN** the corresponding lock, stopped-colour or physical-identity guard refuses
+- **AND** all tables, database bytes and DELETE journal mode remain unchanged

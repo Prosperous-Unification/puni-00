@@ -508,3 +508,25 @@ must refuse while running, foreign database identity and absent/unreadable sourc
 all stopped test-owned writers permit shared audited recovery. Cleanup removes only created IDs.
 These are local process/daemon proofs. Production activation and attended live-host acceptance
 remain task 10.4, together with independent review and the exact-SHA canonical gate.
+
+### 10.4a Packaged host recovery rehearsal
+
+`wbs-be-01:build-host-restore` bundles the existing production CLI and every JavaScript
+dependency into `dist/apps/wbs/be-01-host/shared-people-host-restore.js` for pinned Bun 1.4.2.
+The normal application build depends on it. The CLI retains its fixed database, deploy-lock and
+Docker executable names; transport needs no repository or node_modules. No recovery authority,
+path override, actor assertion or capability override is added.
+
+The explicit uncached `wbs-be-01:test:host-restore` target first builds that artifact. Its smoke
+copy runs outside the checkout. Its Linux rehearsal copies the same bytes and a stopped composed
+SQLite fixture into scratch storage mounted at `/home/puni1/wbs` in the digest-pinned official
+Bun runtime. Only scratch is mounted; network, Docker socket, live paths, checkout and
+node_modules are absent. A test-owned executable answers Docker inventory queries. Personal
+approvals originate through the composed endpoint before the app stops. The unchanged CLI
+recovers an approved isolated rank, persists receipt/consumption and cold-retries after later
+rank and membership edits. A separately approved shared backup refuses with DELETE journal
+and all table rows and database bytes intact. Missing prerequisites fail rather than skip.
+
+Production remains isolated-only. These tests prove artifact portability and fixed-path host
+policy inside a disposable namespace; live-host exclusion, shared activation, review and the
+canonical exact-SHA gate remain later acceptance work.
