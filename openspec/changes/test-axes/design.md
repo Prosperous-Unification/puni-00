@@ -82,6 +82,18 @@ The version-1 output has `revision`, `candidate`, `publicationObservationDigest`
 
 The diagnostic does not infer tested module, service kind, coverage or admission. Full level classification still needs complete precedence facts. Reusing the strict publication inspector and full index checker means unrelated corrupt publication/index state can refuse this command. That cost preserves the existing authorities and keeps this slice independent of B3 and certification.
 
+## Adjacent exact committed selection boundary (4.1b.5)
+
+`readCandidate` intentionally resolves `${revision}^{commit}` and returns the peeled commit SHA.
+The four existing diagnostics `inspect-spec-sources`, `inspect-test-reports`,
+`inspect-test-sources` and `inspect-performance` each accept a caller's full SHA, but a full-hex
+annotated tag object can pass that syntax check and select a different commit. Each command now
+compares the selected revision to the requested SHA immediately after its committed read. The
+Performance inspector also checks the selected kind before that comparison. These local guards
+preserve the generic reader's peeling contract for staged bases and historical callers, while
+keeping each command's named refusal before downstream policy or publication IO. The four
+diagnostics remain noncertifying and gain no coverage or admission authority.
+
 ## Level classification and runner evidence
 
 `libs/shared/domain/test-levels` owns the pure ten-row precedence function. It has no runner or policy imports, and its caller supplies the frontend source root. Burokrat supplies Conformance, Architecture, Performance, Browser, frontend Node and manual membership evidence, then applies that function to the selected candidate. Devsync consumes the same public library for target checks. The shared-domain placement satisfies Nx's existing product and scope rules for the Burokrat application and the product-less devsync tool; Burokrat still owns discovery, thresholds and enforcement.

@@ -293,6 +293,34 @@ The version-1 observation SHALL bind revision, candidate, publication observatio
 - **THEN** every changed field SHALL change the digest and the installed command SHALL reach the validator
 - **AND** authentication SHALL remain absent and certification false
 
+### Requirement: Diagnostic committed SHA is the requested commit object
+
+The `inspect-spec-sources`, `inspect-test-reports`, `inspect-test-sources` and `inspect-performance` commands SHALL require the selected committed revision to equal the caller's full SHA before downstream source, publication or policy inspection. A full-hex annotated tag-object SHA that Git peels to a different commit SHALL refuse with a named error and no JSON. The Performance inspector SHALL also refuse a noncommitted selection returned by a faulty reader. The generic candidate reader's revision-peeling behavior for other callers SHALL remain unchanged.
+
+#### Scenario: [TEST-AXES-073] Specification sources reject a tag object
+
+- **GIVEN** a valid committed specification fixture and an annotated tag object pointing to it
+- **WHEN** the source diagnostic receives the tag object's full SHA
+- **THEN** it SHALL refuse before inventory with no JSON
+
+#### Scenario: [TEST-AXES-074] Browser test reports reject a tag object
+
+- **GIVEN** a valid Browser report publication and an annotated tag object pointing to its candidate
+- **WHEN** the report diagnostic receives the tag object's full SHA
+- **THEN** it SHALL refuse before Browser publication inspection with no JSON
+
+#### Scenario: [TEST-AXES-075] Browser test sources reject a tag object
+
+- **GIVEN** a valid indexed Browser source publication and an annotated tag object pointing to its candidate
+- **WHEN** the source diagnostic receives the tag object's full SHA
+- **THEN** it SHALL refuse before report publication inspection with no JSON
+
+#### Scenario: [TEST-AXES-076] Performance inspection requires the exact committed object
+
+- **GIVEN** a valid Performance publication with either an annotated tag-object SHA or a faulted noncommitted reader selection
+- **WHEN** the inspector captures its candidate
+- **THEN** it SHALL refuse with the responsible named selection error and no JSON
+
 ### Requirement: Tests live inside their modules
 
 A test SHALL live inside the module it tests, resolved from the module index.

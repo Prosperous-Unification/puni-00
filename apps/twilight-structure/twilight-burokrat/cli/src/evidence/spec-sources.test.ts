@@ -223,6 +223,17 @@ test('[TEST-AXES-056] absent active inventory and symbolic revision refuse', asy
   expect(usage.stderr).toContain('usage: twilight-burokrat inspect-spec-sources');
 });
 
+test('[TEST-AXES-073] spec source diagnostic refuses an annotated tag-object SHA before inventory', async () => {
+  const setup = fixture();
+  git(setup.root, ['tag', '-a', 'spec-source-tag', '-m', 'annotated tag', setup.revision]);
+  const tagObject = git(setup.root, ['rev-parse', 'spec-source-tag^{tag}']);
+  expect(tagObject).not.toBe(setup.revision);
+  const call = await invokeCli(['inspect-spec-sources', setup.root, tagObject]);
+  expect(call.exitCode).toBe(1);
+  expect(call.stderr).toContain('spec source selected revision differs from requested SHA');
+  expect(call.stdout).toBe('');
+});
+
 function inspectFault(setup: ReturnType<typeof fixture>, modulePath: string, replacement: string) {
   const preload = join(setup.root, 'fault-preload.ts');
   writeFileSync(
