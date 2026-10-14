@@ -4206,3 +4206,40 @@ its selectors/facade tests are included above and its source lint/typecheck were
 Full canonical gate, monorepo build, CI-only checks, independent successor review and external
 authority remain unrun by this worker. Trusted-wiki workflow, root/#451 branch, publication,
 merge, activation and WBS state were not changed; no push was performed.
+
+### Hosted CI correction: declare Dash's CI workflow test input
+
+At clean #451 head `c99a0c2606fbe76b7d257dc2374f117baa25584a`, the parent reported
+hosted CI run `38518267917` failing `tool-devsync:test` because
+`twilight-dash:test does not declare .github/workflows/ci.yml`. The existing workflow
+reader detector conservatively recognizes workflow names in test source, including the
+CI fixture/selector paths in `review-declarations.test.ts`. Dash's test target declared
+`trusted-wiki.yml` but omitted `ci.yml`.
+
+The correction adds only `{workspaceRoot}/.github/workflows/ci.yml` to Dash's test inputs.
+The detector and assertion remain unchanged; an adjacent `Proof:` comment records the
+watched omission. This restores the existing workspace-input contract and adds no new
+OpenSpec task or activation behavior.
+
+- `bun test --preload ./tools/test/scratch/preload.ts tools/tool-devsync/src/workspace-targets.test.ts --test-name-pattern 'every suite that reads a CI workflow declares it' --timeout=30000`
+  — RED at the exact missing-input assertion (one failure, nine assertions), then GREEN
+  (one pass, nine assertions). Removing only the new input after GREEN reproduced the
+  exact same diagnostic with exit 1; the manifest was restored in `finally`.
+  Local diagnostic copies: `/tmp/declarations-ci-input-green.log` and
+  `/tmp/declarations-ci-input-omission.log`.
+- `bun test --preload ./tools/test/scratch/preload.ts tools/tool-devsync/src/workspace-targets.test.ts --timeout=30000`
+  — restored full file GREEN: 23 passed, zero failures, 84 assertions; 4.36 seconds.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run tool-devsync:lint --outputStyle=stream`
+  — passed, uncached; 11.5 seconds.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run tool-devsync:typecheck --outputStyle=stream`
+  — passed, uncached; 668 ms.
+- `bunx prettier --check apps/twilight-structure/twilight-dash/cli/project.json tools/tool-devsync/src/workspace-targets.test.ts openspec/changes/automatic-trusted-activation/verify.md`
+  — all three matched files use Prettier style; `git diff --check` found no whitespace errors.
+- `bunx --package @fission-ai/openspec@1.12.0 openspec validate automatic-trusted-activation --strict --json`
+  — one change passed, zero issues.
+
+Dash source/tests were unchanged and its suites/lint/typecheck were not repeated in this
+manifest-only correction. Hosted CI retry, full monorepo checks/build, canonical host gate,
+external authority, push, merge and deployment were not performed by this worker. The
+parent retains successor review, publication of the follow-up and gate requeue ownership;
+parent extraction tasks and external acceptance remain open.

@@ -1199,6 +1199,8 @@ describe('every suite that reads a CI workflow declares it', () => {
     // Reverting `tool-git-hooks/project.json` alone reproduces the first line.
     // Proof: with deploy-k3s.yml removed from tool-deploy:test's inputs this failed on
     // `["tool-deploy:test does not declare .github/workflows/deploy-k3s.yml"]` (2026-09-18).
+    // Proof: removing only ci.yml from twilight-dash:test inputs reproduced
+    // ["twilight-dash:test does not declare .github/workflows/ci.yml"] (2026-10-14).
     expect(undeclared).toEqual([]);
   });
 });
