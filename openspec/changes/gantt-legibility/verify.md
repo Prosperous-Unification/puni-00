@@ -62,3 +62,23 @@ pointed-row-offscreen live-caret mobile` — first run 159 passed, 3 failed (str
 - Playwright (Gantt, layout and phone suites): 152/153 passed. The one failure,
   `hover-cards.spec.ts:1075`, reproduced 2 in 5 before merging main and passed 6/6 after; main
   alone passed 5/5.
+
+## Full screen fills its width (F-062, 2026-10-14)
+
+Worktree `ui-gantt-full`, `E2E_PORT_SHIFT=2100`, on integration-1 abd06e9ad.
+
+- `gantt-legibility.spec.ts` "full screen fills its width at every rung" (1440 and 1024; Days,
+  Weeks, Months): on the base it failed at Days on `last column 804px short of the edge` (1440)
+  and `388px` (1024). The full-screen layer remounts the scroll box, and the width observers were
+  still watching the detached one, which measures 0.
+- With `fullScreen` dropped from the measuring effect's dependencies, the same messages appeared.
+  With the full-screen loop skipped, the back-under-the-plan assertion failed on
+  `expected 1144 to be less than 20` (1440) and `728` (1024).
+- With the observers fixed and no room check on month names, it failed at Weeks 1440 on
+  `last column 16px short of the edge, scrolls: true`: "Jan 2027" on the last cell ran 15px past
+  the chart. `gantt-axis-months.test.tsx` failed without the check on
+  `expected [ 'Oct 2026', 'Nov 2026', 'Dec 2026' ] to deeply equal [ 'Oct 2026', 'Nov 2026' ]`.
+- Playwright: 113 passed and 4 skipped across gantt-legibility, gantt-detail, gantt.spec,
+  gantt-attempts, gantt-minute-estimate, dark-mode, scroll-stability and mobile.
+- `nx run wbs-fe-01:test` passed 929 + 3947 + 5; `typecheck` and `lint:fast` were successful.
+  OpenSpec `validate --all` passed 192/192.
