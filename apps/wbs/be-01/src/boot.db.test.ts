@@ -1293,3 +1293,32 @@ for (const passwordLoginEnabled of [false, true]) {
     expect(me.status).toBe(500);
   });
 }
+
+it('refuses boot after migrations when blockage admission authority is missing', async () => {
+  const dbPath = join(tempDir('wbs-blockage-boot-'), 'plan.db');
+  runMigrations(dbPath, FOLDER);
+  const sqlite = openDatabase(dbPath);
+  sqlite.run('DELETE FROM step_blockage_activation');
+  sqlite.close();
+  let failure: unknown;
+  try {
+    running = await bootBe01(
+      { ...bootOptions(dbPath, 0), migrateOnStartup: true, migrationsFolder: FOLDER },
+      {
+        openSource: openSqliteSource,
+        makeApp: (options) => {
+          const app = buildApp(options);
+          app.stop = () => Promise.resolve(app);
+          return app;
+        },
+        startListener: (_app, _port, ready) => {
+          ready();
+        },
+      },
+    );
+  } catch (cause) {
+    failure = cause;
+  }
+  expect(reasons(failure)).toContain('invalid step blockage activation marker');
+  expect(running).toBeNull();
+});

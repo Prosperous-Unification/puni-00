@@ -3,6 +3,7 @@ import { type } from 'arktype';
 import { defineEndpointShape } from './endpoint-shape';
 import { organizationContextRefusal, organizationRefusal } from './organization-refusal';
 import { requestSchema, responseSchema } from './schema-shape';
+import { stepBlockageInactiveRefusal } from './step-blockage-refusal';
 
 const projectParams = requestSchema(type({ id: 'string' }));
 const stepParams = requestSchema(type({ id: 'string', stepId: 'string' }));
@@ -153,6 +154,7 @@ export const removeStep = defineEndpointShape({
   query: requestSchema(type({ 'cascade?': 'string' })),
   responses: [{ kind: 'empty', status: 204 }],
   refusals: [
+    stepBlockageInactiveRefusal,
     ...sharedRefusals,
     { status: 400, schema: responseSchema(type({ error: "'invalid_body'" })) },
     {

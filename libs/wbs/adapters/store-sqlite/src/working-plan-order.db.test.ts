@@ -24,6 +24,7 @@ import { expect, it } from 'bun:test';
 
 import { runMigrations } from './migrate';
 import { openSqliteSource } from './source';
+import { activateTestStepBlockages } from './testing/step-blockage-activation';
 
 const MIGRATIONS = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const OWNER = 'working-plan-order-owner';
@@ -62,6 +63,7 @@ async function sqliteEstimateRunner(name: string) {
   const directory = mkdtempSync(join(tmpdir(), 'wbs-working-plan-batch-'));
   const path = join(directory, 'source.db');
   runMigrations(path, MIGRATIONS);
+  activateTestStepBlockages(path);
   const source = openSqliteSource({ dbPath: path });
   await source.stores.users.create(
     { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: STAMP.at },
@@ -209,6 +211,7 @@ it('keeps SQLite satellite order authoritative after a WorkingPlan patch refresh
   const directory = mkdtempSync(join(tmpdir(), 'wbs-working-plan-order-'));
   const path = join(directory, 'source.db');
   runMigrations(path, MIGRATIONS);
+  activateTestStepBlockages(path);
   const source = openSqliteSource({ dbPath: path });
 
   try {
@@ -289,6 +292,7 @@ it('keeps SQLite dependency order authoritative after a WorkingPlan add', async 
   const directory = mkdtempSync(join(tmpdir(), 'wbs-working-plan-edge-order-'));
   const path = join(directory, 'source.db');
   runMigrations(path, MIGRATIONS);
+  activateTestStepBlockages(path);
   const source = openSqliteSource({ dbPath: path });
 
   try {
@@ -347,6 +351,7 @@ it('advances SQLite assignment and directory cascades before the next runner com
   const directory = mkdtempSync(join(tmpdir(), 'wbs-working-plan-directory-'));
   const path = join(directory, 'source.db');
   runMigrations(path, MIGRATIONS);
+  activateTestStepBlockages(path);
   const source = openSqliteSource({ dbPath: path });
 
   try {
@@ -523,6 +528,7 @@ it('rolls back a successful directory write when its retained reload fails', asy
   const directory = mkdtempSync(join(tmpdir(), 'wbs-working-plan-directory-rollback-'));
   const path = join(directory, 'source.db');
   runMigrations(path, MIGRATIONS);
+  activateTestStepBlockages(path);
   const source = openSqliteSource({ dbPath: path });
 
   try {
@@ -628,6 +634,7 @@ it('places every new subtree row and value group in SQLite authoritative order',
   const directory = mkdtempSync(join(tmpdir(), 'wbs-working-plan-subtree-order-'));
   const path = join(directory, 'source.db');
   runMigrations(path, MIGRATIONS);
+  activateTestStepBlockages(path);
   const source = openSqliteSource({ dbPath: path });
 
   try {
@@ -791,6 +798,7 @@ it('keeps SQLite work-item order authoritative immediately after a runner insert
   const directory = mkdtempSync(join(tmpdir(), 'wbs-working-plan-insert-order-'));
   const path = join(directory, 'source.db');
   runMigrations(path, MIGRATIONS);
+  activateTestStepBlockages(path);
   const source = openSqliteSource({ dbPath: path });
 
   try {
@@ -944,6 +952,7 @@ it('refreshes a dependency survivor before the next runner command and preserves
   const directory = mkdtempSync(join(tmpdir(), 'wbs-working-plan-dependency-survivor-'));
   const path = join(directory, 'source.db');
   runMigrations(path, MIGRATIONS);
+  activateTestStepBlockages(path);
   const source = openSqliteSource({ dbPath: path });
 
   try {
@@ -1062,6 +1071,7 @@ it('keeps every SQLite value group in source order after runner sets populate an
   const directory = mkdtempSync(join(tmpdir(), 'wbs-working-plan-value-order-'));
   const path = join(directory, 'source.db');
   runMigrations(path, MIGRATIONS);
+  activateTestStepBlockages(path);
   const source = openSqliteSource({ dbPath: path });
 
   try {

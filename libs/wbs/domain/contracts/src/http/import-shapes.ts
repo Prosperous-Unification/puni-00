@@ -4,6 +4,7 @@ import { defineEndpointShape } from './endpoint-shape';
 import { organizationContextRefusal, organizationRefusal } from './organization-refusal';
 import { planDocumentRequest } from './plan-document-shapes';
 import { responseSchema } from './schema-shape';
+import { stepBlockageInactiveRefusal } from './step-blockage-refusal';
 
 const createdNames = type({
   teams: 'string[]',
@@ -48,6 +49,7 @@ export const importProject = defineEndpointShape({
   bodyMedia: ['application/json'],
   responses: [{ kind: 'json', status: 201, schema: importSummary }],
   refusals: [
+    stepBlockageInactiveRefusal,
     { kind: 'import-refusal', status: 400, schema: malformedImport },
     { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
     {

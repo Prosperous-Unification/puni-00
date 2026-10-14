@@ -256,6 +256,7 @@ export type CommandRefusalDetail = {
 };
 
 type BareRefusalCode =
+  | 'step_blockage_inactive'
   | 'unauthenticated'
   | 'insufficient_scope'
   /** A browser operation names a different organization than its current authority. */

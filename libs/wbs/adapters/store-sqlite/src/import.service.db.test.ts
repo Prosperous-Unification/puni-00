@@ -6,6 +6,7 @@ import { importServiceSourceContract } from '@wbs/core/testing/import-service-so
 
 import { runMigrations } from './migrate';
 import { openSqliteSource } from './source';
+import { activateTestStepBlockages } from './testing/step-blockage-activation';
 
 const MIGRATIONS = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 
@@ -13,6 +14,7 @@ importServiceSourceContract(async () => {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-plan-import-'));
   const path = join(dir, 'source.db');
   runMigrations(path, MIGRATIONS);
+  activateTestStepBlockages(path);
   const source = openSqliteSource({ dbPath: path });
   await source.stores.users.create(
     { id: 'import-owner', username: 'import-owner', passwordHash: 'x', createdAt: 1 },
