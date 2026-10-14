@@ -9,6 +9,7 @@ import { NETWORK, ROOT } from './docker';
 
 const image = `registry/wbs-be-01@sha256:${'c'.repeat(64)}`;
 const service = {
+  init: true,
   container_name: 'be-01-green',
   image,
   environment: { DB_PATH: '/data/wbs.db' },
@@ -18,6 +19,11 @@ const service = {
 const resolvePath = (path: string) => Promise.resolve(path);
 
 for (const override of [
+  { privileged: true },
+  { cap_add: ['SYS_ADMIN'] },
+  { pid: 'host' },
+  { init: false },
+  { init: undefined },
   { networks: { [NETWORK]: { aliases: ['be-01-green', 'be-01.internal'] } } },
   { ports: [{ target: 3100, published: '3100' }] },
   { depends_on: { 'be-01-blue': { condition: 'service_started' } } },

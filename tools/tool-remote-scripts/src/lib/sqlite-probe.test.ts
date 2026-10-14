@@ -59,7 +59,9 @@ for (const mode of ['clean', 'wal', 'wal-and-shm'] as const) {
           if (!args.some((argument) => argument.includes("from 'bun:sqlite'"))) return '["SS"]';
           if (!args.some((argument) => argument.includes('typed_dependency GROUP BY type')))
             return '[]';
-          expect(args).toContain(`type=bind,source=${ROOT}/data,target=/data,readonly`);
+          expect(args).toContain(
+            `type=bind,source=${ROOT}/data,target=/data,readonly,bind-propagation=rprivate,bind-recursive=readonly`,
+          );
           const entrypoint = args.indexOf('--entrypoint');
           const executable = args.at(entrypoint + 1);
           expect(executable).toBe('bun');

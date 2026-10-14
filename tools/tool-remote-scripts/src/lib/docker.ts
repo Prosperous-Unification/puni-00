@@ -635,6 +635,7 @@ export function tierComposeContext(
     CONTAINER: containerName(tier, color, layout),
     NETWORK: layout.network,
     IMAGE: assertDigestPinnedRef(image, tier),
+    INIT: tier === 'be' ? '    init: true\n' : '',
     ENV_FILES: envFilesBlock(tier, layout),
     // Proof: omitting the template carrier made the rendered-environment backend
     // startup probe exit1 instead of0 (docker.test.ts).

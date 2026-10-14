@@ -1,0 +1,15 @@
+/** Immutable metadata-only census: no write API, no application imports, strict per-entry receipts. */
+export const CENSUS_PROGRAM =
+  'nonce=$1\nreadonly=$2\nshift 2\ncount=0\nwalk() {\n local path="$1" depth="$2" metadata child exclude\n for exclude in $readonly; do case "$path" in "$exclude"|"$exclude"/*) return 0;; esac; done\n count=$((count + 1))\n # Proof: omitted entry bound admitted the shortened-limit census negative.\n [ "$count" -le 100000 ] || return 74\n # Proof: removing stat failure propagation produced an incomplete success receipt.\n metadata=$(/bin/busybox stat -c \'%d:%i:%f\' "$path") || return 73\n printf \'ENTRY\\000%s\\000%s\\000\' "$path" "$metadata"\n if [ -d "$path" ] && [ ! -L "$path" ]; then\n  for child in "$path"/* "$path"/.[!.]* "$path"/..?*; do\n   if [ -e "$child" ] || [ -L "$child" ]; then\n    # Proof: omitted depth bound admitted the shortened-depth census negative.\n    [ "$depth" -lt 64 ] || return 75\n    walk "$child" "$((depth + 1))" || return "$?"\n   fi\n  done\n fi\n}\nbefore=$(/bin/busybox cat /proc/self/mountinfo) || exit 76\nprintf \'BEFORE\\000%s\\000\' "$before"\nfor root do walk "$root" 0 || exit "$?"; done\nafter=$(/bin/busybox cat /proc/self/mountinfo) || exit 76\nprintf \'AFTER\\000%s\\000DONE\\000%s\\000%s\\000\' "$after" "$nonce" "$count"\n';
+
+/** Fixed metadata/session protocol; never interpolates an input into executable code. */
+export const SUPERVISOR_PROGRAM =
+  'nonce=$1\nprogram=$2\nshift 2\nidentity() {\n local line\n IFS= read -r line < /proc/$$/stat || return 70\n set -- ${line##*) }\n [ "$3" = "$$" ] && [ "$4" = "$$" ] || return 71\n shift 19\n printf \'SESSION\\000%s\\000%s\\000%s\\000%s\\000%s\\000\' "$nonce" "$$" "$$" "$$" "$1"\n}\nidentity || exit "$?"\n/bin/sh -c "$program" -- "$nonce" "$@" </dev/null &\nscanner=$!\n# Proof: removing this deadline left the real initialized audit group live.\nif IFS= read -r -t 15 answer; then\n [ "$answer" = "ACK $nonce" ] || kill -KILL -"$$"\n wait "$scanner" || exit 77\n printf \'REAPED\\000%s\\000\' "$nonce"\nelse\n # Proof: omitting group kill left scanner/grandchild live in both real shipped images.\n kill -KILL -"$$"\nfi\n';
+
+/** Fixed metadata/session protocol; never interpolates an input into executable code. */
+export const SNAPSHOT_PROGRAM =
+  'nonce=$1\nbefore=$(/bin/busybox cat /proc/self/mountinfo) || exit 76\nprintf \'BEFORE\\000%s\\000\' "$before"\nafter=$(/bin/busybox cat /proc/self/mountinfo) || exit 76\nprintf \'AFTER\\000%s\\000DONE\\000%s\\0000\\000\' "$after" "$nonce"\n';
+
+/** Fixed metadata/session protocol; never interpolates an input into executable code. */
+export const GROUP_PROGRAM =
+  'nonce=$1\ngroup=$2\ncount=0\nfor path in /proc/[0-9]*/stat; do\n if IFS= read -r line < "$path"; then\n  set -- ${line##*) }\n  if [ "$3" = "$group" ]; then\n   state=$1\n   shift 19\n   printf \'MEMBER\\000%s\\000%s\\000%s\\000\' "$path" "$state" "$1"\n  fi\n else\n  [ ! -e "$path" ] || exit 78\n fi\n count=$((count + 1))\n [ "$count" -le 10000 ] || exit 79\ndone\nprintf \'DONE\\000%s\\000%s\\000\' "$nonce" "$count"\n';

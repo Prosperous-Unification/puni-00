@@ -79,6 +79,7 @@ import {
   tierHasSecrets,
   tierSecretsFile,
 } from './lib/docker';
+import { type RunDocker, runDockerBefore, runDockerCli } from './lib/docker-deadline';
 import { drain } from './lib/drain';
 import { waitForHealthy } from './lib/health';
 import { withLock } from './lib/lock';
@@ -88,7 +89,7 @@ import {
   parseMigrationSetCapture,
 } from './lib/migration-capture';
 import { writeNewMigrationCapture } from './lib/migration-capture-file';
-import { auditWritableMount } from './lib/mount-audit';
+import { verifyContainerNamespace } from './lib/mount-audit';
 import { readPhase, writePhase } from './lib/phase';
 import { type Observed, planSwap, type SwapPlan, type SwapStep } from './lib/reconcile';
 import { mcpExposureEnabled, routedColorFromAdminConfig, siteContext } from './lib/site';
@@ -153,15 +154,7 @@ export async function readMcpExposure(layout: EnvLayout): Promise<boolean> {
 // health gate for it is "fetch / and assert 200 + a non-empty body" instead.
 const HEALTH_PATH: Record<Tier, string> = { be: '/health', gw: '/health', fe: '/' };
 
-async function sh(args: string[]): Promise<string> {
-  const p = Bun.spawn(['docker', ...args], { stdout: 'pipe', stderr: 'pipe' });
-  const out = await new Response(p.stdout).text();
-  const code = await p.exited;
-  if (code !== 0) {
-    throw new Error(`docker ${args.join(' ')} failed: ${await new Response(p.stderr).text()}`);
-  }
-  return out;
-}
+const sh = runDockerCli;
 
 /**
  * No app-tier ports are published to the host (design decision 1) — only
@@ -705,7 +698,9 @@ export interface SwapExecutionIo {
   readExposure?: typeof readMcpExposure;
   reload?: typeof reloadCaddy;
   readCaddyConfig?: typeof currentCaddyConfig;
-  sh: (args: string[]) => Promise<string>;
+  sh: RunDocker;
+  /** Tests may inject the independent namespace proof; production uses exact-container metadata audit. */
+  namespaceProof?: typeof verifyContainerNamespace;
   readPhase: typeof readPhase;
   writePhase: typeof writePhase;
   writeAtomic: typeof writeAtomic;
@@ -1003,22 +998,32 @@ export function parseBackupReport(output: string, expectedPath: string): string 
 /**
  * Inventories every Docker mount before an outage; only the two known backend
  * colours may hold the shared writable data bind. Canonical paths and physical
- * file identities both count as overlap; unmanaged writable directories require
- * complete bounded daemon-assisted read-only inode audits. Special files refuse.
+ * file identities both count as overlap. Actual private mount namespaces require
+ * complete bounded metadata audits, including effective nested permissions.
+ * Host Source rebinds and top-level RW flags never establish exclusion.
  */
 export async function inspectBackendWriters(
   runDocker: SwapExecutionIo['sh'],
   databaseHostPath: string,
   resolveMount: (path: string) => Promise<string> = (path) => Promise.resolve(path),
   auditImage?: string,
+  namespaceProof: typeof verifyContainerNamespace = verifyContainerNamespace,
 ): Promise<Map<string, string>> {
   const dataRoot = await resolveMount(`${ROOT}/data`);
-  const listed = (await runDocker(['ps', '--all', '--quiet', '--no-trunc'])).trim();
+  const listed = (
+    await runDockerBefore(
+      ['ps', '--all', '--quiet', '--no-trunc'],
+      runDocker,
+      performance.now() + 15000,
+    )
+  ).trim();
   if (listed === '') return new Map();
   const identities = listed.split('\n');
   if (identities.some((identity) => !/^[a-f0-9]{64}$/.test(identity)))
     throw new Error('Docker writer inventory contains malformed container identities');
-  const inspected: unknown = JSON.parse(await runDocker(['inspect', ...identities]));
+  const inspected: unknown = JSON.parse(
+    await runDockerBefore(['inspect', ...identities], runDocker, performance.now() + 15000),
+  );
   if (!Array.isArray(inspected) || inspected.length !== identities.length)
     throw new Error('Docker writer inventory is incomplete');
   const writers = new Map<string, string>();
@@ -1063,97 +1068,108 @@ export async function inspectBackendWriters(
       // A tmpfs has no host filesystem identity and cannot alias this SQLite bind.
       // Proof: treating read-only mounts as writable failed the unrelated reader/no-stop case.
       databaseMounts.push({ type: kind, source, target: destination, writable });
-      if (!writable || (kind === 'tmpfs' && source === '')) continue;
-      if (!source.startsWith('/'))
-        throw new Error('writable Docker mount has no absolute host source');
-      // Proof: bypassing realpath admitted the symlink-alias unmanaged writer; its negative failed.
-      let canonicalSource: string;
-      try {
-        canonicalSource = await resolveMount(source);
-      } catch (cause) {
-        if (cause instanceof Error && 'code' in cause && cause.code === 'EACCES' && !isBackend) {
-          if (auditImage === undefined)
-            throw new Error('mount audit requires a pinned local candidate image', { cause });
-          // Proof: omitting delegated audit admitted nested family hardlinks under host EACCES volumes.
-          await auditWritableMount(source, databaseHostPath, auditImage, runDocker);
-          continue;
-        }
-        throw cause;
-      }
-      if (
-        canonicalSource === dataRoot ||
-        canonicalSource.startsWith(`${dataRoot}/`) ||
-        dataRoot.startsWith(`${canonicalSource.replace(/\/$/, '')}/`) ||
-        databaseHostPath === canonicalSource ||
-        databaseHostPath.startsWith(`${canonicalSource.replace(/\/$/, '')}/`)
-      )
-        ownsData = true;
-      else if (!isBackend) {
-        const sourceIdentity = await stat(canonicalSource, { bigint: true });
-        if (sourceIdentity.isDirectory()) {
-          if (auditImage === undefined)
-            throw new Error('mount audit requires a pinned local candidate image');
-          // Proof: omitting this audit admitted nested main/WAL/SHM/journal hardlinks under readable log directories.
-          await auditWritableMount(canonicalSource, databaseHostPath, auditImage, runDocker);
-          continue;
-        }
-        if (!sourceIdentity.isFile())
-          throw new Error('unmanaged writable mount is not an auditable file or directory');
-        for (const suffix of ['', '-wal', '-shm', '-journal']) {
-          let familyIdentity: BigIntStats;
-          try {
-            familyIdentity = await stat(`${databaseHostPath}${suffix}`, { bigint: true });
-          } catch (cause) {
-            if (
-              suffix !== '' &&
-              cause instanceof Error &&
-              'code' in cause &&
-              cause.code === 'ENOENT'
-            )
-              continue;
-            throw cause;
-          }
-          // Proof: omitting this check admitted a directory as the trusted main DB; the nonregular-main negative failed.
-          if (!familyIdentity.isFile())
-            throw new Error('database family physical identity is not a regular file');
-          // Proof: omitting dev+ino equality admitted an unmanaged writable hardlink to the database family before stop.
+      if (writable && !(kind === 'tmpfs' && source === '')) {
+        if (!source.startsWith('/'))
+          throw new Error('writable Docker mount has no absolute host source');
+        let canonicalSource: string | null = null;
+        try {
+          canonicalSource = await resolveMount(source);
+        } catch (cause) {
           if (
-            sourceIdentity.dev === familyIdentity.dev &&
-            sourceIdentity.ino === familyIdentity.ino
+            !(cause instanceof Error) ||
+            !('code' in cause) ||
+            !['EACCES', 'ENOENT'].includes(String(cause.code))
           )
-            ownsData = true;
+            throw cause;
+          // Host Source may be hidden/replaced or inaccessible. Actual namespace proof below is mandatory.
+        }
+        if (
+          canonicalSource !== null &&
+          (canonicalSource === dataRoot ||
+            canonicalSource.startsWith(`${dataRoot}/`) ||
+            dataRoot.startsWith(`${canonicalSource.replace(/\/$/, '')}/`) ||
+            databaseHostPath === canonicalSource ||
+            databaseHostPath.startsWith(`${canonicalSource.replace(/\/$/, '')}/`))
+        )
+          ownsData = true;
+        else if (!isBackend && canonicalSource !== null) {
+          const sourceIdentity = await stat(canonicalSource, { bigint: true });
+          if (sourceIdentity.isFile())
+            for (const suffix of ['', '-wal', '-shm', '-journal']) {
+              let familyIdentity: BigIntStats;
+              try {
+                familyIdentity = await stat(`${databaseHostPath}${suffix}`, { bigint: true });
+              } catch (cause) {
+                if (
+                  suffix !== '' &&
+                  cause instanceof Error &&
+                  'code' in cause &&
+                  cause.code === 'ENOENT'
+                )
+                  continue;
+                throw cause;
+              }
+              if (!familyIdentity.isFile())
+                throw new Error('database family physical identity is not a regular file');
+              if (
+                sourceIdentity.dev === familyIdentity.dev &&
+                sourceIdentity.ino === familyIdentity.ino
+              )
+                ownsData = true;
+            }
         }
       }
     }
     // Proof: omitting this refusal admitted unmanaged writable directory/file/ancestor binds; all three negatives failed.
     if (ownsData && !isBackend)
       throw new Error(`unmanaged database writer ${identity}; explicit recovery required`);
-    if (isBackend) {
-      const config: unknown = Reflect.get(container, 'Config');
-      const environment: unknown =
-        config !== null && typeof config === 'object' ? Reflect.get(config, 'Env') : undefined;
-      if (
-        !Array.isArray(environment) ||
-        environment.some((entry: unknown) => typeof entry !== 'string')
-      )
-        throw new Error('backend environment inspection is malformed');
-      const paths: string[] = [];
-      for (const entry of environment) {
-        if (typeof entry !== 'string')
-          throw new Error('backend environment inspection is malformed');
-        if (entry.startsWith('DB_PATH=')) paths.push(entry.slice(8));
+    if (!isBackend) {
+      if (databaseMounts.length > 0) {
+        if (auditImage === undefined)
+          throw new Error('namespace audit requires a pinned local candidate image');
+        await namespaceProof(
+          container,
+          databaseMounts.map((mount) => mount.target),
+          databaseHostPath,
+          auditImage,
+          runDocker,
+        );
       }
-      const databasePath = paths.at(0);
-      if (paths.length !== 1 || databasePath === undefined)
-        throw new Error('backend DB_PATH inspection is missing or ambiguous');
-      const actualDatabase = await resolveDatabaseHost(databasePath, databaseMounts, resolveMount);
-      // Proof: omitting file equality admitted outgoing filename/live-mount and idle-file mismatches; all three negatives failed before stop.
-      if (actualDatabase !== databaseHostPath)
-        throw new Error(`backend ${identity} database identity differs from candidate`);
-      if (writers.has(name.slice(1)))
-        throw new Error('Docker writer inventory repeats a backend name');
-      writers.set(name.slice(1), identity);
+      continue;
     }
+    const config: unknown = Reflect.get(container, 'Config');
+    const environment: unknown =
+      config !== null && typeof config === 'object' ? Reflect.get(config, 'Env') : undefined;
+    if (
+      !Array.isArray(environment) ||
+      environment.some((entry: unknown) => typeof entry !== 'string')
+    )
+      throw new Error('backend environment inspection is malformed');
+    const paths: string[] = [];
+    for (const entry of environment) {
+      if (typeof entry !== 'string') throw new Error('backend environment inspection is malformed');
+      if (entry.startsWith('DB_PATH=')) paths.push(entry.slice(8));
+    }
+    const databasePath = paths.at(0);
+    if (paths.length !== 1 || databasePath === undefined)
+      throw new Error('backend DB_PATH inspection is missing or ambiguous');
+    const actualDatabase = await resolveDatabaseHost(databasePath, databaseMounts, resolveMount);
+    // Proof: omitting file equality admitted outgoing filename/live-mount and idle-file mismatches; all three negatives failed before stop.
+    if (actualDatabase !== databaseHostPath)
+      throw new Error(`backend ${identity} database identity differs from candidate`);
+    if (auditImage === undefined)
+      throw new Error('managed namespace audit requires a pinned candidate image');
+    await namespaceProof(
+      container,
+      databaseMounts.map((mount) => mount.target),
+      databaseHostPath,
+      auditImage,
+      runDocker,
+      databasePath,
+    );
+    if (writers.has(name.slice(1)))
+      throw new Error('Docker writer inventory repeats a backend name');
+    writers.set(name.slice(1), identity);
   }
   return writers;
 }
@@ -1170,10 +1186,15 @@ export async function checkBackendRecovery(
   databasePath: string,
   runDocker: SwapExecutionIo['sh'],
   resolveMount: (path: string) => Promise<string> = (path) => Promise.resolve(path),
+  namespaceProof: typeof verifyContainerNamespace = verifyContainerNamespace,
 ): Promise<void> {
   assertDigestPinnedRef(previousImage, 'be');
   assertDigestPinnedRef(candidateImage, 'be');
-  await runDocker(['image', 'inspect', '--format', '{{.Id}}', candidateImage]);
+  await runDockerBefore(
+    ['image', 'inspect', '--format', '{{.Id}}', candidateImage],
+    runDocker,
+    performance.now() + 15000,
+  );
   if (!/^\/data\/[A-Za-z0-9_./-]+$/.test(databasePath) || databasePath.includes('..'))
     throw new Error('recovery DB_PATH is outside the mounted data directory');
   // Validate the family through the same directory mapping the probe uses.
@@ -1192,7 +1213,13 @@ export async function checkBackendRecovery(
     resolveMount,
   );
   for (const identity of (
-    await inspectBackendWriters(runDocker, expectedDatabase, resolveMount, candidateImage)
+    await inspectBackendWriters(
+      runDocker,
+      expectedDatabase,
+      resolveMount,
+      candidateImage,
+      namespaceProof,
+    )
   ).values())
     await assertContainerStopped(identity, runDocker);
   const oneOff = (image: string, command: string[]): string[] => [
@@ -1203,7 +1230,7 @@ export async function checkBackendRecovery(
     '--network',
     'none',
     '--mount',
-    `type=bind,source=${ROOT}/data,target=/data,readonly`,
+    `type=bind,source=${ROOT}/data,target=/data,readonly,bind-propagation=rprivate,bind-recursive=readonly`,
     '-e',
     `DB_PATH=${databasePath}`,
     '--entrypoint',
@@ -1507,6 +1534,7 @@ export async function execute(
             backendPrepared.databaseHostPath,
             io.resolveMount,
             image,
+            io.namespaceProof,
           );
           const outgoingId = from === null ? null : writers.get(containerName(tier, from));
           if (outgoingId === undefined)
@@ -1546,6 +1574,7 @@ export async function execute(
             writerIntent.databaseHostPath,
             io.resolveMount,
             image,
+            io.namespaceProof,
           );
           const expected = [writerIntent.outgoingId, writerIntent.idleId]
             .filter((identity): identity is string => typeof identity === 'string')
@@ -1568,6 +1597,7 @@ export async function execute(
             backendPrepared.databasePath,
             io.sh,
             io.resolveMount,
+            io.namespaceProof,
           );
           break;
         case 'record-writer-exposure':

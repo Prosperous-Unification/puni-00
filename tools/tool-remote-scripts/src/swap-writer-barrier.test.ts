@@ -56,6 +56,7 @@ async function fixture(
   let inventoryReads = 0;
   let stoppedInspected = false;
   const io: SwapExecutionIo = {
+    namespaceProof: () => Promise.resolve(),
     barrierStateDir: root,
     captureStateDir: root,
     resolveMount: (path) =>
@@ -89,7 +90,9 @@ async function fixture(
       if (args[0] === 'image') return image;
       if (args[0] === 'run') {
         expect(args).toContain('none');
-        expect(args).toContain(`type=bind,source=${ROOT}/data,target=/data,readonly`);
+        expect(args).toContain(
+          `type=bind,source=${ROOT}/data,target=/data,readonly,bind-propagation=rprivate,bind-recursive=readonly`,
+        );
         if (
           fault === 'preboot-replay' &&
           args.some((argument) => argument.includes('move_progress_v1'))
@@ -388,7 +391,9 @@ test('recovery refuses old replay capability before any writer restart', async (
   expect(commands.some((args) => args[0] === 'start' || args[0] === 'stop')).toBe(false);
   for (const args of commands.filter((args) => args[0] === 'run')) {
     expect(args).toContain('none');
-    expect(args).toContain(`type=bind,source=${ROOT}/data,target=/data,readonly`);
+    expect(args).toContain(
+      `type=bind,source=${ROOT}/data,target=/data,readonly,bind-propagation=rprivate,bind-recursive=readonly`,
+    );
     expect(args.includes(image) || args.includes(previousImage)).toBe(true);
   }
 });
@@ -642,6 +647,7 @@ function backendPreparation(
               name: 'wbs',
               services: {
                 'be-01-green': {
+                  init: true,
                   container_name: 'be-01-green',
                   image,
                   environment: { DB_PATH: '/data/wbs.db' },
@@ -694,7 +700,9 @@ function inspectWriters(
   runDocker: SwapExecutionIo['sh'],
   resolveMount: (path: string) => Promise<string> = (path) => Promise.resolve(path),
 ) {
-  return inspectBackendWriters(runDocker, `${ROOT}/data/wbs.db`, resolveMount);
+  return inspectBackendWriters(runDocker, `${ROOT}/data/wbs.db`, resolveMount, image, () =>
+    Promise.resolve(),
+  );
 }
 
 for (const fault of [
@@ -993,6 +1001,8 @@ test('an unrelated writable regular file is accepted with distinct physical iden
       ),
     path,
     (host) => realpath(host.replace(`${ROOT}/data`, join(root, 'data'))),
+    image,
+    () => Promise.resolve(),
   );
   expect(writers.size).toBe(0);
 });

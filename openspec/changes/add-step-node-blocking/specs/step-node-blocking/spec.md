@@ -570,7 +570,11 @@ Stored fact/replay admission SHALL keep the production directory mounted read-on
 
 ### Requirement: Compose writer exclusion covers physical aliases and recovery path families
 
-Unmanaged writable regular mounts SHALL be compared by device and inode against the main database and every existing WAL/SHM/journal file. Missing or unreadable physical metadata SHALL refuse. Unmanaged writable directories SHALL require a complete bounded read-only inode audit, including nested devices, using an already-local digest-pinned candidate helper with no network/pull, read-only source/database-family binds and root filesystem, and only DAC_READ_SEARCH. The audit SHALL refuse symlinks/special files, unreadability, missing helper, failure/timeout, malformed/incomplete receipts, more than 100,000 entries or depth above64 without stopping those containers. Distinct unrelated regular files and read-only mounts MAY remain. Recovery admission SHALL validate the supplied database path through the fixed probe directory's complete SQLite family mapping before inventory/probes, including when no containers remain.
+Unmanaged writable regular mounts SHALL be compared by device and inode against the main database and every existing WAL/SHM/journal file. Missing or unreadable physical metadata SHALL refuse. Every unmanaged container with mounts SHALL prove its actual persistent namespace with complete bounded metadata-only Docker exec, including nested writable mounts beneath inspected RO mounts and roots on SQLite-family devices. Fresh host Source rebinds and top-level RW flags SHALL NOT establish exclusion. Audited targets SHALL already have Docker init, a private PID namespace, unprivileged configuration and no added capabilities. The protocol SHALL add no capabilities or invoke write APIs. Init changes to shipped Caddy/registry and an existing backend SHALL be explicit attended prerequisites; the swap SHALL NOT restart them to satisfy this prerequisite. Candidate configuration SHALL require init/private PID/default capabilities before stop intent. Non-be swaps SHALL retain their existing behavior.
+
+The audit SHALL validate exact container ID/PID/start identity, actual before/after mountinfo, host family identity, strict per-entry device/inode/mode receipts, complete counts, nonce acknowledgment and successful reap. Every remote scanner SHALL have an independently bounded verified process group; EOF/cancellation/timeout SHALL kill that group, and initialized cleanup SHALL prove no live or zombie members remain. Missing tools/session identity, unreadability, symlinks/special files in writable roots, ambiguity, incomplete receipts, stderr, more than100,000 entries, depth above64, stdout above32MiB or stderr above64KiB SHALL refuse without stopping unrelated containers. The complete host Docker operation SHALL be bounded to45 seconds per container, including20 seconds reserved cleanup; uncertain cleanup SHALL report exact ownership context and refuse admission.
+
+This exclusion contract assumes trusted nonadversarial quiescence: tasks retain the Docker-created namespace, persistent topology/aliases remain stable, and no writer retains an open deleted SQLite alias. It SHALL NOT claim absolute exclusion against hostile receipt spoofing, transient topology/inode ABA or private process namespaces. Recovery admission SHALL validate supplied DB_PATH through the fixed probe directory's complete SQLite family before inventory/probes, including when no containers remain.
 
 #### Scenario: Unmanaged mount uses a hardlink outside the canonical data directory
 
@@ -586,8 +590,8 @@ Unmanaged writable regular mounts SHALL be compared by device and inode against 
 
 #### Scenario: Shipped Caddy and registry mounts are unrelated
 
-- **GIVEN** shipped Caddy has writable caddy_data/caddy_config/logs and registry has writable registry_data, with Docker volume paths unreadable to the deploy user
-- **WHEN** backend preflight executes complete daemon-assisted read-only inode audits
+- **GIVEN** shipped Caddy has writable caddy_data/caddy_config/logs and registry has writable registry_data, with Docker volume paths unreadable to the deploy user and attended init prerequisites satisfied
+- **WHEN** backend preflight executes complete initialized metadata-only namespace audits
 - **THEN** those mounts are admitted when their full trees contain no SQLite-family aliases and no unrelated container receives a stop command
 
 #### Scenario: Nested physical alias or incomplete audit
@@ -595,3 +599,27 @@ Unmanaged writable regular mounts SHALL be compared by device and inode against 
 - **GIVEN** a writable directory contains a nested main/WAL/SHM/journal hardlink, including under a different-device directory, or its audit is unreadable/oversized/too deep/timed out/incomplete
 - **WHEN** preflight inventories it
 - **THEN** it refuses before writer stop intent
+
+#### Scenario: Replaced source retains an actual writer alias
+
+- **GIVEN** an unmanaged container retains a private bind containing a SQLite-family hardlink while Docker Source text now names a clean replacement
+- **WHEN** preflight audits the actual target namespace
+- **THEN** the retained alias refuses before writer stop intent
+
+#### Scenario: Top-level read-only mount contains a private writable submount
+
+- **GIVEN** Docker reports a mount RO while actual mountinfo exposes a nested RW SQLite-family alias
+- **WHEN** namespace admission selects effective writable roots
+- **THEN** the nested alias refuses without stopping the unrelated container
+
+#### Scenario: Scanner/client interruption and failed metadata
+
+- **GIVEN** an initialized default-cap target with an unrelated sentinel process
+- **WHEN** its scanner stalls with a grandchild, the client disconnects, or any stat call fails
+- **THEN** admission refuses; the owned group converges to no live or zombie members, the sentinel remains, and incomplete/failed metadata never receives admission
+
+#### Scenario: Init prerequisite is absent
+
+- **GIVEN** a running mounted target lacks Docker init or has unsupported capabilities/PID mode
+- **WHEN** backend preflight runs
+- **THEN** it refuses before writer stop and reports the attended maintenance prerequisite

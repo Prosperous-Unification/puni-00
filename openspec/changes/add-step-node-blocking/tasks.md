@@ -72,3 +72,7 @@
 
 - [x] 6.4.12 Replace blanket writable-directory refusal with complete bounded daemon-assisted read-only inode audits; admit shipped Caddy/registry volumes and logs, preserve physical/recovery guards, require local pinned helper/no pull, and prove nested aliases and all failed/incomplete audit paths.
 - [ ] 6.4.13 Obtain Astra review and a disposable real-Docker helper rehearsal before integration or deployment.
+
+- [x] 6.4.14 Reproduce host Source replacement, top-level RO/nested RW and default-cap proc-root refusal; discard the unmergeable proc-root helper. Prove initialized default-image process groups on timeout/EOF/client cancellation, including scanner/grandchild, unrelated sentinel and zero zombie residue.
+- [x] 6.4.15 Replace source rebinds with strict in-target metadata sessions, immutable read-only code, per-entry stat failure propagation, actual mountinfo/family/ID stability, bounded complete Docker operations and verified initialized-group cleanup. Add attended init prerequisites and be-only candidate/render checks; document trusted nonadversarial quiescence explicitly. Watch safety omissions fail.
+- [ ] 6.4.16 Run final scoped checks/strict OpenSpec validation, record exact-source real-Docker evidence and obtain independent Astra review before integration. No live prerequisite application or activation belongs to this slice.

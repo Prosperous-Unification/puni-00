@@ -119,6 +119,17 @@ export async function inspectBackendConfig(
   const unsafe = (detail: string): never => {
     throw new Error(`unsafe candidate Compose configuration: ${detail}`);
   };
+  // Proof: missing/false candidate init admission tests fail with this prerequisite omitted.
+  if (service['init'] !== true) unsafe('init:true is required to reap bounded audit descendants');
+  // Proof: omitting this supported-namespace guard admitted privileged/cap_add/host-PID candidate overrides.
+  const addedCapabilities = service['cap_add'];
+  if (
+    (service['privileged'] !== undefined && service['privileged'] !== false) ||
+    (addedCapabilities !== undefined &&
+      (!Array.isArray(addedCapabilities) || addedCapabilities.length !== 0)) ||
+    (service['pid'] !== undefined && service['pid'] !== '')
+  )
+    unsafe('unprivileged default capabilities and a private PID namespace are required');
   if (service['container_name'] !== name || service['image'] !== image)
     unsafe('identity or image differs');
   // Proof: omitting ports/dependencies failed four effective-config refusal tests before startup.

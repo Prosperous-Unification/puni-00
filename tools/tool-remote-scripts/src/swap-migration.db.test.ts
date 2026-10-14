@@ -211,6 +211,7 @@ describe('Compose migration command adapter', () => {
     const image = `registry/wbs-be-01@sha256:${'b'.repeat(64)}`;
     const io: SwapExecutionIo = {
       ...attempt.io,
+      namespaceProof: () => Promise.resolve(),
       barrierStateDir: attempt.root,
       prepareBackend: () =>
         Promise.resolve({
