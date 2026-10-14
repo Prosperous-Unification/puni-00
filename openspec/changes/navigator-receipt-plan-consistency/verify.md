@@ -54,3 +54,22 @@ The full `bin/h2puni-gate.sh <candidate-sha>` and raw full Nx gate were not run:
  644 expect() calls
 Ran 131 tests across 8 files. [90.44s]
 ```
+
+## Restack onto reviewed parent, 2026-10-14
+
+Replayed original child `7fe28e17fc2f5a7a77673adb628768bef12a8e2f` from old parent `f179a1c680c71d86e124813e5559ff4f7cd07c6f` onto reviewed PR #415 head `72b991d4e57c55b8cdf7e6a6b48d8243db8818bb`, which includes the current-main graph repair. Isolated checkout: `/tmp/navigator-receipt-restack-sol`. Rebase produced `834122a73409ff7494d333c8ac01ed97acb8037b` without conflicts. The separate evidence commit records this restack; its SHA is recorded by the release coordinator.
+
+`git range-diff f179a1c68..7fe28e17 72b991d4..834122a73` reports `=` for the single child commit. Original and restacked child binary diffs compare equal with `cmp`; both SHA-256 hashes are `851b2df802df24cbf5fc2e782b7e913ff3d5e25a7a8cc9c824d269887b47144a`. All production code, tests and existing R5 proof comments are unchanged by the restack. This evidence section is the only additional change.
+
+Fresh commands in the isolated checkout:
+
+- `BUN_TMPDIR=/tmp BUN_INSTALL_CACHE_DIR=/tmp/navigator-receipt-restack-bun-cache bun install --frozen-lockfile`: exit 0, 1292 packages installed in 57.19s. Initial sandboxed attempt failed with DNS errors; rerun with authorized network access succeeded.
+- `bun test --preload ./tools/test/scratch/preload.ts ./apps/twilight-structure/twilight-navigator/cli/src ./apps/twilight-structure/twilight-burokrat/cli/src/contracts ./apps/twilight-structure/twilight-burokrat/cli/src/packaging/build.test.ts --timeout=60000`: exit 0; 131 pass, 0 fail, 644 assertions across 8 files (76.85s), including the canonical packaged executable.
+- `NX_DAEMON=false bunx nx run-many -t lint typecheck -p twilight-navigator --skip-nx-cache`: exit 0; both targets passed (6.3s).
+- `NX_DAEMON=false bunx nx run-many -t lint:source typecheck build -p twilight-burokrat --skip-nx-cache`: exit 0; all targets and three dependency builds passed (15.7s). Nx reported denied worker sockets and successfully ran plugins in its main process.
+- `bunx @fission-ai/openspec@1.12.0 validate --all --json`: exit 0; 191 passed, 0 failed (173 changes, 18 specs). Existing unrelated archive applicability warnings remain in the output.
+- `bunx nx format:check --all`: exit 0, no output, before this evidence addition. Changed-file Prettier and final diff checks are recorded by the release coordinator after the evidence commit.
+
+Fresh composition proof: temporarily removed only `checkPlanTaskConsistency(reference, tasks)` from Navigator and ran `bun test --preload ./tools/test/scratch/preload.ts ./apps/twilight-structure/twilight-navigator/cli/src/receipt-to-commands.test.ts --test-name-pattern 'refuses re-digested' --timeout=60000`. It exited 1 with 0 pass, 8 fail: all eight semantic faults emitted batches instead of refusing. Restored the exact file and repeated the command: exit 0, 8 pass, 0 fail, 32 assertions (3.48s). The original individual-invariant proof table remains applicable because the corresponding production and test bytes are unchanged. Logs: `/tmp/navigator-receipt-restack-proof.log` and `/tmp/navigator-receipt-restack-proof-restored.log`.
+
+Full host gate, trusted Tool Wiki activation lint, push and merge remain reserved for the release coordinator. The unrelated browser-auth-lifecycle CI investigation is outside this restack.
