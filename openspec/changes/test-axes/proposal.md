@@ -57,3 +57,16 @@ None.
 ## Impact
 
 Nx test targets, Bun, Vitest and Playwright reports, OpenSpec scenarios, Twilight Burokrat's identifier allocator and coverage ledgers.
+
+## 4.1b.6b.1 intent
+
+Problem: a committed Conformance authority currently refuses even when its exact manifest
+contains a bounded explicit test selection. Outcome: validate that selection without executing
+candidate code, retain all committed selected source identities, and report the sorted
+intersection with the complete Performance fixture scope. Constraints: retain strict external
+version-1 authority, exact SHA/blob selection, closed Nx target and options, literal safe Bun
+command grammar with explicit `./` file operands and explicit absence. Update the Memory and
+SQLite target operands and canonical path consumers together; bare Bun filters cannot prove
+literal complete membership. The exact SQLite migration input is permitted only at
+its reviewed project root and remains dependency metadata. Non-goals: Architecture extraction,
+classification, target isolation, report inspection, reviewer authentication and coverage credit.

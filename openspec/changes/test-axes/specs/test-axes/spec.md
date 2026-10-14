@@ -627,3 +627,44 @@ authenticate a reviewer or change the version-1 source-owner outputs.
 - **GIVEN** a symbolic revision, annotated tag object, changed candidate, reordered fixture enumeration or changed authority bytes, source or certification identity
 - **WHEN** the facts diagnostic evaluates the request
 - **THEN** unsupported selections refuse and normalized fixture order retains one facts ordering, while any changed bound byte or fact changes the observation digest
+
+### Requirement: Committed Conformance facts select a bounded target
+
+A committed Conformance authority SHALL pin the same path and digest as the scope project manifest.
+The diagnostic SHALL select only `test:conformance`, requiring exactly executor `nx:run-commands`
+and options `command`, `cwd` equal to the project root and `forwardAllArgs:false`. Only optional
+`cache:false` and `inputs:["default","^production"]` SHALL be accepted, plus the exact
+`["default","^production","{workspaceRoot}/apps/wbs/be-01/drizzle"]` tuple only for project
+root and cwd `libs/wbs/adapters/store-sqlite`. These inputs are dependency metadata and SHALL
+NOT select test sources. Task dependencies and other target/options keys SHALL be refused. The command SHALL be
+`bun test ./<path>... --timeout=<positive decimal>` with single ASCII spaces and unique safe
+project-relative `.test.ts` paths, each prefixed by exactly one literal `./`, without flags,
+shell syntax, globs or traversal. Bare Bun filter operands SHALL be refused even if an exact
+file exists. Only the required leading `./` SHALL be stripped when binding selected Git paths.
+The Memory and SQLite `test:conformance` commands SHALL use explicit `./` file operands.
+Every selected
+path SHALL be a regular selected Git blob, including paths outside the Performance fixture set.
+The observation SHALL bind every selected source tuple and emit committed Conformance path,
+digest and sorted workspace-relative files intersecting the Performance fixtures. Legitimate
+Performance overlap and an empty intersection SHALL remain valid, noncertifying observations.
+Manual remains reviewed-empty and committed Architecture remains unsupported.
+
+#### Scenario: [TEST-AXES-081] Complete committed Conformance membership preserves overlap
+
+- **GIVEN** a pinned supported target selecting committed tests both inside and outside the Performance fixture set
+- **WHEN** the facts command inspects the exact candidate despite working replacements
+- **THEN** it binds all selected source tuples and emits the sorted intersection, with absent authentication and false certification
+- **AND** selecting only tests outside the fixture set emits an explicit empty committed membership
+- **AND** an explicit file operand selects only that literal committed path despite a nested matching decoy
+
+#### Scenario: [TEST-AXES-082] Unsupported committed Conformance authority and target refuse
+
+- **GIVEN** a mismatched authority pin, missing target, extra target or option key, foreign executor, wrong cwd, forwarded arguments or unsupported cache or inputs
+- **WHEN** the facts command validates committed Conformance
+- **THEN** it refuses by name without JSON
+
+#### Scenario: [TEST-AXES-083] Unsafe or incomplete Conformance selection refuses
+
+- **GIVEN** a command with bare filters (including one with an exact file and a nested matching decoy), flags, shell syntax, globs, traversal, duplicates, whitespace variants, invalid timeout, or a selected file that is missing, nonregular or unreadable even outside the fixture intersection
+- **WHEN** the facts command validates the complete committed selection
+- **THEN** it refuses by name despite a working-tree repair

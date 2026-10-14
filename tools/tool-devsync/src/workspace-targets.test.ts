@@ -104,8 +104,11 @@ function selectsTestFile(command: string, file: string, root: string, target: st
   if (target.endsWith(':level') || command.includes('bun test $files')) {
     return collectedFiles(root, parseLevelCommand(command).selector).includes(file);
   }
-  const selector = /\bbun test (src(?:\/[^\s]+)?)(?:\s|$)/.exec(command)?.[1];
-  if (selector !== undefined) return selector === file || file.startsWith(`${selector}/`);
+  const selector = /\bbun test ((?:\.\/)?src(?:\/[^\s]+)?)(?:\s|$)/.exec(command)?.[1];
+  if (selector !== undefined) {
+    const canonical = selector.startsWith('./') ? selector.slice(2) : selector;
+    return canonical === file || file.startsWith(`${canonical}/`);
+  }
   if (/\bbun test --coverage\b/.test(command)) return true;
   throw new Error(`unrecognized Bun test file selector: ${command}`);
 }
@@ -204,7 +207,7 @@ describe('source conformance target discovery', () => {
         Object.entries(expected).map(([name, contract]) => [
           name,
           {
-            command: [`bun test ${contract.file} --timeout=${String(contract.timeout)}`],
+            command: [`bun test ./${contract.file} --timeout=${String(contract.timeout)}`],
             cwd: contract.root,
             cache: false,
             inputs: [...contract.inputs],

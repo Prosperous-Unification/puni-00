@@ -2798,3 +2798,118 @@ were restored. Adjacent `Proof:` comments now name the injected faults and obser
 After restoration, the owning facts suite passed 14/14 tests with 71 assertions. Uncached
 typecheck, focused ESLint, changed-file Prettier, `git diff --check` and strict OpenSpec
 validation passed. Normal Lefthook hooks run on the repair commit.
+
+## 4.1b.6b.1 committed Conformance membership — 2026-10-14
+
+Worker source is isolated `/tmp/puni-conformance-facts-sol`, based on exact draft #414 commit
+`ba9b90e9b8221aacee6759cee7fb38767524b34d`. This increment implements committed Conformance
+membership only. The external version-1 authority pins the same manifest path and digest as
+scope; only `test:conformance` is parsed. Exact command-selected regular Git blobs form the
+complete source set, including files outside the Performance scope; only the sorted fixture
+intersection appears in the committed membership's `files`. Shared fixtures appear once in
+source tuples, and an empty committed intersection remains explicit. Manual stays reviewed-empty,
+committed Architecture still refuses, authentication stays absent and certification stays false.
+
+The production allocator command
+`bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts scenario allocate . openspec/changes/test-axes/specs/test-axes/spec.md`
+issued TEST-AXES-081 through TEST-AXES-083. Before applying its proposed spec and journal,
+the entire old journal event sequence was checked equal to the new journal prefix. Proposal:
+`/tmp/puni-conformance-allocation.json`. No IDs were assigned by hand.
+
+Initial production CLI tests failed against the unsupported adapter: 13 passed and seven
+failed with the old unsupported-Conformance refusal or changed named pin expectation, recorded
+in `/tmp/puni-conformance-red.log`. After implementation the facts suite passed 20/20 with
+201 assertions. Adding the SQLite acceptance test first produced a separate RED at its
+success assertion, `/tmp/puni-conformance-sqlite-red.log`; the exact reviewed tuple amendment
+then passed. Tests load the actual store-memory and store-sqlite `test:conformance` manifests,
+copy their exact target envelopes into committed fixture candidates, and inspect them through
+the production CLI. Candidate config/test sentinels throw if executed. Working replacements
+cannot repair selected sources. Packaged accepted-path coverage builds the package to scratch
+and invokes `dist/bin.mjs inspect-level-facts` with a committed overlap candidate.
+
+Architecture review found SQLite's real third input
+`{workspaceRoot}/apps/wbs/be-01/drizzle`, used by its migration fixtures. The exact three-entry
+tuple is allowed only at project root/cwd `libs/wbs/adapters/store-sqlite`; the generic exact
+two-entry tuple remains allowed. Inputs are dependency metadata and add no test sources.
+Wrong paths, order, extra entries, object inputs and the third tuple at other roots refuse.
+No task dependency, configuration or environment override is accepted.
+
+R5 watched faults each caused a named production assertion failure, then source was restored:
+removing pin path/digest comparisons; widening executor/cache/inputs/forwarding schemas;
+removing target/options closed-key constraints, required target shape, cwd comparison or
+SQLite root restriction; disabling command grammar, removing its true end constraint or
+allowing duplicate selectors; omitting complete selected-source reads; removing overlap
+deduplication, returning the entire selection instead of its intersection, or removing
+membership sorting. Logs are `/tmp/puni-conformance-r5-{pin-path,pin-digest,target-executor,target-cache,target-inputs,target-forward,target-options-keys,target-keys,target-cwd,target-required,command,command-end,sqlite-root,duplicates,complete-sources,source-dedup,intersection,order}.log`.
+The dedicated `/tmp/puni-conformance-r5-newline.log` watched removal of the true end constraint
+make a newline-suffixed command exit zero, failing its required-refusal assertion. Selected
+outside-intersection missing and symlinked files and deletion of their committed blob each
+refused despite working repairs. Existing regular-blob and selected-reader guards are reused.
+
+An initial redundant match-length guard was removed after its guard-off fault escaped: Bun
+1.4.2's `new RegExp('^a$').exec('a\\n')` returned null. The final grammar uses a true end
+constraint with the separate watched newline proof above. This escaped preliminary mutation
+is not counted as a proof. Mutation logs were inspected for assertion failures rather than
+compiler or parse failures.
+
+Focused final validation: source facts plus installed-dispatch suites passed 26/26 with
+269 assertions (`/tmp/puni-conformance-final-tests.log`); uncached
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_SOCKET_DIR=/tmp/puni-conformance-nx bunx nx run twilight-burokrat:typecheck --skip-nx-cache`
+exited zero, as did changed-source ESLint, changed-file Prettier,
+`openspec@1.12.0 validate test-axes --strict --json` (one valid change, zero issues),
+scenario provenance validation and `git diff --check`. Initial lint/typecheck reported test-helper typing/import issues, fixed
+before the final runs; one scenario validation invocation omitted the required spec operand
+and printed usage, then the full invocation returned `{"unidentified":[]}`. The coordinator owns the
+canonical host gate, CI and publishing; none is claimed by this worker. Parent 4.1b.6,
+Architecture extraction and Tasks 2.1/2.2/4.1 remain open. No classification, source sync,
+archive, authentication or coverage credit is produced.
+
+### Astra correction: Bun filters are not explicit file operands
+
+Astra rejected local candidate `16a94b863508cb50cb97abfd1dd74566bd6113af` before publication:
+its bare `src/...test.ts` operands are Bun path filters, so treating them as complete literal
+selection can omit nested matching files. The prior scoped success and mutation receipts
+above prove the earlier checks only; they did not establish Bun's selector semantics.
+
+A bounded disposable runtime probe on Bun 1.4.2 created `src/foo.test.ts` and
+`nested/src/foo.test.ts`, each with a distinct passing title. Running
+`bun test src/foo.test.ts --timeout=1000` executed both files (two tests), while
+`bun test ./src/foo.test.ts --timeout=1000` executed only the literal file (one test).
+Receipt: `/tmp/puni-conformance-bun-selector-probe.log`. The [Bun test runner documentation](https://bun.com/docs/test)
+also distinguishes positional filters from explicit `./` or absolute file operands.
+
+Before production changes, new production CLI tests committed a literal file and a nested
+matching decoy: the bare-filter refusal assertion failed on exit zero, and the explicit-file
+acceptance assertion failed on exit one (`/tmp/puni-conformance-filter-red.log`). The devsync
+canonical identity test first failed because it returned `./src/...` rather than `src/...`
+(`/tmp/puni-conformance-devsync-red.log`). The final grammar requires exactly one leading
+`./` on every file operand and strips only that prefix when binding regular selected Git
+blobs. Bare filters, repeated prefixes and unsafe paths refuse. Both real Memory and SQLite
+`test:conformance` commands now use explicit `./src/testing/...` operands. Devsync's existing
+command-membership reader normalizes the same syntactic prefix, and its manifest discovery
+oracle pins the changed commands. No other target was changed.
+
+Watched correction faults were restored after observation:
+
+- Restoring bare-filter parsing together with its old literal binding made the nested-decoy
+  production CLI refusal fail on successful incomplete facts:
+  `/tmp/puni-conformance-r5-bare-filter.log`.
+- Removing adapter prefix normalization made explicit-file inspection fail at selected-source
+  lookup: `/tmp/puni-conformance-r5-explicit-prefix.log`.
+- Removing devsync prefix normalization made the real
+  `bun tools/tool-devsync/src/verify-test-levels-cli.ts` exit one naming
+  `wbs-store-sqlite:test aggregate members differ from declaration`:
+  `/tmp/puni-conformance-r5-devsync-prefix.log`. Restored production verification printed
+  `Verified declared test collections` and exited zero.
+
+The corrected source facts, installed executable dispatch, devsync level and workspace-target
+suites passed 142/142 with 675 assertions across four files
+(`/tmp/puni-conformance-explicit-final-tests.log`). Uncached Nx `typecheck` passed for
+`twilight-burokrat` and `tool-devsync`; changed-source ESLint passed; strict pinned OpenSpec
+1.12.0 validation returned one valid change and zero issues; scenario validation returned
+`{"unidentified":[]}`. The actual updated uncached Nx `wbs-store-memory:test:conformance`
+and `wbs-store-sqlite:test:conformance` targets each ran 73 tests with zero failures, in
+4.0 and 35.5 seconds respectively (`/tmp/puni-conformance-explicit-{memory,sqlite}.log`).
+These focused target runs remain operational and noncertifying. Final changed-file format
+and diff checks precede the correction commit. The coordinator owns final parent restacking,
+exact-head review, host gate and publishing; no push or host gate was performed here.
