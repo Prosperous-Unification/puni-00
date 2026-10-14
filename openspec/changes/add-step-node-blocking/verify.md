@@ -1,0 +1,1040 @@
+# Verification
+
+Base: `0ea6a1166242edf694294d1ed6e715fb7e1aed60`. Historical safe tool transcripts dated 2026-10-08/09 were read as inert provenance; no historical commands were executed. Design adapted to existing complete graph and canonical node readings.
+
+Version inventory: document 8 → reserved 9; saved input 6 → reserved 7; scheduler 16 unchanged; ADR 0053; additive migration reserved `20261013140000_add_step_node_blockages`. Root coordinator confirmed no active lane owns those allocations; recheck before integration.
+
+## Failure proofs
+
+| Check                         | Injected fault                                    | Observed test and output                                                                                                                                       |
+| ----------------------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| direct precedence             | Guard removed or dependency deliberately replaced | `direct blockage outranks progress and a running attempt but yields to done and row hold`; exit 1                                                              |
+| legacy endpoint validation    | Guard removed or dependency deliberately replaced | `(fail) refuses legacy endpoints absent from the full tree before expanding to leaves`; exit 1                                                                 |
+| duplicate identity validation | Guard removed or dependency deliberately replaced | `refuses duplicate node identities even at distinct graph positions`; exit 1                                                                                   |
+| blockage reference validation | Guard removed or dependency deliberately replaced | `refuses blockage outside the graph instead of silently dropping it`; exit 1                                                                                   |
+| resolved endpoint validation  | Guard removed or dependency deliberately replaced | `refuses an absent successor before projecting any visible node`; exit 1                                                                                       |
+| row fact validation           | Guard removed or dependency deliberately replaced | `throws on a leaf with no row on the plan`; exit 1                                                                                                             |
+| sibling precision             | Guard removed or dependency deliberately replaced | `keeps row proxy independent of an unblocked typed step endpoint (isolated); keeps row proxy independent of an unblocked typed step endpoint (shared)`; exit 1 |
+| running attempt barrier       | Guard removed or dependency deliberately replaced | `stops incoming propagation at statements and running attempts`; exit 1                                                                                        |
+| waiting excludes legacy       | Guard removed or dependency deliberately replaced | `never reads a legacy join as a predecessor`; exit 1                                                                                                           |
+| Graph position                | Remove only `nodes.has(key)`                      | Distinct identities at one position negative did not throw; exit 1                                                                                             |
+
+## Commands
+
+Core/domain and persistence checkpoint evidence follow below. Commands, transfer, UI, browser checks and the exact-SHA heavy gate remain pending.
+
+### Core/domain slice
+
+- RED: targeted domain/service tests failed before implementation. Direct blockage read `in_progress` instead of `blocked`; missing legacy endpoints returned a graph instead of throwing; new projection export was absent.
+- GREEN: `bun test libs/wbs/domain/domain/src/node-reading.test.ts libs/wbs/application/core/src/service/node-readings.test.ts libs/wbs/application/core/src/service/dependency-graph.test.ts apps/wbs/be-01/src/controller/step-node-attempt.controller.db.test.ts` passed 59 tests, 172 assertions before the additional live precision cases.
+- `bun test apps/wbs/be-01/src/controller/step-node-attempt.controller.db.test.ts --test-name-pattern 'keeps row proxy'`: 2 passed, 0 failed, 6 assertions. Both isolated and shared reads retain row `blocked_by_proxy` while the unrelated step reads `waiting` and its next step `unknown`.
+- Ten mutations ran sequentially against production functions; each produced named assertion failures with exit 1. The sibling mutation failed both production HTTP/controller read modes. Every source was restored in `finally` before the next mutation.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-domain:typecheck`: fresh target output and success, 0/1 cache hit.
+- Initial Nx invocation emitted sandbox socket-denial warnings with no target output; its exit 0 was not accepted as typecheck evidence. Explicit daemon/plugin isolation settings produced actual target output.
+- Direct ESLint invocation passed but skipped module-boundary rules because no project graph existed yet; rerun after Nx graph creation remains required.
+- Core typecheck found the live read carries endpoint-only legacy edges; `DependencyGraphState.legacy` now declares precisely that shape. After correcting endpoint types, core typecheck exposed test index-signature dot access; tests now use bracket access. Final rerun recorded below.
+- At this core checkpoint, persistence, commands, retained blockage facts, plan-document/saved-plan versions, UI, schedule-byte proof, browser checks, migration/rollback checks and the exact-SHA heavy gate were still pending. The later persistence checkpoint is recorded below.
+
+### Parent-progress compatibility correction
+
+- Artifact review restored known parent progress compatibility and structural stale-replay obligations before any persistence edits.
+- RED: unknown progress owners were silently ignored; the new unknown-progress negative failed because no exception was thrown.
+- The migrated SQLite live regression reads the plan before and after injecting a historical parent progress row. Both read modes must preserve status/progress folds, omit parent node readings, and retain the stored `done` row. The fixture expects omission, matching the existing parent wire contract.
+- Removing the progress-owner guard and progress-step guard separately made the unknown-progress negative fail. Requiring all statements in the leaf graph made both migrated-parent HTTP reads return 500 instead of 200. All three mutations exited 1 and sources were restored.
+
+| Check                | Injected fault                        | Observed test and output                                                 |
+| -------------------- | ------------------------------------- | ------------------------------------------------------------------------ |
+| Progress owner       | Remove owner guard                    | Unknown-progress-owner negative failed; exit 1                           |
+| Progress step        | Remove step guard                     | Unknown-progress-step negative failed; exit 1                            |
+| Parent compatibility | Require every statement in leaf graph | Migrated-parent isolated/shared reads expected 200, received 500; exit 1 |
+
+### Core candidate verification
+
+- Final four-file targeted test command above: **67 passed, 0 failed, 194 assertions** (10.62s), including both migrated parent and sibling precision read modes.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-core:typecheck`: **passed**, core plus all module checks, 0/2 cache hits (35.2s). Domain typecheck also passed with actual target output.
+- Explicit ESLint over all eight changed TypeScript files: **exit 0, no warnings**, after Nx created its project graph. The earlier skipped module-boundary warning is superseded by this run.
+- Strict `openspec validate add-step-node-blocking --strict --json`: **valid, zero issues**.
+- Initial stepless unit fixture incorrectly carried Dev progress via its shared helper; the stricter unknown-step rule correctly refused it. Fixture now supplies no progress for its stepless graph. The migrated-parent cases separately prove the deliberate compatibility exception.
+- Tasks 1.1/1.2 now correspond to the implemented canonical projection and passing tests in this core commit. Task 1.3 schedule-byte proof and remaining task 1.4 coverage remain open.
+
+### Graph-position followup
+
+- Added `refuses distinct step identities sharing one graph position`, independently of duplicate stable IDs. Production guard passes the case by refusing malformed topology.
+- Removed only `nodes.has(key)` from the duplicate-node guard, retaining the identity guard: the position-specific negative failed with `Received function did not throw` (exit 1), and the projection incorrectly exposed both Dev and Extra at position 0. Restored the guard afterward. This is the fourteenth watched fault injection.
+- No migration or transfer edits while core review is queued.
+
+- Followup `bun test libs/wbs/application/core/src/service/node-readings.test.ts`: **19 passed, 0 failed, 32 assertions**. ESLint over the two changed source/test files passed with exit 0.
+
+### Cycle-read caller correction
+
+The core review found a missed established caller contract: `WorkItemService.tree`
+must remain readable over stored dependency cycles and report `scheduleError: 'cycle'`.
+The earlier recursive projection refused that modeled state. Replaced recursion with
+finite monotone root propagation over every validated edge; waiting reads intrinsic
+predecessor completion, which cannot be derived from blockage. Write-time cycle refusal
+remains in the existing dependency guard. The old recursive cycle-throw test/proof is
+superseded, rather than counted as a current safety requirement.
+
+- RED: the existing readable-cycle caller and two new authored/legacy cycle projection tests all threw `the step-node graph runs in a circle` (3 failed).
+- GREEN: those tests and the updated absent-legacy predecessor caller passed (4 passed, 9 assertions).
+- Direct-hold and external-root cycle regressions cover downstream work. The external-root case enters a silent cycle from outside, proving repeated root visits are bounded by deduplication rather than by encountering the root's own barrier.
+- SQLite HTTP tests cover readable cycles with and without a direct `blocked` row hold plus downstream work, in both isolated/shared modes. They retain the modeled schedule error and canonical node readings.
+- The old missing-predecessor caller assertion expected silent omission. It now requires the explicitly approved malformed-trusted-state refusal. Removing the resolver's endpoint guard made the production `WorkItemService.tree` caller resolve instead of refusing.
+- An exploratory foreign-endpoint HTTP fixture was caught earlier by existing organization-cross-reference checks; it was removed and is not claimed as evidence for the new endpoint guard.
+
+| Check                                | Injected fault                        | Observed test and output                                                                                                      |
+| ------------------------------------ | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Missing legacy endpoint on live tree | Remove resolver endpoint guard        | Main live-tree caller resolved instead of rejecting; exit 1                                                                   |
+| Missing graph predecessor            | Remove predecessor guard              | Named missing-node negative received TypeError; exit 1                                                                        |
+| Missing graph successor              | Remove successor guard                | Absent-successor negative received function did not throw; exit 1                                                             |
+| Stored cycle readability             | Reintroduce cycle refusal             | Main readable-cycle tree caller threw; exit 1                                                                                 |
+| Root forwarding                      | Remove requeue after newly added root | Direct-hold and external-root cycle tests lost downstream causes; exit 1                                                      |
+| Finite root visits                   | Remove existing-root skip             | External-root silent-cycle production test did not terminate within 5s; subprocess watchdog killed it and source was restored |
+
+Broader caller/service tests and final lint/typecheck/format/OpenSpec checks recorded next.
+
+### Broader source verification
+
+- `bun test ./libs/wbs/application/core/src/service/*.test.ts ./libs/wbs/application/core/src/module/work-item/work-item.resource.test.ts ./libs/wbs/domain/domain/src/node-reading.test.ts ./apps/wbs/be-01/src/controller/step-node-attempt.controller.db.test.ts`: **532 passed, 0 failed, 1,665 assertions across 32 source files**. This includes all 29 service suites, the complete main work-item caller suite, and all isolated/shared controller regressions.
+- `bun test ./libs/wbs/application/core/src/module/work-item/step-allowance.test.ts ./libs/wbs/application/core/src/module/work-item/step-addresses.test.ts ./libs/wbs/application/core/src/module/work-item/module.test.ts`: **23 passed, 0 failed, 54 assertions**. All four work-item module test files are covered with the main caller suite above.
+- An earlier non-anchored directory argument also collected generated `dist/out-tsc` tests after typecheck: 551 passed, 25 failed (24 alias-resolution errors plus a generated-path architecture oracle). That command is not accepted as validation. The source-anchored command above passed without those generated artifacts.
+- Five-file ESLint over changed TypeScript files passed with exit 0 after import sorting, queue `for-of`, and the repository's Bun rejection-matcher style were applied.
+- Initial post-refactor core+module typecheck passed with actual target output and 0/2 cache hits (40.1s). Final core/backend checks recorded below.
+- [Negative proof receipts](evidence/cycle-read/receipts.json) and their raw captured output are committed beside this verification record. Every injected source fault was restored before the broader test runs.
+
+- Final `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-core:typecheck`: **passed**, all core module checks plus core target, 0/2 cache hits (47.1s).
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-be-01:typecheck`: **passed**, all backend module checks plus backend target, 0/2 cache hits (12.4s).
+- Strict OpenSpec validation: **valid, zero issues**. Final touched-file Prettier and diff checks passed before the review commit.
+- No persistence, transfer or release work was performed while this core correction awaited review. Schedule-byte/hash neutrality, migration/rollback, structural journal changes, UI and exact-SHA heavy gate remain open.
+
+### Persistence and rollback slice
+
+- P3 proof wording corrected: the committed absent-successor receipt says `Received function did not throw`; source and table now match that observation.
+- Installed normal local hooks with `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run tool-git-hooks:install`; pre-commit, prepare-commit-msg and commit-msg are active.
+- Migration RED: all five initial migration cases failed before the table existed, including the expected migration-ledger walk. Repository/recovery/memory/compatibility tests initially failed on missing implementation exports; the three swap cases then failed because the guard vocabulary was absent.
+- Added `20261013140000_add_step_node_blockages` with sparse audit columns, pair PK, work-item/step/audit-user FKs, safe integer time constraint and insert/update project/leaf ownership triggers. The paired down file refuses nonempty facts, retains its ledger on refusal, and reverses/reapplies an empty table.
+- SQLite and memory adapters preserve pair scope, original timestamps, step order and ownership validation. SQLite additionally proves audit/revision updates and colliding-transfer atomicity; the memory fixture, like existing fixtures, models values and references rather than SQL audit/revision transactions.
+- Recovery v1 round-trips all columns, rejects malformed/duplicate files, compares stale saves, and refuses even disjoint nonempty restores. CLI tests distinguish absent/unreadable DB and absent/malformed files. Recovery uses an existing writable database with verified pragmas, never creating a missing database. Installed Bun requires explicit `readwrite: true` with `create: false`; the first CLI test exposed `SQLITE_MISUSE`, and the corrected flags pass.
+- Compatibility checks inventory before migration and again after outgoing stop; only genuine older reader/table absence models empty support/facts. Missing/unreadable source/database and dangling/nonregular reader paths refuse. New journal variants remain unwired; their rollback compatibility must be covered in the command slice before enabling them.
+- Initial persistence suite: **23 passed, 0 failed, 101 assertions** before the additional constraint/atomicity/CLI boundary cases. Final expanded suite (`step-blockage*.db.test.ts`, SQLite database factory, memory adapter, backend migration CLI and attempt controller, `--timeout=30000`): **122 passed, 0 failed, 723 assertions** (91.18s), including existing isolated/shared caller paths.
+- Full swap+Docker command initially yielded **215 passed, 1 failed**: unchanged backend configuration bootstrap exceeded the default 5-second test budget. Retrying that sole case with `--timeout=30000` passed, **1 passed, 0 failed, 2 assertions** (3.40s). No implementation change was made to that test's behavior.
+- Final swap/Docker suites with `--timeout=30000`: **216 passed, 0 failed, 606 assertions** (246.32s). The broader migration CLI suite first exposed its hard-coded newest-migration assertion; that assertion now names this additive migration.
+- Explicit migration lint, changed-TypeScript ESLint, Prettier write (all unchanged), and strict OpenSpec validation: **passed**.
+- Scoped Nx typechecks for domain, core, SQLite, memory, backend and remote scripts: **all 8 tasks passed, 0 cache hits** (78s), including module checks. Full exact-SHA heavy gate remains for the complete feature.
+- [Persistence fault receipts](evidence/persistence/receipts.json): **46 watched source/SQL faults**, each producing named test failure(s) with exit 1. Sources were restored in `finally` after every fault before validation.
+
+| Check/fault                     | Injected fault                                  | Observed failing production-path test                                                                                                                                                                              |
+| ------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| SQL pair uniqueness             | Named guard/constraint/call removed or disabled | `refuses duplicate pairs, missing references, cross-project steps and parent owners`; exit 1                                                                                                                       |
+| SQL work item reference         | Named guard/constraint/call removed or disabled | `refuses duplicate pairs, missing references, cross-project steps and parent owners`; exit 1                                                                                                                       |
+| SQL step reference              | Named guard/constraint/call removed or disabled | `refuses duplicate pairs, missing references, cross-project steps and parent owners`; exit 1                                                                                                                       |
+| SQL audit reference             | Named guard/constraint/call removed or disabled | `refuses duplicate pairs, missing references, cross-project steps and parent owners`; exit 1                                                                                                                       |
+| SQL insert project ownership    | Named guard/constraint/call removed or disabled | `refuses duplicate pairs, missing references, cross-project steps and parent owners`; exit 1                                                                                                                       |
+| SQL insert leaf ownership       | Named guard/constraint/call removed or disabled | `refuses duplicate pairs, missing references, cross-project steps and parent owners`; exit 1                                                                                                                       |
+| SQL update project ownership    | Named guard/constraint/call removed or disabled | `refuses duplicate pairs, missing references, cross-project steps and parent owners`; exit 1                                                                                                                       |
+| SQL update leaf ownership       | Named guard/constraint/call removed or disabled | `refuses duplicate pairs, missing references, cross-project steps and parent owners`; exit 1                                                                                                                       |
+| SQL fractional timestamp        | Named guard/constraint/call removed or disabled | `refuses fractional and unsafe blocked timestamps`; exit 1                                                                                                                                                         |
+| SQL safe timestamp bound        | Named guard/constraint/call removed or disabled | `refuses fractional and unsafe blocked timestamps`; exit 1                                                                                                                                                         |
+| rollback table guard            | Named guard/constraint/call removed or disabled | `refuses rollback over a fact, keeping the schema and migration ledger`; exit 1                                                                                                                                    |
+| repository timestamp            | Named guard/constraint/call removed or disabled | `refuses fractional writes and malformed stored timestamp reads`; exit 1                                                                                                                                           |
+| repository owner reference      | Named guard/constraint/call removed or disabled | `refuses missing trusted owner and step references on reads`; exit 1                                                                                                                                               |
+| repository step reference       | Named guard/constraint/call removed or disabled | `refuses corrupted owner/step membership and parent-owned facts on reads; refuses missing trusted owner and step references on reads`; exit 1                                                                      |
+| repository leaf ownership       | Named guard/constraint/call removed or disabled | `refuses corrupted owner/step membership and parent-owned facts on reads`; exit 1                                                                                                                                  |
+| repository empty move revisions | Named guard/constraint/call removed or disabled | `removes only one pair and moves all facts with their timestamps`; exit 1                                                                                                                                          |
+| repository remove owner scope   | Named guard/constraint/call removed or disabled | `removes only one pair and moves all facts with their timestamps`; exit 1                                                                                                                                          |
+| repository remove step scope    | Named guard/constraint/call removed or disabled | `removes only one pair and moves all facts with their timestamps`; exit 1                                                                                                                                          |
+| recovery decoder                | Named guard/constraint/call removed or disabled | `refuses malformed envelopes, rows and every timestamp field at the decoder`; exit 1                                                                                                                               |
+| recovery integer bound          | Named guard/constraint/call removed or disabled | `refuses malformed envelopes, rows and every timestamp field at the decoder`; exit 1                                                                                                                               |
+| recovery duplicate identity     | Named guard/constraint/call removed or disabled | `rejects duplicate saved identities before writing`; exit 1                                                                                                                                                        |
+| recovery stale save             | Named guard/constraint/call removed or disabled | `refuses a stale save without removing any facts`; exit 1                                                                                                                                                          |
+| recovery nonempty destination   | Named guard/constraint/call removed or disabled | `refuses a nonempty restore even for disjoint existing facts`; exit 1                                                                                                                                              |
+| existing DB creation refusal    | Named guard/constraint/call removed or disabled | `runs the CLI round trip and rejects malformed/absent inputs without creating databases`; exit 1                                                                                                                   |
+| CLI DB_PATH                     | Named guard/constraint/call removed or disabled | `requires DB_PATH and a valid verb at the CLI boundary`; exit 1                                                                                                                                                    |
+| CLI verb                        | Named guard/constraint/call removed or disabled | `requires DB_PATH and a valid verb at the CLI boundary`; exit 1                                                                                                                                                    |
+| CLI argument count              | Named guard/constraint/call removed or disabled | `requires DB_PATH and a valid verb at the CLI boundary`; exit 1                                                                                                                                                    |
+| CLI file argument               | Named guard/constraint/call removed or disabled | `requires DB_PATH and a valid verb at the CLI boundary`; exit 1                                                                                                                                                    |
+| swap blockage inventory         | Named guard/constraint/call removed or disabled | `refuses an image without step blockage support before migration; allows an older image over no step blockage and checks inventory; refuses a step blockage written after the first check once blue stops`; exit 1 |
+| reader directory availability   | Named guard/constraint/call removed or disabled | `reads a present release CLI, models an older release, and refuses unavailable source`; exit 1                                                                                                                     |
+| reader dangling path            | Named guard/constraint/call removed or disabled | `refuses nonregular, dangling and unreadable reader paths`; exit 1                                                                                                                                                 |
+| reader directory readability    | Named guard/constraint/call removed or disabled | `reads a present release CLI, models an older release, and refuses unavailable source`; exit 1                                                                                                                     |
+| stored fact inventory           | Named guard/constraint/call removed or disabled | `counts every stored fact and distinguishes an older schema from an unavailable database`; exit 1                                                                                                                  |
+| stored DB_PATH                  | Named guard/constraint/call removed or disabled | `counts every stored fact and distinguishes an older schema from an unavailable database`; exit 1                                                                                                                  |
+| memory step project             | Named guard/constraint/call removed or disabled | `refuses cross-project steps, corrupted read facts and invalid transfer destinations`; exit 1                                                                                                                      |
+| memory leaf ownership           | Named guard/constraint/call removed or disabled | `refuses missing steps, malformed timestamps and parent owners; refuses duplicate transfers atomically and reads parent-owned corruption loudly`; exit 1                                                           |
+| memory timestamp                | Named guard/constraint/call removed or disabled | `refuses missing steps, malformed timestamps and parent owners`; exit 1                                                                                                                                            |
+| memory read owner               | Named guard/constraint/call removed or disabled | `refuses missing steps, malformed timestamps and parent owners`; exit 1                                                                                                                                            |
+| memory read step                | Named guard/constraint/call removed or disabled | `refuses cross-project steps, corrupted read facts and invalid transfer destinations`; exit 1                                                                                                                      |
+| memory set owner                | Named guard/constraint/call removed or disabled | `refuses cross-project steps, corrupted read facts and invalid transfer destinations`; exit 1                                                                                                                      |
+| memory set step                 | Named guard/constraint/call removed or disabled | `refuses missing steps, malformed timestamps and parent owners`; exit 1                                                                                                                                            |
+| memory transfer owner           | Named guard/constraint/call removed or disabled | `refuses cross-project steps, corrupted read facts and invalid transfer destinations`; exit 1                                                                                                                      |
+| memory transfer step            | Named guard/constraint/call removed or disabled | `refuses cross-project steps, corrupted read facts and invalid transfer destinations`; exit 1                                                                                                                      |
+| memory duplicate transfer       | Named guard/constraint/call removed or disabled | `refuses duplicate transfers atomically and reads parent-owned corruption loudly`; exit 1                                                                                                                          |
+| repository read timestamp call  | Named guard/constraint/call removed or disabled | `refuses fractional writes and malformed stored timestamp reads`; exit 1                                                                                                                                           |
+| repository write timestamp call | Named guard/constraint/call removed or disabled | `refuses fractional writes and malformed stored timestamp reads`; exit 1                                                                                                                                           |
+
+This committed checkpoint implements persistence and rollback only. Journaled commands, retained direct-blockage reads, structural stale replay, document/saved-plan versions, schedule neutrality, UI and the complete-feature gate remain pending. WBS010.4.13.3 also includes work beyond this bounded change.
+
+### Follow-up: node-reading negatives and schedule seam (2026-10-13)
+
+- Task 1.4: the live `WorkItemService.tree` negative now injects an unknown progress owner and an unknown project step through the progress port. Replacing either corresponding `projectNodeReadings` guard with `if (false)` independently made the named test fail: the tree promise resolved instead of rejecting (exit 1, one failed test in each run). The known-parent compatibility test remains in the SQLite mounted controller for both isolated and shared reads; neither parent facts nor the row fold were changed.
+- A typed dependency with an absent owner now has a `resolveDependencyGraph` negative. Replacing its `leavesUnder` missing-owner throw with `return []` made the named test fail (exit 1): it received the later `node endpoint ... not a leaf` error instead of the missing-work-item refusal. The live tree negative also exercises an absent typed endpoint. Existing tests and adjacent proofs cover absent legacy endpoints, duplicate graph identities, and absent predecessor/successor graph endpoints; no new validator was added for those cases.
+- Task 1.3 remains open. A two-leaf typed FS fixture projects a direct blockage on the predecessor and `blocked_by_proxy` on the successor, then compares `canonicalScheduleInput` strings and the serialized _full_ Fast schedules before and after projection: 1 passed, 4 assertions. This proves the current projection seam. The live tree still supplies `blocked: []`, and `scheduleInput` has no blockage-store port; a stored-fact test and a watched production mutation that filters blocked nodes require command/read wiring. This test does not claim those proofs.
+- PR #400 Twilight failure named unindexed `store-memory/src/step-blockage-fixture.test.ts`. The memory source `module-index` now lists that test and its fixture. The pinned `pins exact pre-index tuples and passes observe lint from external trust` test passed (1 test, 60 assertions) with `TOOL_WIKI_TRUSTED_NODE_MODULES=/tmp/puni-step-next-sol/node_modules`; `check-indexes working . HEAD` exited 0 across the working tree, checking for additional omissions.
+- Focused core suites: `bun test` for node readings, dependency graph and work-item resource passed after the fixture correction (140 tests, 305 assertions). `wbs-core:typecheck` passed both Nx tasks with no cache hits. The first typecheck correctly failed TS2322 for the missing test-fixture `statedAt`, which was fixed before the passing rerun. Changed TypeScript ESLint and `git diff --check` passed. OpenSpec CLI `openspec` is absent in this clone and `node_modules/.bin`, so strict validation is unverified here. The full h2puni gate and GitHub CI are coordinated outside this isolated slice.
+
+### Review correction: exclusive recovery-file creation
+
+- Review reproduced `save → remove → save same path → restore` silently replacing the only recovery copy with an empty capture. The new CLI regression first failed because repeated save exited 0.
+- `save` now writes with filesystem exclusive creation (`wx`). An existing destination fails with `EEXIST` without changing its bytes. The CLI test removes the stored facts, attempts the repeated save, compares the exact original file bytes, and restores all original identity, blocked-time and audit columns.
+- Focused green: **1 passed, 0 failed, 8 assertions**. Replacing `wx` with `w` independently made the same production CLI regression fail on repeated-save exit 0; the original source was restored in `finally`. The adjacent `Proof:` and [fault receipt](evidence/persistence/recovery-file-exclusive.txt) record that observation; the persistence inventory now contains **47 watched faults**.
+- Fresh broader persistence/backend caller rerun: **123 passed, 0 failed, 731 assertions** (70.99s). Backend Nx typecheck: **2 tasks passed, 0 cache hits** (17.6s). Changed-TypeScript ESLint and strict OpenSpec validation passed.
+- Fresh full swap/Docker rerun (`--timeout=30000`): **216 passed, 0 failed, 606 assertions** (157.25s). Prettier check passed; exact-SHA heavy gate remains reserved for the complete feature.
+
+### Review correction: independent CLI negative paths
+
+- Missing database, unreadable database and directory-as-database cases now each use a fresh, distinct save destination, assert SQLite's `unable to open database file` refusal and assert no output file was created. Invalid-verb, absent-file and malformed-file cases also use distinct paths and assert their own usage, `ENOENT` or JSON parse refusal, so `EEXIST` cannot satisfy them.
+- The focused CLI case passed, **1 passed, 0 failed, 19 assertions**. Making the unreadable database fixture readable independently made the CLI negative fail on exit 0, proving exclusive creation no longer masks the permission check. The source was restored in `finally`; the adjacent `Proof:` and [receipt](evidence/persistence/unreadable-database-independent.txt) record the fault. The inventory now contains **48 watched faults**.
+- Scoped recovery CLI and database-factory suites: **22 passed, 0 failed, 96 assertions** (6.04s). Changed-test ESLint, strict OpenSpec validation and diff whitespace check passed. Production code is unchanged in this correction; deployment suites and typechecks were not rerun (fresh results remain recorded for the immediately preceding implementation commit).
+
+### Review correction: current-schema migration expectations (2026-10-13)
+
+- PR #400 exact `4f7a037d2927582baa2bd17012c72ac8253369e2` reproduced the CI failures in `migrate-down.db.test.ts`, `space.db.test.ts` and `organization-bridge.db.test.ts`: each received the real `20261013140000_add_step_node_blockages` rollback entry omitted from its expected list (3 failed tests).
+- Updated all 56 current-schema list entries across 28 SQLite test files, two newest-migration assertions and three rollback table filters. Ascending ledgers append the migration; descending rollback lists reverse it first. The blockage migration test's historical estimate-unit baseline remains explicit.
+- The initial affected-suite run passed 497 tests and failed four: calendar-marker, organization-records and optimizer rollback filters still expected the removed `step_blockage` table; the existing two-process browser lifecycle test hit sandbox `EPERM` on child stdin. The three corrected schema-filter tests passed (3 tests, 40 assertions). The unchanged browser subprocess test passed outside the sandbox (1 test, 8 assertions); no skip or test workaround was added.
+- `bunx tsc --build --force libs/wbs/adapters/store-sqlite/tsconfig.spec.json`, `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-store-sqlite:lint` (no cache hit), changed-file Prettier check and `git diff --check` passed. Strict OpenSpec validation passed through the installed `/tmp/bunx-1000-@fission-ai/openspec@1.12.0/node_modules/@fission-ai/openspec/bin/openspec.js`.
+- Final full affected-suite rerun outside the sandbox: `bun test --preload ./tools/test/scratch/preload.ts <all 28 changed SQLite test files> --timeout=30000` passed **501 tests, 0 failures, 1539 assertions** (103.06s).
+- Full host gate and GitHub CI remain with the root agent for the reviewed exact SHA. No push performed from this isolated repair checkout.
+
+### CI repair: historical rollback baseline and recovery CLI inputs (2026-10-14)
+
+- Exact original PR #400 head `604d0e255650ff86b5725a55b412438085fc7cf5` reproduced eight damaged-journal migration failures and the undeclared blockage recovery CLI read. `rollbackTo` commits each migration separately; the newer blockage migration was legitimately reversed before the estimate-unit migration refused. The damaged-journal cases now establish the estimate-unit historical baseline before seeding and snapshotting. Their exact columns, steps, estimates, journal and full migration-ledger comparison remains intact.
+- SQLite `test` and `test:api` explicitly declare the recovery CLI they spawn. Actual Nx `createTaskHasher().hashTask()` probes ignored a CLI-only edit without these inputs and changed both hashes with them. The complete Nx project dependency edge set exactly equals the original head; this repair adds no dependency edges. No global acyclicity claim is made.
+- Watched negatives: removing the damaged-journal SQL CASE guard failed all eight direct-down cases on the missing refusal. Injecting a persisted `optimistic=241` estimate after failed rollback failed all eight exact-state comparisons against 240. Each injected change was restored in a `finally` block. Adjacent `Proof:` comments and the [receipt](evidence/ci-repair.txt) record these observations.
+- Green commands: `bun test --preload ./tools/test/scratch/preload.ts` over `step-estimate-unit-migration.db.test.ts`, `step-blockage-migration.db.test.ts`, `step-blockage-rollback.db.test.ts` and `migrate-down.db.test.ts` with `--timeout=30000`: **50 passed, 0 failed, 295 assertions**. `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bun test tools/tool-devsync/src/workspace-targets.test.ts --timeout=30000`: **22 passed, 0 failed, 80 assertions**. `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint,typecheck -p wbs-store-sqlite,tool-devsync --skip-nx-cache --parallel=2`: **4 tasks passed, caching disabled**.
+- Strict OpenSpec validation used the installed `@fission-ai/openspec@1.12.0` CLI with `validate add-step-node-blocking --strict --json`: valid, no issues. The first complete `tool-devsync:test` run failed under the sandbox (**510 passed, 61 failed**) on Git object writes and local server binds (`EROFS`/`EPERM`); the rerun outside the sandbox is still running at this checkpoint and its complete result remains unverified (`/tmp/puni-pr400-devsync-unsandboxed.log`). The exact changed checks passed independently as recorded above. The plain `.txt` fault receipt has no Prettier parser and is outside the format hook's file glob.
+- Changed-file Prettier, ESLint and diff whitespace checks passed. `bunx lefthook run pre-commit` passed lint, format, plaintext-secrets and private-nesting. The Tool Wiki hook reported `inactive` / `certified:false` because no external activation root is provisioned; migration hooks and doc-caps skipped because no matching files changed.
+- The exact-SHA h2puni gate and GitHub CI remain coordinated by the root agent after independent review. No push was performed from this isolated repair checkout.
+
+### Stacked live-read checkpoint: task 1.3 (2026-10-13)
+
+- This work starts from PR #400 head `4f7a037d2927582baa2bd17012c72ac8253369e2` on a separate local branch. PR #400 itself remains unchanged. The required `StepBlockageStore` now reaches SQLite and memory sources, transactional composition, the work-item module, isolated tree reads and both shared snapshot constructors. The live tree projects sparse direct timestamps and exact `BlockageRoot` causes on leaves; parent fields remain absent. Older HTTP responses may omit the new fields.
+- Mounted `OrganizationHarness.openComposed()` tests insert a fact directly into SQLite and read the production work-item route in isolated and shared modes. They assert direct timestamp, downstream exact root, unchanged row status, clearing, parent omission, done precedence and a running-node barrier. The prior mounted historical parent-owned progress tests remain green. No public blockage command or structural writer is exposed in this checkpoint.
+- The mounted Fast test spies on the actual production `fastScheduler.read` call. With a nonempty scheduled slice, it compares `canonicalScheduleInput` of that exact request, `JSON.stringify(serializeSchedule(returned.fast))` of the complete returned Fast schedule, and the displayed row schedules, dates and slices for baseline → blocked → cleared. Both isolated and shared cases pass. Task 1.3 is checked on this evidence.
+- R5 watched faults, each restored after its targeted test failed (exit 1): isolated fact read replaced with `[]` → isolated direct timestamp/root test failed; shared captured fact forwarding replaced with `[]` → shared test failed; shared live snapshot capture replaced with `[]` → shared test failed; cause forwarding replaced with `{}` → exact-root test failed; blocked owners filtered from the isolated canonical Fast input → isolated Fast comparison failed; all displayed slices omitted only when a fact exists → Fast comparison failed in both modes. Removing memory `replaceWith` fact copy or owner-removal cascade each failed the named project-seeded memory transaction test. Adjacent `Proof:` comments record these faults. The other shared aggregate snapshot constructor is wired and typechecked, but replacing only its fact capture with `[]` did **not** fail the mounted work-item route test; dedicated aggregate-path proof remains open.
+- Fresh scoped tests: work-item controller, memory source, conformance inventory and work-item module, **63 passed, 0 failed, 405 assertions**. Focused memory and SQLite blockage conformance cases, **2 passed, 0 failed, 32 assertions**. Full memory/SQLite offered-case certification, **2 passed, 0 failed, 2819 assertions**. A first scoped run failed the conformance inventory because its independent expected list lacked the new case; after adding the case, that test and the full scoped rerun passed.
+- The five touched product projects plus conformance passed fresh Nx typechecks. A combined Nx typecheck/lint invocation returned failure for four lint tasks without ESLint diagnostics while the sandbox denied Nx worker sockets; direct `bunx eslint` on all 47 changed TypeScript files then passed (exit 0). `bunx prettier --check` and `git diff --check` are checked after the final edits. Strict OpenSpec CLI validation is unavailable: `openspec` is absent from PATH and `node_modules/.bin`. The canonical host-wide h2puni gate, CI, migration lint, browser and full-repo checks are not run on this local stacked checkpoint; the root agent coordinates exact-SHA review and gate after this commit.
+
+### Astra review corrections to the stacked live read (2026-10-13)
+
+- The aggregate shared snapshot constructor now has a dedicated real SQLite test. It inserts an `a2` fact and calls `createLivePlanStore(...).readAggregate('ada', scopedAccess)`, asserting the exact fact on `a2`'s entry and an empty list on `a1`. The focused test passed (1 test, 2 assertions). Replacing **only** the aggregate constructor's fact capture with `[]` made that named test fail (exit 1); the source was restored, and the `Proof:` comment is adjacent. This closes the previously noted aggregate-path proof gap.
+- The mounted task 1.3 fixture now creates an estimated successor and a typed `strip.dev → successor.dev` FS dependency. It requires more than one displayed slice and checks the successor's `blocked_by_proxy` reading while still comparing the actual canonical Fast request, full returned schedule and displayed schedules byte-for-byte through baseline → blocked → cleared. Both isolated and shared cases passed (2 tests, 14 assertions). Re-injecting blocked-owner filtering before the isolated canonical input failed one named Fast test (exit 1); dropping all displayed slices only in the blocked state failed both mode cases (exit 1). Both mutations were restored.
+- Fresh full touched suites after the correction: work-item mounted controller plus SQLite chain snapshots, **73 passed, 0 failed, 314 assertions**. Nx typecheck for `wbs-store-sqlite` and `wbs-be-01` passed with their dependency task; changed-file ESLint and Prettier check passed. Strict OpenSpec validation remains unavailable in this clone, and host gate/CI remain deferred to exact-SHA review.
+
+### CI repair: historical read baselines and conformance inventory (2026-10-14)
+
+- Exact PR #408 head `b9321dd967e7f65ddcee0ca77a7927b74025cba4` and its PR #411 descendant `580bf5cd9ad87ed205fdda3b1a718006d1d2566b` both reproduced three historical payload comparisons and the closed case-manifest inventory failure. Live leaf reads now expose `blockages` and `blockageCauses`, which the historical oracle predates; the case manifest already contains the implemented blockage family. The affected tests, production tree projection and case manifest are byte-identical between these two heads. The repair is placed on the earliest affected PR #408. Production behavior and the captured historical JSON remain unchanged.
+- The two identity differentials lift only the new wire fields after explicitly asserting empty direct facts, exact empty causes for every project step, and absence of both keys on parent rows. Every remaining historical field, schedule, date and slice is still compared whole. The conformance inventory now includes `blockages` and pins its existing `blockages.set:read-remove` case ID.
+- Watched production mutations: projecting a phantom direct fact, replacing per-step causes with `{}`, and exposing leaf metadata on parents each failed four identity tests. Removing the production blockage family failed the closed inventory; replacing its case ID failed the new exact-case assertion. All faults were restored in `finally` blocks; adjacent `Proof:` comments and the [receipt](evidence/ci-read-baselines.txt) record the failures.
+- `bun test --preload ./tools/test/scratch/preload.ts ./apps/wbs/be-01/src/service/capacity-migration-identity.db.test.ts ./apps/wbs/be-01/src/service/priority-band-identity.db.test.ts --timeout=30000`: **9 passed, 0 failed, 18724 assertions**, after the final proof comments. `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-conformance:test --skip-nx-cache`: **35 passed, 0 failed, 67 assertions**. Original red counts were **6 passed, 3 failed** and **34 passed, 1 failed**, respectively.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint,typecheck -p wbs-be-01,wbs-conformance --skip-nx-cache --parallel=2`: **5 tasks passed, caching disabled**. Strict `add-step-node-blocking` OpenSpec validation through installed `@fission-ai/openspec@1.12.0` passed with no issues.
+- Separate Twilight investigation: both unchanged authority concurrency tests passed locally (**2 tests, 126 assertions**). A temporary 400 ms pause while the creator held the initialization lock reproduced the fixed bootstrap race's exact `AuthorityContentionError` after 50 attempts. The default contender budget includes 49 sleeps of 5 ms, and the test fixtures require successful serializable outcomes without allowing budget exhaustion. The supplied #411 and #421 logs show this same refusal, but do not measure the lock duration; CI load is an inference. Authority source, tests and retry budgets are unchanged. This deterministic workspace repair does not claim the Twilight contention issue is fixed.
+- Full host gate, full backend suite, complete Twilight suite, build and GitHub CI remain with the coordinator after independent review. No push is performed from this repair checkout.
+
+### Transactional blockage command plumbing checkpoint (2026-10-13)
+
+- Review follow-up: the SQLite admitted-scope test now transfers a committed fact between two owners with `moveAll`, checks both retained revisions (source 2, destination 1), the transferred timestamp, the committed fact and destination deletion cascade. Injecting a skipped `moveAll` refresh made `keeps blockage writes and refreshed owner revisions transactional` fail at the source revision assertion (expected 2, received 1); restored. The focused test passed after restoration. OpenSpec CLI remains unavailable in this isolated checkout.
+- Stacked from PR #408 exact `5dac87bf2d549c18a595f7e6d013d4a27386d23f` in an isolated branch. `WorkingPlan.blockages` now binds reads and writes to the admitted source and project; successful writes refresh retained owner rows for future journal revisions. No public `setStepBlocked` command is exposed; task 3.1 remains open.
+- `bun test libs/wbs/application/core/src/module/plan-commands/working-plan.test.ts`: 19 pass. `bun test libs/wbs/adapters/store-memory/src/memory-source.test.ts libs/wbs/adapters/store-sqlite/src/source.test.ts`: 20 pass. These cover same-batch write/read, failed mutation preserving facts, foreign-project and closed borrowed-port refusal, commit/rollback, SQLite revision and owner deletion cascade.
+- R5 watched faults: skipping `WorkingPlan.blockages.set` refresh made `keeps blockage calls inside the project and batch lifetime and refreshes successful writes` fail, expected revision 1, received 0. Removing the owner guard let a foreign write succeed; replacing either project-read guard with a lifetime-only guard let its foreign read succeed. Returning the raw store is also caught by the borrowed-after-close assertion. Omitting memory blockage commit copy made `commits and rolls back project-seeded blockage facts and cascades removed owners` fail, expected stored fact, received `[]`. Committing a refused memory batch made that test fail, expected `[]`, received the fact. Forcing SQLite UOW to commit a refused batch made `keeps blockage writes and refreshed owner revisions transactional` fail, expected `[]`, received the fact. Each injected fault was restored.
+- Scoped TypeScript builds for core, memory and SQLite passed. `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run {wbs-core,wbs-store-memory,wbs-store-sqlite}:lint` passed as three separate project-target calls. Direct ESLint also passed for the four changed TypeScript files; its early uncached project-graph warning is superseded by the Nx lint runs. Final focused Bun tests: 39 pass, 0 fail, 300 assertions. Prettier and `git diff --check` passed. Lefthook pre-commit, prepare-commit-msg and commit-msg passed after installing hooks in this isolated clone; tool-wiki reported inactive because its external activation root is not provisioned. `openspec` CLI was absent from the installed dependencies; strict OpenSpec validation is unverified.
+
+### Conditional replay and journal compatibility checkpoint (2026-10-13)
+
+- Stacked on PR #411 exact `819e897d6fc2c99b44ae276994732993da338237` in a new isolated checkout. This slice adds `replace_blockage` as an internal conditional compensating command, with exact owner/step/expected fact and nullable replacement. Replay keeps the original blocked time while the repository stamps audit on the replay write. `setStepBlocked` and structural command fields remain absent; tasks 3.1–3.4 remain open.
+- Recursive `readCommand`, `touchedBy`, `referencesOf` and `subjectOf` include the new variant. The candidate image advertises its replay vocabulary through a CLI; an independent readonly SQLite probe scans both `payload.forward` and `inverse` through nested batches. Swap checks it before migration and after outgoing stop, including when `step_blockage` is empty. Older images with no CLI advertise no new replay command. Journal history is never removed by the fact rollback CLI; the runbook names compatible-image or normal-retention recovery.
+- Final scoped tests: `bun test libs/wbs/application/core/src/service/compensating.test.ts apps/wbs/be-01/src/service/undo.db.test.ts` passed **109 tests, 0 failures, 389 assertions**. `bun test tools/tool-remote-scripts/src/lib/docker.test.ts tools/tool-remote-scripts/src/swap.test.ts` passed **219 tests, 0 failures, 619 assertions**. The candidate CLI printed `["replace_blockage"]`.
+- R5 watched faults: bypassing exact-fact comparison made the undo of a fact changed by another SQLite process return `ok: true` despite an unchanged owner revision, instead of `stale_undo`; bypassing owner or step replay guards made their missing-reference cases return `ok: true`. Skipping recursive decoder traversal admitted an unknown nested command; bypassing blockage field validation admitted an undefined expected time. Omitting inverse inventory changed the expected count from 2 to 1; omitting the swap vocabulary let empty-fact/nonempty-history deployment reach migration. Bypassing candidate CLI file validation admitted a directory, and bypassing inventory kind validation admitted an unknown persisted command. Each fault was restored, with adjacent `Proof:` comments at the failing assertions.
+- `bunx tsc --build --force` over core, be-01 library/spec and remote-scripts library/spec configurations passed. `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run {wbs-core,wbs-be-01,tool-remote-scripts}:lint` passed as three calls (the core target used an exact output cache hit). Prettier and `git diff --check` passed. The first TypeScript command used nonexistent `tsconfig.app.json` paths and failed with TS6053; the corrected five-config build passed. Strict OpenSpec validation remains unverified because `openspec` is absent from this checkout's installed tool binaries. The host gate and CI are deferred to exact-SHA review.
+
+### Replay probe review coverage (2026-10-13)
+
+- Added nonprivileged production-command negatives for unreadable replay source, unreadable CLI and unreadable SQLite database, plus a real database without `command_journal`. Permission proofs refuse a root runner, matching the migration CLI pattern. The empty journal control exits zero before database permissions are denied.
+- Added an after-stop swap regression with inventories read by the production SQLite command: the first is empty, the second counts two nested forward/inverse `replace_blockage` commands, and both fact inventories stay empty. Migration and outgoing stop occur, then replay compatibility refuses before the planned commit phase.
+- Watched faults, each restored: dropping source readability/search checks returned 0 instead of 74; replacing CLI execution with an empty answer returned 0; accepting an absent journal returned 0; overriding denied database permissions returned 0; skipping the after-stop vocabulary check reached commit and the routing-write refusal. Each named test exited 1, with adjacent `Proof:` comments.
+- Focused replay command: `bun test --preload ./tools/test/scratch/preload.ts tools/tool-remote-scripts/src/lib/docker.test.ts tools/tool-remote-scripts/src/swap.test.ts --test-name-pattern replay --timeout=10000`: 6 passed, 0 failed, 30 assertions. Remote-scripts spec TypeScript build and changed-file ESLint passed. Strict OpenSpec validation passed through the installed `/tmp/bunx-1000-@fission-ai/openspec@1.12.0/node_modules/@fission-ai/openspec/bin/openspec.js`; the raw cache entry failed because its `commander` dependency was unavailable.
+- The canonical host gate and GitHub CI remain with the root agent for the reviewed exact SHA. No push performed from this checkout.
+
+### First-child structural closure checkpoint (2026-10-14)
+
+- Isolated clone `/tmp/puni-step-first-child-sol` starts at PR #416 exact `8d8187a9e31bbda64a89031e3abc4132da1f60c7`. Task 3.0.2 closes first-child create/undo/redo only. Public `setStepBlocked`, move/delete/duplicate handling and document transfer remain pending.
+- First-child create captures and conditionally clears parent blockage while the owner is still a leaf, inserts the child, then writes each child fact with its original blocked time. Journal forward clears the parent before `restore_subtree` and sets the child afterward; inverse clears the child before `delete_subtree` and restores the parent afterward. These are existing nested `replace_blockage` commands, so the recursive replay compatibility inventory already covers them without another journal vocabulary.
+- Red: the new memory exact-preservation test failed with `step blockage owner is not a leaf`; the mounted create test refused instead of returning 200. Green covers exact owner/step/time, multiple step facts, absent parent fact, retained progress and one undo/redo action. Mounted stale undo and redo change the second fact through direct SQL without changing revisions; the first fact is cleared before refusal, and the complete tree/progress/blockage/event snapshots are restored. The stale journal entry follows existing discard policy.
+- The mounted insert-fault test installs a persistent SQLite trigger that raises only after the parent fact has disappeared. It asserts 500 and exact prior work-item, progress, blockage, journal, event-log and event-sequencer rows, including revisions and audit columns. The first temporary-trigger fixture was ineffective because the admitted transaction uses another SQLite connection; the final persistent trigger runs on that connection. An initial raw database-serialization comparison was replaced with exact domain-table rows because unrelated authentication writes legitimately change the database file.
+- R5 watched mutations, restored after each failure: removing the parent-clear refusal guard made `reports a refused parent blockage clear before inserting a first child` receive the later parent-ownership error; removing the child-write refusal guard made `reports a refused first-child blockage write` resolve. Skipping live child writes, omitting undo parent restoration, and omitting redo child restoration each failed both exact-preservation cases. Bypassing exact-fact comparison made both mounted stale cases return 200 instead of 409. Committing a refused UOW made both stale cases lose the first cleared fact and fail the table snapshot. Committing the exception path after the injected insert fault left the parent fact absent and failed the rollback case. Every targeted mutation run exited 1; adjacent `Proof:` comments identify the observed tests. Local transcripts are `/tmp/first-child-proof-{clear-refusal,write-refusal,hand-down,undo-restore,redo-restore,exact-fact,stale-rollback,rollback}.log`.
+- Focused full suites: `bun test libs/wbs/application/core/src/module/work-item/work-item.resource.test.ts apps/wbs/be-01/src/controller/step-node-attempt.controller.db.test.ts apps/wbs/be-01/src/service/undo.db.test.ts libs/wbs/application/core/src/service/compensating.test.ts` passed 266 tests, 0 failures, 877 assertions before the final stronger two-fact stale fixture. The final rerun with the stronger two-fact stale fixture also passed 266 tests, 0 failures, 877 assertions.
+- `bunx tsc --build --force libs/wbs/application/core/tsconfig.json apps/wbs/be-01/tsconfig.lib.json apps/wbs/be-01/tsconfig.spec.json` passed. `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-core:lint` and the corresponding `wbs-be-01:lint` returned nonzero without ESLint diagnostics; project lint is unverified. Direct ESLint on the three changed TypeScript files initially found test-only assertion typing issues; after correction it passed. A simultaneous direct lint run also observed a temporary mutation; final validation uses restored source. The later typecheck caught missing narrowing after the child-ID assertion; adding an explicit missing-child throw fixes that test fixture.
+- Strict change validation passed through `bun /tmp/bunx-1000-@fission-ai/openspec@1.12.0/node_modules/@fission-ai/openspec/bin/openspec.js validate add-step-node-blocking --strict --json` (one valid change, zero issues). Plain `openspec` is absent from PATH. `bunx lefthook install` installed this clone's hooks. The canonical host gate, full repository checks, browser checks, CI and publication remain with the root agent after exact-SHA review; no push is performed here.
+
+- Final restored-source checks after fixture narrowing: focused first-child tests passed **7 tests, 0 failures, 35 assertions**; the scoped three-config TypeScript build and direct changed-file ESLint passed (exit 0). Prettier and `git diff --check` passed.
+
+## Task 3.0.3 — unrelated-work move closure (2026-10-14)
+
+- Isolated clone `/tmp/wbs-step-move-sol` starts at PR #418 exact `41b4dc3dfe15b4e6f48dc42cda65f42d80f25c6b`. This slice closes move, undo/redo and duplicate non-inheritance regression only. Public setter, work-item deletion, project-step deletion, transfer and UI remain pending. No schema, migration or `SubtreeCopy` fields changed. Dependencies are borrowed through a local ignored symlink to the previous slice's installation; the canonical gate must install frozen dependencies independently.
+- A true reparent into a current leaf captures destination progress/blockage, clears readiness/hold, progress and exact blockage before the store move, and preserves incoming facts. A last-child departure hands up direct blockage per step only when every former leaf holds that fact; the timestamp is the maximum original time without a zero seed, including negative times and retained done facts. Progress is never handed up. Same-parent reorder and historical progress on an existing parent remain intact.
+- Forward and inverse journals use existing nested command batches. The inverse clears old-parent handed facts while it is a leaf, moves back, then restores destination progress/blockage/readiness. Exact blockage identity and time survive both directions; progress restoration uses the established `set_progress` replay timestamp semantics. Both relevant parent identities enter `touched`. Replay refuses any residual progress or blockage on a current leaf before it becomes a parent, including facts on another step with revisions unchanged.
+- Red transcripts: `/tmp/move-red-memory.log` observed missing destination clearing and absent unanimous hand-up (2 failures); `/tmp/move-red-sqlite.log` observed stale progress accepted as 200 in undo/redo and stale other-step blockage reaching ownership errors as 500 (four intended failures). Its fifth failure came from attempting to seed a fact on a parent; the SQLite ownership trigger correctly rejected that fixture. The corrected later-step replay negative changes the destination's second recorded fact after undo, so redo clears earlier progress/first blockage before refusing the second exact comparison.
+- Memory tests cover pre-store-move visibility, destination done/incoming in-progress with and without blockage, exact undo/redo, retained done facts, latest negative timestamp, incomplete agreement, existing parent history, same-parent reorder, refused live clear/hand-up, and blocked leaf/descendant duplicate non-inheritance. Transactional memory runner tests cover full rollback after a later command refusal and rollback of the earlier handed-up clear before residual-progress undo refusal. Mounted SQLite covers exact facts/progress through one undo/redo, per-step agreement over two former leaves, residual progress and other-step blockage in both directions with unchanged revisions, changed expected timestamps, later exact-comparison refusal, and an injected `parent_id` write failure after destination clears. Snapshots compare complete domain tables, audit/revisions and event sequence; command journal is included for the exception case. Stale journal repair follows the existing discard policy and is excluded from refusal snapshots.
+- R5 watched faults were restored after each run. Removing either replay guard failed both mounted directions: progress returned 200; blockage returned 500. Removing the live-clear refusal changed the error to a later ownership failure; removing hand-up refusal made the call resolve. Skipping destination clears, skipping hand-up, accepting any former leaf's fact, or seeding timestamp maximum with zero each failed its memory assertion. Omitting inverse restoration or forward replay clearing failed mounted exact preservation. Bypassing exact comparison failed timestamp/later-step refusals. Committing a refused memory transaction failed both runner snapshots; committing a refused SQLite transaction failed stale/later-step snapshots; committing the SQLite exception path failed the parent-id fault snapshot. Injecting copies of direct facts into duplicate failed the original-only fact assertion. All **15 fault runs exited 1**. Adjacent `Proof:` comments identify observed boundaries. Transcripts: `/tmp/move-proof-{progress-guard,blockage-guard,clear-refusal,hand-refusal,destination-clear,hand-up,agreement,negative-max,undo-restore,redo-clear,exact-fact,memory-rollback,sqlite-refusal-rollback,sqlite-exception-rollback,duplicate-copy}.log`.
+- Validation commands are the five-file focused Bun suites (resource, mounted controller, SQLite undo, compensating commands and transactional memory plan commands), the three-config scoped TypeScript build, both touched-project Nx lint targets with `NX_DAEMON=false NX_ISOLATE_PLUGINS=false`, changed-file Prettier, strict change validation and `git diff --check`. Initial backend/direct lint found an unnecessarily certain fixture decoding assertion; the corrected optional boundary shape keeps the missing-ID refusal meaningful.
+- The canonical host gate, full repository checks, browser checks, exact-SHA CI, migration lint and publication remain with the root agent after Astra review. No push or integration is performed by this worker.
+
+- Final restored-source command `bun test ./libs/wbs/application/core/src/module/work-item/work-item.resource.test.ts ./apps/wbs/be-01/src/controller/step-node-attempt.controller.db.test.ts ./apps/wbs/be-01/src/service/undo.db.test.ts ./libs/wbs/application/core/src/service/compensating.test.ts ./libs/wbs/application/core/src/module/plan-commands/plan-commands.test.ts` passed **321 tests, 0 failures, 1131 assertions** (`/tmp/move-focused-restored.log`).
+- `bunx tsc --build --force libs/wbs/application/core/tsconfig.json apps/wbs/be-01/tsconfig.lib.json apps/wbs/be-01/tsconfig.spec.json` passed, exit 0 (`/tmp/move-tsc-restored.log`). `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-core:lint` and `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-be-01:lint` both passed, exit 0 (`/tmp/move-lint-{core,be}-final.log`). Changed-file direct ESLint also passed after fixture correction. Strict change validation via `bun /tmp/bunx-1000-@fission-ai/openspec@1.12.0/node_modules/@fission-ai/openspec/bin/openspec.js validate add-step-node-blocking --strict --json` passed one change with zero issues; plain `openspec` remains absent from PATH. Changed-file Prettier and `git diff --check` passed.
+
+### Astra correction — exact historical progress allowance
+
+- Astra's review of `061b089136ad06003817437fa5ec2204b2686c05` found that a parent holding historical `done` progress at stated time 123 could lose its last child successfully, but immediate undo refused despite no intervening write. Red memory and mounted SQLite regressions reproduced the refusal; decoder/touched tests also failed before implementation (`/tmp/move-history-red.log`, 6 failures).
+- The inverse internal `move` now carries optional `expectedProgress`, captured before the last-child departure. Replay compares the complete current destination leaf progress set by owner/step/state/stated time without depending on order. Absence explicitly requires an empty set for legacy journals. Exact historical rows stay in place through undo/redo, including all stored/audit columns; they are never cleared or restated. Added, missing or changed facts refuse even with unchanged owner revisions. Blockage refusal remains unconditional. This snapshot is comparison metadata, not a new public command or schema.
+- `readCommand` validates a present array, exact destination ownership, project-step identity shape, stored state, safe-integer time and unique steps. `referencesOf` includes the snapshot steps for scope checks. `touchedBy` and recursive `expectedProgressOwnersOf` retain only captured historical owners through both replay directions. A generic union of all old expected owners was considered and rejected in favor of this move-specific tracking. Production replay/history callers were read before the change; neighboring parent edits, repeated undo/redo and unrelated-owner exclusion are covered without changing other command owner sets.
+- New memory/mounted cases cover immediate undo/redo and second undo, state/time/extra-step/missing-fact refusal, complete snapshot rollback through the transactional memory runner, order-independent two-step comparison, legacy absent allowance, malformed persisted snapshot refusal, foreign-step scoped refusal, retained parent revision after redo, unrelated owner exclusion, and neighboring parent edit rebasing. All existing no-history stale tests remain in the focused run.
+- Eight watched fault runs each exited 1 and were restored before validation: bypassing snapshot equality made four mounted state/time/extra/missing cases return 200 and four transactional memory cases apply instead of refuse; dropping direction snapshot owners let the second undo ignore a changed parent revision; omitting inverse capture refused immediate historical undo; bypassing array validation replaced the named trusted-history failure with a raw iteration error; accepting duplicate steps returned modeled 409 rather than trusted-state 500; bypassing fact-field validation returned modeled 409/404 rather than 500; omitting snapshot scope references returned 409 rather than 404 for a foreign step. Adjacent `Proof:` comments name each observed boundary. Transcripts are `/tmp/move-history-proof-{equality,memory-equality,owner-flip,capture,array-shape,duplicate-step,references,fact-fields}.log`.
+- **Compatibility blocker found at the first corrected candidate (closed for Compose below):** the optional move snapshot was persisted safety metadata absent from the older-binary inventory. Review established that an older binary could ignore the guard, so this became required implementation work. The subsequent correction below adds enforced capability detection at both enabled Compose swap phases. Kubernetes remains an explicit pre-cutover obligation.
+
+- The five-file focused command passed **345 tests, 0 failures, 1250 assertions** (`/tmp/move-history-full.log`). Scoped three-config TypeScript passed. Backend Nx lint passed. Core Nx lint initially returned nonzero without diagnostics; direct changed-file ESLint exposed unsafe accesses after `Array.isArray` narrowed to `any[]`. Binding the validated array as `readonly unknown[]` before per-fact narrowing fixed the boundary without casts. Restored-source direct changed-file ESLint and core Nx lint then passed, exit 0 (`/tmp/move-history-eslint-final.log`, `/tmp/move-history-lint-core-final.log`); decoder tests passed 3/3 after this typing fix. Backend lint evidence is `/tmp/move-history-lint-be.log`. Strict OpenSpec validation passed one change with zero issues.
+- Final restored-source rerun after decoder typing correction also passed **345 tests, 0 failures, 1250 assertions** (`/tmp/move-history-full-final.log`); the scoped three-config TypeScript command passed independently with exit 0 (`/tmp/move-history-tsc-restored.log`). Changed-file Prettier check, strict OpenSpec and `git diff --check` passed. No push, full host gate, browser run, integration or exact-SHA CI was performed by this worker.
+
+### Astra corrections — pre-batch destination guard and Compose capability enforcement
+
+- Review of `1a5f2e0d15946851ae327a9bbf1829ec0dd84799` reproduced a second data-loss path: after undo restored destination Dev, direct SQL changed its state/time without an owner revision; redo's unconditional `clear_progress` deleted it before `applyMove` could observe the fact. `/tmp/move-redo-red.log` watched the new state/time/missing-fact mounted cases return 200 and the precondition decoder drop the new map (4 failures). A separate independent inventory probe returned `[]` for guarded move history. `/tmp/move-inventory-red.log` watched missing marker inventories fail their capability assertions.
+- A move clearing destination progress now records destination owners in optional `Preconditions.moveProgress`. Replay validates/scopes complete owner-bound sets and compares them before any batch step. Successful flip captures the actual restored timestamps, preserving established `set_progress` restamping. Neighboring replay refreshes only owners that pass the existing revision-equality rebase condition; mismatches keep stale snapshots and refuse. Collected command batches retain the destination owners. The inverse move's exact historical-parent `expectedProgress` allowance remains independent and unchanged.
+- Added mounted and transactional memory known-step state/time/removal negatives, collected-batch refusal, malformed persisted metadata, scoped steps and owners with empty snapshots, valid neighboring progress undo/redo with new timestamps, and mismatched-revision stale-snapshot retention. Full snapshots prove tree/facts/events remain unchanged; modeled stale journal discard follows existing policy. The parser shares the owner/step/state/time/unique-step boundary with historical snapshots and explicitly validates nonempty owner keys and map shape.
+- The candidate CLI advertises `['replace_blockage','move_progress_v1']` through a separate capability constant; decoder discriminators remain unchanged and reject the feature token as a command. The independent inline SQL probe reads payload, inverse and preconditions, recurses nested batches, detects own `move.expectedProgress` and `Preconditions.moveProgress` properties including empty arrays/maps, and requires `move_progress_v1` once per journal row. Existing replacement-command counts are unchanged. Missing/unreadable database/source checks remain active. Both enabled Compose phases reject empty or prior `['replace_blockage']` image capability sets with only guarded move history and no blockage facts/commands; the matching-token control succeeds. The post-stop tests execute the actual SQLite probe before/after insertion and verify the outgoing writer stopped and candidate never committed. Pre-migration refusal stops green and leaves blue running; its existing abort phase marker rewinds to the previous committed state, which is not a new release commit.
+- Nineteen watched faults each exited 1, restored after each run: bypass pre-batch equality in SQLite/memory; drop flip snapshots; omit conditional rebase refresh; bypass rebase revision equality; drop collected owners; omit scoped metadata steps/owners; bypass metadata map/empty-owner validation or guarded snapshot destination validation; omit move/precondition marker detection; omit inverse/nested traversal; bypass independent preconditions object validation; omit the CLI capability; bypass move-token membership only before migration or only after stop. Adjacent `Proof:` comments identify observed boundaries. Transcripts: `/tmp/move-safety-proof-{prebatch,memory-prebatch,flip,rebase-refresh,rebase-revision,collected,metadata-scope,metadata-owner-scope,metadata-map,metadata-owner,snapshot-destination,move-marker,precondition-marker,inverse-inventory,nested-inventory,preconditions-shape,candidate-capability,swap-first,swap-second}.log`.
+- **Kubernetes scope:** repository cutover notes and F11 tasks identify Kubernetes WBS delivery as prepared and not yet applied to staging/prod; Compose is the enabled release path. This slice does not implement a Kubernetes replay guard. The active design and `docs/infra/cutover-plan.md` / F11.1 now require independent replay inventory against incoming/previous image digest capabilities after writer stop and before capture/migrate, plus rollback checking before rollout/writer reopening, refusal retaining fence/lease, and watched nested-marker omission proofs before guarded-history import or first rollout. Existing migration-capability capture/restore does not satisfy that prerequisite.
+
+- **Release-history boundary:** drafts `061b089` and `1a5f2e0` were never pushed or deployed. The released base did not clear destination progress during moves, so no production progress-clearing journal requires a fabricated snapshot upgrade. Absent metadata keeps legacy-optional read semantics; the correction does not invent post-undo timestamps for older draft histories. The parent agent confirmed this release-history assumption before the corrected commit.
+- Final restored candidate checks: the five-file focused Bun command passed **362 tests, 0 failures, 1353 assertions** (`/tmp/move-safety-candidate.log`). Full remote command `bun test --preload ./tools/test/scratch/preload.ts --timeout=10000 ./tools/tool-remote-scripts/src/lib/docker.test.ts ./tools/tool-remote-scripts/src/swap.test.ts` passed **233 tests, 0 failures, 678 assertions** (`/tmp/move-safety-remote.log`), including existing absence/unreadability cases and the production backend config boot probes. `bunx tsc --build --force libs/wbs/application/core/tsconfig.json apps/wbs/be-01/tsconfig.lib.json apps/wbs/be-01/tsconfig.spec.json tools/tool-remote-scripts/tsconfig.json` passed independently, exit 0 (`/tmp/move-safety-candidate-tsc.log`).
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-core:lint`, `wbs-be-01:lint` and `tool-remote-scripts:lint` each passed, exit 0 (`/tmp/move-safety-lint-{core,be,remote}.log`). Initial direct changed-file ESLint exposed a test array-index narrowing, an untyped `Object.fromEntries` tuple return, and import order; `.at(0)`, an explicit typed tuple return and sorted imports fixed them before the project lint runs. Prettier, strict OpenSpec for both `add-step-node-blocking` and `k3s-wbs-delivery`, and `git diff --check` passed. No push, integration, canonical host gate, browser run or exact-SHA CI was performed by this worker; those remain with the parent agent after review. Kubernetes replay protection remains unimplemented and is a documented cutover prerequisite.
+
+### Astra correction — prevent snapshot laundering during neighboring replay
+
+- Review of `ed7b88cf62d20fb8bb144e911cd0ecb322fedc24` found that owner revision eligibility alone allowed a neighboring rename to replace the whole move snapshot with current facts. Mounted reproduction: done Dev → rename → move → undo move → SQL change Dev state/time without revision → undo/redo rename → redo move returned 200 and deleted progress. `/tmp/move-rebase-red.log` reproduces that rename case and five mixed QA state/time/removal/addition/nested-batch cases against the reviewed source; all six failed. Transactional memory rename and progress cases also failed against the reviewed source (`/tmp/move-rebase-memory-red.log`, two failures). The memory arrangement uses a step already present in the project's step inventory; an initial unregistered-step arrangement was corrected before counting the red proof.
+- The implementation captures guarded neighbor owner sets before replay. `progressKeysOf` inventories exact owner/step pairs of the actual selected command only, recursively through batches and explicit structural `progress`, `removedProgress` and `setProgress` rows. It grants no permission to all steps on an owner. Rebase preserves the existing revision condition, compares complete before/recorded sets outside those write pairs, and retains the full stale snapshot on any mismatch. Only a matching chain merges recorded unwritten facts with actual post-replay facts inside the write pairs. Thus rename cannot accept Dev changes, and a Dev replay cannot accept changed, added or missing QA. Valid Dev timestamp chains and untouched QA remain supported; inverse historical-parent allowances and Compose capability fields are unchanged.
+- The first full-before-set comparison refused the legitimate progress undo/redo chain because the counterpart's undo removed Dev before its redo. That approach was replaced with the reviewed exact-pair exclusion and selective merge. Mixed QA tests additionally assert the entire stored move snapshot stays unchanged, preventing another later guard from hiding a laundering failure. A valid Dev/QA case checks every stored QA column through Dev replay. Existing revision-mismatch and valid-chain regressions remain active.
+- Seven watched faults each exited 1 and were restored: expanding exact replay pairs to every captured/recorded owner fact failed mounted and memory cases; bypassing outside-pair equality changed stale QA snapshots; including unwritten post-replay rows duplicated QA and refused the valid Dev/QA chain; omitting structural removed-progress, delete progress or nested-batch key attribution failed the production planner tests. Adjacent `Proof:` comments identify those boundaries. Transcripts: `/tmp/move-rebase-proof-{whole-owner,memory-whole-owner,outside-check,selective-merge,structural-keys,delete-keys,nested-keys}.log`.
+
+- Final restored correction checks: the five-file focused command listed above passed **372 tests, 0 failures, 1440 assertions** (`/tmp/move-rebase-full.log`). `bunx tsc --build --force libs/wbs/application/core/tsconfig.json apps/wbs/be-01/tsconfig.lib.json apps/wbs/be-01/tsconfig.spec.json` passed, exit 0 (`/tmp/move-rebase-tsc.log`). `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-core:lint` and `wbs-be-01:lint` both passed, exit 0 (`/tmp/move-rebase-lint-{core,be}.log`); direct changed-file ESLint also passed. Prettier on all nine changed files, strict `add-step-node-blocking` validation and `git diff --check` passed. Compose code and tests are unchanged by this correction; the preceding 233-test Compose result remains its last observed evidence. No remote-suite rerun, browser run, canonical host gate, exact-SHA CI, integration or push was performed for this correction. The parent owns Astra review, subsequent rebase onto corrected #418, and the canonical gate.
+
+### Composition on corrected first-child base
+
+- Rebased all four reviewed move commits from `41b4dc3dfe15b4e6f48dc42cda65f42d80f25c6b` onto corrected #418 exact `92810afc371f91de7cd0895c5644788ecb41bc72`. No conflicts. `git range-diff 41b4dc3d..review/move-before-composition 92810afc..af88d750` reports `=` for every move patch; all prior watched proofs and behavior changes are preserved. The base correction changes cache inputs and migration-test setup, not move behavior.
+- Fresh five-file focused command passed **372 tests, 0 failures, 1440 assertions** (`/tmp/move-composition-focused.log`). Full two-file Compose command with scratch preload passed **233 tests, 0 failures, 678 assertions** (`/tmp/move-composition-remote.log`). Scoped core/backend/remote TypeScript build, Nx lint for `wbs-core`, `wbs-be-01` and `tool-remote-scripts`, Prettier over the move range, strict OpenSpec for both changed proposals and `git diff --check` passed. Commands match the preceding checkpoints; transcript prefixes are `/tmp/move-composition-{tsc,lint-core,lint-be,lint-remote,format,openspec,k3s-openspec}.log`.
+- Additional corrected-base migration/devsync suites exposed an undeclared external test read: `tool-remote-scripts:test` did not list the replay-capability CLI. Added only `{workspaceRoot}/apps/wbs/be-01/src/step-blockage-replay-kinds-cli.ts` to that target's inputs. Watched omission fails the existing production cache-input inventory naming exactly that file (`/tmp/move-composition-input-red.log`); the adjacent `Proof:` comment records this boundary. Restored `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bun test ./libs/wbs/adapters/store-sqlite/src/step-estimate-unit-migration.db.test.ts ./tools/tool-devsync/src/workspace-targets.test.ts` passed **36 tests, 0 failures, 111 assertions** (`/tmp/move-composition-base-tests.log`); `tool-devsync:lint` passed.
+- Real Nx hash proof uses installed `createProjectGraphAsync`, `createTaskGraph`, `createTaskHasher` and `hashTask` in `tmp/move-capability-hash.ts`. Command: `NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_CACHE_PROJECT_GRAPH=false bun tmp/move-capability-hash.ts`, fresh process per observation, spaced source writes, manifest unchanged within each pair. With the exact input omitted, a CLI comment edit leaves the task hash `1552038832080305340` unchanged. With the input declared, that same edit changes `1286086258489298364` to `15056339630164292620` (`/tmp/move-composition-hash.log`). Both injected files were restored in `finally`. An initial probe reused graph caching and observed no declared-input change; it was replaced with explicit graph-cache disabling and spaced writes before counting this proof.
+- No push, canonical host gate, browser run or exact-SHA CI performed here. Astra composition review and the parent-owned canonical gate remain pending; Kubernetes replay protection remains the documented pre-cutover obligation.
+
+## CI repair: independent move graph refusal (2026-10-14)
+
+- Before repair: `bun test apps/wbs/be-01/src/controller/typed-dependency-graph.controller.db.test.ts --timeout=10000` reported 11 pass, 1 fail: the legacy move undo reached the newer owner revision guard (`“P” has changed since then.`).
+- Retained that ordinary stale revision scenario and added the same graph scenario with only journal revision evidence refreshed to current owner revisions. Production guards are unchanged.
+- Watched negative: temporarily bypassed the post-apply replay `findCycle` refusal; `--test-name-pattern 'a legacy cycle after refreshing'` reported 0 pass, 1 fail, HTTP 200 instead of 409. Restored production code.
+- Repaired file: 13 pass, 0 fail. Full canonical gate deferred to the PM gate queue; no full Nx gates run here.
+
+## Task 3.0.4 — work-item deletion closure (2026-10-14)
+
+Base: exact #424 `e9d420272b8a0115c16b83f45c84b24ae82c68d4`. Isolated local clone `/tmp/puni-step-blockage-delete`, branch `step-blockage-delete`; the shared checkout and #424 tree were not edited. No push, UI, public setter, project-step deletion, deployment or live action.
+
+### Behavior and regression evidence
+
+- Initial RED: `bun test libs/wbs/application/core/src/module/work-item/work-item.resource.test.ts --test-name-pattern 'deleting blocked'` — 0 pass, 4 fail. Memory deletion left an orphaned blockage and its next real plan read threw `step blockage has an invalid work-item reference`. SQLite's cascade would instead lose that fact.
+- Final focused regression: `bun test libs/wbs/application/core/src/module/work-item/work-item.resource.test.ts libs/wbs/application/core/src/service/compensating.test.ts libs/wbs/application/core/src/module/plan-commands/plan-commands.test.ts apps/wbs/be-01/src/controller/step-node-attempt.controller.db.test.ts apps/wbs/be-01/src/service/undo.db.test.ts tools/tool-remote-scripts/src/swap.test.ts` — **534 pass, 0 fail, 1922 assertions, 46.28s**. Includes root/cascade exact restoration beneath done, per-step unanimous negative-time hand-up, partial disagreement, existing deletion progress fold, historical parent progress, promotion, stale parent progress with unchanged revisions, changed/missing/added subtree blockage, unrecorded parent blockage, collected mixed commands, parent revision after flip, neighboring rename/progress replay and first-child/move/duplicate regressions.
+- Memory runner rollback: later command refusal restores rows/progress/blockage; injected blockage restore failure after owner insertion restores the same snapshot. Mounted SQLite rollback: later command refusal and a trigger failing the second blockage insert preserve rows, exact facts, progress, events and journal snapshot. Expected endpoint error logging accompanies the injected 500s. Stale 409 tests preserve tree/facts/events and observe the intended one-entry journal discard.
+- Decoder regression after consolidating metadata references: `bun test libs/wbs/application/core/src/service/compensating.test.ts` — **27 pass, 0 fail, 75 assertions**. Present deletion metadata validates owner membership, safe times, unique pairs, parent binding and historical progress. Mounted malformed owner/time/duplicate cases additionally spy on the real `SubtreeRepository.insertSubtree`: refusal must happen before insertion is attempted, independently of transaction rollback.
+- Replay compatibility: `bun test tools/tool-remote-scripts/src/lib/docker.test.ts --test-name-pattern 'step blockage replay compatibility probes'` — **13 pass, 0 fail, 40 assertions**. Independent SQLite inventory covers nested forward, inverse and both directions, empty metadata, once-per-journal-row counting and a following markerless row, plus the existing absent/unreadable database/source controls. Compose admission tests cover prior capability refusal before migration and after writer stop, and matching-capability admission.
+
+### Watched production-path faults
+
+Each injected fault below produced exit 1; the original production source was restored before GREEN runs. Local detailed logs are `/tmp/delete-proof-<fault>.log` (and `/tmp/delete-proofs-second.log` for the repeated boundary series).
+
+| Fault                                                | Observed failing production-path test                                             |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Drop deletion blockage capture                       | Root leaf delete/undo throws invalid work-item reference                          |
+| Skip subtree blockage restoration                    | Mounted done-leaf undo loses exact blockage                                       |
+| Accept any former leaf instead of every leaf         | Mounted cascade incorrectly hands partial QA blockage up                          |
+| Seed maximum blocked time with zero                  | Mounted cascade gets 0 instead of -10                                             |
+| Bypass complete pre-batch progress equality          | Peer parent progress undo returns 200 instead of 409                              |
+| Skip complete parent blockage comparison             | Unrecorded parent blockage undo reaches insertion and returns 500 instead of 409  |
+| Skip complete removed-owner blockage comparison      | Added subtree blockage redo returns 200 instead of 409                            |
+| Skip historical parent statement restoration         | Mounted deletion undo loses original state/time                                   |
+| Ignore conditional replacement refusal               | Refused deletion blockage hand-up resolves                                        |
+| Ignore historical progress store refusal             | Refused historical progress restoration resolves                                  |
+| Remove mandatory parent progress snapshot validation | Damaged deletion history undo returns 200 instead of 500                          |
+| Omit safe-time validation                            | Mounted malformed time attempts subtree insertion                                 |
+| Omit blockage owner membership                       | Mounted malformed owner attempts subtree insertion                                |
+| Omit duplicate-pair refusal                          | Mounted duplicate metadata attempts subtree insertion                             |
+| Omit restored-root parent binding                    | Decoder accepts wrong restoration parent                                          |
+| Omit live-root parent binding                        | Persisted redo accepts a different removal parent, 200 instead of 500             |
+| Omit deletion parent from flip owner tracking        | Peer parent revision after undo is accepted on redo, 200 instead of 409           |
+| Drop collected progress snapshot owners              | Collected deletion undo returns 500 instead of 200                                |
+| Drop progress snapshots at flip                      | Deletion redo returns 500 instead of 200                                          |
+| Disable exact-pair neighbor progress refresh         | Legitimate neighboring progress undo/redo returns 409 instead of 200              |
+| Omit metadata replay references                      | Empty parent and recorded step disappear from replay reference test               |
+| Omit deletion compatibility marker                   | Nested empty forward/inverse inventories return `[]`                              |
+| Omit per-row deletion marker reset                   | Following markerless row is counted as a second deletion entry                    |
+| Bypass supported-capability comparison               | Before/after-stop deletion admission negatives no longer refuse `delete_state_v1` |
+
+### Scoped checks and delivery boundary
+
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint:fast -p wbs-core,wbs-be-01,tool-remote-scripts --output-style=static` — all three targets passed. Initial lint found unsafe inferred arrays and test typing; the boundary now narrows from `readonly unknown[]`, and those failures were corrected. An initial plain Nx invocation could not use sandbox sockets and did not prove task execution; explicit in-process Nx settings produced the recorded target output.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t typecheck -p wbs-core,wbs-be-01,tool-remote-scripts --output-style=static` — all five tasks passed in the final rerun (0/5 cache hits, 37.4s). Initial codec-test fixture typing failure was corrected before this run.
+- `bunx @fission-ai/openspec@1.12.0 validate add-step-node-blocking --strict --json` — valid, zero issues.
+- Explicit Prettier check over all 15 changed files — all matched files use Prettier code style. `git diff --check` — exit 0.
+- Final mounted deletion-only rerun after metadata-reference consolidation and generic guarded-progress refusal wording: `bun test apps/wbs/be-01/src/controller/step-node-attempt.controller.db.test.ts --test-name-pattern 'deletion blockage preservation'` — **26 pass, 0 fail, 124 assertions, 9.25s**.
+- New image capability: `delete_state_v1`. Inventory detects own `deletionState` on `delete_subtree`/`restore_subtree` recursively in **both** stored journal directions, including empty metadata, once per journal row. Existing `moveProgress` snapshots cumulatively require `move_progress_v1`; fact rollback never erases history compatibility obligations.
+- Kubernetes #428/#429 integration was coordinated with F11.1c's worker, who reported its independent inventory and all replay/cutover capability validators now recognize `delete_state_v1` with watched omission proofs. Those edits are on that worker's branch, not this one; parent integration must review both branches together. This branch alone claims Compose protection only.
+- The full exact-SHA host gate, uncached full lint/build, CI secrets/migration lint, browser checks and live release actions were **not run in this bounded worker slice**. Parent integration owns `bin/h2puni-gate.sh <candidate-sha>` and Astra review before merge. The broader WBS feature remains unfinished; task 3.0.4 alone is checked off.
+
+## CI repair: independent delete restore shape refusal (2026-10-14)
+
+- Before repair: `bun test apps/wbs/be-01/src/controller/typed-dependency-lifecycle.controller.db.test.ts --timeout=10000` reported 11 pass, 1 fail: a peer typed relationship bumped the surviving parent revision, so undo refused with `“010” has changed since then.` before restore shape validation.
+- Retained the stale surviving parent scenario and added the same relationship scenario with journal revision evidence refreshed to current owner revisions. The refreshed case asserts the exact peer relationship refusal and unchanged deleted child/relationship state.
+- Watched negative: temporarily bypassed `applyRestore` typed shape validation; `--test-name-pattern 'pinned peer relationship after refreshing'` reported 0 pass, 1 fail, HTTP 500 instead of 409 (the later graph resolver detected a node endpoint on a parent). Restored production code.
+- Repaired file: 13 pass, 0 fail. Canonical gate remains queued by the PM.
+
+## Task 3.0.5 — project-step deletion closure (2026-10-14)
+
+Base: reviewed/published #433 exact `11500ac09bedc3eaa722749d1417f4d1f80af4b0`. Isolated clone `/tmp/puni-step-delete-sol`, branch `feat/step-blockage-step-delete-sol`. Root checkout unchanged. No push, merge, full host gate or deployment in this worker slice.
+
+### Behavior and focused evidence
+
+Internal `StepHoldings`, `StepUsageRows`, `StepInUse` and `StepRemoval` require a separate `blockages` count. SQLite reads direct facts independent of progress precedence, counts again in the removal transaction, explicitly removes restrictive-FK facts on confirmed cascade and includes blockage-only owners in the revision union. The existing scoped replay reference check refuses removed steps before restoration. HTTP compatibility alone permits an absent older-server count; confirmation text renders unknown explicitly and includes reported zero.
+
+- Initial RED: `bun test apps/wbs/be-01/src/service/step.service.db.test.ts --test-name-pattern 'blockage|blockages'` — four failures, initially reaching the restrictive foreign key instead of the intended refusal/cascade/late revision failure. Initial UI RED: `bunx vitest run src/components/wbs/steps-panel.test.tsx -t 'discloses direct blockage'` from fe-01 — failed because the confirmation omitted `2 step blockages`.
+- `bun test libs/wbs/adapters/store-sqlite/src/step.db.test.ts libs/wbs/application/core/src/http/step.routes.test.ts apps/wbs/be-01/src/controller/step.controller.db.test.ts libs/wbs/domain/contracts/src/http/step-shapes.test.ts libs/wbs/domain/contracts/src/http/refusal.test.ts` — **105 pass, 0 fail, 540 assertions** (`/tmp/step-delete-focused-contracts.log`).
+- `bun test apps/wbs/be-01/src/service/step.service.db.test.ts apps/wbs/be-01/src/controller/step-node-attempt.controller.db.test.ts` — **146 pass, 0 fail, 751 assertions** (`/tmp/step-delete-service-mounted.log`). Expected endpoint error logs accompany injected failures. This run includes direct/retained-done HTTP conflicts, cascade, late-arriving facts, blockage-only owner revision and unrelated-fact preservation, exact rollback, removed-step first-child replay refusal, and existing structural/attempt regressions.
+- Two subsequently added mounted deletion-history undo/redo cases passed **2 tests, 0 failures, 9 assertions** with `bun test apps/wbs/be-01/src/controller/step-node-attempt.controller.db.test.ts --test-name-pattern 'refuses deletion .* history'`. Both deletion and first-child cases erase expected revision evidence and still refuse removed-step replay with scoped 404 before restoration.
+- Final service and OpenAPI shape check: `bun test apps/wbs/be-01/src/service/step.service.db.test.ts libs/wbs/domain/contracts/src/http/step-shapes.test.ts` — **32 pass, 0 fail, 98 assertions** (`/tmp/step-delete-final-small.log`).
+- `bunx vitest run src/components/wbs/steps-panel.test.tsx` from fe-01 — **50 pass, 0 fail** (`/tmp/step-delete-ui.log`). The mounted confirmation discloses two blockage facts; sentence tests include zero and omitted older-server fields. Vite emitted its existing native config loader warning.
+
+### Watched R5 faults
+
+Every mutation exited 1 and was restored before subsequent checks. Detailed logs: `/tmp/step-delete-proof-<fault>.log`.
+
+| Injected fault                                                       | Observed production-path failure                                                   |
+| -------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Omit blockage from shared holdings predicate (`holdings`)            | Blockage-only refusal deletes the step instead of refusing                         |
+| Zero blockage counts (`fresh-count`)                                 | Late-arriving blockage request succeeds instead of returning `in_use`              |
+| Omit explicit blockage deletion (`delete`)                           | Confirmed cascade fails with restrictive foreign key                               |
+| Omit blockage owners from revision union (`owner-bump`)              | Confirmed cascade loses blockage-only owner revision/removal owner set             |
+| Bypass missing-step replay reference validation (`replay-reference`) | First-child undo/redo returns 409 instead of the intended scoped 404 before replay |
+| Bypass older-server unknown branch (`unknown`)                       | Omitted count renders an undefined count instead of the explicit unknown sentence  |
+
+The late project-revision trigger additionally exercises the real transaction failure path after fact deletion, step deletion and owner bumps; service and mounted snapshots show facts, step, owner/project revisions, events and journal restored. No migration, document v8, saved schema6, scheduler16 or replay discriminator/capability changed.
+
+### Scoped verification and delivery boundary
+
+- Scoped TypeScript build: `bunx tsc --build --force libs/wbs/application/core/tsconfig.json libs/wbs/adapters/store-sqlite/tsconfig.json libs/wbs/adapters/store-memory/tsconfig.json apps/wbs/be-01/tsconfig.spec.json apps/wbs/fe-01/tsconfig.json` — passed, no diagnostics (`/tmp/step-delete-types.log`). Initial failures identified existing fixtures needing the new required internal count; those fixtures now report explicit zero.
+- Strict OpenSpec: `bunx @fission-ai/openspec@1.12.0 validate add-step-node-blocking --strict --json` — valid, zero issues. `git diff --check` passed.
+- Final seven-project lint: `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint:fast -p wbs-core,wbs-be-01,wbs-fe-01,wbs-store-sqlite,wbs-store-memory,wbs-domain,wbs-contracts --output-style=static` — all seven passed, 0/7 cache hits, 14.3s (`/tmp/step-delete-lint-final.log`). Initial run failed SQLite import ordering and backend test import/assertion lint; these were corrected before this successful rerun.
+- Final repeated scoped TypeScript build with the command above passed, exit 0 and no diagnostics (`/tmp/step-delete-types-final.log`).
+- `bunx @fission-ai/openspec@1.12.0 validate --all --json` — all registered specs/changes passed (`/tmp/step-delete-openspec-all.log`).
+- Explicit Prettier check over all changed files and `git diff --check` passed before commit.
+- Full canonical host gate, CI secrets/migration checks, full uncached lint/build and browser checks are **not run** in this bounded worker slice. Parent owns Astra review and `bin/h2puni-gate.sh <exact-candidate-sha>` before integration. The broader StepBlockage feature remains unfinished.
+
+## Task 4.2.1 — saved-plan direct capture, 2026-10-14
+
+Parent: `f069af34082983003b0714ca59fd8532a396d605` (#436). Isolated clone `/tmp/puni-step-saved-sol`, branch `step-saved-plan-sol`. Schema7 was free against that exact parent; only saved input moves from schema6 to schema7. Document v8, scheduler16, migration and public commands are unchanged. Task 4.2.1 is complete; broader read/document/UI tasks remain open.
+
+Initial red: `bun test libs/wbs/domain/domain/src/saved-plan/step-blockages.test.ts` — 0 pass, 13 fail: schema6 instead of 7, omitted captured facts, absent pair diff and unrefused malformed facts. The implementation then passed those tests. Added split capture/read negatives, reference-shape negatives, hash changes, retained done facts, detached memory capture, SQLite capture before a concurrent clear, and complete Fast schedule neutrality.
+
+### Watched fault proofs
+
+Raw observed output lives in `evidence/saved-plan/`; `receipts.json` records each test filter and exit 1. Each corresponding validation has an adjacent `Proof:` comment. Every injection was restored before green checks.
+
+| Injected fault                            | Observed production-path failure                               |
+| ----------------------------------------- | -------------------------------------------------------------- |
+| Remove required collection guard          | Missing current collection loses named refusal on capture/read |
+| Remove reference-list guard               | Malformed owner list loses named stored-read refusal           |
+| Remove owner row shape guard              | Malformed owner row loses named stored-read refusal            |
+| Remove step row shape guard               | Malformed step row loses named stored-read refusal             |
+| Remove fact shape/time guard              | Fractional timestamp is accepted on capture/read               |
+| Remove owner membership guard             | Unknown owner is accepted on capture/read                      |
+| Remove leaf ownership guard               | Parent owner is accepted on capture/read                       |
+| Remove step membership guard              | Unknown step is accepted on capture/read                       |
+| Remove unique-pair guard                  | Duplicate direct pair is accepted on capture/read              |
+| Remove capture validation call            | Duplicate direct pair is accepted on capture                   |
+| Remove stored-read validation call        | Duplicate direct pair is accepted on current read              |
+| Omit empty schema6 upgrade collection     | Upgraded current input is missing required facts               |
+| Replace memory capture read with empty    | Detached saved capture loses exact direct fact                 |
+| Replace SQLite snapshot read with empty   | Capture before concurrent clear loses exact direct fact        |
+| Replace detached fold with empty          | Saved input loses direct fact while schedule remains computed  |
+| Filter blocked work out of schedule input | Schedule neutrality regression fails                           |
+
+### Scoped verification
+
+- Frozen offline Bun install passed with task temporary/cache directories: `BUN_TMPDIR=/tmp BUN_INSTALL_CACHE_DIR=/tmp/puni-saved-bun-cache bun install --frozen-lockfile --offline`.
+- Focused domain/capture/application/integrity suites: `bun test libs/wbs/domain/domain/src/saved-plan libs/wbs/application/core/src/service/saved-plan-input.test.ts libs/wbs/application/core/src/module/saved-plans/saved-plan-integrity.test.ts libs/wbs/adapters/store-memory/src/memory-source.test.ts libs/wbs/adapters/store-sqlite/src/saved-plan-capture.db.test.ts` — 165 passed, 0 failed, 756 expectations.
+- Shared memory/SQLite capture conformance: `bun test libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts -t capture` — 12 passed, 136 filtered, 0 failed, 1672 expectations.
+- Wider existing saved-plan service/store suites: `bun test apps/wbs/be-01/src/service/saved-plan*.test.ts libs/wbs/adapters/store-sqlite/src/saved-plan*.test.ts` — 157 passed, three existing busy tests encountered sandbox `EPERM` at child stdin.flush. Those three were separately rerun with the sandbox pipe restriction lifted: busy suite 1 passed, 0 failed; concurrency suite 2 passed, 0 failed.
+- Scoped TypeScript: `bunx tsc --build --force libs/wbs/adapters/store-memory/tsconfig.json libs/wbs/adapters/store-sqlite/tsconfig.json apps/wbs/be-01/tsconfig.spec.json apps/wbs/fe-01/tsconfig.json` — exit 0, no diagnostics.
+- Scoped lint: `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint:fast -p wbs-core,wbs-domain,wbs-store-memory,wbs-store-sqlite,wbs-conformance --output-style=static` — five projects passed, 0 cache hits. Initial direct ESLint lacked the Nx project graph and reported import sorting; corrected and rerun through Nx.
+- Pinned OpenSpec 1.12.0 strict validation — valid, zero issues. A newer installed CLI reports existing long-requirement warnings under strict mode; the repository's pinned CLI is the contract used here.
+- Full host gate, full uncached lint/build, CI secrets/migration lint and browser checks are not run in this bounded worker slice. Parent owns review and exact-SHA host gate before integration. No push, merge or live action was performed.
+
+- Final five-project scoped lint repeated after test/docs cleanup: passed, 0 cache hits, 4.2s.
+- Pinned OpenSpec 1.12.0 `validate --all --json`: 169 changes and 18 specs passed, zero failed.
+- Final TypeScript repeat passed with no diagnostics after retained-done regression and fixture cleanup. Prettier check over every changed source/spec and the receipts JSON passed. The precommit worktree `git diff --check` passed but excluded then-untracked evidence logs; review of `560096ac56c2d325a0f094c35fe094aac7c7d7d3` with `git diff --check HEAD^ HEAD` found trailing whitespace in `fold.txt` and `upgrade.txt`.
+
+### Publication correction after Astra review
+
+Removed the two trailing spaces from diagnostic source excerpts in `evidence/saved-plan/fold.txt` and `upgrade.txt`; all fault output and exit receipts are retained. The specification and design now name stored-body normalization for comparison as the validation boundary. `SavedPlanService.read`/`readOfStored` deliberately return opaque exact bytes: raw reads verify body hashes and the schedule-input hash link but do not parse the input. Malformed direct facts are refused when capture validates them or comparison parses and normalizes the stored body.
+
+Correction checks passed: focused `step-blockages.test.ts` (28 passed, 0 failed, 36 expectations), changed Markdown Prettier, pinned OpenSpec 1.12.0 strict validation (valid, zero issues), staged `git diff --check --cached`, and complete slice whitespace check from `f069af34082983003b0714ca59fd8532a396d605`. Final committed checks use `git diff --check HEAD^ HEAD` and `git diff --check f069af34082983003b0714ca59fd8532a396d605 HEAD`; the parent receives their observed exit status with the correction SHA. No production behavior changed; wider tests/type/lint and host gate were not repeated for this documentation/evidence correction.
+
+## PR #439 hosted CI repair — 2026-10-14
+
+Base: exact published parent `b4537c83e8f0767f14b6e9304b6475c63e7cc239`. Hosted CI run `38498885540` failed the workspace gate and Twilight policy job. The downloaded workspace artifact (`/tmp/puni-ci439-artifact/nx-gate.log`) reports two stale saved-body assertions, two `PlanInputReads` fixtures missing required `stepBlockages`, and the unindexed saved-plan test. The Twilight job (`/tmp/puni-pr439-twilight-job.log`) reports eight policy cases stopped by that same missing index membership.
+
+The existing Task 4.2.1 contract writes schema7, supports input versions 1–7, and requires a direct-fact collection even when empty. The repair aligns the existing assertions and fixtures with that contract and registers `step-blockages.test.ts` in its owning module index. Production behavior and safety checks are unchanged; no new R5 fault proof is required.
+
+### Reproduced failures
+
+- `bun test libs/wbs/application/core/src/module/saved-plans/module.test.ts apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts libs/wbs/application/core/src/ports/store-boundaries.test.ts libs/wbs/application/core/src/service/shared-people.test.ts --timeout=10000` — **70 pass, 2 fail**: expected schema6/versions 1–6, received schema7/versions 1–7 (`/tmp/pr439-repair-red-tests.log`).
+- `bunx tsc --build --force libs/wbs/application/core/tsconfig.json` — exit 2, exactly two TS2741 missing-collection fixture diagnostics (`/tmp/pr439-repair-red-types.log`).
+- `TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/node_modules bun test tools/tool-devsync/src/repo-namespacing-handoff.test.ts apps/twilight-structure/twilight-burokrat/cli/src/policy/pilot-policy.test.ts --preload ./tools/test/scratch/preload.ts --timeout=60000` — **36 pass, 2 fail**: the production index checker and first pilot CLI case both report `unindexed candidate path` for `step-blockages.test.ts` (`/tmp/pr439-repair-red-wiki.log`). The README repair landed while the later cases were running; this local run reproduces the two initial failures, while the immutable hosted run records all eight policy failures.
+
+### Repair verification
+
+- Frozen dependency install: `BUN_TMPDIR=/tmp bun install --frozen-lockfile` — exit 0, 1573 installs checked across 1447 packages. The initial invocation without `BUN_TMPDIR` was refused by the sandbox's temporary-directory boundary; no dependency changes were made.
+- Repeated four-file runtime command above — **72 pass, 0 fail, 234 expectations** (`/tmp/pr439-repair-green-tests.log`).
+- `bun test libs/wbs/domain/domain/src/saved-plan libs/wbs/application/core/src/service/saved-plan-input.test.ts libs/wbs/application/core/src/module/saved-plans/saved-plan-integrity.test.ts libs/wbs/adapters/store-memory/src/memory-source.test.ts libs/wbs/adapters/store-sqlite/src/saved-plan-capture.db.test.ts --timeout=10000` — **165 pass, 0 fail, 756 expectations** (`/tmp/pr439-repair-capture.log`).
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t typecheck -p wbs-core,wbs-be-01 --skip-nx-cache --output-style=static` — both projects and their module typechecks passed (`/tmp/pr439-repair-green-types.log`).
+- Same Nx selection with `-t lint` — both uncached project lint targets passed (`/tmp/pr439-repair-lint.log`).
+- Repeated production-index and Twilight pilot command above — **38 pass, 0 fail, 436 expectations** (`/tmp/pr439-repair-green-wiki.log`).
+- Pinned OpenSpec strict validation: `bunx @fission-ai/openspec@1.12.0 validate add-step-node-blocking --strict --json` — valid, zero issues.
+- Explicit Prettier check over the five repaired source/index files and `git diff --check` passed.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx format:check --all` — exit 0 (`/tmp/pr439-repair-format.log`).
+- Installed repository hooks with `nx run tool-git-hooks:install`; normal commit hooks passed staged lint/format, secrets, private nesting and agent trailers. The Tool Wiki hook explicitly reported inactive because no external activation root is provisioned; the production CLI regression suites above passed with their external trust fixtures.
+- `BUN_TMPDIR=/tmp BUN_INSTALL_CACHE_DIR=/tmp/pr439-bun-cache bunx @fission-ai/openspec@1.12.0 validate --all --json` — **187 passed, 0 failed**: 169 changes, 18 specs (`/tmp/pr439-repair-openspec.log`). The CLI reports version 1.12.0.
+
+Full canonical host gate, full workspace build/tests, browser checks, CI secrets and migration lint are not run in this worker slice. The parent owns review and the exact-candidate host gate before integration. No push, merge or deployment was performed.
+
+## Task 4.2.2: plan-document v9 direct transfer (2026-10-14)
+
+Base: `b4537c83e8f0767f14b6e9304b6475c63e7cc239` (#439), isolated clone
+`/tmp/puni-step-document-transfer-sol`. Allocation confirmed: plan-document8 → 9;
+saved input7 and scheduler16 unchanged. No migration or replay capability change.
+Import is another real blockage writer; drain incompatible binaries before enabling
+it during shared-SQLite overlap. The parent release owns exact-SHA gate and CI.
+
+TDD red receipts: v9 export expected9/received8; absent-current-facts expected
+invalid_body/received unsupported_version; preparation expected facts/received
+undefined and admitted unknown owners, steps, fractional/unsafe times and duplicate
+pairs; both source contracts expected remapped exact facts/received[]. Derived-cause
+omission test first failed because `blockageCauses` remained on the exported row.
+
+Watched production faults, each restored before verification:
+
+| Injected fault                                                           | Observed negative                                                                                                                                                                                                |
+| ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Omit root facts; retain row `blockages`; retain derived `blockageCauses` | Each corresponding v9 direct/cause export test failed, exit1.                                                                                                                                                    |
+| Bypass trusted missing-leaf-map, step, parent or time refusal            | Each `v9 trusted export refuses …` resolved unexpectedly, exit1.                                                                                                                                                 |
+| Bypass root legacy or row-alias legacy refusal                           | Nonempty v1–8 facts were accepted in the indexed-path tests, exit1.                                                                                                                                              |
+| Bypass v9 required list or fact object checks                            | Missing/null collection or null entry escaped typed refusal and threw unexpectedly, exit1.                                                                                                                       |
+| Bypass v9 owner/step/time type checks                                    | Malformed-facts tests admitted numeric IDs or fractional/unsafe timestamps, exit1.                                                                                                                               |
+| Bypass prepared owner/leaf, step, safe time or duplicate check           | Each precise-path prepare-import negative admitted invalid facts, exit1.                                                                                                                                         |
+| Bypass refused store outcome check                                       | `rolls back direct blockage import after refused` resolved and leaked the import, exit1.                                                                                                                         |
+| Skip imported fact write, owner remap, step remap or exact timestamp     | Memory source remap/time tests failed on missing facts, invalid owners/steps or changed time, exit1. Initial red exercised both memory and SQLite.                                                               |
+| Bind memory UoW directly to committed state                              | `rolls back direct blockage import after second-write` leaked project/directory state, exit1. A first injection hit a different clone seam and survived; the actual UoW seam was then injected and watched fail. |
+| Replace SQLite exception rollback with COMMIT                            | Mounted second-insert failure left tables changed; whole-state equality failed, exit1.                                                                                                                           |
+| Change Navigator pin7 → 9                                                | External v9 refusal had the wrong outcome/message, exit1.                                                                                                                                                        |
+| Leave root facts required in Navigator's strict external schema          | Valid pinned-v7 output path failed before writing, exit1.                                                                                                                                                        |
+
+Adjacent `Proof:` comments name the guards and observed tests. Mutation stdout is
+in `/tmp/step-transfer-mutations{,-extra}.log` with individual fault logs beside it.
+Mounted SQLite rollback compares every table, including projects, directory,
+blockage facts, events and journal, to its pre-import state. Both source contracts
+round-trip facts through a second import whose file IDs collide with existing
+identities, preserve negative timestamps and retained done facts, and compare
+schedule/progress projections before and after removing a fact on the same IDs.
+
+Verification commands and results:
+
+- Explicit-file focused Bun suite (resource/module, preparation, boundary fixtures,
+  both source contracts, Navigator, mounted controller, organization DB, project
+  controller, attempt DB and import shape): final receipt below.
+- `NX_TUI=false NX_DAEMON=false bunx nx run-many -t typecheck -p wbs-contracts,wbs-core,twilight-navigator,wbs-be-01 --parallel=1 --output-style=stream`: final receipt below.
+- Same touched projects with `-t lint`: final receipt below. Direct ESLint exposed
+  test-only unnecessary guards/chains/cast and Bun rejection-await typing hidden
+  by Nx's default output; corrected, fresh core Nx lint passed.
+- `bun apps/wbs/be-01/src/openapi/emit-openapi-cli.ts /tmp/step-transfer-openapi.json`:
+  exit0, generated current OpenAPI.
+- `BUN_TMPDIR=/tmp bunx @fission-ai/openspec@1.12.0 validate add-step-node-blocking --strict --json`:
+  exit0, valid1, failed0, no issues.
+- Changed-file Prettier and `git diff --check`: final receipt below.
+
+Two inherited schema7 fixture omissions were repaired with empty direct-fact
+collections in `store-boundaries.test.ts` and `shared-people.test.ts` because the
+exact base failed touched core typecheck on required `PlanInputReads.stepBlockages`.
+One broad Bun directory filter accidentally collected compiled test copies in
+`dist`; final commands use explicit source files. Expected error logs in mounted
+negative tests are injected faults and malformed trusted-state refusals.
+
+Skipped: full host gate, build, CI and release integration (parent PM/release scope;
+this bounded candidate is committed locally only). No push, merge or deployment.
+
+Final receipts: explicit-file focused suite **432 passed, 0 failed**, 13 files,
+1852 assertions (67.34s). Touched four-project typecheck **passed all six tasks**
+(48.1s). Touched four-project lint **passed**, with current input-matched cached
+contracts/Navigator results and fresh core/be-01 runs (54.0s). Final self-review
+added a malformed trusted map case: an injected empty array previously exported
+silently, making `v9 trusted export refuses a malformed leaf blockage map` fail;
+after the guard it passes. Final resource suite **48 passed, 0 failed**. The last
+guard's focused core checks are recorded below.
+
+Last-guard receipt: `NX_TUI=false NX_DAEMON=false bunx nx run-many -t lint,typecheck -p wbs-core --parallel=1 --output-style=stream`
+passed both targets and module dependency. Changed-file Prettier check passed and
+`git diff --check` exited0. Strict OpenSpec revalidation passed valid1/failed0.
+
+### PR #443 restack onto repaired #439 — 2026-10-14
+
+Replayed exact child `ac14ec27e9a0e5f940cfd31aa10cc682c8405555` from old
+parent `b4537c83e8f0767f14b6e9304b6475c63e7cc239` onto repaired parent
+`cfea15fd9155dff9485003a78700971ffba6c072` in isolated clone
+`/tmp/puni-step-document-sol`. The sole conflict appended both verification
+records. Removed duplicate `PlanInputReads.stepBlockages` fixture fields introduced
+by Git's automatic merge: the repaired parent already supplies both fields.
+Production behavior and safety guards retain the original child delta; no new R5
+check or fault injection was introduced.
+
+Fresh checks: explicit-file focused suite passed **362 tests, 0 failures, 1474
+expectations**; memory and SQLite import-source contracts passed **70 tests, 0
+failures, 370 expectations**. Strict pinned OpenSpec 1.12.0 validation passed with
+zero issues. Changed-file Prettier and `git diff --check` passed. Logs are
+`/tmp/step-document-restack-{tests,source-tests,openspec,format}.log`.
+
+Fresh `NX_TUI=false NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many
+-t lint,typecheck -p wbs-contracts,wbs-core,twilight-navigator,wbs-be-01
+--parallel=1 --output-style=stream` passed all ten targets without cache hits
+(`/tmp/step-document-restack-checks.log`).
+
+Full canonical host gate, build, browser checks, CI secrets and migration lint
+remain the parent integration scope. No push, merge or deployment was performed.
+
+## Cumulative release integration — 2026-10-14
+
+Integrated stabilization `8446c9c51e20c34695986f3095c58adbcb535685`, persistence
+`40eaa8c4e5c9ed6b2723aca3e29d34a0819f538e`, tooling
+`db192173d0908e61a30dd9c9da2ac87f25516574`, and frontend
+`b81363638532ea4fc3212bbe76cc28ea68850c34` with merge commits, preserving ancestry.
+Only text conflict: adjacent independent Proof comments in workspace-targets.test.ts;
+all retained. Navigator source merged to external v7/v8 decoding into internal v9
+with empty direct facts; external v9 remains refused. Updated this change's spec and
+design to the reviewed tooling contract.
+
+Fresh cumulative checks on pop-os, isolated clone
+`/tmp/puni-release-candidate-integration-sol`; complete logs are in
+`/tmp/puni-release-candidate-evidence/`:
+
+- Frozen Bun install: exit0 with BUN_TMPDIR=/tmp.
+- Navigator plan-reference plus workspace-targets: 48 pass, 0 fail.
+- Replay capability, cutover replay/CLI and fleet CLI/apply: 96 pass, 0 fail.
+- All forward migration.sql files through migration-lint.ts: exit0.
+- OpenSpec 1.12.0 validate --all --json: 196 passed, 0 failed.
+- Changed-file Prettier check and git diff --check: exit0.
+
+R5 production-path negative: the combined workspace graph oracle failed naming
+`wbs-be-01:test:host-restore` when its CLAUDECODE/AGENT environment was absent
+(47 pass, 1 fail). Explicit zero values restored 48/48; adjacent Proof comment
+records the observed fault. No new safety guard was added.
+
+The initial sandboxed FE unit run had 924 pass and 5 fail, including subprocess
+EPERM; it is not accepted as release validation. Broad tests/type/lint and focused
+Gantt/organization checks are recorded separately once complete. The h2puni gate,
+full browser suite, deployment and host rehearsal have not been run by this worker.
+
+### Combined frontend export contract fixture — 2026-10-14
+
+The broad cumulative FE run found two `wbs-api.test.ts` JSON download assertions
+rejecting with `invalid_response`. Isolated reproduction: 63 pass, 2 fail.
+The mocked export still advertised document v8 and omitted root `stepBlockages`,
+while the reviewed export response contract requires v9 and that collection.
+Updated only the fixture header, empty direct-fact collection and its description;
+the legacy import helper still removes that field for its v3 input. The current
+decoder and Navigator external v7/v8 support remain unchanged. Isolated rerun:
+65 pass, 0 fail. Logs: `json-transfer-red.log` and `json-transfer-green.log` in
+`/tmp/puni-release-candidate-evidence`. This corrects test state rather than adding
+a new production safety check.
+
+### Combined mounted unknown-version fixture — 2026-10-14
+
+The broad backend run ended at 2412 pass, 3 skip and 1 fail. The sole failure,
+`mounted unknown version precedes version-specific validation`, supplied v9,
+which this change makes current; it correctly reached the malformed priority
+field instead of returning `unsupported_version`. Changed only that test input
+to unsupported v10. Production parsing remains unchanged. The broad FE UTC
+run ended at 3985 pass and the two stale export fixtures corrected above; its
+Auckland command was skipped by the UTC failure. The complete broad command
+exited1; it is not a green final gate. Focused final checks are recorded in
+`/tmp/puni-release-candidate-evidence/`.
+
+## Immediate writer admission — 2026-10-14 (task 3.0.6)
+
+Base: `4bb78ec2674869c2bfd18114ef4f39e05d403863`, isolated clone `/tmp/puni-step-blockage-admission-sol`. The existing `20261013140000_add_step_node_blockages` migration and down bytes are unchanged (`git diff --exit-code -- apps/wbs/be-01/drizzle/20261013140000_add_step_node_blockages`, exit 0).
+
+Fresh focused checks:
+
+- `bun test` with explicit `./` operands for `step-blockage-activation.db.test.ts`, `step-blockage.db.test.ts`, `step-blockage-migration.db.test.ts`, `step-blockage-rollback.db.test.ts`, and HTTP `step-blockage-activation.test.ts`, `import-shapes.test.ts`, `step-shapes.test.ts`: exit 0, **63 pass, 0 fail, 233 assertions**. These include default-disabled independent writes, owner cascade, corrupt/missing authority and trigger definitions, wrong migration, unreadable connection, restart, full UoW rollback, all three nested journal inventory sources and guarded down retaining facts/history/ledger.
+- `bun test ./apps/wbs/be-01/src/boot.db.test.ts ./apps/wbs/be-01/src/controller/step-node-attempt.controller.db.test.ts ./apps/wbs/be-01/src/controller/import-export-organization.controller.db.test.ts --test-name-pattern 'blockage admission authority|writer admission is disabled|empty nested structural snapshots|v9 direct blockage transfer' --timeout=30000`: exit 0, **8 pass, 0 fail, 33 assertions**. Boot uses the existing injected listener/app seam because real sandbox listening refuses `EPERM`. Mounted import, deletion, undo and redo use real SQLite and production composition. Unexpected second-insert SQL still returns 500 and rolls back; inactive writes return 409 after rollback.
+- Earlier complete focused backend operands (step-node-attempt, composed import/export, undo service and step service): exit 0, **279 pass, 0 fail, 1250 assertions**. Existing empty and supported legacy import/read/export behavior remains covered.
+- Correct explicit-source adapter sweep: **1491 pass, 12 fail, 12954 assertions**. Eight failures were migration ascending/latest inventories, receipt snapshot scope and existing isolated fixtures requiring explicit admission. After correction, the exact eight targeted regressions pass: **8 pass, 0 fail, 1749 assertions**, including terminal SQLite conformance certification. Four child-process checks remain blocked by sandbox `EPERM` at `stdin.flush`: one browser lifecycle race, two saved-plan concurrency checks, and one saved-plan busy check. They require the composed candidate's host gate. An earlier invalid directory operand collected emitted `dist/out-tsc` tests; that run is discarded as a verification command, not classified as a product regression.
+- `bunx tsc --build --force libs/wbs/adapters/store-sqlite/tsconfig.json apps/wbs/be-01/tsconfig.json`: exit 0 with no diagnostics after final code changes.
+- Touched TypeScript ESLint, Prettier check, strict OpenSpec validation and `git diff --check` are recorded at the admission commit checkpoint below. The initial Nx lint used a sandbox-denied daemon socket and lacked full diagnostics; the final touched-file ESLint uses the generated project graph and supplies the actual evidence.
+- `bun run tools/tool-git-hooks/src/hooks/migration-lint.ts apps/wbs/be-01/drizzle/20261014140000_add_step_blockage_activation/migration.sql`: exit 0. The paired down is exercised both by retained-evidence negatives and successful empty rollback/reapply in the migration tests; destructive statements remain confined to down.
+
+Watched R5 evidence is retained in [writer-admission-omissions.txt](evidence/writer-admission-omissions.txt): **29 independent fault runs, each exit 1 at a named assertion**. Trigger omissions replace their migration statement with harmless `SELECT 1` so the real writer is reached; they produce “Received function did not throw.” Other faults separately omit SQL count/enabled predicates, marker count/id/state, ledger and exact trigger checks, readiness/boot calls, each forward/inverse/precondition inventory, disabled replay admission, mounted 409, native error class/code/exact message/cause traversal, UoW translation/rollback, and down fact/history guards. Removing a trigger while leaving an empty Drizzle statement was rejected as invalid proof and replaced before recording this evidence. [writer-admission-contract-omission.txt](evidence/writer-admission-contract-omission.txt) records the inactive schema discriminator replaced with `writer_disabled`; all five production endpoint schema/OpenAPI assertions fail.
+
+Raw project deletion already reaches the existing step foreign key restriction before fact deletion. Its test proves fact retention and preserves that foreign key error; it is not counted as a new admission-sentinel proof. Mounted work-item deletion reaches the new writer admission guard and retains earlier batch writes, journal and revisions on refusal.
+
+Release checks not claimed here: the exact-SHA h2puni format/test/lint/typecheck/build gate, hosted CI, #450 setter composition, old-writer barrier/F11.1d, and stopped-writer recovery integration. No production enable command or API was added. The existing lossless recovery CLI bytes remain intact; disabled remove/restore and retained-history down refuse visibly, as documented in the production runbook. Parent task 6.3 remains open.
+
+Admission checkpoint: touched TypeScript ESLint with the generated project graph, touched Prettier check, `openspec validate add-step-node-blocking --strict --json`, and `git diff --check` all exit 0. No h2puni gate/build or hosted CI result is inferred from these focused checks.
+
+### Public authoring, tasks 3.1–3.2 (2026-10-14)
+
+Exact base: `5693dccc48d20720729ea4a73404494d417092ad`; isolated clone `/tmp/puni-step-blockage-authoring-sol`. The registry accepts `setStepBlocked` with required boolean `isBlocked`, ID/ref+step or `stepNodeId`. The admitted graph writes and journals nullable exact-time conditional replacements. Equivalence follows ownership/leaf/step validation and precedes stamps, done refusal and writes. Existing replay restores beneath done. No migration, document/saved/scheduler version, replay discriminator/capability or CI trusted-wiki activation changed.
+
+RED: mounted command tests initially received `unknown_kind`/400 instead of 200 or their modeled refusal. GREEN: explicit source-file command below passed **133 tests, 0 failures, 681 assertions, 14 files**. Initial directory-selector run accidentally collected emitted `dist/out-tsc` test JavaScript and failed import resolution; that output was rejected as verification and rerun with explicit source filenames.
+
+```sh
+bun test $(rg --files libs/wbs/application/core/src/module/plan-commands -g '*.test.ts') libs/wbs/application/core/src/service/command-normalizers.test.ts libs/wbs/domain/contracts/src/commands/definitions.test.ts libs/wbs/domain/contracts/src/http/plan-command-shapes.test.ts apps/wbs/be-01/src/controller/step-node-blockage.controller.db.test.ts
+```
+
+Coverage includes ID/node/ref addresses, ownership/viewer/cross-organization refusal before equivalent clears, absent work item/step, parent and done refusals, full no-op SQLite snapshots including journal/history/events/audit/revisions, retained progress and exact-time replay under done, one collected undo/history unit, same-batch retained refresh, canonical scheduler input/full Fast equality, stale fact additions/removals/time changes despite forged unchanged revisions, removed-step and newly-parent replay refusal, and memory/mounted SQLite rollback after a later refusal or injected store refusal/throw. Memory assertions also verify no fanout on rollback. SQLite negative injected exceptions deliberately produce the normal error log and HTTP 500.
+
+Every fault below was applied sequentially to production source, its named test observed failing with exit 1, and source restored before continuing. Adjacent `Proof:` comments identify the observed checks. Logs are `/tmp/puni-authoring-proof-<name>.log` in the worker environment.
+
+| Check               | Injected fault                   | Observed production-path negative                                                                                               |
+| ------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| ownership           | Remove `context.ok` refusal      | `refuses direct service ownership before an equivalent clear` rejected instead of returning a modeled refusal                   |
+| leaf                | Remove leaf predicate            | `refuses a parent even when clearing an absent fact` received success                                                           |
+| project step        | Remove step predicate            | `refuses an unknown service step before an equivalent clear` received success; mounted route has an independent reference guard |
+| equivalent presence | Remove early return              | `equivalent presence and absence change no stored snapshot` observed changed stored snapshot                                    |
+| done                | Remove done predicate            | `refuses new blockage on done and rolls back an earlier batch write` committed forbidden batch                                  |
+| store refusal       | Ignore `unknown_step` outcome    | `rolls back a prior mutation and emits no fanout after a refuse store write` resolved and committed the earlier patch           |
+| boolean intent      | Remove normalizer flag predicate | `refuses missing and nonboolean blockage intent before dispatch` accepted invalid values                                        |
+
+Touched project typecheck passed for `wbs-core`, `wbs-contracts`, `wbs-be-01` and module checks (one unchanged contracts cache hit). Pinned `bunx @fission-ai/openspec@1.12.0 validate --all --json` exited 0. Final lint/format/diff evidence follows. Exact-candidate h2puni heavy gate, build, CI and browser verification remain coordinator work; this local slice does not claim those checks. Activation still requires old incompatible writer drain and Kubernetes F11.1d.
+
+Final local checks:
+
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint -p wbs-core,wbs-contracts,wbs-be-01 --output-style=static`: exit 0; all three passed, one unchanged contracts cache hit.
+- Matching `run-many -t typecheck` command: exit 0; all three plus module checks passed, one unchanged contracts cache hit.
+- After adding mounted transport push-count assertions, the two new test files passed 27 tests, 0 failures, 98 assertions. Both memory and mounted SQLite refusal/throw cases assert no fanout.
+- Final touched-test ESLint: exit 0. Touched-file Prettier check and `git diff --check`: exit 0.
+- `validate add-step-node-blocking --strict --json`: 1 passed, 0 failed, no issues. Normal `validate --all --json`: 196 passed, 0 failed. Additional whole-repo `--strict` run exits 1 on six existing main-spec placeholder Purpose warnings: `dev-deploy`, `live-plan-snapshot`, `plan-command-registry`, `plan-import`, `saved-plans`, `scheduler-optimization`; all 178 change artifacts, including this one, pass. Those untouched main specs remain coordinator scope.
+
+### Setter and disabled admission composition — 2026-10-14
+
+The isolated clone `/tmp/puni-step-setter-integration-sol` merges reviewed setter
+head `809cbe64b568bd62e772be8dd3448a7977313ffa` with admission/base head
+`3d6f80b0693b2178d8029e80631aa69f24a0d336`. Only this design, task and verification
+record conflicted; both slices' records are retained. No production code, migration,
+activation default or production enable interface changes in this integration.
+
+The mounted setter positive fixture now explicitly enables its isolated database.
+Before that fixture correction, its exact-source baseline had 7 pass and 11 fail:
+actual writes correctly received the new inactive refusal. Added default-disabled
+mounted set, retained-clear and undo/redo negatives assert typed 409 and complete
+unchanged fact/progress/owner/project/journal/event snapshots and fanout counts.
+Absent clear remains a 200 exact no-op. Retained facts remain readable and export
+as v9; nonempty reimport of that public setter's export refuses atomically while
+disabled. Enabled set/clear and both replay directions retain exact blocked time,
+including retained facts beneath done. Existing import tests cover enabled remapped
+facts, default-disabled nonempty refusal, empty import/export and legacy input.
+
+A separate test-only compile correction supplies `validateSchema<unknown>` in
+`step-blockage-activation.test.ts`: TypeScript otherwise inferred the first arm
+from a union of refusal schemas and rejected the other arms with TS2345. Runtime
+schema validation and the endpoint union are unchanged; there is no cast.
+
+Fresh scoped evidence:
+
+- `bun install --frozen-lockfile` with `BUN_TMPDIR=/tmp TMPDIR=/tmp`: exit 0;
+  1573 installs checked. The initial install lacked a writable temporary directory
+  and exited 1; that output was not accepted as successful installation.
+- Explicit source-file `bun test` over the plan-commands tests, command normalizers,
+  command definitions/shapes, admission contract, four blockage SQLite suites,
+  mounted setter and mounted import/export: exit 0, **223 pass, 0 fail, 1032
+  assertions, 20 files**. Log `/tmp/puni-setter-integration-tests.log`.
+- After the test-only type correction and formatting, admission contracts plus
+  mounted setter: exit 0, **28 pass, 0 fail, 96 assertions**.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint -p wbs-core,wbs-contracts,wbs-store-sqlite,wbs-be-01 --output-style=static`:
+  exit 0; four projects, zero cache hits. Final touched-test ESLint also exited 0.
+- Matching `run-many -t typecheck`: initial run exposed the TS2345 above; corrected
+  rerun exits 0 for four projects and two module tasks, with two unchanged core
+  tasks read from cache. Contracts, backend and SQLite compilation ran freshly.
+- Pinned `bunx @fission-ai/openspec@1.12.0 validate add-step-node-blocking --strict --json`:
+  exit 0, one change passed, no issues. `validate --all --json`: exit 0,
+  **196 passed, 0 failed** (178 changes, 18 specs).
+
+The existing admission mapping is independently watched through the new setter:
+removing the mounted `StepBlockageInactive` mapping produces 500 instead of the
+expected typed 409 in `refuses a default-disabled set atomically without facts,
+journal or fanout`; test command exits 1, 0 pass, 1 fail. The exact output is
+[setter-admission-http-omission.txt](evidence/setter-admission-http-omission.txt).
+Source was restored before the green reruns. Removing repository translation
+alone still passed because the full unit of work independently translates it;
+that attempt is not counted as a guard proof. No new production safety check was
+introduced, and the previously observed adjacent admission Proof comments remain.
+
+Full h2puni heavy gate/build, hosted CI, browser verification, old-writer barrier,
+Kubernetes F11.1d and stopped-writer recovery integration are unverified here and
+remain coordinator work. This clone is on `pop-os`; no production activation,
+push, merge or deploy is performed by this integration task.
+
+Final merge-index hygiene: `git diff --cached --check` exposed five inherited
+trailing spaces and an extra final blank line in admission's raw omission log.
+Only that evidence file's whitespace was trimmed in separate mechanical commit
+`52129d7194fc5059754e7960b7d8fc77eb114f52`; assertion output is preserved.
+The final `git diff --check 4bb78ec2674869c2bfd18114ef4f39e05d403863 HEAD`
+exits 0. Touched-file Prettier and final `git diff 809cbe64b568bd62e772be8dd3448a7977313ffa --check`
+exit 0. Normal installed lefthook pre-commit/commit-message hooks run successfully;
+its tool-wiki hook visibly reports inactive, uncertified because this isolated
+clone has no external activation root. That optional activation is not inferred
+as certification.
+
+## 2026-10-14 — Step UI authoring (tasks 5.1–5.3)
+
+Isolated clone `/tmp/step-blockage-ui-sol`, based exactly on PR #450
+`c622d20fd26d276f618779fbb085e3cb1aeb79b4`. The UI carries direct facts and canonical
+root identities into the existing retained frontend read. A shared section explains
+direct/dependency/work-item-hold scope and underlying progress, with named roots.
+The desktop folded card and a separate phone Step blockage disclosure send set/clear
+through PlanCommands and `write.perform(['tree'])`. Row Status and schedule inputs
+are unchanged. Clearing a retained done fact is offered; new blockage on done is
+disabled. Tab skips disabled actions. Older reads visibly report unknown blockage,
+including older node-readings absence. Supported malformed cause identities reach
+the existing TanStack router Error Boundary. Actual disabled writer 409 is ordinary
+feedback and retains the fact. No production activation interface was introduced.
+
+The ordinary Playwright runner shares its generated isolated DB identity with its
+fixture workers; positive cases explicitly activate only that test database using
+`activateTestStepBlockages`. This suite runs in the standard production build/preview
+path with the real backend. Initial local-socket sandbox denials were rerun with
+scoped escalation; no live WBS was accessed.
+
+### Commands and observed output
+
+- `CI=1 E2E_PORT_SHIFT=5400 bunx playwright test --config apps/wbs/fe-01/playwright.config.ts apps/wbs/fe-01/e2e/step-blockage.spec.ts`: **6 passed**. Desktop direct/proxy/cause/progress; F2/Tab/Escape set/clear/undo/redo; phone named cause and >=44px target; malformed cause boundary; actual SQLite disabled 409; older metadata unknown/no writer.
+- `bunx vitest run src/components/wbs/step-blockage.test.tsx src/components/wbs/folded-step-card.test.tsx src/components/wbs/plan-cards.test.tsx src/components/wbs/plan-estimates.test.tsx src/components/wbs/plan-writer.test.ts src/modules/plan-commands/plan-commands.feature.test.ts ../../playwright-config.test.ts --maxWorkers=1` from fe-01: **5 files, 249 passed**. The two unmatched writer/config filters were subsequently run at their actual paths.
+- `bunx vitest run src/modules/plan-writer/plan-writer.test.ts --maxWorkers=1`: **7 passed**.
+- `bunx vitest run playwright-config.test.ts --maxWorkers=1`: **18 passed**, after scoped escalation for its existing local-auth socket test.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-fe-01:lint`: **Successfully ran target lint**, no errors. The initial sandbox daemon fallback printed no target verdict and was not accepted as evidence.
+- `bunx tsc --build --force apps/wbs/fe-01/tsconfig.json`: exit **0**.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-fe-01:typecheck:module`: **Successfully ran target typecheck:module**.
+- `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate --all --json`: **196 passed, 0 failed** (178 changes, 18 specs).
+- `git diff --check`: exit **0**.
+
+### Watched production-path negatives
+
+| Injected fault                                         | Observed failing assertion                                                                                                                                                                   |
+| ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Replace both direct/proxy wording with “Step blockage” | Built-preview browser `distinguishes direct and dependency blockage...` failed `getByText('Direct step blockage', { exact: true }).toBeVisible()`; one failed, exit 1.                       |
+| Remove `Cause: {cause}` from rendered section          | Same built-preview browser failed visibility of `Cause: 040.s1-dev · Refund policy · Dev`; one failed, exit 1.                                                                               |
+| Omit incomplete-supported-metadata guard               | Production `stepBlockageOf` test received `Cannot read properties of undefined (reading 'dev')` instead of `Incomplete step blockage metadata`; exit 1.                                      |
+| Omit missing-reading guard                             | Production `stepBlockageOf` negative expected a throw and received none; exit 1.                                                                                                             |
+| Omit missing-blocked-causes guard                      | Production `stepBlockageOf` negative expected a throw and received none; exit 1. Initial empty blocked root collection also failed that throw assertion before the guard was extended.       |
+| Omit unknown-root-identity guard                       | Production `stepBlockageOf` negative expected a throw and received none; exit 1. The browser independently injects `missing-root` into the real read and verifies the router Error Boundary. |
+| Remove done-only new-block disabling                   | Production section test found an enabled new-block button; exit 1. Retained done clear remains enabled.                                                                                      |
+| Include disabled card actions in Tab traversal         | Folded card test expected Remove attempt 2 focus but Copy link retained focus; one failed. Excluding disabled buttons passes.                                                                |
+| Omit phone action touch sizing                         | Production-preview phone assertion expected >=44px and observed the smaller button; one failed. Sized action passes.                                                                         |
+
+All injected production faults were restored. Adjacent Proof comments name the
+watched checks. Browser captures were inspected at 1280 and 375px; review copies
+are `/tmp/step-blockage-preview/direct-desktop.png` and `proxy-phone.png`.
+
+### Ownership and integration
+
+Active PRs #399 (`ui-review/phone`), #409 (`ui-review/plan-table`) and #417
+(`ui-review/integration-1`) overlap the card files. Their worktrees and branches
+were untouched. Applying the complete shared-file patches with
+`GIT_INDEX_FILE=/tmp/step-blockage-compose-final.index git read-tree abd06e9ad`
+and `git apply --cached --3way /tmp/step-blockage-shared.patch` reported both
+`folded-step-card.tsx` and `plan-cards.tsx` **applied cleanly**. This proves patch
+composition only; the coordinator owns merge order and integrated verification.
+
+Not run by this UI worker: the host-wide exact-SHA h2puni gate, packaged Caddy
+browser suite, full backend/domain/import/saved-plan checks, hosted CI, migration
+lint or production activation/deploy. PR #450's known unrelated Burokrat pilot
+index failure is coordinator-owned; it is not repaired by this UI slice.
+
+### Public setter module-index CI repair — 2026-10-14
+
+Exact base: PR #450 head `c622d20fd26d276f618779fbb085e3cb1aeb79b4`;
+isolated clone `/tmp/puni-setter-module-index-ci-sol`. Hosted run `38518467695`
+reported the plan-commands index omitted the new `step-blockage.test.ts`.
+The repair adds its exact path membership between `run-command-batch.ts` and
+`tsconfig.json`; existing membership order and production policy stay unchanged.
+
+Proof: the following production-CLI pilot test first exited 1 with **0 pass,
+1 fail, 53 assertions** and the exact `unindexed candidate path` for that test.
+Adding the membership exited 0 with **1 pass, 0 fail, 60 assertions**. Removing
+only the added membership reproduced exit 1 and the same refusal; the membership
+was restored before subsequent checks. The omission output is retained in
+[setter-module-index-omission.txt](evidence/setter-module-index-omission.txt).
+No production safety check was added or changed.
+
+```sh
+BUN_TMPDIR=/tmp TMPDIR=/tmp TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/node_modules bun test --preload ./tools/test/scratch/preload.ts apps/twilight-structure/twilight-burokrat/cli/src/policy/pilot-policy.test.ts -t 'pins exact pre-index tuples' --timeout=60000
+```
+
+Fresh local evidence:
+
+- Frozen Bun installation exits 0, **1573 installs checked**. The initial install
+  failed with EROFS despite writable temporary paths; repeating with
+  `BUN_INSTALL=/tmp/puni-setter-module-index-bun` and
+  `BUN_INSTALL_CACHE_DIR=/tmp/puni-setter-module-index-bun-cache` succeeded.
+- `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`:
+  exit 0, **39 indexes, empty review debt**.
+- Full `pilot-policy.test.ts` and `indexes.test.ts` with the same scratch preload,
+  trusted dependency root and 60000 ms timeout: exit 0, **81 pass, 0 fail,
+  880 assertions, 2 files**. Log `/tmp/puni-setter-module-index-tests.log`.
+- Touched Markdown Prettier check and `git diff --check`: exit 0.
+- Pinned OpenSpec 1.12.0 `validate add-step-node-blocking --strict --json`:
+  exit 0, **1 passed, 0 failed, no issues**. Normal `validate --all --json`:
+  exit 0, **196 passed, 0 failed**.
+
+Full h2puni heavy gate/build, hosted CI rerun and browser checks remain coordinator
+work and are unverified by this documentation repair. No push, merge, deploy or
+activation was performed.
+
+### Hosted admission fixture corrections — 2026-10-14
+
+Reported CI run `38518185689` failed against release candidate `895eac61a6a9816cbf22ec39cd92648b79b95f88`. Reproduction in isolated clone `/tmp/puni-admission-ci-repair-sol` found five typed-dependency lifecycle assertions expecting successful structural replay while their migrated test database still had disabled writer admission, plus a migration CLI expectation naming the previous latest migration. The original unmigrated boot fixture also expected startup success; a socket-free listener/app seam reached the same production refusal as CI: `no such table: __drizzle_migrations`. Real local listening first refused sandbox `EPERM`, so that initial socket failure is not counted as the admission reproduction.
+
+Only fixtures and expectations changed: the lifecycle suite explicitly activates its own temporary database with `activateTestStepBlockages`, the CLI expects `20261014140000_add_step_blockage_activation`, and the unmigrated boot test asserts readiness refusal and no running process. Production admission, boot, migration and recovery code remain unchanged; no safety check was added or relaxed, so no new production omission proof is required.
+
+Fresh checks:
+
+- `bun test ./apps/wbs/be-01/src/controller/typed-dependency-lifecycle.controller.db.test.ts --timeout=30000` before correction: **8 pass, 5 fail**, each failed assertion receiving 409.
+- `bun test ./apps/wbs/be-01/src/migration-cli.db.test.ts --test-name-pattern 'older newly introduced migration' --timeout=30000` before correction: **0 pass, 1 fail**, actual latest migration `20261014140000_add_step_blockage_activation`.
+- The old successful-start boot expectation with the injected listener seam: **0 pass, 1 fail**, native missing-ledger error above.
+- `bun test ./apps/wbs/be-01/src/migration-cli.db.test.ts ./apps/wbs/be-01/src/controller/typed-dependency-lifecycle.controller.db.test.ts --timeout=30000` after correction: exit 0, **63 pass, 0 fail, 561 assertions**.
+- `bun test ./apps/wbs/be-01/src/boot.db.test.ts --test-name-pattern 'unmigrated database|blockage admission authority|boots committed fan-out' --timeout=30000`: exit 0, **3 pass, 0 fail, 10 assertions**, covering valid migrated startup and both absent-ledger and missing-marker refusal.
+- `bun test ./libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts --timeout=30000`: exit 0, **28 pass, 0 fail, 73 assertions**; default-disabled admission, exact sentinel handling, rollback, restart and retained-history down remain covered.
+- `bunx tsc --build --force apps/wbs/be-01/tsconfig.json`: exit 0, no diagnostics. Touched-file ESLint uses a freshly generated Nx project graph and exits 0 without diagnostics. Touched Prettier check, strict change validation and `git diff --check` also exit 0.
+
+The full boot suite requiring real listening, full hosted CI and exact host gate are not claimed here. The coordinator will integrate this follow-up and requeue the exact candidate gate; no push, merge, deploy or host gate was performed in this repair.
+
+## 2026-10-14 — Astra UI review repairs and #450 composition
+
+Review of `16e0e7e420dca71fe507ac37572ebc7757d25034` found two gaps:
+indexing only top-level tree rows omitted nested blockage roots, and the public
+node projection returned its older-server null before validating supported blockage
+metadata. The cause index now uses the existing flattened rows. The projection
+validates supported blockage metadata before its nullable reading return; a
+fully older read still returns null and renders explicit unknown.
+
+Watched negatives before repair:
+
+- The real-preview nested leaf fixture (explicit child Dev fact, downstream root QA
+  dependency) failed visibility of `Name of 040.1`, with the router Error Boundary
+  shown. It exercises the complete retained read and both desktop and phone layouts.
+- `rejects supported blockage metadata without node readings through the public
+projection` expected an error and received none from `stepNodeReadingsOf`.
+- Restoring the old validation order in a fresh isolated preview database made
+  `supported blockage facts without node readings reach the Error Boundary` fail
+  visibility of `Something went wrong!`. The first combined negative run's second
+  case failed fixture creation because the earlier broken nested plan was last
+  opened; that output was rejected as P2 evidence and replaced by this isolated run.
+- All injected faults were restored; adjacent Proof comments describe both paths.
+
+Pre-composition checks: four focused UI suites **247 passed**, application tsc
+build exit **0**. A targeted lint import-sort finding in the new test was corrected.
+
+Latest authoring parent was fetched locally from
+`/tmp/puni-step-setter-integration-sol` at exact
+`4cae32f5e3ba2984ef94e63b0183685143367871` (repaired #449 parent `9b2f93ba`).
+Read-only merge-tree found no code conflict and only the additive verify.md EOF
+conflict: Step UI authoring evidence versus Public setter module-index CI repair
+and Hosted admission fixture corrections. The isolated merge retains all sections
+and their original exact results. No UI-review branch or worktree was changed.
+
+Combined-tree verification after resolving the evidence conflict:
+
+- `CI=1 E2E_PORT_SHIFT=5400 bunx playwright test --config apps/wbs/fe-01/playwright.config.ts apps/wbs/fe-01/e2e/step-blockage.spec.ts`: **8 passed**. Both new review regressions pass, including nested direct/downstream named causes on desktop and phone and supported missing-reading metadata reaching the router Error Boundary; genuinely older reads remain unknown without write actions.
+- `bunx vitest run src/components/wbs/step-blockage.test.tsx src/components/wbs/folded-step-card.test.tsx src/components/wbs/plan-cards.test.tsx src/components/wbs/plan-estimates.test.tsx --maxWorkers=1` from fe-01: **4 files, 247 passed**.
+- `bunx tsc --build --force apps/wbs/fe-01/tsconfig.json`: exit **0**.
+- `bunx eslint` over the four changed UI production/test files: exit **0** after import sorting.
+- Pinned OpenSpec all validation: **196 passed, 0 failed**.
+- `git diff --check`: exit **0**; no unresolved merge paths.
+- Read-only alternate-index three-way application of both shared card patches against #417 `abd06e9ad`: both **applied cleanly**. The branch was not restacked onto #417.
+
+The full exact-SHA host gate, hosted CI and unrelated Gantt pixel fixture diagnosis remain coordinator-owned. Parent repairs are retained verbatim; this worker adds only the two UI review repairs and their regressions/evidence.
+
+## 2026-10-14 — Whole folded-card accessibility after clipping review
+
+Astra reviewed `8ddf6beba908c22fa4df08cc253df47cc5499116` and identified
+that the additional blockage explanation pushed attempt controls and estimate
+details beyond the table frame. The entire folded card now uses HoverCard's
+scrolling mode. Its measured height ceiling also accounts for the whole row's
+diagonal clearance, rather than the cell wrapper's earlier edge. Existing
+non-scrolling placements and phone disclosures retain their behavior.
+
+The new production-preview case `the whole blocked step card stays inside its
+frame and exposes attempt actions and estimates` first failed containment:
+card bottom **527.25px**, clipping frame bottom **459.75px**. Enabling scrolling
+alone still failed: card bottom **484.9375px**, because the wrapper-relative
+height limit included space occupied by the cleared row. Correcting that limit
+passes containment. Adjacent Proof comments identify both observed faults.
+
+The passing case scrolls to Start attempt, proves the button is the element at
+its hit-test coordinates and clicks it through the real backend. It then reaches
+the Final estimate footer and proves that line is hit-testable. F2 enters Copy
+reference; Tab follows the existing Copy link, Clear blockage, Remove attempt,
+End attempt order while focus scrolls the card; Escape returns to the step cell.
+An intermediate test expected End one Tab too early; its expectation was corrected
+to the existing Remove-before-End action order, with no production reorder.
+
+Fresh scoped verification:
+
+- Ordinary production-preview browser run over step-blockage, hover-cards and card-lanes, filtered to all blockage cases plus the existing notes scrolling/below-room/above-row and informative-card placement cases: **13 passed** (9 blockage cases, 4 existing card cases).
+- FoldedStepCard, HoverCard and plan-estimate component suites: **3 files, 117 passed**.
+- Application tsc build: exit **0**.
+- ESLint over FoldedStepCard, HoverCard and the browser suite: exit **0**.
+- `git diff --check`: exit **0**.
+
+Review captures at `/tmp/step-blockage-preview/direct-desktop.png` and
+`proxy-phone.png` were refreshed from the passing run. The card contents now
+scroll within the visible frame; the browser geometry and hit-target assertions,
+not an unbounded screenshot box, prove access to the footer and attempt action.
+The repaired authoring parent `4cae32f5e3ba2984ef94e63b0183685143367871`
+remains an ancestor. Full exact-SHA host/CI gates and unrelated release fixture
+triage remain coordinator-owned. No push, PR merge, deployment or live write.
+
+## UI cause-index review repair (2026-10-14)
+
+- Shared cause labels now use one `useMemo` after the flattened rows, keyed by
+  `[flat, steps, stepNodes]`; desktop readings and phone step projections reuse it.
+- Production-path call-through probe renders fifty phone rows and five steps,
+  with all blockage disclosures closed. It observes one index build, no further
+  build on an unchanged rerender, and exactly one additional build when a new
+  runtime read supplies a changed cause name. The second index contains that name.
+- Watched negative: the original per-phone-node indexing failed the first count
+  assertion with **251 builds instead of 1** (`/tmp/step-blockage-index-red.log`).
+  The adjacent `Proof:` records that injected fault. The final focused test passed
+  (`/tmp/step-blockage-index-green.log`). Intermediate fixture attempts using name
+  editing and expensive role queries timed out; the final fixture switches the
+  real reader and checks index inputs directly, with a bounded 15-second budget.
+- Focused production-preview Playwright command: `CI=1 E2E_PORT_SHIFT=5400 bunx
+playwright test --config apps/wbs/fe-01/playwright.config.ts
+apps/wbs/fe-01/e2e/step-blockage.spec.ts --grep 'phone disclosure|nested blocked|whole blocked step card|distinguishes direct'`:
+  **4 passed** (32.2s), preserving named nested causes, phone actions and the card
+  geometry/hit-target regression (`/tmp/step-blockage-index-browser.log`).
+- `bunx tsc --project apps/wbs/fe-01/tsconfig.app.json --noEmit`: exit 0.
+- Complete `plan-cards.test.tsx` suite: **141 passed** (17.92s), including
+  unchanged toolbar render-cost checks (`/tmp/step-blockage-index-suite.log`).
+- Touched-source ESLint: exit 0. Pinned OpenSpec validation: exit 0.
+- Full host gate and unrelated browser suites are deferred to the PM release
+  stack; this repair does not push, deploy, or change activation state.

@@ -3,6 +3,8 @@ import type { Logger } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 import { drizzle, type SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
+export { SQLiteError };
+
 const BUSY_TIMEOUT_MS = 5000;
 
 /**
@@ -18,7 +20,11 @@ const BUSY_TIMEOUT_MS = 5000;
  * than waiting. Both pragmas are load-bearing for zero-downtime deploys.
  */
 export function openDatabase(dbPath: string): Database {
-  const db = new Database(dbPath, { create: true });
+  return openWritableDatabase(dbPath, true);
+}
+
+function openWritableDatabase(dbPath: string, isCreateAllowed: boolean): Database {
+  const db = new Database(dbPath, { create: isCreateAllowed, readwrite: true });
   // `run` rather than the deprecated `exec`; behavior is identical for these
   // single-statement PRAGMAs.
   db.run(`PRAGMA busy_timeout = ${String(BUSY_TIMEOUT_MS)};`);
@@ -39,7 +45,8 @@ const WAL_SWITCH_ATTEMPTS = 100;
 const WAL_SWITCH_PAUSE_MS = 50;
 
 /**
- * Sets `journal_mode = WAL`, retrying `SQLITE_BUSY` for up to 100 attempts 50 ms apart.
+ * Sets `journal_mode = WAL`, retrying `SQLITE_BUSY` and `SQLITE_BUSY_RECOVERY`
+ * for up to 100 attempts 50 ms apart.
  *
  * A read-to-write lock upgrade refuses at once, but an exclusive rival can make each attempt
  * wait for the configured `busy_timeout`. Disable that handler during this bounded retry and
@@ -51,7 +58,7 @@ const WAL_SWITCH_PAUSE_MS = 50;
  * @param db A connection outside any transaction.
  * @param pause Waits between attempts; a test passes one that releases its rival's lock.
  * @throws If the busy timeout cannot be read, the last `SQLITE_BUSY` when every attempt is
- * refused, or any other error at once.
+ * refused (including WAL recovery contention), or any other error at once.
  */
 export function switchToWal(
   db: Database,
@@ -73,7 +80,11 @@ export function switchToWal(
         db.run('PRAGMA journal_mode = WAL;');
         return;
       } catch (cause) {
-        const busy = cause instanceof SQLiteError && cause.code === 'SQLITE_BUSY';
+        // Proof: injecting SQLITE_BUSY_RECOVERY at the real locked pragma made
+        // `waits out WAL recovery reported as an extended busy error` throw before retry.
+        const busy =
+          cause instanceof SQLiteError &&
+          (cause.code === 'SQLITE_BUSY' || cause.code === 'SQLITE_BUSY_RECOVERY');
         // Proof: removing the non-BUSY branch made a read-only WAL switch pause 99 times
         // instead of throwing SQLITE_READONLY at once.
         if (!busy || attempt === WAL_SWITCH_ATTEMPTS) throw cause;
@@ -151,6 +162,18 @@ export function openConnection(
   }
   return {
     db: drizzle({ client, logger }),
+    close: () => {
+      client.close();
+    },
+  };
+}
+
+/** Opens a configured recovery connection without inventing an absent database. */
+export function openExistingConnection(dbPath: string): Connection {
+  // Proof: creation enabled here; missing-DB CLI negative observed a newly created file; watched 2026-10-13.
+  const client = openWritableDatabase(dbPath, false);
+  return {
+    db: drizzle({ client }),
     close: () => {
       client.close();
     },

@@ -1,5 +1,7 @@
 import { type } from '@shared/validation';
 
+// Proof: ignoring all undeclared keys made six task-boundary unknown-key CLI cases exit 0
+// (plan-tasks.test.ts, 2026-10-13); the reference boundary remains separately strict.
 const Endpoint = type({ scope: "'whole'", workItem: 'string>=1' })
   .onUndeclaredKey('reject')
   .or(

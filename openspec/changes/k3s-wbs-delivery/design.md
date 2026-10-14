@@ -118,3 +118,151 @@ Recorded under the "make reasonable assumptions and record them" instruction.
 - **Edge.** Staging and prod overlays add Traefik Ingress objects (one per namespace, since
   `/api` lives in `wbs-solver`); prod names `letsencrypt-production`, which does not exist yet
   and is a cutover prerequisite.
+
+## F11.1b replay coordinator
+
+The fenced coordinator stops all writer Pods and inventories retained command history
+before `capture-state`. Both the candidate and previous backend images execute their
+own capability CLI as bounded, writer-labelled Jobs. The coordinator records a
+`replay-checked` phase with a SHA-256 sealed receipt binding the inventory, both
+vocabularies and exact images, database target, transaction and direction. Forward
+admission requires both images to understand every retained replay kind.
+
+Rollback stops the writer whenever closing the write path may have begun, restores
+any captured schema set, then observes fresh history and both image vocabularies.
+It requires the previous image to understand that history and refuses changed
+kind/count inventory under the fence. `rollback-replay-checked` persists the rollback
+receipt before restoring tiers; reopening also validates the corresponding receipt.
+A failed observation or compatibility decision makes one forward attempt and one
+rollback attempt at most; rollback refusal parks the Lease and records the failing
+step, required replay kind/image and manual completion command.
+
+Journal schema 3 requires these receipts at their recorded phases, validates their
+original bytes and projected fields before claiming the Lease, and refuses legacy
+schema 1/2 journals with the prior-executor/manual-recovery route. A recovery request
+validates old evidence against its original request and takes fresh evidence for its
+new transaction. `recovery-required` still requires the prior forward receipt even
+though it is outside the forward phase list. A resumed pre-smoke transaction rolls back; proven transactions
+finish with their durable receipt. Replay Job reuse additionally compares every
+requested manifest field against the observed Job before reading its output. It
+also pins omitted mount options to their effective Kubernetes defaults, so added
+subpaths, changed access or propagation cannot select another database on the PVC.
+
+Inventory is a compatibility kind/count summary, not a digest of all journal rows.
+The writer fence and stopped writer are the authority for its stability. Restore
+and first cutover admission, h4 rollout, staging acceptance and the host gate remain
+separate prerequisites under F11.1.
+
+## F11.1c export and restore replay admission
+
+Cutover is separately versioned from the release journal. Export, restore-job and
+verify-restore require the original descriptor file, a separate SHA-256 pin of
+those exact bytes, and old/incoming backend identities. The incoming reference
+must match the descriptor; old and incoming references may differ for Docker and
+cluster routing, but their immutable SHA-256 digests must be identical. The raw
+file pin includes its trailing newline and is distinct from the existing
+canonical descriptor identity used for promotion.
+
+Before the old image checkpoints or exports SQLite, it runs the coordinator's
+independent read-only command-journal inventory and its own capability CLI. It
+refuses missing/unreadable/malformed sources and unsupported retained history
+without producing a snapshot. The SQLite report carries replay evidence version 1
+binding original descriptor bytes/pin, both image references, inventory,
+capabilities and the completed export SHA-256.
+
+The restore Job validates this evidence before waiting for incoming bytes, then
+checks their SHA-256, inventories the incoming database independently and runs
+its own image CLI. Inventory and capability observations must match the export
+evidence before rename into `/data/wbs.sqlite`. Failure preserves the source
+export, refused incoming bytes and arrival marker for reviewed recovery. A new
+attempt refuses a stale marker; the operator must inspect and explicitly clear
+or move failed arrival artifacts before retrying. Verification requires matching
+versioned evidence and refuses legacy SQLite reports.
+
+Prepared cutover manifests hold every Deployment at zero. First-start admission
+for scaling, release-record persistence and Flux handoff remains a separate open
+slice; this code does not make cutover activation ready. The local rehearsal
+carries exact descriptor bytes for actual built digests using laboratory-only
+admission fields, and explicitly clears rejected arrival files after retaining
+failure logs and the host export. That descriptor is not staging proof. No live
+Docker/k3d execution is claimed by this slice. Existing-host storage is
+`puni-retain`; future host topology is outside these admission changes.
+
+## F11.1d first-start candidate
+
+`first-start.ts` uses a separate version 2 state file and sealed receipt; release
+journal schema 3 retains its existing meaning. The receipt binds original descriptor
+bytes and their operator pin, export and restore evidence, context/cluster UID,
+both namespace UIDs, PVC name/UID/path, restore Job name/UID, transaction, every tier
+digest and the desired Flux revision. Before scaling it verifies the completed
+restore Job and freshly runs the independent replay inventory and the backend
+image's `readStepBlockageActivation` against the actual PVC. The authority must be
+present, valid and `DISABLED`; the read-only probe never enables it. A nonempty WAL
+refuses admission because matching main-file bytes cannot certify WAL contents.
+
+The coordinator claims the existing WBS Lease, closes the writer ingress fence,
+suspends Flux, stops every tier, and persists/readbacks actual admission before
+explicitly starting every tier. Deployment path/PVC, disabled startup migrations,
+writer label, Recreate strategy, digest and ready rollout are checked. It persists
+and reads back the release record before handing the matching revision to Flux.
+Failure parks the Lease and preserves fence/suspension. Retry reuses only the
+sealed transaction; it stops tiers and repeats the actual PVC observation with a
+fresh Job name. Changed restored bytes require reviewed recovery. The CLI and
+rehearsal use this coordinator; descriptor-only `release-record` now refuses.
+
+The source repair admits the live referenced GitRepository URL at the desired commit
+before scaling. Its sealed source receipt binds Kustomization/source UIDs, complete
+allowed build/source specs, current-generation artifact, exact Git tree and full
+flattened resource inventory against the trusted fenced release render and record.
+The source subtree must contain only a regular `release.yaml`; transforms, remote
+bases, symlinks and extra files refuse admission. Conditional UID/resourceVersion/spec
+patches pin `spec.ref.commit`, and admission is repeated immediately before conditional
+Kustomization resume. The immutable source pin survives first-start and attended
+opening; the laboratory explicitly returns to its branch protocol afterward.
+
+The historical unsafe trace was: check fence → resume Flux → apply open policy →
+possible acknowledged writes → detect open fence → suspend/fence/park. Post-handoff
+refusal could not erase that interval. Real Git revision negatives now refuse both
+writer-open and public-open source before resume. Independent re-review and live
+acceptance remain required; this repair does not authorize activation.
+
+Both writer and public ingress selectors remain fenced. Backend readers retain their
+gateway/smoke TCP allowance for gateway health. Complete namespace policy inventories
+must match the trusted render and platform default deny; selectors cannot select the
+actual tier labels. All tiers stop before restart to drop existing gateway connections.
+All namespace Pods, including unlabeled and terminating claim users, and controllers
+are inventoried; only admitted backend descendants and suspended reviewed backups
+can reference the PVC. Backend volumes/mounts and labels are exact; init containers,
+command/args/lifecycle overrides refuse. Executable backend startup/readiness/liveness
+probes also refuse. Every live tier Deployment and admitted ReplicaSet template,
+and every actual descendant Pod, must match the descriptor-digest trusted startup
+render before scale and while checking handoff. Full spec comparison admits only
+explicit Kubernetes defaults and actual Pod scheduling fields; extra containers,
+init/ephemeral containers, mounts, env/envFrom, commands, hooks and probes refuse.
+Live Secret/ConfigMap value provenance is separate external acceptance; reference
+identity is bound, and this candidate does not pin external value bytes. Explicit
+backend DB_PATH/MIGRATE_ON_STARTUP entries retain precedence over envFrom. Missing durable journal with any existing
+Lease refuses takeover before mutation. Attended traffic opening separately reviews
+and pins a revision opening both policies; SQLite authority remains disabled.
+
+The coordinated StepBlockage deletion slice adds own `deletionState` metadata on
+`delete_subtree`/`restore_subtree`. Independent Kubernetes traversal recognizes
+those properties through nested forward/inverse batches, counts `delete_state_v1`
+once per affected journal row, and resets the flag between rows. Markerless legacy
+commands remain unguarded. `moveProgress` preconditions independently require
+`move_progress_v1`, so a row can require both capabilities. Coordinator and cutover
+validators admit this inventory vocabulary but still require each actual image's
+own advertisement. This adds no capability to an old image and does not alter the
+release journal schema. Application deletion behavior remains in its separate slice.
+
+### First-start Lease admission after asynchronous observations
+
+The coordinator installs one synchronous Lease-loss guard after acquisition.
+Every cluster mutation and durable phase write checks that guard after any awaited
+observation; renewals queued behind a failed heartbeat recheck loss before invoking
+the renewal transport. Adapter compound operations check it immediately before each
+local mutating kubectl command, and immutable source pin/resume check it after their
+internal awaited reads. A delayed safety result cannot authorize a tier scale after
+a heartbeat failure. After known loss, no cleanup mutation or phase write is permitted.
+Release/park delegates run only after heartbeat shutdown and pending-renewal drain;
+the separately reviewed shared release-executor Lease protocol remains outside this slice.

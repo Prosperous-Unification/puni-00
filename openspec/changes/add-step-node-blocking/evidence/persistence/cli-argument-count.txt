@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-blockage-rollback.db.test.ts:
+173 |       env: { ...process.env, DB_PATH: path },
+174 |       stdout: 'pipe',
+175 |       stderr: 'pipe',
+176 |     });
+177 |     expect(await missingFile.exited).not.toBe(0);
+178 |     expect(await new Response(missingFile.stderr).text()).toContain('usage:');
+                                                                ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "usage:"
+Received: "18 | }\n19 | const connection = openExistingConnection(path);\n20 | try {\n21 |   if (command === 'save') {\n22 |     const saved = saveStepBlockages(connection.db);\n23 |     await Bun.write(file, JSON.stringify(saved));\n                   ^\nTypeError: The \"destination\" argument must be of type path, file descriptor, or Blob. Received undefined\n code: \"ERR_INVALID_ARG_TYPE\"\n\n      at /tmp/puni-step-blockage-rebuild/apps/wbs/be-01/src/step-blockage-rollback-cli.ts:23:15\n\nBun v1.4.2 (Linux x64)\n"
+
+      at <anonymous> (/tmp/puni-step-blockage-rebuild/libs/wbs/adapters/store-sqlite/src/step-blockage-rollback.db.test.ts:178:59)
+(fail) step blockage recovery > requires DB_PATH and a valid verb at the CLI boundary [922.59ms]
+
+ 0 pass
+ 8 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [1127.00ms]

@@ -254,3 +254,78 @@ Follow-up validation after restoring all three faults:
 - OpenSpec: **186 passed, 0 failed**, exit 0.
 - No push, PR creation, canonical gate, merge, deploy or live IdP proof was attempted in this follow-up.
 - `NX_DAEMON=false NX_NO_CLOUD=true bunx nx format:check --all`: **passed**, exit 0; touched-file Prettier and `git diff --check` also passed.
+
+### Session policy administration panel (WBS010.5.7)
+
+Implemented in an isolated clone of `feat/org-context-c2` at `b3249f5d42ff05d9b2331e776ee57deab6940542`; this entry concerns the new organization-page UI only. The mounted panel suite exercised GET and PUT through the typed scoped client; its first run failed because the component import did not exist. The page composition test failed until the panel was mounted.
+
+Fault injection used the production source and the mounted panel tests. Each fault was restored before final verification; logs are `/tmp/session-policy-fault-*.log`.
+
+| Injected fault                                   | Observed failure                                                                |
+| ------------------------------------------------ | ------------------------------------------------------------------------------- |
+| Accept a bound below 300                         | Invalid-bound test sent a PUT instead of refusing locally                       |
+| Keep controls after write-time `forbidden`       | Authority-loss test found Save controls instead of the refusal state            |
+| Remove both pending admission guards             | Forced submit during a held PUT sent a second PUT                               |
+| Change the captured expected-organization header | Scoped read/write test received `wrong-org` instead of `org-a` on both requests |
+| Display submitted bounds after successful PUT    | Reconciliation test did not display the server's 7200-second value              |
+
+The C2 resource client's late-response cancellation and the panel's mounted late-read case cover previous-organization data after runtime withdrawal. Browser/host-gate execution and final exact-head checks are recorded by the integration owner.
+
+Final worker checks on the restored UI source: the two affected mounted Vitest suites passed **37/37** (exit 0); `bunx tsc --build --force apps/wbs/fe-01/tsconfig.json` passed (exit 0); `bunx @fission-ai/openspec@1.13.0 validate --all --json` passed **187/187** (exit 0); `bunx nx format:check --all`, touched-file Prettier and `git diff --check` passed (exit 0). The first full frontend lint run exited 1 with its diagnostics suppressed by Nx; direct ESLint identified two test-only style errors, which were fixed before the final rerun. No browser run was made for this panel: the committed browser fixtures do not yet exercise session-policy setup. No host gate was run by this worker; root owns the exact-head gate and integration review.
+
+After the final test style correction, `NX_DAEMON=false NX_NO_CLOUD=true bunx nx run wbs-fe-01:lint` passed (exit 0, 1m 23s). The focused mounted suites passed 37/37 and frontend TypeScript compilation passed again (both exit 0). The lint output's Nx plugin-socket fallback was a warning; it did not suppress the successful lint result.
+
+### Astra review follow-up: overlapping reads and field errors
+
+Review of `2fd7fd2b18c4e41e2ff985e053275c819b4f5fda` found two UI gaps. The first mounted regression now holds the first GET from a root `StrictMode` mount, lets its second GET reach ready, performs a successful or forbidden PUT, then releases the old GET. The returned policy or authority refusal remains visible. A separate unmount test holds a GET refusal across effect cleanup and confirms that its access-loss callback does not fire. Request versions advance for each read, effect cleanup, and mutation admission. The typed client still fences a withdrawn organization runtime independently.
+
+The second regression checks each field with an invalid bound. The associated inline alert names either maximum session length or reauthentication, and the input names that alert through `aria-describedby` and `aria-invalid`. A cross-bound error is associated with the reauthentication input. Invalid inputs send no PUT.
+
+Mounted negative probes, restored afterward; logs are `/tmp/session-policy-review-fault-*.log`:
+
+| Injected fault                                                         | Observed failure                                                                                     |
+| ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Remove the read response version fence                                 | A held first StrictMode GET replaced the second read's absent state with the old 28800-second policy |
+| Remove effect cleanup invalidation                                     | A held GET refusal called `onAccessLost` after unmount                                               |
+| Break read and cleanup version advancement, leaving mutation admission | Both after-PUT cases still passed; mutation admission alone prevented the stale GET                  |
+| Also remove mutation admission advancement                             | Stale GET overwrote both successful and forbidden PUT states; 2 mounted cases failed                 |
+| Replace the maximum-bound error with generic copy                      | Maximum-bound mounted case failed its field-name assertion                                           |
+| Point reauthentication input at an absent error id                     | Reauthentication mounted case failed its `aria-describedby` assertion                                |
+
+Final review-follow-up checks on restored source: the mounted session-policy and organization-page suites passed **42/42** (exit 0); frontend TypeScript compilation passed (exit 0); full `wbs-fe-01:lint` passed (exit 0); OpenSpec validation passed **187/187** (exit 0); `nx format:check --all` passed (exit 0). Focused ESLint and touched-file Prettier passed with no diagnostics. The review changes are limited to the panel, its mounted tests and the existing OpenSpec artifacts. Browser fixtures, host gate and push remain with the integration owner.
+
+### Company sign-in enforcement UI slice (WBS010.5.7)
+
+The isolated worker branch starts at PR #407's `bac4fea4` and adds only browser enforcement controls to `SsoConnectionsPanel` and its existing enterprise change artifacts. A typed, scoped PATCH sends `{enforced}` to the selected connection **id**; the selected row's `loginSlug` is used only in the lockout login link. Server records remain authoritative. The backend's lockout refusal decides current-credential eligibility; the UI never infers it from proof, membership or identity links. Read generations advance on effect cleanup and mutation admission. Mutation ownership is separate, so create's post-success refresh releases its pending state.
+
+Mounted tests covered a two-row selected id, exact boolean and expected-organization header, unproven enable prompt, held disable without optimistic state, unproven/lockout/not-found reconciliation, forbidden control withdrawal, organization loss, transport retry copy, pending cross-row admission, runtime withdrawal, same-render refresh/PATCH admission serialization, StrictMode held GET after successful and forbidden PATCH, and unmount cleanup. Final check counts and commands are recorded below.
+
+Watched production-path fault probes used temporary source mutations and restored the file after each run; logs are `/tmp/sso-enforcement-fault-*.log`:
+
+| Injected fault                                                     | Observed mounted negative                                           |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------- |
+| PATCH selected `loginSlug` instead of connection id                | Selected-id/returned-row test failed                                |
+| PATCH old boolean instead of the requested inverse                 | Held-disable body test failed                                       |
+| Remove unproven disabled predicate                                 | Two-row eligibility test failed                                     |
+| Remove pending admission and disabled control                      | Held-first-PATCH second-row test failed                             |
+| Remove read response generation fence                              | StrictMode held-GET success test failed                             |
+| Bypass forbidden PATCH withdrawal                                  | Forbidden-control test failed                                       |
+| Remove effect cleanup invalidation                                 | Held-GET refusal called access-loss callback after unmount          |
+| Replace scoped resource client with stable global client           | Selected-row test failed its expected-organization header assertion |
+| Replace the server-returned row with the old local row             | Server-returned-slug test failed                                    |
+| Skip conflict re-read                                              | Unproven refusal left the stale proven enable control               |
+| Use connection id in the lockout login link                        | Selected-row login-route href test failed                           |
+| Remove the scoped client's post-response runtime currentness fence | Late PATCH published enforcement after runtime withdrawal           |
+| Remove the same-render read admission guard                        | PATCH was sent while a refresh GET was held                         |
+
+The browser fixture was extended for 1280px and 375px pending enforcement, alongside existing layout and keyboard traversal checks. The ordinary three-tier browser runner remained **unverified** in the first isolated attempt: it failed because `AUTH_MODE` was absent; with local test environment supplied, be-01 failed because `wbs-solver-launcher` was not on PATH. The documented `bun run tools/dev/solver-setup-cli.ts` then failed installing the hash-locked Python solver dependencies because `pypi.org` DNS resolution was unavailable (`absl-py==2.5.0`). No browser assertion ran. The integration owner's PR CI and canonical host gate can provide browser evidence later. External Auth0/customer prefix proof and SCIM remain open.
+
+Final restored-source checks for this slice: `bunx vitest run src/components/organization/sso-connections-panel.test.tsx src/components/organization/organization-page.test.tsx --no-file-parallelism --maxWorkers=1` passed **65/65**; `bunx tsc --build --force apps/wbs/fe-01/tsconfig.json` passed; `NX_DAEMON=false NX_NO_CLOUD=true bunx nx run wbs-fe-01:lint` passed; `NX_DAEMON=false NX_NO_CLOUD=true bunx nx format:check --all` passed; `bunx @fission-ai/openspec@1.13.0 validate --all --json` passed **187/187**. `bunx playwright test apps/wbs/fe-01/e2e/organization.spec.ts --config apps/wbs/fe-01/playwright.config.ts --list` collected the new pending-enforcement case at both 1280px and 375px and the existing keyboard cases. Ordinary browser execution remains unverified for the solver setup reason above. No host gate or push was run by this worker; the integration owner controls those after review.
+
+### Astra review follow-up: same-render proof admission
+
+Review of `c47aa8429da4a7c45b7c013040b43d2bb1da9319` found that an already-open `CompanySignInLink` could submit in the same React render as Enable or Refresh. The parent had set a synchronous pending/read ref, but the child still saw the prior `disabled` prop. Two mounted regressions first observed one link POST each beside a held PATCH or GET. The child now calls the parent's `canStart` predicate before claiming its own pending state or POSTing; the predicate reads current create/enforcement, read and proof refs. Both regressions pass. Removing the child guard again failed both tests (`/tmp/sso-enforcement-review-fault-proof-admission.log`); source was restored.
+
+Astra's standalone Vite browser fixture (`bunx playwright test --config /tmp/sso-review-c47aa/playwright.config.ts`) passed **12/12** organization page checks at 1280px and 375px, including pending enforcement, proof flow, keyboard traversal and horizontal layout. This fixture stubs API routes; the ordinary three-tier browser runner still could not start its backend because locked solver setup required unavailable PyPI DNS.
+
+Final restored-source review checks: mounted `CompanySignInLink`, `SsoConnectionsPanel` and organization-page suites passed **77/77**; frontend TypeScript build, full `wbs-fe-01:lint`, `nx format:check --all`, touched-file Prettier and `git diff --check` passed; OpenSpec validation passed **187/187**. The two new mounted cases and the 12 browser checks ran on the repaired source. The exact head will be committed locally with normal hooks; push and host gate remain with the integration owner.

@@ -625,6 +625,17 @@ test('[TEST-AXES-051] symbolic revision refuses source selection before publicat
   expect(call.stdout).toBe('');
 });
 
+test('[TEST-AXES-075] test source diagnostic refuses an annotated tag-object SHA before publication', async () => {
+  const setup = fixture();
+  git(setup.root, ['tag', '-a', 'test-source-tag', '-m', 'annotated tag', setup.revision]);
+  const tagObject = git(setup.root, ['rev-parse', 'test-source-tag^{tag}']);
+  expect(tagObject).not.toBe(setup.revision);
+  const call = await inspect({ ...setup, revision: tagObject });
+  expect(call.exitCode).toBe(1);
+  expect(call.stderr).toContain('test source selected revision differs from requested SHA');
+  expect(call.stdout).toBe('');
+});
+
 test('[TEST-AXES-053] failed and skipped observations retain outcomes with unresolved level', async () => {
   const setup = fixture();
   publishCases(setup, [

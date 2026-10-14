@@ -1,0 +1,34 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/docker.test.ts:
+(pass) step blockage compatibility commands > reads a present release CLI, models an older release, and refuses unavailable source [13.06ms]
+(pass) step blockage compatibility commands > refuses nonregular, dangling and unreadable reader paths [11.86ms]
+1741 |         return { exitCode, stdout };
+1742 |       };
+1743 |       expect(await read()).toEqual({ exitCode: 0, stdout: '[]\n' });
+1744 |       db.run('CREATE TABLE step_blockage (work_item_id text,step_id text)');
+1745 |       db.run("INSERT INTO step_blockage VALUES ('a','dev'),('b','qa')");
+1746 |       expect(await read()).toEqual({ exitCode: 0, stdout: '[{"kind":"blocked","count":2}]\n' });
+                                  ^
+error: expect(received).toEqual(expected)
+
+  {
+    "exitCode": 0,
+    "stdout":
+- "[{"kind":"blocked","count":2}]
++ "[]
+  "
+  ,
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-step-blockage-rebuild/tools/tool-remote-scripts/src/lib/docker.test.ts:1746:28)
+(fail) step blockage compatibility commands > counts every stored fact and distinguishes an older schema from an unavailable database [26.83ms]
+
+ 2 pass
+ 112 filtered out
+ 1 fail
+ 11 expect() calls
+Ran 3 tests across 1 file. [75.00ms]

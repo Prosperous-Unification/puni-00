@@ -61,6 +61,10 @@ export const REQUEST_BODIES: Readonly<Record<string, unknown>> = {
   postApiSpacesByIdProjectsByProjectIdMove: {},
   postApiOrganizationProjectsByIdRank: {},
   patchApiOrganization: { sharedPeople: true },
+  postApiOrganizationSharedPeopleRestoreApprovals: {
+    operationId: 'restore-1',
+    backupDigest: 'a'.repeat(64),
+  },
   'putApiOrganizationSession-policy': {
     maxSessionSeconds: 28_800,
     reauthenticateAfterSeconds: null,

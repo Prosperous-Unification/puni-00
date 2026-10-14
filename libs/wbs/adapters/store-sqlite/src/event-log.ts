@@ -19,7 +19,7 @@ import type { Gate } from './gate';
  */
 export type EventLogTransaction = Parameters<Parameters<SQLiteBunDatabase['transaction']>[0]>[0];
 
-/** The optimizer's adapter-only event write inside its existing transaction. */
+/** Adapter-owned event writes on an existing optimizer or offline recovery transaction. */
 export interface EventLogTransactionalWrite {
   recordEventIn(
     tx: EventLogTransaction,

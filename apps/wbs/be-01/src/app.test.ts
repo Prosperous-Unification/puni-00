@@ -25,6 +25,7 @@ import {
   refusingDomains,
   refusingEnterpriseConnections,
   refusingMemberships,
+  refusingRestoreApprovals,
 } from './testing/organization-access-fixture';
 import { testPriorityBandService } from './testing/priority-band-fixture';
 import { testProjectService } from './testing/project-fixture';
@@ -81,6 +82,7 @@ function optionsFor(auth: AuthService, internalAuthSecret = TEST_SECRET): AppOpt
   return {
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
+    sharedPeopleRestoreApprovals: refusingRestoreApprovals,
     domains: refusingDomains,
     enterpriseConnections: refusingEnterpriseConnections,
     emailVerification: refusingEmailVerification,

@@ -684,6 +684,162 @@
       "id": "TEST-AXES-066",
       "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
       "title": "Performance source diagnosis grants no coverage"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-067",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "A current Manual report is wrapped intact"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-068",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Noncurrent Manual judgments remain noncurrent"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-069",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "The Manual review deadline uses the caller instant"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-070",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Manual observation refuses invalid selection and evidence"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-071",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Manual observation retains B3 and immutable selection"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-072",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Manual observation identity and installed dispatch are complete"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-073",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Specification sources reject a tag object"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-074",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser test reports reject a tag object"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-075",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser test sources reject a tag object"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-076",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Performance inspection requires the exact committed object"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-077",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Explicit reviewed absence is bound to one Performance scope"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-078",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Missing or contradictory authority refuses facts"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-079",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Committed Performance scope resists working repair"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-080",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Exact committed selection and fact identity resist substitution"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-081",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Complete committed Conformance membership preserves overlap"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-082",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Unsupported committed Conformance authority and target refuse"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-083",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Unsafe or incomplete Conformance selection refuses"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-084",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Architecture declared membership preserves overlap and disjoint sources"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-085",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Architecture authority and complete selected mappings refuse substitution"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-086",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Architecture immediate children and reviewed empty contradictions refuse"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-087",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Complete Performance joins classify only the recorded fixture scope"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-088",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Performance facts and publication substitutions refuse joins"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-089",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Higher precedence membership yields typed Performance isolation failure"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-090",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Performance level dispatch preserves inherited refusals and bounded inputs"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-091",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Architecture execution excludes nested matching decoys"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-092",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Find-based level execution excludes nested matching decoys"
     }
   ]
 }

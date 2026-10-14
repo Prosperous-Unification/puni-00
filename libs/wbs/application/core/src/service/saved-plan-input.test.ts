@@ -97,6 +97,7 @@ const reads = {
     },
   ],
   estimates: [{ workItemId: 'w1', stepId: 's1', optimistic: 1, realistic: 2, pessimistic: 5 }],
+  stepBlockages: [],
   actuals: [{ workItemId: 'w1', stepId: 's2', days: 3, recordedAt: 1_756_000_100 }],
   progress: [{ workItemId: 'w1', stepId: 's2', state: 'done', statedAt: 1_756_000_200 }],
   measures: [
@@ -181,6 +182,7 @@ describe('planInputRowsOf', () => {
       ],
       actuals: [],
       progress: [],
+      stepBlockages: [],
       measures: [],
       dependencies: [],
       assignments: [],
@@ -231,6 +233,7 @@ describe('planInputRowsOf', () => {
       ],
       actuals: [],
       progress: [],
+      stepBlockages: [],
       measures: [],
       dependencies: [{ predecessorId: 'A', successorId: 'B' }],
       assignments: [],
@@ -262,6 +265,7 @@ describe('planInputRowsOf', () => {
       ],
       actuals: [],
       progress: [],
+      stepBlockages: [],
       measures: [],
       dependencies: [],
       assignments: [],
@@ -445,4 +449,34 @@ it('captures minute units and schedules captured 240-minute effort as half a wor
     ),
   ).toBe(true);
   expect(schedulePlanInput(captured).slices.get(sliceKey(first.id, 's1'))?.duration).toBe(0.5);
+});
+
+// Proof: filtering blocked owners from schedule input failed this full Fast neutrality regression; watched 2026-10-14.
+it('captures direct blockage while canonical schedule input and full Fast schedule stay identical', () => {
+  const plain = {
+    ...reads,
+    dependencies: [],
+    typedDependencies: [],
+    workItems: reads.workItems.map((row) => ({
+      ...row,
+      deadline: null,
+      readiness: null,
+      hold: null,
+    })),
+    stepBlockages: [],
+  } as unknown as PlanInputReads;
+  const blocked = {
+    ...plain,
+    stepBlockages: [{ workItemId: 'w1', stepId: 's1', blockedAt: -123 }],
+  };
+  expect(canonicalisePlanInput(planInputRowsOf(blocked)).stepBlockages).toEqual(
+    blocked.stepBlockages,
+  );
+  expect(JSON.stringify(canonicalisePlanInput(planInputRowsOf(blocked)))).not.toBe(
+    JSON.stringify(canonicalisePlanInput(planInputRowsOf(plain))),
+  );
+  expect(JSON.stringify(scheduleInputOfCaptured(blocked))).toBe(
+    JSON.stringify(scheduleInputOfCaptured(plain)),
+  );
+  expect(schedulePlanInput(blocked)).toEqual(schedulePlanInput(plain));
 });

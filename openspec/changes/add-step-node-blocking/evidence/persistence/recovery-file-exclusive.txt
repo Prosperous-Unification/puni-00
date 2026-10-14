@@ -1,0 +1,22 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-blockage-rollback.db.test.ts:
+193 |     expect((await runCli('save', file)).exitCode).toBe(0);
+194 |     const bytes = await Bun.file(file).text();
+195 |     expect((await runCli('remove', file)).exitCode).toBe(0);
+196 |     expect(saveStepBlockages(connection.db).rows).toEqual([]);
+197 |     const repeatedSave = await runCli('save', file);
+198 |     expect(repeatedSave.exitCode).not.toBe(0);
+                                            ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/tmp/puni-step-blockage-rebuild/libs/wbs/adapters/store-sqlite/src/step-blockage-rollback.db.test.ts:198:39)
+(fail) step blockage recovery > refuses overwriting a recovery file after removal and restores all original columns [782.69ms]
+
+ 0 pass
+ 9 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [1134.00ms]

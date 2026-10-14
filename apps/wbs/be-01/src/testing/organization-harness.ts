@@ -39,6 +39,7 @@ import {
   scheduleInputHash,
   ScimUserRepository,
   SessionPolicyRepository,
+  SharedPeopleRestoreApprovalRepository,
   SpaceRepository,
   SqliteBrowserCredentialRevocations,
   SqliteDelegationUse,
@@ -49,6 +50,7 @@ import {
 } from '@wbs/store-sqlite';
 import { canonicalOidcEmail } from '@wbs/store-sqlite/canonical-oidc-email';
 import type { Connection } from '@wbs/store-sqlite/db';
+import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 
@@ -193,6 +195,14 @@ export class OrganizationHarness {
     await this.optimizerCoordinator?.stop();
     await this.composedSource?.close();
     this.close();
+  }
+
+  /** Stops the composed app and closes both connections, leaving its exact database for host recovery. Caller owns directory cleanup. */
+  async stopForRecovery(): Promise<string> {
+    await this.optimizerCoordinator?.stop();
+    await this.composedSource?.close();
+    this.sqlite.close();
+    return this.databasePath();
   }
 
   /** Reads one coherent source input for a selected-ready mounted fixture. */
@@ -395,6 +405,7 @@ export class OrganizationHarness {
         measures: new StepMeasureRepository(db, OPEN),
         progress: new StepProgressRepository(db, OPEN),
         attempts: new StepNodeAttemptRepository(db, OPEN),
+        blockages: new StepBlockageRepository(db, OPEN),
         dependencies: new DependencyRepository(db, OPEN),
         typedDependencies: new TypedDependencyRepository(db, OPEN),
         directory: directoryStore,
@@ -427,6 +438,7 @@ export class OrganizationHarness {
             ),
           }),
       memberships: new OrganizationRepository(db, OPEN),
+      sharedPeopleRestoreApprovals: new SharedPeopleRestoreApprovalRepository(db, OPEN),
       domains,
       sessionPolicies: new SessionPolicyRepository(db, gate),
       pendingMemberships: new ScimUserRepository(db, gate),
@@ -619,6 +631,10 @@ export class OrganizationHarness {
             credentialEvidence: organizationCredentialEvidence(services.auth, TEST_JWT_KEY),
           }),
       memberships: new OrganizationRepository(source.db, services.gate),
+      sharedPeopleRestoreApprovals: new SharedPeopleRestoreApprovalRepository(
+        source.db,
+        services.gate,
+      ),
       domains: new DomainClaimRepository(source.db, services.gate),
       enterpriseConnections: new EnterpriseConnectionRepository(source.db, services.gate),
       onboarding: new OnboardingRepository(source.db, services.gate),

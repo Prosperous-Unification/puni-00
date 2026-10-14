@@ -203,3 +203,32 @@ it('reports organization context change once without retrying the refused mutati
     { sentence: 'Your organization changed. Reload before making another change.' },
   ]);
 });
+
+it.each([
+  'postApiProjectsByIdCommands',
+  'postApiProjectsByIdUndo',
+  'postApiProjectsByIdRedo',
+  'deleteApiProjectsByIdStepsByStepId',
+] as const)('reports disabled blockage admission from %s without retrying', async (operation) => {
+  const recorded = recordingHost();
+  const writer = createPlanWriter(recorded.host);
+  let requests = 0;
+  const outcome = await writer.run(async (write) => {
+    await write.perform(['tree'], () => {
+      requests += 1;
+      return Promise.reject(
+        new WbsRequestError({
+          kind: 'refusal',
+          operation,
+          refusal: { error: 'step_blockage_inactive' },
+        }),
+      );
+    });
+  });
+  expect(outcome).toBe('refused');
+  expect(requests).toBe(1);
+  expect(recorded.rereads).toEqual([]);
+  expect(recorded.refusals).toEqual([
+    { sentence: 'Step blockage changes are not enabled on this server.' },
+  ]);
+});

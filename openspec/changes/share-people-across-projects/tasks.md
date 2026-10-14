@@ -485,3 +485,70 @@ sequence`, `push failure retains durable event`, `expired replay requires snapsh
       response, missing shared invocation, and Python model ignoring fixed bookings all fail the
       focused checks. Cleanup removes image tags on failure. This prerequisite does not activate
       shared mode; `SUPPORTED_CAPACITY_MODES` remains `['isolated']`.
+
+## 10. Audited shared backup restore activation
+
+- [x] 10.1 Personal approval contract and additive schema: authenticated nondelegated super-admin
+      approves the active organization for one operation ID and canonical backup digest; recheck
+      membership on the immediate writer, preserve immutable bindings, idempotent approval retry,
+      and refuse rollback over evidence. Watch route, role, binding, transaction and rollback faults.
+- [x] 10.2a Canonical validated v1 backup parser and digest: fixed root/organization/rank field order,
+      ordinal ID ordering, lowercase SHA-256, complete rank-to-organization relation, and an offline
+      `digest <backup-file>` CLI branch that requires and opens no database. Preserve the existing
+      isolated `save|remove|restore` contract and shared-backup refusal.
+- [x] 10.2b Same-process host restore entrypoint under the canonical deploy lock; inspect blue/green
+      database identity, mounts and every writable container stopped, retain one parsed backup read,
+      optional operation/approval IDs for read-only binding diagnostics. Prove lock lifetime,
+      process-death rollback, inspection failures and no writes on refusal. No authority assertions.
+- [x] 10.3a Installed immediate restore owner and additive receipt/consumption schema; cold retry,
+      personal membership recheck, atomic mode/rank/audit/event writes, completion issuance guard,
+      host dispatch and unconditional legacy shared refusal. Keep physical shared capability disabled.
+- [x] 10.3b Local process-level shared physical acceptance/exclusion rehearsal; production
+      activation and attended live-host acceptance remain 10.4.
+- [ ] 10.3 One immediate restore transaction rechecks and consumes every changed organization's
+      personal approval/membership, restores modes/ranks, records per-org audits, all-project durable
+      elsewhere_changed events, receipt and consumption. Fail atomically and retry by receipt.
+- [x] 10.4a Package the existing production host CLI as a WBS-owned Bun artifact; normal build
+      dependency, outside-checkout smoke and explicit uncached scratch-only Linux rehearsal of
+      unchanged bytes. Prove approved isolated receipt/cold retry, approved shared pre-opener
+      refusal, fixed flock/colour/identity guards and watched production mutations. Production
+      remains isolated-only; this closes no attended live-host acceptance.
+- [ ] 10.4 Prove late failures, missing approvals, demotion, foreign bindings, replay and exclusion;
+      update runbook, review and exact-SHA canonical gate before activating supported modes.
+
+### 10.2b implementation slices
+
+- [x] Host preflight RED: isolated restore, running colours/extra writer, missing/malformed
+      inventory, mount/DB_PATH disagreement, retained backup replacement, diagnostic bindings.
+- [x] Implement WBS host recovery owner and hardcoded production CLI; hold flock while reading,
+      inspecting, diagnosing and restoring in the same process.
+- [x] Process proofs: a rival flock refuses while inspection/SQLite writer is held; SIGKILL of
+      that owner rolls back SQLite and releases the canonical inode; a replacement caller succeeds.
+- [x] Watch production check removals fail those negatives; record proof comments and exact
+      focused checks in verify.md. Commit the isolated checkpoint for review without publishing.
+
+### 10.3a ordered TDD slices
+
+- [x] SQLite owner tests: exact binding/approval set, current roles and eligibility, complete audit/event
+      fan-out including unranked projects, historical ranks, rank-only recovery and cold receipt retry.
+- [x] Add receipt/consumption migration and schema; implement one immediate synchronous owner using
+      borrowed rank restoration and event writes. Preserve frozen migration ordering expectations.
+- [x] Completion issuance and legacy shared-refusal negatives; retain identical approval retries.
+- [x] Host dispatch tests with test-supported shared release and actual capability refusal; retain
+      one connection/backup plus all existing flock/process-death/mount-source proofs.
+- [x] Watch binding/role/eligibility/atomicity/receipt/retry/event/legacy faults fail; record adjacent
+      Proof comments, focused checks, strict OpenSpec and scoped Docker evidence before review commit.
+
+### 10.3b ordered TDD slices
+
+- [x] RED authenticated mounted two-organization approvals, then stop the app and transfer its exact
+      SQLite file to a separate test-supported host-owner process. Assert independent canonical
+      bytes, personal actors/current roles, isolated rank-only history, shared unranked events,
+      sequences, durable receipt and exact consumption.
+- [x] Shared WAL precommit SIGKILL rolls back the complete table set and releases the same flock;
+      committed lost-output cold retry returns the original receipt without writes after later edits.
+- [x] Shared physical pre-opener negatives and real labelled Docker blue/green/extra alias writer
+      exclusions, foreign inode, absent/unreadable sources; stop test-owned writers and prove shared
+      success. Preserve unchanged production CLI shared refusal and retained backup pathname.
+- [x] Watch each architect fault independently; record scoped Bun/Nx, OpenSpec, Docker, formatting
+      and mutation receipts in verify.md. Commit review candidate; independent review precedes push.

@@ -109,6 +109,14 @@ export const numberedWorkItem = type({
     '[string]':
       "'skipped' | 'done' | 'on_hold' | 'blocked' | 'in_progress' | 'blocked_by_proxy' | 'waiting' | 'unknown'",
   }),
+  // Additive live metadata: older be-01 versions omit these fields mid-swap.
+  'blockages?': type({ '[string]': type({ blockedAt: 'number' }) }),
+  'blockageCauses?': type({
+    '[string]': type({ kind: "'step'", nodeId: 'string' })
+      .or(type({ kind: "'work-item'", workItemId: 'string' }))
+      .array()
+      .readonly(),
+  }),
 });
 export const workItemSlice = scheduled.and({
   id: 'string',

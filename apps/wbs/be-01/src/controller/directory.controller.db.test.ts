@@ -8,6 +8,7 @@ import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { StepService } from '@wbs/core/module/step/step.resource';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
 import { AuthService } from '@wbs/core/service/auth.service';
+import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
@@ -49,6 +50,7 @@ import {
   refusingDomains,
   refusingEnterpriseConnections,
   refusingMemberships,
+  refusingRestoreApprovals,
 } from '../testing/organization-access-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
 import { refusingProjectRanks } from '../testing/project-rank-fixture';
@@ -126,6 +128,7 @@ beforeEach(async () => {
       measures: new StepMeasureRepository(db, OPEN),
       progress: new StepProgressRepository(db, OPEN),
       attempts: new StepNodeAttemptRepository(db, OPEN),
+      blockages: new StepBlockageRepository(db, OPEN),
       dependencies: new DependencyRepository(db, OPEN),
       typedDependencies: new TypedDependencyRepository(db, OPEN),
       directory: store,
@@ -139,6 +142,7 @@ beforeEach(async () => {
   app = buildApp({
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
+    sharedPeopleRestoreApprovals: refusingRestoreApprovals,
     domains: refusingDomains,
     enterpriseConnections: refusingEnterpriseConnections,
     emailVerification: refusingEmailVerification,

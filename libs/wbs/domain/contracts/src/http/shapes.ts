@@ -92,6 +92,7 @@ import {
   savePlan,
 } from './saved-plan-shapes';
 import { readSessionPolicy, setSessionPolicy } from './session-policy-shapes';
+import { approveSharedPeopleRestore } from './shared-people-restore-shapes';
 import { smokeEcho } from './smoke-shapes';
 import { readSolution } from './solution-shapes';
 import {
@@ -190,6 +191,7 @@ export const httpShapes = [
   moveProjectRank,
   readCapacityMode,
   switchCapacityMode,
+  approveSharedPeopleRestore,
   readHistory,
   readSolution,
   createProject,

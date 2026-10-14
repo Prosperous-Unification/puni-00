@@ -10,6 +10,7 @@ import { inMemoryWorkItems } from '@wbs/store-memory/memory-work-item-fixture';
 import { inMemoryPriorityBands } from '@wbs/store-memory/priority-band-fixture';
 import { inMemoryProgress } from '@wbs/store-memory/progress-fixture';
 import { inMemoryProjects } from '@wbs/store-memory/project-fixture';
+import { inMemoryStepBlockages } from '@wbs/store-memory/step-blockage-fixture';
 import { inMemorySubtrees } from '@wbs/store-memory/subtree-fixture';
 import { inMemoryTypedDependencies } from '@wbs/store-memory/typed-dependency-fixture';
 
@@ -69,6 +70,7 @@ export interface InMemoryPlan {
       | 'measures'
       | 'progress'
       | 'attempts'
+      | 'blockages'
       | 'dependencies'
       | 'typedDependencies'
       | 'directory'
@@ -95,6 +97,19 @@ export function inMemoryServices(overrides: Partial<WorkItemServiceOptions> = {}
   const dependencies = overrides.dependencies ?? inMemoryDependencies([], undefined, workItems);
   const typedDependencies = overrides.typedDependencies ?? inMemoryTypedDependencies();
   const projects = overrides.projects ?? inMemoryProjects();
+  const blockages =
+    overrides.blockages ??
+    inMemoryStepBlockages(workItems, {
+      findById: async (stepId) => {
+        for (const project of await projects.list()) {
+          const step = (await projects.stepsOf(project.id)).find(
+            (candidate) => candidate.id === stepId,
+          );
+          if (step !== undefined) return step;
+        }
+        return null;
+      },
+    });
   const capacity = overrides.capacity ?? inMemoryCapacity();
   const priorityBands = overrides.priorityBands ?? inMemoryPriorityBands();
   const journal = overrides.journal ?? inMemoryCommandJournal();
@@ -123,6 +138,7 @@ export function inMemoryServices(overrides: Partial<WorkItemServiceOptions> = {}
     measures,
     progress,
     attempts,
+    blockages,
     dependencies,
     typedDependencies,
     directory,

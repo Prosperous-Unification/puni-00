@@ -48,6 +48,7 @@ export interface ExistingStoreOpeners {
   readonly measures: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['measures']>>;
   readonly progress: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['progress']>>;
   readonly attempts: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['attempts']>>;
+  readonly blockages: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['blockages']>>;
   readonly typedDependencies: (
     caseId: CaseId,
   ) => Promise<CaseFixture<TransactionalStores['typedDependencies']>>;
@@ -144,6 +145,26 @@ export function existingStoreRegistrations(
     ...measureRegistrations(openers.measures),
     ...progressRegistrations(openers.progress),
     ...attemptRegistrations(openers.attempts),
+    storeCase(
+      'blockages',
+      'blockages.set:read-remove',
+      openers.blockages,
+      async ({ port, seed }) => {
+        const blockage = {
+          workItemId: seed.workItemIds[0][0],
+          stepId: seed.stepIds[0][0],
+          blockedAt: 123456,
+        };
+        expect(await port.set(blockage, seed.stamps[0])).toBe('written');
+        expect(await port.listByProject(seed.projectIds[0])).toEqual([blockage]);
+        expect(await port.listByWorkItems(seed.projectIds[0], [blockage.workItemId])).toEqual([
+          blockage,
+        ]);
+        expect(await port.listByProject(seed.projectIds[1])).toEqual([]);
+        await port.remove(blockage.workItemId, blockage.stepId, seed.stamps[1]);
+        expect(await port.listByProject(seed.projectIds[0])).toEqual([]);
+      },
+    ),
     ...dependencyRegistrations(openers.dependencies),
     ...typedDependencyRegistrations(openers.typedDependencies),
     ...directoryRegistrations(openers.directory),

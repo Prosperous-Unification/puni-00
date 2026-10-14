@@ -43,6 +43,11 @@ import { type RefCallback, useCallback, useEffect, useState } from 'react';
  * prevents the default, so the Import with AI dialog opened from Export /
  * Import shuts without taking the menu under it along.
  *
+ * Summary activation closes peers synchronously, including the native click dispatched by
+ * Enter or Space. A `toggle` notification is queued: two activations can finish before the
+ * first notification, which would let the older panel close the newer one. The toggle
+ * listener also covers disclosure state changed without summary activation.
+ *
  * The callback ref makes the mounted node an effect dependency. Some controls,
  * including Export, are absent until their boundary read succeeds; a one-shot
  * effect that reads `ref.current` can run before that `<details>` exists and
@@ -109,15 +114,25 @@ export function useClosedOnDismiss(): RefCallback<HTMLDetailsElement> {
       }, 0);
     };
 
-    // One panel open at a time, whatever opened it: a summary toggled by Enter fires no
-    // pointerdown, so two keyboard opens used to leave both standing.
-    // Proof: on 2026-10-13, without this listener `opening one popover by the keyboard
-    // closes the other (F-028)` in `e2e/toolbar-panels.spec.ts` failed with both open.
-    const closeTheOthers = (): void => {
-      if (!panel.open) return;
+    const closeOthers = (): void => {
       for (const other of document.querySelectorAll(`details[${DISMISSIBLE}][open]`)) {
         if (other !== panel && other instanceof HTMLDetailsElement) other.open = false;
       }
+    };
+
+    const closeOnSummaryClick = (event: MouseEvent): void => {
+      const { target } = event;
+      if (panel.open || !(target instanceof Node) || !summaryOf(panel).contains(target)) return;
+      // Proof: without this listener, `keeps the latest activated panel open before queued
+      // toggles settle (F-028)` failed with ['Filters'] instead of ['Views'] (2026-10-14).
+      closeOthers();
+    };
+    // Preserve disclosure changes that activate no summary. A close notification must not
+    // dismiss the panel that replaced this one.
+    // Proof: without this listener, `closes the previous panel when disclosure state changes
+    // without summary activation` failed with Filters still open (2026-10-14).
+    const closeOnToggle = (): void => {
+      if (panel.open) closeOthers();
     };
 
     document.addEventListener('pointerdown', closeIfOutside, true);
@@ -129,14 +144,16 @@ export function useClosedOnDismiss(): RefCallback<HTMLDetailsElement> {
     document.addEventListener('keydown', closeOnEscape);
     panel.addEventListener('keydown', armOnTab);
     panel.addEventListener('focusout', closeOnFocusOut);
-    panel.addEventListener('toggle', closeTheOthers);
+    panel.addEventListener('click', closeOnSummaryClick);
+    panel.addEventListener('toggle', closeOnToggle);
     return () => {
       document.removeEventListener('pointerdown', closeIfOutside, true);
       document.removeEventListener('keydown', closeOnEscape);
       panel.removeEventListener('keydown', armOnTab);
       panel.removeEventListener('focusout', closeOnFocusOut);
       clearTimeout(pendingFocusCheck);
-      panel.removeEventListener('toggle', closeTheOthers);
+      panel.removeEventListener('click', closeOnSummaryClick);
+      panel.removeEventListener('toggle', closeOnToggle);
     };
   }, [panel]);
 

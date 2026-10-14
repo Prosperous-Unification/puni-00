@@ -103,12 +103,69 @@ describe('buildPackage', () => {
     expect(validation.exitCode, validation.stderr.toString()).toBe(0);
     expect(validation.stdout.toString()).toBe('valid benchmark-corpus\n');
 
+    const planDirectory = join(externalRoot, 'plan');
+    await mkdir(planDirectory);
+    const requirements = join(externalRoot, 'requirements.md');
+    await writeFile(requirements, 'Requirements\n');
+    const navigator = Bun.spawnSync(
+      [
+        process.execPath,
+        join(import.meta.dir, '../../../../twilight-navigator/cli/src/entrypoint.ts'),
+        'plan-reference',
+        '--export',
+        join(
+          import.meta.dir,
+          '../../../../twilight-navigator/cli/src/fixtures/plan-export.v8.json',
+        ),
+        '--repository',
+        'repo',
+        '--change',
+        'change',
+        '--planning-commit',
+        '1'.repeat(40),
+        '--source-base',
+        '2'.repeat(40),
+        '--requirements',
+        requirements,
+        '--output',
+        planDirectory,
+      ],
+      { cwd: externalRoot, stderr: 'pipe', stdout: 'pipe' },
+    );
+    expect(navigator.exitCode, navigator.stderr.toString()).toBe(0);
+    const referencePath = join(planDirectory, 'plan-reference.json');
+    const tasksPath = join(planDirectory, 'tasks.json');
+    const planValidation = invoke(
+      executable,
+      ['validate-plan-tasks', referencePath, tasksPath],
+      externalRoot,
+    );
+    expect(planValidation.exitCode, planValidation.stderr.toString()).toBe(0);
+    expect(JSON.parse(planValidation.stdout.toString())).toMatchObject({
+      scope: 'plan-task-consistency',
+      taskCount: 3,
+    });
+    const tasks = JSON.parse(await readFile(tasksPath, 'utf8')) as { tasks: { name: string }[] };
+    tasks.tasks[0].name = 'tampered';
+    await writeFile(tasksPath, JSON.stringify(tasks));
+    const planRefusal = invoke(
+      executable,
+      ['validate-plan-tasks', referencePath, tasksPath],
+      externalRoot,
+    );
+    expect(planRefusal.exitCode).toBe(1);
+    expect(planRefusal.stdout.toString()).toBe('');
+    expect(planRefusal.stderr.toString()).toContain('tasksDigest does not match tasks');
+
     const ruleHelp = invoke(executable, ['--help'], externalRoot);
     expect(ruleHelp.exitCode, ruleHelp.stderr.toString()).toBe(0);
     expect(ruleHelp.stdout.toString()).toContain(
       'twilight-burokrat check <committed|staged|working>',
     );
     expect(ruleHelp.stdout.toString()).toContain('twilight-burokrat explain <rule-id>');
+    expect(ruleHelp.stdout.toString()).toContain(
+      'twilight-burokrat validate-plan-tasks <plan-reference.json> <tasks.json>',
+    );
 
     const templateHelp = invoke(executable, ['--help'], externalRoot);
     expect(templateHelp.exitCode, templateHelp.stderr.toString()).toBe(0);

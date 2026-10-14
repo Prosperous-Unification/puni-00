@@ -1,3 +1,5 @@
+import { resolvePrBase } from './pr-merge-base';
+
 type Environment = Readonly<Record<string, string | undefined>>;
 
 export const CORPUS_BOUNDARY_EVENTS = [
@@ -47,9 +49,9 @@ function mergeBase(revision: string): string {
 /**
  * Chooses the immutable revision that CI compares with `HEAD`.
  *
- * Pull-request events must carry the base commit used to build their synthetic
- * merge. A named base branch may move before a rerun, so it is diagnostic text
- * only and never a comparison fallback.
+ * Pull-request events use {@link resolvePrBase} to validate their synthetic
+ * merge and return its actual first parent. A named base branch may move before
+ * a rerun, so it is never a PR comparison fallback.
  */
 export function chooseCorpusBase(environment: Environment): string {
   const eventName = requireEnv(environment, 'EVENT_NAME');
@@ -58,7 +60,9 @@ export function chooseCorpusBase(environment: Environment): string {
   }
   switch (eventName) {
     case 'pull_request': {
-      return mergeBase(requireSha(environment, 'PR_BASE_SHA'));
+      // Proof: restoring payload-base selection returned the stale ancestor;
+      // the real-history corpus consumer test failed (29 pass / 1 fail).
+      return resolvePrBase(environment);
     }
     case 'push':
       return requireEnv(environment, 'PUSH_BEFORE');

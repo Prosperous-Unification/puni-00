@@ -2,6 +2,7 @@ import type { DependencyReach } from '../dependency-reach';
 import type { EstimateMethod, EstimateRounding, EstimateUnit } from '../estimate';
 import type { Hold, Readiness } from '../progress';
 import type { StepState } from '../progress';
+import type { StoredStepBlockage } from '../step-blockage';
 import type { TypedDependency } from '../typed-dependency';
 
 /**
@@ -42,7 +43,7 @@ import type { TypedDependency } from '../typed-dependency';
  */
 export interface CanonicalPlanInput {
   /** Bumped whenever this field list changes; the body carries it. */
-  readonly schemaVersion: 6;
+  readonly schemaVersion: 7;
   readonly project: CanonicalProject;
   /** Sorted by `id`. */
   readonly workItems: readonly CanonicalWorkItem[];
@@ -50,6 +51,8 @@ export interface CanonicalPlanInput {
   readonly steps: readonly CanonicalStep[];
   /** Sorted by `workItemId`, then `stepId`. */
   readonly stepValues: readonly CanonicalStepValue[];
+  /** Direct leaf-owned facts, sorted by work item and step identity. */
+  readonly stepBlockages: readonly StoredStepBlockage[];
   /** Sorted by `workItemId`, then `stepId`, then `metric`. */
   readonly measures: readonly CanonicalMeasure[];
   /** Sorted by `predecessorId`, then `successorId`. */
@@ -335,6 +338,8 @@ export interface PlanInputRows {
   readonly workItems: readonly CanonicalWorkItem[];
   readonly steps: readonly CanonicalStep[];
   readonly stepValues: readonly CanonicalStepValue[];
+  /** Direct leaf-owned facts, sorted by work item and step identity. */
+  readonly stepBlockages: readonly StoredStepBlockage[];
   readonly measures: readonly CanonicalMeasure[];
   readonly dependencies: readonly CanonicalDependency[];
   readonly typedDependencies: readonly TypedDependency[];
@@ -354,7 +359,7 @@ export interface PlanInputRows {
 }
 
 /** The one version this module writes. Stored bodies carry it; readers check it. */
-export const CANONICAL_PLAN_INPUT_SCHEMA_VERSION = 6 as const;
+export const CANONICAL_PLAN_INPUT_SCHEMA_VERSION = 7 as const;
 
 const byString =
   <T>(...keys: readonly ((row: T) => string)[]) =>
@@ -396,6 +401,8 @@ const sorted = <T>(rows: readonly T[], compare: (a: T, b: T) => number): T[] =>
  * and canonicalising it again is a no-op — the round trip 1.4 asserts.
  */
 export function canonicalisePlanInput(values: PlanInputRows): CanonicalPlanInput {
+  // Proof: capture validation call removed; duplicate capture negative failed (step-blockages.test.ts), 2026-10-14.
+  assertStepBlockages(values);
   return {
     schemaVersion: CANONICAL_PLAN_INPUT_SCHEMA_VERSION,
     project: {
@@ -480,6 +487,13 @@ export function canonicalisePlanInput(values: PlanInputRows): CanonicalPlanInput
       actual: row.actual,
       progress: row.progress,
     })),
+    stepBlockages: sorted(
+      values.stepBlockages,
+      byString(
+        (row) => row.workItemId,
+        (row) => row.stepId,
+      ),
+    ).map(({ workItemId, stepId, blockedAt }) => ({ workItemId, stepId, blockedAt })),
     measures: sorted(
       values.measures,
       byString(
@@ -609,4 +623,74 @@ function namedRows(rows: readonly CanonicalNamedRow[]): CanonicalNamedRow[] {
  */
 export function serialiseCanonicalPlanInput(input: CanonicalPlanInput): string {
   return JSON.stringify(input);
+}
+
+/** Validates direct blockage at capture and stored-body boundaries without repairing trusted state. */
+export function assertStepBlockages(body: unknown): void {
+  // Proof: collection guard removed; missing/malformed current facts negatives failed (step-blockages.test.ts); watched 2026-10-14.
+  if (
+    typeof body !== 'object' ||
+    body === null ||
+    !('stepBlockages' in body) ||
+    !Array.isArray(body.stepBlockages)
+  )
+    throw new Error('step blockage collection is missing or malformed');
+  // Proof: reference-list guard removed; malformed owner-list stored read failed (step-blockages.test.ts); watched 2026-10-14.
+  if (
+    !('workItems' in body) ||
+    !Array.isArray(body.workItems) ||
+    !('steps' in body) ||
+    !Array.isArray(body.steps)
+  )
+    throw new Error('step blockage references have no owner or step collection');
+  const owners = new Set<string>();
+  const parents = new Set<string>();
+  const steps = new Set<string>();
+  const ownerRows: readonly unknown[] = body.workItems;
+  for (const owner of ownerRows) {
+    // Proof: owner-shape guard removed; malformed owner-row stored read failed (step-blockages.test.ts); watched 2026-10-14.
+    if (
+      typeof owner !== 'object' ||
+      owner === null ||
+      !('id' in owner) ||
+      typeof owner.id !== 'string'
+    )
+      throw new Error('step blockage owner collection is malformed');
+    owners.add(owner.id);
+    if ('parentId' in owner && typeof owner.parentId === 'string') parents.add(owner.parentId);
+  }
+  const stepRows: readonly unknown[] = body.steps;
+  for (const step of stepRows) {
+    // Proof: step-shape guard removed; malformed step-row stored read failed (step-blockages.test.ts); watched 2026-10-14.
+    if (typeof step !== 'object' || step === null || !('id' in step) || typeof step.id !== 'string')
+      throw new Error('step blockage step collection is malformed');
+    steps.add(step.id);
+  }
+  const pairs = new Set<string>();
+  const facts: readonly unknown[] = body.stepBlockages;
+  for (const fact of facts) {
+    // Proof: fact-shape/time guard removed; fractional-time capture/read negatives failed (step-blockages.test.ts); watched 2026-10-14.
+    if (
+      typeof fact !== 'object' ||
+      fact === null ||
+      !('workItemId' in fact) ||
+      typeof fact.workItemId !== 'string' ||
+      !('stepId' in fact) ||
+      typeof fact.stepId !== 'string' ||
+      !('blockedAt' in fact) ||
+      typeof fact.blockedAt !== 'number' ||
+      !Number.isSafeInteger(fact.blockedAt)
+    )
+      throw new Error('step blockage fact is malformed');
+    // Proof: owner guard removed; unknown-owner capture/read negatives failed (step-blockages.test.ts); watched 2026-10-14.
+    if (!owners.has(fact.workItemId)) throw new Error('step blockage owner is unknown');
+    // Proof: leaf guard removed; parent-owner capture/read negatives failed (step-blockages.test.ts); watched 2026-10-14.
+    if (parents.has(fact.workItemId)) throw new Error('step blockage owner is not a leaf');
+    // Proof: step guard removed; unknown-step capture/read negatives failed (step-blockages.test.ts); watched 2026-10-14.
+    if (!steps.has(fact.stepId)) throw new Error('step blockage step is unknown');
+    const pair = JSON.stringify([fact.workItemId, fact.stepId]);
+    // Proof: pair guard removed; duplicate capture/read negatives failed (step-blockages.test.ts); watched 2026-10-14.
+    if (pairs.has(pair)) throw new Error('step blockage pair is duplicated');
+    pairs.add(pair);
+  }
 }

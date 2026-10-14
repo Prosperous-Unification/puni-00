@@ -9,6 +9,7 @@ import {
   type ReleaseIdentity,
   type ReleaseRequest,
 } from './release';
+import type { ReplayCount } from './replay-receipt';
 
 /** A migration folder as one backend image carries it. */
 export interface FakeMigration {
@@ -209,6 +210,16 @@ export class FakeCluster implements ReleaseEffects {
     this.enter('stopWriter');
     this.backendReplicas = 0;
     return Promise.resolve();
+  }
+  observeReplayInventory(_attempt: string, _image: string) {
+    this.enter('observeReplayInventory');
+    this.writerJob();
+    return Promise.resolve([] as readonly ReplayCount[]);
+  }
+  observeReplayCapabilities(_attempt: string, image: string) {
+    this.enter('observeReplayCapabilities');
+    this.admit(image);
+    return Promise.resolve({ image, capabilities: ['replace_blockage', 'move_progress_v1'] });
   }
   capture(identity: Parameters<ReleaseEffects['capture']>[0], image: string) {
     this.enter('capture');

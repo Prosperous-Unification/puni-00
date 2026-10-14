@@ -12,6 +12,7 @@ import type { Drizzle } from './db';
 import type { Gate } from './gate';
 import { inertSqliteLateWriteSeam, type SqliteLateWriteSeam } from './late-write-seam';
 import { commandJournal, type CommandJournalRow, planEvent } from './schema';
+import { requireStepBlockageActivation } from './step-blockage-activation';
 
 /**
  * The undo stack, one per (project, account), on the server — and the one
@@ -139,6 +140,19 @@ export class CommandJournalRepository implements CommandJournalStore {
 
   async flip(id: string, undone: boolean, preconditions: unknown): Promise<void> {
     await this.gate.enter(async () => {
+      // Proof: forward/inverse/precondition inventory branches omitted separately; their empty nested replay negatives advanced the cursor (2026-10-14).
+      const admission = this.db.get<{ required: number }>(sql`SELECT EXISTS (
+        SELECT 1 FROM command_journal journal, json_tree(journal.payload) node
+        WHERE journal.id = ${id} AND ((node.key = 'do' AND node.value = 'replace_blockage') OR node.key IN ('deletionState','expectedProgress'))
+        UNION ALL
+        SELECT 1 FROM command_journal journal, json_tree(journal.inverse) node
+        WHERE journal.id = ${id} AND ((node.key = 'do' AND node.value = 'replace_blockage') OR node.key IN ('deletionState','expectedProgress'))
+        UNION ALL
+        SELECT 1 FROM command_journal journal, json_tree(journal.preconditions) node
+        WHERE journal.id = ${id} AND node.key = 'moveProgress'
+      ) AS required`);
+      // Proof: flip admission omitted; mounted empty structural undo returned 200 and changed its cursor (2026-10-14).
+      if (admission.required === 1) requireStepBlockageActivation(this.db);
       await this.db
         .update(commandJournal)
         .set({ undone, preconditions: JSON.stringify(preconditions) })

@@ -37,6 +37,7 @@ import {
   refusingDomains,
   refusingEnterpriseConnections,
   refusingMemberships,
+  refusingRestoreApprovals,
 } from '../testing/organization-access-fixture';
 import { projectRow } from '../testing/project-fixture';
 import { refusingProjectRanks } from '../testing/project-rank-fixture';
@@ -140,6 +141,7 @@ describe('setPriorityBands on POST /api/projects/:id/commands', () => {
     app = buildApp({
       organizations: legacyOrganizationAccess,
       memberships: refusingMemberships,
+      sharedPeopleRestoreApprovals: refusingRestoreApprovals,
       domains: refusingDomains,
       enterpriseConnections: refusingEnterpriseConnections,
       emailVerification: refusingEmailVerification,

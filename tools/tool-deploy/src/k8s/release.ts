@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 
 import type { AppliedMigration, MigrationCapture } from './migration-capture';
+import type { ReplayReceipt } from './replay-receipt';
 
 /** One of the four WBS Deployments the release moves. */
 export type K8sTier = 'backend' | 'gateway' | 'frontend' | 'mcp';
@@ -66,6 +67,7 @@ export const FORWARD_PHASES = [
   'writes-closed',
   'gateway-drained',
   'writer-stopped',
+  'replay-checked',
   'state-captured',
   'migrated',
   'backend-ready',
@@ -82,6 +84,7 @@ export const ROLLBACK_PHASES = [
   'rollback-started',
   'rollback-writer-stopped',
   'rollback-schema-restored',
+  'rollback-replay-checked',
   'rollback-tiers-restored',
   'rollback-verified',
   'rollback-writes-reopened',
@@ -146,6 +149,8 @@ export interface ReleaseState {
   /** Forward phase the release had reached when rollback began; drives what rollback undoes. */
   rollbackFrom: ForwardPhase | null;
   capture: MigrationCapture | null;
+  replayForward: ReplayReceipt | null;
+  replayRollback: ReplayReceipt | null;
   previous: ReleaseIdentity;
   snapshot: Snapshot | null;
   fluxSuspendedByUs: boolean;
@@ -162,6 +167,7 @@ export type StepKind =
   | 'close-writes'
   | 'drain-gateway'
   | 'stop-writer'
+  | 'check-replay'
   | 'capture-state'
   | 'migrate'
   | 'rollout-backend'
@@ -174,6 +180,7 @@ export type StepKind =
   | 'release-lease'
   | 'rollback-stop-writer'
   | 'rollback-schema'
+  | 'rollback-check-replay'
   | 'rollback-tiers'
   | 'rollback-verify'
   | 'rollback-reopen-writes'
@@ -195,6 +202,7 @@ const FORWARD_STEPS: readonly ReleaseStep[] = [
   { kind: 'close-writes', reaches: 'writes-closed' },
   { kind: 'drain-gateway', reaches: 'gateway-drained' },
   { kind: 'stop-writer', reaches: 'writer-stopped' },
+  { kind: 'check-replay', reaches: 'replay-checked' },
   { kind: 'capture-state', reaches: 'state-captured' },
   { kind: 'migrate', reaches: 'migrated' },
   { kind: 'rollout-backend', reaches: 'backend-ready' },
@@ -330,6 +338,8 @@ export function initialState(request: ReleaseRequest): ReleaseState {
     phase: 'requested',
     rollbackFrom: null,
     capture: null,
+    replayForward: null,
+    replayRollback: null,
     previous: request.expectedCurrent,
     snapshot: null,
     fluxSuspendedByUs: false,
@@ -368,7 +378,8 @@ function rollbackSteps(request: ReleaseRequest, state: ReleaseState): ReleaseSte
   const from = state.rollbackFrom;
   if (from === null) throw new Error(`${state.phase} has no recorded rollback origin`);
   const steps: ReleaseStep[] = [];
-  const writerMoved = reached(from, 'gateway-drained');
+  // Proof: delaying this boundary to gateway-drained reopens writes without replay admission after writes-closed.
+  const writerMoved = reached(from, 'flux-suspended');
   if (writerMoved) steps.push({ kind: 'rollback-stop-writer', reaches: 'rollback-writer-stopped' });
   // Proof: skipping this left 0002_add applied in `rolls back after a crash following migrated`
   // (and backend-ready, tiers-ready); the crash after state-captured has nothing to undo.
@@ -377,6 +388,7 @@ function rollbackSteps(request: ReleaseRequest, state: ReleaseState): ReleaseSte
     steps.push({ kind: 'rollback-schema', reaches: 'rollback-schema-restored' });
   }
   if (writerMoved) {
+    steps.push({ kind: 'rollback-check-replay', reaches: 'rollback-replay-checked' });
     steps.push({ kind: 'rollback-tiers', reaches: 'rollback-tiers-restored' });
     steps.push({ kind: 'rollback-verify', reaches: 'rollback-verified' });
   }
@@ -450,6 +462,8 @@ export function failStep(
 /** Recorded outcomes a completed step contributes to the next durable state. */
 export interface StepOutcome {
   capture?: MigrationCapture;
+  replayForward?: ReplayReceipt;
+  replayRollback?: ReplayReceipt;
   snapshot?: Snapshot;
 }
 
@@ -459,6 +473,8 @@ export function completeStep(
   outcome: StepOutcome,
 ): ReleaseState {
   const next: ReleaseState = { ...state, phase: step.reaches };
+  if (outcome.replayForward !== undefined) next.replayForward = outcome.replayForward;
+  if (outcome.replayRollback !== undefined) next.replayRollback = outcome.replayRollback;
   if (outcome.capture !== undefined) next.capture = outcome.capture;
   if (outcome.snapshot !== undefined) next.snapshot = outcome.snapshot;
   if (step.kind === 'suspend-flux') next.fluxSuspendedByUs = true;

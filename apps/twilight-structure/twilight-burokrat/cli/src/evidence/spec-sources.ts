@@ -18,6 +18,10 @@ export function inspectSpecSources(repository: string, revision: string) {
   // Proof: removing this guard let the staged-reader fault lose its named TEST-AXES-056 refusal.
   if (selected.selection.kind !== 'committed')
     throw new Error('spec source selection is not committed');
+  // Proof: disabling exact equality made a real annotated tag-object SHA pass the
+  // production CLI negative and emit the peeled commit inventory with exit zero.
+  if (selected.selection.revision !== revision)
+    throw new Error('spec source selected revision differs from requested SHA');
   const inventory = inventorySpecSources(readActiveSpecifications(root, selected));
   const observation = {
     schemaVersion: 1 as const,

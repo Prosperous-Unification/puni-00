@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/service/node-readings.test.ts:
+153 |     expect(projection.readings.get('d')).toEqual({ dev: 'blocked_by_proxy' });
+154 |     expect(projection.causes.get('d')?.['dev']).toEqual([{ kind: 'step', nodeId: 'sn1.c.dev' }]);
+155 |   });
+156 |
+157 |   it('throws on an edge naming a node the graph does not hold', () => {
+158 |     expect(() => nodeReadingsOf(inputs([edge(['gone', 0], ['b', 0], 'workflow')]))).toThrow(
+                                                                                          ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /gone#0, which is no step node/
+Received message: "undefined is not an object (evaluating 'predecessor.successors')"
+
+      at <anonymous> (/tmp/puni-step-blockage-rebuild/libs/wbs/application/core/src/service/node-readings.test.ts:158:85)
+(fail) nodeReadingsOf > throws on an edge naming a node the graph does not hold [1.23ms]
+
+ 0 pass
+ 21 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [142.00ms]
