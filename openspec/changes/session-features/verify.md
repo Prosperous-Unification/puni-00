@@ -69,6 +69,82 @@ Fresh focused verification on the reviewed parent:
 Full host gate, full suites and publishing are delegated to the root integration review;
 this worker does not run the host gate, push or merge.
 
+## Cumulative frontend integration — 2026-10-14
+
+Isolated clone `/tmp/puni-frontend-aggregate-sol` started at stabilized base
+`8446c9c51e20c34695986f3095c58adbcb535685`. Ordered merge commits preserve reviewed
+organization #413 `f6b16b5ab8243a7778b7528773f3fc61d1de48bf`, UI/session #442
+`92c1808dd102d532812d8eaef8af53ce66fa22f8` (including #417
+`dde93acd308d071422d76c857b7325c015cdeeb9`), and Gantt #401
+`39b8c2cdf8fb213b1fda3a9159f6f4c077b16a09`. Tested application tree:
+`c160a28e8a8b6aaa4f98ccef55a977f295715a0c`.
+
+Two conflicts were resolved: both organization verification append sections were
+retained, and the stabilized mounted logout test's existing `Proof:` comment was
+retained over the incoming equivalent comment. The 30 s test budget agrees on
+both sides. No application source required conflict edits or behavioral fixes.
+`git merge-base --is-ancestor` confirmed all four reviewed tips above are ancestors.
+The source checkout was read only; dependencies were reused through a local
+`node_modules` symlink. No push, PR, deployment or remote merge was performed.
+
+Fresh checks on the combined application tree:
+
+- `TZ=UTC bunx vitest run` with one worker, no file parallelism, 30 s test/hook
+  budgets and the selected session features, organization page/gate/context,
+  onboarding, spaces, app, plan table/project page/chart seam and four Gantt
+  component suites: **574 passed across 14 files**, 254.18 s
+  (`/tmp/puni-frontend-aggregate-vitest.log`). An initially listed nonexistent
+  `organization-owner.test.ts` matched no file; the expanded rerun below uses
+  the actual `organization-owner.model.test.ts` and resources suite.
+- Expanded approved DOM rerun of the same 14 files plus
+  `src/runtime/organization-owner.model.test.ts` and
+  `src/runtime/organization-resources.test.tsx`, with `CLAUDECODE=0 AGENT=0`:
+  **588 passed across 16 files**, 203.10 s
+  (`/tmp/puni-frontend-aggregate-vitest-approved.log`). The initial run's quiet
+  reporting reflected work in progress; both runs completed successfully.
+- Same settings over Gantt axis months, bar labels, panel fill, panel and chart
+  seam: **333 passed across five files**, 75.45 s
+  (`/tmp/puni-frontend-aggregate-gantt-dom.log`).
+- `TZ=UTC bunx vitest run src/components/wbs/gantt-geometry.test.ts
+--config=vitest.node.config.ts --no-file-parallelism --maxWorkers=1`:
+  **217 passed**, 2.15 s (`/tmp/puni-frontend-aggregate-geometry.log`).
+- `TZ=UTC bunx vitest run src/components/wbs/plan-read-and-write.test.tsx
+-t 'refused draft|failed read|refused rename'` with the DOM settings above:
+  **3 passed, 87 unselected**, 10.68 s
+  (`/tmp/puni-frontend-aggregate-recovery.log`). These exercise draft preservation
+  on refetch, unknown-status read failure, and rename refusal presentation.
+- Focused session feature/gate probe: **13 passed across two files**, 26.66 s
+  (`/tmp/puni-frontend-aggregate-vitest-probe.log`).
+- `bun test` over backend session-features, auth-password-endpoints,
+  auth.integration, oidc.integration and app.routes, with `--timeout=30000`:
+  initial sandbox run **104 pass, 1 listener EPERM failure**; approved listener
+  rerun **105 pass, 0 fail, 1594 assertions**, 27.29 s
+  (`/tmp/puni-frontend-aggregate-backend-approved.log`).
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-fe-01:typecheck
+--outputStyle=static`: **2 successful uncached tasks**, 37.1 s, module and app
+  checks (`/tmp/puni-frontend-aggregate-typecheck.log`).
+- Same Nx flags with `wbs-fe-01:lint`: **1 successful uncached task**, 2m41s
+  (`/tmp/puni-frontend-aggregate-lint.log`). Direct zero-warning ESLint over nine
+  combined session/organization/spaces/chart production and test files also
+  exited zero (`/tmp/puni-frontend-aggregate-scoped-lint.log`).
+- `bunx @fission-ai/openspec@1.12.0 validate --all --json`: **193 items passed,
+  zero failed** (`/tmp/puni-frontend-aggregate-openspec.log`).
+- `git diff 8446c9c51e20c34695986f3095c58adbcb535685 HEAD --check`: exited zero.
+
+R5: this aggregate introduces no new production safety checks. Existing adjacent
+proofs and fault records from the three reviewed changes are preserved; no new
+mutation proof is claimed. Fresh DOM checks cover local feature suppression,
+organization access withdrawal, runtime races, recovery and chart composition.
+
+Browser verification was attempted through `bin/with-heavy-lock.sh -- bunx
+playwright test --config=apps/wbs/fe-01/playwright.organization.config.ts
+--reporter=line` and exited **70** before Playwright: `heavy lock:
+/home/puni1/.cache does not exist` on local `pop-os`. The canonical lock was not
+bypassed. Activated organization, quiet-load, Gantt/browser geometry and other
+browser suites remain unverified on this aggregate. Full repository suites,
+build, backend/dependency-wide lint/typechecks, hosted CI and the exact-SHA
+`bin/h2puni-gate.sh` remain required integration checks for the root owner.
+
 ## Review fixes (Fable review of #442 at `92c1808dd`, MERGE AFTER FIXES)
 
 On top of `92c1808dd`, add-only commits.
@@ -87,3 +163,37 @@ been called 1 times`. Fixed: 9 pass. Spec sentence narrowed to the startup windo
 3. `readFeatures()` moved below the invalid-token 401. New case `refuses an invalid bearer 401
 even when the activation marker is broken`: with the read restored above the refusal,
    `Expected: 401, Received: 500` (5 pass, 1 fail); fixed 6 pass. Spec scenario added.
+
+## Release candidate restack — 2026-10-14
+
+Merged pinned main `abb051cb5b52af4f61609cc89f86dc315ed94bff` into candidate
+`9b2f93ba5d9c61dce0f79681f03800e4d44a00b3` in isolated clone
+`/tmp/puni-release-candidate-integration-sol`. Only the Gantt and session
+verification histories conflicted; retained both additive histories.
+
+Composition checks:
+
+- Four focused DOM suites (organization gate, Gantt bar labels, panel fill,
+  panel): **314 passed across four files**, 20.02 s.
+- Backend `session-features.db.test.ts`: **6 passed**, 18 assertions, 3.03 s.
+- ESLint over the five changed production files: exit **0**.
+- Initial frontend module typecheck exposed missing `step_blockage_inactive`
+  arms in `plan-refusal.ts` for commands, undo/redo and step deletion. The
+  contract imports source directly; this was a real cumulative contract
+  mismatch. Four added plan writer cases exercised the production reporting
+  path and failed with `Unexpected response variant: object` before the three
+  arms were restored (**4 failed, 7 passed**). Adjacent `Proof:` comments name
+  the observed fault. The existing refusal sentence is preserved.
+
+Local browser command through `bin/with-heavy-lock.sh` exited **70** before
+Playwright because `/home/puni1/.cache` is absent. No lock bypass. An initial
+Nx target attempt stopped with exit 130; `nx exec` also refused the existing
+`wbs-runtime-portable → wbs-core → wbs-store-memory → wbs-core` cycle. Focused
+Bun-backed suites above ran to completion. Local `openspec` is absent. Full
+repository suites, canonical exact-SHA host gate, CI, and browser settlement
+red/green proof remain the root integration owner's checks before merge.
+
+After restoring those arms, the plan writer suite passed **11/11**, 3.08 s.
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false CLAUDECODE=0 AGENT=0 bunx nx run
+wbs-fe-01:typecheck --outputStyle=static` passed **two uncached tasks**,
+14.2 s. Focused ESLint and Prettier checks are recorded with the commit handoff.

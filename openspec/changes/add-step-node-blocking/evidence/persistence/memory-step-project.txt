@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-memory/src/step-blockage-fixture.test.ts:
+51 |
+52 | it('refuses cross-project steps, corrupted read facts and invalid transfer destinations', async () => {
+53 |   steps.rows.push(stepRow({ id: 'foreign', projectId: 'foreign' }));
+54 |   expect(
+55 |     blockages.set({ workItemId: 'a', stepId: 'foreign', blockedAt: 1 }, stamp),
+56 |   ).rejects.toThrow(/invalid step reference/);
+                 ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-step-blockage-rebuild/libs/wbs/adapters/store-memory/src/step-blockage-fixture.test.ts:56:13)
+(fail) refuses cross-project steps, corrupted read facts and invalid transfer destinations [1.44ms]
+
+ 0 pass
+ 3 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [194.00ms]

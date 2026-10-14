@@ -54,9 +54,20 @@ export interface DeclaredRelationships {
   unresolved: { relationshipId: string; reason: string }[];
 }
 
-interface DeclarationSource {
+interface DeclarationDocument {
   declaration: RelationshipDeclaration;
   path: string;
+}
+
+/** Byte authority supplied by the adapter; selectors never reach a repository through this port. */
+export interface DeclarationSource {
+  readonly currentBytes: (factId: string, path: string) => Uint8Array;
+  readonly historicalBytes: (factId: string, revision: string, path: string) => Uint8Array;
+  readonly blobIdentity: (fact: RelationshipFact, bytes: Uint8Array) => string;
+  readonly readDeclarations: (
+    paths: readonly string[],
+  ) => Iterable<{ path: string; bytes: Uint8Array }>;
+  readonly extractorSource: () => Uint8Array;
 }
 
 const compareText = (left: string, right: string): number =>
@@ -162,20 +173,15 @@ function historicalBytes(
   return selected.stdout;
 }
 
-function authorityBytes(
-  repository: string,
-  workspace: string,
-  candidate: CandidateSnapshot,
-  fact: RelationshipFact,
-): Uint8Array {
+function authorityBytes(source: DeclarationSource, fact: RelationshipFact): Uint8Array {
   if (!('path' in fact)) {
     throw new Error(`fact ${fact.factId} has no executable authority path`);
   }
   // Proof: resolving both selectors from the current checkout made the historical production
   // CLI fail with `expected 3100; received 3200` in `resolves a historical selector`.
   return fact.at.kind === 'historical'
-    ? historicalBytes(repository, fact.factId, fact.at.revision, fact.path)
-    : currentBytes(workspace, fact.factId, fact.path, candidate);
+    ? source.historicalBytes(fact.factId, fact.at.revision, fact.path)
+    : source.currentBytes(fact.factId, fact.path);
 }
 
 function malformed(fact: RelationshipFact, cause: unknown): never {
@@ -948,9 +954,7 @@ function currentTarget(
 }
 
 function extractActual(
-  repository: string,
-  workspace: string,
-  candidate: CandidateSnapshot,
+  source: DeclarationSource,
   fact: RelationshipFact,
   nx: NxRelationships,
 ): unknown {
@@ -969,7 +973,7 @@ function extractActual(
     }
     return currentTarget(fact, nx);
   }
-  const bytes = authorityBytes(repository, workspace, candidate, fact);
+  const bytes = authorityBytes(source, fact);
   switch (fact.kind) {
     case 'package-script': {
       const scripts = record(jsonAuthority(fact, bytes)['scripts'], `fact ${fact.factId} scripts`);
@@ -1002,7 +1006,7 @@ function extractActual(
     }
     case 'generated-blob':
     case 'vendored-lock':
-      return blobIdentity(repository, fact, bytes);
+      return source.blobIdentity(fact, bytes);
     case 'environment-variable':
       return envAuthority(fact, bytes).get(fact.name);
     case 'port': {
@@ -1063,8 +1067,11 @@ function printable(value: unknown): string {
   return JSON.stringify(value);
 }
 
-function readDeclarations(workspace: string, paths: readonly string[]): DeclarationSource[] {
-  return paths.map((path) => {
+function* readDeclarations(
+  workspace: string,
+  paths: readonly string[],
+): Generator<{ path: string; bytes: Uint8Array }> {
+  for (const path of paths) {
     const absolutePath = join(workspace, path);
     // Proof: removing this branch made the absent-declaration test receive
     // `relationship declaration unreadable ... ENOENT` instead of the named absence.
@@ -1078,20 +1085,28 @@ function readDeclarations(workspace: string, paths: readonly string[]): Declarat
       // `EISDIR: illegal operation on a directory, read`, losing the declaration path.
       throw new Error(`relationship declaration unreadable: ${path}: ${detail}`, { cause });
     }
+    yield { path, bytes };
+  }
+}
+
+function parseDeclarations(
+  source: DeclarationSource,
+  paths: readonly string[],
+): DeclarationDocument[] {
+  return Array.from(source.readDeclarations(paths), ({ path, bytes }) => {
     let input: unknown;
     try {
       input = parseJson(bytes, `relationship declaration ${path}`);
     } catch (cause) {
       const detail = cause instanceof Error ? cause.message : String(cause);
-      // Proof: rethrowing the JSON error made the malformed-declaration test receive
-      // `relationship declaration relationships.v1.json malformed`, not the boundary's name.
+      // Proof: the legacy malformed-declaration CLI test loses its named boundary on bare rethrow.
       throw new Error(`relationship declaration malformed: ${path}: ${detail}`, { cause });
     }
     return { path, declaration: parseOrThrow(RelationshipDeclaration, input) };
   });
 }
 
-function declarationExtractor(): ExtractorIdentity {
+function readExtractorSource(): Uint8Array {
   let source: Uint8Array;
   try {
     source = readFileSync(import.meta.path);
@@ -1099,6 +1114,11 @@ function declarationExtractor(): ExtractorIdentity {
     const detail = cause instanceof Error ? cause.message : String(cause);
     throw new Error(`relationship declaration extractor identity unreadable: ${detail}`, { cause });
   }
+  return source;
+}
+
+/** Derives the legacy extractor identity from exact verified implementation bytes. */
+export function identifyDeclarationExtractor(source: Uint8Array): ExtractorIdentity {
   return {
     extractorId: 'relationship-declarations',
     version: 'v1',
@@ -1121,8 +1141,30 @@ export function extractDeclaredRelationships(
   request: RelationshipRequest,
   nx: NxRelationships,
 ): { extractor: ExtractorIdentity; relationships: DeclaredRelationships } {
-  const extractor = declarationExtractor();
-  const sources = readDeclarations(workspace, request.declarationPaths ?? []);
+  return extractDeclaredRelationshipsFromSource(
+    {
+      currentBytes: (factId, path) => currentBytes(workspace, factId, path, candidate),
+      historicalBytes: (factId, revision, path) =>
+        historicalBytes(repository, factId, revision, path),
+      blobIdentity: (fact, bytes) => blobIdentity(repository, fact, bytes),
+      readDeclarations: (paths) => readDeclarations(workspace, paths),
+      extractorSource: readExtractorSource,
+    },
+    candidate,
+    request,
+    nx,
+  );
+}
+
+/** Resolves selected declarations through byte ports with identical legacy selector semantics. */
+export function extractDeclaredRelationshipsFromSource(
+  source: DeclarationSource,
+  candidate: CandidateSnapshot,
+  request: RelationshipRequest,
+  nx: NxRelationships,
+): { extractor: ExtractorIdentity; relationships: DeclaredRelationships } {
+  const extractor = identifyDeclarationExtractor(source.extractorSource());
+  const sources = parseDeclarations(source, request.declarationPaths ?? []);
   const declarationIds = sources.map(({ declaration }) => declaration.declarationId);
   // Proof: bypassing this guard made the cross-document duplicate-declaration production CLI
   // invocation exit 0; its test expected exit 1 and received 0.
@@ -1155,7 +1197,7 @@ export function extractDeclaredRelationships(
   const facts = sources
     .flatMap(({ declaration, path }) =>
       declaration.facts.map((fact) => {
-        const actual = extractActual(repository, workspace, candidate, fact, nx);
+        const actual = extractActual(source, fact, nx);
         const expected = expectedValue(fact);
         if (actual === undefined || hashCanonical(actual) !== hashCanonical(expected)) {
           // Proof: bypassing this comparison made the forged-selector production CLI exit 0;

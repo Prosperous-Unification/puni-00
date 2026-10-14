@@ -1,0 +1,22 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-memory/src/step-blockage-fixture.test.ts:
+28 |   const validateNode = async (
+29 |     blockage: StoredStepBlockage,
+30 |     owner: WorkItem,
+31 |     step: Step,
+32 |   ): Promise<void> => {
+33 |     if (step.projectId !== owner.projectId)
+             ^
+TypeError: null is not an object (evaluating 'step.projectId')
+      at <anonymous> (/tmp/puni-step-blockage-rebuild/libs/wbs/adapters/store-memory/src/step-blockage-fixture.ts:33:9)
+      at set (/tmp/puni-step-blockage-rebuild/libs/wbs/adapters/store-memory/src/step-blockage-fixture.ts:72:13)
+      at async <anonymous> (/tmp/puni-step-blockage-rebuild/libs/wbs/adapters/store-memory/src/step-blockage-fixture.test.ts:38:26)
+(fail) refuses missing steps, malformed timestamps and parent owners [2.14ms]
+(pass) refuses cross-project steps, corrupted read facts and invalid transfer destinations [1.65ms]
+
+ 1 pass
+ 2 filtered out
+ 1 fail
+ 5 expect() calls
+Ran 2 tests across 1 file. [233.00ms]

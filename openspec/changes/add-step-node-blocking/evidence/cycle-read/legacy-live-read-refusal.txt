@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/work-item/work-item.resource.test.ts:
+511 |         successorId: a,
+512 |       },
+513 |       WROTE,
+514 |     );
+515 |
+516 |     await expect(service.tree(projectId)).rejects.toThrow(
+                                                        ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-step-blockage-rebuild/libs/wbs/application/core/src/module/work-item/work-item.resource.test.ts:516:51)
+(fail) dependencies > refuses a stored legacy predecessor absent from the project [10.21ms]
+
+ 0 pass
+ 106 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1.90s]

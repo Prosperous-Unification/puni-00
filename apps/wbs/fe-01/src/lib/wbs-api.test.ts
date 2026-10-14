@@ -123,7 +123,7 @@ const PROJECT = {
   scheduleObjective: 'pri',
 };
 
-/** The first leaf's Dev attempts as a version-7 export writes them: by step code. */
+/** The first leaf's Dev attempts keyed by step code. */
 const ATTEMPTS = {
   dev: [
     {
@@ -148,9 +148,8 @@ const ATTEMPTS = {
 };
 
 /**
- * A version-7 export (`step-node-attempts` D5): the project's timezone in its
- * settings, and the first leaf's attempts keyed by step code, so a download
- * proves they survive the response contract.
+ * A current export carries the timezone, step-code attempts and direct blockage
+ * collection, so the generated client validates the archival response contract.
  */
 const PLAN_DOCUMENT = (ids: string[] = ['w1']): Record<string, unknown> => {
   const tree = JSON.parse(TREE('p1', ids)) as { workItems: Record<string, unknown>[] };
@@ -159,8 +158,9 @@ const PLAN_DOCUMENT = (ids: string[] = ['w1']): Record<string, unknown> => {
     workItems: tree.workItems.map((row, at) => (at === 0 ? { ...row, attempts: ATTEMPTS } : row)),
     project: PROJECT,
     stepNodes: [],
-    document: { format: 'wbs-plan', version: 8, exportedAt: '2026-09-14T08:30:00.000Z' },
+    document: { format: 'wbs-plan', version: 9, exportedAt: '2026-09-14T08:30:00.000Z' },
     typedDependencies: [],
+    stepBlockages: [],
     settings: {
       name: PROJECT.name,
       restricted: PROJECT.restricted,
@@ -189,6 +189,7 @@ const importDocument = async (): Promise<PlanDocumentRequest> => {
     exportedAt: '2026-09-14T08:30:00.000Z',
   };
   delete legacyDocument['typedDependencies'];
+  delete legacyDocument['stepBlockages'];
   // A version-3 file has neither the zone nor attempts version 7 added.
   const settings = legacyDocument['settings'] as Record<string, unknown>;
   delete settings['timezone'];
@@ -224,7 +225,7 @@ describe('plan JSON transfer', () => {
     expect(new Headers(call?.[1]?.headers).get('x-wbs-token')).toBe('token');
   });
 
-  it('downloads a version-8 JSON representation containing a typed dependency and attempts', async () => {
+  it('downloads a version-9 JSON representation containing a typed dependency and attempts', async () => {
     const document = PLAN_DOCUMENT(['first', 'second']);
     document['typedDependencies'] = [
       {

@@ -28,6 +28,9 @@ function isolatedTest(
   action: () => Promise<void>,
   durationMs: number,
   fault?:
+    | 'stat-esrch'
+    | 'stat-eio'
+    | 'stat-malformed'
     | 'pidfd-vanish'
     | 'pidfd-recheck-error'
     | 'subreaper-denied'
@@ -81,6 +84,87 @@ function isolatedTest(
     durationMs + 10_000,
   );
 }
+
+for (const [fault, refusal] of [
+  ['stat-eio', 'cannot read /proc identity'],
+  ['stat-malformed', 'malformed /proc identity'],
+] as const) {
+  isolatedTest(
+    `refuses ${fault} process identity before launching`,
+    async () => {
+      expect(() => createPerformanceProcessOwner()).toThrow(refusal);
+      await Bun.sleep(0);
+    },
+    5_000,
+    fault,
+  );
+}
+
+isolatedTest(
+  'rescans an exited process stat ESRCH without leaking owned children or pidfds',
+  async () => {
+    const countPidfds = (): number =>
+      readdirSync('/proc/self/fd').filter((entry) => {
+        try {
+          return readlinkSync(`/proc/self/fd/${entry}`).includes('pidfd');
+        } catch (cause) {
+          if (
+            typeof cause === 'object' &&
+            cause !== null &&
+            Reflect.get(cause, 'code') === 'ENOENT'
+          )
+            return false;
+          throw cause;
+        }
+      }).length;
+    const foreign = Bun.spawn(['sleep', '30'], { stdout: 'ignore', stderr: 'ignore' });
+    const owner = createPerformanceProcessOwner();
+    const before = countPidfds();
+    const marker = join(tmpdir(), `performance-stat-esrch-${String(process.pid)}`);
+    let adoptedPid = 0;
+    let wrapper: Bun.Subprocess | undefined;
+    try {
+      wrapper = owner.spawn(
+        [
+          'bash',
+          '-c',
+          `setsid bash -c 'trap "" TERM; echo $$ > "${marker}"; exec sleep 30' >/dev/null 2>&1 & exit 0`,
+        ],
+        process.cwd(),
+        { PATH: process.env['PATH'] ?? '/usr/bin:/bin' },
+      );
+      expect(await wrapper.exited).toBe(0);
+      for (let poll = 0; poll < 100 && !(await Bun.file(marker).exists()); poll += 1)
+        await Bun.sleep(10);
+      adoptedPid = Number((await readFile(marker, 'utf8')).trim());
+      expect(Number.isSafeInteger(adoptedPid) && adoptedPid > 0).toBe(true);
+      expect(await Bun.file(`/proc/${String(wrapper.pid)}/stat`).exists()).toBe(false);
+      process.env['PUNI_EXITED_SCAN_PID'] = String(wrapper.pid);
+      const started = Date.now();
+      await owner.stop();
+      expect(process.env['PUNI_EXITED_SCAN_INJECTED']).toBe('1');
+      expect(Date.now() - started).toBeLessThan(8_000);
+      expect(await Bun.file(`/proc/${String(adoptedPid)}/stat`).exists()).toBe(false);
+      expect(await Bun.file(`/proc/${String(wrapper.pid)}/stat`).exists()).toBe(false);
+      expect(await Bun.file(`/proc/${String(foreign.pid)}/stat`).exists()).toBe(true);
+      expect(countPidfds()).toBe(before);
+    } finally {
+      delete process.env['PUNI_EXITED_SCAN_PID'];
+      delete process.env['PUNI_EXITED_SCAN_INJECTED'];
+      if (adoptedPid > 0 && (await Bun.file(`/proc/${String(adoptedPid)}/stat`).exists()))
+        process.kill(adoptedPid, 'SIGKILL');
+      if (wrapper !== undefined) {
+        if (await Bun.file(`/proc/${String(wrapper.pid)}/stat`).exists()) wrapper.kill('SIGKILL');
+        await wrapper.exited;
+      }
+      foreign.kill('SIGKILL');
+      await foreign.exited;
+      await rm(marker, { force: true });
+    }
+  },
+  12_000,
+  'stat-esrch',
+);
 
 isolatedTest(
   'refuses missing child subreaper capability before launching',

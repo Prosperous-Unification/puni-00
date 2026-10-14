@@ -37,6 +37,7 @@ import { PriorityBandRepository } from './priority-band';
 import { ProjectRepository } from './project';
 import { sqliteUnitOfWork } from './sqlite-unit-of-work';
 import { StepRepository } from './step';
+import { StepBlockageRepository } from './step-blockage';
 import { StepMeasureRepository } from './step-measure';
 import { StepNodeAttemptRepository } from './step-node-attempt';
 import { StepProgressRepository } from './step-progress';
@@ -145,6 +146,7 @@ beforeEach(async () => {
     measures: new StepMeasureRepository(db, OPEN),
     progress: new StepProgressRepository(db, OPEN),
     attempts: new StepNodeAttemptRepository(db, OPEN),
+    blockages: new StepBlockageRepository(db, OPEN),
     directory: directoryStore,
     capacity: capacityStore,
     priorityBands: bandStore,

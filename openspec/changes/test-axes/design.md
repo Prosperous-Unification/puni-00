@@ -82,7 +82,92 @@ The version-1 output has `revision`, `candidate`, `publicationObservationDigest`
 
 The diagnostic does not infer tested module, service kind, coverage or admission. Full level classification still needs complete precedence facts. Reusing the strict publication inspector and full index checker means unrelated corrupt publication/index state can refuse this command. That cost preserves the existing authorities and keeps this slice independent of B3 and certification.
 
+## Adjacent exact committed selection boundary (4.1b.5)
+
+`readCandidate` intentionally resolves `${revision}^{commit}` and returns the peeled commit SHA.
+The four existing diagnostics `inspect-spec-sources`, `inspect-test-reports`,
+`inspect-test-sources` and `inspect-performance` each accept a caller's full SHA, but a full-hex
+annotated tag object can pass that syntax check and select a different commit. Each command now
+compares the selected revision to the requested SHA immediately after its committed read. The
+Performance inspector also checks the selected kind before that comparison. These local guards
+preserve the generic reader's peeling contract for staged bases and historical callers, while
+keeping each command's named refusal before downstream policy or publication IO. The four
+diagnostics remain noncertifying and gain no coverage or admission authority.
+
 ## Level classification and runner evidence
+
+### Candidate-bound level facts authority (4.1b.6)
+
+The pure `classifyTestFile` accepts bare sets, whose emptiness cannot distinguish reviewed
+absence from an unknown source. The devsync helpers use working-tree collection and permissive
+command parsing, so they cannot serve as immutable Burokrat authority. The first facts scope
+is exactly one complete committed Performance declaration under one project root. It is not a
+claim about all tests in the repository or the publication's complete collected case set.
+
+The external authority is a strict version-1 JSON record `{schemaVersion,revision,candidate,
+scope,manual,conformance,architecture}` selected outside the candidate. `scope` contains
+`projectRoot`, pinned `{path,digest}` records for `projectManifest`, `declaration` and `config`,
+`project` (the Playwright project), and unique workspace-relative `fixtures`. The fixture set
+must equal the full decoded Performance declaration, and all paths must be under `projectRoot`.
+The selected committed SHA and candidate digest must equal the authority pins. A missing field,
+unknown kind, duplicate or contradictory pin refuses. Membership overlap across precedence rows
+is legitimate and remains recorded; classification and target isolation come later.
+
+`manual` is only `{kind:'reviewed-empty'}` for this exact fixture scope in version 1. This is an
+external assertion, included in the authority byte digest, not an inference from absent reports
+or a B3 procedure inventory. Missing Manual, a committed/nonempty variant or unknown state
+refuses. `conformance` and `architecture` are either explicit reviewed-empty for this scope or
+committed sources. Conformance names the pinned manifest's `test:conformance` target; the only
+supported command form is exact `bun test <one-or-more ./canonical-project-relative.test.ts paths>
+--timeout=<positive decimal integer>` in an `nx:run-commands` envelope with exact project cwd,
+`forwardAllArgs:false`, no task dependencies (`dependsOn`), config or environment overrides.
+The target and options have closed keys. The only optional target keys are `cache:false` and
+`inputs:["default","^production"]`. The exact third input
+`"{workspaceRoot}/apps/wbs/be-01/drizzle"` is additionally permitted, in that order, only when
+project root and cwd are `libs/wbs/adapters/store-sqlite`: the SQLite test imports its migration
+fixtures. These input tuples are dependency metadata, not test selectors; no drizzle files are
+read or added to source membership. Command-selected tests alone form the complete Conformance
+source set. Canonical selectors use ASCII letters, digits, underscore, period and hyphen,
+with every segment beginning with a letter, digit or underscore, and end in `.test.ts`.
+Each operand requires exactly one literal `./` prefix, which alone is stripped for selected
+Git identity. Bare operands are Bun path filters and refuse: a file's presence does not prove
+the absence of matching nested paths. Both Memory and SQLite Conformance commands adopt
+explicit `./src/testing/...` operands. Devsync removes that syntactic prefix when comparing
+the same source identities; its manifest discovery assertions pin the explicit commands.
+The timeout is a nonzero decimal integer with no leading zeros. A true end constraint rejects
+all trailing input, including newlines. Globs, directories,
+shell indirection, filters, extra flags, duplicate and outside paths refuse. A present unsupported
+target cannot be treated as reviewed empty; a reviewed-empty declaration contradicting a
+present target refuses. Architecture pins exactly `<projectRoot>/src/architecture-fixtures.json`, the runner's fixed policy. A reviewed-empty assertion refuses either that selected path (including a directory at that name) or `test:architecture:level`. A valid nonempty policy can have an empty intersection. Bind its selected blob and every mapped fixture before intersecting with the complete Performance fixture set. Membership is policy-declared; the runner currently passes bare Bun filters and this slice does not assert complete execution collection. Extract
+its schema, registry mapping, exact rule-file relation and nonrecursive unmapped-fixture check
+into pure functions shared by the existing runner and the committed blob reader. Preserve the
+runner's current validation order, error text and report-clearing/execution side effects: report directory, stale clear, decode, directory discovery, mapping validation immediately before each mapping's IO, unmapped check, spawn and JUnit. Derive immediate Git child names from the first path component below `src/architecture/`; a suffix-looking directory with selected descendants is an immediate unmapped child, while an ordinary nested directory's fixtures are ignored.
+
+Capture `readCandidate` once, require committed kind and exact requested SHA (including refusal
+of full-hex tag objects), and hash the selected snapshot. Read each named candidate file from
+its selected regular Git blob; compare exact byte digests with the external pins and reject
+absent/unreadable blobs, symlink/special modes and working-tree-only repairs. Validate the
+committed declaration through `decodePerformanceCases`, its config, fixture files and project
+manifest without executing candidate JavaScript. The facts-only output binds candidate,
+authority digest, scope, selected source tuples and explicit membership source states in a
+complete-payload observation digest with `authentication:{kind:'absent'}` and `certifies:false`.
+It does not call `classifyTestFile`, inspect a mutable publication, grant a test level or emit
+coverage credit. The existing Performance-source v1 output remains unresolved.
+
+Implement 4.1b.6 in coherent review slices: (a) strict authority, exact candidate and
+Performance scope, Manual reviewed-empty, with Conformance/Architecture reviewed-empty only;
+(b.1) committed Conformance grammar and complete source membership;
+(b.2) shared Architecture policy extraction. The Conformance authority path and digest must
+equal the scope project manifest pin. Its emitted committed state adds sorted workspace-relative
+`files` intersecting Performance fixtures, while the source tuples retain every command-selected
+regular Git blob even outside that intersection. Performance overlap and an empty committed
+intersection remain valid facts. The task stays
+open until both are complete. A later 4.1b.7 can capture one Performance publication once,
+reconcile collection against these facts, apply precedence before target isolation and bind an
+immutable context. It must refuse a higher-precedence fixture collected by Performance and
+missing/extra/duplicate cases or changed publication identity. Report-derived collection alone
+cannot prove candidate-wide completeness. Full B4 still needs Tasks 2.1/2.2, trusted receipts
+and reviewed source lineage.
 
 `libs/shared/domain/test-levels` owns the pure ten-row precedence function. It has no runner or policy imports, and its caller supplies the frontend source root. Burokrat supplies Conformance, Architecture, Performance, Browser, frontend Node and manual membership evidence, then applies that function to the selected candidate. Devsync consumes the same public library for target checks. The shared-domain placement satisfies Nx's existing product and scope rules for the Burokrat application and the product-less devsync tool; Burokrat still owns discovery, thresholds and enforcement.
 
@@ -138,6 +223,16 @@ Selector version 3 recognizes exact active main and change spec paths and ignore
 
 ## Manual evidence validator
 
+Task 4.1b.4 wraps the existing `inspectManual` result without filtering its fields. The adapter
+selects one exact full committed SHA, requires the reader's selected revision to equal the
+requested SHA (so an annotated tag object cannot peel into a different commit), hashes its tuple, invokes the real inspector at
+the caller's decoded UTC instant, and requires the returned revision to match. Its version-1
+envelope carries the selected revision, candidate identity, canonical `evaluatedAt`, complete
+`manual` result, absent authentication, false certification and canonical digest of every preceding
+field. The CLI retains the Manual exit convention: evaluated noncurrent states emit JSON and exit
+one; invalid evidence and unresolved B3 selection refuse with no JSON. The package executable
+dispatches the same command. This observation grants no Manual level or coverage claim.
+
 Implement a standalone committed-candidate inspector in Burokrat evidence code before integrating Manual outcomes into B4. It consumes candidate disposition and procedure files plus an externally selected `RulePolicy.manual` that pins exact reviewed disposition and report digests. Use the existing stable external-artifact reader for policy, approvals, reports and environment observations. Missing, unreadable, malformed, ambiguous, unsupported, or escaping inputs refuse. The CLI captures UTC time once; the pure evaluator receives that instant for deterministic checks. Git identity strings, report claims, file ownership and mtimes never establish reviewer or operator authority.
 
 Candidate dispositions identify a canonical scenario, a nonblank manual reason, a procedure path, and a nonempty unique set of touched module IDs. A versioned procedure record binds its scenario and title to ordered nonempty steps with unique IDs, instructions and expected observations. External review approvals bind the complete disposition and procedure digests, reviewed requirement/source scope, reviewer identity/reference, and `reviewedAt`/`reviewBy`. A report binds its run ID, scenario/title, disposition/procedure digests, source revision and full reviewed source scope, operator, ordered step observations, outcome, and a separately observed environment identity/digest. A second external approval binds the exact report and environment observation digests, run/operator/times, and accepting reviewer/reference. Unknown or duplicate records refuse. Success requires exactly one passing observation per declared step and an aggregate outcome that agrees.
@@ -167,3 +262,13 @@ Task 4.1b.2 adds `inspect-performance <repository> <full-committed-sha> <externa
 Move the collector's strict raw decoder into shared test-evidence; both collector and inspector import that decoder. Derive the historical checkout spelling from the exact config suffix and use it only to normalize report structure, never to read historical files. Require discovery/execution identity agreement, exact collected cases, raw/evidence agreement and recomputed `evaluatePerformanceRun` thresholds. Reconcile normalized JUnit structure, identities, outcomes and counts. A current-success pointer containing failed, skipped, breached or conflicting evidence refuses. Historical failure bundles confer no success authority.
 
 Reread the pointer before return. Sort observed cases and bind the entire observation payload in a deterministic digest, including revision, candidate, policy, invocation, artifact and committed fixture identities, selection, judgments, authentication absent and `certifies:false`. The command runs no tests and establishes no level, coverage or admission.
+
+### 4.1b.7 Performance level join
+
+Call `inspectLevelFacts` and `inspectPerformanceBundle` with the same exact requested SHA; caller-supplied JSON is not accepted. Read the same declaration from selected Git bytes, verify its raw facts pin and decode it with `decodePerformanceCases` to compare `digestPerformanceDeclaration` with publication semantics. Join revision, candidate, declaration/config path, project, config digest and complete fixture source tuples (path/mode/content digest). Require one exact declared case identity per recorded publication case, no duplicates and exact fixture-set equality. Extract only the earlier Manual/Conformance/Architecture/Performance rows from the shared classifier; it returns undefined for later rows, so this adapter never supplies fabricated later-row evidence. Existing complete classification delegates to the same helper and continues through its later rows.
+
+Emit sorted fixture/level bindings and an isolation union: `{kind:'isolated',level:'performance'}` or `{kind:'wrong-level',level:'performance',files:[{fixture,actual}]}`. Wrong-level is an observed isolation failure: JSON plus CLI exit 1. Join refusal remains no JSON. Bind both upstream observation digests, authentication absent, certifies false and the full own envelope digest. Preserve source-owner v1 outputs. Tasks 2.1/2.2a/2.2/4.1 and certification remain open.
+
+Task 2.1i closes the runtime selection gap between committed Architecture facts and execution. `runArchitectureLevel(root, report)` retains its signature, policy authority, validation order, report clearing and JUnit reconciliation. After validation, its sorted selected canonical bare paths become Bun operands by adding one literal `./` prefix. Bun otherwise treats bare operands as substring filters, which can execute nested matching files before report reconciliation refuses them. Canonical policy and JUnit identities stay bare. Real subprocess tests include one and two mapped files, nested failing decoys with execution markers and stale JUnit; prefix removal must expose the decoys.
+
+Task 2.1j extends literal execution to the six existing find-based Bun level commands: Memory Unit/Conformance, SQLite API/Unit/Conformance and core Unit. Start find at `./src` or `./src/testing`, adjusting Memory Unit's exact exclusion to `./src/testing/source-conformance.test.ts`. Keep the emitted literal prefix through shell execution. `collectedFiles` removes exactly one leading `./` from each selected identity so classification and source comparisons retain bare project-relative paths. No new selection parser or registry is introduced. Real `sh -c` tests run each manifest command in a scratch project with stale JUnit and nested suffix decoys outside the selector root; Unit/API use two selected files and Conformance uses its source filename. Existing selector-error, empty and stale-report proofs remain. The scope remains the existing shell-compatible paths; whitespace and glob safety are not claimed.

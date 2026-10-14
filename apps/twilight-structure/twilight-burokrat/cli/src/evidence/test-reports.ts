@@ -35,6 +35,10 @@ export function inspectTestReports(
   // to staged; removing this invariant changed its named production CLI refusal.
   if (selected.selection.kind !== 'committed')
     throw new Error('test report selection is not committed');
+  // Proof: disabling exact equality made a real annotated tag-object SHA pass the
+  // production CLI negative and emit reports for the peeled commit with exit zero.
+  if (selected.selection.revision !== revision)
+    throw new Error('test report selected revision differs from requested SHA');
   const candidate = hashCanonical({
     selection: selected.selection,
     entries: selected.entries,

@@ -53,6 +53,7 @@ export function createPlanCommands({ projectId, routes }: PlanCommandPorts): Pla
     // `factStart` arrived as `undefined`, failed `passes every work-item command through unchanged,
     // leaving out what the caller left out`: the recorded call gained a trailing `undefined`.
     setStatus: (...args) => routes.setStatus(...args),
+    setStepBlocked: (...args) => routes.setStepBlocked(...args),
     startAttempt: (...args) => routes.startAttempt(...args),
     endAttempt: (...args) => routes.endAttempt(...args),
     removeAttempt: (...args) => routes.removeAttempt(...args),

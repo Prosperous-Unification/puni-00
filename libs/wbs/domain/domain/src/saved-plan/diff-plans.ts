@@ -124,6 +124,7 @@ const ROW_KEYS: Readonly<Record<string, readonly string[] | undefined>> = {
   workItems: ['id'],
   steps: ['id'],
   stepValues: ['workItemId', 'stepId'],
+  stepBlockages: ['workItemId', 'stepId'],
   measures: ['workItemId', 'stepId', 'metric'],
   dependencies: ['predecessorId', 'successorId'],
   typedDependencies: ['id'],
@@ -195,6 +196,7 @@ const FIELD_CATEGORIES: Readonly<
 const COLLECTION_CATEGORIES: Readonly<Record<string, PlanDiffCategory | undefined>> = {
   project: 'settings',
   measures: 'measures',
+  stepBlockages: 'progress',
   dependencies: 'dependencies',
   typedDependencies: 'dependencies',
   assignments: 'ownership',

@@ -1,0 +1,80 @@
+FAULT inactive discriminator replaced with writer_disabled
+EXIT 1
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/contracts/src/http/step-blockage-activation.test.ts:
+17 |     const validations = await Promise.all(
+18 |       endpoint.refusals
+19 |         .filter((refusal) => refusal.status === 409)
+20 |         .map((refusal) => validateSchema(refusal.schema, { error: 'step_blockage_inactive' })),
+21 |     );
+22 |     expect(validations.some((validation) => validation.issues === undefined)).toBe(true);
+                                                                                   ^
+error: expect(received).toBe(expected)
+
+Expected: true
+Received: false
+
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/domain/contracts/src/http/step-blockage-activation.test.ts:22:79)
+(fail) postApiProjectsImport declares inactive blockage writer refusal [8.13ms]
+17 |     const validations = await Promise.all(
+18 |       endpoint.refusals
+19 |         .filter((refusal) => refusal.status === 409)
+20 |         .map((refusal) => validateSchema(refusal.schema, { error: 'step_blockage_inactive' })),
+21 |     );
+22 |     expect(validations.some((validation) => validation.issues === undefined)).toBe(true);
+                                                                                   ^
+error: expect(received).toBe(expected)
+
+Expected: true
+Received: false
+
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/domain/contracts/src/http/step-blockage-activation.test.ts:22:79)
+(fail) postApiProjectsByIdCommands declares inactive blockage writer refusal [3.14ms]
+17 |     const validations = await Promise.all(
+18 |       endpoint.refusals
+19 |         .filter((refusal) => refusal.status === 409)
+20 |         .map((refusal) => validateSchema(refusal.schema, { error: 'step_blockage_inactive' })),
+21 |     );
+22 |     expect(validations.some((validation) => validation.issues === undefined)).toBe(true);
+                                                                                   ^
+error: expect(received).toBe(expected)
+
+Expected: true
+Received: false
+
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/domain/contracts/src/http/step-blockage-activation.test.ts:22:79)
+(fail) postApiProjectsByIdUndo declares inactive blockage writer refusal [0.21ms]
+17 |     const validations = await Promise.all(
+18 |       endpoint.refusals
+19 |         .filter((refusal) => refusal.status === 409)
+20 |         .map((refusal) => validateSchema(refusal.schema, { error: 'step_blockage_inactive' })),
+21 |     );
+22 |     expect(validations.some((validation) => validation.issues === undefined)).toBe(true);
+                                                                                   ^
+error: expect(received).toBe(expected)
+
+Expected: true
+Received: false
+
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/domain/contracts/src/http/step-blockage-activation.test.ts:22:79)
+(fail) postApiProjectsByIdRedo declares inactive blockage writer refusal [0.05ms]
+17 |     const validations = await Promise.all(
+18 |       endpoint.refusals
+19 |         .filter((refusal) => refusal.status === 409)
+20 |         .map((refusal) => validateSchema(refusal.schema, { error: 'step_blockage_inactive' })),
+21 |     );
+22 |     expect(validations.some((validation) => validation.issues === undefined)).toBe(true);
+                                                                                   ^
+error: expect(received).toBe(expected)
+
+Expected: true
+Received: false
+
+      at <anonymous> (/tmp/puni-step-blockage-admission-sol/libs/wbs/domain/contracts/src/http/step-blockage-activation.test.ts:22:79)
+(fail) deleteApiProjectsByIdStepsByStepId declares inactive blockage writer refusal [0.58ms]
+
+ 0 pass
+ 5 fail
+ 5 expect() calls
+Ran 5 tests across 1 file. [1.90s]

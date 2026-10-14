@@ -111,6 +111,13 @@ On the loaded run these timed out at their own budget. They were raised by the r
   the overrun bound). Logout-wins keeps 10 s, and worker operations retain their 10 s
   failure deadlines.
 
+- `apps/wbs/be-01`, cross-process browser logout proof: 10 to 30 s (2026-10-14).
+  Hosted PR #405 run `38501869639` exhausted the target budget at 10.137 s while
+  starting its third real application process. The idle run took 5.37 s. Injecting
+  3.5 s before each worker's ready frame reproduced the 10 s timeout; the same
+  replay passed at 15.79 s with the scoped 30 s budget. Worker operations retain
+  their separate 10 s deadlines.
+
 ## Vitest (fe-01), WBS 080.16
 
 Vitest also ends a test at 5 seconds, and a hook at 10. The gate reached that on fe-01: a keyboard

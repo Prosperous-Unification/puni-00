@@ -142,6 +142,15 @@ test('two Bun processes capturing one generation publish exactly one successor',
       children.map(async (child) => {
         const reader = child.stdout.getReader();
         const ready = await reader.read();
+        if (ready.done) {
+          const [exitCode, stderr] = await Promise.all([
+            child.exited,
+            new Response(child.stderr).text(),
+          ]);
+          throw new Error(
+            `browser lifecycle racer exited before ready: ${JSON.stringify({ exitCode, stderr })}`,
+          );
+        }
         expect(new TextDecoder().decode(ready.value)).toBe('ready\n');
         return reader;
       }),
@@ -178,6 +187,7 @@ test('two Bun processes capturing one generation publish exactly one successor',
     }
   } finally {
     for (const child of children) child.kill();
+    await Promise.all(children.map((child) => child.exited));
   }
 }, 30_000);
 
@@ -404,6 +414,10 @@ test('rollback independently refuses lifecycle-only and association-only residue
 
 test('rollback removes both empty lifecycle tables and their migration ledger entry', () => {
   expect(rollbackTo(path, MIGRATIONS, PREVIOUS)).toEqual([
+    '20261014140000_add_step_blockage_activation',
+    '20261014130000_add_shared_people_restore_receipts',
+    '20261014120000_add_shared_people_restore_approvals',
+    '20261013140000_add_step_node_blockages',
     '20261012130000_add_step_estimate_unit',
     '20261012120000_add_step_node_attempts',
     '20261012090200_widen_organization_audit',

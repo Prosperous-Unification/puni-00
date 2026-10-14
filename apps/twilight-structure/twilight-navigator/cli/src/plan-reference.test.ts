@@ -2,10 +2,14 @@ import { createHash } from 'node:crypto';
 import { chmodSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { decodeRecord, digestOf, PlanReferenceRecord } from '@twilight-burokrat/contracts';
+import {
+  decodeRecord,
+  digestOf,
+  PlanReferenceRecord,
+  PlanTasks,
+} from '@twilight-burokrat/contracts';
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 
-import { PlanTasks } from './plan-tasks';
 import {
   requireNonRoot,
   runTwin,
@@ -204,6 +208,21 @@ describe('twin plan-reference', () => {
         version: 9,
         exportedAt: '2026-10-11T09:00:00.000Z',
       };
+    });
+    expectRefusal(
+      await planReference({ '--export': path }),
+      /has version 9; twin reads versions 7 and 8 only/,
+    );
+  });
+
+  test('refuses a version-9 document with blockage facts before writing', async () => {
+    const path = writeExport((document) => {
+      document['document'] = {
+        format: 'wbs-plan',
+        version: 9,
+        exportedAt: '2026-10-11T09:00:00.000Z',
+      };
+      document['stepBlockages'] = [];
     });
     expectRefusal(
       await planReference({ '--export': path }),

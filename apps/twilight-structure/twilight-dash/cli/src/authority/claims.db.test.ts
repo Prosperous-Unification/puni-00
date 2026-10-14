@@ -21,17 +21,32 @@ import { openOrBootstrapAuthority } from './testing/open-or-bootstrap';
 /** Fixed authority time for cases that do not exercise the clock. */
 const FIXED_CLOCK = { read: () => 1_000_000 };
 
+/**
+ * How long two freshly spawned Bun workers get to say they are ready. Bounded, so a worker that
+ * never starts ends the test with its own message, and generous, because a loaded gate host starts
+ * a Bun process slowly: at about five seconds CI failed `two Bun processes atomically refuse
+ * overlap and both admit disjoint work` on `worker readiness absent` after 5439ms, on a change that
+ * touched nothing here (2026-09-20). Kept under the `test` target's `--timeout` so this message
+ * is the one that is seen.
+ */
+const WORKER_READINESS_MS = 20_000;
+
 const WORKER_SOURCE = `
-const [{ openOrBootstrapAuthority }, { acquireClaims, expandClaims }] = await Promise.all([
+const [{ openOrBootstrapAuthority }, { acquireClaims, expandClaims }, { AuthorityContentionError }] = await Promise.all([
   import(process.argv[2]),
   import(process.argv[3]),
+  import(process.argv[5]),
 ]);
 const input = JSON.parse(process.argv[4]);
-const store = openOrBootstrapAuthority(input.worktreePath, { clock: { read: () => 1_000_000 }, ...input.options });
+let store;
 try {
+  store = openOrBootstrapAuthority(input.worktreePath, { clock: { read: () => 1_000_000 }, ...input.options });
   if (input.readyPath) await Bun.write(input.readyPath, 'ready');
   if (input.startPath) {
-    for (let attempt = 0; attempt < 5000 && !require('node:fs').existsSync(input.startPath); attempt += 1) {
+    // A peer may use the full 20-second startup budget; this 40-second barrier stays
+    // below twilight-dash:test's 60-second per-test timeout, preserved by its preload.
+    const deadline = Date.now() + ${String(WORKER_READINESS_MS * 2)};
+    while (Date.now() < deadline && !require('node:fs').existsSync(input.startPath)) {
       Bun.sleepSync(1);
     }
     if (!require('node:fs').existsSync(input.startPath)) throw new Error('worker start barrier absent');
@@ -41,9 +56,10 @@ try {
     : acquireClaims(store, input.request);
   console.log(JSON.stringify({ ok: true, output }));
 } catch (error) {
-  console.log(JSON.stringify({ ok: false, message: error instanceof Error ? error.message : String(error) }));
+  // Proof: classifying every Error as contention made the corrupt-opening test observe true.
+  console.log(JSON.stringify({ ok: false, contended: error instanceof AuthorityContentionError, message: error instanceof Error ? error.message : String(error) }));
 } finally {
-  store.close();
+  store?.close();
 }
 `;
 
@@ -96,17 +112,30 @@ interface WorkerInput {
   readonly options?: { readonly maxBusyAttempts: number; readonly busyDelayMilliseconds: number };
 }
 
+interface ReadyWorkerInput extends WorkerInput {
+  readonly readyPath: string;
+  readonly startPath: string;
+}
+
 function spawnWorker(fixture: FixtureRepository, input: WorkerInput) {
   const storeModule = pathToFileURL(join(import.meta.dir, 'testing', 'open-or-bootstrap.ts')).href;
   const claimsModule = pathToFileURL(join(import.meta.dir, 'claims.ts')).href;
   return Bun.spawn(
-    [process.execPath, fixture.worker, storeModule, claimsModule, JSON.stringify(input)],
+    [
+      process.execPath,
+      fixture.worker,
+      storeModule,
+      claimsModule,
+      JSON.stringify(input),
+      pathToFileURL(join(import.meta.dir, 'authority-store.ts')).href,
+    ],
     { cwd: input.worktreePath, stderr: 'pipe', stdout: 'pipe' },
   );
 }
 
 interface WorkerObservation {
   readonly ok: boolean;
+  readonly contended?: boolean;
   readonly message?: string;
   readonly output?: { readonly generation: number; readonly sessionId: string };
 }
@@ -122,15 +151,17 @@ async function observation(child: ReturnType<typeof spawnWorker>): Promise<Worke
   return JSON.parse(stdout.trim()) as WorkerObservation;
 }
 
-/**
- * How long two freshly spawned Bun workers get to say they are ready. Bounded, so a worker that
- * never starts ends the test with its own message, and generous, because a loaded gate host starts
- * a Bun process slowly: at about five seconds CI failed `two Bun processes atomically refuse
- * overlap and both admit disjoint work` on `worker readiness absent` after 5439ms, on a change that
- * touched nothing here (2026-09-20). Kept under the `test` target's `--timeout` so this message
- * is the one that is seen.
- */
-const WORKER_READINESS_MS = 20_000;
+/** After concurrent workers exit, one sequential attempt must settle typed contention. */
+async function settleWorker(
+  fixture: FixtureRepository,
+  input: WorkerInput,
+  observed: WorkerObservation,
+): Promise<WorkerObservation> {
+  // Proof: removing settlement left the exclusive-lock test at ok: false after release;
+  // classifying corruption as contention failed the corrupt-opening test (2026-10-14).
+  if (observed.contended !== true) return observed;
+  return observation(spawnWorker(fixture, input));
+}
 
 /**
  * How long a test's lock holder waits for its COMMIT. A contender retrying `BEGIN IMMEDIATE` holds
@@ -149,6 +180,46 @@ function waitForFiles(paths: readonly string[]): void {
     Bun.sleepSync(1);
   }
   throw new Error(`worker readiness absent: ${paths.join(', ')}`);
+}
+
+/** Opens before acquisition, recovering only typed startup contention within one deadline. */
+async function prepareWorker(
+  fixture: FixtureRepository,
+  input: ReadyWorkerInput,
+  child = spawnWorker(fixture, input),
+  deadline = Date.now() + WORKER_READINESS_MS,
+): Promise<ReturnType<typeof spawnWorker>> {
+  let prepared = false;
+  try {
+    // Proof: removing this deadline made the deadline regression return a ready worker
+    // instead of refusing and reaping it (2026-10-14).
+    while (Date.now() < deadline) {
+      if (existsSync(input.readyPath)) {
+        prepared = true;
+        return child;
+      }
+      if (child.exitCode !== null || child.signalCode !== null) {
+        const observed = await observation(child);
+        // Proof: bypassing this guard changed the corrupt-opening regression from its
+        // original refusal to readiness timeout after repeated restarts (2026-10-14).
+        if (observed.contended !== true) {
+          throw new Error(
+            `worker failed before readiness: ${observed.message ?? 'unexpected success'}`,
+          );
+        }
+        // Proof: removing startup recovery made the forced exclusive-lock regression
+        // fail before releasing acquisition (2026-10-14).
+        child = spawnWorker(fixture, input);
+      }
+      await Bun.sleep(1);
+    }
+    throw new Error(`worker readiness absent: ${input.readyPath}`);
+  } finally {
+    if (!prepared && child.exitCode === null) {
+      child.kill();
+      await child.exited;
+    }
+  }
 }
 
 function claim(sessionId: string, worktreePath: string, path: string) {
@@ -259,13 +330,141 @@ test('refuses an existing authority database symlink', () => {
   );
 });
 
+test('a worker reports bounded opening contention and acquires after the lock releases', async () => {
+  const fixture = fixtureRepository();
+  openOrBootstrapAuthority(fixture.root, { clock: FIXED_CLOCK }).close();
+  const blocker = new Database(resolveAuthorityDatabasePath(fixture.root));
+  blocker.run('BEGIN EXCLUSIVE');
+  const input: WorkerInput = {
+    kind: 'acquire',
+    worktreePath: fixture.worktreeA,
+    request: claim('session-opening', fixture.worktreeA, 'apps/opening'),
+    options: { maxBusyAttempts: 2, busyDelayMilliseconds: 0 },
+  };
+  let contended: WorkerObservation;
+  try {
+    contended = await observation(spawnWorker(fixture, input));
+    expect(contended).toMatchObject({ ok: false, contended: true });
+  } finally {
+    blocker.run('ROLLBACK');
+    blocker.close();
+  }
+  expect(await settleWorker(fixture, input, contended)).toMatchObject({
+    ok: true,
+    output: { generation: 1, sessionId: 'session-opening' },
+  });
+});
+
+test('overlap startup recovers an exited contended worker before releasing acquisition', async () => {
+  const fixture = fixtureRepository();
+  openOrBootstrapAuthority(fixture.root, { clock: FIXED_CLOCK }).close();
+  const blocker = new Database(resolveAuthorityDatabasePath(fixture.root));
+  blocker.run('BEGIN EXCLUSIVE');
+  const startPath = join(fixture.root, 'startup-start');
+  const readyPath = join(fixture.root, 'startup-ready');
+  const input: ReadyWorkerInput = {
+    kind: 'acquire',
+    worktreePath: fixture.worktreeA,
+    request: claim('session-startup', fixture.worktreeA, 'apps/startup'),
+    readyPath,
+    startPath,
+    options: { maxBusyAttempts: 2, busyDelayMilliseconds: 0 },
+  };
+  const first = spawnWorker(fixture, input);
+  try {
+    expect(await first.exited).toBe(0);
+    expect(existsSync(readyPath)).toBeFalse();
+  } finally {
+    blocker.run('ROLLBACK');
+    blocker.close();
+  }
+  const prepared = await prepareWorker(fixture, input, first);
+  const beforeRelease = openOrBootstrapAuthority(fixture.root, { clock: FIXED_CLOCK });
+  expect(beforeRelease.inspect().generations).toHaveLength(0);
+  beforeRelease.close();
+  expect(existsSync(readyPath)).toBeTrue();
+  writeFileSync(startPath, 'start');
+  expect(await observation(prepared)).toMatchObject({
+    ok: true,
+    output: { generation: 1, sessionId: 'session-startup' },
+  });
+});
+
+test('a worker preserves corrupt opening failures instead of settling them as contention', async () => {
+  const fixture = fixtureRepository();
+  const databasePath = resolveAuthorityDatabasePath(fixture.root);
+  mkdirSync(join(databasePath, '..'));
+  writeFileSync(databasePath, 'not sqlite');
+  const input: WorkerInput = {
+    kind: 'acquire',
+    worktreePath: fixture.worktreeA,
+    request: claim('session-corrupt', fixture.worktreeA, 'apps/corrupt'),
+  };
+  const refused = await observation(spawnWorker(fixture, input));
+  expect(refused).toMatchObject({ ok: false, contended: false });
+  expect(refused.message).toContain('authority database corrupt or incompatible');
+  expect(await settleWorker(fixture, input, refused)).toBe(refused);
+});
+
+test('overlap startup preserves an exited corrupt opening failure', async () => {
+  const fixture = fixtureRepository();
+  const databasePath = resolveAuthorityDatabasePath(fixture.root);
+  mkdirSync(join(databasePath, '..'));
+  writeFileSync(databasePath, 'not sqlite');
+  const input: ReadyWorkerInput = {
+    kind: 'acquire',
+    worktreePath: fixture.worktreeA,
+    request: claim('session-corrupt-startup', fixture.worktreeA, 'apps/corrupt-startup'),
+    readyPath: join(fixture.root, 'corrupt-ready'),
+    startPath: join(fixture.root, 'corrupt-start'),
+  };
+  let failure: unknown;
+  try {
+    await prepareWorker(fixture, input);
+  } catch (error) {
+    failure = error;
+  }
+  expect(failure instanceof Error ? failure.message : undefined).toContain(
+    'worker failed before readiness: authority database corrupt or incompatible',
+  );
+});
+
+test('overlap startup ends at its deadline and reaps the worker', async () => {
+  const fixture = fixtureRepository();
+  const input: ReadyWorkerInput = {
+    kind: 'acquire',
+    worktreePath: fixture.worktreeA,
+    request: claim('session-deadline', fixture.worktreeA, 'apps/deadline'),
+    readyPath: join(fixture.root, 'deadline-ready'),
+    startPath: join(fixture.root, 'deadline-start'),
+  };
+  const child = spawnWorker(fixture, input);
+  try {
+    let failure: unknown;
+    try {
+      await prepareWorker(fixture, input, child, Date.now() - 1);
+    } catch (error) {
+      failure = error;
+    }
+    expect(failure instanceof Error ? failure.message : undefined).toContain(
+      'worker readiness absent',
+    );
+    expect(await child.exited).toBeGreaterThan(0);
+  } finally {
+    if (child.exitCode === null) child.kill();
+    await child.exited;
+  }
+});
+
 test('two Bun processes atomically refuse overlap and both admit disjoint work', async () => {
   const fixture = fixtureRepository();
+  // Claim races start after bootstrap; lifecycle tests exercise competing creators.
+  openOrBootstrapAuthority(fixture.root, { clock: FIXED_CLOCK }).close();
   const startOverlap = join(fixture.root, 'start-overlap');
   const readyA = join(fixture.root, 'ready-a');
   const readyB = join(fixture.root, 'ready-b');
-  const overlapping = [
-    spawnWorker(fixture, {
+  const overlappingInputs: readonly ReadyWorkerInput[] = [
+    {
       kind: 'acquire',
       worktreePath: fixture.worktreeA,
       request: {
@@ -278,8 +477,8 @@ test('two Bun processes atomically refuse overlap and both admit disjoint work',
       },
       readyPath: readyA,
       startPath: startOverlap,
-    }),
-    spawnWorker(fixture, {
+    },
+    {
       kind: 'acquire',
       worktreePath: fixture.worktreeB,
       request: {
@@ -292,9 +491,11 @@ test('two Bun processes atomically refuse overlap and both admit disjoint work',
       },
       readyPath: readyB,
       startPath: startOverlap,
-    }),
+    },
   ];
-  waitForFiles([readyA, readyB]);
+  const overlapping = await Promise.all(
+    overlappingInputs.map((input) => prepareWorker(fixture, input)),
+  );
   writeFileSync(startOverlap, 'start');
   const overlap = await Promise.all(overlapping.map(observation));
   expect(overlap.filter(({ ok }) => ok)).toHaveLength(1);
@@ -305,32 +506,57 @@ test('two Bun processes atomically refuse overlap and both admit disjoint work',
   expect(overlapState.generations).toHaveLength(1);
   expect(overlapState.generations[0]?.claims).toHaveLength(2);
 
-  const disjoint = await Promise.all([
-    observation(
-      spawnWorker(fixture, {
-        kind: 'acquire',
-        worktreePath: fixture.worktreeA,
-        request: claim('session-c', fixture.worktreeA, 'apps/fe-01'),
-      }),
-    ),
-    observation(
-      spawnWorker(fixture, {
-        kind: 'acquire',
-        worktreePath: fixture.worktreeB,
-        request: claim('session-d', fixture.worktreeB, 'apps/gw-01'),
-      }),
-    ),
-  ]);
+  const disjointInputs: readonly WorkerInput[] = [
+    {
+      kind: 'acquire',
+      worktreePath: fixture.worktreeA,
+      request: claim('session-c', fixture.worktreeA, 'apps/fe-01'),
+    },
+    {
+      kind: 'acquire',
+      worktreePath: fixture.worktreeB,
+      request: claim('session-d', fixture.worktreeB, 'apps/gw-01'),
+    },
+  ];
+  // Production's finite busy budget may expire while a gate host deschedules the writer.
+  // Wait for both original workers to exit before settling any typed contention once.
+  const concurrent = await Promise.all(
+    disjointInputs.map(async (input) => ({
+      input,
+      observed: await observation(spawnWorker(fixture, input)),
+    })),
+  );
+  const disjoint: WorkerObservation[] = [];
+  for (const { input, observed } of concurrent) {
+    disjoint.push(await settleWorker(fixture, input, observed));
+  }
   expect(disjoint.map(({ ok }) => ok)).toEqual([true, true]);
+  const final = openOrBootstrapAuthority(fixture.root, { clock: FIXED_CLOCK });
+  try {
+    const state = final.inspect();
+    expect(state.nextGeneration).toBe(4);
+    expect(state.generations).toHaveLength(3);
+    expect(state.generations[0]).toEqual(overlapState.generations[0]);
+    expect(state.generations.find(({ sessionId }) => sessionId === 'session-c')?.claims).toEqual([
+      { access: 'write', identity: 'apps/fe-01', kind: 'path' },
+    ]);
+    expect(state.generations.find(({ sessionId }) => sessionId === 'session-d')?.claims).toEqual([
+      { access: 'write', identity: 'apps/gw-01', kind: 'path' },
+    ]);
+  } finally {
+    final.close();
+  }
 });
 
 test('two Bun processes serialize exclusive conflict-group claims', async () => {
   const fixture = fixtureRepository();
+  // Claim races start after bootstrap; lifecycle tests exercise competing creators.
+  openOrBootstrapAuthority(fixture.root, { clock: FIXED_CLOCK }).close();
   const start = join(fixture.root, 'start-groups');
   const readyA = join(fixture.root, 'ready-group-a');
   const readyB = join(fixture.root, 'ready-group-b');
-  const children = [
-    spawnWorker(fixture, {
+  const groupInputs: readonly ReadyWorkerInput[] = [
+    {
       kind: 'acquire',
       worktreePath: fixture.worktreeA,
       request: {
@@ -339,8 +565,8 @@ test('two Bun processes serialize exclusive conflict-group claims', async () => 
       },
       readyPath: readyA,
       startPath: start,
-    }),
-    spawnWorker(fixture, {
+    },
+    {
       kind: 'acquire',
       worktreePath: fixture.worktreeB,
       request: {
@@ -349,9 +575,9 @@ test('two Bun processes serialize exclusive conflict-group claims', async () => 
       },
       readyPath: readyB,
       startPath: start,
-    }),
+    },
   ];
-  waitForFiles([readyA, readyB]);
+  const children = await Promise.all(groupInputs.map((input) => prepareWorker(fixture, input)));
   writeFileSync(start, 'start');
   const observations = await Promise.all(children.map(observation));
 
@@ -363,6 +589,8 @@ test('two Bun processes serialize exclusive conflict-group claims', async () => 
 
 test('two process expansions preserve the refused owner and commit the disjoint owner', async () => {
   const fixture = fixtureRepository();
+  // Claim races start after bootstrap; lifecycle tests exercise competing creators.
+  openOrBootstrapAuthority(fixture.root, { clock: FIXED_CLOCK }).close();
   for (const [sessionId, worktreePath, path] of [
     ['session-a', fixture.worktreeA, 'docs'],
     ['session-b', fixture.worktreeB, 'libs/contracts'],

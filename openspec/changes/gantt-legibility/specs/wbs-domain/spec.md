@@ -40,21 +40,20 @@ number at most once.
 
 ### Requirement: Leaves draw bars for the work somebody costed, and the rest is behind the switch
 
-A leaf's row SHALL hold one bar per **estimated** slice, in role order, whatever
-the switch says. A bar on the critical path SHALL be tinted so, and a bar off it
+A leaf's row SHALL hold one bar per slice, in step order, whatever
+the detail switch says. Unestimated slices SHALL draw assumed two-workday bars,
+translucent and dashed, labelled `<number> · no estimate` when space permits and
+findable as `data-assumed`. A bar on the critical path SHALL be tinted so, and a bar off it
 SHALL not.
 
 With the switch off, a parent's row SHALL draw no mark of its own — no bar, no
-bracket, no tick, and no hover surface — and a slice nobody has estimated SHALL
-draw no mark of its own: no bar, no tick, no on-bar label and no hover surface.
-A leaf with some roles estimated draws those roles' bars alone; a leaf with none
-draws an empty track.
+bracket, no tick, and no hover surface. Every leaf SHALL retain its estimated
+and assumed bars, their labels and hover surfaces.
 
 With the switch on, a parent's row SHALL draw the translucent ghost of a bar
-across its projection, or a tick where that projection has no days; and an
-unestimated slice SHALL draw a bar two workdays wide,
-translucent and dashed, labelled `<number> · no estimate` to say its width is nobody's
-estimate, findable as `data-assumed`.
+across its projection, or a tick where that projection has no days. The detail
+switch SHALL control dependency arrows and parent summary marks; assumed leaf
+bars SHALL remain visible in both states.
 
 In **both** states the row SHALL stay on the chart at its own index and the row
 height every other row has, so the chart's row `N` stands beside the plan's row
@@ -63,7 +62,7 @@ columns, the axis and the canvas SHALL be identical in the two states — the
 switch decides what is painted and nothing about where anything is.
 
 A not-before caret SHALL be drawn only on a row that draws at least one mark of
-its own: with the switch off, only where a costed bar stands; with it on, on
+its own: with the switch off, where an estimated or assumed leaf bar stands; with it on, on
 every row holding a start date, because every such row now draws something for
 the caret to stand over.
 
@@ -76,9 +75,8 @@ the caret to stand over.
 #### Scenario: a leaf half estimated, at rest and asked for
 
 - **WHEN** a leaf holds an estimated Dev slice and an unestimated QA slice
-- **THEN** its row holds the Dev bar alone and no mark carries `data-assumed`;
-  and once the switch is pressed the QA slice's assumed bar is drawn beside it,
-  carrying `data-assumed`, with the Dev bar unmoved
+- **THEN** its row holds the Dev bar and the QA assumed bar carrying `data-assumed`
+  in both detail states, with both bars unmoved when the switch is pressed
 
 #### Scenario: a parent over staggered children
 
@@ -98,8 +96,8 @@ the caret to stand over.
 
 - **WHEN** a parent and an unestimated leaf each carry a start-no-earlier-than
   date, beside a leaf that carries one and draws a bar
-- **THEN** only the drawn leaf's row holds a not-before caret, and both empty
-  rows stay on the chart at their own index; and once the switch is pressed all
+- **THEN** both leaf rows hold a not-before caret, and the parent row stays on
+  the chart at its own index without a caret; and once the switch is pressed all
   three rows hold a caret
 
 #### Scenario: the critical path is visible

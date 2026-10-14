@@ -1,0 +1,30 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-blockage-migration.db.test.ts:
+90 |         "INSERT INTO work_item (id,project_id,parent_id,name,position,revision) VALUES ('child','p','b','Child',1,0)",
+91 |       );
+92 |       expect(() => insert(sqlite, 'b')).toThrow(/step blockage owner is not a leaf/);
+93 |       expect(() =>
+94 |         sqlite.run("UPDATE step_blockage SET work_item_id = 'b' WHERE work_item_id = 'a'"),
+95 |       ).toThrow(/step blockage owner is not a leaf/);
+             ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /step blockage owner is not a leaf/
+
+Received function did not throw
+Received value: {
+  changes: 1,
+  lastInsertRowid: 3,
+}
+
+      at <anonymous> (/tmp/puni-step-blockage-rebuild/libs/wbs/adapters/store-sqlite/src/step-blockage-migration.db.test.ts:95:9)
+      at withDatabase (/tmp/puni-step-blockage-rebuild/libs/wbs/adapters/store-sqlite/src/step-blockage-migration.db.test.ts:44:12)
+      at <anonymous> (/tmp/puni-step-blockage-rebuild/libs/wbs/adapters/store-sqlite/src/step-blockage-migration.db.test.ts:78:5)
+(fail) 20261013140000_add_step_node_blockages > refuses duplicate pairs, missing references, cross-project steps and parent owners [104.17ms]
+
+ 0 pass
+ 5 filtered out
+ 1 fail
+ 7 expect() calls
+Ran 1 test across 1 file. [150.00ms]

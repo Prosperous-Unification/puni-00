@@ -41,9 +41,11 @@ export interface NodeFacts {
   readonly statement: StepState | null;
   /** The leaf's hold: holds are leaf-grain (ADR 0032), so every node of the row shows it. */
   readonly rowHold: Hold | null;
+  /** Direct blockage remains recorded independently of progress (ADR 0053). */
+  readonly isBlocked: boolean;
   readonly runningAttempt: boolean;
-  /** Whether the leaf reads `blocked_by_proxy` from the work-item graph. */
-  readonly rowBlockedByProxy: boolean;
+  /** Whether blocked roots reach this node through the complete step graph. */
+  readonly blockedByProxy: boolean;
   /**
    * The readings of the node's predecessors in the resolved step-node graph —
    * workflow and authored edges into it — so the reading follows the graph and
@@ -53,8 +55,8 @@ export interface NodeFacts {
 }
 
 /**
- * A node's reading, first match winning: skipped, done, the row's hold, in
- * progress (a statement or a running attempt), the row's proxy, waiting, else
+ * A node's reading, first match winning: skipped, done, the row's hold, direct
+ * blockage, in progress (a statement or a running attempt), node proxy, waiting, else
  * unknown (`openspec/changes/step-node-readings/design.md` D1).
  *
  * **Waiting needs at least one predecessor, every one done**: a leaf's first
@@ -67,8 +69,9 @@ export function nodeReadingOf({
   participation,
   statement,
   rowHold,
+  isBlocked,
   runningAttempt,
-  rowBlockedByProxy,
+  blockedByProxy,
   predecessors,
 }: NodeFacts): NodeReading {
   if (participation === 'skipped') return 'skipped';
@@ -77,8 +80,11 @@ export function nodeReadingOf({
   // shows on its nodes` failed on `Expected: "on_hold", Received:
   // "in_progress"`; watched 2026-10-12.
   if (rowHold !== null) return rowHold;
+  // Proof: this clause removed and direct blockage precedence read in_progress
+  // instead of blocked; watched 2026-10-13.
+  if (isBlocked) return 'blocked';
   if (statement === 'in_progress' || runningAttempt) return 'in_progress';
-  if (rowBlockedByProxy) return 'blocked_by_proxy';
+  if (blockedByProxy) return 'blocked_by_proxy';
   // Proof: `predecessors.length >= 1` dropped and `a first node is never
   // waiting` failed on `Expected: "unknown", Received: "waiting"`; watched
   // 2026-10-12.

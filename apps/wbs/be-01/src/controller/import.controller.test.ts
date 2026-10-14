@@ -125,3 +125,20 @@ test('checks cookie origin and write scope before parsing the import document', 
   expect(await foreign.json()).toEqual({ error: 'invalid_origin' });
   expect(writer.imports).not.toHaveBeenCalled();
 });
+
+test('refuses malformed current and nonempty legacy blockage facts at the mounted boundary', async () => {
+  for (const [version, facts, path] of [
+    [9, null, 'stepBlockages'],
+    [9, [{ workItemId: 'row-1', stepId: 'step-1', blockedAt: 1.5 }], 'stepBlockages[0].blockedAt'],
+    [8, [{ workItemId: 'row-1', stepId: 'step-1', blockedAt: 1 }], 'stepBlockages[0]'],
+  ] as const) {
+    const document = planDocumentFixture();
+    document.document.version = version;
+    Reflect.set(document, 'stepBlockages', facts);
+    const boundary = mounted();
+    const response = await boundary.app.handle(request(JSON.stringify(document)));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: 'invalid_body', path, detail: null });
+    expect(boundary.imports).not.toHaveBeenCalled();
+  }
+});

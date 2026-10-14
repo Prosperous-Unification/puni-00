@@ -1,6 +1,7 @@
 import type { ChargedEstimate } from '@wbs/domain';
 import type {
   Attempt,
+  BlockageRoot,
   Days,
   IsoDate,
   NodeReading,
@@ -168,4 +169,8 @@ export interface NumberedWorkItem extends LabelledWorkItem {
    * nodes; empty on a leaf of a stepless project.
    */
   nodeReadings?: Record<string, NodeReading>;
+  /** Sparse direct blockage timestamps on a leaf; absent on a parent. */
+  blockages?: Record<string, { blockedAt: number }>;
+  /** Exact informational roots for each leaf node; absent on a parent. */
+  blockageCauses?: Record<string, readonly BlockageRoot[]>;
 }

@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 
 import type { Drizzle } from './db';
+import { readStepBlockageActivation } from './step-blockage-activation';
 
 /**
  * A table every migration set creates, and the newest one this app needs.
@@ -31,5 +32,8 @@ export function probeSchema(db: Drizzle): DatabaseHealth {
   const rows = db.all<{ name: string }>(
     sql`SELECT name FROM sqlite_master WHERE type = 'table' AND name = ${REQUIRED_TABLE}`,
   );
-  return rows.length === 1 ? 'ok' : 'schema_missing';
+  if (rows.length !== 1) return 'schema_missing';
+  // Proof: activation probe omitted; malformed-authority readiness negative received no throw (2026-10-14).
+  readStepBlockageActivation(db);
+  return 'ok';
 }

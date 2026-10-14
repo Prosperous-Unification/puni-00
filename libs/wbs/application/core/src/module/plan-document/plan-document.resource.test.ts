@@ -34,6 +34,7 @@ const TREE: WorkItemTree = {
   workItems: [
     {
       charged: {},
+      blockages: {},
       id: 'row-1',
       projectId: PROJECT.id,
       parentId: null,
@@ -253,9 +254,15 @@ test('preserves the existing JSON export fields', async () => {
     calendarMarkers,
     directory: names,
     stepNodes,
+    stepBlockages,
     ...existing
   } = exported;
-  expect(existing).toEqual<unknown>({ project: PROJECT, ...TREE });
+  expect(existing).toEqual<unknown>({
+    project: PROJECT,
+    ...TREE,
+    workItems: TREE.workItems.map(({ blockages: _blockages, ...row }) => row),
+  });
+  expect(stepBlockages).toEqual([]);
   expect(existing.workItems[0]?.deadline).toBe('2026-09-18');
   expect(existing.optimization).toEqual(TREE.optimization);
   expect({ document, settings, capacity, calendarMarkers, names, stepNodes }).toBeDefined();
@@ -266,7 +273,7 @@ test('JSON export is a versioned plan document and settings says what project sa
   expect((await validateSchema(planDocumentResponse, exported)).issues).toBeUndefined();
   expect(exported.document).toEqual({
     format: 'wbs-plan',
-    version: 8,
+    version: 9,
     exportedAt: '2026-09-13T12:30:00.000Z',
   });
   expect(exported.settings).toEqual({
@@ -336,7 +343,7 @@ test('malformed priority names workItems[3].priority', async () => {
 
 test('unknown version precedes version-specific validation', async () => {
   const future = structuredClone(await exportDocument());
-  Reflect.set(future.document, 'version', 9);
+  Reflect.set(future.document, 'version', 10);
   const row = future.workItems[0];
   future.workItems = Array.from({ length: 4 }, () => structuredClone(row));
   Reflect.set(future.workItems[3] ?? {}, 'priority', 'high');
@@ -423,7 +430,7 @@ test('the current export keeps SS and FF types from the trusted tree', async () 
   expect(exported).toMatchObject({
     ok: true,
     value: {
-      document: { version: 8 },
+      document: { version: 9 },
       typedDependencies: [
         { id: 'start-link', type: 'SS' },
         { id: 'finish-link', type: 'FF' },
@@ -614,7 +621,7 @@ test('spells each leaf’s step nodes beside their IDs', async () => {
 
 test('version 6 carries each row’s readiness and hold, and earlier versions read as nothing said', async () => {
   const exported = structuredClone(await exportDocument());
-  expect(exported.document.version).toBe(8);
+  expect(exported.document.version).toBe(9);
   const row = exported.workItems.find(
     (each) => !exported.workItems.some((c) => c.parentId === each.id),
   );
@@ -847,7 +854,7 @@ test('version 8 keeps minute step units and refuses missing or unknown written u
   const tree = structuredClone(TREE);
   tree.steps = tree.steps.map((step) => ({ ...step, estimateUnit: 'minutes' }));
   const document = await exportDocument(tree);
-  expect(document.document.version).toBe(8);
+  expect(document.document.version).toBe(9);
   const classified = await classifyPlanDocument(document);
   expect(classified.ok).toBe(true);
   if (!classified.ok) throw new Error('minute document refused');
@@ -871,4 +878,149 @@ test('version 8 keeps minute step units and refuses missing or unknown written u
   const missing = structuredClone(TREE);
   Reflect.deleteProperty(missing.steps[0] ?? {}, 'estimateUnit');
   expect(await exportError(missing)).toContain('estimate unit');
+});
+
+test('v9 exports detached direct blockage facts and excludes row aliases', async () => {
+  const tree = structuredClone(TREE);
+  const row = tree.workItems.at(0);
+  if (row === undefined) throw new Error('missing fixture row');
+  row.blockages = { 'step-1': { blockedAt: -17 } };
+  const exported = await service().export(PROJECT, tree, LEGACY_ACCESS);
+  expect(exported.ok).toBe(true);
+  if (!exported.ok) return;
+  expect(exported.value.document.version).toBe(9);
+  expect(Reflect.get(exported.value, 'stepBlockages')).toEqual([
+    { workItemId: 'row-1', stepId: 'step-1', blockedAt: -17 },
+  ]);
+  expect(exported.value.workItems[0]).not.toHaveProperty('blockages');
+  row.blockages['step-1'] = { blockedAt: 50 };
+  expect(Reflect.get(exported.value, 'stepBlockages')).toEqual([
+    { workItemId: 'row-1', stepId: 'step-1', blockedAt: -17 },
+  ]);
+});
+
+test('v9 requires facts and legacy files refuse facts instead of losing them', async () => {
+  const exported = await exportDocument();
+  const current = { ...exported, document: { ...exported.document, version: 9 } };
+  Reflect.deleteProperty(current, 'stepBlockages');
+  expect(await classifyPlanDocument(current)).toEqual({
+    ok: false,
+    code: 'invalid_body',
+    path: 'stepBlockages',
+  });
+  for (let version = 1; version <= 8; version++) {
+    const legacy = {
+      ...exported,
+      document: { ...exported.document, version },
+      stepBlockages: [{ workItemId: 'row-1', stepId: 'step-1', blockedAt: 3 }],
+    };
+    expect(await classifyPlanDocument(legacy)).toEqual({
+      ok: false,
+      code: 'invalid_body',
+      path: 'stepBlockages[0]',
+    });
+  }
+});
+
+test('v9 excludes derived blockage causes and captured exports retain the same facts', async () => {
+  const tree = structuredClone(TREE);
+  const row = tree.workItems.at(0);
+  if (row === undefined) throw new Error('missing row');
+  row.blockages = { 'step-1': { blockedAt: 42 } };
+  row.blockageCauses = { 'step-1': [{ kind: 'work-item', workItemId: row.id }] };
+  const exported = await exportDocument(tree);
+  expect(exported.workItems[0]).not.toHaveProperty('blockageCauses');
+  const captured = service().exportCaptured(PROJECT, tree, {
+    directory: {
+      teams: await directory().listTeams(),
+      people: await directory().listPeople(),
+      tags: await directory().listTags(),
+      services: await directory().listServices(),
+      types: await directory().listWorkItemTypes(),
+      externalSystems: await directory().listExternalSystems(),
+    },
+    markers: MARKERS,
+  });
+  expect(captured).toEqual({ ok: true, value: exported });
+});
+
+for (const [name, mutate, message] of [
+  [
+    'absent leaf map',
+    (tree: WorkItemTree) => Reflect.deleteProperty(tree.workItems[0] ?? {}, 'blockages'),
+    /without blockages/,
+  ],
+  [
+    'unknown step',
+    (tree: WorkItemTree) =>
+      Reflect.set(tree.workItems[0] ?? {}, 'blockages', { missing: { blockedAt: 1 } }),
+    /unknown step/,
+  ],
+  [
+    'unsafe time',
+    (tree: WorkItemTree) =>
+      Reflect.set(tree.workItems[0] ?? {}, 'blockages', { 'step-1': { blockedAt: 1.5 } }),
+    /invalid time/,
+  ],
+  [
+    'parent owner',
+    (tree: WorkItemTree) => {
+      tree.workItems.push({
+        ...tree.workItems[0],
+        id: 'child',
+        parentId: 'row-1',
+        blockages: {},
+      });
+      Reflect.set(tree.workItems[0] ?? {}, 'blockages', { 'step-1': { blockedAt: 1 } });
+    },
+    /parent/,
+  ],
+] as const)
+  test(`v9 trusted export refuses ${name}`, async () => {
+    const tree = structuredClone(TREE);
+    mutate(tree);
+    expect(await exportError(tree)).toMatch(message);
+  });
+
+for (const held of [
+  null,
+  {},
+  'wrong',
+  [null],
+  [{ workItemId: 1, stepId: 'step-1', blockedAt: 1 }],
+  [{ workItemId: 'row-1', stepId: 1, blockedAt: 1 }],
+  [{ workItemId: 'row-1', stepId: 'step-1', blockedAt: 1.5 }],
+  [{ workItemId: 'row-1', stepId: 'step-1', blockedAt: Number.MAX_SAFE_INTEGER + 1 }],
+]) {
+  test(`v9 classifies malformed facts ${JSON.stringify(held)}`, async () => {
+    const document = await exportDocument();
+    Reflect.set(document, 'stepBlockages', held);
+    expect(await classifyPlanDocument(document)).toMatchObject({ ok: false, code: 'invalid_body' });
+  });
+}
+
+test('legacy row blockage aliases are refused, while empty aliases normalize to no facts', async () => {
+  for (let version = 1; version <= 8; version++) {
+    const document = await exportDocument();
+    Reflect.set(document.document, 'version', version);
+    if (version === 1)
+      document.steps.forEach((step) => Reflect.deleteProperty(step, 'allowancePercent'));
+    Reflect.set(document.workItems[0] ?? {}, 'blockages', { 'step-1': { blockedAt: 1 } });
+    expect(await classifyPlanDocument(document)).toEqual({
+      ok: false,
+      code: 'invalid_body',
+      path: 'workItems[0].blockages',
+    });
+    Reflect.set(document.workItems[0] ?? {}, 'blockages', {});
+    expect(await classifyPlanDocument(document)).toMatchObject({
+      ok: true,
+      value: { stepBlockages: [] },
+    });
+  }
+});
+
+test('v9 trusted export refuses a malformed leaf blockage map', async () => {
+  const tree = structuredClone(TREE);
+  Reflect.set(tree.workItems[0] ?? {}, 'blockages', []);
+  expect(await exportError(tree)).toMatch(/malformed blockages/);
 });

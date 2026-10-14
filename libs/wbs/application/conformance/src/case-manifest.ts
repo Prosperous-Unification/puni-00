@@ -19,6 +19,7 @@ export const PORT_NAMES = [
   'measures',
   'progress',
   'attempts',
+  'blockages',
   'dependencies',
   'typedDependencies',
   'subtrees',
@@ -111,6 +112,7 @@ export const CASE_MANIFEST = {
     'attempts.moveAll:ownership',
     'attempts.moveAll:issued',
   ],
+  blockages: ['blockages.set:read-remove'],
   dependencies: [
     'dependencies.listByWorkItems:incident-scope',
     'dependencies.add:idempotent-pair',

@@ -232,6 +232,8 @@ function buildDocument(
     project,
     ...tree,
     workItems: documentWorkItems(tree, closure.people),
+    // Proof: omitting this collection failed `v9 exports detached direct blockage facts` (2026-10-14).
+    stepBlockages: documentBlockages(tree),
     typedDependencies: tree.typedDependencies.map(({ id, predecessor, successor, type }) => {
       // Proof (2026-09-28): omitting this guard let the unknown-type tree
       // export succeed; its trusted-relationship test failed.
@@ -300,34 +302,76 @@ function documentWorkItems(
 ): PlanDocument['workItems'] {
   const codeOf = new Map(tree.steps.map(({ id, code }) => [id, code] as const));
   const nameOf = new Map(people.map(({ id, name }) => [id, name] as const));
-  return tree.workItems.map(({ attempts, spans: _spans, span: _span, ...row }) => {
-    if (attempts === undefined) return row;
-    const byCode: Record<string, DocumentAttempt[]> = {};
-    for (const [stepId, held] of Object.entries(attempts)) {
-      const code = codeOf.get(stepId);
-      // `codedTree` has refused an uncoded step before this runs.
-      if (code === undefined || code === null)
-        throw new Error(`attempt at step "${stepId}" the coded tree lacks`);
-      byCode[code] = held.map((attempt) => {
-        const executor =
-          attempt.executorPersonId === null ? null : nameOf.get(attempt.executorPersonId);
-        if (executor === undefined)
-          throw new Error(
-            `attempt executor "${String(attempt.executorPersonId)}" is not in the directory`,
-          );
-        return {
-          number: attempt.attemptNumber,
-          startedAt: new Date(attempt.startedAt).toISOString(),
-          endedAt: attempt.endedAt === null ? null : new Date(attempt.endedAt).toISOString(),
-          outcome: attempt.outcome,
-          executor,
-          reference: attempt.reference,
-          note: attempt.note,
-        };
-      });
+  // Proof: retaining either alias failed the direct-fact and derived-cause export tests (2026-10-14).
+  return tree.workItems.map(
+    ({
+      attempts,
+      spans: _spans,
+      span: _span,
+      blockages: _blockages,
+      blockageCauses: _blockageCauses,
+      ...row
+    }) => {
+      if (attempts === undefined) return row;
+      const byCode: Record<string, DocumentAttempt[]> = {};
+      for (const [stepId, held] of Object.entries(attempts)) {
+        const code = codeOf.get(stepId);
+        // `codedTree` has refused an uncoded step before this runs.
+        if (code === undefined || code === null)
+          throw new Error(`attempt at step "${stepId}" the coded tree lacks`);
+        byCode[code] = held.map((attempt) => {
+          const executor =
+            attempt.executorPersonId === null ? null : nameOf.get(attempt.executorPersonId);
+          if (executor === undefined)
+            throw new Error(
+              `attempt executor "${String(attempt.executorPersonId)}" is not in the directory`,
+            );
+          return {
+            number: attempt.attemptNumber,
+            startedAt: new Date(attempt.startedAt).toISOString(),
+            endedAt: attempt.endedAt === null ? null : new Date(attempt.endedAt).toISOString(),
+            outcome: attempt.outcome,
+            executor,
+            reference: attempt.reference,
+            note: attempt.note,
+          };
+        });
+      }
+      return { ...row, attempts: byCode };
+    },
+  );
+}
+
+/** Detaches direct facts and refuses inconsistent trusted leaf projections. */
+function documentBlockages(tree: WorkItemTree): PlanDocument['stepBlockages'] {
+  const parents = new Set(tree.workItems.map(({ parentId }) => parentId));
+  const steps = new Set(tree.steps.map(({ id }) => id));
+  const facts: PlanDocument['stepBlockages'] = [];
+  for (const row of tree.workItems) {
+    if (row.blockages === undefined) {
+      // Proof: bypassing missing-map refusal made `v9 trusted export refuses absent leaf map` resolve (2026-10-14).
+      if (!parents.has(row.id)) throw new Error(`leaf ${row.id} was read without blockages`);
+      continue;
     }
-    return { ...row, attempts: byCode };
-  });
+    const held: unknown = Reflect.get(row, 'blockages');
+    // Proof: an injected empty array was silently exported before this guard; the malformed-leaf-map test failed (2026-10-14).
+    if (typeof held !== 'object' || held === null || Array.isArray(held))
+      throw new Error(`leaf ${row.id} has malformed blockages`);
+    for (const [stepId, fact] of Object.entries(row.blockages)) {
+      // Proof: bypassing owner refusal made `v9 trusted export refuses parent owner` resolve (2026-10-14).
+      if (parents.has(row.id)) throw new Error(`parent ${row.id} holds a step blockage`);
+      // Proof: bypassing reference refusal made `v9 trusted export refuses unknown step` resolve (2026-10-14).
+      if (!steps.has(stepId)) throw new Error(`blockage at unknown step ${stepId}`);
+      // Proof: bypassing time refusal made `v9 trusted export refuses unsafe time` resolve (2026-10-14).
+      if (!Number.isSafeInteger(fact.blockedAt))
+        throw new Error(`blockage at ${row.id}/${stepId} has an invalid time`);
+      facts.push({ workItemId: row.id, stepId, blockedAt: fact.blockedAt });
+    }
+  }
+  return facts.sort(
+    (left, right) =>
+      left.workItemId.localeCompare(right.workItemId) || left.stepId.localeCompare(right.stepId),
+  );
 }
 
 /**
@@ -399,6 +443,7 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
     version !== 5 &&
     version !== 6 &&
     version !== 7 &&
+    version !== 8 &&
     version !== PLAN_DOCUMENT_VERSION
   ) {
     return { ok: false, code: 'unsupported_version', path: 'document.version' };
@@ -406,6 +451,51 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
   const checked = await validateSchema(planDocumentRequest, input);
   if (checked.issues !== undefined) {
     return { ok: false, code: 'invalid_body', path: pathOf(checked.issues[0]?.path) };
+  }
+  const blockages = checked.value.stepBlockages;
+  const stepBlockages: PlanDocumentImport['stepBlockages'] = [];
+  if (version < 9) {
+    // Proof: bypassing legacy refusal failed `v9 requires facts and legacy files refuse facts` (2026-10-14).
+    if (blockages !== undefined && (!Array.isArray(blockages) || blockages.length > 0))
+      return {
+        ok: false,
+        code: 'invalid_body',
+        path: Array.isArray(blockages) ? 'stepBlockages[0]' : 'stepBlockages',
+      };
+  } else {
+    // Proof: bypassing required-list refusal failed `v9 requires facts` with an unexpected TypeError (2026-10-14).
+    if (!Array.isArray(blockages))
+      return { ok: false, code: 'invalid_body', path: 'stepBlockages' };
+    for (const [at, fact] of blockages.entries()) {
+      const prefix = `stepBlockages[${String(at)}]`;
+      // Proof: bypassing object refusal failed malformed-facts null entry with an unexpected TypeError (2026-10-14).
+      if (typeof fact !== 'object' || fact === null || Array.isArray(fact))
+        return { ok: false, code: 'invalid_body', path: prefix };
+      const workItemId: unknown = Reflect.get(fact, 'workItemId');
+      const stepId: unknown = Reflect.get(fact, 'stepId');
+      const blockedAt: unknown = Reflect.get(fact, 'blockedAt');
+      // Proof: bypassing owner type refusal admitted numeric owner in `v9 classifies malformed facts` (2026-10-14).
+      if (typeof workItemId !== 'string')
+        return { ok: false, code: 'invalid_body', path: `${prefix}.workItemId` };
+      // Proof: bypassing step type refusal admitted numeric step in `v9 classifies malformed facts` (2026-10-14).
+      if (typeof stepId !== 'string')
+        return { ok: false, code: 'invalid_body', path: `${prefix}.stepId` };
+      // Proof: bypassing time refusal admitted fractional and unsafe times in malformed-facts tests (2026-10-14).
+      if (typeof blockedAt !== 'number' || !Number.isSafeInteger(blockedAt))
+        return { ok: false, code: 'invalid_body', path: `${prefix}.blockedAt` };
+      stepBlockages.push({ workItemId, stepId, blockedAt });
+    }
+  }
+  for (const [at, row] of checked.value.workItems.entries()) {
+    // Proof: bypassing row alias refusal failed `legacy row blockage aliases are refused` (2026-10-14).
+    if (
+      row.blockages !== undefined &&
+      (typeof row.blockages !== 'object' ||
+        row.blockages === null ||
+        Array.isArray(row.blockages) ||
+        Object.keys(row.blockages).length > 0)
+    )
+      return { ok: false, code: 'invalid_body', path: `workItems[${String(at)}].blockages` };
   }
   const typedDependencies: PlanDocumentImport['typedDependencies'] = [];
   if (version >= 4) {
@@ -484,7 +574,10 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
     if (!isTimezone(written)) return { ok: false, code: 'invalid_body', path: 'settings.timezone' };
     timezone = written;
   }
-  const statused = statusFactsOf(version, checked.value.workItems);
+  const statused = statusFactsOf(
+    version,
+    checked.value.workItems.map(({ blockages: _blockages, ...row }) => row),
+  );
   if (!Array.isArray(statused)) return statused;
   const workItems = attemptsOf(version, statused, steps);
   if (!Array.isArray(workItems)) return workItems;
@@ -495,6 +588,7 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
       settings: { ...settings, timezone },
       steps,
       typedDependencies,
+      stepBlockages,
       workItems,
     },
   };

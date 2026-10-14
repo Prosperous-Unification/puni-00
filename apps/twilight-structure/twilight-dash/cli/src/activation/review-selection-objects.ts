@@ -26,6 +26,7 @@ import {
   ContentClass,
   EvidenceRecordKind,
   hashBytes,
+  RelationshipRequest,
   RelativePath,
   serializeCanonical,
 } from '@twilight-burokrat/judge';
@@ -33,6 +34,13 @@ import {
 import type { Monotonic } from '../clock';
 import { type GitHubRepositoryBinding, validateGitHubRepositoryBinding } from './github-source';
 import { type ActivationRequest, assertActivationRequest } from './request';
+import {
+  captureHistoricalObjects,
+  type HistoricalRetentionPolicy,
+  requireStorageBounds,
+  RetainedHistoryManifest,
+  verifyHistoricalObjects,
+} from './review-selection-history';
 import { readOwnedReviewCandidate } from './review-selection-preparation';
 
 const Sha256Pattern = /^[0-9a-f]{64}$/;
@@ -95,6 +103,8 @@ const CandidateManifest = type({
 }).onUndeclaredKey('reject');
 
 export interface LocalReviewAcquisitionInput {
+  /** Explicit complete-history capture; omitted only by legacy head-only callers. */
+  readonly history?: HistoricalRetentionPolicy;
   readonly binding: GitHubRepositoryBinding;
   readonly sourceRepository: string;
   readonly storeBase: string;
@@ -118,6 +128,9 @@ const CandidateOwnership = Symbol('owned retained review candidate');
 export interface RetainedCandidate {
   readonly [CandidateOwnership]: true;
   readonly snapshot: CandidateSnapshot;
+  /** Null identifies a legacy head-only capture; it is never complete historical input. */
+  readonly history: RetainedHistoryManifest | null;
+  readHistorical(revision: string, path: string): Uint8Array;
   read(path: string, gitObjectId: string, rawIdentity: string): Uint8Array;
   readBlob(gitObjectId: string, path: string): Uint8Array;
 }
@@ -126,7 +139,11 @@ export interface InstalledLocalReviewSource {
   readonly [SourceOwnership]: true;
   prepare(request: ActivationRequest): ReturnType<typeof prepareRetainedLocalReviewCandidate>;
   read(snapshotIdentity: string): ReturnType<typeof readRetainedReviewCandidate>;
-  open(request: ActivationRequest, snapshotIdentity: string): RetainedCandidate;
+  open(
+    request: ActivationRequest,
+    snapshotIdentity: string,
+    historyIdentity?: string,
+  ): RetainedCandidate;
 }
 
 function gitBlobIdentity(bytes: Uint8Array, format: 'sha1' | 'sha256'): string {
@@ -156,7 +173,11 @@ function openRetainedCandidate(
   input: LocalReviewAcquisitionInput,
   rawRequest: ActivationRequest,
   snapshotIdentity: string,
+  historyIdentity?: string,
 ): RetainedCandidate {
+  // Proof: removing held-owner capture fences made the historical owner-change
+  // test publish ready references after its fourth ownership check should refuse.
+  input.history?.assertOwner();
   const request = assertActivationRequest(rawRequest);
   const binding = validateGitHubRepositoryBinding(input.binding);
   // Proof: replacing each comparator independently let the matching foreign request open.
@@ -254,9 +275,53 @@ function openRetainedCandidate(
     readBytes = nextBytes;
     return Uint8Array.from(entry.bytes);
   };
+  const historyObjects = new Map<string, Uint8Array>(retained.rawBlobs);
+  const historyManifest =
+    input.history === undefined
+      ? null
+      : readHistoryManifest(
+          input,
+          retained.readyDirectory,
+          historyIdentity,
+          historyObjects,
+          retained.manifestBytes,
+        );
+  if (historyManifest !== null && input.history !== undefined) {
+    verifyHistoricalObjects(
+      historyManifest,
+      retainedView(manifest, historyObjects),
+      input.history,
+      request.requestIdentity,
+      snapshotIdentity,
+      input.gitObjectFormat,
+      historyObjects,
+    );
+    freezeOwnedDocument(historyManifest);
+  }
+  input.history?.assertOwner();
   return Object.freeze({
     [CandidateOwnership]: true as const,
     snapshot,
+    history: historyManifest,
+    readHistorical(revision: string, path: string): Uint8Array {
+      const proof = historyManifest?.proofs.find(
+        (proof) => proof.revision === revision && proof.path === path,
+      );
+      if (proof === undefined) throw new Error('historical selector is not retained');
+      const raw = historyObjects.get(proof.terminal.rawIdentity);
+      if (raw === undefined || hashBytes(raw) !== proof.terminal.rawIdentity)
+        throw new Error('historical read identity differs');
+      // Proof: independent omissions let the historical parser-budget test read
+      // twice at count one or return a blob larger than its installed byte ceiling.
+      if (readCount >= input.maximumParserReads)
+        throw new Error('retained review read count exceeded');
+      const nextBytes = readBytes + raw.length;
+      if (!Number.isSafeInteger(nextBytes) || nextBytes > input.maximumParserReadBytes)
+        throw new Error('retained review read byte ceiling exceeded');
+      readCount += 1;
+      readBytes = nextBytes;
+      return Uint8Array.from(raw);
+    },
     read,
     readBlob(gitObjectId: string, path: string): Uint8Array {
       const entry = byPath.get(path);
@@ -265,6 +330,102 @@ function openRetainedCandidate(
       return read(path, gitObjectId, entry.rawIdentity);
     },
   });
+}
+
+/** Builds the phase-one declaration view from the already validated, privately owned head. */
+function retainedView(
+  manifest: typeof CandidateManifest.infer,
+  rawObjects: ReadonlyMap<string, Uint8Array>,
+): RetainedCandidate {
+  const read = (path: string, gitObjectId: string, rawIdentity: string) => {
+    const entry = manifest.entries.find((entry) => entry.path === path);
+    const bytes = rawObjects.get(rawIdentity);
+    if (
+      entry?.gitObjectId !== gitObjectId ||
+      entry.rawIdentity !== rawIdentity ||
+      bytes === undefined ||
+      hashBytes(bytes) !== rawIdentity
+    )
+      throw new Error('historical declaration tuple differs');
+    return Uint8Array.from(bytes);
+  };
+  return Object.freeze({
+    [CandidateOwnership]: true as const,
+    snapshot: freezeOwnedDocument({
+      selection: { kind: 'committed' as const, revision: manifest.headSha, tree: manifest.tree },
+      entries: manifest.entries.map(({ path, mode, gitObjectId }) => ({
+        path,
+        mode,
+        blob: gitObjectId,
+      })),
+      untracked: [] as string[],
+    }),
+    history: null,
+    readHistorical: () => {
+      throw new Error('historical capture is incomplete');
+    },
+    read,
+    readBlob: (gitObjectId: string, path: string) => {
+      const entry = manifest.entries.find((entry) => entry.path === path);
+      if (entry === undefined) throw new Error('historical declaration path absent');
+      return read(path, gitObjectId, entry.rawIdentity);
+    },
+  });
+}
+
+function requireCompleteStorageBounds(
+  rawObjects: ReadonlyMap<string, Uint8Array>,
+  policy: HistoricalRetentionPolicy,
+  candidateManifestBytes: string,
+  historyManifestBytes: Uint8Array,
+): void {
+  const bodies = new Map(rawObjects);
+  const candidateBytes = Buffer.from(candidateManifestBytes);
+  // Proof: a ceiling fitting every raw body plus only one extra byte/object selected
+  // references until both manifest bodies entered the aggregate budget; both tests were RED.
+  bodies.set(hashBytes(candidateBytes), candidateBytes);
+  bodies.set(hashBytes(historyManifestBytes), historyManifestBytes);
+  requireStorageBounds(bodies, policy);
+}
+
+function readHistoryManifest(
+  input: LocalReviewAcquisitionInput,
+  readyDirectory: string,
+  historyIdentity: string | undefined,
+  rawObjects: Map<string, Uint8Array>,
+  candidateManifestBytes: string,
+): RetainedHistoryManifest {
+  const policy = input.history;
+  if (policy === undefined || historyIdentity === undefined || !Sha256Pattern.test(historyIdentity))
+    throw new Error('historical retained identity absent or malformed');
+  const bytes = readProtected(
+    join(readyDirectory, 'history.json'),
+    historyIdentity,
+    policy.maximumHistoricalManifestBytes,
+  );
+  requireCompleteStorageBounds(rawObjects, policy, candidateManifestBytes, bytes);
+  const manifest = parseOrThrow(
+    RetainedHistoryManifest,
+    JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)) as unknown,
+  );
+  // Proof: omitting canonical comparison accepted repinned history JSON with trailing whitespace.
+  if (serializeCanonical(manifest) !== bytes.toString('utf8'))
+    throw new Error('historical manifest is not canonical');
+  for (const proof of manifest.proofs) {
+    for (const reference of [proof.commit, ...proof.trees, proof.terminal]) {
+      if (!rawObjects.has(reference.rawIdentity))
+        rawObjects.set(
+          reference.rawIdentity,
+          readProtected(
+            join(readyDirectory, 'sha256', reference.rawIdentity),
+            reference.rawIdentity,
+            policy.maximumObjectBytes,
+          ),
+        );
+      requireCompleteStorageBounds(rawObjects, policy, candidateManifestBytes, bytes);
+    }
+  }
+  return manifest;
 }
 
 function freezeOwnedDocument<T extends object>(document: T): Readonly<T> {
@@ -303,7 +464,40 @@ export function installLocalReviewSource(
   }
   requirePrivateDirectory(configuration.storeBase, 'review object store');
   requireLocalSource(configuration.sourceRepository);
-  const installed = Object.freeze({ ...configuration, binding, classificationPolicy });
+  const history =
+    configuration.history === undefined
+      ? undefined
+      : Object.freeze({
+          ...configuration.history,
+          request: freezeOwnedDocument(
+            parseOrThrow(RelationshipRequest, structuredClone(configuration.history.request)),
+          ),
+        });
+  if (history !== undefined) {
+    if (!Sha256Pattern.test(history.policyIdentity) || typeof history.assertOwner !== 'function')
+      throw new Error('historical installed policy malformed');
+    for (const label of [
+      'maximumDeclarationPaths',
+      'maximumDeclarationBytes',
+      'maximumDeclarationFacts',
+      'maximumHistoricalSelections',
+      'maximumHistoricalRevisions',
+      'maximumHistoricalTreeDepth',
+      'maximumHistoricalProofEdges',
+      'maximumRetainedObjects',
+      'maximumObjectBytes',
+      'maximumRetainedBytes',
+      'maximumHistoricalManifestBytes',
+    ] as const) {
+      const value = history[label];
+      // Proof: omitting this validation installed absent, NaN, infinite, zero and
+      // unrepresentable limits in each named historical installation test.
+      if (!Number.isSafeInteger(value) || value < 1 || value > 2_147_483_647)
+        throw new Error(`historical ${label} must be positive and bounded`);
+    }
+    history.assertOwner();
+  }
+  const installed = Object.freeze({ ...configuration, binding, classificationPolicy, history });
   return Object.freeze({
     [SourceOwnership]: true as const,
     prepare: (request: ActivationRequest) =>
@@ -314,8 +508,8 @@ export function installLocalReviewSource(
         snapshotIdentity,
         installed.maximumCandidateBytes,
       ),
-    open: (request: ActivationRequest, snapshotIdentity: string) =>
-      openRetainedCandidate(installed, request, snapshotIdentity),
+    open: (request: ActivationRequest, snapshotIdentity: string, historyIdentity?: string) =>
+      openRetainedCandidate(installed, request, snapshotIdentity, historyIdentity),
   });
 }
 
@@ -533,6 +727,9 @@ function prepareRetainedLocalReviewCandidate(
   input: LocalReviewAcquisitionInput,
   rawRequest: ActivationRequest,
 ) {
+  // Proof: removing held-owner capture fences made the historical owner-change
+  // test publish ready references after its fourth ownership check should refuse.
+  input.history?.assertOwner();
   const request = assertActivationRequest(rawRequest);
   const binding = validateGitHubRepositoryBinding(input.binding);
   // Proof: omitting this use-time check published a ready snapshot after the installed
@@ -610,10 +807,16 @@ function prepareRetainedLocalReviewCandidate(
     ) {
       throw new Error('review acquisition Git operation failed or exceeded bound');
     }
+    return invocation.stdout;
   };
   const pending = mkdtempSync(join(input.storeBase, '.pending-'));
   let prepared:
-    | { readyDirectory: string; snapshotIdentity: string; manifest: typeof CandidateManifest.infer }
+    | {
+        readyDirectory: string;
+        snapshotIdentity: string;
+        manifest: typeof CandidateManifest.infer;
+        historyIdentity?: string;
+      }
     | undefined;
   let primary: unknown;
   try {
@@ -658,6 +861,43 @@ function prepareRetainedLocalReviewCandidate(
     // fetch published it when this join was removed; the named ready-store test failed.
     requireGitObjectFormat(candidate.manifest, input.gitObjectFormat);
     if (input.monotonic.now() > deadline) throw new Error('review acquisition deadline exceeded');
+    let historyBytes: string | undefined;
+    let historyIdentity: string | undefined;
+    if (input.history !== undefined) {
+      input.history.assertOwner();
+      const history = captureHistoricalObjects(
+        retainedView(candidate.manifest, candidate.rawBlobs),
+        input.history,
+        request.requestIdentity,
+        candidate.snapshotIdentity,
+        input.gitObjectFormat,
+        (kind, identity) => {
+          if (kind === 'commit')
+            invokeGit([
+              `--git-dir=${gitDirectory}`,
+              'fetch',
+              '--quiet',
+              '--no-tags',
+              '--no-recurse-submodules',
+              '--no-write-fetch-head',
+              '--',
+              input.sourceRepository,
+              identity,
+            ]);
+          return invokeGit([`--git-dir=${gitDirectory}`, 'cat-file', kind, identity]);
+        },
+        candidate.rawBlobs,
+      );
+      historyBytes = serializeCanonical(history);
+      historyIdentity = hashBytes(historyBytes);
+      requireCompleteStorageBounds(
+        candidate.rawBlobs,
+        input.history,
+        candidate.manifestBytes,
+        Buffer.from(historyBytes),
+      );
+      input.history.assertOwner();
+    }
     rmSync(gitDirectory, { recursive: true });
     const blobDirectory = join(pending, 'sha256');
     mkdirSync(blobDirectory, { mode: 0o700 });
@@ -674,9 +914,12 @@ function prepareRetainedLocalReviewCandidate(
     if (manifestBytes.length > MaximumManifestBytes)
       throw new Error('review candidate manifest exceeds retained bound');
     writeExclusive(join(pending, 'manifest.json'), manifestBytes);
+    if (historyBytes !== undefined)
+      writeExclusive(join(pending, 'history.json'), Buffer.from(historyBytes));
     // Proof: injected fsync failure on only the pending directory refused publication;
     // omitting this sync let the mounted test return a ready snapshot.
     syncDirectory(pending);
+    input.history?.assertOwner();
     const readyDirectory = join(input.storeBase, `ready-${candidate.snapshotIdentity}`);
     const lockPath = join(input.storeBase, '.retain-lock');
     const lock = openSync(
@@ -692,6 +935,24 @@ function prepareRetainedLocalReviewCandidate(
           candidate.snapshotIdentity,
           input.maximumCandidateBytes,
         );
+        if (input.history !== undefined) {
+          const existingHistory = readHistoryManifest(
+            input,
+            readyDirectory,
+            historyIdentity,
+            existing.rawBlobs,
+            existing.manifestBytes,
+          );
+          verifyHistoricalObjects(
+            existingHistory,
+            retainedView(existing.manifest, existing.rawBlobs),
+            input.history,
+            request.requestIdentity,
+            candidate.snapshotIdentity,
+            input.gitObjectFormat,
+            existing.rawBlobs,
+          );
+        }
         if (
           existing.manifestBytes !== candidate.manifestBytes ||
           existing.rawBlobs.size !== candidate.rawBlobs.size ||
@@ -711,11 +972,29 @@ function prepareRetainedLocalReviewCandidate(
         // Proof: injected fsync failure on only the store base refused durable success;
         // omitting this sync let the mounted test return a ready snapshot.
         syncDirectory(input.storeBase);
-        readRetainedReviewCandidate(
+        const published = readRetainedReviewCandidate(
           input.storeBase,
           candidate.snapshotIdentity,
           input.maximumCandidateBytes,
         );
+        if (input.history !== undefined) {
+          const publishedHistory = readHistoryManifest(
+            input,
+            readyDirectory,
+            historyIdentity,
+            published.rawBlobs,
+            published.manifestBytes,
+          );
+          verifyHistoricalObjects(
+            publishedHistory,
+            retainedView(published.manifest, published.rawBlobs),
+            input.history,
+            request.requestIdentity,
+            candidate.snapshotIdentity,
+            input.gitObjectFormat,
+            published.rawBlobs,
+          );
+        }
       }
     } catch (cause) {
       finalizationFailure = cause;
@@ -775,6 +1054,7 @@ function prepareRetainedLocalReviewCandidate(
       readyDirectory,
       snapshotIdentity: candidate.snapshotIdentity,
       manifest: candidate.manifest,
+      ...(historyIdentity === undefined ? {} : { historyIdentity }),
     };
   } catch (cause) {
     primary = cause;
@@ -788,6 +1068,15 @@ function prepareRetainedLocalReviewCandidate(
   const failures: unknown[] = [];
   if (primary !== undefined) failures.push(primary);
   if (cleanupFailure !== undefined) failures.push(cleanupFailure);
+  // Proof: a final owner callback consuming the remaining deadline returned references
+  // when the following final time fence was omitted; its production test was RED.
+  if (primary === undefined) {
+    try {
+      input.history?.assertOwner();
+    } catch (cause) {
+      failures.push(cause);
+    }
+  }
   // Proof: advancing the monotonic clock only during final pending cleanup previously
   // returned a ready snapshot after the deadline; the final-cleanup test was RED.
   // Proof: the same cleanup clock fault after a missing Git head now keeps both the

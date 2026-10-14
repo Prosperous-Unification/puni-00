@@ -7,6 +7,7 @@ import {
   type SchemaShape,
   validateSchema,
 } from '@wbs/contracts';
+import { StepBlockageInactive } from '@wbs/core';
 import { Elysia } from 'elysia';
 
 import { hasInvalidCookieOrigin } from '../../middleware/authenticated';
@@ -76,6 +77,14 @@ export function mountEndpoints(endpoints: readonly BoundEndpoint[], options: Mou
     // Proof: on 2026-09-21, deleting this call made “refuses anonymous identity and
     // preserves an unexpected account-store failure” receive zero reports instead of one;
     // duplicating it made the same test receive two.
+    // Proof: typed mapping omitted; disabled mounted v9 import returned 500 instead of 409 (2026-10-14).
+    if (error instanceof StepBlockageInactive) {
+      const refusal: Refusal<'step_blockage_inactive'> = { error: 'step_blockage_inactive' };
+      return Response.json(refusal, {
+        status: 409,
+        headers: responseHeaders(admission.endpoint.shape),
+      });
+    }
     options.reportUnexpectedFailure(error);
     // Proof: on 2026-09-21, returning String(error) made the account-store test receive
     // `Error: account store offline` instead of the generic body; adding a JSON content type made

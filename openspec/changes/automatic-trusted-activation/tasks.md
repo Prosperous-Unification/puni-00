@@ -267,7 +267,7 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
       source repository and make every parser Git invocation fail. No retained route may use it.
       Independently omit path/blob/digest/request/policy joins for F2/F4 RED/GREEN. This seam alone
       is not an eleven-document producer or head-only substitute for complete extraction.
-- [ ] 2.1d.1.2 Capture every policy-declared historical selector before deleting acquired Git
+- [x] 2.1d.1.2 Capture every policy-declared historical selector before deleting acquired Git
       objects. TDD with real head/base and a third historical commit whose same path has different
       bytes: exact commit/tree/path/blob proof, bounded declarationPaths-first two-phase acquisition,
       complete selector/provenance set, reopen after
@@ -282,6 +282,14 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
       errors and prove finite settlement before closing owned parser resources. Sentinels must
       prove no ambient candidate/history filesystem or Git read occurs, not merely a later refusal.
       R5 omit each host/read/runtime fence independently; all existing selector families remain.
+- [x] 2.1d.1.3a Extract retained current/historical declarations through the shared Burokrat
+      `DeclarationSource` core, preserving all selector families, exact extractor identity and
+      Git blob semantics. Reuse the retained current symlink resolver and require complete
+      historical selector/provenance census; bound declaration discovery, reads and output.
+      Prove SHA-1/SHA-256 parity after source removal with forbidden filesystem/Git sentinels,
+      third-revision and raw historical symlink authority, BOM current targets, legacy null
+      history refusal and independently watched guard omissions. This bounded component does
+      not close 2.1d.1.3, compiler/runtime closure, all eleven documents or external authority.
 - [ ] 2.1d.1.4 Implement and pin deterministic artifact graph derivation. TDD every allowlisted
       record kind, raw-response payload versus container digest, semantic digest non-edges,
       installed extra-edge selectors, zero-indegree roots, missing/foreign/ambiguous response,
