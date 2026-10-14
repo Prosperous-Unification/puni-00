@@ -6,7 +6,7 @@ bun test v1.4.2 (744846f84)
 
 libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:
 33 | afterEach(() => { rmSync(directory, { recursive: true, force: true }); });
-34 | 
+34 |
 35 | it('starts disabled and refuses an independent writer insert', () => {
 36 |   const sqlite = openDatabase(path);
 37 |   try {
@@ -135,7 +135,7 @@ bun test v1.4.2 (744846f84)
 
 libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:
 33 | afterEach(() => { rmSync(directory, { recursive: true, force: true }); });
-34 | 
+34 |
 35 | it('starts disabled and refuses an independent writer insert', () => {
 36 |   const sqlite = openDatabase(path);
 37 |   try {
@@ -432,7 +432,7 @@ bun test v1.4.2 (744846f84)
 
 libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:
 126 | });
-127 | 
+127 |
 128 | it('refuses the wrong migration and unreadable connection at readiness', () => {
 129 |   const connection = openConnection(path);
 130 |   connection.db.run("UPDATE __drizzle_migrations SET name='wrong' WHERE name='20261014140000_add_step_blockage_activation'");
@@ -702,7 +702,7 @@ EXIT 1
 bun test v1.4.2 (744846f84)
 
 libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts:
-54 | 
+54 |
 55 | it('translates only the exact native sentinel and Drizzle cause', () => {
 56 |   const connection = openConnection(path);
 57 |   try {
@@ -896,7 +896,7 @@ Received value: 72 | 		const params = query.params.length === 0 ? query.params :
 77 | 			throw new DrizzleQueryError(sql, params, e);
               ^
 DrizzleQueryError: Failed query: DELETE FROM work_item WHERE id='a'
-params: 
+params:
   query: "DELETE FROM work_item WHERE id='a'",
  params: [],
 
@@ -1059,4 +1059,3 @@ Received value: [ "20261014140000_add_step_blockage_activation" ]
  3 fail
  3 expect() calls
 Ran 3 tests across 1 file. [1.88s]
-
