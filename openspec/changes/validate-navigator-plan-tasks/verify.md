@@ -257,3 +257,57 @@ then interrupted with controlled exit 130 before restacking to avoid changing it
 under live tests; its complete suite is unverified. Its abandoned named contract-test scratch
 directory was removed. Full host gate and full repository checks remain delegated. The separate
 hosted browser-auth-lifecycle readiness failure was not exercised by these scoped checks.
+
+## Ordered tooling integration on stabilized WBS, 2026-10-14
+
+Integration workspace: `/tmp/puni-tooling-batch-integration-sol`, local workstation,
+uid 1000. Reviewed histories were merged without squashing in this order:
+
+1. Stabilized WBS base `8446c9c51e20c34695986f3095c58adbcb535685`.
+2. Reviewed test-axes tip `c466eb746bc88add38d437c862c74c32ac33ce6a`, merge
+   `141f567833876ea2218ad5bacbdd12516521f843`.
+3. Reviewed Navigator tip `b7f722d7d93c0a7a987443e297af1740a2106051`, merge
+   `fddf44bef008e7c9a1b3714f2fb262573bae89cd`.
+
+The only conflict was Burokrat's unknown-command usage string. The resolution
+preserves `validate-plan-tasks`, `inspect-performance-levels`, and
+`inspect-manual-observation`. Running the real `src/bin.ts` without a command
+printed all three names. No safety check was added or changed by this merge;
+the existing adjacent R5 mutation proofs remain on their owning checks.
+
+| Command                                                                                                                                                                                                                                                                                                                             | Fresh observation                                                                                                                                                           |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BUN_TMPDIR=/tmp bun install --frozen-lockfile`                                                                                                                                                                                                                                                                                     | Exit 0; 1573 installs across 1447 packages, no lockfile changes. The initial invocation without `BUN_TMPDIR` exited 1 on a read-only temporary directory.                   |
+| `bun test --preload ./tools/test/scratch/preload.ts tools/tool-devsync/src/performance-processes.test.ts tools/tool-devsync/src/test-levels.test.ts tools/tool-devsync/src/workspace-targets.test.ts tools/tool-devsync/src/workspace-projects.test.ts libs/shared/domain/test-levels/src --timeout=60000` (approved socket access) | Exit 0; 176 tests passed, 0 failed, 633 assertions across 6 files, including production CLI refusals, real Nx hash dependency assertions and process fault injection cases. |
+| Navigator: `bun test --preload ../../../../tools/test/scratch/preload.ts src --timeout=30000`                                                                                                                                                                                                                                       | Exit 0; 59 tests passed, 0 failed, 339 assertions across 3 files.                                                                                                           |
+| `BUN_TMPDIR=/tmp NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint typecheck -p twilight-navigator tool-devsync shared-test-levels --skip-nx-cache --output-style=static`                                                                                                                                           | Exit 0; all six requested targets passed uncached.                                                                                                                          |
+| Same environment, `bunx nx run twilight-burokrat:lint:source --skip-nx-cache --output-style=static` and `bunx nx run twilight-burokrat:typecheck --skip-nx-cache --output-style=static`                                                                                                                                             | Both exited 0, uncached.                                                                                                                                                    |
+| `OPENSPEC_TELEMETRY=0 BUN_TMPDIR=/tmp bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                                                                                                                                                                                                       | Exit 0; 174 changes and 18 canonical specs passed, zero failures.                                                                                                           |
+
+The first devsync invocation used a preload path without its required `./` and
+exited 1 before collecting tests; the corrected command ran. That sandboxed run
+reported 169 passes and two failures: the adopted listener fixtures could not
+write their readiness markers because their TCP listeners could not start.
+An independent localhost `node:net` listener probe also failed to bind in the
+sandbox. The identical suite was rerun with approved socket access.
+
+Independent Astra review on source head `fddf44bef008e7c9a1b3714f2fb262573bae89cd`
+reported no blocker. Its completed CLI/evidence/package selection passed 328 tests,
+zero failures, 1529 assertions across 10 files; its runner selection passed 181 tests,
+zero failures, 585 assertions across 3 files. Focused ESRCH/EIO/malformed identity
+cases additionally passed 3 tests, zero failures, 15 assertions. Review logs are
+`/tmp/tooling-batch-astra-review-tests.log` and
+`/tmp/tooling-batch-astra-runners.log`.
+
+The integration worker's broader Burokrat selection completed with exit 0:
+595 tests passed, zero failed, 2924 assertions across 20 files (473.77s).
+From the Burokrat CLI directory, the command was
+`TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/../../../../node_modules bun test --preload ../../../../tools/test/scratch/preload.ts src/architecture-level.test.ts src/contracts/plan-tasks.test.ts src/cli.test.ts src/evidence src/packaging/build.test.ts src/packaging/installed-dispatch.test.ts src/policy/pilot-policy.test.ts src/relationships/committed-target-facts.test.ts src/activation/review-attestation.test.ts --timeout=60000`.
+The log is `/tmp/tooling-burokrat-tests.log`. No production changes were made
+while either selection ran. Formatting of the conflict resolution and this
+verification record, `git diff --check`, and ancestry checks for all three
+input tips passed.
+
+Full repository tests/build, secrets and migration checks, and the canonical
+`bin/h2puni-gate.sh <sha>` are unperformed by this integration worker and remain
+with the coordinator. No deployment, push, PR creation or remote merge occurred.
