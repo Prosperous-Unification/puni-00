@@ -440,3 +440,81 @@ The late project-revision trigger additionally exercises the real transaction fa
 - `bunx @fission-ai/openspec@1.12.0 validate --all --json` — all registered specs/changes passed (`/tmp/step-delete-openspec-all.log`).
 - Explicit Prettier check over all changed files and `git diff --check` passed before commit.
 - Full canonical host gate, CI secrets/migration checks, full uncached lint/build and browser checks are **not run** in this bounded worker slice. Parent owns Astra review and `bin/h2puni-gate.sh <exact-candidate-sha>` before integration. The broader StepBlockage feature remains unfinished.
+
+## Task 4.2.1 — saved-plan direct capture, 2026-10-14
+
+Parent: `f069af34082983003b0714ca59fd8532a396d605` (#436). Isolated clone `/tmp/puni-step-saved-sol`, branch `step-saved-plan-sol`. Schema7 was free against that exact parent; only saved input moves from schema6 to schema7. Document v8, scheduler16, migration and public commands are unchanged. Task 4.2.1 is complete; broader read/document/UI tasks remain open.
+
+Initial red: `bun test libs/wbs/domain/domain/src/saved-plan/step-blockages.test.ts` — 0 pass, 13 fail: schema6 instead of 7, omitted captured facts, absent pair diff and unrefused malformed facts. The implementation then passed those tests. Added split capture/read negatives, reference-shape negatives, hash changes, retained done facts, detached memory capture, SQLite capture before a concurrent clear, and complete Fast schedule neutrality.
+
+### Watched fault proofs
+
+Raw observed output lives in `evidence/saved-plan/`; `receipts.json` records each test filter and exit 1. Each corresponding validation has an adjacent `Proof:` comment. Every injection was restored before green checks.
+
+| Injected fault                            | Observed production-path failure                               |
+| ----------------------------------------- | -------------------------------------------------------------- |
+| Remove required collection guard          | Missing current collection loses named refusal on capture/read |
+| Remove reference-list guard               | Malformed owner list loses named stored-read refusal           |
+| Remove owner row shape guard              | Malformed owner row loses named stored-read refusal            |
+| Remove step row shape guard               | Malformed step row loses named stored-read refusal             |
+| Remove fact shape/time guard              | Fractional timestamp is accepted on capture/read               |
+| Remove owner membership guard             | Unknown owner is accepted on capture/read                      |
+| Remove leaf ownership guard               | Parent owner is accepted on capture/read                       |
+| Remove step membership guard              | Unknown step is accepted on capture/read                       |
+| Remove unique-pair guard                  | Duplicate direct pair is accepted on capture/read              |
+| Remove capture validation call            | Duplicate direct pair is accepted on capture                   |
+| Remove stored-read validation call        | Duplicate direct pair is accepted on current read              |
+| Omit empty schema6 upgrade collection     | Upgraded current input is missing required facts               |
+| Replace memory capture read with empty    | Detached saved capture loses exact direct fact                 |
+| Replace SQLite snapshot read with empty   | Capture before concurrent clear loses exact direct fact        |
+| Replace detached fold with empty          | Saved input loses direct fact while schedule remains computed  |
+| Filter blocked work out of schedule input | Schedule neutrality regression fails                           |
+
+### Scoped verification
+
+- Frozen offline Bun install passed with task temporary/cache directories: `BUN_TMPDIR=/tmp BUN_INSTALL_CACHE_DIR=/tmp/puni-saved-bun-cache bun install --frozen-lockfile --offline`.
+- Focused domain/capture/application/integrity suites: `bun test libs/wbs/domain/domain/src/saved-plan libs/wbs/application/core/src/service/saved-plan-input.test.ts libs/wbs/application/core/src/module/saved-plans/saved-plan-integrity.test.ts libs/wbs/adapters/store-memory/src/memory-source.test.ts libs/wbs/adapters/store-sqlite/src/saved-plan-capture.db.test.ts` — 165 passed, 0 failed, 756 expectations.
+- Shared memory/SQLite capture conformance: `bun test libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts -t capture` — 12 passed, 136 filtered, 0 failed, 1672 expectations.
+- Wider existing saved-plan service/store suites: `bun test apps/wbs/be-01/src/service/saved-plan*.test.ts libs/wbs/adapters/store-sqlite/src/saved-plan*.test.ts` — 157 passed, three existing busy tests encountered sandbox `EPERM` at child stdin.flush. Those three were separately rerun with the sandbox pipe restriction lifted: busy suite 1 passed, 0 failed; concurrency suite 2 passed, 0 failed.
+- Scoped TypeScript: `bunx tsc --build --force libs/wbs/adapters/store-memory/tsconfig.json libs/wbs/adapters/store-sqlite/tsconfig.json apps/wbs/be-01/tsconfig.spec.json apps/wbs/fe-01/tsconfig.json` — exit 0, no diagnostics.
+- Scoped lint: `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint:fast -p wbs-core,wbs-domain,wbs-store-memory,wbs-store-sqlite,wbs-conformance --output-style=static` — five projects passed, 0 cache hits. Initial direct ESLint lacked the Nx project graph and reported import sorting; corrected and rerun through Nx.
+- Pinned OpenSpec 1.12.0 strict validation — valid, zero issues. A newer installed CLI reports existing long-requirement warnings under strict mode; the repository's pinned CLI is the contract used here.
+- Full host gate, full uncached lint/build, CI secrets/migration lint and browser checks are not run in this bounded worker slice. Parent owns review and exact-SHA host gate before integration. No push, merge or live action was performed.
+
+- Final five-project scoped lint repeated after test/docs cleanup: passed, 0 cache hits, 4.2s.
+- Pinned OpenSpec 1.12.0 `validate --all --json`: 169 changes and 18 specs passed, zero failed.
+- Final TypeScript repeat passed with no diagnostics after retained-done regression and fixture cleanup. Prettier check over every changed source/spec and the receipts JSON passed. The precommit worktree `git diff --check` passed but excluded then-untracked evidence logs; review of `560096ac56c2d325a0f094c35fe094aac7c7d7d3` with `git diff --check HEAD^ HEAD` found trailing whitespace in `fold.txt` and `upgrade.txt`.
+
+### Publication correction after Astra review
+
+Removed the two trailing spaces from diagnostic source excerpts in `evidence/saved-plan/fold.txt` and `upgrade.txt`; all fault output and exit receipts are retained. The specification and design now name stored-body normalization for comparison as the validation boundary. `SavedPlanService.read`/`readOfStored` deliberately return opaque exact bytes: raw reads verify body hashes and the schedule-input hash link but do not parse the input. Malformed direct facts are refused when capture validates them or comparison parses and normalizes the stored body.
+
+Correction checks passed: focused `step-blockages.test.ts` (28 passed, 0 failed, 36 expectations), changed Markdown Prettier, pinned OpenSpec 1.12.0 strict validation (valid, zero issues), staged `git diff --check --cached`, and complete slice whitespace check from `f069af34082983003b0714ca59fd8532a396d605`. Final committed checks use `git diff --check HEAD^ HEAD` and `git diff --check f069af34082983003b0714ca59fd8532a396d605 HEAD`; the parent receives their observed exit status with the correction SHA. No production behavior changed; wider tests/type/lint and host gate were not repeated for this documentation/evidence correction.
+
+## PR #439 hosted CI repair — 2026-10-14
+
+Base: exact published parent `b4537c83e8f0767f14b6e9304b6475c63e7cc239`. Hosted CI run `38498885540` failed the workspace gate and Twilight policy job. The downloaded workspace artifact (`/tmp/puni-ci439-artifact/nx-gate.log`) reports two stale saved-body assertions, two `PlanInputReads` fixtures missing required `stepBlockages`, and the unindexed saved-plan test. The Twilight job (`/tmp/puni-pr439-twilight-job.log`) reports eight policy cases stopped by that same missing index membership.
+
+The existing Task 4.2.1 contract writes schema7, supports input versions 1–7, and requires a direct-fact collection even when empty. The repair aligns the existing assertions and fixtures with that contract and registers `step-blockages.test.ts` in its owning module index. Production behavior and safety checks are unchanged; no new R5 fault proof is required.
+
+### Reproduced failures
+
+- `bun test libs/wbs/application/core/src/module/saved-plans/module.test.ts apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts libs/wbs/application/core/src/ports/store-boundaries.test.ts libs/wbs/application/core/src/service/shared-people.test.ts --timeout=10000` — **70 pass, 2 fail**: expected schema6/versions 1–6, received schema7/versions 1–7 (`/tmp/pr439-repair-red-tests.log`).
+- `bunx tsc --build --force libs/wbs/application/core/tsconfig.json` — exit 2, exactly two TS2741 missing-collection fixture diagnostics (`/tmp/pr439-repair-red-types.log`).
+- `TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/node_modules bun test tools/tool-devsync/src/repo-namespacing-handoff.test.ts apps/twilight-structure/twilight-burokrat/cli/src/policy/pilot-policy.test.ts --preload ./tools/test/scratch/preload.ts --timeout=60000` — **36 pass, 2 fail**: the production index checker and first pilot CLI case both report `unindexed candidate path` for `step-blockages.test.ts` (`/tmp/pr439-repair-red-wiki.log`). The README repair landed while the later cases were running; this local run reproduces the two initial failures, while the immutable hosted run records all eight policy failures.
+
+### Repair verification
+
+- Frozen dependency install: `BUN_TMPDIR=/tmp bun install --frozen-lockfile` — exit 0, 1573 installs checked across 1447 packages. The initial invocation without `BUN_TMPDIR` was refused by the sandbox's temporary-directory boundary; no dependency changes were made.
+- Repeated four-file runtime command above — **72 pass, 0 fail, 234 expectations** (`/tmp/pr439-repair-green-tests.log`).
+- `bun test libs/wbs/domain/domain/src/saved-plan libs/wbs/application/core/src/service/saved-plan-input.test.ts libs/wbs/application/core/src/module/saved-plans/saved-plan-integrity.test.ts libs/wbs/adapters/store-memory/src/memory-source.test.ts libs/wbs/adapters/store-sqlite/src/saved-plan-capture.db.test.ts --timeout=10000` — **165 pass, 0 fail, 756 expectations** (`/tmp/pr439-repair-capture.log`).
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t typecheck -p wbs-core,wbs-be-01 --skip-nx-cache --output-style=static` — both projects and their module typechecks passed (`/tmp/pr439-repair-green-types.log`).
+- Same Nx selection with `-t lint` — both uncached project lint targets passed (`/tmp/pr439-repair-lint.log`).
+- Repeated production-index and Twilight pilot command above — **38 pass, 0 fail, 436 expectations** (`/tmp/pr439-repair-green-wiki.log`).
+- Pinned OpenSpec strict validation: `bunx @fission-ai/openspec@1.12.0 validate add-step-node-blocking --strict --json` — valid, zero issues.
+- Explicit Prettier check over the five repaired source/index files and `git diff --check` passed.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx format:check --all` — exit 0 (`/tmp/pr439-repair-format.log`).
+- Installed repository hooks with `nx run tool-git-hooks:install`; normal commit hooks passed staged lint/format, secrets, private nesting and agent trailers. The Tool Wiki hook explicitly reported inactive because no external activation root is provisioned; the production CLI regression suites above passed with their external trust fixtures.
+- `BUN_TMPDIR=/tmp BUN_INSTALL_CACHE_DIR=/tmp/pr439-bun-cache bunx @fission-ai/openspec@1.12.0 validate --all --json` — **187 passed, 0 failed**: 169 changes, 18 specs (`/tmp/pr439-repair-openspec.log`). The CLI reports version 1.12.0.
+
+Full canonical host gate, full workspace build/tests, browser checks, CI secrets and migration lint are not run in this worker slice. The parent owns review and the exact-candidate host gate before integration. No push, merge or deployment was performed.

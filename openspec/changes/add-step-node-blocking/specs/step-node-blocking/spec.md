@@ -426,3 +426,32 @@ Project-step deletion SHALL count direct blockage facts separately from progress
 - **THEN** its confirmation states the direct blockage count, including zero
 - **WHEN** an older server omits that wire field
 - **THEN** the confirmation visibly states that the server did not report step blockages and does not represent absence as zero
+
+### Requirement: Saved plans retain direct step blockage independently of the schedule
+
+Saved-plan input schema7 SHALL require direct `stepBlockages` rows sorted by work-item and step identity. Capture SHALL detach facts from one snapshot, including retained facts on done nodes. Older schemas SHALL upgrade to empty without rewriting stored bytes. Capture and stored-body normalization for comparison SHALL refuse malformed facts. Comparison SHALL address owner/step pairs under progress. Facts SHALL change saved bytes and hashes while leaving schedule input and full Fast output identical.
+
+#### Scenario: Direct blockage survives later edits to the live plan
+
+- **GIVEN** a direct leaf-owned step blockage at time -123
+- **WHEN** a saved input is captured and the live fact is cleared
+- **THEN** the captured input still contains its exact owner, step and blocked time
+- **AND** a later capture contains no direct fact
+
+#### Scenario: Historical saved input has no direct facts
+
+- **GIVEN** saved input written at schema6 without a blockage collection
+- **WHEN** the reader normalises it to schema7
+- **THEN** its direct blockage collection is empty and its stored bytes are unchanged
+
+#### Scenario: Current saved input refuses a corrupt direct fact
+
+- **GIVEN** current saved input with a duplicate pair, unknown owner or step, parent owner, missing or fractional blocked time, or absent collection
+- **WHEN** it is captured or its stored body is normalized for comparison
+- **THEN** it throws before returning a usable comparison input
+
+#### Scenario: Comparison names the exact changed step blockage
+
+- **GIVEN** two saved inputs with a direct fact on the same owner and step at different times
+- **WHEN** the inputs are compared
+- **THEN** one progress difference names that owner/step pair and the blocked-time field

@@ -854,3 +854,23 @@ it('refuses an attempt start at a node stated done', async () => {
   ).toEqual({ ok: false, reason: 'node_done' });
   expect(await stores.attempts.listByProject('p1')).toEqual([]);
 });
+
+it('captures direct blockage detached from later memory writes', async () => {
+  const source = await seededSource();
+  try {
+    await source.stores.workItems.insert(
+      workItemRow({ id: 'wi-blocked', projectId: 'p1' }),
+      [],
+      stamp,
+    );
+    const fact = { workItemId: 'wi-blocked', stepId: 'st-1', blockedAt: -123 };
+    expect(await source.stores.blockages.set(fact, stamp)).toBe('written');
+    const captured = await source.history.savedPlanCapture.readPlanInput('p1');
+    expect(captured?.stepBlockages).toEqual([fact]);
+    await source.stores.blockages.remove(fact.workItemId, fact.stepId, stamp);
+    expect(captured?.stepBlockages).toEqual([fact]);
+    expect((await source.history.savedPlanCapture.readPlanInput('p1'))?.stepBlockages).toEqual([]);
+  } finally {
+    await source.close();
+  }
+});
