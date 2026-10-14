@@ -3887,3 +3887,115 @@ GitHub CI passed.
     CPU spinners. Each failure read `Received: "R"`, the h2puni symptom.
   - Restored, the test passed 10 of 10 runs under the same load. The whole attestation suite
     passed 66/66.
+
+## Historical input retention — task 2.1d.1.2 (2026-10-14)
+
+Implementation starts from cumulative candidate `68d9a7b90ea2fa95d12c5f08719a246eff56fc5f`
+in isolated clone `/tmp/puni-history-retention-sol`; it does not modify the integration
+checkout, publish, merge, enable the trusted-wiki step or supply external trust authority.
+The existing approved design's declaration census and complete object-proof contract govern
+this packet. OpenSpec status/apply instructions were read with the repository-pinned CLI:
+`bunx --bun @fission-ai/openspec@1.12.0 status --change automatic-trusted-activation --json`
+and `bunx --bun @fission-ai/openspec@1.12.0 instructions apply --change automatic-trusted-activation --json`
+(schema `sdd-lean`, 4/45 tasks complete before this packet).
+
+The installed local source now optionally accepts explicit historical retention configuration.
+Its relationship request is cloned and frozen at installation. A configured source first derives
+all selectors and sorted declaration/fact provenance from retained head declarations, then
+acquires every exact selected commit while the private bare Git store still exists. It retains
+uncompressed commit, root-to-parent tree and terminal blob bodies, a canonical strict history
+manifest and the separately pinned history digest. Reopen checks request/snapshot/policy joins,
+complete selector provenance, every Git object body identity, commit tree header, parent and child
+edges, mode and terminal blob. Historical reads return owned copies, use the shared parser read
+budget and preserve raw symlink targets. They have no filesystem/Git/source fallback.
+
+Bounds cover declarations, facts, unique selectors/revisions, path depth, proof edges, individual
+bodies, unique retained bodies, bytes, the history manifest and preparation deadline including
+final ownership verification and cleanup. Aggregate retained storage also includes both canonical
+manifest bodies. Private-directory, exclusive-write, sync, atomic-publication, protected-reread
+and cleanup contracts reuse the existing proven retention owner. Owner loss or partial retention
+returns no selected complete preparation. Missing historical commit and absent historical path
+have distinct named refusals. Empty history is valid only for a complete installed declaration
+census deriving no selectors. Source checkout removal and deletion of the acquired bare object
+store preserve exact head/base/third-commit bytes at the same path for SHA-1 and SHA-256 captures.
+
+Legacy callers explicitly retain `history: null`; a history-configured open requires its expected
+history digest and cannot relabel a prior head-only capture. This packet does not implement the
+eleven-document producer, global retained-content policy installation, closed compiler/runtime
+hosts or selection-preparation composition; those remain in tasks 2.1d.1/2.1d.1.3 onward. External
+activation authority and the full release gate are outside this worker's claim. Astra exact-SHA
+review remains a parent integration step.
+
+### Observed production-path omission proofs
+
+The initial read test was RED with `candidate.readHistorical is not a function`; adding
+the capability restored GREEN. The two manifest-accounting tests were separately RED because
+preparation returned successfully with a budget fitting raw bodies but excluding metadata,
+then GREEN after accounting for both manifests. The first omission matrix exposed tests masked
+by other checks; their fixtures were corrected and every trial below was rerun independently.
+
+Each row ran `bun test apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-objects.test.ts --test-name-pattern "<pattern>"`
+after only the named omission, observed a named `(fail)` and nonzero exit, then restored the source.
+The decoder cases additionally break only the Git hash dependency for the altered body, allowing
+malformed commit/tree bytes to reach the decoder through the real retained owner. Both absent
+and unreadable retained-body cases use actual filesystem faults. Trial source hashes identify
+the observed mutated source before final Proof comments. Local orchestration and full outputs
+are `/tmp/history-mutations.py`, `/tmp/history-mutations.json` and `/tmp/history-mutations-summary.log`.
+
+| Independently omitted check      | Exact Bun test pattern                                                      | Exit    | Mutated source SHA-256                                             |
+| -------------------------------- | --------------------------------------------------------------------------- | ------- | ------------------------------------------------------------------ |
+| `requestIdentity`                | `historical reopen refuses independently changed request$`                  | 1 (RED) | `a05dfba3028bdeeb1277035eef2d3b9db46a91a01f36f790ad7d270301ce54e1` |
+| `snapshotIdentity`               | `historical reopen refuses independently changed snapshot$`                 | 1 (RED) | `5596b4b8b463e93c0fdd13545f50ac03297696bf6ff9004052a07664bd2aee8a` |
+| `retainedContentPolicyIdentity`  | `historical reopen refuses independently changed policy$`                   | 1 (RED) | `3f7d12ffe8753e5bac9ee567e013a80692a768bdd0d3aee0cf9d9a8671dd8045` |
+| `selector-census`                | `historical reopen refuses independently changed provenance$`               | 1 (RED) | `3ce316da0553a7e2c2f392ed2ec24efeae87129c60b7eade542690bf86b9266e` |
+| `selector-digest`                | `historical reopen refuses independently changed selector digest$`          | 1 (RED) | `dc7677dbf55bf07843688a7c409a3947ebb8253307bad5517306aa1100ff9fc8` |
+| `proof-count`                    | `historical reopen refuses independently changed missing proof$`            | 1 (RED) | `27de2320f70be5369f68fb7a9ce4520e54a32309da19be8421a45d1e8ce90aaf` |
+| `proof-revision`                 | `historical reopen refuses independently changed proof revision$`           | 1 (RED) | `a6935f652069baca0a2902727cdb584f081fa7e3c89ff2a89bc377ba5b49ed1f` |
+| `proof-path`                     | `historical reopen refuses independently changed proof path$`               | 1 (RED) | `8e69fd02ddf00d92b83eaae49573cae09c4aeebd3b4fe458cad3fb533b9febef` |
+| `proof-commit`                   | `historical reopen refuses independently changed commit$`                   | 1 (RED) | `98b4f78e9e0c6346fdaac09ae524d3f8aca7d3e11a68330feedd4c501efbe9e7` |
+| `tree-count`                     | `historical reopen refuses independently changed tree count$`               | 1 (RED) | `ab5c936a7c31a94e8ab3d86b4513c896ef871b382f799ce7b3314f8dfc3c384d` |
+| `root-parent`                    | `historical reopen refuses independently changed foreign root tree$`        | 1 (RED) | `bd4c04de678a3132020447901d5c25f1e4f890b894e362737e5995d6c2bf7341` |
+| `nested-parent`                  | `historical reopen refuses independently changed wrong parent tree$`        | 1 (RED) | `bd4c04de678a3132020447901d5c25f1e4f890b894e362737e5995d6c2bf7341` |
+| `terminal-mode`                  | `historical reopen refuses independently changed terminal mode$`            | 1 (RED) | `405ec7b433834bb35e4c5a78e4c48a46ec309c3a4442244cb44be0e2754b3da7` |
+| `terminal-gitObjectId`           | `historical reopen refuses independently changed terminal object$`          | 1 (RED) | `3197f12a81770a630594549bc23b0fd5c6d684cfac22d195cb246c16107c7384` |
+| `commit-body`                    | `historical reopen independently verifies commit Git body identity$`        | 1 (RED) | `a132c4ebaef49f3317594b10df0f2d438edc4aa2fcfee915db74f2bbcc74449b` |
+| `tree-body`                      | `historical reopen independently verifies tree Git body identity$`          | 1 (RED) | `a132c4ebaef49f3317594b10df0f2d438edc4aa2fcfee915db74f2bbcc74449b` |
+| `blob-body`                      | `historical reopen independently verifies blob Git body identity$`          | 1 (RED) | `a132c4ebaef49f3317594b10df0f2d438edc4aa2fcfee915db74f2bbcc74449b` |
+| `maximumDeclarationPaths`        | `historical preparation independently enforces maximumDeclarationPaths`     | 1 (RED) | `316ddbeff0dd31c94c5d1d36b874537d54ecbefa18409d1ea363bed5b9d4050e` |
+| `maximumDeclarationBytes`        | `historical preparation independently enforces maximumDeclarationBytes`     | 1 (RED) | `02c20cb5aad27316d721e346251baa5ef31b473f2e8698311189ba586094397a` |
+| `maximumDeclarationFacts`        | `historical preparation independently enforces maximumDeclarationFacts`     | 1 (RED) | `617fa106e49a19d9fb328557701cd47c3ffc4a297f2acd7f3f383d5a79080635` |
+| `maximumHistoricalRevisions`     | `historical preparation independently enforces maximumHistoricalRevisions`  | 1 (RED) | `cc33788282129754906852219d23645f9c31819e686e9ae3bc41a2358ea524bc` |
+| `maximumHistoricalTreeDepth`     | `historical preparation enforces maximumHistoricalTreeDepth`                | 1 (RED) | `5c502c9a6884e039caf70ee4130ed2e87f44196e7c3152442ae16ade0969f075` |
+| `maximumHistoricalProofEdges`    | `historical preparation enforces maximumHistoricalProofEdges`               | 1 (RED) | `5196a9303e7b0d6e41cf30c1ad347f5f7ded4b41c41ef7220e5eea09c69f92d8` |
+| `maximumRetainedObjects`         | `historical preparation enforces maximumRetainedObjects`                    | 1 (RED) | `5bf081a181f97786068936e2ad00f07ab3ea56687d3c7d001aaed7019e612878` |
+| `maximumObjectBytes`             | `historical preparation enforces maximumObjectBytes`                        | 1 (RED) | `1cf35d1f42588ad950964b34cba137cd55631bc7cee70c7a21ec147c19742658` |
+| `maximumRetainedBytes`           | `historical preparation enforces maximumRetainedBytes`                      | 1 (RED) | `fc86b44160805b3cabe126bd39ebce6203c4a9f465044502c2c65bcc15881faa` |
+| `maximumHistoricalManifestBytes` | `historical preparation enforces maximumHistoricalManifestBytes`            | 1 (RED) | `72cd44bcf7258e6dd83d3f26411392e579a2c7939827b8325a379c74fe89a8de` |
+| `maximumHistoricalSelections`    | `historical preparation independently enforces maximumHistoricalSelections` | 1 (RED) | `55fa955a38b826e4111cc82086be02911d5089538ba181352ac149f1979744b0` |
+| `owner-fence`                    | `historical held owner change fences ready publication`                     | 1 (RED) | `6bedc68cad79649cab15805ddc7a53f50578cadcdbc47e98d7624996d05219fd` |
+| `commit-header`                  | `historical proof decoder refuses commit header`                            | 1 (RED) | `0cd2b5316222aa0c5de36249da4f16976e9bcfcdac98871fe7efbfdf0e22bd61` |
+| `tree-body-bounds`               | `historical proof decoder refuses truncated tree`                           | 1 (RED) | `ebee253e090edfbbc1d9605cc56e0797ab55c5b0d2589a07b5b1eb448bb24516` |
+| `tree-mode-grammar`              | `historical proof decoder refuses invalid tree mode`                        | 1 (RED) | `c0d44b1b33b7ed989cad20c3b322062a94f69d8db1ee46dc0516f793cade3065` |
+| `tree-child-edge`                | `historical proof decoder refuses missing child edge`                       | 1 (RED) | `e41f555a3c39fae843bb566bb9ce3bd5a995923bad04f3334f93204f4d263851` |
+| `tree-parent-mode`               | `historical proof decoder refuses wrong parent mode`                        | 1 (RED) | `ee42efc94136370f54c38dec95fc941ef6b967640bf48009249f5a41f700c77f` |
+| `historical-read-count`          | `historical parser read count and bytes share`                              | 1 (RED) | `66815841ffac2962cc26ba61cfc02b2989d6ccd13d242c327accb11ca9214902` |
+| `historical-read-bytes`          | `historical parser read count and bytes share`                              | 1 (RED) | `a15552a6afe288d12296f03824620ec1cc82b1da4935ec4a747a4468a2c7eaa1` |
+| `historical-request-clone`       | `historical installed declaration paths remain owned`                       | 1 (RED) | `ebd9851ddbcd1ac75c3935c1f44fa4e91bef0f51bc898e99964f9e4ed5ec9830` |
+| `tree-name-grammar`              | `historical proof decoder refuses invalid tree name`                        | 1 (RED) | `1422497e25796fee7f45ca2094b2fa92c722b97d6a8242a67c5bdb1cd5bcd034` |
+| `tree-name-unique`               | `historical proof decoder refuses duplicate tree name`                      | 1 (RED) | `d30324cc20fa61155ae44009aab90d0e38bc28ec304f9e695584fd2d40037b8c` |
+| `terminal-blob-mode`             | `historical capture refuses directory terminals`                            | 1 (RED) | `bb9ba77b3748029160e8e76222ba4bb8e3c733690ccbc7ceda6aeda5141195a8` |
+| `history-limit-validation`       | `historical installation refuses missing or unrepresentable`                | 1 (RED) | `65888916190bb2ab44464d63fa7d7a67f4ca67d661353de79256375555497a7c` |
+| `history-canonical-manifest`     | `historical reopen refuses noncanonical manifest`                           | 1 (RED) | `2edb92abb560e6cda8e19d566c7db204cb3066c8bc016985b2e97830707c6c88` |
+| `history-final-owner-deadline`   | `historical final held owner check consumes preparation deadline`           | 1 (RED) | `2c72d29f7a837bdab206f2758e94e6e9e40cee898e829b3cf5c5eae30a9edbe3` |
+| `metadata-bytes-budget`          | `historical aggregate bytes includes both retained manifests`               | 1 (RED) | `547423ef0d973c18b8f79d7cbd795de9ad68a7a78626c0952f8388e9350e8aca` |
+| `metadata-object-budget`         | `historical aggregate objects includes both retained manifests`             | 1 (RED) | `0897cb9435d9c7965a0b47da468a3eef66d76fd51a8f51cbbc630404b29693e3` |
+
+### Final checks for this packet
+
+- `bun test apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-objects.test.ts apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-preparation.test.ts` — 177 passed, zero failed, 368 assertions. This includes 158 retained-owner tests and 19 acquisition-reader tests.
+- `NX_DAEMON=false bunx nx run twilight-dash:lint --outputStyle=stream` — passed, uncached; final run 15.5 seconds. Earlier lint failures were test-helper assertions/deprecated typing and were corrected before this successful run.
+- `NX_DAEMON=false bunx nx run twilight-dash:typecheck --outputStyle=stream` — passed, uncached; final run 1.5 seconds.
+- `bunx --bun @fission-ai/openspec@1.12.0 validate automatic-trusted-activation --strict --json` — one change passed, zero issues.
+- `git diff --check` — no whitespace errors.
+
+Nx reported denied Unix plugin sockets and explicitly ran plugins in the main process. Its scoped lint/typecheck targets completed successfully. The full host-wide gate, full monorepo tests/build, live remote acquisition, external provider review/authentication and independently deployed ownership were not run by this bounded worker. The parent integration owner retains the canonical release gate and Astra exact-SHA review.
