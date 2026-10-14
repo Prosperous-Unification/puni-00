@@ -570,7 +570,7 @@ Stored fact/replay admission SHALL keep the production directory mounted read-on
 
 ### Requirement: Compose writer exclusion covers physical aliases and recovery path families
 
-Unmanaged writable regular mounts SHALL be compared by device and inode against the main database and every existing WAL/SHM/journal file. Missing or unreadable physical metadata SHALL refuse. Unmanaged writable directories and special files whose nested aliases cannot be excluded SHALL refuse without stopping those containers. Distinct unrelated regular files and read-only mounts MAY remain. Recovery admission SHALL validate the supplied database path through the fixed probe directory's complete SQLite family mapping before inventory/probes, including when no containers remain.
+Unmanaged writable regular mounts SHALL be compared by device and inode against the main database and every existing WAL/SHM/journal file. Missing or unreadable physical metadata SHALL refuse. Unmanaged writable directories SHALL require a complete bounded read-only inode audit, including nested devices, using an already-local digest-pinned candidate helper with no network/pull, read-only source/database-family binds and root filesystem, and only DAC_READ_SEARCH. The audit SHALL refuse symlinks/special files, unreadability, missing helper, failure/timeout, malformed/incomplete receipts, more than 100,000 entries or depth above64 without stopping those containers. Distinct unrelated regular files and read-only mounts MAY remain. Recovery admission SHALL validate the supplied database path through the fixed probe directory's complete SQLite family mapping before inventory/probes, including when no containers remain.
 
 #### Scenario: Unmanaged mount uses a hardlink outside the canonical data directory
 
@@ -583,3 +583,15 @@ Unmanaged writable regular mounts SHALL be compared by device and inode against 
 - **GIVEN** alias.db resolves to wbs.db while committed SS facts remain in wbs.db-wal
 - **WHEN** recovery admission receives DB_PATH=/data/alias.db with or without a managed container
 - **THEN** the family mismatch refuses before any vocabulary probe
+
+#### Scenario: Shipped Caddy and registry mounts are unrelated
+
+- **GIVEN** shipped Caddy has writable caddy_data/caddy_config/logs and registry has writable registry_data, with Docker volume paths unreadable to the deploy user
+- **WHEN** backend preflight executes complete daemon-assisted read-only inode audits
+- **THEN** those mounts are admitted when their full trees contain no SQLite-family aliases and no unrelated container receives a stop command
+
+#### Scenario: Nested physical alias or incomplete audit
+
+- **GIVEN** a writable directory contains a nested main/WAL/SHM/journal hardlink, including under a different-device directory, or its audit is unreadable/oversized/too deep/timed out/incomplete
+- **WHEN** preflight inventories it
+- **THEN** it refuses before writer stop intent

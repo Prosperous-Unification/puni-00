@@ -86,6 +86,7 @@ async function fixture(
     writePhase: () => Promise.resolve(),
     writeAtomic: () => Promise.resolve(),
     sh: async (args) => {
+      if (args[0] === 'image') return image;
       if (args[0] === 'run') {
         expect(args).toContain('none');
         expect(args).toContain(`type=bind,source=${ROOT}/data,target=/data,readonly`);

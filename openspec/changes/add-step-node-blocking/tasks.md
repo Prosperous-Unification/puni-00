@@ -69,3 +69,6 @@
 
 - [x] 6.4.10 Repair physical hardlink exclusion and recovery-path family admission; refuse unresolved unmanaged directory aliases, preserve read-only/distinct-file admission, correct stale automatic recovery prose, and watch all three production omissions fail.
 - [ ] 6.4.11 Obtain independent Astra re-review of physical/family admission before integration or deployment.
+
+- [x] 6.4.12 Replace blanket writable-directory refusal with complete bounded daemon-assisted read-only inode audits; admit shipped Caddy/registry volumes and logs, preserve physical/recovery guards, require local pinned helper/no pull, and prove nested aliases and all failed/incomplete audit paths.
+- [ ] 6.4.13 Obtain Astra review and a disposable real-Docker helper rehearsal before integration or deployment.

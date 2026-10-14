@@ -912,6 +912,10 @@ scoped evidence, not the canonical host gate or approval to deploy.
 
 ## Compose physical identity and recovery-path correction — 2026-10-14
 
+Historical `00aa40a5` evidence: Astra found its blanket unmanaged writable
+directory refusal blocked shipped Caddy/registry volumes and logs. The complete
+daemon-assisted audit below supersedes that admission policy.
+
 Astra's hardlink counterexample is addressed at production writer inventory.
 Canonical overlap still refuses unmanaged writers; a non-overlapping unmanaged
 writable regular mount now requires device/inode comparison against the main DB
@@ -965,3 +969,80 @@ target (`/tmp/compose-physical-final-checks.log`). Changed-file Prettier reporte
 all matched files formatted (`/tmp/compose-physical-final-format.log`). Pinned
 OpenSpec1.12.0 strict validation returned one valid change and zero issues
 (`/tmp/compose-physical-final-openspec.log`). `git diff --check` exited0.
+
+## Compose normal-topology bounded inode audits — 2026-10-14
+
+The directory policy now proves exclusion rather than rejecting all writable
+directories. Every non-overlapping unmanaged directory gets a complete recursive
+inode audit through a disposable digest-pinned candidate helper. Its two absolute
+bind sources are the inspected mount and canonical database-family directory;
+using bind mounts avoids creating missing named volumes or copying into them.
+Both are read-only, root filesystem is read-only, network is none, pull is never,
+and UID0 has only DAC_READ_SEARCH after dropping other capabilities. Resource
+bounds are 128MiB and 16 processes. The helper uses underlying dev+ino from both
+binds in its own namespace, visits every nested device without a shortcut, and
+accepts only regular files/directories. Symlinks/special files refuse.
+
+A host realpath EACCES for Docker volume traversal is explicitly delegated to the
+same complete audit. Other host lookup failures refuse. No unreadable path is
+interpreted as empty or trusted by service name. Every existing main/WAL/SHM/
+journal inode is compared; required family metadata must be regular and readable.
+Audits are bounded by 100,000 entries, depth 64 and 15 seconds per mount. Any helper
+failure, missing local image, timeout or malformed/incomplete/oversized receipt
+refuses. Candidate image inspect is local and precedes helpers; execute already
+pulls before stop, and recovery explicitly requires the candidate locally and
+uses no-pull one-offs. Inventory/audits are repeated after managed writers stop.
+
+Production-path tests drive inspectBackendWriters with the shipped Caddy
+caddy_data/caddy_config/logs and registry_data shape. They inject host EACCES for
+volume paths and exercise the readable same-device logs branch. The exact emitted
+helper program runs as a local Bun child against temporary real trees; four clean
+audits admit normal topology without stopping Caddy/registry. Nested hardlinks to
+each family inode refuse in both volume and logs paths. A directory dev mismatch
+fault proves nested-device traversal still finds its contained alias. Additional
+negative dependencies cover absent helper, command failure, timeout, malformed
+JSON/shape, incomplete/oversized receipts, unreadability, oversized/deep trees,
+nonregular family and symbolic links. The initial unmodified production positive
+was watched fail on host EACCES (`/tmp/compose-audit-initial-red.log`). Restored
+audit-focused tests passed 22/0 (`/tmp/compose-audit-final-focused.log`).
+
+Watched production omissions, each restored after nonzero test output:
+
+| Removed or injected fault     | Observed test / log                                                                                        |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Audit inode equality          | Nested family hardlinks admitted; `/tmp/omit-audit-physical-equality.log`                                  |
+| Complete receipt validation   | Malformed/incomplete/oversized output admitted; `/tmp/omit-audit-completion-proof.log`                     |
+| Entry bound                   | Oversized tree admitted; `/tmp/omit-audit-entry-bound.log`                                                 |
+| Depth bound                   | Deep tree admitted; `/tmp/omit-audit-depth-bound.log`                                                      |
+| Deadline callback             | Timeout-specific negative failed; `/tmp/omit-audit-deadline.log`                                           |
+| Different-device shortcut     | Nested-device hardlink missed; `/tmp/omit-nested-device-audit.log`                                         |
+| EACCES delegation audit       | Volume aliases admitted and normal audit count incomplete; `/tmp/omit-unreadable-mount-audit.log`          |
+| Readable directory audit      | Log-directory aliases admitted and normal audit count incomplete; `/tmp/omit-readable-directory-audit.log` |
+| Symbolic/special-file refusal | Symlink alias admitted; `/tmp/omit-audit-symlink-refusal.log`                                              |
+| Required family regularity    | Nonregular family admitted; `/tmp/omit-audit-family-metadata.log`                                          |
+
+Adjacent Proof comments record these observations. Test subprocesses have an
+independent bounded kill to avoid leaving a child when the production deadline is
+intentionally broken. No live/disposable Docker or production container was
+created, stopped or modified by this worker. The emitted script is tested, but
+real daemon bind identities, DAC_READ_SEARCH availability, read-only runtime and
+resource limits still require a disposable real-Docker rehearsal and Astra
+review before integration. Full canonical host gate, monorepo/build, CI secrets
+and migration lint remain unrun here. Fresh scoped results follow below.
+
+Bounds fixtures shorten only the emitted test-child constants to one entry,
+depth0 or10ms and suspend a dependency to exercise the deadline. Production
+thresholds remain100,000 entries/depth64/15 seconds. The independent test-child
+kill bounds intentionally broken deadline runs.
+
+Fresh final ten-file scoped suite: **271 pass, 0 fail, 1332 expectations**
+(`/tmp/compose-audit-final-tests.log`). Uncached scoped
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_TUI=false bunx nx run-many -t
+lint,typecheck -p tool-remote-scripts,wbs-be-01 --parallel=1
+--output-style=stream --skip-nx-cache` passed both projects and their one dependent
+target (`/tmp/compose-audit-final-checks.log`). Changed-file Prettier reported all
+matched files formatted (`/tmp/compose-audit-final-format.log`). Pinned OpenSpec
+1.12.0 strict validation returned one valid change, zero issues
+(`/tmp/compose-audit-final-openspec.log`). `git diff --check` exited0. These scoped
+results do not authorize integration/deployment before real-Docker rehearsal,
+Astra review and the required exact-SHA gate.

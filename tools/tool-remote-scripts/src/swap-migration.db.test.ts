@@ -220,6 +220,7 @@ describe('Compose migration command adapter', () => {
         }),
       healthGate: () => Promise.reject(new Error('candidate health failure')),
       sh: async (args) => {
+        if (args[0] === 'image') return image;
         if (args[0] === 'run') return '[]';
         if (args[0] === 'inspect' && args[2] === '{{.Id}}') return identity;
         if (args[0] === 'ps') return identity;

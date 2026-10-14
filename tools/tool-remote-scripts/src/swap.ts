@@ -88,6 +88,7 @@ import {
   parseMigrationSetCapture,
 } from './lib/migration-capture';
 import { writeNewMigrationCapture } from './lib/migration-capture-file';
+import { auditWritableMount } from './lib/mount-audit';
 import { readPhase, writePhase } from './lib/phase';
 import { type Observed, planSwap, type SwapPlan, type SwapStep } from './lib/reconcile';
 import { mcpExposureEnabled, routedColorFromAdminConfig, siteContext } from './lib/site';
@@ -1002,13 +1003,14 @@ export function parseBackupReport(output: string, expectedPath: string): string 
 /**
  * Inventories every Docker mount before an outage; only the two known backend
  * colours may hold the shared writable data bind. Canonical paths and physical
- * file identities both count as overlap; unmanaged writable directories or
- * special files cannot prove absence of nested aliases and therefore refuse.
+ * file identities both count as overlap; unmanaged writable directories require
+ * complete bounded daemon-assisted read-only inode audits. Special files refuse.
  */
 export async function inspectBackendWriters(
   runDocker: SwapExecutionIo['sh'],
   databaseHostPath: string,
   resolveMount: (path: string) => Promise<string> = (path) => Promise.resolve(path),
+  auditImage?: string,
 ): Promise<Map<string, string>> {
   const dataRoot = await resolveMount(`${ROOT}/data`);
   const listed = (await runDocker(['ps', '--all', '--quiet', '--no-trunc'])).trim();
@@ -1065,7 +1067,19 @@ export async function inspectBackendWriters(
       if (!source.startsWith('/'))
         throw new Error('writable Docker mount has no absolute host source');
       // Proof: bypassing realpath admitted the symlink-alias unmanaged writer; its negative failed.
-      const canonicalSource = await resolveMount(source);
+      let canonicalSource: string;
+      try {
+        canonicalSource = await resolveMount(source);
+      } catch (cause) {
+        if (cause instanceof Error && 'code' in cause && cause.code === 'EACCES' && !isBackend) {
+          if (auditImage === undefined)
+            throw new Error('mount audit requires a pinned local candidate image', { cause });
+          // Proof: omitting delegated audit admitted nested family hardlinks under host EACCES volumes.
+          await auditWritableMount(source, databaseHostPath, auditImage, runDocker);
+          continue;
+        }
+        throw cause;
+      }
       if (
         canonicalSource === dataRoot ||
         canonicalSource.startsWith(`${dataRoot}/`) ||
@@ -1076,11 +1090,15 @@ export async function inspectBackendWriters(
         ownsData = true;
       else if (!isBackend) {
         const sourceIdentity = await stat(canonicalSource, { bigint: true });
-        // Proof: omitting this refusal admitted an unmanaged directory with unresolved nested aliases.
+        if (sourceIdentity.isDirectory()) {
+          if (auditImage === undefined)
+            throw new Error('mount audit requires a pinned local candidate image');
+          // Proof: omitting this audit admitted nested main/WAL/SHM/journal hardlinks under readable log directories.
+          await auditWritableMount(canonicalSource, databaseHostPath, auditImage, runDocker);
+          continue;
+        }
         if (!sourceIdentity.isFile())
-          throw new Error(
-            `cannot exclude database aliases in unmanaged writable mount ${identity}; explicit recovery required`,
-          );
+          throw new Error('unmanaged writable mount is not an auditable file or directory');
         for (const suffix of ['', '-wal', '-shm', '-journal']) {
           let familyIdentity: BigIntStats;
           try {
@@ -1155,6 +1173,7 @@ export async function checkBackendRecovery(
 ): Promise<void> {
   assertDigestPinnedRef(previousImage, 'be');
   assertDigestPinnedRef(candidateImage, 'be');
+  await runDocker(['image', 'inspect', '--format', '{{.Id}}', candidateImage]);
   if (!/^\/data\/[A-Za-z0-9_./-]+$/.test(databasePath) || databasePath.includes('..'))
     throw new Error('recovery DB_PATH is outside the mounted data directory');
   // Validate the family through the same directory mapping the probe uses.
@@ -1173,12 +1192,14 @@ export async function checkBackendRecovery(
     resolveMount,
   );
   for (const identity of (
-    await inspectBackendWriters(runDocker, expectedDatabase, resolveMount)
+    await inspectBackendWriters(runDocker, expectedDatabase, resolveMount, candidateImage)
   ).values())
     await assertContainerStopped(identity, runDocker);
   const oneOff = (image: string, command: string[]): string[] => [
     'run',
     '--rm',
+    '--pull',
+    'never',
     '--network',
     'none',
     '--mount',
@@ -1485,6 +1506,7 @@ export async function execute(
             io.sh,
             backendPrepared.databaseHostPath,
             io.resolveMount,
+            image,
           );
           const outgoingId = from === null ? null : writers.get(containerName(tier, from));
           if (outgoingId === undefined)
@@ -1523,6 +1545,7 @@ export async function execute(
             io.sh,
             writerIntent.databaseHostPath,
             io.resolveMount,
+            image,
           );
           const expected = [writerIntent.outgoingId, writerIntent.idleId]
             .filter((identity): identity is string => typeof identity === 'string')
