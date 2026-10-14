@@ -195,6 +195,9 @@ export function PrioritiesPanel({
     if (await section.attempt(() => setBands(previous))) {
       setDrafts(draftsOf(previous));
       setReplaced(null);
+      // Put back hides itself once used, so the focus it had goes to the ladder
+      // it put back rather than to the dialog's frame.
+      ladder.current?.querySelector('input')?.focus();
     }
   }
 
@@ -257,8 +260,13 @@ export function PrioritiesPanel({
               <Input
                 className="h-8 min-w-0 flex-1 max-sm:basis-[calc(100%-1.25rem)]"
                 aria-label={`Name of band ${String(at + 1)}`}
+                // `readOnly`, not `disabled`, while the ladder travels: a
+                // disabled box gives the focus to the dialog (F-066). Proof: on
+                // 2026-10-14, against `disabled`, `Enter in a band keeps the
+                // caret in the box` (settings-layout.spec.ts) failed on
+                // `toBeFocused() … Received: inactive`.
                 value={draft.label}
-                disabled={section.busy}
+                readOnly={section.busy}
                 onBlur={onLadderBlur}
                 onKeyDown={onLadderKey}
                 onChange={(event) => {
@@ -270,7 +278,7 @@ export function PrioritiesPanel({
                 aria-label={`${draft.label} starts at`}
                 inputMode="numeric"
                 value={draft.startsAt}
-                disabled={section.busy}
+                readOnly={section.busy}
                 onBlur={onLadderBlur}
                 onKeyDown={onLadderKey}
                 onChange={(event) => {
@@ -292,7 +300,7 @@ export function PrioritiesPanel({
                 aria-label={`${draft.label} writes`}
                 inputMode="numeric"
                 value={draft.defaultValue}
-                disabled={section.busy}
+                readOnly={section.busy}
                 onBlur={onLadderBlur}
                 onKeyDown={onLadderKey}
                 onChange={(event) => {

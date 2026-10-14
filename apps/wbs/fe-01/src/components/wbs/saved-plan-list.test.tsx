@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import { defaultSavedPlanName } from '@wbs/domain/saved-plan-default-name';
 import { describe, expect, it } from 'vitest';
 
 import type { SavedPlanListEntryView } from '../../lib/saved-plan-api';
@@ -61,6 +62,24 @@ describe('the shelf', () => {
     expect(screen.getByRole('listitem').querySelector('time')?.getAttribute('dateTime')).toBe(
       new Date(1_788_501_600_000).toISOString(),
     );
+  });
+
+  it('spells a saved instant once, in the app’s words (F-067)', () => {
+    // Under TZ=UTC, as every fe-01 case runs: 1_788_501_600_000 is 06:00 UTC.
+    // Proof: on 2026-10-14, against 85849d1f3 (`toLocaleString` in the meta
+    // line and be-01's default name as the row name), this failed on
+    // `expected 'before the re-plan9/4/2026, 6:00:00 A…' to contain '4 Sep
+    // 2026, 06:00 saved by ada'`.
+    const unnamed = { ...ROW, id: 'sp2', name: defaultSavedPlanName(1_788_501_600) };
+    render(<SavedPlanList state={{ kind: 'ready', rows: [ROW, unnamed] }} />);
+    const [named, stamped] = screen.getAllByRole('listitem');
+    expect(screen.getAllByRole('listitem')).toHaveLength(2);
+    expect(named.textContent).toContain('4 Sep 2026, 06:00 saved by ada');
+    // A row be-01 named after its own time says the time once, as its name.
+    expect(stamped.querySelector('.saved-plan-list__name')?.textContent).toBe('4 Sep 2026, 06:00');
+    expect(stamped.textContent.split('4 Sep 2026, 06:00')).toHaveLength(2);
+    expect(stamped.textContent).not.toContain('UTC');
+    expect(stamped.textContent).toContain('saved by ada');
   });
 
   it('keeps the order it was handed', () => {

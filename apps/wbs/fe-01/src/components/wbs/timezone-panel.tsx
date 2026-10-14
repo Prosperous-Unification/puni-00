@@ -74,6 +74,15 @@ export function TimezonePanel({
   const [draft, setDraft] = useState(timezone ?? '');
   const [list, setList] = useState<ZoneList>({ state: 'loading' });
   const [asked, setAsked] = useState(0);
+  /**
+   * Whether the box was left or Entered before the server's list arrived.
+   *
+   * The box takes typing from the start, and a zone cannot be checked against a
+   * list that is not here yet; so the gesture is kept and carried out when the
+   * list lands (UI review F-069) instead of being dropped with the typed zone
+   * still holding the modal and nothing to press.
+   */
+  const [waiting, setWaiting] = useState(false);
   const dirty = timezone !== null && draft !== timezone;
   const section = useSettingsSection({
     words: TIMEZONE_REFUSALS,
@@ -111,6 +120,18 @@ export function TimezonePanel({
     };
   }, [listTimezones, asked]);
 
+  // The waiting gesture, carried out once the list is here. A new keystroke
+  // drops it (the reader is typing again, not leaving), and so does Escape.
+  // Proof: on 2026-10-14, against 85849d1f3 (no waiting gesture, the box
+  // disabled while the list loaded), `takes typing, says it is waiting, and
+  // applies once the list lands` (settings-busy.test.tsx) failed on `expected
+  // true to be false` for the box's `:disabled`.
+  useEffect(() => {
+    if (waiting && list.state === 'ready') apply();
+    // `apply` is a plain function of this render; the list landing is the event.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [waiting, list.state]);
+
   if (timezone === null) {
     return (
       <p className="text-muted-foreground text-sm">
@@ -120,7 +141,12 @@ export function TimezonePanel({
   }
 
   function apply(): void {
-    if (list.state !== 'ready' || !dirty || section.busy) return;
+    if (!dirty || section.busy) return;
+    if (list.state !== 'ready') {
+      setWaiting(true);
+      return;
+    }
+    setWaiting(false);
     const typed = draft.trim();
     // Proof: this check narrowed to an empty box, `refuses a zone that is not
     // on the server’s list without sending it` failed on `Unable to find
@@ -132,6 +158,20 @@ export function TimezonePanel({
     void section.attempt(() => setTimezone(typed));
   }
 
+  /** The line under the box: what is saved, and what leaving the box will do. */
+  const hint = (): string => {
+    const saved = timezone;
+    const typed = draft.trim();
+    if (waiting) {
+      return list.state === 'loading'
+        ? `Reading the zones this server knows… ${typed} applies once they are read.`
+        : `${typed} applies once the list of zones is read.`;
+    }
+    if (list.state === 'loading') return 'Reading the zones this server knows…';
+    if (!dirty) return `Saved as ${saved}.`;
+    return `Saved as ${saved}. Press Enter or leave the box to read the plan in ${typed === '' ? 'the zone you pick' : typed}.`;
+  };
+
   const listId = 'project-timezone-zones';
   return (
     <div className="flex flex-col gap-4">
@@ -142,7 +182,12 @@ export function TimezonePanel({
 
       <SectionProblem problem={section.problem} />
 
-      {list.state === 'failed' ? (
+      {/*
+        The failure sits above the box rather than in its place: a zone typed
+        before the list failed is still the reader's, Escape in the box puts it
+        back, and Try again carries it out once the list lands.
+      */}
+      {list.state === 'failed' && (
         <div className="flex items-center gap-2">
           <p role="alert" className="text-destructive text-sm">
             {list.sentence}
@@ -158,54 +203,51 @@ export function TimezonePanel({
             Try again
           </Button>
         </div>
-      ) : (
-        <form
-          className="flex flex-col gap-2"
-          onSubmit={(event) => {
-            event.preventDefault();
-            apply();
-          }}
-        >
-          <Label htmlFor="project-timezone">Timezone</Label>
-          <div className="flex items-center gap-2">
-            <Input
-              id="project-timezone"
-              className="h-8 flex-1"
-              list={listId}
-              autoComplete="off"
-              spellCheck={false}
-              placeholder="Search — Kyiv, New York, UTC"
-              disabled={list.state === 'loading' || section.busy}
-              value={draft}
-              onChange={(event) => {
-                setDraft(event.currentTarget.value);
-                section.clear();
-              }}
-              onBlur={apply}
-              onKeyDown={(event) => {
-                if (event.key === 'Escape' && dirty) {
-                  setDraft(timezone);
-                  section.clear();
-                }
-              }}
-            />
-          </div>
-          {list.state === 'ready' && (
-            <datalist id={listId}>
-              {list.zones.map((zone) => (
-                <option key={zone} value={zone} />
-              ))}
-            </datalist>
-          )}
-          <p className="text-muted-foreground text-xs" aria-live="polite">
-            {list.state === 'loading'
-              ? 'Reading the zones this server knows…'
-              : dirty
-                ? `Saved as ${timezone}. Press Enter or leave the box to read the plan in ${draft.trim() === '' ? 'the zone you pick' : draft.trim()}.`
-                : `Saved as ${timezone}.`}
-          </p>
-        </form>
       )}
+      <form
+        className="flex flex-col gap-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          apply();
+        }}
+      >
+        <Label htmlFor="project-timezone">Timezone</Label>
+        <div className="flex items-center gap-2">
+          <Input
+            id="project-timezone"
+            className="h-8 flex-1"
+            list={listId}
+            autoComplete="off"
+            spellCheck={false}
+            placeholder="Search — Kyiv, New York, UTC"
+            readOnly={section.busy}
+            value={draft}
+            onChange={(event) => {
+              setDraft(event.currentTarget.value);
+              setWaiting(false);
+              section.clear();
+            }}
+            onBlur={apply}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape' && dirty) {
+                setDraft(timezone);
+                setWaiting(false);
+                section.clear();
+              }
+            }}
+          />
+        </div>
+        {list.state === 'ready' && (
+          <datalist id={listId}>
+            {list.zones.map((zone) => (
+              <option key={zone} value={zone} />
+            ))}
+          </datalist>
+        )}
+        <p className="text-muted-foreground text-xs" aria-live="polite">
+          {hint()}
+        </p>
+      </form>
     </div>
   );
 }

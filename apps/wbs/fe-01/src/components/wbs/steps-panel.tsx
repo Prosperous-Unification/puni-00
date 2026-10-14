@@ -257,6 +257,12 @@ export function StepsPanel({
     change: () => Promise<void>,
     onLanded?: () => Promise<void>,
   ): Promise<void> {
+    // One write at a time: the boxes stay focusable while one travels (F-066),
+    // so a second Enter in the same box must not send its copy.
+    // Proof: on 2026-10-14, this guard removed, `a step’s name, which a second
+    // Enter does not send again` (settings-busy.test.tsx) failed on `expected
+    // "vi.fn()" to be called 1 times, but got 2 times`.
+    if (section.busy) return;
     await section.attempt(change, onLanded);
   }
 
@@ -472,7 +478,7 @@ export function StepsPanel({
                       id={`step-${step.id}`}
                       value={nameShown(step)}
                       title={nameShown(step)}
-                      disabled={section.busy}
+                      readOnly={section.busy}
                       onChange={(event) => {
                         const typed = event.currentTarget.value;
                         setRenamed((current) => ({ ...current, [step.id]: typed }));
@@ -526,7 +532,7 @@ export function StepsPanel({
                         max={1000}
                         step={0.01}
                         value={allowances[step.id] ?? String(step.allowancePercent)}
-                        disabled={section.busy}
+                        readOnly={section.busy}
                         onChange={(event) => {
                           const typed = event.currentTarget.value;
                           setAllowances((current) => ({ ...current, [step.id]: typed }));
@@ -575,7 +581,7 @@ export function StepsPanel({
                   id="step-new"
                   placeholder="New step"
                   value={newName}
-                  disabled={section.busy}
+                  readOnly={section.busy}
                   onChange={(event) => {
                     setNewName(event.currentTarget.value);
                   }}
