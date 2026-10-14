@@ -933,3 +933,47 @@ Fresh checks:
 F11.1d stays unchecked for independent re-review and live acceptance. No live
 cluster, push, merge, activation, full host gate or execute.ts Lease race change.
 The prior Docker/k3d, staging and attended-opening proof gaps remain outstanding.
+
+## F11.1d asynchronous Lease-loss repair
+
+Independent review reproduced successful delayed safety followed by `start:backend`
+after the heartbeat had lost its Lease. The production-path delayed-safety negative
+first failed on the reviewed candidate (`/tmp/puni-f11-lease-window-red.log`) and
+passes with the post-await mutation guard (`/tmp/puni-f11-lease-window-green.log`).
+
+One guard is installed after Lease acquisition and checks known loss immediately
+before coordinator mutations and durable writes, queued renewal invocation, every
+local adapter mutating kubectl command, and internal source pin/resume writes after
+awaited observations. A missing adapter guard refuses mutations. The unused generic
+resumeFlux effect was removed from the first-start interface, retaining only its
+source-admitted resume path. Shared execute.ts was not changed; release/park delegates
+run after heartbeat shutdown and pending renewal drain.
+
+Five watched omission groups returned exit 1 with named failed production-path
+negatives: scale checkpoint, durable persistence checkpoint, queued renewal, source
+pin/resume checkpoints (both cases), and adapter transport checkpoints (observation
+Job and second fence write). Originals were restored in finally. Logs:
+`/tmp/puni-f11-first-start-lease-window-proofs/<fault>.log`. Added delayed observations
+cover source admission, actual PVC observation, rollout, record readback and source
+revision, with no subsequent mutation or durable phase write after known loss.
+
+Fresh verification:
+
+- Seven-file focused Bun suite, `--timeout 30000`: exit 0, 256 pass, 0 fail,
+  430 assertions, 28.88s; `/tmp/puni-f11-lease-window-final-tests.log`.
+  Previous reviewed tests and proof records are preserved.
+- Scoped Nx lint/typecheck, cache skipped: exit 0;
+  `/tmp/puni-f11-lease-window-static.log`. Initial lint caught test callback binding,
+  unnecessary escapes and Bun rejects matcher await usage; all were repaired and
+  scoped Nx rerun.
+
+- Scoped Nx build: exit 0, target plus seven dependencies (seven cached);
+  `/tmp/puni-f11-lease-window-build.log`.
+- Pinned OpenSpec 1.12.0 strict validation, scoped Nx format and `git diff --check`:
+  exit 0; `/tmp/puni-f11-lease-window-openspec.log` and
+  `/tmp/puni-f11-lease-window-format-check.log`.
+
+F11.1d remains unchecked for independent re-review and live acceptance. No live
+operations, push, merge, activation, full host gate or shared Lease executor changes.
+The previously recorded live acceptance and external configuration provenance gaps
+remain outstanding.

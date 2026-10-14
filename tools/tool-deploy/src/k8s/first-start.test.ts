@@ -64,6 +64,7 @@ function fixture() {
     },
   };
   const effects: FirstStartEffects = {
+    installMutationGuard: () => undefined,
     admitSource: (request) => {
       const bytes = JSON.stringify({
         version: 1,
@@ -94,7 +95,6 @@ function fixture() {
       });
       return Promise.resolve({ bytes, sha256: sha256Of(bytes) });
     },
-    resumeSource: (request) => effects.resumeFlux(request.flux, request.flux.desiredRevision),
     assertTarget: () => {
       calls.push('target');
       return Promise.resolve();
@@ -162,7 +162,7 @@ function fixture() {
         images: fixtureDescriptor.images,
       }),
     fluxSourceRevision: () => Promise.resolve(`main@sha1:${request.flux.desiredRevision}`),
-    resumeFlux: async () => {
+    resumeSource: async () => {
       await Promise.resolve();
       calls.push('handoff');
     },
@@ -249,7 +249,7 @@ describe('durable first cutover admission', () => {
       if (fault === 'revision')
         f.effects.fluxSourceRevision = () => Promise.resolve('main@sha1:' + 'd'.repeat(40));
       if (fault === 'handoff-fence')
-        f.effects.resumeFlux = async () => {
+        f.effects.resumeSource = async () => {
           await Promise.resolve();
           f.effects.assertSafety = async () => {
             await Promise.resolve();
@@ -470,3 +470,108 @@ async function refuse(promise: Promise<unknown>): Promise<void> {
   );
   expect(refusal).toBeInstanceOf(Error);
 }
+
+it('refuses tier scale when a delayed safety observation returns after heartbeat Lease loss', async () => {
+  const f = fixture();
+  let waiting = false;
+  f.effects.renewLease = () =>
+    waiting ? Promise.reject(new Error('Lease lost during safety')) : Promise.resolve();
+  f.effects.assertSafety = async (_request, stopped) => {
+    if (!stopped) {
+      waiting = true;
+      await Bun.sleep(15);
+      f.calls.push('safety-returned-after-lease-loss');
+    }
+  };
+  await refuse(startCutover(f.request, f.journal, f.effects, 1));
+  expect(f.calls).toContain('safety-returned-after-lease-loss');
+  expect(f.calls.some((call) => call.startsWith('start:'))).toBe(false);
+});
+
+for (const fault of [
+  'source',
+  'actual',
+  'rollout',
+  'record-readback',
+  'source-revision',
+] as const) {
+  it(`refuses mutations after Lease loss during awaited ${fault} observation`, async () => {
+    const f = fixture();
+    let waiting = false;
+    f.effects.renewLease = () =>
+      waiting ? Promise.reject(new Error('Lease lost during observation')) : Promise.resolve();
+    const delay = async () => {
+      waiting = true;
+      await Bun.sleep(15);
+      f.calls.push('observation-returned-after-lease-loss');
+    };
+    if (fault === 'source') {
+      const read = f.effects.admitSource.bind(f.effects);
+      f.effects.admitSource = async (...args) => {
+        await delay();
+        return read(...args);
+      };
+    }
+    if (fault === 'actual') {
+      const read = f.effects.observePvc.bind(f.effects);
+      f.effects.observePvc = async (...args) => {
+        await delay();
+        return read(...args);
+      };
+    }
+    if (fault === 'rollout') {
+      const read = f.effects.verifyTiers.bind(f.effects);
+      f.effects.verifyTiers = async (...args) => {
+        await delay();
+        await read(...args);
+      };
+    }
+    if (fault === 'record-readback') {
+      const read = f.effects.currentRelease.bind(f.effects);
+      f.effects.currentRelease = async () => {
+        await delay();
+        return read();
+      };
+    }
+    if (fault === 'source-revision') {
+      const read = f.effects.fluxSourceRevision.bind(f.effects);
+      f.effects.fluxSourceRevision = async (...args) => {
+        await delay();
+        return read(...args);
+      };
+    }
+    await refuse(startCutover(f.request, f.journal, f.effects, 1));
+    const following = f.calls.slice(f.calls.indexOf('observation-returned-after-lease-loss') + 1);
+    expect(
+      following.some(
+        (call) =>
+          call.startsWith('start:') ||
+          call.startsWith('persist:') ||
+          ['record', 'resume', 'handoff', 'fence', 'suspend', 'park', 'release'].includes(call),
+      ),
+    ).toBe(false);
+  });
+}
+
+it('refuses a queued renewal after the preceding heartbeat has lost its Lease', async () => {
+  const f = fixture();
+  let observing = false;
+  let failed = false;
+  let renewalsAfterLoss = 0;
+  f.effects.assertSafety = async () => {
+    observing = true;
+    await Bun.sleep(4);
+    observing = false;
+  };
+  f.effects.renewLease = async () => {
+    if (failed) renewalsAfterLoss++;
+    if (observing) {
+      await Bun.sleep(12);
+      failed = true;
+      throw new Error('heartbeat renewal lost Lease');
+    }
+  };
+  await refuse(startCutover(f.request, f.journal, f.effects, 1));
+  expect(failed).toBe(true);
+  expect(renewalsAfterLoss).toBe(0);
+});

@@ -280,3 +280,23 @@ external value-byte pinning.
 - **GIVEN** a live tier Deployment, owned ReplicaSet or descendant Pod adds an init container, command, hook, mount or environment override
 - **WHEN** first-start checks the effective startup template against the trusted release
 - **THEN** it refuses and keeps suspension, both ingress fences and its Lease
+
+### Requirement: First-start refuses mutation after asynchronous Lease loss
+
+The coordinator SHALL recheck Lease loss immediately before every cluster mutation
+and durable phase write after awaited observations. Compound adapter and source
+handoff operations SHALL recheck immediately before each internal mutation. A queued
+renewal SHALL refuse if a preceding heartbeat already lost the Lease. Known loss
+SHALL permit no further tier scale, source pin/resume, record or cleanup mutation.
+
+#### Scenario: Delayed safety observation returns after heartbeat failure
+
+- **GIVEN** the heartbeat loses the Lease while a tier safety observation is awaited
+- **WHEN** the safety observation returns successfully
+- **THEN** no tier scale occurs and the coordinator reports Lease loss
+
+#### Scenario: Source observation returns after Lease loss
+
+- **GIVEN** Lease loss during awaited source pin or final resume observations
+- **WHEN** the source operation reaches its conditional mutation
+- **THEN** it refuses before changing GitRepository or Kustomization

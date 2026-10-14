@@ -254,3 +254,15 @@ commands remain unguarded. `moveProgress` preconditions independently require
 validators admit this inventory vocabulary but still require each actual image's
 own advertisement. This adds no capability to an old image and does not alter the
 release journal schema. Application deletion behavior remains in its separate slice.
+
+### First-start Lease admission after asynchronous observations
+
+The coordinator installs one synchronous Lease-loss guard after acquisition.
+Every cluster mutation and durable phase write checks that guard after any awaited
+observation; renewals queued behind a failed heartbeat recheck loss before invoking
+the renewal transport. Adapter compound operations check it immediately before each
+local mutating kubectl command, and immutable source pin/resume check it after their
+internal awaited reads. A delayed safety result cannot authorize a tier scale after
+a heartbeat failure. After known loss, no cleanup mutation or phase write is permitted.
+Release/park delegates run only after heartbeat shutdown and pending-renewal drain;
+the separately reviewed shared release-executor Lease protocol remains outside this slice.

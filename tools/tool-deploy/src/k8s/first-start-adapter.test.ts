@@ -1,4 +1,4 @@
-import { chmodSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import { scratchSync } from '@tools/test-scratch';
@@ -271,6 +271,9 @@ for (const fault of [
   'public-open',
   'extra-public-policy',
   'gateway-init',
+  'observation-lease-loss',
+  'writer-fence-lease-loss',
+  'missing-lease-guard',
   'gateway-pod-init',
   'gateway-rs-command',
   'backend-probe-startupProbe',
@@ -331,10 +334,10 @@ if(args.includes('logs')){if(fault==='bad-log'){console.log('malformed');process
 if(args.includes('namespace')){const name=args[args.indexOf('namespace')+1];output({metadata:{uid:name==='kube-system'?'cluster':name==='wbs'?'app':'backend'}});process.exit(0);}
 if(args.includes('pvc')){output({metadata:{uid:'volume'},status:{phase:'Bound'}});process.exit(0);}
 if(args.some(arg=>arg.startsWith('kustomizations.'))){output({spec:{suspend:true}});process.exit(0);}
-if(args.includes('networkpolicy')){output({spec:{podSelector:{matchLabels:{'puni.dev/writes':'fenced'}}}});process.exit(0);}
+if(args.includes('networkpolicy')){if(fault==='writer-fence-lease-loss'&&args.includes('patch'))fs.writeFileSync(path.join(root,'lost'),'lost');output({spec:{podSelector:{matchLabels:{'puni.dev/writes':'fenced'}}}});process.exit(0);}
 if(args.includes('pods')&&fault==='gateway-pod-init'&&args.includes('wbs')){const template=deploymentFor('gateway').spec.template;template.spec.initContainers=[{name:'rewrite',image:'foreign',command:['touch','/tmp/injected']}];output({items:[{...template,metadata:{...template.metadata,ownerReferences:[{kind:'ReplicaSet',uid:'gateway-rs',controller:true}]},status:{phase:'Running'}}]});process.exit(0);}
 if(args.includes('pods')){output({items:fault==='unlabeled-pvc'?[{metadata:{name:'rogue',namespace:'wbs-solver',labels:{}},spec:{volumes:[{name:'stolen',persistentVolumeClaim:{claimName:'wbs-data'}}],containers:[{name:'rogue',volumeMounts:[{name:'stolen',mountPath:'/database'}]}]},status:{phase:'Running'}}]:[]});process.exit(0);}
-if(args.includes('deployment')){const tier=args[args.indexOf('deployment')+1].replace('wbs-','');const deployment=deploymentFor(tier);if(fault==='rollout-image')deployment.spec.template.spec.containers[0].image='foreign';if(fault==='rollout-status')deployment.status.readyReplicas=0;if(fault==='gateway-init'&&tier==='gateway')deployment.spec.template.spec.initContainers=[{name:'rewrite',image:'foreign',command:['touch','/tmp/injected']}];if(fault.startsWith('backend-probe-')&&tier==='backend')deployment.spec.template.spec.containers[0][fault.replace('backend-probe-','')]={exec:{command:['touch','/data/wbs.sqlite']}};if(fault==='rollout-mount')deployment.spec.template.spec.volumes[0].persistentVolumeClaim.claimName='foreign';output(deployment);process.exit(0);}
+if(args.includes('deployment')){const tier=args[args.indexOf('deployment')+1].replace('wbs-','');const deployment=deploymentFor(tier);if(fault==='observation-lease-loss')fs.writeFileSync(path.join(root,'lost'),'lost');if(fault==='rollout-image')deployment.spec.template.spec.containers[0].image='foreign';if(fault==='rollout-status')deployment.status.readyReplicas=0;if(fault==='gateway-init'&&tier==='gateway')deployment.spec.template.spec.initContainers=[{name:'rewrite',image:'foreign',command:['touch','/tmp/injected']}];if(fault.startsWith('backend-probe-')&&tier==='backend')deployment.spec.template.spec.containers[0][fault.replace('backend-probe-','')]={exec:{command:['touch','/data/wbs.sqlite']}};if(fault==='rollout-mount')deployment.spec.template.spec.volumes[0].persistentVolumeClaim.claimName='foreign';output(deployment);process.exit(0);}
 if(args.includes('job')){const isRestore=args[args.indexOf('job')+1]===request.restore.name;const job=isRestore?restore:JSON.parse(fs.readFileSync(path.join(root,'created.json'),'utf8'));job.metadata.uid=isRestore?'restore':'actual';job.status={succeeded:1};const pod=job.spec.template.spec;
 if(isRestore&&fault==='restore-uid')job.metadata.uid='foreign';
 if(isRestore&&fault==='restore-status')job.status.succeeded=0;
@@ -347,6 +350,10 @@ throw new Error('unmodeled kubectl invocation '+args.join(' '));
     );
     chmodSync(settings.kubectl, 0o755);
     const effects = firstStartEffects(settings);
+    if (fault !== 'missing-lease-guard')
+      effects.installMutationGuard(() => {
+        if (existsSync(join(root, 'lost'))) throw new Error('Lease lost');
+      });
     if (fault.startsWith('rollout-'))
       await refuse(
         effects.verifyTiers({
@@ -355,11 +362,21 @@ throw new Error('unmodeled kubectl invocation '+args.join(' '));
         }),
       );
     else if (fault.startsWith('restore-')) await refuse(effects.observeRestore(request));
+    else if (fault === 'writer-fence-lease-loss') await refuse(effects.closeWrites());
     else if (fault === 'gateway-pod-init' || fault === 'gateway-rs-command')
       await refuse(effects.assertSafety(request, false, false));
     else if (fault !== 'none')
       await refuse(effects.observePvc(request, 'first-start-aaaaaaaaaaaaaaaa'));
-    else {
+    if (
+      fault === 'observation-lease-loss' ||
+      fault === 'missing-lease-guard' ||
+      fault === 'writer-fence-lease-loss'
+    ) {
+      const calls = readFileSync(join(root, 'calls'), 'utf8');
+      expect(calls).not.toContain(
+        fault === 'writer-fence-lease-loss' ? 'wbs-public-ingress' : '"create"',
+      );
+    } else if (fault === 'none') {
       await effects.assertTarget(request);
       await refuse(
         effects.assertTarget({ ...request, cluster: { ...request.cluster, uid: 'foreign' } }),

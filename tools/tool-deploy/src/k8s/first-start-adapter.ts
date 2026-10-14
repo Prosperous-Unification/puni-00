@@ -267,6 +267,11 @@ function assertControllerStartup(raw: unknown, trusted: unknown): void {
 /** Kubectl adapter shares release Lease/fence/readback logic, without changing its journal schema. */
 export function firstStartEffects(settings: KubectlSettings): FirstStartEffects {
   const real = kubectlEffects(settings);
+  let mutationGuard: (() => void) | null = null;
+  const assertMutationAllowed = (): void => {
+    if (mutationGuard === null) throw new Error('first-start mutation has no Lease guard');
+    mutationGuard();
+  };
   const base = [
     settings.kubectl,
     ...(settings.kubeconfig === null ? [] : ['--kubeconfig', settings.kubeconfig]),
@@ -279,6 +284,11 @@ export function firstStartEffects(settings: KubectlSettings): FirstStartEffects 
     stdin: string | null = null,
     ms = timeout,
   ): Promise<string> {
+    // Proof: transport mutation refuses when its installed guard fails after prior awaited reads.
+    if (
+      args.some((arg) => ['apply', 'create', 'replace', 'delete', 'patch', 'scale'].includes(arg))
+    )
+      assertMutationAllowed();
     const invocation = await run([...base, ...args], stdin, ms);
     if (invocation.exitCode !== 0)
       throw new Error(`first-start kubectl ${args.join(' ')} failed: ${invocation.stderr}`);
@@ -311,6 +321,7 @@ export function firstStartEffects(settings: KubectlSettings): FirstStartEffects 
     const ks = `kustomizations.kustomize.toolkit.fluxcd.io/${request.flux.kustomization}`;
     const git = `gitrepositories.source.toolkit.fluxcd.io/${request.flux.gitRepository}`;
     return {
+      assertMutationAllowed,
       readKustomization: () => json(['-n', request.flux.namespace, 'get', ks]),
       readGitRepository: () => json(['-n', request.flux.namespace, 'get', git]),
       patchGitRepository: async (patch) => {
@@ -457,6 +468,9 @@ export function firstStartEffects(settings: KubectlSettings): FirstStartEffects 
     }
   }
   return {
+    installMutationGuard: (assertAllowed) => {
+      mutationGuard = assertAllowed;
+    },
     admitSource: (request, prior) => admitFirstStartSource(request, sourcePort(request), prior),
     resumeSource: (request, source) => resumeFirstStartSource(request, sourcePort(request), source),
     readLease: real.readLease.bind(real),
@@ -481,9 +495,16 @@ export function firstStartEffects(settings: KubectlSettings): FirstStartEffects 
     createLease: real.createLease.bind(real),
     takeoverLease: real.takeoverLease.bind(real),
     renewLease: real.renewLease.bind(real),
-    parkLease: real.parkLease.bind(real),
-    releaseLease: real.releaseLease.bind(real),
+    parkLease: async (...args) => {
+      assertMutationAllowed();
+      await real.parkLease(...args);
+    },
+    releaseLease: async (...args) => {
+      assertMutationAllowed();
+      await real.releaseLease(...args);
+    },
     async closeWrites() {
+      assertMutationAllowed();
       await real.closeWrites();
       await k([
         '-n',
@@ -502,15 +523,21 @@ export function firstStartEffects(settings: KubectlSettings): FirstStartEffects 
         ]),
       ]);
     },
-    suspendFlux: real.suspendFlux.bind(real),
-    persistRelease: real.persistRelease.bind(real),
+    suspendFlux: async (...args) => {
+      assertMutationAllowed();
+      await real.suspendFlux(...args);
+    },
+    persistRelease: async (...args) => {
+      assertMutationAllowed();
+      await real.persistRelease(...args);
+    },
     currentRelease: real.currentRelease.bind(real),
     fluxSourceRevision: real.fluxSourceRevision.bind(real),
-    resumeFlux: real.resumeFlux.bind(real),
     async stopTiers(request) {
       await pauseBackups(request);
       for (const tier of K8S_TIERS)
         await k(['-n', namespaceOf(tier), 'scale', 'deployment', `wbs-${tier}`, '--replicas=0']);
+      assertMutationAllowed();
       await real.stopWriter();
       const deadline = Date.now() + settings.rolloutTimeoutSeconds * 1000;
       for (;;) {

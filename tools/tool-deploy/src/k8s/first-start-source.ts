@@ -17,6 +17,8 @@ export interface ConditionalPatch {
   value: unknown;
 }
 export interface SourcePort {
+  /** Synchronous admission immediately after awaited source observations and before writes. */
+  assertMutationAllowed(): void;
   readKustomization(): Promise<unknown>;
   readGitRepository(): Promise<unknown>;
   patchGitRepository(patch: readonly ConditionalPatch[]): Promise<void>;
@@ -300,6 +302,8 @@ export async function admitFirstStartSource(
   }
   if (canonical(observed.gs['ref']) !== canonical(desired)) {
     if (prior !== null) throw new Error('first-start immutable source pin changed');
+    // Proof: Lease loss during source read refuses immutable pin before its transport mutation.
+    port.assertMutationAllowed();
     await port.patchGitRepository(buildSourceRefPatch(observed.g, desired));
   }
   const deadline = Date.now() + port.timeoutMs;
@@ -381,6 +385,8 @@ export async function resumeFirstStartSource(
     !conditionsReady(git, gm)
   )
     throw new Error('first-start source or Kustomization changed before resume');
+  // Proof: Lease loss during final source revalidation refuses Flux resume before its transport mutation.
+  port.assertMutationAllowed();
   await port.patchKustomization(pinPatch(metadata, spec, '/spec/suspend', false));
   const deadline = Date.now() + port.timeoutMs;
   for (;;) {

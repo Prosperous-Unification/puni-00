@@ -48,6 +48,7 @@ function fixture() {
   const bytes =
     'kind: ConfigMap\napiVersion: v1\nmetadata:\n  name: accepted\n  namespace: wbs\ndata:\n  release: pinned\n';
   const port: SourcePort = {
+    assertMutationAllowed: () => undefined,
     readKustomization: () => Promise.resolve(structuredClone(ks)),
     readGitRepository: () => Promise.resolve(structuredClone(git)),
     patchGitRepository: (patch) => {
@@ -271,3 +272,46 @@ for (const fault of [
     expect(f.calls).toEqual([]);
   });
 }
+
+it('refuses source pin when Lease is lost during awaited source observation', async () => {
+  const f = fixture();
+  let lost = false;
+  const read = f.port.readGitRepository.bind(f.port);
+  f.port.readGitRepository = async () => {
+    const source = await read();
+    lost = true;
+    return source;
+  };
+  f.port.assertMutationAllowed = () => {
+    if (lost) throw new Error('Lease lost');
+  };
+  const refusal = await admitFirstStartSource(f.request, f.port, null).then(
+    () => null,
+    (cause: unknown) => cause,
+  );
+  expect(refusal).toBeInstanceOf(Error);
+  expect(String(refusal)).toContain('Lease lost');
+  expect(f.calls).not.toContain('pin');
+});
+it('refuses Flux resume when Lease is lost during awaited final source observation', async () => {
+  const f = fixture();
+  const receipt = await admitFirstStartSource(f.request, f.port, null);
+  let reads = 0;
+  let lost = false;
+  const read = f.port.readGitRepository.bind(f.port);
+  f.port.readGitRepository = async () => {
+    const source = await read();
+    if (++reads === 3) lost = true;
+    return source;
+  };
+  f.port.assertMutationAllowed = () => {
+    if (lost) throw new Error('Lease lost');
+  };
+  const refusal = await resumeFirstStartSource(f.request, f.port, receipt).then(
+    () => null,
+    (cause: unknown) => cause,
+  );
+  expect(refusal).toBeInstanceOf(Error);
+  expect(String(refusal)).toContain('Lease lost');
+  expect(f.calls).not.toContain('resume');
+});

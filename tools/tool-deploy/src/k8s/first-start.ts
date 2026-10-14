@@ -81,8 +81,9 @@ export interface FirstStartEffects extends Pick<
   | 'suspendFlux'
   | 'persistRelease'
   | 'fluxSourceRevision'
-  | 'resumeFlux'
 > {
+  /** Install the synchronous Lease guard used immediately before every adapter mutation. */
+  installMutationGuard(assertAllowed: () => void): void;
   /** Read-only target identity/template check before the Lease or any cluster mutation. */
   assertTarget(request: FirstStartRequest): Promise<void>;
   admitSource(request: FirstStartRequest, prior: SourceReceipt | null): Promise<SourceReceipt>;
@@ -385,13 +386,25 @@ export async function startCutover(
     await effects.takeoverLease(holder, observed.version, journal.path);
   }
   const leaseState: { lost: Error | null } = { lost: null };
+  const assertLease = (): void => {
+    // Proof: delayed-safety negative starts backend if post-await mutation admission is omitted.
+    if (leaseState.lost !== null)
+      throw new Error('first-start lost Lease; no further mutations are permitted', {
+        cause: leaseState.lost,
+      });
+  };
+  effects.installMutationGuard(assertLease);
   let pending = 0;
   let queue: Promise<void> = Promise.resolve();
   const renew = async (): Promise<void> => {
     if (leaseState.lost !== null)
       throw new Error('first-start Lease renewal failed', { cause: leaseState.lost });
     pending++;
-    const next = queue.then(() => effects.renewLease(holder));
+    const next = queue.then(() => {
+      // Proof: queued-renewal negative calls renewal after the preceding failure if this check is omitted.
+      assertLease();
+      return effects.renewLease(holder);
+    });
     queue = next.then(
       () => {
         pending--;
@@ -411,6 +424,8 @@ export async function startCutover(
     });
   }, heartbeatMs);
   const persist = (phase: Phase): void => {
+    // Proof: delayed-source negative persists requested state after Lease loss if this check is omitted.
+    assertLease();
     state = { ...state, phase };
     journal.write(state);
     // Proof: reread omission accepts journal corruption injected after persisted admission.
@@ -419,12 +434,16 @@ export async function startCutover(
   try {
     if (raw === null) persist('requested');
     await renew();
+    assertLease();
     await effects.suspendFlux(request.flux);
+    assertLease();
     await effects.closeWrites();
     await renew();
+    assertLease();
     await effects.stopTiers(request);
     await effects.assertSafety(request, true, false);
     await renew();
+    assertLease();
     state = { ...state, source: await effects.admitSource(request, state.source) };
     persist('requested');
     const restored = await effects.observeRestore(request);
@@ -435,10 +454,12 @@ export async function startCutover(
     if (JSON.stringify(restored) !== JSON.stringify(request.restored))
       throw new Error('first-start restore Job report differs from pinned evidence');
     await renew();
+    assertLease();
     const actual = await effects.observePvc(request, state.transaction);
     assertObservation(request, actual);
     await renew();
     await effects.assertSafety(request, true, false);
+    assertLease();
     state = { ...state, source: await effects.admitSource(request, state.source) };
     const bytes = JSON.stringify({
       transaction: state.transaction,
@@ -454,6 +475,7 @@ export async function startCutover(
       await renew();
       parseFirstStartState(journal.read(), request);
       await effects.assertSafety(request, false, false);
+      assertLease();
       await effects.startTier(tier, release.images[tier]);
     }
     await renew();
@@ -461,6 +483,7 @@ export async function startCutover(
     persist('ready');
     await renew();
     await effects.assertSafety(request, false, false);
+    assertLease();
     await effects.persistRelease(release);
     // Proof: release readback omission hands Flux a missing release record.
     if (JSON.stringify(await effects.currentRelease()) !== JSON.stringify(release))
@@ -476,6 +499,7 @@ export async function startCutover(
       throw new Error('first-start Flux source differs from pinned revision');
     await effects.assertSafety(request, false, false);
     if (state.source === null) throw new Error('first-start source receipt is missing');
+    assertLease();
     await effects.resumeSource(request, state.source);
     await renew();
     await effects.assertSafety(request, false, true);
@@ -486,6 +510,7 @@ export async function startCutover(
     clearInterval(heartbeat);
     await queue;
     await renew();
+    assertLease();
     await effects.releaseLease(holder);
     persist('complete');
     return state;
@@ -497,8 +522,11 @@ export async function startCutover(
         cause,
       });
     await renew();
+    assertLease();
     await effects.suspendFlux(request.flux);
+    assertLease();
     await effects.closeWrites();
+    assertLease();
     await effects.parkLease(holder, 'first-start-unresolved');
     throw new Error(
       `first-start unresolved at ${state.phase}; Lease held, writes fenced, Flux suspended; inspect ${journal.path}`,
