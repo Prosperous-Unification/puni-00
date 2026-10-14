@@ -5005,7 +5005,8 @@ installed. Logs: `/tmp/shared-restore-103a-initial-red.log`,
 
 `python3 /tmp/shared-restore-103a-mutations.py` applied and restored **44 independent production
 faults**, each observed as a failed mounted Bun test (not a parser error). All reported `RED`;
-none survived. Each has `/tmp/shared-restore-103a-<fault>-red.log` and adjacent production `Proof:`
+none survived. Review later identified that receipt-unique failed during fixture setup rather than
+its duplicate assertion; the corrected independent receipt proof below supersedes that evidence. Each has `/tmp/shared-restore-103a-<fault>-red.log` and adjacent production `Proof:`
 comments. Faults were:
 
 - Input/identity/retry: references, operation-digest, receipt-replay, receipt-bindings,
@@ -5066,3 +5067,31 @@ Bun invocation: **148 passed, zero failed/skipped, 1,858 assertions** (23.44 sec
 `/tmp/shared-restore-103a-combined-final.log`. A read-only Docker label query returned no surviving
 test-owned containers. Final application typecheck exited 0 with no diagnostics; scoped lint,
 Prettier check and diff whitespace checks exited 0. Proposal intent remains 393 words.
+
+### 10.3a review correction: independent receipt uniqueness proof
+
+Astra found an R5 evidence gap in the original combined uniqueness test: removing the receipt
+primary key made `invoke()` fail at consumption foreign-key validation, before the duplicate
+receipt assertion. That failure did not prove duplicate receipts were accepted. Production
+behavior is unchanged in this correction.
+
+The receipt uniqueness test now inserts one valid receipt directly into the migrated database,
+then asserts that the identical second INSERT throws. Consumption uniqueness remains a separate
+test using `invoke()` and dropping only its other organization uniqueness index.
+
+Watched fault: remove only `PRIMARY KEY` from the receipt's `operation_id` declaration in the
+installed migration. The first direct receipt INSERT succeeded; the second INSERT also succeeded,
+and line 537's `toThrow()` assertion failed with **Received function did not throw**. No
+consumption INSERT ran and no foreign-key mismatch occurred. RED receipt:
+`/tmp/shared-restore-103a-receipt-pk-independent-red.log` (0 pass, 1 fail, 24 filtered).
+The migration was restored in a `finally` block. The complete restore-owner DB suite then passed
+**25 tests, 104 assertions**, `/tmp/shared-restore-103a-receipt-pk-green.log`.
+The SQL's adjacent Proof comment now names this independent duplicate assertion precisely.
+
+Correction regression: `bun test` on restore-owner, approval, combined rollback and migrate-down
+DB suites passed **78 tests, 409 assertions**, zero failures/skips,
+`/tmp/shared-restore-103a-receipt-pk-regression.log`. Scoped ESLint, Prettier, migration lint,
+application TypeScript build and strict change OpenSpec validation all exited 0; logs use the
+`/tmp/shared-restore-103a-receipt-pk-` prefix. `git diff --check` passed. Real Docker and live h2
+checks were not repeated for this test/proof-comment-only correction; prior Docker evidence
+remains recorded above. No production behavior, supported mode, host access or push changed.

@@ -2,7 +2,8 @@ CREATE UNIQUE INDEX `shared_people_restore_operation_digest` ON `shared_people_r
 --> statement-breakpoint
 CREATE UNIQUE INDEX `shared_people_restore_approval_binding` ON `shared_people_restore_approval` (`id`, `operation_id`, `organization_id`);
 --> statement-breakpoint
--- Proof: removing receipt PK/digest FK or integer/count checks admitted duplicate, foreign or malformed durable facts in SQLite negatives.
+-- Proof: removing only receipt PK reached the independent duplicate INSERT assertion: the second identical receipt did not throw.
+-- Removing digest FK or integer/count checks admitted foreign or malformed durable facts in SQLite negatives.
 CREATE TABLE `shared_people_restore_receipt` (
   `operation_id` text PRIMARY KEY NOT NULL,
   `backup_digest` text NOT NULL,

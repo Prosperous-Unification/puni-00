@@ -531,13 +531,13 @@ it('records durable events on the borrowed writer even when public async event w
     publicWriter.mockRestore();
   }
 });
-it('enforces completion receipt uniqueness and approval consumption uniqueness when its other constraint is broken', () => {
+it('enforces completion receipt uniqueness independently of consumption foreign keys', () => {
+  const insert = `INSERT INTO shared_people_restore_receipt VALUES ('restore-1', '${digestSharedPeople(backup)}', 20, 2, 1, 1, 4)`;
+  execute(insert);
+  expect(() => execute(insert)).toThrow();
+});
+it('enforces approval consumption uniqueness when its other constraint is broken', () => {
   invoke();
-  expect(() =>
-    execute(
-      `INSERT INTO shared_people_restore_receipt VALUES ('restore-1', '${digestSharedPeople(backup)}', 20, 2, 1, 1, 4)`,
-    ),
-  ).toThrow();
   execute('DROP INDEX shared_people_restore_consumption_organization');
   expect(() =>
     execute(
