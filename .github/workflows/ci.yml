@@ -33,7 +33,7 @@
 # exact failure this repo keeps hitting.
 #
 # What changed is that the base is no longer guessed. `Gate mode` below takes
-# it from the pull request's immutable payload SHA, refuses an empty one, and
+# it from the validated PR synthetic merge first parent, and
 # refuses outright any event it has no rule for; `merge_group`, `push` and
 # `workflow_dispatch` keep the unchanged full run, so nothing narrows for the
 # merge queue or for `main`, and the h2puni exact-head gate is still the final
@@ -240,7 +240,7 @@ jobs:
       base: ${{ steps.gate_mode.outputs.base }}
       twilight: ${{ steps.gate_mode.outputs.twilight }}
     steps:
-      # Full history: `Gate mode` resolves a `pull_request` payload base SHA against this
+      # Full history: `Gate mode` resolves a validated PR synthetic merge base against this
       # clone, which a depth-1 checkout does not contain. Pinned by `toolchain-pins.test.ts`,
       # `checks every gate job out at full depth`.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -257,9 +257,8 @@ jobs:
       # The scope, chosen from the event and never inferred from whether a base ref
       # happens to resolve — the same shape `Corpus version lint` below already uses,
       # for the same reason. Payload values arrive as environment variables rather than
-      # interpolated into the shell, an empty pull-request base SHA is a refusal rather
-      # than a fallback to a mutable ref, and the `*)` arm means subscribing this
-      # workflow to a new event fails loudly instead of picking a scope by accident.
+      # interpolated into the shell; unprovable PR identity or topology is a refusal.
+      # The `*)` arm means subscribing this workflow to a new event fails loudly instead of picking a scope by accident.
       #
       # `nx show projects` prints a ONE-LINE JSON array on a non-TTY runner whatever
       # `--sep` asks for — measured on Nx 23.2.0, 2026-09-16 — so membership is read
@@ -288,15 +287,18 @@ jobs:
         id: gate_mode
         env:
           EVENT_NAME: ${{ github.event_name }}
-          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
           case "$EVENT_NAME" in
             pull_request)
-              : "${PR_BASE_SHA:?pull_request payload carries no base SHA}"
+              # Proof: stale payload substitution or swallowed resolution failure made
+              # this production-step test accept the wrong boundary (29 pass / 1 fail).
+              base="$(bun run tools/tool-git-hooks/src/hooks/pr-merge-base.ts)"
               printf 'mode=affected\n' >> "$GITHUB_OUTPUT"
-              printf 'base=%s\n' "$PR_BASE_SHA" >> "$GITHUB_OUTPUT"
-              affected="$(bunx nx show projects --affected --base="$PR_BASE_SHA" --head=HEAD --json)"
+              printf 'base=%s\n' "$base" >> "$GITHUB_OUTPUT"
+              affected="$(bunx nx show projects --affected --base="$base" --head=HEAD --json)"
               # jq answers THREE things, not two: 0 for true, 1 for false, and 2 or more for
               # an error. An `if/else` reads the last of those as `false` and quietly drops
               # the Twilight shard from the gate while exiting 0. Watched in a real shell on
@@ -361,7 +363,7 @@ jobs:
       # nx falls back to a different file scope rather than failing. Since
       # 2026-09-16 depth 0 is load-bearing rather than precautionary — this said
       # it kept `nx affected` usable "if this ever moves off run-many", and it
-      # has: `Gate mode` below resolves a `pull_request` payload base SHA against
+      # has: `Gate mode` below resolves a validated PR synthetic merge base against
       # this clone, which a depth-1 checkout does not contain. Pinned by
       # `toolchain-pins.test.ts`, `checks the gate job out at full depth`.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -561,7 +563,22 @@ jobs:
         env:
           GATE_MODE: ${{ needs.gate_mode.outputs.mode }}
           GATE_BASE: ${{ needs.gate_mode.outputs.base }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
+          set -euo pipefail
+          if [ "$GATE_MODE" = affected ]; then
+            # Proof: swallowing resolver failure let wrong PR identity reach Nx;
+            # the workspace production-step negative failed (31 pass / 1 fail).
+            base="$(bun run tools/tool-git-hooks/src/hooks/pr-merge-base.ts)"
+            # Proof: removing this comparison accepted a stale cross-job base
+            # in the production workflow test (29 pass / 1 fail).
+            if [ "$GATE_BASE" != "$base" ]; then
+              printf 'GATE_BASE does not match validated PR merge base\n' >&2
+              exit 1
+            fi
+          fi
           set +e
           if [ "$GATE_MODE" = affected ]; then
             bunx nx affected -t test lint typecheck build --base="$GATE_BASE" --head=HEAD \
@@ -692,7 +709,8 @@ jobs:
       - name: Corpus version lint
         env:
           EVENT_NAME: ${{ github.event_name }}
-          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
           PUSH_BEFORE: ${{ github.event.before }}
           MERGE_GROUP_BASE_SHA: ${{ github.event.merge_group.base_sha }}
           DISPATCH_BASE_REF: ${{ inputs.base_ref }}
@@ -943,13 +961,16 @@ jobs:
         id: stack
         env:
           EVENT_NAME: ${{ github.event_name }}
-          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
           case "$EVENT_NAME" in
             pull_request)
-              : "${PR_BASE_SHA:?pull_request payload carries no base SHA}"
-              affected="$(bunx nx show projects --affected --base="$PR_BASE_SHA" --head=HEAD --json)"
+              # Proof: stale payload substitution or swallowed resolution failure made
+              # this production-step test accept the wrong boundary (29 pass / 1 fail).
+              base="$(bun run tools/tool-git-hooks/src/hooks/pr-merge-base.ts)"
+              affected="$(bunx nx show projects --affected --base="$base" --head=HEAD --json)"
               # Three answers, not two, and `-s` so a stray document ahead of the array
               # cannot hide it — see the same guard in `Gate mode` for both measurements.
               # Here the stakes are higher: reading a jq ERROR, or a leading warning line, as
