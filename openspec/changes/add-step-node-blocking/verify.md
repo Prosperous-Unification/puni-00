@@ -792,3 +792,14 @@ Full h2puni heavy gate/build, hosted CI, browser verification, old-writer barrie
 Kubernetes F11.1d and stopped-writer recovery integration are unverified here and
 remain coordinator work. This clone is on `pop-os`; no production activation,
 push, merge or deploy is performed by this integration task.
+
+Final merge-index hygiene: `git diff --cached --check` exposed five inherited
+trailing spaces and an extra final blank line in admission's raw omission log.
+Only that evidence file's whitespace was trimmed in separate mechanical commit
+`52129d7194fc5059754e7960b7d8fc77eb114f52`; assertion output is preserved.
+The final `git diff --check 4bb78ec2674869c2bfd18114ef4f39e05d403863 HEAD`
+exits 0. Touched-file Prettier and final `git diff 809cbe64b568bd62e772be8dd3448a7977313ffa --check`
+exit 0. Normal installed lefthook pre-commit/commit-message hooks run successfully;
+its tool-wiki hook visibly reports inactive, uncertified because this isolated
+clone has no external activation root. That optional activation is not inferred
+as certification.
