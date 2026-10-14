@@ -8,6 +8,7 @@ import { Database } from 'bun:sqlite';
 import { afterEach, describe, expect, it } from 'bun:test';
 
 import { writeAtomic } from './lib/atomic';
+import { ROOT } from './lib/docker';
 import { execute, type SwapExecutionIo } from './swap';
 
 const BACKEND = join(dirname(fileURLToPath(import.meta.url)), '../../../apps/wbs/be-01/src');
@@ -204,6 +205,85 @@ function prepareComposeFixture(
 }
 
 describe('Compose migration command adapter', () => {
+  it('retains the migrated database and a runnable pinned one-off recovery after stopped-writer failure', async () => {
+    const attempt = prepareComposeFixture();
+    const identity = 'a'.repeat(64);
+    const image = `registry/wbs-be-01@sha256:${'b'.repeat(64)}`;
+    const io: SwapExecutionIo = {
+      ...attempt.io,
+      barrierStateDir: attempt.root,
+      prepareGreen: () => Promise.resolve(() => Promise.resolve()),
+      healthGate: () => Promise.reject(new Error('candidate health failure')),
+      sh: async (args) => {
+        if (args[0] === 'inspect' && args[2] === '{{.Id}}') return identity;
+        if (args[0] === 'ps') return identity;
+        if (args[0] === 'inspect' && args[1] === identity)
+          return JSON.stringify([
+            {
+              Id: identity,
+              Name: '/be-01-blue',
+              Mounts: [{ Type: 'bind', Source: `${ROOT}/data`, RW: true }],
+            },
+          ]);
+        if (args[0] === 'inspect')
+          return JSON.stringify({
+            Id: identity,
+            State: { Running: false, Paused: false, Restarting: false, Status: 'exited' },
+          });
+        return attempt.io.sh(args);
+      },
+    };
+    const failure = await failureMessage(
+      execute(
+        {
+          tier: 'be',
+          from: 'blue',
+          to: 'green',
+          steps: [
+            'preflight-green',
+            'record-writer-stop',
+            'stop-blue',
+            'verify-blue-stopped',
+            'start-green',
+            'migrate',
+            'health-gate',
+          ],
+        },
+        image,
+        'deadbeef',
+        io,
+      ),
+    );
+    expect(failure).toContain('explicit recovery');
+    expect(failure).toContain("'--network' 'none'");
+    expect(failure).toContain(image);
+    expect(tablesAt(attempt.dbPath)).toContain('older_candidate_probe');
+    expect(attempt.commands.some((args) => args.includes('src/migrate-down-cli.ts'))).toBe(false);
+    const captureName = readdirSync(attempt.root).find((name) =>
+      name.startsWith('migration-be-01-green-'),
+    );
+    if (captureName === undefined) throw new Error('retained capture is absent');
+    const capturePath = join(attempt.root, captureName);
+    const recovery = Bun.spawnSync(
+      [
+        process.execPath,
+        'run',
+        join(BACKEND, 'migrate-down-cli.ts'),
+        ...printedRecoveryArguments(failure, capturePath),
+      ],
+      {
+        cwd: attempt.root,
+        env: { ...process.env, DB_PATH: attempt.dbPath },
+        stdout: 'pipe',
+        stderr: 'pipe',
+      },
+    );
+    expect(recovery.exitCode).toBe(0);
+    expect(ledgerAt(attempt.dbPath)).toEqual(attempt.baselineLedger);
+    expect(tablesAt(attempt.dbPath)).toEqual(attempt.baselineTables);
+    expect(readdirSync(attempt.root)).toContain('be-writer-stop.json');
+  }, 60_000);
+
   it('refuses a capture digest flag outside exact-set down mode', () => {
     const { root, dbPath, baseline } = prepareComposeFixture();
     const digest = 'a'.repeat(64);

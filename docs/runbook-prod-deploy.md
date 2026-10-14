@@ -58,7 +58,7 @@ From an arm64 Mac instead, prepend a tunnel to prod's engine (QEMU otherwise):
 `ssh -f -N -L 8081:127.0.0.1:8081 h2puni` and `export _EXPERIMENTAL_DAGGER_RUNNER_HOST=tcp://127.0.0.1:8081`.
 
 Dagger builds `linux/amd64` → self-hosted registry (the only build/deploy contract) → swap starts the
-idle colour, health-gates, repoints Caddy, drains WS, stops old, runs smoke. `--dry-run` is default.
+idle colour for gateway/frontend, health-gates, repoints Caddy, drains WS, stops old, runs smoke. Backend swaps stop and prove every managed old writer before candidate startup, then gate migration, health and compatibility before any alias or routing exposure. `--dry-run` is default.
 It **refuses** on a dirty tree, a stale `release.json`, or an unbuilt executor bundle — those are the
 safety gates, not bugs. `deploy` builds the bundles itself via `dependsOn`.
 
@@ -72,12 +72,10 @@ nothing.
 `--version`, `--since` and `--skip-build` are **refused** — they were parsed and ignored
 until 2026-08-04, so `--version=v1.2.3` read as a rollback and deployed HEAD instead.
 
-**Step-code backfill.** A `be` swap ends with `backfill-step-codes`, after `stop-blue` and before
-`commit`. It runs `bun run src/backfill-step-codes-cli.ts` in the new colour, which codes every
-step an older release inserted without a code. If it fails, the new colour stays live, the swap
-exits non-zero and `commit` does not run. The error names the manual command,
+**Step-code backfill.** A `be` swap ends with `backfill-step-codes`, after `stop-blue` and before alias/routing exposure and `commit`. It runs `bun run src/backfill-step-codes-cli.ts` in the new colour, which codes every
+step an older release inserted without a code. If it fails, the candidate is stopped and inspected, the outgoing backend remains stopped, the interruption markers remain, and `commit` does not run. The error names the manual command,
 `docker exec be-01-<colour> bun run src/backfill-step-codes-cli.ts`. That command is idempotent:
-run it until it prints `step codes backfilled: <n>`, then rerun the deploy to record it
+run it until it prints `step codes backfilled: <n>`, then follow the backend interruption recovery procedure before another deploy
 (`backfillStepCodes` in `libs/wbs/adapters/store-sqlite/src/step-code-backfill.ts`).
 
 **Pre-migration backup.** A `be` swap runs `backup-db` between `stored-vocabularies` and
@@ -136,8 +134,7 @@ If it refuses, stop: the rename is unsafe, and the expand/contract route in
 `openspec/changes/steps-schema-rename/design.md` D2 applies. Keep the accepted output and the
 dump with the deploy record.
 
-**Restore.** Before `reload`, a failed swap rolls back by itself. After that, restore the
-pre-migration backup the swap printed. Stop both be-01 colours first, then run the restore from a
+**Restore.** Backend failures after durable stop intent require the attended recovery below. They never automatically reverse migrations, restart the older writer, or restore a snapshot. A pre-migration snapshot is evidence; after possible exposure, restoring it would discard candidate writes and is forbidden. Gateway/frontend retain their existing pre-reload cleanup. An explicitly authorized disaster recovery may use the pre-migration backup only after accounting for every write since that snapshot. Stop both be-01 colours first, then run the restore from a
 throwaway container of the new image:
 
 For a pre-route `be` abort, swap first captures the complete applied migration set from green,
@@ -189,10 +186,9 @@ not an application fault.
 
 **Code rollback with SS/FF rows.** The `be` swap compares the incoming binary's
 supported types with the shared database before migration, then checks again
-immediately after stopping the outgoing colour. An older image without
+after migration and health while the outgoing colour remains stopped, before candidate exposure. An older image without
 `relationship-types-cli.ts` is treated as FS-only. If either check finds unsupported
-types, the error lists their counts. A post-stop failure leaves the new colour serving,
-exits non-zero, and does not commit. Redeploy a release that understands those types,
+types, the error lists their counts. A compatibility failure before exposure stops and inspects the candidate, leaves the older writer stopped, retains interruption state, and does not commit. Redeploy a release that understands those types,
 or stop all typed-dependency writers and use a compatible container to `save` and `remove`
 the rows with the commands below. Copy the saved file off the host and keep it secure.
 Rerun the code deploy; no schema
@@ -607,3 +603,30 @@ Drain incompatible writers before enabling blockage writes: older structural wri
 can invalidate node ownership during a blue/green overlap. New blockage command
 history must also be covered by rollback compatibility when that command family is
 enabled; the persistence checkpoint alone is not a deployable feature.
+
+## Backend writer barrier recovery
+
+Every Compose `be` swap has an attended outage window. Before the outage the executor checks registry/pull, required environment files, the existing SQLite file with a readable nonempty ledger and integrity proof, rendered Compose/base configuration, live Caddy and exposure state, and the complete Docker mount inventory. It resolves writable mount sources with `realpath`; missing metadata or an unmanaged writable bind overlapping the data directory, a database file, or an ancestor refuses without stopping that container. Read-only mounts are permitted. Stop intent records outgoing and existing idle container IDs before either is stopped. Both IDs must inspect as stopped, unpaused and not restarting; a changed inventory refuses startup. A new candidate then passes fact/replay inventory, snapshot, durable captured migration set, migration, health, inventory recheck and step-code backfill. Exposure intent is durable before granting `be-01.internal`; only then may Caddy reload and state commit occur.
+
+The exclusive private files under `/home/puni1/wbs/state` are `be-writer-stop.json`, `be-writer-migration.json` and `be-writer-exposure.json`. An ordinary retry refuses any retained file, including malformed/unreadable state. Phase writes never replace these files. Only a fully recorded commit removes them. A failure after exposure leaves the candidate available and the older backend stopped. A failure before exposure stops and inspects the candidate; failed stop proof is reported loudly. Neither branch automatically reverses schema or restarts an older binary.
+
+Keep automation paused and use one attended recovery operator. Preserve markers, migration capture, snapshot and failure output off-host before changing them. An exposure file that exists, is unreadable, is malformed, or whose absence cannot be established means possible exposure: **do not run down, restart an incompatible older image, or restore an old snapshot**. Recover by retaining current writes and admitting a compatible candidate; this requires a reviewed operator decision. A commit whose marker cleanup failed also requires verifying recorded state and actual routing before removing its retained markers.
+
+Only with proven absence of exposure may pre-exposure recovery proceed:
+
+1. Read the stop marker and inspect its outgoing/idle exact IDs. Inspect the candidate's current exact ID, stop it by that ID and inspect `Id`, `State.Running=false`, `Paused=false`, `Restarting=false`, and `Status=exited|created`. Missing containers, missing tools or unreadable inspection are unresolved failures. Stop/prove both colours before any schema operation; do not stop an unmanaged container automatically.
+2. Read `be-writer-migration.json`, which records the original capture path, SHA-256, database path, target and attempt before the migration CLI runs. Use the exact digest-pinned network-none recovery command printed by the executor. If interrupted before it printed, reconstruct that same command from the retained metadata: mount the data directory writable and the original capture read-only, set its exact `DB_PATH`, run the candidate digest's `src/migrate-down-cli.ts` with `--capture-file`, the recorded `--capture-sha256`, `--target`, `--attempt` and `--candidate`. Never recompute a replacement digest to admit edited capture bytes. Absence of migration metadata means no forward migration was authorized; verify the ledger before proceeding. The CLI refuses an edited migration, changed capture or newer applied set. Keep the capture after success and compare a fresh migration capture with its recorded applied name/hash set; an exit code alone is insufficient.
+3. With writers still stopped, prove the proposed previous image can read every current fact and journal capability, using its immutable digest and the candidate digest:
+
+   ```sh
+   bun /home/puni1/wbs/bin/swap.js be --check-backend-recovery \
+     --previous-image=<previous-registry-ref@sha256:64hex> \
+     --image-be=<candidate-registry-ref@sha256:64hex> \
+     --database-path=/data/<actual-db-name>
+   ```
+
+   This takes the deploy lock, inspects all database writers as stopped, then runs only read-only, network-none one-offs. Candidate database probes are independent of the previous image's supported vocabularies. Step blockage facts and nested move/deletion replay markers are cumulative obligations. A refusal grants no restart and retains every interruption file. Fact save/remove cannot erase replay compatibility requirements.
+
+4. Only after the exact ledger and vocabulary proofs pass may the operator restore prior alias/routing and start the proven compatible previous digest. Verify its live health and Caddy routing, preserve the recovery evidence, and remove interruption files as a reviewed completion action. Never remove a marker merely to make an ordinary deploy retry proceed.
+
+`/internal/forward` remains a pure acknowledgment endpoint. Setter, import and activation-shaped socket frames confer no write or deploy authority. SQLite StepBlockage activation is a separate durable application boundary; this Compose barrier does not change its state or activate writes.

@@ -52,3 +52,11 @@
 - [ ] 6.3 Document historical parent-progress inventory/explicit repair and incompatible-writer overlap release obligations. Run `bin/h2puni-gate.sh <sha>` on the exact candidate when the shared gate checkout is clean; capture exact-SHA CI and migration-lint evidence before integration. Do not mark the WBS parent complete while unrelated gate dirt remains.
 
 - [x] 4.2.2 Plan-document direct transfer: allocate v9 on exact b4537c83; require root direct facts and exclude row aliases; normalize empty v1–8 facts and refuse nonempty legacy collections; validate owner/leaf/step/time/unique pairs; restore remapped identities and exact timestamps through the scoped import resource inside its existing unit of work; prove memory/SQLite roundtrip, mounted 400/export, full rollback and schedule neutrality; preserve Navigator external v7 with internal v9 adapter and saved schema7/scheduler16.
+
+## 6.4 Compose stopped-writer release barrier
+
+- [x] 6.4.1 Red planner ordering and durable retry/interruption negatives; preflight before stop, exact outgoing and idle IDs, complete canonical writable-mount inventory, independent stopped inspection, candidate gating and exposure before alias.
+- [x] 6.4.2 Replace backend overlap with the mandatory stopped-writer sequence; retain stop/migration/exposure evidence, refuse ordinary retries, keep older writers stopped on every failure, and provide digest-pinned attended schema/replay recovery without automatic restart.
+- [x] 6.4.3 Add full planned execution, partial alias failure, preflight/no-unrelated-stop, identity replacement, read-only/canonical alias, and real SQLite printed recovery proofs; watch production guard omissions fail and add adjacent Proof comments.
+- [x] 6.4.4 Run scoped test/lint/typecheck/format and strict OpenSpec validation; record outputs and retained limitations.
+- [ ] 6.4.5 Obtain Astra review before integration and combine the separate SQLite activation boundary. No live deployment belongs to this slice.

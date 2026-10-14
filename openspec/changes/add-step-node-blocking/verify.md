@@ -677,3 +677,92 @@ run ended at 3985 pass and the two stale export fixtures corrected above; its
 Auckland command was skipped by the UTC failure. The complete broad command
 exited1; it is not a green final gate. Focused final checks are recorded in
 `/tmp/puni-release-candidate-evidence/`.
+
+## Compose stopped-writer barrier — 2026-10-14
+
+Isolated clone `/tmp/puni-compose-barrier`, exact parent
+`4bb78ec2674869c2bfd18114ef4f39e05d403863`, branch
+`fix/compose-writer-barrier`. No root checkout, candidate branch, live database,
+container, push, merge or deployment was changed by this worker.
+
+The backend planner now requires preflight, exclusive durable stop intent, exact
+outgoing/idle stop and inspection, complete writer-identity recheck, candidate
+startup, fact/replay admission, backup/capture/migrate/health, admission recheck,
+backfill, durable possible-exposure intent, alias/route/reload, and recorded commit.
+Preflight includes local image pull, frozen validated environment/Compose files,
+read-only existing SQLite integrity and nonempty-ledger proof, Caddy/exposure and
+canonical writable mount inventory. Startup does not pull after the outage.
+
+Backend interruption has no automatic down, snapshot restore or older-writer
+restart. Original capture digest and identity are published before migration;
+possible exposure is published before the first alias operation. Phase writes do
+not erase those files. The attended read-only recovery CLI verifies stopped
+writers and independently compares stored facts/replay capabilities with a pinned
+previous digest. It grants no restart or marker deletion. The real SQLite test
+keeps the migrated database on failure, runs the printed pinned exact-set recovery
+command against disposable storage, compares restored tables/ledger, and retains
+stop intent.
+
+Fresh focused command:
+
+```sh
+bun test tools/tool-remote-scripts/src/swap.test.ts tools/tool-remote-scripts/src/swap-migration.db.test.ts tools/tool-remote-scripts/src/swap-writer-barrier.test.ts tools/tool-remote-scripts/src/lib/reconcile.test.ts tools/tool-remote-scripts/src/lib/writer-barrier.test.ts tools/tool-remote-scripts/src/lib/step-code-backfill.test.ts apps/wbs/be-01/src/controller/internal.integration.test.ts --timeout=10000
+```
+
+Output: **192 pass, 0 fail, 612 expectations**, seven files. Final log:
+`/tmp/compose-barrier-tests-final.log`.
+
+Watched production-path R5 faults, each removed after observing exit1:
+
+| Injected fault                                          | Observed negative                                                               |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Old start-first planner                                 | stopped-writer ordering: expected preflight index 0, received -1                |
+| Omit stop persistence                                   | exact-ID stop fixture observes ENOENT; six executor negatives fail              |
+| Omit stop inspection                                    | running, wrong-ID and missing-container startup negatives fail                  |
+| Omit stopped-state validation                           | running/wrong-ID/paused/restarting/malformed-state negatives: six fail          |
+| Omit ordinary retry refusal                             | second ordinary transition negative fails                                       |
+| Omit exposure persistence                               | partial alias failure observes missing exposure bytes                           |
+| Forget possible exposure                                | partial alias failure incorrectly stops candidate; two fail                     |
+| Omit unmanaged writer refusal                           | directory, DB-file and ancestor writable mounts: three fail                     |
+| Skip canonical path resolution                          | symlink-alias unmanaged writer negative fails                                   |
+| Treat read-only mount as writable                       | unrelated reader/no-stop negative fails                                         |
+| Omit mount metadata validation                          | missing Source/RW/Type: three fail                                              |
+| Omit complete identity recheck                          | replaced backend during outage negative fails                                   |
+| Omit migration identity persistence                     | planned migration cannot observe original capture identity; complete plan fails |
+| Omit Compose config preflight                           | frozen-input/no-pull preparation negative fails                                 |
+| Bypass read-only SQLite preflight                       | absent/corrupt/empty-ledger database negatives: three fail                      |
+| Omit mounted DB_PATH guard                              | outside-mount path refusal fails                                                |
+| Admit unsupported recovery replay                       | move_progress_v1 old-image recovery refusal fails                               |
+| Route stopped transition through legacy automatic abort | real SQLite candidate table is reversed; retained recovery negative fails       |
+| Omit committed barrier cleanup                          | complete plan still has retained stop intent; test fails                        |
+| Grant a write transaction to internal forward           | forged setter/import/activation frame test observes write calls and fails       |
+| Omit trusted state directory check                      | missing state root is incorrectly admitted; negative fails                      |
+
+Adjacent `Proof:` comments record these observations. Logs are named
+`/tmp/<fault-name>.log`; fresh restored green output is in the final test log.
+The intent/commit file helper also uses the existing independently proven
+exclusive, file-synced, directory-synced capture publisher. Malformed marker bytes
+refuse without being interpreted as authority.
+
+Scoped checks:
+
+```sh
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_TUI=false bunx nx run-many -t lint,typecheck -p tool-remote-scripts,wbs-be-01 --parallel=1 --output-style=stream
+bunx --package @fission-ai/openspec@1.12.0 openspec validate add-step-node-blocking --strict --json
+```
+
+Strict validation returned one valid change, zero issues. Initial scoped lint and
+typecheck ran all five targets without cache hits successfully; the final rerun
+and changed-file formatting are recorded below. The complete canonical h2puni
+gate, full monorepo tests/build, Caddy Docker rehearsal, browser suite, CI secrets
+and migration lint were not run by this worker. Astra review and integration
+remain pending. SQLite StepBlockage activation belongs to the separate marker
+slice; this change does not activate it or claim Kubernetes writer protection.
+
+Final scoped rerun passed all five lint/typecheck targets for the two projects;
+Nx reused two unchanged cached outputs, while the initial run was fully uncached.
+Log: `/tmp/compose-barrier-checks-final.log`. Changed-file Prettier reported all
+matched files formatted (`/tmp/compose-barrier-format-final.log`); strict OpenSpec
+rerun reported zero issues (`/tmp/compose-barrier-openspec-final.log`).
+`git diff --check` exited0. Astra review remains pending; these scoped checks are
+not the canonical exact-SHA host gate.

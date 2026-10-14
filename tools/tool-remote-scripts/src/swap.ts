@@ -16,9 +16,10 @@
 // resulting bundle still runs correctly when moved and executed from an
 // unrelated directory.
 import { createHash, randomUUID } from 'node:crypto';
-import { unlink } from 'node:fs/promises';
+import { realpath, unlink } from 'node:fs/promises';
 
 import { renderTemplate, siteCaddyTmpl, tierComposeTmpl } from '@tools/compose';
+import { Database } from 'bun:sqlite';
 
 import { writeAtomic } from './lib/atomic';
 import {
@@ -37,6 +38,7 @@ import {
   deriveTierSecrets,
   EDGE_CONTAINER,
   type EnvLayout,
+  envValuesOf,
   estimateUnitsCommand,
   grantAliasCommands,
   holdKindsCommand,
@@ -84,6 +86,12 @@ import { type Observed, planSwap, type SwapPlan, type SwapStep } from './lib/rec
 import { mcpExposureEnabled, routedColorFromAdminConfig, siteContext } from './lib/site';
 import { type Color, parseStateJson, renderStateJson, type Tier } from './lib/state';
 import { runStepCodeBackfill } from './lib/step-code-backfill';
+import {
+  assertNoWriterBarrier,
+  clearWriterBarrier,
+  type WriterIntent,
+  writeWriterBarrier,
+} from './lib/writer-barrier';
 
 // No REGISTRY here, deliberately. The publish address arrives as part of
 // `--image`, which is `release.json`'s `image` field passed through verbatim
@@ -501,6 +509,18 @@ export async function startGreen(
   phasePath: string,
   deps: StartGreenDeps = START_GREEN_DEPS,
 ): Promise<void> {
+  const start = await prepareGreen(tier, to, image, phasePath, deps);
+  await start();
+}
+
+/** Validates and freezes all candidate configuration before the writer outage. */
+export async function prepareGreen(
+  tier: Tier,
+  to: Color,
+  image: string,
+  phasePath: string,
+  deps: StartGreenDeps = START_GREEN_DEPS,
+): Promise<() => Promise<void>> {
   const appEnvPath = tierEnvFiles(tier)[0];
   const appEnvText = await deps.readText(appEnvPath);
   assertTierEnvAllowed(tier, appEnvText);
@@ -524,20 +544,97 @@ export async function startGreen(
     { ...CURRENT_ENV, oidcEnvPath: deps.oidcEnvPath },
   );
 
-  await deps.writePhaseFile(phasePath, 'preparing');
-  // Re-derive on every start, including an empty allowed set, so a stale
-  // secrets file cannot outlive deletion from the shared source. Mode 0600
-  // applies to the temp file at birth; there is no world-readable interval.
-  if (sharedEnvText !== null) {
-    const secrets = deriveTierSecrets(tier, sharedEnvText);
-    await deps.writeAtomicFile(tierSecretsFile(tier), secrets, 0o600);
-  }
-  const context = tierComposeContext(tier, to, image);
-  await deps.writeAtomicFile(tierComposeFile(tier, to), renderTemplate(tierComposeTmpl, context));
-  await deps.runDocker(composeUpArgs(tier, to));
+  const secrets = sharedEnvText === null ? null : deriveTierSecrets(tier, sharedEnvText);
+  const compose = renderTemplate(tierComposeTmpl, tierComposeContext(tier, to, image));
+  return async () => {
+    await deps.writePhaseFile(phasePath, 'preparing');
+    if (secrets !== null) await deps.writeAtomicFile(tierSecretsFile(tier), secrets, 0o600);
+    await deps.writeAtomicFile(tierComposeFile(tier, to), compose);
+    await deps.runDocker(composeUpArgs(tier, to));
+  };
 }
 
-// Steps at or before `reload` are still reversible: nothing client-facing has
+/** Pull/config/environment preflight finishes while the previous backend still serves. */
+export async function prepareBackend(
+  tier: Tier,
+  to: Color,
+  image: string,
+  phasePath: string,
+  deps: StartGreenDeps & { databaseHostRoot?: string } = START_GREEN_DEPS,
+): Promise<() => Promise<void>> {
+  const databasePaths: string[] = [];
+  const startCommands: string[][] = [];
+  const prepare = await prepareGreen(tier, to, image, phasePath, {
+    ...deps,
+    readText: async (path) => {
+      const contents = await deps.readText(path);
+      if (path === tierEnvFiles('be')[0]) {
+        const configuredPath = envValuesOf(contents).get('DB_PATH');
+        if (configuredPath === undefined) throw new Error('backend DB_PATH is absent');
+        databasePaths.push(configuredPath);
+      }
+      return contents;
+    },
+    writePhaseFile: () => Promise.resolve(),
+    runDocker: async (args) => {
+      startCommands.push(args.map((argument) => (argument === 'always' ? 'never' : argument)));
+      // Compose loads the frozen app/secrets/compose files and refuses missing
+      // base/network/env input before stop intent is published.
+      // Proof: omitting config validation failed the frozen-input/no-pull startup test before its expected config event.
+      return deps.runDocker([
+        'compose',
+        '-f',
+        `${ROOT}/base.yml`,
+        '-f',
+        tierComposeFile(tier, to),
+        'config',
+        '--quiet',
+      ]);
+    },
+  });
+  const databasePath = databasePaths.at(0);
+  // Proof: omitting mount-path validation failed the outside-DB_PATH preflight negative.
+  if (
+    databasePath === undefined ||
+    !/^\/data\/[A-Za-z0-9_./-]+$/.test(databasePath) ||
+    databasePath.includes('..')
+  )
+    throw new Error('backend DB_PATH is outside the mounted data directory');
+  // Proof: bypassing this read-only boundary admitted absent/corrupt/empty-ledger databases; all three negatives failed.
+  const sqlite = new Database(`${deps.databaseHostRoot ?? ROOT}${databasePath}`, {
+    readonly: true,
+    create: false,
+  });
+  try {
+    const checks = sqlite.query<{ quick_check: string }, []>('PRAGMA quick_check').all();
+    const ledger = sqlite
+      .query<{ count: number }, []>('SELECT count(*) AS count FROM __drizzle_migrations')
+      .get();
+    if (
+      checks.length !== 1 ||
+      checks[0]?.quick_check !== 'ok' ||
+      ledger === null ||
+      ledger.count <= 0
+    )
+      throw new Error(
+        'backend database preflight did not verify integrity and a nonempty migration ledger',
+      );
+  } finally {
+    sqlite.close();
+  }
+  await prepare();
+  const command = startCommands.at(0);
+  if (command === undefined)
+    throw new Error('backend Compose preflight did not prepare a start command');
+  return async () => {
+    await deps.writePhaseFile(phasePath, 'preparing');
+    await deps.runDocker(command);
+  };
+}
+
+// Gateway/frontend steps at or before `reload` retain legacy cleanup. Backend
+// transitions with durable writer intent use the separate no-rollback failure branch.
+// Nothing client-facing has
 // switched over yet (or, for `reload` itself, the switch is what's failing).
 // A failure anywhere in this window must delegate to `abortSwap`. Steps after
 // `reload` (`drain`, `revoke-alias`, `stop-blue`, `stored-vocabularies-after-stop`,
@@ -562,6 +659,17 @@ const ABORTABLE_STEPS: ReadonlySet<SwapStep> = new Set<SwapStep>([
  * `startGreen` and `containerIp`, keep their own IO.
  */
 export interface SwapExecutionIo {
+  /** Production uses validated, captured env configuration; tests inject host IO only. */
+  prepareGreen?: typeof prepareGreen;
+  preflightBackend?: (image: string) => Promise<void>;
+  healthGate?: (container: string) => Promise<void>;
+  barrierStateDir?: string;
+  resolveMount?: (path: string) => Promise<string>;
+  readRouting?: typeof liveRoutedColors;
+  readSite?: typeof readSiteCaddy;
+  readExposure?: typeof readMcpExposure;
+  reload?: typeof reloadCaddy;
+  readCaddyConfig?: typeof currentCaddyConfig;
   sh: (args: string[]) => Promise<string>;
   readPhase: typeof readPhase;
   writePhase: typeof writePhase;
@@ -579,7 +687,23 @@ export interface SwapExecutionIo {
 /** Where swap copies the retained capture inside green before exact-set rollback. */
 const CAPTURE_CONTAINER_DIR = '/tmp';
 
-const PRODUCTION_SWAP_IO: SwapExecutionIo = { sh, readPhase, writePhase, writeAtomic };
+const PRODUCTION_SWAP_IO: SwapExecutionIo = {
+  sh,
+  readPhase,
+  writePhase,
+  writeAtomic,
+  prepareGreen: prepareBackend,
+  resolveMount: realpath,
+  preflightBackend: async (image) => {
+    await preflightRegistry(image);
+    await sh(['pull', image]);
+    await liveRoutedColors();
+    await readMcpExposure(CURRENT_ENV);
+    const previous = await readSiteCaddy();
+    if (!shouldRestoreSiteCaddy(previous))
+      throw new Error('backend preflight requires readable nonempty site.caddy');
+  },
+};
 
 /**
  * A closed set the database stores and a release must be able to read before
@@ -788,7 +912,7 @@ async function assertSupported(
   if (afterStop) {
     throw new Error(
       `stored ${vocabulary.name} unsupported by ${container} after the outgoing colour stopped: ${values}. ` +
-        `The new colour is serving and this swap cannot commit. Redeploy a release that understands these ${vocabulary.name}, ` +
+        `The candidate cannot be admitted and this swap cannot commit. Redeploy a release that understands these ${vocabulary.name}, ` +
         `or save and remove the rows with ${vocabulary.recoveryCli} save|remove as described in ${runbook}`,
     );
   }
@@ -802,8 +926,8 @@ async function assertSupported(
 
 /**
  * The `stored-vocabularies` steps: every {@link STORED_VOCABULARIES} entry the
- * incoming release must read, checked before migrating and again after the
- * outgoing colour stops, when nothing else can write.
+ * incoming release must read. Backend plans check before migration and again
+ * after migration/health, while all previous writer identities remain stopped.
  */
 async function assertSupportedVocabularies(
   container: string,
@@ -841,6 +965,201 @@ export function parseBackupReport(output: string, expectedPath: string): string 
   return expectedPath;
 }
 
+/** Quoted digest-pinned one-off recovery survives candidate shutdown and retains capture identity. */
+function pinnedRecoveryCommand(
+  image: string,
+  capture: {
+    path: string;
+    identity: MigrationSetIdentity;
+    serialized: string;
+    databasePath: string;
+  },
+): string {
+  return [
+    'docker',
+    'run',
+    '--rm',
+    '--network',
+    'none',
+    '--mount',
+    `type=bind,source=${ROOT}/data,target=/data`,
+    '--mount',
+    `type=bind,source=${capture.path},target=/migration-capture.json,readonly`,
+    '-e',
+    `DB_PATH=${capture.databasePath}`,
+    '--entrypoint',
+    'bun',
+    image,
+    'run',
+    'src/migrate-down-cli.ts',
+    '--capture-file=/migration-capture.json',
+    `--capture-sha256=${createHash('sha256').update(capture.serialized).digest('hex')}`,
+    `--target=${capture.identity.target}`,
+    `--attempt=${capture.identity.attempt}`,
+    `--candidate=${capture.identity.candidate}`,
+  ]
+    .map((argument) => `'${argument.replaceAll("'", "'\\''")}'`)
+    .join(' ');
+}
+
+/**
+ * Inventories every Docker mount before an outage; only the two known backend
+ * colours may hold the shared writable data bind. Unknown writers refuse.
+ */
+export async function inspectBackendWriters(
+  runDocker: SwapExecutionIo['sh'],
+  resolveMount: (path: string) => Promise<string> = (path) => Promise.resolve(path),
+): Promise<Map<string, string>> {
+  const dataRoot = await resolveMount(`${ROOT}/data`);
+  const listed = (await runDocker(['ps', '--all', '--quiet', '--no-trunc'])).trim();
+  if (listed === '') return new Map();
+  const identities = listed.split('\n');
+  if (identities.some((identity) => !/^[a-f0-9]{64}$/.test(identity)))
+    throw new Error('Docker writer inventory contains malformed container identities');
+  const inspected: unknown = JSON.parse(await runDocker(['inspect', ...identities]));
+  if (!Array.isArray(inspected) || inspected.length !== identities.length)
+    throw new Error('Docker writer inventory is incomplete');
+  const writers = new Map<string, string>();
+  const observed = new Set<string>();
+  for (const container of inspected) {
+    if (container === null || typeof container !== 'object')
+      throw new Error('Docker writer inspection is malformed');
+    const identity: unknown = Reflect.get(container, 'Id');
+    const name: unknown = Reflect.get(container, 'Name');
+    const mounts: unknown = Reflect.get(container, 'Mounts');
+    if (
+      typeof identity !== 'string' ||
+      !identities.includes(identity) ||
+      observed.has(identity) ||
+      typeof name !== 'string' ||
+      !/^\/[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(name) ||
+      !Array.isArray(mounts)
+    )
+      throw new Error('Docker writer inspection is malformed');
+    observed.add(identity);
+    let ownsData = false;
+    for (const mount of mounts) {
+      if (mount === null || typeof mount !== 'object')
+        throw new Error('Docker mount inspection is malformed');
+      const source: unknown = Reflect.get(mount, 'Source');
+      const writable: unknown = Reflect.get(mount, 'RW');
+      const kind: unknown = Reflect.get(mount, 'Type');
+      // Proof: omitting validation failed missing Source/RW/Type cases on the production inventory path.
+      if (
+        typeof source !== 'string' ||
+        typeof writable !== 'boolean' ||
+        typeof kind !== 'string' ||
+        !['bind', 'volume', 'tmpfs', 'npipe', 'cluster', 'image'].includes(kind)
+      )
+        throw new Error('Docker mount inspection is malformed');
+      // A tmpfs has no host filesystem identity and cannot alias this SQLite bind.
+      // Proof: treating read-only mounts as writable failed the unrelated reader/no-stop case.
+      if (!writable || (kind === 'tmpfs' && source === '')) continue;
+      if (!source.startsWith('/'))
+        throw new Error('writable Docker mount has no absolute host source');
+      // Proof: bypassing realpath admitted the symlink-alias unmanaged writer; its negative failed.
+      const canonicalSource = await resolveMount(source);
+      if (
+        canonicalSource === dataRoot ||
+        canonicalSource.startsWith(`${dataRoot}/`) ||
+        dataRoot.startsWith(`${canonicalSource.replace(/\/$/, '')}/`)
+      )
+        ownsData = true;
+    }
+    const isBackend =
+      name === `/${containerName('be', 'blue')}` || name === `/${containerName('be', 'green')}`;
+    // Proof: omitting this refusal admitted unmanaged writable directory/file/ancestor binds; all three negatives failed.
+    if (ownsData && !isBackend)
+      throw new Error(`unmanaged database writer ${identity}; explicit recovery required`);
+    if (isBackend) {
+      if (!ownsData) throw new Error(`backend ${identity} lacks the expected writable data mount`);
+      if (writers.has(name.slice(1)))
+        throw new Error('Docker writer inventory repeats a backend name');
+      writers.set(name.slice(1), identity);
+    }
+  }
+  return writers;
+}
+
+/**
+ * Read-only admission proof for attended recovery. Both colours and every known
+ * writer must be stopped. The candidate independently inventories the database;
+ * the proposed previous digest must understand every fact and journal capability.
+ * This proof grants no write authority and never restarts a container.
+ */
+export async function checkBackendRecovery(
+  previousImage: string,
+  candidateImage: string,
+  databasePath: string,
+  runDocker: SwapExecutionIo['sh'],
+  resolveMount: (path: string) => Promise<string> = (path) => Promise.resolve(path),
+): Promise<void> {
+  assertDigestPinnedRef(previousImage, 'be');
+  assertDigestPinnedRef(candidateImage, 'be');
+  if (!/^\/data\/[A-Za-z0-9_./-]+$/.test(databasePath) || databasePath.includes('..'))
+    throw new Error('recovery DB_PATH is outside the mounted data directory');
+  for (const identity of (await inspectBackendWriters(runDocker, resolveMount)).values())
+    await assertContainerStopped(identity, runDocker);
+  const oneOff = (image: string, command: string[]): string[] => [
+    'run',
+    '--rm',
+    '--network',
+    'none',
+    '--mount',
+    `type=bind,source=${ROOT}/data,target=/data,readonly`,
+    '-e',
+    `DB_PATH=${databasePath}`,
+    '--entrypoint',
+    command[0] ?? '',
+    image,
+    ...command.slice(1),
+  ];
+  for (const vocabulary of STORED_VOCABULARIES) {
+    const supported = parseSupported(
+      await runDocker(oneOff(previousImage, vocabulary.supportedCommand('recovery').slice(2))),
+      vocabulary,
+    );
+    const stored = parseStored(
+      await runDocker(oneOff(candidateImage, vocabulary.storedCommand('recovery').slice(2))),
+      vocabulary,
+    );
+    const unsupported = stored.filter((row) => !supported.includes(row.value));
+    // Proof: omitting this comparison admitted move_progress_v1 during attended old-image recovery.
+    if (unsupported.length > 0)
+      throw new Error(
+        `recovery image cannot read stored ${vocabulary.name}: ${unsupported.map((row) => `${row.value} (${String(row.count)})`).join(', ')}`,
+      );
+  }
+}
+
+/** Exact container identity and stopped state must both be observed after Docker stop. */
+export async function assertContainerStopped(
+  container: string,
+  runDocker: SwapExecutionIo['sh'],
+): Promise<void> {
+  const reported: unknown = JSON.parse(
+    await runDocker(['inspect', '--format', '{{json .}}', container]),
+  );
+  if (reported === null || typeof reported !== 'object')
+    throw new Error('stopped container inspection is malformed');
+  const identity: unknown = Reflect.get(reported, 'Id');
+  const state: unknown = Reflect.get(reported, 'State');
+  // Proof: omitting validation admitted running/wrong-ID/paused/restarting/malformed states; six negatives failed.
+  if (
+    typeof identity !== 'string' ||
+    !/^[a-f0-9]{64}$/.test(identity) ||
+    (/^[a-f0-9]{64}$/.test(container) && identity !== container) ||
+    state === null ||
+    typeof state !== 'object' ||
+    Reflect.get(state, 'Running') !== false ||
+    Reflect.get(state, 'Paused') !== false ||
+    Reflect.get(state, 'Restarting') !== false ||
+    !['exited', 'created'].includes(String(Reflect.get(state, 'Status')))
+  ) {
+    throw new Error(`container ${container} is not proven stopped`);
+  }
+}
+
 export async function execute(
   plan: SwapPlan,
   image: string,
@@ -851,6 +1170,12 @@ export async function execute(
   const phasePath = `${ROOT}/state/${tier}.phase`;
   const greenName = containerName(tier, to);
 
+  const barrierRoot = io.barrierStateDir ?? CURRENT_ENV.stateDir;
+  let startPrepared: (() => Promise<void>) | null = null;
+  let writerIntent: WriterIntent | null = null;
+  let writerStopped = false;
+  let stopProven = false;
+  let possiblyExposed = false;
   // Captured before this attempt writes anything, so an abort can put the
   // phase marker back to exactly what it said before — it must never
   // contradict be.json, which an aborted swap also leaves untouched.
@@ -1067,8 +1392,63 @@ export async function execute(
     console.log(`[swap-${tier}] ${step}`);
     try {
       switch (step) {
+        case 'preflight-green': {
+          // Proof: removing this read admitted a second ordinary transition; the retry negative failed.
+          await assertNoWriterBarrier(barrierRoot);
+          assertDigestPinnedRef(image, tier);
+          if (io.preflightBackend !== undefined) await io.preflightBackend(image);
+          startPrepared = await (io.prepareGreen ?? prepareGreen)(tier, to, image, phasePath);
+          const writers = await inspectBackendWriters(io.sh, io.resolveMount);
+          const outgoingId = from === null ? null : writers.get(containerName(tier, from));
+          if (outgoingId === undefined)
+            throw new Error('outgoing backend container is absent from writer inventory');
+          const idleId = writers.get(greenName) ?? null;
+          // With no routed/recorded colour, a writer on the other colour is unowned.
+          if (from === null && writers.has(containerName(tier, to === 'blue' ? 'green' : 'blue')))
+            throw new Error('unowned backend writer exists; explicit recovery required');
+          writerIntent = { candidate: image, sha, from, to, outgoingId, idleId };
+          break;
+        }
+        case 'record-writer-stop':
+          if (writerIntent === null) throw new Error('backend stop intent lacks preflight');
+          // Proof: omitting persistence failed the exact-ID stop fixture before candidate start (ENOENT).
+          await writeWriterBarrier(barrierRoot, 'stop', writerIntent);
+          writerStopped = true;
+          break;
+        case 'verify-blue-stopped': {
+          if (writerIntent === null) throw new Error('backend stop proof lacks identity');
+          // Proof: omitting inspection failed the running/wrong-ID/missing-container negatives.
+          if (writerIntent.outgoingId !== null)
+            await assertContainerStopped(writerIntent.outgoingId, io.sh);
+          if (writerIntent.idleId !== null && writerIntent.idleId !== undefined)
+            await assertContainerStopped(writerIntent.idleId, io.sh);
+          const remaining = await inspectBackendWriters(io.sh, io.resolveMount);
+          const expected = [writerIntent.outgoingId, writerIntent.idleId]
+            .filter((identity): identity is string => typeof identity === 'string')
+            .sort();
+          // Proof: omitting equality admitted a replaced backend ID after stop; the race negative failed.
+          if (JSON.stringify([...remaining.values()].sort()) !== JSON.stringify(expected))
+            throw new Error(
+              'database writer identities changed during stop; explicit recovery required',
+            );
+          stopProven = true;
+          break;
+        }
+        case 'record-writer-exposure':
+          if (writerIntent === null || !stopProven)
+            throw new Error('backend exposure lacks stopped-writer proof');
+          // Proof: omitting persistence failed the partial-alias-failure negative on missing exposure bytes.
+          await writeWriterBarrier(barrierRoot, 'exposure', writerIntent);
+          // Proof: forgetting exposure stopped the partly-exposed candidate; partial-alias failure negative failed.
+          possiblyExposed = true;
+          break;
+
         case 'start-green': {
-          await startGreen(tier, to, image, phasePath);
+          if (writerStopped) {
+            if (!stopProven) throw new Error('candidate startup lacks stopped-writer proof');
+            if (startPrepared === null) throw new Error('candidate lacks preflight');
+            await startPrepared();
+          } else await startGreen(tier, to, image, phasePath);
           break;
         }
 
@@ -1139,11 +1519,29 @@ export async function execute(
             serialized,
             databasePath,
           };
+          if (writerStopped) {
+            if (writerIntent === null) throw new Error('migration capture lacks writer intent');
+            // Proof: omitting publication failed the complete planned swap before migration could observe its original capture identity.
+            await writeWriterBarrier(barrierRoot, 'migration', {
+              ...writerIntent,
+              capture: {
+                path,
+                sha256: createHash('sha256').update(serialized).digest('hex'),
+                databasePath,
+                target: identity.target,
+                attempt: identity.attempt,
+              },
+            });
+          }
           await io.sh(migrateCommand(greenName));
           break;
         }
 
         case 'health-gate': {
+          if (io.healthGate !== undefined) {
+            await io.healthGate(greenName);
+            break;
+          }
           const ip = await containerIp(greenName);
           const ok = await waitForHealthy({
             url: `http://${ip}:${String(PORT[tier])}${HEALTH_PATH[tier]}`,
@@ -1165,6 +1563,8 @@ export async function execute(
         }
 
         case 'grant-alias':
+          if (writerStopped && !possiblyExposed)
+            throw new Error('alias grant lacks persisted exposure boundary');
           // Incoming colour only — see lib/docker.ts's grantAliasCommands doc
           // comment for why this must run before render-route/reload (nothing
           // routes to this colour yet, so briefly disconnecting/reconnecting
@@ -1194,15 +1594,19 @@ export async function execute(
           // caught by the outer try/catch below and delegated to abortSwap —
           // by this point grant-alias may already have moved be-01.internal
           // to green, which is exactly the window abortSwap exists to close.
-          const colors = await liveRoutedColors();
+          const colors = await (io.readRouting ?? liveRoutedColors)();
           colors[tier] = to;
           const rendered = renderTemplate(
             siteCaddyTmpl,
-            siteContext(colors, SITE_ADDRESS, await readMcpExposure(CURRENT_ENV)),
+            siteContext(
+              colors,
+              SITE_ADDRESS,
+              await (io.readExposure ?? readMcpExposure)(CURRENT_ENV),
+            ),
           );
           // Captured before the write, so abortSwap can put the file back
           // exactly as it found it.
-          siteTextBefore = await readSiteCaddy();
+          siteTextBefore = await (io.readSite ?? readSiteCaddy)();
           await io.writeAtomic(SITE_CADDY_PATH, rendered);
           break;
         }
@@ -1221,12 +1625,12 @@ export async function execute(
           // thrown bare here and delegated to abortSwap by the outer
           // try/catch: the reload command itself failing, and the reload
           // exiting 0 without actually changing routing.
-          await reloadCaddy();
+          await (io.reload ?? reloadCaddy)();
           // Trust, but verify: reload exiting 0 only means the config was
           // syntactically valid, not that it's the config we think it is (see
           // currentCaddyConfig's doc comment — this is precisely how the
           // "reload silently no-ops" failure mode stayed invisible before).
-          const liveConfig = await currentCaddyConfig();
+          const liveConfig = await (io.readCaddyConfig ?? currentCaddyConfig)();
           // `liveConfig.includes(greenName)` was the check here, and it asked a
           // weaker question than the one that matters: whether the name occurs
           // anywhere in the whole dump, in any site, in any field. It passes on
@@ -1296,7 +1700,11 @@ export async function execute(
 
         case 'stop-blue':
           await io.writePhase(phasePath, 'old-stopped');
-          if (from !== null) await io.sh(['stop', containerName(tier, from)]);
+          if (writerIntent !== null) {
+            if (writerIntent.outgoingId !== null) await io.sh(['stop', writerIntent.outgoingId]);
+            if (writerIntent.idleId !== null && writerIntent.idleId !== undefined)
+              await io.sh(['stop', writerIntent.idleId]);
+          } else if (from !== null) await io.sh(['stop', containerName(tier, from)]);
           break;
 
         case 'stored-vocabularies-after-stop':
@@ -1325,9 +1733,43 @@ export async function execute(
           if (migrationCapture !== null) {
             await (io.removeCapture ?? ((file) => unlink(file)))(migrationCapture.path);
           }
+          // Proof: omitting cleanup failed the complete planned commit on retained interruption state.
+          if (writerStopped) await clearWriterBarrier(barrierRoot, migrationCapture !== null);
           break;
       }
     } catch (e: unknown) {
+      // Proof: routing this branch through legacy abort reversed the SQLite candidate; the real stopped-transition recovery test failed.
+      if (writerStopped) {
+        // Once stop intent is durable, interruption is an attended recovery state.
+        // Never reverse schema or restart an older writer after possible exposure.
+        let stopFailure = '';
+        if (!possiblyExposed && step !== 'stop-blue' && step !== 'verify-blue-stopped') {
+          try {
+            const candidateId = (await io.sh(['inspect', '--format', '{{.Id}}', greenName])).trim();
+            if (!/^[a-f0-9]{64}$/.test(candidateId))
+              throw new Error('candidate container identity is absent or malformed', { cause: e });
+            await io.sh(['stop', candidateId]);
+            await assertContainerStopped(candidateId, io.sh);
+          } catch (cause) {
+            stopFailure = `; CANDIDATE STOP UNPROVEN: ${cause instanceof Error ? cause.message : String(cause)}`;
+          }
+        }
+        const capture =
+          migrationCapture === null
+            ? ''
+            : `; retained migration capture ${migrationCapture.path} sha256=${createHash('sha256').update(migrationCapture.serialized).digest('hex')}`;
+        const recovery =
+          possiblyExposed || migrationCapture === null
+            ? ''
+            : `; after BOTH backend containers are stopped and inspected, exact-set schema recovery: ${pinnedRecoveryCommand(image, migrationCapture)}`;
+        throw new Error(
+          `backend transition failed during ${step}: ${e instanceof Error ? e.message : String(e)}; ` +
+            `explicit recovery required; retain ${barrierRoot}/be-writer-stop.json and exposure marker; ` +
+            `never restart ${from ?? 'an older writer'} or restore a snapshot after possible exposure; ` +
+            `candidate pinned image ${image}${capture}${recovery}${stopFailure}; see docs/runbook-prod-deploy.md#backend-writer-barrier-recovery`,
+          { cause: e },
+        );
+      }
       if (ABORTABLE_STEPS.has(step)) {
         // abortSwap's return type is `Promise<never>` — it always throws, so
         // this call is what actually propagates the failure. Nothing below
@@ -1456,6 +1898,22 @@ function imagesFor(tiers: Tier[]): { tier: Tier; image: string }[] {
 
 async function main(): Promise<void> {
   const tiers = parseTierList(process.argv[2] ?? '');
+
+  if (process.argv.includes('--check-backend-recovery')) {
+    if (tiers.length !== 1 || tiers[0] !== 'be')
+      throw new Error('backend recovery proof requires only be');
+    const previous = argOf('previous-image');
+    const candidate = argOf('image-be');
+    await preflightRegistry(assertDigestPinnedRef(previous, 'be'));
+    await preflightRegistry(assertDigestPinnedRef(candidate, 'be'));
+    await withLock(`${ROOT}/state/deploy.lock`, async () => {
+      await checkBackendRecovery(previous, candidate, argOf('database-path'), sh, realpath);
+    });
+    console.log(
+      '[swap-be] recovery vocabulary proof passed; writers remain stopped; interruption markers retained',
+    );
+    return;
+  }
 
   // Registry reachability/auth check on its own, with no lock and no state
   // change: tool-deploy runs this for every tier before executing any of

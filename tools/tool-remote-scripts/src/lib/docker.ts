@@ -359,7 +359,7 @@ export interface TierEnvSources {
 }
 
 /** `KEY=VALUE` lines keyed by name, with `envKeysOf`'s skip rules; a later line wins, as in `env_file`. */
-function envValuesOf(envText: string): Map<string, string> {
+export function envValuesOf(envText: string): Map<string, string> {
   const values = new Map<string, string>();
   for (const rawLine of envText.split('\n')) {
     const line = rawLine.trim();

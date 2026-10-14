@@ -203,3 +203,11 @@ Navigator accepts external v7 and v8: both strict wire shapes exclude the new
 root field, while their internal adapters supply v9 and empty facts. External v9
 remains refused. Version 7 retains task schema1 with workday estimates; version 8
 retains task schema2 with native estimate units. Schedule calculations and progress are independent of these facts.
+
+## Compose stopped-writer transition (task 6.4)
+
+Every backend swap now stops previous writers before candidate startup. Preflight pulls locally and freezes/validates app, OIDC, secret and Compose inputs while the previous backend serves; startup uses `--pull never`. Docker's complete container inventory is inspected for canonical writable host paths overlapping the shared data mount. Only the two managed backend colours may hold such a mount; unknown writers refuse without receiving stop commands. Stop intent stores exact outgoing and existing idle IDs, both are stopped and inspected, and the complete identity inventory is checked again before startup.
+
+The candidate performs pre-migration fact/replay admission, backup, durable exact migration capture, migration, health, final admission and backfill before exposure. Separate exclusive directory-synced stop, capture-identity and exposure records survive ordinary phase writes and process loss. Exposure is recorded before the first alias-grant attempt because a failing Docker network call may have exposed the candidate. A commit alone clears these records. Any retained record blocks ordinary retries.
+
+Backend failure after durable stop intent has no automatic schema reversal, snapshot restore or previous-image restart. Before exposure, candidate cleanup stops and verifies its exact identity; failure keeps all evidence and reports uncertain cleanup. After possible exposure, the candidate remains available and the previous writer stays stopped. Attended pre-exposure recovery uses the candidate's pinned network-none one-off exact-set down command, the recorded capture hash/identity, fresh ledger equality, and read-only fact/replay admission against the proposed previous digest. The read-only recovery CLI never starts a writer or clears markers. The runbook owns the complete procedure. SQLite StepBlockage activation remains a separate application boundary and is not changed by this transition.

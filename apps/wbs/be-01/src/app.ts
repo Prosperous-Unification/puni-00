@@ -578,6 +578,7 @@ export function mountedEndpoints(
     ...internalRoutes({
       // A deliberate pure ack: every mutation is an HTTP call to be-01, so a
       // client socket message has no write authority.
+      // Proof: granting a unit-of-work turn here failed forged setter/import/activation frames on nonempty write calls.
       onForward: () => Promise.resolve({ push_responses: [] }),
       onResume: (points) => opts.replay.replay(points),
       projects: opts.projects,

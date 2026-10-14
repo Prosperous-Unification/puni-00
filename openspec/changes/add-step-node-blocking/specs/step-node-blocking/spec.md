@@ -480,3 +480,48 @@ identities, and preserve exact timestamps within the import transaction.
 - **WHEN** Navigator receives external v7 or v8
 - **THEN** it adapts to internal v9 with empty direct facts
 - **AND** external v9 remains refused before output files are written
+
+### Requirement: Compose backend transitions stop every prior database writer before candidate startup
+
+Every Compose backend swap SHALL complete registry, local image pull, environment, Compose, Caddy, exposure-state and writable database mount inventory preflight before any writer outage. Unmanaged writable mounts, including canonical path aliases and overlapping ancestor/file binds, and malformed or unreadable inventory SHALL refuse without stopping unrelated containers. Read-only mounts MAY remain. The executor SHALL durably publish stop intent before stopping outgoing and pre-existing idle container exact identities. It SHALL inspect each identity stopped, unpaused and not restarting and revalidate the complete identity set before starting the candidate. Candidate migration, health, fact/replay compatibility and backfill SHALL precede any alias or routing exposure.
+
+#### Scenario: Old structural writers cannot overlap new blockage writers
+
+- **GIVEN** an outgoing backend can insert a child without accounting for step blockage and an idle backend exists
+- **WHEN** a Compose backend swap runs
+- **THEN** both exact old container identities are stopped and independently inspected before the candidate starts
+- **AND** a zero-exit stop whose inspection is running, missing, malformed, replaced, paused or restarting refuses startup
+
+#### Scenario: Preflight cannot establish an exclusive writer set
+
+- **GIVEN** a malformed inventory or an unmanaged writable mount overlapping the shared database
+- **WHEN** backend preflight runs
+- **THEN** it refuses before stop intent or any container stop
+- **AND** read-only unrelated mounts are accepted without receiving stop commands
+
+### Requirement: Interrupted backend transitions retain explicit recovery authority boundaries
+
+Stop, migration-capture identity and possible-exposure intent SHALL be exclusively published and synced before their corresponding actions. Ordinary retries SHALL refuse retained markers, malformed/unreadable markers and missing trusted state directories. Phase writes SHALL NOT erase those markers. Possible-exposure intent SHALL precede the first alias-grant attempt. Only recorded candidate commit SHALL remove markers. Failure SHALL retain captures and never automatically reverse schema, restore a snapshot or restart the older writer. A pre-exposure candidate cleanup SHALL stop and inspect its exact identity; uncertain cleanup SHALL report failure loudly. After possible exposure the candidate MAY remain available while the older writer remains stopped.
+
+#### Scenario: Alias grant partly applies before throwing
+
+- **WHEN** a backend alias operation partly applies and then fails
+- **THEN** exposure intent already exists, ordinary retry refuses, and no older writer restarts or schema/snapshot rollback runs
+
+#### Scenario: A pre-exposure candidate fails after migration
+
+- **WHEN** the candidate fails health before alias exposure
+- **THEN** it is stopped and inspected, the outgoing writer remains stopped, and the migrated database and original capture remain
+- **AND** the failure names digest-pinned network-none exact-set manual recovery with the recorded capture digest and identity
+
+#### Scenario: Attended old-image recovery encounters retained replay history
+
+- **GIVEN** all backend writers are stopped and the proposed previous image lacks a stored fact or nested journal replay capability
+- **WHEN** read-only attended recovery admission runs
+- **THEN** it refuses before any restart and retains interruption state
+- **AND** schema recovery must prove the captured applied ledger exactly before a compatible older image may restart
+
+#### Scenario: Socket frames cannot grant mutation or activation authority
+
+- **WHEN** an authenticated internal forward contains setter, import or activation-shaped frames
+- **THEN** it only acknowledges and creates no command event or write authority
