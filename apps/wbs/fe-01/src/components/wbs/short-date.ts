@@ -113,6 +113,23 @@ export function shortIsoDate(iso: string, today: Date): string {
  * Padded, so a year ending in a single digit still reads as a year: `'05` and
  * not `'5`.
  */
+/**
+ * A calendar day with its year always written: `2026-09-19` → `19 Sep 2026`.
+ *
+ * The same day-month words as {@link shortIsoDate}, for a control that names
+ * one day on its own — the plan's Starts — where a cell's "this year goes
+ * without saying" has no column of neighbours to say it.
+ *
+ * @throws {MalformedDayError} When `iso` is not a `YYYY-MM-DD` calendar day.
+ */
+export function longIsoDate(iso: string): string {
+  const parts = CALENDAR_DAY.exec(iso);
+  if (parts === null) throw new MalformedDayError(iso);
+  const day = Number(parts[3]);
+  if (day < 1 || day > 31) throw new MalformedDayError(iso);
+  return `${String(day)} ${monthNamed(Number(parts[2]), iso)} ${parts[1]}`;
+}
+
 function offYear(year: number): string {
   return `'${String(year % 100).padStart(2, '0')}`;
 }

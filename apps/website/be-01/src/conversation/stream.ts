@@ -177,6 +177,8 @@ export interface ConfirmedReplyOptions {
   /** Receives the provider's generation id once, from the first raw chunk that carries one. */
   recordGeneration(generationId: string): void;
   isCompleted(): boolean;
+  /** Reads durable ownership and erasure state; false cancels this attempt, including after another process's cleanup. */
+  canContinue(): boolean;
 }
 
 /**
@@ -190,7 +192,10 @@ export interface ConfirmedReplyOptions {
  * have streamed before the refusal, so the decline is sent as a `data-reply-replace` part
  * ({@link replyReplacePart}) after every open text part is ended: the replacement supersedes the
  * partial text and the folded stream equals the stored reply. Ordinary replies still stream token
- * by token.
+ * by token. Durable cancellation is checked every 50 ms while the provider is running and before
+ * forwarding each chunk; completion remains fenced by the store. Cleanup in another process therefore aborts an idle
+ * provider and suppresses subsequent publication, including queued provider chunks. Already delivered text
+ * cannot be recalled. The watcher is released with the provider deadline on every terminal outcome.
  */
 export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
   const abort = new AbortController();
@@ -198,6 +203,7 @@ export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
   const completion = Promise.withResolvers<boolean>();
   const release = () => {
     clearTimeout(deadline);
+    clearInterval(cancellation);
     options.aborts.delete(options.operationId);
     completion.resolve(true);
   };
@@ -207,6 +213,10 @@ export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
     completion.resolve(true);
     abort.abort();
   }, replyDeadlineMilliseconds);
+  // Proof: removing this watcher left the provider signal live in the cleanup-process idle-stream test.
+  const cancellation = setInterval(() => {
+    if (!options.canContinue()) abort.abort();
+  }, 50);
   const injectedFetch = options.pin.fetch;
   const providerFetch = injectedFetch
     ? Object.assign(
@@ -324,6 +334,9 @@ export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
         const openTextIds = new Set<string>();
         try {
           for await (const chunk of wire) {
+            // Proof: removing this fence published SECRET LATE REPLY in the cleanup-before-polling-tick test.
+            if (!options.canContinue()) abort.abort();
+            if (abort.signal.aborted) continue;
             if (chunk.type === 'text-start') openTextIds.add(chunk.id);
             else if (chunk.type === 'text-end') openTextIds.delete(chunk.id);
             if (chunk.type === 'finish') finishChunk = chunk;
@@ -333,13 +346,24 @@ export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
           }
           await completion.promise;
           if (connected) {
-            if (declined && options.isCompleted()) {
+            if (
+              !abort.signal.aborted &&
+              options.canContinue() &&
+              declined &&
+              options.isCompleted()
+            ) {
               for (const id of openTextIds) controller.enqueue({ type: 'text-end', id });
               // Proof: streaming the decline as appended text deltas instead glued it to the partial
               // reply in the mounted partial-text refusal tests and in the browser regression.
               controller.enqueue({ type: replyReplacePart, data: { text: decline.reply } });
               controller.enqueue({ type: 'finish', finishReason: 'stop' });
-            } else if (options.isCompleted() && finishChunk) controller.enqueue(finishChunk);
+            } else if (
+              !abort.signal.aborted &&
+              options.canContinue() &&
+              options.isCompleted() &&
+              finishChunk
+            )
+              controller.enqueue(finishChunk);
             else
               controller.enqueue({
                 type: 'error',

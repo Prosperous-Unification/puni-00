@@ -1217,7 +1217,7 @@ describe('dependencies in the table', () => {
       // `0 / 4 / 4` expects `(0 + 16 + 4) / 6` = 3.33… days. Displayed to one
       // decimal, because a column of `3.3333333333333335` is unreadable — and
       // rounded only here, never in the schedule.
-      expect(row?.querySelector('[data-start]')?.textContent).toBe('3.3');
+      expect(row?.querySelector('[data-start]')?.textContent).toBe('day 3.3');
     });
   });
 
@@ -1331,10 +1331,23 @@ describe('dependencies in the table', () => {
     // 'linear-gradient'`; the fade applied unconditionally, it failed at the
     // assertion below the focus — the picker open — on
     // `expected 'linear-gradient(to right, #000 calc(1…' to be ''`.
+    //
+    // Since F-033 (2026-10-13) one chip is held inside the strip whole or with
+    // an ellipsis, so the fade is for a second chip, the only one that can be
+    // cut. Proof: the `chipCount > 1` condition dropped, the one-chip
+    // assertion failed on `expected 'linear-gradient(…' to be ''`. Watched
+    // 2026-10-13.
     await threeRoots();
     dependOn('030', '010');
     await waitFor(() => {
       expect(screen.getByLabelText(/^Stop 030 waiting for 010/)).toBeDefined();
+    });
+    fireEvent.blur(screen.getByLabelText('Add a dependency to 030'));
+    expect(stripOf('030').strip.style.maskImage).toBe('');
+
+    dependOn('030', '020');
+    await waitFor(() => {
+      expect(screen.getByLabelText(/^Stop 030 waiting for 020/)).toBeDefined();
     });
     fireEvent.blur(screen.getByLabelText('Add a dependency to 030'));
 
@@ -2130,7 +2143,7 @@ describe('dependencies in the table — cross-review findings', () => {
       <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(apiReturning(null))} />,
     );
 
-    expect(await cells()).toEqual({ start: '11', finish: '18', float: '2' });
+    expect(await cells()).toEqual({ start: 'day 11', finish: 'day 18', float: '2' });
   });
 
   itDom('names a critical row rather than printing its zero', async () => {

@@ -1,3 +1,7 @@
+import { useId } from 'react';
+
+import { cn } from '@/lib/utils';
+
 /**
  * Who else is in this project, and whether the socket saying so is up.
  *
@@ -37,30 +41,68 @@ export interface PresencePanelProps extends Roster {
  *   roster froze at whoever was there and only a reload started another; the
  *   stream reconnects, resubscribes and asks again.
  *
- * The shape is a header row's: the heading is the small grey label, the roster
- * is one clipped line beside it. Bounded width is structural rather than
- * cosmetic — an unbounded list of names is the one thing in the bar that grows
- * with the world rather than with the layout, and it would wrap the header onto
- * a second row for a busy project.
+ * The shape is a header row's: a dot that is the connection, the heading
+ * that says it in a word, and the roster as one clipped line beside it. Bounded
+ * width is structural rather than cosmetic — an unbounded list of names is the
+ * one thing in the bar that grows with the world rather than with the layout.
+ *
+ * **Below 1440px it collapses to the dot and a count** (UI review F-011): at
+ * 1024 the clipped line was down to the first letter of one name, which says
+ * less than a number does, and at 1280 `local-dev (you)` still lost its `)` —
+ * measured 74px of room for 79px of name. From 1440 the line is shown, and it
+ * **wraps rather than clips**: one line tall with the overflow hidden, so a
+ * name that does not fit drops whole onto the hidden second line instead of
+ * being cut mid-word. The heading and the list stay in the accessibility
+ * tree (`sr-only`), and the section's fact card (`data-fact`, the app's own
+ * card rather than a native `title`) carries the whole roster for a pointer.
+ *
+ * **Online or Offline, not the channel's state** (F-018). The heading read
+ * `Online (open)`: `open` is the socket's word, and to a reader it meant
+ * nothing. Offline is what a dropped stream is to them, and the roster shown
+ * beside it is the last one heard.
  */
 export function PresencePanel({ me, users, connected }: PresencePanelProps) {
+  const headingId = useId();
+  const state = connected ? 'Online' : 'Offline';
+  const roster = users.map((user) => (user === me ? `${user} (you)` : user)).join(', ');
   return (
-    <section className="flex min-w-0 items-center gap-2 text-xs">
-      <h2 className="text-muted-foreground shrink-0 font-medium">
-        Online <small className="font-normal">({connected ? 'open' : 'closed'})</small>
+    <section
+      aria-labelledby={headingId}
+      data-fact={users.length === 0 ? `${state}: nobody yet` : `${state}: ${roster}`}
+      className="flex min-w-0 items-center gap-1.5 text-xs"
+    >
+      <span
+        aria-hidden="true"
+        className={cn(
+          'size-2 shrink-0 rounded-full',
+          connected ? 'bg-[var(--status-done)]' : 'bg-muted-foreground',
+        )}
+      />
+      <h2
+        id={headingId}
+        className="text-muted-foreground shrink-0 font-medium max-[1440px]:sr-only"
+      >
+        {state}
       </h2>
       {users.length === 0 ? (
-        <p className="text-muted-foreground">Nobody yet.</p>
+        <p className="text-muted-foreground max-[1440px]:sr-only">Nobody yet.</p>
       ) : (
-        <ul className="m-0 flex max-w-48 list-none gap-2 overflow-hidden p-0 whitespace-nowrap">
+        <ul className="m-0 flex h-4 max-w-48 list-none flex-wrap gap-x-2 overflow-hidden p-0 whitespace-nowrap max-[1440px]:sr-only">
           {users.map((u) => (
-            <li key={u}>
+            <li key={u} className="max-w-full truncate">
               {u}
               {u === me && <span className="text-muted-foreground"> (you)</span>}
             </li>
           ))}
         </ul>
       )}
+      <span
+        aria-hidden="true"
+        data-presence-count
+        className="text-muted-foreground min-[1440px]:hidden"
+      >
+        {users.length}
+      </span>
     </section>
   );
 }

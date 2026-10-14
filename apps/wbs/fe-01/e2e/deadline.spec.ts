@@ -50,8 +50,20 @@ async function seedDatedWorkItem(page: Page): Promise<void> {
   await expect(page.getByLabel('Name of 020')).toBeVisible();
 }
 
+/**
+ * Offers a card's empty fields, which a phone folds behind the card's `Add…`
+ * (F-009). Nothing to do once the card has no empty field left, or on a face
+ * with no cards.
+ */
+async function unfoldCard(page: Page, number: string): Promise<void> {
+  const add = page.getByRole('button', { name: `Add details to ${number}`, exact: true });
+  if ((await add.count()) === 0) return;
+  if ((await add.getAttribute('aria-expanded')) !== 'true') await add.click();
+}
+
 /** The work-item id owned by one numbered card. */
 async function workItemIdFor(page: Page, number: string): Promise<string> {
+  await unfoldCard(page, number);
   const workItemId = await page
     .getByRole('button', { name: `Work item deadline for ${number}` })
     .evaluate((control) => control.closest('[data-card]')?.getAttribute('data-card'));
@@ -82,6 +94,7 @@ async function renderedBox(
 
 /** Opens the card's bottom editor and returns the dialog that owns Save and Clear. */
 async function openDeadlineEditor(page: Page, number = '010'): Promise<Locator> {
+  await unfoldCard(page, number);
   await page.getByRole('button', { name: `Work item deadline for ${number}` }).click();
   const editor = page.getByRole('dialog', {
     name: new RegExp(`Work item deadline for ${number}`),

@@ -452,8 +452,12 @@ export function usePlanSchedule({
 }) {
   const hasSchedule = useCallback(() => scheduleError === null, [scheduleError]);
 
+  // `day 6`, not a bare `6`: with no start date a figure under Start or End
+  // read as a date that failed to load (F-032, UI review 2026-10-13). Here and
+  // not in a cell, because the table and the phone cards print through
+  // {@link spanOfRow} from this one function.
   const showSchedule = useCallback(
-    (days: number) => (scheduleError === null ? showDay(days) : '—'),
+    (days: number) => (scheduleError === null ? `day ${showDay(days)}` : '—'),
     [scheduleError],
   );
 

@@ -612,8 +612,10 @@ test.describe('hints are the page’s own', () => {
       `#` cell speaking for a number its column is not clipping. Dany,
       2026-09-01: "also remove tooltips from # cells; why it needed?"
     */
+    // The fact starts with these words; since the review of PR #409 it goes
+    // on to say what the `?` means and, undated, how to get a date.
     const said = 'No estimate yet';
-    const finish = page.locator(`td[data-column="finish"] [data-fact="${said}"]`);
+    const finish = page.locator(`td[data-column="finish"] [data-fact^="${said}"]`);
     await expect(finish).toBeVisible();
 
     await finish.hover();
@@ -636,7 +638,7 @@ test.describe('hints are the page’s own', () => {
     // late.
     const card = page.getByRole('tooltip');
     await expect(card).toBeVisible({ timeout: 400 });
-    await expect(card).toHaveText(said);
+    await expect(card).toContainText(said);
 
     // And no ring, ever — read past the quiet, where one would be if this fact
     // had taken the tool path. Read before it, the assertion could not fail.

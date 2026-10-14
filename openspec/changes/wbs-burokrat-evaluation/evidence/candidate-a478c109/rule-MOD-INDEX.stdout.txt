@@ -1,0 +1,1 @@
+{"schemaVersion":1,"candidate":"057b559aa29ca676c28b71dc31dad53c96b45b1c71db7632ceea94dff83417cc","policy":"rules.puni-00.v1","allowed":true,"ruleIds":["MOD-INDEX"],"findings":[],"unevaluated":[],"certifies":false}

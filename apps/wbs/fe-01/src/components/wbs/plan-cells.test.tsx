@@ -1128,7 +1128,7 @@ describe('teams and assignees', () => {
     });
     // The QA cell is empty and says who is assumed to be covering it — which
     // is a reading of one assignment, not a second one written down.
-    expect(rowFor('010').querySelector('[data-assumed]')?.textContent).toBe('· (AD)');
+    expect(rowFor('010').querySelector('[data-assumed]')?.textContent).toBe('(AD)');
   });
 });
 
@@ -2479,7 +2479,7 @@ describe('names wrap and notes carry markdown', () => {
   };
 
   /**
-   * Proof for the whole of 2.1: `renderFirstLine` taken off the Name column, so
+   * Proof for the whole of 2.1: `renderLine` taken off the Name column, so
    * the cell is the raw string it was before `markdown-work-item-names`.
    * Watched failing, 2026-08-29, on `Error: no rendered name for 010` in all
    * three of `emphasis in a name is rendered`, `a heading marker in a name is
@@ -3419,8 +3419,10 @@ describe('the tag cell', () => {
     expect(screen.queryByLabelText('Remove Risk from 010.1')).toBeNull();
     expect(screen.queryByLabelText('Remove Review from 010.1')).toBeNull();
     // Said once per surface: the box no longer repeats the inherited names in
-    // its placeholder ink, because the chips beside it are now saying them.
-    expect(screen.getByLabelText('Tags for 010.1')).toHaveAttribute('placeholder', 'add');
+    // its placeholder ink, because the chips beside it are now saying them —
+    // and beside a chip at rest it says nothing at all (F-035): the `+` is
+    // the add cue, and the box's few pixels cut `add` to `ad`.
+    expect(screen.getByLabelText('Tags for 010.1')).toHaveAttribute('placeholder', '');
     // The parent states both of its own, so it carries nothing.
     const parent = screen.getByLabelText('Tags for 010').closest<HTMLElement>(TAG_CELL)!;
     expect(parent.querySelectorAll('[data-reference-inherited-chip]')).toHaveLength(0);
@@ -3482,7 +3484,9 @@ describe('the service cell', () => {
     // control change. The box beside the chip is the *add* box and holds
     // nothing, which is what `own.length > 0 ? 'add'` says.
     expect(screen.getByLabelText('Remove Checkout from 010')).toBeTruthy();
-    expect(screen.getByLabelText('Services for 010')).toHaveAttribute('placeholder', 'add');
+    // At rest beside the chip the box draws no placeholder (F-035); the `+`
+    // is the add cue, and `add` comes back once the box is entered.
+    expect(screen.getByLabelText('Services for 010')).toHaveAttribute('placeholder', '');
     expect(
       screen.getByLabelText('Services for 010').closest('[data-reference-set="service"]'),
     ).not.toBeNull();
@@ -4234,9 +4238,8 @@ describe('the status cell and the two fact cells', () => {
       expect(statusCell('010')).toHaveAttribute('data-fact-lead', 'Unknown');
       expect(statusCell('010')).not.toHaveAttribute('data-fact-tone');
       expect(statusCell('010')).toHaveAttribute('data-cell', expect.stringMatching(/::status$/));
-      // The heading is the glyph with the word as its name: the Columns control
-      // and a screen reader still say `Status` over a 28px column.
-      expect(screen.getByRole('img', { name: 'Status' }).textContent).toBe('○');
+      // The heading is the word since F-043; the cells stay glyphs.
+      expect(document.querySelector('th[data-column="status"]')?.textContent).toBe('Status');
       fireEvent.keyDown(statusCell('010'), { key: 'Enter' });
       expect(offeredStatuses('010')).toEqual([
         'Draft',

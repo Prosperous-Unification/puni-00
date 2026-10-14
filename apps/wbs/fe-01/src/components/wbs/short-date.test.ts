@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { MalformedDayError, shortInstant, shortIsoDate } from './short-date';
+import { longIsoDate, MalformedDayError, shortInstant, shortIsoDate } from './short-date';
 
 /** Somebody's today, in 2026. */
 const IN_2026 = new Date(2026, 6, 15);
@@ -106,6 +106,19 @@ describe('a calendar day, printed as somebody reads one', () => {
     // pattern alone cannot refuse.
     expect(() => shortIsoDate('2026-13-01', IN_2026)).toThrow(MalformedDayError);
     expect(() => shortIsoDate('2026-06-00', IN_2026)).toThrow(MalformedDayError);
+  });
+});
+
+describe('a calendar day named on its own, with its year', () => {
+  it('prints the cells’ day and month words and the whole year (F-007)', () => {
+    expect(longIsoDate('2026-09-19')).toBe('19 Sep 2026');
+    expect(longIsoDate('2027-01-04')).toBe('4 Jan 2027');
+  });
+
+  it('refuses anything that is not a calendar day', () => {
+    expect(() => longIsoDate('09/19/2026')).toThrow(MalformedDayError);
+    expect(() => longIsoDate('2026-13-01')).toThrow(MalformedDayError);
+    expect(() => longIsoDate('2026-09-32')).toThrow(MalformedDayError);
   });
 });
 

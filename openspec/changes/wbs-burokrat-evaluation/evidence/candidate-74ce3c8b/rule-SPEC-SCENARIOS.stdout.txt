@@ -1,0 +1,1 @@
+{"schemaVersion":1,"candidate":"0cec328d516097634677e7065e370961ed6e63b68f56032be93d7cbf9da79905","policy":"rules.puni-00.v1","allowed":false,"ruleIds":["SPEC-SCENARIOS"],"findings":[],"unevaluated":[{"ruleId":"SPEC-SCENARIOS","reason":"competing overlay operation: wbs-domain: A leaf's status folds its progress, hold, readiness and predecessors"}],"certifies":false}

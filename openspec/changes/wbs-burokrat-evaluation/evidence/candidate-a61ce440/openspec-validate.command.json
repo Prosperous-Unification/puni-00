@@ -1,0 +1,5 @@
+{
+  "argv": ["bunx", "@fission-ai/openspec@1.12.0", "validate", "--all", "--json"],
+  "exitCode": 0,
+  "durationSeconds": 0.5742559432983398
+}

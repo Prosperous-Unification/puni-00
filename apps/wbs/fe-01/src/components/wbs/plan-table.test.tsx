@@ -985,10 +985,24 @@ describe('the plan on a calendar', () => {
     return api;
   }
 
-  itDom('shows day offsets until the project has a start date', async () => {
+  itDom('shows day offsets until the project has a start date, labelled as days', async () => {
+    // F-032: a bare `0`, `6`, `14` under Start and End read as broken data.
+    // Proof: `showSchedule` put back to the bare figure, this failed on
+    // `expected '0' to be 'day 0'`. Watched 2026-10-13.
     await oneRow();
 
-    expect(rowFor('010').querySelector('[data-start]')?.textContent).toBe('0');
+    expect(rowFor('010').querySelector('[data-start]')?.textContent).toBe('day 0');
+    expect(rowFor('010').querySelector('[data-finish]')?.textContent).toMatch(/^day 0/);
+    // And the cell says what the figure is and how to get a date — the header
+    // hint was the only place that did (review of PR #409).
+    // Proof: `undatedDayWords` made to answer null, this failed on the Start
+    // sentence `Starts with the project` lacking `Day 0 of the plan`. Watched 2026-10-13.
+    expect(
+      rowFor('010').querySelector('td[data-column="start"]')?.getAttribute('data-start-said'),
+    ).toContain('Day 0 of the plan, in workdays. Set Starts in the toolbar to see a date.');
+    expect(rowFor('010').querySelector('[data-finish]')?.getAttribute('data-fact')).toContain(
+      'Set Starts in the toolbar',
+    );
   });
 
   itDom('shows dates once the project starts on a day, as somebody reads one', async () => {
@@ -1051,10 +1065,12 @@ describe('the plan on a calendar', () => {
     // it is the one thing this cell can say on a plan with no dates at all.
     await oneRow();
 
-    expect(rowFor('010').querySelector('[data-start]')?.textContent).toBe('0');
+    expect(rowFor('010').querySelector('[data-start]')?.textContent).toBe('day 0');
     expect(
       rowFor('010').querySelector('td[data-column="start"]')?.getAttribute('data-start-said'),
-    ).toBe('Starts with the project');
+    ).toBe(
+      'Starts with the project — Day 0 of the plan, in workdays. Set Starts in the toolbar to see a date.',
+    );
   });
 
   itDom(
@@ -1080,7 +1096,9 @@ describe('the plan on a calendar', () => {
       expect(saidBy(rowFor('010').querySelector('[data-start]'))).toBeNull();
       // The sentence is still there at rest for the oracles that read it: see
       // `startCellProps`.
-      expect(cell?.getAttribute('data-start-said')).toBe('Starts with the project');
+      expect(cell?.getAttribute('data-start-said')).toBe(
+        'Starts with the project — Day 0 of the plan, in workdays. Set Starts in the toolbar to see a date.',
+      );
       // And the cell is on the keyboard, which is what makes the card reachable
       // without a pointer.
       expect(cell?.getAttribute('tabindex')).toBe('0');
@@ -1139,10 +1157,46 @@ describe('the plan on a calendar', () => {
   });
 
   itDom('does not mark a Start cell that has no explanation', async () => {
+    // The affordance follows the explanation, not the column name: an on-hold
+    // row has no schedule (be-01 sends `schedule: null`), its Start reads `—`,
+    // and there is nothing for hover or focus to reveal. Restored with the
+    // undated sentence (review of PR #409), which explains every other undated
+    // Start. The fake schedules every row, so its read is narrowed here to
+    // what be-01 sends for a held one.
+    // Proof: `undatedDayWords`' `startsWith('day ')` guard dropped, this
+    // failed on `expected '0' to be null` — the `—` cell made focusable for a
+    // sentence about a day that does not exist. Watched 2026-10-14.
+    const api = fakeApi();
+    // A parent, because a parent has no floor sentence of its own either.
+    const held = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Held' });
+    await api.createWorkItem('p1', { parentId: held.id, afterId: null, name: 'Child' });
+    await api.setStatus(held.id, 'on_hold', '2026-10-14');
+    const read = api.tree.bind(api);
+    api.tree = (projectId) =>
+      read(projectId).then((plan) => ({
+        ...plan,
+        workItems: plan.workItems.map((row) =>
+          row.status === 'on_hold' ? { ...row, schedule: null, dates: null } : row,
+        ),
+      }));
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await screen.findByLabelText('Name of 010');
+
+    const cell = rowFor('010').querySelector<HTMLElement>('td[data-column="start"]');
+    const day = cell?.querySelector<HTMLElement>('[data-start]');
+    expect(day?.textContent).toBe('—');
+    expect(saidBy(cell)).toBeNull();
+    expect(cell?.getAttribute('tabindex')).toBeNull();
+    expect(cell?.style.cursor).toBe('');
+    expect(day?.style.textDecoration).toBe('');
+  });
+
+  itDom('marks an undated parent’s Start, because it says how to get a date', async () => {
     // A parent has no floor sentence of its own. Without a project calendar it
-    // also has no full date, so there is nothing for hover or focus to reveal.
-    // The affordance must follow the explanation rather than the column name:
-    // making either style unconditional falsely advertises hidden help.
+    // used to have nothing for hover or focus to reveal, and was left unmarked;
+    // since the review of PR #409 an undated day says which day of the plan it
+    // is and that Starts gives it a date, so the affordance follows that
+    // explanation. A Start with no schedule at all (`—`) still says nothing.
     const api = fakeApi();
     const parent = await api.createWorkItem('p1', {
       parentId: null,
@@ -1155,10 +1209,12 @@ describe('the plan on a calendar', () => {
 
     const cell = rowFor('010').querySelector<HTMLElement>('td[data-column="start"]');
     const day = cell?.querySelector<HTMLElement>('[data-start]');
-    expect(saidBy(cell)).toBeNull();
-    expect(cell?.getAttribute('tabindex')).toBeNull();
-    expect(cell?.style.cursor).toBe('');
-    expect(day?.style.textDecoration).toBe('');
+    expect(cell?.getAttribute('data-start-said')).toBe(
+      'Day 0 of the plan, in workdays. Set Starts in the toolbar to see a date.',
+    );
+    expect(cell?.getAttribute('tabindex')).toBe('0');
+    expect(cell?.style.cursor).toBe('help');
+    expect(day?.style.textDecoration).toContain('underline');
   });
 
   itDom('says a row is waiting on a dependency where its Start does not look like it', async () => {
@@ -1660,15 +1716,14 @@ describe('the order of the columns', () => {
     // it used to be lives in the `title`.
     // No Notes column: a work item's notes are typed under its name, in the
     // Name cell, and the column they had is gone.
-    // `Not bef.`, not `Not before`: the column is 84px at its widest and 56 at
-    // its narrowest, and the sentence it used to be is in the heading's
-    // `title`.
+    // `Not before` whole since the UI review of 2026-10-13 (F-006): headers
+    // are sentence case now, and the narrow column is 60px to hold it.
     // The Work item deadline column is hidden here alongside the other three,
     // which is where this project's reader left it: `work-item-deadline` 9.1
     // ships it in {@link INITIAL_HIDDEN_COLUMNS} because the folded table at
-    // 1280 has no 84px to give it. Shown, it sits between `Not bef.` and
+    // 1280 has no 84px to give it. Shown, it sits between `Not before` and
     // `Start` — the two days a planner states, then the days be-01 worked out.
-    expect(headers.slice(-5)).toEqual(['Not bef.', 'Start', 'End', 'Slack', '']);
+    expect(headers.slice(-5)).toEqual(['Not before', 'Start', 'End', 'Slack', '']);
     expect(headers).not.toContain('Notes');
   });
 
