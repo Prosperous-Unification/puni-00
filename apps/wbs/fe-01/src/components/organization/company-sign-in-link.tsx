@@ -16,6 +16,7 @@ const links = browserClient([startAuth0Link]);
 export function CompanySignInLink({
   organization,
   disabled = false,
+  canStart,
   onPendingChange,
   navigate = (url) => {
     window.location.assign(url);
@@ -24,6 +25,8 @@ export function CompanySignInLink({
   organization: string;
   /** The owning setup operation temporarily prevents a company-link start. */
   disabled?: boolean;
+  /** Synchronously checks the owner before a proof start, including before React rerenders. */
+  canStart?: () => boolean;
   /** Freezes the owning proof target until a refused start or navigation. */
   onPendingChange?: (pending: boolean) => void;
   /** Leaves the page for the validated provider address; injected in tests. */
@@ -46,7 +49,9 @@ export function CompanySignInLink({
     // Proof: 2026-10-13, removing owner-disabled admission failed `blocks
     // the selected proof form while a create request is held`: a forced form
     // event posted the link despite disabled controls.
-    if (pending.current || disabled) return;
+    // Proof: removing the owner admission check let same-render Enable→proof
+    // and Refresh→proof tests send a link POST beside an owning operation.
+    if (pending.current || disabled || canStart?.() === false) return;
     // Proof: 2026-10-13, skipping this branch made `requires an explicit
     // current sign-in choice before posting` send a request without a choice.
     if (choice === '') {

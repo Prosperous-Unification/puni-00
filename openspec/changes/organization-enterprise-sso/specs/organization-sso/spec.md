@@ -210,7 +210,7 @@ In an organization whose proven connection is enforced, the organization context
 
 The organization page SHALL render a Company sign-in panel that reads connections and domain claims from the active organization's typed routes. It SHALL display loading, empty, unavailable and query-failure states. A forbidden response SHALL offer no create or proof controls. Membership, authentication or credential authority loss SHALL replace the whole organization page through its shared refusal state. The server SHALL decide super-admin authority.
 
-The panel SHALL show each connection's domain, Auth0 name, strategy, login slug, proof timestamp, enforcement state and any last prefix mismatch timestamp from the server. The create form SHALL offer only verified claims without a connection, and SHALL post exactly the selected claim id, Auth0 name, strategy and login slug. It SHALL admit one pending create, re-read connections and claims after success or modeled conflict, and offer an explicit refresh. This setup slice SHALL provide no edit, enforce, delete, provisioning-token or session-policy controls.
+The panel SHALL show each connection's domain, Auth0 name, strategy, login slug, proof timestamp, enforcement state and any last prefix mismatch timestamp from the server. The create form SHALL offer only verified claims without a connection, and SHALL post exactly the selected claim id, Auth0 name, strategy and login slug. It SHALL admit one pending create, re-read connections and claims after success or modeled conflict, and offer an explicit refresh. This setup slice SHALL provide no edit, delete or provisioning-token controls. Enforcement is specified below; the session-policy panel is specified separately.
 
 #### Scenario: Verified unused domain creates a connection
 
@@ -242,6 +242,32 @@ The panel SHALL show each connection's domain, Auth0 name, strategy, login slug,
 - **AND** only one proof form exists, its target and refresh are frozen until the start is refused or navigation begins
 - **AND** if create starts first, the selected proof form disables its controls and refuses submission until create ends
 - **AND** proof and enforcement labels remain server state until refreshed after returning
+
+### Requirement: Super-admins can change company sign-in enforcement from the browser
+
+The Company sign-in panel SHALL offer enable only for a server-proven connection and disable for an enforced connection. It SHALL PATCH the selected connection id with only `{ enforced: boolean }`, under the active organization expectation. The server determines whether the actor's current credential can retain access; browser proof, membership and linked identities SHALL NOT infer that eligibility. The returned connection record SHALL replace the selected row without optimistic enforcement. The panel SHALL explain that enforcement limits organization access to this company sign-in and may require sign-in again.
+
+#### Scenario: A proven row changes enforcement
+
+- **GIVEN** one unproven row and one proven row with distinct ids and login slugs
+- **WHEN** the super-admin enables the proven row or disables an enforced row
+- **THEN** only the selected row id receives a PATCH with the requested boolean and captured organization header
+- **AND** the displayed row is the server-returned record; unproven enable is disabled with a proof prompt
+
+#### Scenario: Enforcement is refused or authority changes
+
+- **WHEN** enable is refused as unproven, lockout, not found or another modeled conflict
+- **THEN** both lists are re-read while the refusal explanation remains visible
+- **AND** lockout points to `/api/auth/login?organization=<selected row loginSlug>` and explains the current sign-in cannot enter afterward
+- **AND** forbidden removes panel controls, organization access loss replaces the page, and transport failure keeps the last confirmed state with a retryable message
+
+#### Scenario: One setup operation owns the panel
+
+- **WHEN** create, proof start, enforcement PATCH or refresh is pending
+- **THEN** conflicting controls and forced handlers admit no second mutation or proof start
+- **AND** a proof form already open before enforcement or refresh begins checks the owner's current admission state before posting, including clicks in one React render
+- **AND** a delayed earlier read, including a StrictMode mount GET, cannot replace the outcome of a later PATCH or authority refusal
+- **AND** a reply after runtime withdrawal or effect cleanup cannot publish rows or trigger access loss
 
 #### Scenario: Company setup fits a phone and supports keyboard navigation
 
