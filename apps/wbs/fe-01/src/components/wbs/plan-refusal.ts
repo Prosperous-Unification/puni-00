@@ -706,8 +706,9 @@ export const PLAN_REFUSALS: RefusalWords = {
     // Proof: all six struck, `words each attempt refusal` failed on the first,
     // `node_done`, reading `That change could not be completed (node_done).`;
     // watched 2026-10-12.
+    step_blockage_inactive: 'Step blockage changes are not enabled on this server.',
     node_done:
-      'This step is done — reopen it before starting another attempt. Nothing was changed.',
+      'This step is done — reopen it before starting an attempt or blocking it. Nothing was changed.',
     attempt_running:
       'An attempt at this step is already running — end it before starting another. Nothing was changed.',
     no_running_attempt:

@@ -3882,6 +3882,7 @@ function fakeApi(startDate: string | null, skew: ReadSkew = {}): ProjectApi {
     createWorkItem: () => notImplemented('createWorkItem'),
     patchWorkItem: () => notImplemented('patchWorkItem'),
     setStatus: () => notImplemented('setStatus'),
+    setStepBlocked: () => notImplemented('setStepBlocked'),
     startAttempt: () => notImplemented('startAttempt'),
     endAttempt: () => notImplemented('endAttempt'),
     removeAttempt: () => notImplemented('removeAttempt'),

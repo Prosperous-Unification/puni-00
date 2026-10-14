@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/policy/pilot-policy.test.ts:
+424 |       candidate.revision,
+425 |     ]);
+426 |     // Proof: omitting step-unit.test.ts from the memory adapter index made this production CLI
+427 |     // invocation exit 1 with "unindexed candidate path" in the pins exact pre-index tuples test
+428 |     // (2026-10-13, PR #380 head 214dc6c86).
+429 |     expect(indexInvocation.exitCode, output(indexInvocation)).toBe(0);
+                                                                    ^
+error: unindexed candidate path in libs/wbs/application/core/src/module/plan-commands/README.md: libs/wbs/application/core/src/module/plan-commands/step-blockage.test.ts
+
+
+Expected: 0
+Received: 1
+
+      at <anonymous> (/tmp/puni-setter-module-index-ci-sol/apps/twilight-structure/twilight-burokrat/cli/src/policy/pilot-policy.test.ts:429:63)
+(fail) reviewed radical-modularity pilot through production CLI > pins exact pre-index tuples and passes observe lint from external trust [6090.41ms]
+
+ 0 pass
+ 22 filtered out
+ 1 fail
+ 53 expect() calls
+Ran 1 test across 1 file. [7.07s]

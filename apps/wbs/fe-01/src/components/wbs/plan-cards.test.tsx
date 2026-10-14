@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-libra
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type * as BlockageModule from './step-blockage';
 import type * as TableFrameModule from './table-frame';
 
 /**
@@ -24,6 +25,20 @@ vi.mock('./table-frame', async (importOriginal) => {
     cardIndentFor: (...args: Parameters<typeof real.cardIndentFor>) => {
       cardIndentCalls.count += 1;
       return real.cardIndentFor(...args);
+    },
+  };
+});
+
+const blockageIndexCalls = vi.hoisted(
+  () => [] as Parameters<typeof BlockageModule.blockageLabelsOf>[],
+);
+vi.mock('./step-blockage', async (importOriginal) => {
+  const real = await importOriginal<typeof BlockageModule>();
+  return {
+    ...real,
+    blockageLabelsOf: (...args: Parameters<typeof real.blockageLabelsOf>) => {
+      blockageIndexCalls.push(args);
+      return real.blockageLabelsOf(...args);
     },
   };
 });
@@ -4407,6 +4422,92 @@ describe('what a gesture over the plan costs the cards behind it', () => {
     await screen.findByLabelText('Name of 010');
     expect(document.querySelectorAll('[data-card]')).toHaveLength(5);
   }
+
+  itDom(
+    'builds the shared blockage index once per input change across fifty phone rows and five steps',
+    async () => {
+      const api = fakeApi();
+      for (let at = 0; at < 50; at += 1) await api.createWorkItem('p1', { parentId: null });
+      const projectSteps = [
+        DEV,
+        QA,
+        ...Array.from({ length: 3 }, (_, at) => ({
+          ...DEV,
+          id: `extra-${String(at)}`,
+          name: `Extra ${String(at)}`,
+        })),
+      ];
+      const readTree = api.tree.bind(api);
+      api.tree = async (projectId) => {
+        const plan = await readTree(projectId);
+        return {
+          ...plan,
+          steps: projectSteps,
+          timezone: 'UTC',
+          workItems: plan.workItems.map((row) => ({
+            ...row,
+            nodeReadings: Object.fromEntries(
+              projectSteps.map((step) => [step.id, 'unknown' as const]),
+            ),
+            blockages: {},
+            blockageCauses: {},
+          })),
+          stepNodes: plan.workItems.flatMap((row) =>
+            projectSteps.map((step) => ({
+              id: `sn1.${row.id}.${step.id}`,
+              workItemId: row.id,
+              stepId: step.id,
+              reference: `${row.number}.${step.id}`,
+            })),
+          ),
+        };
+      };
+      api.steps = () => Promise.resolve(projectSteps);
+      widthIs(PHONE, PHONE_TALL);
+      blockageIndexCalls.length = 0;
+      const drawn = render(
+        <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />,
+      );
+      await screen.findByLabelText('Name of 500');
+      expect(document.querySelectorAll('[data-card]')).toHaveLength(50);
+      expect(document.querySelectorAll('[data-step]')).toHaveLength(250);
+      expect(document.querySelectorAll('[data-step-blockage][open]')).toHaveLength(0);
+      const builds = () =>
+        blockageIndexCalls.filter(([rows, steps]) => rows.length === 50 && steps.length === 5);
+      expect(builds()).toHaveLength(1);
+      drawn.rerender(
+        <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />,
+      );
+      expect(builds()).toHaveLength(1);
+      const priorRows = builds().at(0)?.[0];
+      if (priorRows === undefined) throw new Error('No initial production index build');
+      const changedApi = {
+        ...api,
+        tree: async (projectId: string) => {
+          const plan = await api.tree(projectId);
+          return {
+            ...plan,
+            workItems: plan.workItems.map((row) =>
+              row.number === '010' ? { ...row, name: 'Changed cause name' } : row,
+            ),
+          };
+        },
+      };
+      drawn.rerender(
+        <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(changedApi)} />,
+      );
+      await waitFor(() => {
+        expect(builds().some(([rows]) => rows !== priorRows)).toBe(true);
+      });
+      expect(builds()).toHaveLength(2);
+      expect(
+        builds()
+          .at(1)?.[0]
+          .find((row) => row.number === '010')?.name,
+      ).toBe('Changed cause name');
+    },
+    15_000,
+  );
 
   itDom('opening the plan toolbar re-renders no card', async () => {
     // `toolbarSheetOpen` was a `useState` in `WbsTable` until 2026-09-02, so
