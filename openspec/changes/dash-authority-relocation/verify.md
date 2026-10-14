@@ -252,6 +252,7 @@ Fresh main-based checks after restoration: the same three-file focused command a
 29 tests with 251 assertions in 34.13 s. Uncached `twilight-dash:lint` and
 `twilight-dash:typecheck` exited 0; OpenSpec validation passed 189/189; Prettier and
 `git diff --check` passed. The full host gate remains for the publishing workflow's exact SHA.
+
 ## Mainline claims worker opening contention (2026-10-14)
 
 Mainline CI run `38493435283` at `b144be17d23415b700707b0fac6f57ac7dbcbffb`
@@ -410,3 +411,47 @@ tool-devsync:lint --outputStyle=stream` passed, uncached.
 The h2puni host gate, whole-project test, build, typecheck, standalone secrets scan,
 and migration lint were not rerun for this test-pin-only follow-up. Normal commit hooks
 remain required. No push or merge was performed.
+
+## Cumulative stabilization integration (2026-10-14)
+
+Isolated clone `/tmp/puni-stabilization-integration-sol` starts at main
+`8f324607e6c73c249faa79733c4cb7a7dddc605b`, verified through the GitHub API.
+Merge commits preserve reviewed heads #430 `75c8b55de05728fbe31afeabe02acfedb5b3bf62`,
+#432 `a93eb9785fa499f38951a2eaac1d0038a39a945d`,
+#438 `a4b443ea9c28c6b3fd2cd2c4c2d473b688109a4c`, and
+#444 `3f4a12428d48c85b11f3ba148c016135df44cfc0` in that order.
+Only this verification file conflicted; both original evidence sections were retained.
+The claims file merged automatically and retains all three fixture bootstraps alongside
+bounded opening settlement and startup recovery. All other original changed files
+match their reviewed branch versions exactly.
+
+Observed local checks on `pop-os`, with Bun 1.4.2 and a frozen local dependency install:
+
+- Authority: `env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT
+TOOL_WIKI_TRUSTED_NODE_MODULES=/tmp/puni-stabilization-integration-sol/node_modules
+bun test --preload ./tools/test/scratch/preload.ts
+apps/twilight-structure/twilight-dash/cli/src/authority --timeout=60000`:
+  161 pass, 0 fail, 797 assertions across 11 files (111.11 s).
+- CI and lineage: `bun test --preload ./tools/test/scratch/preload.ts
+tools/tool-git-hooks/src/hooks/{pr-merge-base,corpus-version-base,corpus-lint-workflow,pixels-workflow,gate-workflow}.test.ts
+tools/tool-devsync/src/{toolchain-pins,repo-namespacing-handoff}.test.ts --timeout=30000`:
+  93 pass, 0 fail, 308 assertions across 7 files.
+- SQLite: `bun test --preload ./tools/test/scratch/preload.ts
+libs/wbs/adapters/store-sqlite/src/{db,browser-auth-lifecycle}.db.test.ts --timeout=30000`:
+  27 pass, 0 fail, 92 assertions outside the sandbox. The sandbox run had 26 pass
+  and one `EPERM` at the browser racer `stdin.flush`; the identical elevated run passed.
+- Fresh R5 mutation: removing the production `SQLITE_BUSY_RECOVERY` classifier arm
+  failed `waits out WAL recovery reported as an extended busy error` with
+  `SQLiteError: database is locked` (0 pass, 1 fail). Restored source then passed
+  all 13 `db.db.test.ts` cases with 25 assertions. Existing adjacent `Proof:` and
+  original authority/CI mutation evidence remain intact.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_TUI=false bunx nx run-many
+-t lint typecheck -p tool-git-hooks,tool-devsync,twilight-dash,wbs-store-sqlite
+--skip-nx-cache --output-style=stream`: all eight targets passed, uncached.
+- Pinned OpenSpec 1.12.0 validation: 190/190 valid (172 changes, 18 main specs).
+- Prettier on every changed file and `git diff --check`: passed.
+
+Logs live at `/tmp/stabilization-{claims,ci,sqlite-elevated,sqlite-mutant,sqlite-restored,lint-type,openspec,format-final}.log`.
+The canonical h2puni gate, whole-project tests, builds, hosted CI, standalone secrets
+scan and migration lint remain unrun here. This worker did not push, open a PR,
+merge remotely or queue a gate; the parent owns review and exact-SHA host validation.
