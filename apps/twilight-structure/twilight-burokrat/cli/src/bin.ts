@@ -8,6 +8,9 @@ import { prepareRelocationActivation } from './policy/prepare-relocation-activat
 const validatorCommands = new Set([
   'validate',
   'validate-record',
+  // Proof: removing this route made built executable plan validation exit 1 with unknown
+  // command instead of a consistency report (packaging/build.test.ts, 2026-10-13).
+  'validate-plan-tasks',
   'read-candidate',
   'classify-candidate',
   'content-manifest',
@@ -48,6 +51,7 @@ const help = `usage: twilight-burokrat <command> ...
 
 commands:
   twilight-burokrat validate-record <kind> <json>
+  twilight-burokrat validate-plan-tasks <plan-reference.json> <tasks.json>
   twilight-burokrat check <committed|staged|working> <repository> <revision-or-base> <rule-policy-json> [--rule <rule-id>]
   twilight-burokrat inspect-performance <repository> <committed-sha> <external-rule-policy>
   twilight-burokrat inspect-performance-sources <repository> <committed-sha> <external-rule-policy>

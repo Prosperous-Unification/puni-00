@@ -50,7 +50,8 @@ bun apps/twilight-structure/twilight-navigator/cli/src/entrypoint.ts receipt-to-
 ```
 
 It decodes the progress receipt and plan reference through Burokrat (which verifies their
-digests), reads either task schema without rewriting it, checks the task export against the reference's `tasksDigest`, and refuses a receipt
+digests), reads either task schema without rewriting it, requires Burokrat plan/task consistency (digest binding, plan identity, task count, supported
+version pairing and unique task IDs, step IDs and step codes) before building lookups, and refuses a receipt
 for another plan reference or an entry naming a task or step code the plan does not hold. It
 writes one owner-only WBS command batch `{ id, commands }`: per entry in receipt order, a
 `setProgress` for the step, then a `setMeasure` for `token_actual` and `hours_actual` when the
@@ -77,3 +78,6 @@ bunx nx run-many -t test lint typecheck -p twilight-navigator --skip-nx-cache
 modes, so under uid 0 it throws instead of passing vacuously. The
 [OpenSpec change](../../../../openspec/changes/twilight-navigator-plan-reference/verify.md)
 records the observed checks and fault proofs.
+
+The [receipt consistency change](../../../../openspec/changes/navigator-receipt-plan-consistency/verify.md)
+records the shared checker proofs and scoped verification.

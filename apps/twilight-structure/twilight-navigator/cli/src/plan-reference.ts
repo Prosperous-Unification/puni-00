@@ -2,11 +2,16 @@ import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 
 import { parseOrThrow, type } from '@shared/validation';
-import { digestOf, type PlanRef, PlanReferenceRecord } from '@twilight-burokrat/contracts';
+import {
+  digestOf,
+  type PlanRef,
+  PlanReferenceRecord,
+  type PlanTask,
+  PlanTasks,
+} from '@twilight-burokrat/contracts';
 import { type PlanDocument, planDocument } from '@wbs/contracts';
 
 import type { FlagValues } from './cli';
-import { type PlanTask, PlanTasks } from './plan-tasks';
 import {
   createExclusiveFiles,
   decodeRequiredText,

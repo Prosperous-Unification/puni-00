@@ -2,10 +2,14 @@ import { createHash } from 'node:crypto';
 import { chmodSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { decodeRecord, digestOf, PlanReferenceRecord } from '@twilight-burokrat/contracts';
+import {
+  decodeRecord,
+  digestOf,
+  PlanReferenceRecord,
+  PlanTasks,
+} from '@twilight-burokrat/contracts';
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 
-import { PlanTasks } from './plan-tasks';
 import {
   requireNonRoot,
   runTwin,

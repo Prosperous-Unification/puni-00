@@ -42,6 +42,8 @@ export const PlanReferenceRecord = type({
   // Proof: omitting 8 failed its decode test; admitting 9 failed the version refusal (2026-10-13).
   planDocumentVersion: '6 | 7 | 8',
   exportDigest: Sha256,
+  // Proof: widening tasksDigest to string failed Navigator `refuses a malformed task digest`
+  // before-writing diagnostic in receipt-to-commands.test.ts (2026-10-14).
   tasksDigest: Sha256,
   taskCount: 'number.integer>=0',
   createdAt: IsoInstant,
