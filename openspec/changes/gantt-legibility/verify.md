@@ -49,3 +49,16 @@ pointed-row-offscreen live-caret mobile` — first run 159 passed, 3 failed (str
   (`review-selection-objects.test.ts:868`, leftover `.pending-*`), not twilight-burokrat and not
   a timeout. Rerun requested; superseded by the CI run on the new head.
 - `nx run wbs-fe-01:test` 925 + 3877 + 5 passed; `typecheck` and `lint:fast` successful.
+
+## Review round 2 (Fable, 2026-10-14)
+
+- D6 fallback order: `number · no estimate` → `number` → nothing. With the phrase ahead of the
+  number (round 1), `gantt-bar-labels.test.tsx` failed on
+  `expected 'no estimate' to be '010 · no estimate'` at two workdays.
+- Done slivers keep a 1px green edge: `gantt-panel-fill.test.tsx` failed with the sliver's edge
+  in its own colour on `expected '#94a3b8' to be '#16a34a'`, and with the 8px floor removed on
+  `expected [ '[stroke-width:2]', …(2) ] to not include '[stroke-width:2]'`.
+- `nx run wbs-fe-01:test` 926 + 3883 + 5 passed; `typecheck` and `lint:fast` successful.
+- Playwright (Gantt, layout and phone suites): 152/153 passed. The one failure,
+  `hover-cards.spec.ts:1075`, reproduced 2 in 5 before merging main and passed 6/6 after; main
+  alone passed 5/5.
