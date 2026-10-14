@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-blockage-rollback.db.test.ts:
+194 |     expect(saved.stdout).toContain('saved: 1');
+195 |     expect((await runCli('remove', file)).exitCode).toBe(0);
+196 |     expect((await runCli('restore', file)).exitCode).toBe(0);
+197 |     expect((await runCli('erase', file)).stderr).toContain('usage:');
+198 |     expect((await runCli('save', file, join(directory, 'missing.db'))).exitCode).not.toBe(0);
+199 |     expect(existsSync(join(directory, 'missing.db'))).toBe(false);
+                                                            ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at <anonymous> (/tmp/puni-step-blockage-rebuild/libs/wbs/adapters/store-sqlite/src/step-blockage-rollback.db.test.ts:199:55)
+(fail) step blockage recovery > runs the CLI round trip and rejects malformed/absent inputs without creating databases [1437.09ms]
+
+ 0 pass
+ 8 filtered out
+ 1 fail
+ 7 expect() calls
+Ran 1 test across 1 file. [1.61s]

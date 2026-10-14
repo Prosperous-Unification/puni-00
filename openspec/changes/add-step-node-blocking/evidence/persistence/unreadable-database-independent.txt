@@ -1,0 +1,22 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-blockage-rollback.db.test.ts:
+218 |     expect(existsSync(join(directory, 'missing.db'))).toBe(false);
+219 |     chmodSync(path, 0o600);
+220 |     try {
+221 |       const unreadableDatabaseSave = join(directory, 'unreadable-database-save.json');
+222 |       const unreadableDatabase = await runCli('save', unreadableDatabaseSave);
+223 |       expect(unreadableDatabase.exitCode).not.toBe(0);
+                                                    ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/tmp/puni-step-blockage-rebuild/libs/wbs/adapters/store-sqlite/src/step-blockage-rollback.db.test.ts:223:47)
+(fail) step blockage recovery > runs the CLI round trip and rejects malformed/absent inputs without creating databases [1632.65ms]
+
+ 0 pass
+ 9 filtered out
+ 1 fail
+ 10 expect() calls
+Ran 1 test across 1 file. [1.94s]

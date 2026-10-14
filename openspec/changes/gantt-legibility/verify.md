@@ -50,6 +50,18 @@ pointed-row-offscreen live-caret mobile` — first run 159 passed, 3 failed (str
   a timeout. Rerun requested; superseded by the CI run on the new head.
 - `nx run wbs-fe-01:test` 925 + 3877 + 5 passed; `typecheck` and `lint:fast` successful.
 
+## Cumulative specification reconciliation — 2026-10-14
+
+The copied Leaves requirement in this delta still claimed that Detail off hid
+assumed leaf bars. That contradicted the September 11 directive recorded in
+`detail-keeps-unestimated/specs/wbs-domain/spec.md`, the renderer's `drawnBars =
+placed.bars`, and gantt-panel.test.tsx's detail-switch assertions: assumed bar
+count stays one across both states, while parent carets disappear with brackets.
+Updated the copied requirement, half-estimated leaf scenario and caret paragraph
+to the existing renderer behavior. Updated the earlier detail delta's obsolete
+`?` label wording to this change's `no estimate` wording. Renderer behavior was
+not changed during integration.
+
 ## Review round 2 (Fable, 2026-10-14)
 
 - D6 fallback order: `number · no estimate` → `number` → nothing. With the phrase ahead of the
@@ -82,3 +94,30 @@ Worktree `ui-gantt-full`, `E2E_PORT_SHIFT=2100`, on integration-1 abd06e9ad.
   gantt-attempts, gantt-minute-estimate, dark-mode, scroll-stability and mobile.
 - `nx run wbs-fe-01:test` passed 929 + 3947 + 5; `typecheck` and `lint:fast` were successful.
   OpenSpec `validate --all` passed 192/192.
+
+## Release pixel investigation — 2026-10-14
+
+PR run `38522362798`, pixels shard 1/4, failed the exact box comparison in
+`gantt-detail.spec.ts`. Before: `{x:203, y:847.0399780273438, width:58,
+height:10.96002197265625}`. After: `{x:203.5, y:847.5399780273438, width:57,
+height:9.96002197265625}`. Center and fill geometry match; the critical stroke
+contracted from 2px to 1px. Independent full dispatch `38522426632` passed the
+same shard at the same prior SHA, as reported by the integration owner.
+
+The failed trace proves the fixture race. At trace time **276557.194 ms**, all
+four bars were still unestimated and critical, with `010 Dev data-finish=0`.
+The baseline box was read around **276580 ms**. The estimate command started
+at **276478.041 ms** and took **136.991 ms**, completing after that baseline.
+At **276693.071 ms**, after the Detail click, `010 Dev` was costed at finish 3
+and `020` had float 3, lost critical status and its 2px outline. The click
+coincided with the pending estimate's schedule refresh; Detail did not change
+the schedule.
+
+The fixture now waits for rendered `010 Dev data-finish=3` before taking the
+baseline. It keeps the exact before/after box comparison and zero retries.
+This is readiness repair, not a tolerance increase or renderer change. The
+four focused component suites passed **314 tests**. Local browser execution
+was refused by the required canonical lock (exit **70**, missing
+`/home/puni1/.cache`). A deterministic delayed estimate/schedule response
+negative and a green browser run on the host remain unverified and must be
+recorded before release approval.

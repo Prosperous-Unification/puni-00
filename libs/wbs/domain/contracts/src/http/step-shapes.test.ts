@@ -76,11 +76,12 @@ test('declares the full step response and each usage count and assumed-assignee 
   const variants = conflicts === undefined ? [] : flatten(conflicts as Variant);
   expect(variants.map((variant) => Object.keys(variant.properties ?? {}).sort())).toEqual([
     ['error'],
+    ['error'],
     ['error', 'inUse'],
     ['dependencyIds', 'error'],
     ['error'],
   ]);
-  expect(variants.at(1)).toMatchObject({
+  expect(variants.at(2)).toMatchObject({
     properties: {
       inUse: {
         required: [
@@ -92,6 +93,7 @@ test('declares the full step response and each usage count and assumed-assignee 
           'progress',
         ],
         properties: {
+          blockages: { type: 'number' },
           assumedAssignees: { items: { required: ['assumedAfter', 'assumedNow', 'workItemId'] } },
         },
       },

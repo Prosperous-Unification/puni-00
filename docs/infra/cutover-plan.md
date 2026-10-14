@@ -10,7 +10,7 @@ Operator commands and what has been tested: [infrastructure operator guide](READ
 The move is a one-time transaction the F8 release coordinator cannot perform: the coordinator
 needs a running k3s release to start from. The steps are `CUTOVER_PHASES` in
 `tools/tool-deploy/src/k8s/cutover.ts`. `bunx nx run tool-deploy:rehearse:cutover` runs all of
-them locally, from the production Compose templates to a k3d cluster. The rehearsal record is in
+them locally, from the production Compose templates to a k3d cluster. The updated replay-admitted path has not been rerun on Docker/k3d; first-start admission remains open. The historical rehearsal record is in
 [verify.md](../../openspec/changes/k3s-wbs-delivery/verify.md).
 
 ## Inputs
@@ -26,7 +26,7 @@ authorization. Commands below reference inputs as shell variables.
 | Old digests                | `INPUT`: `ssh h2puni 'for t in be gw fe; do docker inspect --format "{{.Config.Image}}" $t-01-$COLOR; done'`                                                                      |
 | New digests                | The staging-proved descriptor `$DESCRIPTOR_SHA256` (deploy-k3s staging run `$STAGING_RUN`). Old and new must be the same be/gw/fe bytes; only MCP is new                          |
 | New cluster                | `platform` (infra/fleet/desired.yaml); node `INPUT` (desired.yaml still lists `platform-pending`), context `INPUT` `$CTX`, kube-system UID `INPUT` `$UID`                         |
-| New namespaces             | `wbs` (gateway, frontend, MCP), `wbs-solver` (backend, PVC `wbs-data` on `hcloud-volumes`, release record `wbs-release`, Lease `wbs-release`)                                     |
+| New namespaces             | `wbs` (gateway, frontend, MCP), `wbs-solver` (backend, PVC `wbs-data` on existing-host `puni-retain`, release record `wbs-release`, Lease `wbs-release`)                          |
 | New edge                   | Traefik Ingress `wbs/wbs-public` and `wbs-solver/wbs-api` (deploy/k8s/wbs/overlays/prod/ingress.yaml), certificate `wbs/wbs-tls` from ClusterIssuer `letsencrypt-production`      |
 | Ingress address            | `INPUT` `$NEW_IP`: the platform node's public IPv4 (Traefik `websecure`)                                                                                                          |
 | DNS                        | `wbs.bulletpoints.club` A record at GoDaddy (manual): current value `INPUT` `$OLD_IP` (h2puni), target `$NEW_IP`, TTL lowered to 60 s at least one old TTL before the window      |
@@ -36,6 +36,11 @@ authorization. Commands below reference inputs as shell variables.
 | Expected read availability | Reads keep working through the fenced old edge until the switch; after it, DNS propagation (TTL 60 s)                                                                             |
 
 ## Prerequisites (all must be checked before authorization)
+
+- [ ] Before guarded journal history is imported or any first rollout, F11 enforces
+      the [replay capability prerequisite](../../openspec/changes/add-step-node-blocking/design.md#kubernetes-pre-cutover-obligation)
+      for incoming and rollback image digests, with watched refusal proofs. The
+      prepared Kubernetes path currently has no such guard.
 
 - [ ] Production platform cluster exists and passes `tool-fleet:check`, and the hcloud
       inventories carry `network:` (the check's `ansible-inventory` family fails today).
@@ -83,9 +88,16 @@ from a checkout of the authorized commit on h2puni (`/home/puni1/wbs-build`) unl
 
    ```sh
    bun tools/tool-deploy/src/k8s/cutover-cli.ts export --image "$OLD_BE_IMAGE" \
+     --descriptor descriptor.json --descriptor-sha256 "$DESCRIPTOR_BYTES_SHA256" \
      --data /home/puni1/wbs/data --db wbs.db --out /home/puni1/wbs/cutover-$STAMP \
      --known '["<two project names read before step 2>"]'
    ```
+
+   `$DESCRIPTOR_BYTES_SHA256` is the separately reviewed SHA-256 of the original descriptor
+   file bytes, including the newline; it is not the canonical promotion identity
+   `$DESCRIPTOR_SHA256`. Replay evidence records both references and requires equal backend
+   digests, permitting host/cluster registry aliases. Compatibility refusal keeps the old
+   Compose writer stopped and the edge fenced; inspect its diagnostic before deciding recovery.
 
    It refuses an existing output directory and exits non-zero unless `integrity_check` is `ok`,
    `foreign_key_check` is empty, migrations are recorded and the known rows exist. Check the
@@ -124,49 +136,51 @@ from a checkout of the authorized commit on h2puni (`/home/puni1/wbs-build`) unl
    ```sh
    bun tools/tool-deploy/src/k8s/cutover-cli.ts release-manifests --descriptor descriptor.json \
      --environment prod --kubectl "$KUBECTL" > release.yaml
-   # edit release.yaml: Deployment wbs-backend spec.replicas 0; then
+   # All Deployments are rendered at replicas 0; first-start admission is still required.
    kubectl --context "$CTX" apply -f release.yaml
    kubectl --context "$CTX" -n wbs-solver patch configmap puni-trusted-workload --type=merge \
      -p "{\"data\":{\"solverImages\":\"$NEW_BE_IMAGE\"}}"
-   bun tools/tool-deploy/src/k8s/cutover-cli.ts restore-job --image "$NEW_BE_IMAGE" \
+   bun tools/tool-deploy/src/k8s/cutover-cli.ts restore-job --image "$NEW_BE_IMAGE" --old-image "$OLD_BE_IMAGE" \
+     --descriptor descriptor.json --descriptor-sha256 "$DESCRIPTOR_BYTES_SHA256" \
      --export-report cutover-$STAMP/export-report.json | kubectl --context "$CTX" create -f -
    POD=$(kubectl --context "$CTX" -n wbs-solver get pod -l job-name=wbs-cutover-restore -o name)
    kubectl --context "$CTX" -n wbs-solver cp -c task cutover-$STAMP/wbs-export.sqlite "${POD#pod/}:/data/cutover-incoming.sqlite"
    kubectl --context "$CTX" -n wbs-solver exec "${POD#pod/}" -c task -- touch /data/cutover-incoming.done
    kubectl --context "$CTX" -n wbs-solver wait --for=condition=complete job/wbs-cutover-restore --timeout=600s
    kubectl --context "$CTX" -n wbs-solver logs job/wbs-cutover-restore > restore.log
-   bun tools/tool-deploy/src/k8s/cutover-cli.ts verify-restore \
+   bun tools/tool-deploy/src/k8s/cutover-cli.ts verify-restore --image "$NEW_BE_IMAGE" --old-image "$OLD_BE_IMAGE" \
+     --descriptor descriptor.json --descriptor-sha256 "$DESCRIPTOR_BYTES_SHA256" \
      --export-report cutover-$STAMP/export-report.json --logs restore.log
    ```
 
-   The Job refuses a SHA-256 mismatch (deleting the bytes) and an existing `/data/wbs.sqlite`;
-   `verify-restore` requires identical bytes, migrations and row counts and owner UID 10001.
+   The Job refuses changed bytes, descriptor/replay evidence, incompatible image capabilities
+   and an existing target before rename. It independently inventories the incoming database.
+   Refusal preserves the source export, incoming bytes and arrival marker; another attempt
+   refuses the stale marker. Retain the failed Job logs and inspect/move or explicitly clear
+   arrival artifacts before retrying. `verify-restore` rejects legacy reports and requires
+   matching versioned replay evidence, bytes, migrations/counts and owner UID 10001.
 
-8. **Start the new tiers** (`start-tiers`) `[operator]`, then record the release and hand the
-   manifests to Flux, in this order:
-
-   ```sh
-   kubectl --context "$CTX" -n wbs-solver scale deployment wbs-backend --replicas=1
-   for d in wbs-solver/wbs-backend wbs/wbs-gateway wbs/wbs-frontend wbs/wbs-mcp; do
-     kubectl --context "$CTX" -n "${d%/*}" rollout status "deployment/${d#*/}" --timeout=600s
-   done
-   bun tools/tool-deploy/src/k8s/cutover-cli.ts release-record --descriptor descriptor.json \
-     | kubectl --context "$CTX" apply -f -
-   # deploy repository clone: the same manifests, replicas as rendered (1)
-   bun tools/tool-deploy/src/k8s/cutover-cli.ts release-manifests --descriptor descriptor.json \
-     --environment prod --kubectl "$KUBECTL" > "$DEPLOY_REPO/clusters/prod/wbs/release.yaml"
-   git -C "$DEPLOY_REPO" add clusters/prod/wbs/release.yaml
-   git -C "$DEPLOY_REPO" commit -m "wbs: cutover release $(jq -r .sourceSha descriptor.json)"
-   git -C "$DEPLOY_REPO" push origin HEAD:main
-   flux --context "$CTX" reconcile source git wbs-deploy -n flux-system
-   # resume only once the source serves the pushed commit, or Flux re-applies an older one
-   kubectl --context "$CTX" -n flux-system get gitrepository wbs-deploy -o jsonpath='{.status.artifact.revision}'
-   flux --context "$CTX" resume kustomization wbs -n flux-system
-   kubectl --context "$CTX" -n flux-system get kustomization wbs -o jsonpath='{.status.lastAppliedRevision}'
-   ```
-
-   Check: the last applied revision is the pushed commit and every Deployment still runs the
-   descriptor's digests (Flux applied the same manifests).
+8. **First-start admission remains blocked on review and live acceptance** (`start-tiers`).
+   The F11.1d candidate routes the guarded operation through
+   `bun tools/tool-deploy/src/k8s/cutover-cli.ts first-start --request <reviewed-request.json>
+--state <protected-state-dir>/first-start-state.json --kubeconfig <file> --kubectl <locked-path>`.
+   Its request contains the original descriptor bytes/pin, complete export/restore reports,
+   context/cluster UID, app/backend namespace names/UIDs, PVC name/UID/path, completed restore
+   Job name/UID and Flux unit/revision (see `FirstStartRequest` in
+   [first-start.ts](../../tools/tool-deploy/src/k8s/first-start.ts)). The coordinator freshly
+   observes actual PVC replay and exact disabled activation authority, starts all tiers,
+   verifies their digests/rollout, persists and reads back the release record, then adopts Flux.
+   Descriptor-only `release-record` refuses. `handoff-manifests` renders the desired source
+   with a closed writer fence; preparation still holds every Deployment at zero.
+   **Do not run this candidate before independent re-review and live acceptance.**
+   The repaired source receipt pins the actual GitRepository commit and admits its
+   complete flat release inventory before scale/resume. Both writer and public ingress
+   fences remain closed, with backend reader allowances retained for gateway health.
+   Complete policy, Pod and controller inventories and exact backend startup mounts
+   are required. Docker/k3d/staging evidence and attended acceptance remain outstanding.
+   Step 9 pins a separately reviewed revision opening both fences; successful first-start
+   does not enable the SQLite blockage marker. The immutable source commit remains
+   pinned through attended opening.
 
 9. **Smoke with a host override** (`smoke-host-override`) `[operator]`:
    `curl --resolve wbs.bulletpoints.club:443:$NEW_IP https://wbs.bulletpoints.club/` (200) and

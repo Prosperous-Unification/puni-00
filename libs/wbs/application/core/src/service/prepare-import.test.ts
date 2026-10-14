@@ -654,3 +654,83 @@ test('prepares whole minute trios with their step unit and refuses fractional mi
     path: 'workItems[0].estimates.step-1',
   });
 });
+
+test('prepares exact direct blockage identities and negative timestamps', () => {
+  const document = planDocumentFixture();
+  Reflect.set(document, 'stepBlockages', [
+    { workItemId: 'row-1', stepId: 'step-1', blockedAt: -17 },
+  ]);
+  const prepared = prepareImport(document, supportsAll);
+  expect(prepared.ok).toBe(true);
+  if (!prepared.ok) return;
+  expect(Reflect.get(prepared.value, 'stepBlockages')).toEqual([
+    { workItemId: 'row-1', stepId: 'step-1', blockedAt: -17 },
+  ]);
+});
+
+for (const [name, facts, path] of [
+  [
+    'unknown owner',
+    [{ workItemId: 'missing', stepId: 'step-1', blockedAt: 1 }],
+    'stepBlockages[0].workItemId',
+  ],
+  [
+    'unknown step',
+    [{ workItemId: 'row-1', stepId: 'missing', blockedAt: 1 }],
+    'stepBlockages[0].stepId',
+  ],
+  [
+    'fractional time',
+    [{ workItemId: 'row-1', stepId: 'step-1', blockedAt: 1.5 }],
+    'stepBlockages[0].blockedAt',
+  ],
+  [
+    'unsafe time',
+    [{ workItemId: 'row-1', stepId: 'step-1', blockedAt: Number.MAX_SAFE_INTEGER + 1 }],
+    'stepBlockages[0].blockedAt',
+  ],
+  [
+    'duplicate pair',
+    [
+      { workItemId: 'row-1', stepId: 'step-1', blockedAt: 1 },
+      { workItemId: 'row-1', stepId: 'step-1', blockedAt: 2 },
+    ],
+    'stepBlockages[1]',
+  ],
+] as const) {
+  test(`refuses direct blockage ${name}`, () => {
+    const document = planDocumentFixture();
+    Reflect.set(document, 'stepBlockages', facts);
+    expect(prepareImport(document, supportsAll)).toEqual({
+      ok: false,
+      code: 'invalid_body',
+      path,
+      detail: null,
+    });
+  });
+}
+
+test('refuses direct blockage on a parent', () => {
+  const document = planDocumentFixture();
+  const parent = at(document.workItems);
+  parent.estimates = {};
+  parent.actuals = {};
+  parent.progress = {};
+  parent.measures = {};
+  parent.assignees = {};
+  document.workItems.push({
+    ...structuredClone(parent),
+    id: 'child',
+    parentId: parent.id,
+    externalRefs: [],
+  });
+  Reflect.set(document, 'stepBlockages', [
+    { workItemId: parent.id, stepId: 'step-1', blockedAt: 1 },
+  ]);
+  expect(prepareImport(document, supportsAll)).toEqual({
+    ok: false,
+    code: 'invalid_body',
+    path: 'stepBlockages[0].workItemId',
+    detail: null,
+  });
+});

@@ -20,7 +20,7 @@ const DAY = 86_400_000;
 
 async function answerAsSuperAdmin(
   page: Page,
-  mode: 'ready' | 'denied' | 'held' | 'create-held' = 'ready',
+  mode: 'ready' | 'denied' | 'held' | 'create-held' | 'enforce-held' = 'ready',
 ): Promise<void> {
   const now = Date.now();
   await page.route('**/api/**', async (route) => {
@@ -102,6 +102,29 @@ async function answerAsSuperAdmin(
           return;
         }
         return json({ error: 'login_slug_taken' }, 409);
+      case 'PATCH /api/organization/sso-connections/connection-b':
+        if (mode === 'enforce-held') {
+          await new Promise<void>((resolve) => {
+            page.once('close', () => {
+              resolve();
+            });
+          });
+          return;
+        }
+        return json({
+          connection: {
+            id: 'connection-b',
+            domainClaimId: 'used-b',
+            domain: 'other.example',
+            auth0Connection: 'other-company-oidc',
+            strategy: 'oidc',
+            loginSlug: 'other-company-login',
+            enforced: false,
+            provenAt: 1,
+            provenBy: 'u1',
+            lastPrefixMismatchAt: 2,
+          },
+        });
       case 'POST /api/auth/link/auth0':
         if (mode === 'held') {
           await new Promise<void>((resolve) => {
@@ -206,6 +229,30 @@ for (const width of [1280, 375]) {
       await expect(panel.getByLabel('Verified domain')).toHaveCount(0);
       await expect(panel.getByRole('button', { name: /Start proof/ })).toHaveCount(0);
       await expect(page.getByRole('heading', { name: 'Members', exact: true })).toBeVisible();
+    });
+
+    test('keeps enforcement confirmed and freezes setup while PATCH is pending', async ({
+      page,
+    }) => {
+      await answerAsSuperAdmin(page, 'enforce-held');
+      await page.goto('/organization');
+      const disabled = page.getByRole('button', {
+        name: 'Enable enforcement for acme-engineering-subsidiary.example',
+      });
+      await expect(disabled).toBeDisabled();
+      const requested = page.waitForRequest('**/api/organization/sso-connections/connection-b');
+      await page.getByRole('button', { name: 'Disable enforcement for other.example' }).click();
+      expect((await requested).postDataJSON()).toEqual({ enforced: false });
+      await expect(
+        page.getByRole('button', { name: 'Disable enforcement for other.example' }),
+      ).toBeDisabled();
+      await expect(page.getByRole('button', { name: 'Refresh company sign-in' })).toBeDisabled();
+      await expect(
+        page.getByRole('button', { name: 'Start proof for other.example' }),
+      ).toBeDisabled();
+      await expect(
+        page.getByRole('button', { name: 'Disable enforcement for other.example' }),
+      ).toBeVisible();
     });
 
     test('holds the routed proof on one connection', async ({ page }) => {

@@ -1,0 +1,28 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-blockage.db.test.ts:
+83 |       { workItemId: 'b', stepId: 'dev', blockedAt: 3 },
+84 |       { workItemId: 'b', stepId: 'qa', blockedAt: 2 },
+85 |     ]);
+86 |     const before = connection.db.get("SELECT revision FROM work_item WHERE id='a'");
+87 |     await blockages.moveAll('a', 'b', stamp);
+88 |     expect(connection.db.get("SELECT revision FROM work_item WHERE id='a'")).toEqual(before);
+                                                                                  ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "revision": 4,
++   "revision": 5,
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-step-blockage-rebuild/libs/wbs/adapters/store-sqlite/src/step-blockage.db.test.ts:88:78)
+(fail) StepBlockageRepository > removes only one pair and moves all facts with their timestamps [130.35ms]
+
+ 0 pass
+ 6 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [357.00ms]

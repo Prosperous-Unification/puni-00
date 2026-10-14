@@ -24,6 +24,7 @@ let failedWaitpid = false;
 let inventoryReads = 0;
 let armedInventory = false;
 let failedInventory = false;
+let exitedScanPid: string | undefined;
 
 if (fault === 'descriptor-cancel-reject') {
   const nativeCancel: unknown = Reflect.get(ReadableStreamDefaultReader.prototype, 'cancel');
@@ -204,9 +205,30 @@ await mock.module('node:fs', () => ({
       failedInventory = true;
       throw new Error('injected post-run inventory ambiguity');
     }
-    return (nativeReaddirSync as (...args: unknown[]) => unknown)(path, ...argumentsAfterPath);
+    const entries = (nativeReaddirSync as (...args: unknown[]) => unknown)(
+      path,
+      ...argumentsAfterPath,
+    );
+    if (fault === 'stat-esrch' && path === '/proc' && process.env['PUNI_EXITED_SCAN_PID']) {
+      exitedScanPid = process.env['PUNI_EXITED_SCAN_PID'];
+      delete process.env['PUNI_EXITED_SCAN_PID'];
+      if (!Array.isArray(entries)) throw new Error('Expected /proc directory names');
+      const names: unknown[] = entries;
+      return [...names.filter((entry) => entry !== exitedScanPid), exitedScanPid];
+    }
+    return entries;
   }) as typeof fs.readdirSync,
   readFileSync: ((path: string, ...argumentsAfterPath: unknown[]) => {
+    if (fault === 'stat-esrch' && path === `/proc/${exitedScanPid ?? '-'}/stat`) {
+      exitedScanPid = undefined;
+      process.env['PUNI_EXITED_SCAN_INJECTED'] = '1';
+      throw Object.assign(new Error('injected exited /proc stat read'), { code: 'ESRCH' });
+    }
+    if (path === `/proc/${String(process.pid)}/stat`) {
+      if (fault === 'stat-eio')
+        throw Object.assign(new Error('injected /proc stat I/O failure'), { code: 'EIO' });
+      if (fault === 'stat-malformed') return `${String(process.pid)} (malformed) S 0`;
+    }
     if (fault === 'pidfd-vanish' && path === `/proc/${String(vanishPid)}/stat`) {
       vanishPid = undefined;
       const missing = new Error('injected /proc exit');

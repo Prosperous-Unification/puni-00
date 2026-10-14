@@ -1067,14 +1067,26 @@ describe('bootBe01', () => {
     expect(be.services.retention.isRunning()).toBe(false);
   }, 10_000);
 
-  it('serves an unmigrated database rather than refusing to start', async () => {
+  it('refuses an unmigrated database before becoming ready', async () => {
     const dir = tempDir('wbs-boot-unmigrated-');
-    const be = await bootBe01(bootOptions(join(dir, 'test.db'), 0));
-    running = be;
-
-    const health = await fetch(`http://localhost:${String(be.port)}/health`);
-
-    expect(health.status).toBe(503);
+    let failure: unknown;
+    try {
+      running = await bootBe01(bootOptions(join(dir, 'test.db'), 0), {
+        openSource: openSqliteSource,
+        makeApp: (options) => {
+          const app = buildApp(options);
+          app.stop = () => Promise.resolve(app);
+          return app;
+        },
+        startListener: (_app, _port, ready) => {
+          ready();
+        },
+      });
+    } catch (cause) {
+      failure = cause;
+    }
+    expect(reasons(failure)).toContain('no such table: __drizzle_migrations');
+    expect(running).toBeNull();
   }, 10_000);
 
   it('serves health on the port it bound', async () => {
@@ -1293,3 +1305,32 @@ for (const passwordLoginEnabled of [false, true]) {
     expect(me.status).toBe(500);
   });
 }
+
+it('refuses boot after migrations when blockage admission authority is missing', async () => {
+  const dbPath = join(tempDir('wbs-blockage-boot-'), 'plan.db');
+  runMigrations(dbPath, FOLDER);
+  const sqlite = openDatabase(dbPath);
+  sqlite.run('DELETE FROM step_blockage_activation');
+  sqlite.close();
+  let failure: unknown;
+  try {
+    running = await bootBe01(
+      { ...bootOptions(dbPath, 0), migrateOnStartup: true, migrationsFolder: FOLDER },
+      {
+        openSource: openSqliteSource,
+        makeApp: (options) => {
+          const app = buildApp(options);
+          app.stop = () => Promise.resolve(app);
+          return app;
+        },
+        startListener: (_app, _port, ready) => {
+          ready();
+        },
+      },
+    );
+  } catch (cause) {
+    failure = cause;
+  }
+  expect(reasons(failure)).toContain('invalid step blockage activation marker');
+  expect(running).toBeNull();
+});

@@ -57,3 +57,24 @@ None.
 ## Impact
 
 Nx test targets, Bun, Vitest and Playwright reports, OpenSpec scenarios, Twilight Burokrat's identifier allocator and coverage ledgers.
+
+## 4.1b.6b.1 intent
+
+Problem: a committed Conformance authority currently refuses even when its exact manifest
+contains a bounded explicit test selection. Outcome: validate that selection without executing
+candidate code, retain all committed selected source identities, and report the sorted
+intersection with the complete Performance fixture scope. Constraints: retain strict external
+version-1 authority, exact SHA/blob selection, closed Nx target and options, literal safe Bun
+command grammar with explicit `./` file operands and explicit absence. Update the Memory and
+SQLite target operands and canonical path consumers together; bare Bun filters cannot prove
+literal complete membership. The exact SQLite migration input is permitted only at
+its reviewed project root and remains dependency metadata. Non-goals: Architecture extraction,
+classification, target isolation, report inspection, reviewer authentication and coverage credit.
+
+## 4.1b.7 intent
+
+Problem: complete committed level facts and inspected Performance publications are separate observations, so they cannot yet establish target isolation. Outcome: a bounded `inspect-performance-levels` diagnostic joins those real inspectors against one exact committed declaration and classifies only its complete Performance fixture scope through the earlier rows of the shared first-match table. Constraints: compare exact revision/candidate, declaration path and semantic digest, config/project/digest, selected source tuples and complete recorded collection; preserve legitimate Conformance and Architecture overlap, then report it as typed wrong-level isolation with nonzero CLI status. Raw declaration byte pins and normalized declaration digests are distinct identities and must be verified through the shared decoder. Non-goals: later table rows, owner-output changes, coverage, independent authentication, certification, admission, sync or archive.
+
+## 2.1j intent
+
+Problem: six find-based Bun level commands emit bare substring filters, allowing nested matching files to execute outside selection. Outcome: emit literal `./src` operands, keep the Memory Unit Conformance exclusion effective, and remove exactly one leading `./` only from collected canonical identities. Constraints: preserve each command's selector scope, report clearing, empty/failed-selection behavior, timeout and flags. Non-goals: a new registry or parser, shell whitespace/glob safety, remaining levels, trusted receipts, coverage or admission.

@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-blockage-migration.db.test.ts:
+115 |     });
+116 |   });
+117 |
+118 |   it('refuses rollback over a fact, keeping the schema and migration ledger', () => {
+119 |     withDatabase((sqlite) => insert(sqlite));
+120 |     expect(() => rollbackTo(path, FOLDER, BASELINE)).toThrow(/step-blockage-rollback-cli.ts/);
+                                                           ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /step-blockage-rollback-cli.ts/
+
+Received function did not throw
+Received value: [ "20261013140000_add_step_node_blockages" ]
+
+      at <anonymous> (/tmp/puni-step-blockage-rebuild/libs/wbs/adapters/store-sqlite/src/step-blockage-migration.db.test.ts:120:54)
+(fail) 20261013140000_add_step_node_blockages > refuses rollback over a fact, keeping the schema and migration ledger [86.74ms]
+
+ 0 pass
+ 5 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [125.00ms]

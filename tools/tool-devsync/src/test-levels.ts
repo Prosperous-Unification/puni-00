@@ -872,10 +872,15 @@ export async function readManifest(root: string): Promise<ProjectManifest> {
  * The test files a project's `test:conformance` target names.
  *
  * Read from the command rather than declared, because the command is the
- * authority row 2 of the level-selection table points at.
+ * authority row 2 of the level-selection table points at. Explicit './' operands are
+ * normalized to the same project-relative identity used by collected source paths.
  */
 export function conformanceFilesIn(command: string): readonly string[] {
-  return [...command.matchAll(/\S+(?:\.|_)(?:test|spec)\.[cm]?[jt]sx?/g)].map(([path]) => path);
+  // Proof: removing explicit-prefix normalization made the production level verifier refuse
+  // `wbs-store-sqlite:test aggregate members differ from declaration` after literal './' adoption.
+  return [...command.matchAll(/\S+(?:\.|_)(?:test|spec)\.[cm]?[jt]sx?/g)].map(([path]) =>
+    path.startsWith('./') ? path.slice(2) : path,
+  );
 }
 
 /**
@@ -1003,7 +1008,8 @@ export function parseLevelCommand(command: string): LevelCommand {
  * selector in the target's working directory.
  *
  * The selector is run rather than re-implemented: a second copy of the selection
- * rule is the drift this check exists to catch.
+ * rule is the drift this check exists to catch. One leading `./` is removed only
+ * for canonical project-relative identities; execution retains the literal operands.
  *
  * @throws when the selector fails.
  */
@@ -1016,7 +1022,14 @@ export function collectedFiles(root: string, selector: string): readonly string[
   if (run.exitCode !== 0) {
     throw new Error(`${root}: the file selector failed: ${run.stderr.toString()}`);
   }
-  return run.stdout.toString().split(/\s+/).filter(Boolean).sort();
+  // Proof: removing one-prefix normalization failed the canonicalization and real level
+  // collection assertions in test-levels.test.ts (2026-10-14).
+  return run.stdout
+    .toString()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((file) => file.replace(/^\.\//, ''))
+    .sort();
 }
 
 /** The report path a target writes, spelled the way its own working directory must spell it. */

@@ -34,6 +34,7 @@ async function seeded() {
       measures: stores.measures,
       progress: stores.progress,
       attempts: stores.attempts,
+      blockages: stores.blockages,
       directory: stores.directory,
       capacity: stores.capacity,
       priorityBands: stores.priorityBands,
@@ -64,6 +65,9 @@ const hostRequirements = () => {
     measureStore: DiBag.createProvider(() => stores.measures, { factoryReturnKind: 'sync-value' }),
     progressStore: DiBag.createProvider(() => stores.progress, { factoryReturnKind: 'sync-value' }),
     attemptStore: DiBag.createProvider(() => stores.attempts, { factoryReturnKind: 'sync-value' }),
+    blockageStore: DiBag.createProvider(() => stores.blockages, {
+      factoryReturnKind: 'sync-value',
+    }),
     directoryStore: DiBag.createProvider(() => stores.directory, {
       factoryReturnKind: 'sync-value',
     }),

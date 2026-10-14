@@ -15,8 +15,9 @@ const silent: NodeFacts = {
   participation: null,
   statement: null,
   rowHold: null,
+  isBlocked: false,
   runningAttempt: false,
-  rowBlockedByProxy: false,
+  blockedByProxy: false,
   predecessors: [],
 };
 
@@ -49,7 +50,7 @@ describe('nodeReadingOf, one clause at a time in order', () => {
         statement: 'done',
         rowHold: 'on_hold',
         runningAttempt: true,
-        rowBlockedByProxy: true,
+        blockedByProxy: true,
         predecessors: ['done'],
       }),
     ).toBe('skipped');
@@ -68,13 +69,20 @@ describe('nodeReadingOf, one clause at a time in order', () => {
     expect(read({ statement: 'in_progress', rowHold: null })).toBe('in_progress');
   });
 
-  it('a running attempt reads in progress', () => {
-    expect(read({ runningAttempt: true, predecessors: ['done'] })).toBe('in_progress');
-    expect(read({ statement: 'in_progress', rowBlockedByProxy: true })).toBe('in_progress');
+  it('direct blockage outranks progress and a running attempt but yields to done and row hold', () => {
+    expect(read({ isBlocked: true, statement: 'in_progress' })).toBe('blocked');
+    expect(read({ isBlocked: true, runningAttempt: true })).toBe('blocked');
+    expect(read({ isBlocked: true, statement: 'done' })).toBe('done');
+    expect(read({ isBlocked: true, rowHold: 'on_hold' })).toBe('on_hold');
   });
 
-  it('a silent node of a row blocked by proxy reads blocked by proxy', () => {
-    expect(read({ rowBlockedByProxy: true, predecessors: ['done'] })).toBe('blocked_by_proxy');
+  it('a running attempt reads in progress', () => {
+    expect(read({ runningAttempt: true, predecessors: ['done'] })).toBe('in_progress');
+    expect(read({ statement: 'in_progress', blockedByProxy: true })).toBe('in_progress');
+  });
+
+  it('a silent node reached by blockage roots reads blocked by proxy', () => {
+    expect(read({ blockedByProxy: true, predecessors: ['done'] })).toBe('blocked_by_proxy');
   });
 
   it('QA waits on a finished Dev', () => {
@@ -105,13 +113,14 @@ describe('skipped before participation exists', () => {
         fc.boolean(),
         fc.boolean(),
         fc.array(fc.constantFrom(...NODE_READINGS), { maxLength: 4 }),
-        (statement, rowHold, runningAttempt, rowBlockedByProxy, predecessors) =>
+        (statement, rowHold, runningAttempt, blockedByProxy, predecessors) =>
           nodeReadingOf({
             participation: null,
             statement,
             rowHold,
+            isBlocked: false,
             runningAttempt,
-            rowBlockedByProxy,
+            blockedByProxy,
             predecessors,
           }) !== 'skipped',
       ),

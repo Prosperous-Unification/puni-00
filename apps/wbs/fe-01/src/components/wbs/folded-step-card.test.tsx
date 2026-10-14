@@ -322,6 +322,7 @@ describe('folded step card attempts (step-node-attempts D7)', () => {
           ...node,
         }}
         attemptActions={actions}
+        setBlocked={vi.fn()}
       />,
     );
     return actions;
@@ -389,6 +390,17 @@ describe('folded step card attempts (step-node-attempts D7)', () => {
     expect(screen.queryByRole('button', { name: 'Start attempt' })).toBeNull();
     // The summary lines still say what the attempts came to.
     expect(screen.getByText('2 attempts, last succeeded')).toBeInTheDocument();
+  });
+
+  it('walks past a disabled new blockage action on a done step', () => {
+    attemptCard({
+      reading: 'done',
+      blockage: { isBlocked: false, isDone: true, progress: 'Done', reading: 'done', causes: [] },
+    });
+    const copy = screen.getByRole('button', { name: 'Copy link' });
+    copy.focus();
+    fireEvent.keyDown(copy, { key: 'Tab' });
+    expect(screen.getByRole('button', { name: 'Remove attempt 2 of 010.dev' })).toHaveFocus();
   });
 
   it('walks from the copy actions into the attempt actions with Tab', () => {

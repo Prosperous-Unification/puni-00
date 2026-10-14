@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-blockage-rollback.db.test.ts:
+182 |       stdout: 'pipe',
+183 |       stderr: 'pipe',
+184 |     });
+185 |     const stderr = await new Response(child.stderr).text();
+186 |     expect(await child.exited).not.toBe(0);
+187 |     expect(stderr).toContain('DB_PATH must be set');
+                         ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "DB_PATH must be set"
+Received: "170 | /** Fails loudly if the pragmas were not actually adopted. */\n171 | export function assertPragmas(db: Database): void {\n172 |   const journal = db.query<{ journal_mode: string }, []>('PRAGMA journal_mode;').get();\n173 |   const mode = journal?.journal_mode.toLowerCase();\n174 |   if (mode !== 'wal') {\n175 |     throw new Error(`expected journal_mode=wal, got ${mode ?? 'unknown'}`);\n                    ^\nerror: expected journal_mode=wal, got memory\n      at assertPragmas (/tmp/puni-step-blockage-rebuild/libs/wbs/adapters/store-sqlite/src/db.ts:175:15)\n      at openWritableDatabase (/tmp/puni-step-blockage-rebuild/libs/wbs/adapters/store-sqlite/src/db.ts:38:3)\n      at openExistingConnection (/tmp/puni-step-blockage-rebuild/libs/wbs/adapters/store-sqlite/src/db.ts:166:18)\n      at /tmp/puni-step-blockage-rebuild/apps/wbs/be-01/src/step-blockage-rollback-cli.ts:19:20\n\nBun v1.4.2 (Linux x64)\n"
+
+      at <anonymous> (/tmp/puni-step-blockage-rebuild/libs/wbs/adapters/store-sqlite/src/step-blockage-rollback.db.test.ts:187:20)
+(fail) step blockage recovery > requires DB_PATH and a valid verb at the CLI boundary [997.94ms]
+
+ 0 pass
+ 8 filtered out
+ 1 fail
+ 6 expect() calls
+Ran 1 test across 1 file. [1171.00ms]

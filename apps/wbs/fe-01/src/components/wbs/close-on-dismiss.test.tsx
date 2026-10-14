@@ -21,6 +21,19 @@ function Panel(): React.JSX.Element {
   );
 }
 
+function Panels(): React.JSX.Element {
+  return (
+    <>
+      <details ref={useClosedOnDismiss()}>
+        <summary>Filters</summary>
+      </details>
+      <details ref={useClosedOnDismiss()}>
+        <summary>Views</summary>
+      </details>
+    </>
+  );
+}
+
 const panel = (): HTMLDetailsElement => {
   const node = document.querySelector('[data-panel]');
   if (!(node instanceof HTMLDetailsElement)) throw new Error('no panel rendered');
@@ -29,6 +42,40 @@ const panel = (): HTMLDetailsElement => {
 
 describe('a dismissible panel', () => {
   afterEach(cleanup);
+
+  itDom('keeps the latest activated panel open before queued toggles settle (F-028)', async () => {
+    render(<Panels />);
+
+    // Native summary activation queues toggle tasks; both activations land before either task.
+    fireEvent.click(screen.getByText('Filters'));
+    fireEvent.click(screen.getByText('Views'));
+    await new Promise((settle) => setTimeout(settle, 0));
+
+    expect(
+      [...document.querySelectorAll('details[open] > summary')].map(
+        (summary) => summary.textContent,
+      ),
+    ).toEqual(['Views']);
+  });
+
+  itDom(
+    'closes the previous panel when disclosure state changes without summary activation',
+    async () => {
+      render(<Panels />);
+      const filters = screen.getByText('Filters').parentElement;
+      const views = screen.getByText('Views').parentElement;
+      if (!(filters instanceof HTMLDetailsElement) || !(views instanceof HTMLDetailsElement))
+        throw new Error('no panels rendered');
+
+      filters.open = true;
+      await new Promise((settle) => setTimeout(settle, 0));
+      views.open = true;
+      await new Promise((settle) => setTimeout(settle, 0));
+
+      expect(filters.open).toBe(false);
+      expect(views.open).toBe(true);
+    },
+  );
 
   itDom('closes on Escape from inside and gives the focus to its summary (F-028)', () => {
     render(<Panel />);

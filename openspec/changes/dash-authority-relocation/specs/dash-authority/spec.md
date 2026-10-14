@@ -53,13 +53,22 @@ corrupt and incompatible stores SHALL keep their distinct typed refusals.
 ### Requirement: Bootstrap is explicit and single
 
 Only `twilight-dash bootstrap-authority <repository>` SHALL create the store. It SHALL refuse an
-existing store with `exists`, and two concurrent bootstraps SHALL yield one creator and one
-`exists` refusal.
+existing store with `exists`. Concurrent bootstraps SHALL yield exactly one creator; peers SHALL
+refuse with `exists` if initialization completes within their configured finite busy budget,
+or throw typed `AuthorityContentionError` if that budget is exhausted. After all original
+bootstrap calls finish, one fresh attempt by each contended peer SHALL refuse with `exists`
+without changing the store.
 
 #### Scenario: Second bootstrap
 
 - **WHEN** bootstrap runs on a repository whose store exists
 - **THEN** it refuses with `exists` and the store is unchanged
+
+#### Scenario: Initializer exceeds a peer's busy budget
+
+- **WHEN** an `authority.sqlite.initializing` marker remains present for the peer's entire busy budget
+- **THEN** bootstrap and open throw typed `AuthorityContentionError`, create no database and leave the marker intact
+- **AND** after the marker is removed and bootstrap creates the authority, a fresh bootstrap refuses with `exists`
 
 ### Requirement: The authority clock is a required dependency
 

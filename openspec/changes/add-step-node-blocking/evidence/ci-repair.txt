@@ -1,0 +1,27 @@
+PR #400 exact old head 604d0e255650ff86b5725a55b412438085fc7cf5
+2026-10-14 isolated CI repair
+
+Original reproductions:
+- step-estimate-unit-migration.db.test.ts: 6 pass, 8 fail; exact state comparison lost the newer blockage migration ledger row.
+- workspace-targets.test.ts -t "every cached target declares": 0 pass, 1 fail; undeclared apps/wbs/be-01/src/step-blockage-rollback-cli.ts.
+
+Watched negative commands:
+- bun test --preload ./tools/test/scratch/preload.ts libs/wbs/adapters/store-sqlite/src/step-estimate-unit-migration.db.test.ts -t "refuses direct down" --timeout=30000
+- NX_DAEMON=false NX_ISOLATE_PLUGINS=false bun tmp/pr400-hash.ts
+  Probe uses createProjectGraphAsync, createTaskGraph, createTaskHasher and hashTask from installed Nx.
+  Each hash observation is a fresh process. CLI source gains a comment; configuration is unchanged within each before/after pair.
+  All injected source/configuration changes restored in Python finally blocks.
+
+CLI declaration False: before ['wbs-store-sqlite:test 11793095979726880976', 'wbs-store-sqlite:test:api 15235099791515879287']; after ['wbs-store-sqlite:test 11793095979726880976', 'wbs-store-sqlite:test:api 15235099791515879287']; changes [False, False]
+CLI declaration True: before ['wbs-store-sqlite:test 15727428665124366111', 'wbs-store-sqlite:test:api 787132979888511895']; after ['wbs-store-sqlite:test 462479458404665154', 'wbs-store-sqlite:test:api 15632062550925906963']; changes [True, True]
+Removed damaged-journal CASE guard: eight direct-down cases failed on missing throw
+Injected unrelated persisted estimate change after failed rollback: eight exact-state assertions failed on optimistic 241 vs 240
+
+Full Nx project dependency edge sets compared with original project.json from git show HEAD:libs/wbs/adapters/store-sqlite/project.json: exact equality, no edges added or removed.
+
+Original state comparison remains exact for columns, steps, estimates, journal and the complete migration ledger; no row filters or field exclusions added.
+
+Full graph files written with awaited Bun.write (avoids truncated process-exit stdout):
+candidate 3018 edges, 195141 bytes, sha256 4883e2409dd50c4111f4bff82703083094d089f40cdfbfa4dd6f1ce3d1f379f8
+baseline  3018 edges, 195141 bytes, sha256 4883e2409dd50c4111f4bff82703083094d089f40cdfbfa4dd6f1ce3d1f379f8
+Existing original-head cycle: wbs-core -> wbs-store-memory -> wbs-conformance -> wbs-core

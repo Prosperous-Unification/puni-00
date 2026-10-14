@@ -636,7 +636,7 @@ test('every legacy source occurrence and relevant text family is pinned', async 
       'historical bootstrap policy or mapping': 44,
       'historical policy selector or baseline': 89,
       'production proof or revision transition': 18,
-      'test fixture or proof': 107,
+      'test fixture or proof': 109,
     },
     coverage: {
       dockerfiles: [
@@ -904,8 +904,12 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // Proof: leaving `1cb67b80…` here after the activation controller moved from Burokrat's
     // `activation-controller/` to `twilight-dash/cli/src/activation/` failed on the observed
     // digest below at the same 322 occurrences and categories (2026-10-12).
-    digest: '8801695df3fcf499d8babe6cd30af96ca44a48c08a25ce05b72c6a3ed0239eef',
-    occurrences: 322,
+    // Proof: leaving the 107/322 pin after the claims startup repair failed the named corpus
+    // test with 109 test-fixture contexts, 324 occurrences and `1c809c15…`, none unclassified.
+    // The two added contexts assert persisted disjoint claims for `apps/fe-01` and `apps/gw-01`
+    // in claims.db.test.ts; restoring this observed pin passed (2026-10-14).
+    digest: '1c809c1513514d1e09753be99cb3b42882fda2693da8e4aa7d55fd5c7ae1f511',
+    occurrences: 324,
     unclassified: [],
   });
 });

@@ -691,3 +691,353 @@ are returned; cycle and calendar-range evidence SHALL retain the chain's existin
 - **GIVEN** a target has cached dates and its organization's stored mode is malformed
 - **WHEN** the target is read again
 - **THEN** the read throws instead of serving cached dates or defaulting to isolated
+
+### Requirement: Restore approvals are personal and bound to one backup
+
+`POST /api/organization/shared-people/restore-approvals` SHALL accept an operation ID and a
+lowercase SHA-256 canonical backup digest. It SHALL derive the actor and active organization
+from the authenticated request, reject delegations, and require current super-admin membership
+inside an immediate SQLite writer transaction. Pre-activation requests SHALL answer 409
+`organization_required`. Invalid or extra request fields SHALL answer 400. Role refusal SHALL
+answer 403. No refusal SHALL write approval or operation state.
+
+One operation ID SHALL bind exactly one digest across organizations. One operation and
+organization SHALL bind exactly one approving actor and durable approval ID. An identical
+personal retry SHALL return the original approval after rechecking membership. Any changed
+digest or approving actor SHALL answer 409 `restore_approval_conflict` without changing evidence.
+Rollback SHALL refuse to discard any restore operation or approval evidence. The preparatory
+shared-people removal SHALL reject either kind of evidence in its immediate writer transaction
+before mutating ranks, modes or organization audit fields, preserving evidence and the migration
+ledger even when all modes are isolated and no switch audit exists.
+
+#### Scenario: restore evidence closes removal before schema rollback
+
+- **GIVEN** one isolated organization has a rank, no capacity-mode switch audit, and a restore operation with or without an issued approval
+- **WHEN** the operator attempts shared-people removal followed by schema rollback
+- **THEN** removal refuses before changing ranks, modes, organization audit fields or evidence
+- **AND** schema rollback also refuses while the migration ledger remains unchanged
+
+#### Scenario: demotion after request admission
+
+- **GIVEN** a personally authenticated super-admin whose request resolves organization access
+- **WHEN** their membership is demoted before approval obtains the writer
+- **THEN** approval returns 403 and stores neither operation nor approval
+
+#### Scenario: one operation is reused with a different backup
+
+- **GIVEN** organization A has approved operation R for digest D
+- **WHEN** a super-admin in organization B approves R for another digest
+- **THEN** the request returns 409 and the original evidence remains unchanged
+
+#### Scenario: delegated super-admin
+
+- **WHEN** a valid delegation for a super-admin requests approval
+- **THEN** it returns 403 insufficient_scope and writes no approval
+
+### Requirement: Shared people backups have a canonical offline digest
+
+The v1 shared-people backup boundary SHALL preserve existing shape, semantic mode, integer rank
+field and uniqueness validation. Every rank SHALL name an organization included in the complete
+backup. A malformed or incomplete backup SHALL fail before producing a digest or recovery write.
+
+The canonical representation SHALL be UTF-8 JSON without whitespace, with root fields
+`format,version,organizations,ranks`, organization fields `organizationId,mode`, and rank fields
+`projectId,organizationId,position,createdAt,updatedAt,createdBy` in that order. Organization and
+rank arrays SHALL sort by ordinal organization/project ID, never locale collation. The digest
+SHALL be lowercase SHA-256 of those canonical bytes, including every normalized saved fact.
+
+`shared-people-rollback-cli.ts digest <backup-file>` SHALL emit only that digest and a newline,
+without requiring `DB_PATH`, opening SQLite or changing any database. Invalid arguments and
+absent, unreadable, malformed or invalid backups SHALL exit nonzero without digest output.
+Existing isolated `save|remove|restore <file>` recovery SHALL retain its contract and shared
+backups SHALL remain refused by bare restore.
+
+#### Scenario: equivalent backup presentation
+
+- **GIVEN** two v1 backups with identical saved facts and different whitespace, object key order or array order
+- **WHEN** the offline digest command reads either backup
+- **THEN** both emit the same canonical digest without opening a database
+
+#### Scenario: a rank outside the complete organization set
+
+- **WHEN** a backup rank names an organization absent from its organizations array
+- **THEN** digest and recovery validation refuse it before any output or write
+
+### Requirement: Host restore excludes writers before opening the database for recovery
+
+The host recovery entrypoint SHALL own a nonblocking exclusive flock on
+`/home/puni1/wbs/state/deploy.lock` in the same process that restores
+`/home/puni1/wbs/data/wbs.db`. It SHALL hold that lock from before the backup read through
+inspection, diagnostics, transaction completion and connection closure. Contention SHALL refuse
+before a writable database connection opens. It SHALL NOT launch a child writer or pass the
+lock's lifetime to an inspection child. Owner death SHALL release the flock and roll back any
+uncommitted recovery changes, including organization audit fields.
+
+The entrypoint SHALL inspect the full Docker container inventory, including stopped containers.
+Both `be-01-blue` and `be-01-green` SHALL exist, be stopped unconditionally and have an unambiguous
+writable DB_PATH mount resolving to the canonical database's physical device and inode. Every
+additional running container with a writable mount covering that database or naming its physical
+file SHALL refuse recovery. An additional running container with a writable directory on the
+same device SHALL also refuse, since path disjointness or a directory scan cannot exclude a
+hardlink. Missing, unreadable, malformed, incomplete or ambiguous inspection facts SHALL refuse
+before the writable opener; unknown state SHALL NOT establish writer exclusion.
+
+The entrypoint SHALL read the backup file exactly once, retain its validated contents and use the
+canonical digest defined by "Shared people backups have a canonical offline digest" for any
+operation/approval reference diagnostics. Those diagnostics SHALL use a physically read-only
+snapshot, reject inconsistent operation/digest/organization bindings and incomplete references
+for saved shared changes, and SHALL NOT assert an actor, consume consent or grant restore
+authority. The intermediate-release refusal in "Combined backup preserves every mode and rank" SHALL also apply to this host entrypoint, before its writable opener, even when references
+are valid. The host entrypoint SHALL NOT start containers or activate runtime capability.
+
+#### Scenario: deploy contention during backup inspection
+
+- **GIVEN** a host restore owns the canonical deploy flock and a Docker inspection child is still running
+- **WHEN** another deploy or host restore attempts that flock
+- **THEN** the rival refuses while the recovery owner retains the lock
+- **AND** no rival writable recovery connection opens
+
+#### Scenario: owner dies while its inspector survives
+
+- **GIVEN** the recovery owner holds the canonical deploy flock while its inspection child runs
+- **WHEN** the owner is killed and the inspection child remains alive
+- **THEN** another process can acquire the same lock inode
+- **AND** no detached writer continues recovery
+
+#### Scenario: owner dies after partial SQLite writes
+
+- **GIVEN** the locked recovery owner has written organization audit state and spilled uncommitted SQLite pages during a later restore update
+- **WHEN** the owner is killed before commit
+- **THEN** prior modes, ranks and organization audit fields remain unchanged after recovery
+- **AND** the same flock becomes available and a successor isolated restore can complete
+
+#### Scenario: the colours name different physical databases
+
+- **GIVEN** both colours configure the same container DB_PATH but their writable mounts resolve to different database inodes
+- **WHEN** host restore inspects those colours
+- **THEN** it refuses before the writable opener instead of accepting matching path strings
+
+#### Scenario: a running colour names the canonical database through a hardlink
+
+- **GIVEN** green is running and its alternate mount directory contains a hardlink to the canonical database
+- **WHEN** host restore verifies that green's database has the canonical device and inode
+- **THEN** it still refuses because green is running
+- **AND** ranks remain absent and the database journal mode is unchanged
+
+#### Scenario: an additional running writer has a disjoint same-device directory
+
+- **GIVEN** both verified colours are stopped and another running container has a writable directory on the canonical database's device
+- **WHEN** host restore inspects that container, including when the directory contains a database hardlink under an alternate pathname
+- **THEN** it refuses even though the directory path does not contain the canonical database path
+- **AND** ranks remain absent and the database journal mode is unchanged
+
+#### Scenario: required inspection facts cannot establish exclusion
+
+- **GIVEN** Docker inspection fails, a required colour is missing, or inventory, state, DB_PATH or mount facts are malformed, incomplete or ambiguous
+- **WHEN** host restore attempts preflight
+- **THEN** it refuses before opening a writable database connection
+- **AND** no saved mode, rank or organization audit field changes
+
+#### Scenario: an additional stopped container has an absent writable mount source
+
+- **GIVEN** both colours are verified stopped and an additional stopped container names a writable mount source that no longer exists
+- **WHEN** host restore resolves that source's physical identity
+- **THEN** it refuses before the writable opener with modes, ranks and database journal mode unchanged
+
+#### Scenario: a physical mount source is unreadable
+
+- **GIVEN** a required inspected writable mount source exists but the recovery owner cannot read its physical identity
+- **WHEN** host restore attempts to establish writer exclusion
+- **THEN** it refuses before the writable opener rather than treating unreadability as absence
+
+#### Scenario: the backup pathname changes during inspection
+
+- **GIVEN** host restore has read and validated an isolated backup under its flock
+- **WHEN** the inspection subprocess replaces that pathname with malformed bytes
+- **THEN** restore uses the retained original contents without rereading the pathname
+
+#### Scenario: diagnostic references do not match the retained backup
+
+- **GIVEN** supplied references have a foreign canonical digest, operation or saved organization, or omit an approval required for saved shared changes
+- **WHEN** the host entrypoint checks those references
+- **THEN** it refuses without changing approval evidence, ranks, modes or database journal mode
+
+#### Scenario: valid diagnostic consent cannot enable shared restoration
+
+- **GIVEN** a shared backup has valid operation and approval reference bindings
+- **WHEN** the intermediate host entrypoint completes read-only diagnostics
+- **THEN** the existing unsupported-shared-mode refusal occurs before a writable connection opens
+- **AND** approval evidence and database journal mode remain unchanged
+
+### Requirement: Approved restore commits one durable completion without replay
+
+The installed SQLite restore owner SHALL validate the operation's original canonical backup digest
+and exact supplied approval-ID set inside one immediate writer transaction. An existing receipt
+SHALL be returned only for that same digest and exact consumed approval set, before checking
+current restore eligibility or membership. Its original completion time and organization, rank,
+mode-change and event counts SHALL remain stable; retry SHALL NOT replay state, audits or events
+following later edits. Missing or inconsistent receipt consumption SHALL refuse.
+
+A new completion SHALL require activated organization state, every saved organization present,
+all current organizations isolated and no current ranks. It SHALL preserve additional isolated
+organizations. Changed organizations SHALL be exactly saved shared-mode organizations union saved
+rank organizations. Each SHALL have exactly one supplied personally issued approval for the same
+operation, organization and original digest, whose recorded actor remains a super-admin there on
+the immediate writer. Missing, duplicate, foreign or extra approvals SHALL refuse atomically.
+
+Historical rank fields SHALL be restored through the borrowed rank writer. Only actual
+isolated-to-shared changes SHALL update organization audit fields or append a mode audit, with
+the corresponding approval actor. Every project owned by each mode-changing organization,
+including unranked projects, SHALL receive exactly one durable null-cause `elsewhere_changed`
+event on the borrowed writer. Isolated rank-only recovery SHALL produce neither mode audits nor
+mode-change events. Modes, ranks, audits, event sequences, receipt and approval-consumption links
+SHALL commit together or all roll back. Public asynchronous writers SHALL NOT be used inside
+this owner.
+
+The additive receipt schema SHALL bind the original operation/digest, completion time and
+nonnegative integer counts. Consumption SHALL bind exact approval/operation/organization
+identities and prevent duplicate consumption. Completion or pre-existing approval evidence SHALL
+prevent schema rollback without advancing the migration ledger. A completed operation SHALL NOT
+gain further approvals; an identical existing personal approval retry retains its issuance contract.
+
+The host SHALL dispatch approved requests to this owner using its retained backup and connection
+under existing flock/container preflight. This installation SHALL NOT expand supported capacity
+modes: production physical shared restore remains refused before the writable opener. Legacy
+container-local recovery SHALL refuse shared input independently of release capability, including
+in a test-supported shared release. Shared physical acceptance and activation remain later work.
+
+#### Scenario: approved shared restoration includes unranked projects
+
+- **GIVEN** an isolated organization owns four projects, only one has a saved historical rank, and its recorded personal super-admin approval matches the operation and backup
+- **WHEN** the installed owner restores its saved shared mode
+- **THEN** the historical rank and one personally attributed mode audit commit with four null-cause durable project events
+- **AND** one receipt and its exact approval-consumption link commit with the original stable counts
+
+#### Scenario: isolated rank-only restoration
+
+- **GIVEN** a saved isolated organization has a historical rank and its exact matching personal approval
+- **WHEN** recovery completes
+- **THEN** rank, receipt and consumption commit without a mode audit, organization audit update or mode-change event
+
+#### Scenario: another isolated organization contributes only a saved rank
+
+- **GIVEN** one organization changes to shared and a second remains isolated but contributes a saved rank
+- **WHEN** only the mode-changing organization's approval is supplied
+- **THEN** recovery refuses before any state or evidence commits
+- **AND** supplying both exact approvals restores both facts while emitting mode-change events only for the first organization
+
+#### Scenario: authorization changes before the writer checks it
+
+- **GIVEN** a stored approval's actor is demoted or removed from that organization while remaining a super-admin elsewhere
+- **WHEN** new recovery checks authority on its immediate writer
+- **THEN** it refuses without changing modes, ranks, audit fields, event state, receipt or consumption
+- **AND** another local super-admin's membership cannot stand in for the recorded actor
+
+#### Scenario: late receipt or consumption failure
+
+- **GIVEN** recovery has attempted mode, historical rank, audit and event writes
+- **WHEN** an event, receipt or consumption insert fails
+- **THEN** every earlier mode, rank, audit, event sequence and evidence write rolls back
+
+#### Scenario: cold retry after later edits
+
+- **GIVEN** an operation completed and its connection closed, followed by later rank/mode edits or membership removal
+- **WHEN** another connection retries the same canonical backup and exact approval set
+- **THEN** it returns the original durable receipt without eligibility reapplication or new writes
+
+#### Scenario: a completed operation is retried with another identity
+
+- **GIVEN** a durable completion receipt exists
+- **WHEN** a caller changes the backup digest or supplied approval IDs
+- **THEN** retry refuses and preserves all later state and existing completion evidence
+
+#### Scenario: an approval is requested after completion
+
+- **GIVEN** an operation has completed
+- **WHEN** a personal super-admin requests a previously unissued approval for it
+- **THEN** issuance returns `restore_approval_conflict` without adding evidence
+- **AND** the original actor may still retry an identical existing approval under its existing membership checks
+
+#### Scenario: recovery evidence prevents schema rollback
+
+- **GIVEN** receipt/consumption evidence or pre-existing operation/approval evidence is durable
+- **WHEN** rollback attempts to remove the completion schema
+- **THEN** it refuses without discarding evidence or removing the migration's ledger entry
+
+#### Scenario: installed host owner retains its backup
+
+- **GIVEN** an approved isolated recovery has read its backup once
+- **WHEN** Docker inspection replaces the backup pathname with malformed bytes
+- **THEN** the installed owner restores the retained original contents and records its receipt without rereading that pathname
+
+#### Scenario: installation grants no physical shared capability
+
+- **GIVEN** production still supports only isolated mode and a shared backup has diagnostic approval references
+- **WHEN** the physical host CLI is invoked
+- **THEN** it refuses before opening a writable database connection despite the installed transaction owner
+- **AND** the legacy container-local restore also refuses shared input even when a test release supports shared
+
+### Requirement: process-level shared recovery rehearsal before activation
+
+Before advertising shared recovery, a test-only release rehearsal SHALL issue personal approvals
+through the authenticated mounted application for distinct actors in two organizations, close
+application connections, and invoke the real host owner in a separate process on the same SQLite
+file. It SHALL restore shared mode including unranked-project null-cause events, isolated rank-only
+state, historical rank fields, exact actors, canonical digest and durable receipt/consumption.
+This rehearsal SHALL add no production environment or CLI capability override.
+
+#### Scenario: shared transaction process death
+
+- **GIVEN** personally approved shared recovery has spilled uncommitted WAL pages while holding its host flock
+- **WHEN** the owner is killed before receipt commit
+- **THEN** every mode, rank, audit, event, sequence and evidence write rolls back
+- **AND** a rival is excluded before death and a successor acquires the same flock afterward
+
+#### Scenario: committed output is lost
+
+- **GIVEN** a separate shared recovery process commits and exits without returning its receipt
+- **WHEN** ranks and memberships later change and a cold process retries the exact original references
+- **THEN** it returns the original durable receipt with no changed table or sequence
+
+#### Scenario: real physical writers exclude shared recovery
+
+- **GIVEN** real Docker blue/green and an extra writable alias-mounted container use the rehearsal database
+- **WHEN** either colour or the extra writer runs, a colour maps a foreign database inode, or a writable source is absent or unreadable
+- **THEN** shared recovery refuses before writable open
+- **AND** with valid identical database mappings and every test-owned writer stopped, shared recovery commits
+- **AND** the unchanged production CLI still refuses shared recovery while production supports only isolated mode
+
+### Requirement: Packaged host recovery retains production policy
+
+The WBS build SHALL produce a standalone Bun host recovery bundle. The normal backend build
+SHALL depend on that bundle. An explicit uncached Linux rehearsal SHALL execute its unchanged
+bytes against scratch fixtures at the fixed production paths, without a checkout, node_modules,
+network, real Docker socket or live host mounts. Missing required Docker, Bun or the pinned
+runtime image SHALL fail the rehearsal.
+
+#### Scenario: Bundle transports outside the checkout
+
+- **GIVEN** the backend host recovery target built its bundle
+- **WHEN** only that artifact is copied outside the checkout and invoked with pinned Bun without arguments
+- **THEN** the production usage refusal is reached without resolving repository dependencies
+
+#### Scenario: Approved isolated rank recovery and cold retry
+
+- **GIVEN** composed personal approval for an isolated backup and stopped colours mapping the fixed database inode
+- **WHEN** the unchanged bundle restores that backup inside the scratch-only Linux namespace
+- **THEN** ranks, receipt and approval consumption commit through the audited restore owner
+- **AND** a fresh process retry after later rank and membership edits returns original counts without replay
+
+#### Scenario: Approved shared backup remains unsupported before writer opening
+
+- **GIVEN** a valid shared backup with composed personal approval and DELETE journal mode
+- **WHEN** this isolated-only bundle attempts recovery in the scratch-only namespace
+- **THEN** it refuses unsupported shared capacity before opening a writable connection
+- **AND** all tables, database bytes and DELETE journal mode remain unchanged
+
+#### Scenario: Packaged recovery retains host exclusion
+
+- **GIVEN** a competing fixed deploy flock, running green colour or foreign green database inode
+- **WHEN** the unchanged bundle attempts recovery
+- **THEN** the corresponding lock, stopped-colour or physical-identity guard refuses
+- **AND** all tables, database bytes and DELETE journal mode remain unchanged

@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/saved-plan/step-blockages.test.ts:
+55 | for (const [name, change] of [
+56 |   ['owner list', { workItems: null }], ['step list', { steps: null }],
+57 |   ['owner row', { workItems: [null] }], ['step row', { steps: [null] }],
+58 | ] as const) {
+59 |   it(`refuses malformed ${name} while checking stored direct facts`, () => {
+60 |     expect(() => normalisePlanInputForward({ ...planFixtureRows, schemaVersion: 7, stepBlockages: [fact], ...change }, 7)).toThrow('step blockage');
+                                                                                                                                ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "step blockage"
+Received message: "null is not an object (evaluating 'step.id')"
+
+      at <anonymous> (/tmp/puni-step-saved-sol/libs/wbs/domain/domain/src/saved-plan/step-blockages.test.ts:60:124)
+(fail) refuses malformed step row while checking stored direct facts [1.00ms]
+
+ 0 pass
+ 26 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [44.00ms]

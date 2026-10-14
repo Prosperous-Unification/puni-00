@@ -1,0 +1,36 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-blockage-rollback.db.test.ts:
+121 |     }
+122 |     for (const field of ['blocked_at', 'created_at', 'updated_at']) {
+123 |       for (const value of [1.5, Number.MAX_SAFE_INTEGER + 1, '10']) {
+124 |         expect(() =>
+125 |           decodeSavedStepBlockages({ ...saved, rows: [{ ...saved.rows[0], [field]: value }] }),
+126 |         ).toThrow();
+                ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: {
+  format: "step-blockage-save",
+  version: 1,
+  rows: [
+    {
+      work_item_id: "a",
+      step_id: "dev",
+      blocked_at: 9007199254740992,
+      created_at: 10,
+      updated_at: 20,
+      created_by: "u",
+    }
+  ],
+}
+
+      at <anonymous> (/tmp/puni-step-blockage-rebuild/libs/wbs/adapters/store-sqlite/src/step-blockage-rollback.db.test.ts:126:11)
+(fail) step blockage recovery > refuses malformed envelopes, rows and every timestamp field at the decoder [180.25ms]
+
+ 0 pass
+ 8 filtered out
+ 1 fail
+ 12 expect() calls
+Ran 1 test across 1 file. [406.00ms]

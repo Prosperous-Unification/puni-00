@@ -15,6 +15,7 @@ import { stripVTControlCharacters } from 'node:util';
 
 import { afterAll, afterEach, expect, test } from 'bun:test';
 
+import { readCandidate } from '../inventory/read-candidate';
 import { type CliInvocation, invokeCli } from '../invoke-cli';
 import { registeredRules } from '../rules/registry';
 import { hashBytes, hashCanonical } from './content-manifest';
@@ -273,6 +274,40 @@ function inspectArguments(setup: ReturnType<typeof fixture>, now: string): strin
 function inspect(setup: ReturnType<typeof fixture>, now = EVALUATED_AT): Promise<CliInvocation> {
   return invokeCli(inspectArguments(setup, now));
 }
+function observeArguments(setup: ReturnType<typeof fixture>, now = EVALUATED_AT): string[] {
+  return [
+    'inspect-manual-observation',
+    setup.root,
+    setup.revision,
+    setup.policyPath,
+    setup.reportPath,
+    '--now',
+    now,
+  ];
+}
+function observe(setup: ReturnType<typeof fixture>, now = EVALUATED_AT): Promise<CliInvocation> {
+  return invokeCli(observeArguments(setup, now));
+}
+function observeFault(
+  setup: ReturnType<typeof fixture>,
+  modulePath: string,
+  replacement: string,
+): CliInvocation {
+  const preload = join(setup.base, 'manual-observation-fault.ts');
+  writeFileSync(
+    preload,
+    `import { mock } from 'bun:test';\nconst actual = await import(${JSON.stringify(`${modulePath}?real-fault`)});\nmock.module(${JSON.stringify(modulePath)}, () => ({ ...actual, ${replacement} }));\n`,
+  );
+  const call = Bun.spawnSync(
+    [process.execPath, 'run', `--preload=${preload}`, cli, ...observeArguments(setup)],
+    { stdout: 'pipe', stderr: 'pipe' },
+  );
+  return {
+    exitCode: call.exitCode,
+    stdout: call.stdout.toString(),
+    stderr: call.stderr.toString(),
+  };
+}
 /**
  * Runs `inspect-manual` as its own Bun process, for the cases about the process boundary: the
  * real exit status, and a `PATH` the spawned `git` must see.
@@ -301,6 +336,175 @@ function readCurrency(call: CliInvocation): unknown {
 }
 afterEach(() => {
   for (const path of scratch.splice(0)) rmSync(path, { recursive: true, force: true });
+});
+
+test('inspect-manual-observation binds the complete current Manual verdict without certification', async () => {
+  const setup = fixture();
+  const manual = await inspect(setup);
+  const call = await observe(setup);
+  expect(call.exitCode, call.stderr).toBe(0);
+  const observation = JSON.parse(call.stdout) as Record<string, unknown>;
+  expect(observation['schemaVersion']).toBe(1);
+  expect(observation['revision']).toBe(setup.revision);
+  const selected = readCandidate(setup.root, { kind: 'committed', revision: setup.revision });
+  expect(observation['candidate']).toBe(
+    hashCanonical({
+      selection: selected.selection,
+      entries: selected.entries,
+      untracked: selected.untracked,
+    }),
+  );
+  expect(observation['evaluatedAt']).toBe(EVALUATED_AT);
+  expect(observation['manual']).toEqual(JSON.parse(manual.stdout));
+  expect(observation['authentication']).toEqual({ kind: 'absent' });
+  expect(observation['certifies']).toBe(false);
+  const { observationDigest, ...payload } = observation;
+  expect(observationDigest).toBe(hashCanonical(payload));
+  expect(Object.hasOwn(observation, 'coverage')).toBe(false);
+});
+
+test.each([
+  ['stale', 'stale'],
+  ['failed', 'failed'],
+  ['overdue', 'overdue'],
+] as const)('inspect-manual-observation preserves %s and exits nonzero', async (kind, state) => {
+  const setup = fixture();
+  if (kind === 'stale') {
+    writeFileSync(join(setup.root, 'source/module.ts'), 'export const lamp = false;\n');
+    git(setup.root, ['add', '.']);
+    git(setup.root, ['commit', '-m', 'change touched module']);
+    setup.revision = git(setup.root, ['rev-parse', 'HEAD']);
+  } else if (kind === 'failed') {
+    setup.records.report.steps[0].outcome = 'failed';
+    setup.records.report.outcome = 'failed';
+    setup.records.acceptance.reportDigest = digest(setup.records.report);
+    writeApprovedChain(setup);
+  } else {
+    setup.records.review.reviewBy = '2026-10-09';
+    writeApprovedChain(setup);
+  }
+  const call = await observe(setup);
+  expect(call.exitCode, call.stderr).toBe(1);
+  expect((JSON.parse(call.stdout) as { manual: { state: string } }).manual.state).toBe(state);
+});
+
+test.each([
+  ['2026-10-09T23:59:59.999Z', 'current', 0],
+  ['2026-10-10T00:00:00.000Z', 'overdue', 1],
+] as const)('inspect-manual-observation evaluates deadline at %s', async (now, state, exitCode) => {
+  const setup = fixture();
+  setup.records.review.reviewBy = '2026-10-09';
+  writeApprovedChain(setup);
+  const call = await observe(setup, now);
+  expect(call.exitCode, call.stderr).toBe(exitCode);
+  const observation = JSON.parse(call.stdout) as { evaluatedAt: string; manual: { state: string } };
+  expect(observation.evaluatedAt).toBe(now);
+  expect(observation.manual.state).toBe(state);
+});
+
+test('inspect-manual-observation refuses symbolic SHA and absent external evidence without JSON', async () => {
+  const setup = fixture();
+  const symbolic = await observe({ ...setup, revision: 'HEAD' });
+  expect(symbolic.exitCode).toBe(1);
+  expect(symbolic.stderr).toContain('full committed SHA');
+  expect(symbolic.stdout).toBe('');
+  rmSync(setup.reportPath);
+  const missing = await observe(setup);
+  expect(missing.exitCode).toBe(1);
+  expect(missing.stderr).toContain('manual report');
+  expect(missing.stdout).toBe('');
+});
+
+test('inspect-manual-observation refuses an annotated tag object SHA that peels to a commit', async () => {
+  const setup = fixture();
+  git(setup.root, ['tag', '-a', 'manual-observation-tag', '-m', 'annotated tag', setup.revision]);
+  const tagObject = git(setup.root, ['rev-parse', 'manual-observation-tag^{tag}']);
+  expect(tagObject).not.toBe(setup.revision);
+  const call = await observe({ ...setup, revision: tagObject });
+  expect(call.exitCode).toBe(1);
+  expect(call.stderr).toContain('Manual observation selected revision differs from requested SHA');
+  expect(call.stdout).toBe('');
+});
+
+test('inspect-manual-observation refuses a staged reader and mismatched inspector revision', () => {
+  const setup = fixture();
+  const staged = observeFault(
+    setup,
+    join(import.meta.dir, '..', 'inventory/read-candidate.ts'),
+    `readCandidate: (...args) => { const selected = actual.readCandidate(...args); return { ...selected, selection: { ...selected.selection, kind: 'staged' } }; },`,
+  );
+  expect(staged.exitCode).toBe(1);
+  expect(staged.stderr).toContain('Manual observation selection is not committed');
+  expect(staged.stdout).toBe('');
+  const mismatched = observeFault(
+    setup,
+    join(import.meta.dir, 'manual.ts'),
+    `inspectManual: (...args) => ({ ...actual.inspectManual(...args), revision: 'fault' }),`,
+  );
+  expect(mismatched.exitCode).toBe(1);
+  expect(mismatched.stderr).toContain(
+    'Manual observation revision differs from selected candidate',
+  );
+  expect(mismatched.stdout).toBe('');
+});
+
+test('inspect-manual-observation digest covers nested fields, instant, candidate and noncertifying markers', async () => {
+  const setup = fixture();
+  const call = await observe(setup);
+  expect(call.exitCode, call.stderr).toBe(0);
+  const { observationDigest, ...payload } = JSON.parse(call.stdout) as Record<string, unknown>;
+  expect(observationDigest).toBe(hashCanonical(payload));
+  const manual = payload['manual'] as Record<string, unknown>;
+  for (const changed of [
+    { ...payload, candidate: 'fault' },
+    { ...payload, evaluatedAt: '2026-10-12T00:00:00.000Z' },
+    { ...payload, manual: { ...manual, reportDigest: 'fault' } },
+    {
+      ...payload,
+      manual: Object.fromEntries(
+        Object.entries(manual).filter(([key]) => key !== 'selectedProcedureDigest'),
+      ),
+    },
+    { ...payload, manual: { ...manual, certifies: true } },
+    { ...payload, authentication: { kind: 'present' } },
+    { ...payload, certifies: true },
+  ])
+    expect(hashCanonical(changed)).not.toBe(observationDigest);
+});
+
+test('inspect-manual-observation refuses extra operands and invalid instant without JSON', async () => {
+  const setup = fixture();
+  const extra = await invokeCli([...observeArguments(setup), 'extra']);
+  expect(extra.exitCode).toBe(1);
+  expect(extra.stderr).toContain('usage: twilight-burokrat inspect-manual-observation');
+  expect(extra.stdout).toBe('');
+  const invalid = await observe(setup, '2026-02-30T00:00:00.000Z');
+  expect(invalid.exitCode).toBe(1);
+  expect(invalid.stderr).toContain('not a UTC instant');
+  expect(invalid.stdout).toBe('');
+});
+
+test('inspect-manual-observation ignores staged replacement and still requires inspector evidence and B3', async () => {
+  const setup = fixture();
+  const original = await observe(setup);
+  expect(original.exitCode, original.stderr).toBe(0);
+  writeFileSync(join(setup.root, 'source/module.ts'), 'export const lamp = false;\n');
+  git(setup.root, ['add', 'source/module.ts']);
+  const staged = await observe(setup);
+  expect(staged.exitCode, staged.stderr).toBe(0);
+  expect(staged.stdout).toBe(original.stdout);
+  rmSync(setup.reportPath);
+  const missing = await observe(setup);
+  expect(missing.exitCode).toBe(1);
+  expect(missing.stderr).toContain('manual report');
+  expect(missing.stdout).toBe('');
+  writeFileSync(setup.reportPath, JSON.stringify(setup.records.report));
+  setup.policy.scenarios.baseRevision = setup.revision;
+  writeFileSync(setup.policyPath, JSON.stringify(setup.policy));
+  const invalidBase = await observe(setup);
+  expect(invalidBase.exitCode).toBe(1);
+  expect(invalidBase.stderr).toContain('base');
+  expect(invalidBase.stdout).toBe('');
 });
 
 test('inspect-manual accepts an exact external approval chain as a noncertifying passing observation', async () => {

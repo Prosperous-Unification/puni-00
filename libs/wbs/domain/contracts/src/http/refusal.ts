@@ -195,6 +195,8 @@ export interface DirectoryUsage {
  * making assignments optional produces TS2578 for its missing-field fixture.
  */
 export interface StepInUse {
+  /** Absent only when an older server cannot report direct blockage facts. */
+  blockages?: number;
   estimates: number;
   actuals: number;
   progress: number;
@@ -254,6 +256,7 @@ export type CommandRefusalDetail = {
 };
 
 type BareRefusalCode =
+  | 'step_blockage_inactive'
   | 'unauthenticated'
   | 'insufficient_scope'
   /** A browser operation names a different organization than its current authority. */
@@ -344,6 +347,7 @@ type BareRefusalCode =
   // Capacity mode (`share-people-across-projects` 8.1): a mode this release
   // does not list in `SUPPORTED_CAPACITY_MODES`.
   | 'capacity_mode_unsupported'
+  | 'restore_approval_conflict'
   // A project PATCH naming a zone the server runtime does not support
   // (`step-node-attempts` D3).
   | 'invalid_timezone'

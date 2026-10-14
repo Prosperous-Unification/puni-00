@@ -337,17 +337,18 @@ describe('the CI gate scope', () => {
     );
   });
 
-  it('takes the pull-request boundary from the immutable payload', async () => {
+  it('takes the pull-request boundary from the validated synthetic merge', async () => {
     const step = gateStep(await readCiWorkflow(), 'gate_mode', 'Gate mode');
 
     // The same shape `Corpus version lint` uses: payload values arrive as environment
     // variables, never interpolated into the shell, and a mutable ref is not a fallback.
     expect(step.env).toEqual({
       EVENT_NAME: '${{ github.event_name }}',
-      PR_BASE_SHA: '${{ github.event.pull_request.base.sha }}',
+      PR_HEAD_SHA: '${{ github.event.pull_request.head.sha }}',
+      PR_NUMBER: '${{ github.event.pull_request.number }}',
     });
     expect(step.env).not.toHaveProperty('PR_BASE_REF');
-    expect(step.run).toContain(`: "\${PR_BASE_SHA:?pull_request payload carries no base SHA}"`);
+    expect(step.run).toContain('base="$(bun run tools/tool-git-hooks/src/hooks/pr-merge-base.ts)"');
     // Pinned as the ARM, not as three loose literals. `toContain` on each printf says only
     // that the strings exist somewhere in the script — it is equally happy with the two arm
     // bodies swapped, which is `mode=full` on pull requests and `mode=affected`, with no
@@ -360,10 +361,10 @@ describe('the CI gate scope', () => {
     // 1 failed.
     const mode = oneLine(commandsOf(step.run ?? ''));
     expect(mode).toContain(
-      `pull_request) : "\${PR_BASE_SHA:?pull_request payload carries no base SHA}" ` +
+      `pull_request) base="$(bun run tools/tool-git-hooks/src/hooks/pr-merge-base.ts)" ` +
         `printf 'mode=affected\\n' >> "$GITHUB_OUTPUT"`,
     );
-    expect(mode).toContain(`printf 'base=%s\\n' "$PR_BASE_SHA" >> "$GITHUB_OUTPUT"`);
+    expect(mode).toContain(`printf 'base=%s\\n' "$base" >> "$GITHUB_OUTPUT"`);
     expect(mode).toContain(
       `push | merge_group | workflow_dispatch) printf 'mode=full\\n' >> "$GITHUB_OUTPUT" ` +
         `printf 'twilight=run\\n' >> "$GITHUB_OUTPUT" ;;`,
@@ -381,6 +382,9 @@ describe('the CI gate scope', () => {
     expect(step.env).toEqual({
       GATE_MODE: '${{ needs.gate_mode.outputs.mode }}',
       GATE_BASE: '${{ needs.gate_mode.outputs.base }}',
+      EVENT_NAME: '${{ github.event_name }}',
+      PR_HEAD_SHA: '${{ github.event.pull_request.head.sha }}',
+      PR_NUMBER: '${{ github.event.pull_request.number }}',
     });
     // The SELECTOR and the BRANCH BODIES, not only the two command lines. Until 2026-09-16
     // nothing pinned either, and each gap has its own way of narrowing `push` and
@@ -460,9 +464,7 @@ describe('the CI gate scope', () => {
       gateStep(workflow, 'gate_twilight', 'Twilight — test, typecheck, build, lint').run ?? '',
     );
 
-    expect(mode).toContain(
-      'bunx nx show projects --affected --base="$PR_BASE_SHA" --head=HEAD --json',
-    );
+    expect(mode).toContain('bunx nx show projects --affected --base="$base" --head=HEAD --json');
     expect(mode).toContain(
       `jq -s -e '.[0] | index("twilight-burokrat") != null or index("twilight-dash") != null'`,
     );
@@ -495,6 +497,11 @@ describe('the CI gate scope', () => {
     await mkdir(bin);
     await writeFile(join(bin, 'bunx'), '#!/usr/bin/env bash\nprintf \'%s\\n\' "$STUB_AFFECTED"\n');
     await chmod(join(bin, 'bunx'), 0o755);
+    await writeFile(
+      join(bin, 'bun'),
+      "#!/usr/bin/env bash\nprintf '0000000000000000000000000000000000000000\\n'\n",
+    );
+    await chmod(join(bin, 'bun'), 0o755);
 
     const verdict = async (affected: string[]): Promise<string> => {
       const output = join(directory, 'output');

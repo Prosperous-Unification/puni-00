@@ -16,6 +16,7 @@ import { inMemoryPriorityBands } from './priority-band-fixture';
 import { inMemoryProgress } from './progress-fixture';
 import { inMemoryProjects } from './project-fixture';
 import { inMemoryEventLog } from './replay-fixture';
+import { inMemoryStepBlockages } from './step-blockage-fixture';
 import { inMemorySteps } from './step-fixture';
 import { inMemorySubtrees } from './subtree-fixture';
 import { inMemoryTypedDependencies } from './typed-dependency-fixture';
@@ -42,10 +43,11 @@ export function inMemoryStores(): TransactionalStores {
   const measures = inMemoryMeasures(workItems, undefined, steps);
   const progress = inMemoryProgress(workItems, undefined, steps);
   const attempts = inMemoryAttempts(workItems, undefined, steps, progress);
+  const projects = inMemoryProjects(users);
   const dependencies = inMemoryDependencies([], undefined, workItems);
   return {
     users,
-    projects: inMemoryProjects(users),
+    projects,
     directory,
     workItems,
     estimates,
@@ -53,6 +55,19 @@ export function inMemoryStores(): TransactionalStores {
     measures,
     progress,
     attempts,
+    blockages: inMemoryStepBlockages(workItems, {
+      async findById(stepId) {
+        const step = await steps.findById(stepId);
+        if (step !== null) return step;
+        for (const project of await projects.list()) {
+          const seeded = (await projects.stepsOf(project.id)).find(
+            (candidate) => candidate.id === stepId,
+          );
+          if (seeded !== undefined) return seeded;
+        }
+        return null;
+      },
+    }),
     dependencies,
     typedDependencies: inMemoryTypedDependencies(),
     capacity: inMemoryCapacity(),

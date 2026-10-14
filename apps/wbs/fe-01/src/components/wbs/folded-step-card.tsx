@@ -14,6 +14,7 @@ import { HoverCard } from './hover-card';
 import type { CardAssignee } from './plan-cards';
 import { NODE_READING_GLYPH, NODE_READING_LABEL } from './status-cell';
 import { NODE_READING_TOKEN } from './status-palette';
+import { StepBlockageSection } from './step-blockage';
 import { attemptsLine, lastAttemptLine, type StepNodeReadings } from './step-reading';
 import type { Toast } from './toasts';
 
@@ -86,6 +87,9 @@ export interface FoldedStepCardProps {
    * `null` where the card offers none — a parent, an uncoded older read.
    */
   attemptActions: AttemptActions | null;
+  setBlocked?: (isBlocked: boolean) => void;
+  /** Distinguishes an older leaf read from a parent with no step nodes. */
+  isLeaf?: boolean;
   /**
    * Whether the cell's box is being typed in. The typing help
    * ({@link SHORTHAND_HELP}) rides the card only then, or beside a complaint:
@@ -96,7 +100,8 @@ export interface FoldedStepCardProps {
 }
 
 /**
- * What one folded step column cell folds away, in full.
+ * What one folded step column cell folds away, in full. The whole card scrolls
+ * within the measured table-frame ceiling so actions and estimate details remain reachable.
  *
  * The cell at rest is `4.8 · Ka…` in 96px: one computed figure, and a person's
  * name cut to about four characters. The trio behind the figure is only on
@@ -139,6 +144,8 @@ export function FoldedStepCard({
   problem,
   node,
   attemptActions,
+  setBlocked,
+  isLeaf = false,
   typing = false,
 }: FoldedStepCardProps) {
   const unitWords = estimateUnit === 'minutes' ? 'min' : 'days';
@@ -182,8 +189,11 @@ export function FoldedStepCard({
     const walked = event.currentTarget.hasAttribute('data-card-action');
     const parent = walked ? document.getElementById(id) : event.currentTarget.parentElement;
     if (parent === null) throw new Error('Step card action has no action group');
+    // Proof: including disabled actions left Copy link focused in `walks past a disabled new blockage action on a done step` (2026-10-14).
     const actions = [
-      ...parent.querySelectorAll<HTMLButtonElement>(walked ? 'button[data-card-action]' : 'button'),
+      ...parent.querySelectorAll<HTMLButtonElement>(
+        walked ? 'button[data-card-action]:not(:disabled)' : 'button:not(:disabled)',
+      ),
     ];
     const current = actions.indexOf(event.currentTarget);
     const next = current + (event.shiftKey ? -1 : 1);
@@ -194,7 +204,13 @@ export function FoldedStepCard({
   return (
     // Placed diagonally — past this cell and past this row — like every other
     // card a plan cell opens. {@link sidewaysPlacement} picks the side.
-    <HoverCard id={id} takesPointer={stepNode !== null} onPointerArrives={onPointerArrives}>
+    <HoverCard
+      id={id}
+      // Proof: omitting scrolling made the preview `whole blocked step card` geometry assertion receive bottom 527.25px past its 459.75px frame ceiling (2026-10-14).
+      scrolls
+      takesPointer={stepNode !== null}
+      onPointerArrives={onPointerArrives}
+    >
       {/* `data-step-card` gives every action below one size and rhythm in
           `styles.css` — three platform buttons of three sizes stacked on three
           lines was the other half of F-044. */}
@@ -253,6 +269,14 @@ export function FoldedStepCard({
               Copy link
             </button>
           </div>
+        )}
+        {(isLeaf || stepNode !== null) && (
+          <StepBlockageSection
+            blockage={node?.blockage ?? null}
+            label={reference ?? `${stepName} for ${number}`}
+            setBlocked={setBlocked}
+            onActionKeyDown={onActionKeyDown}
+          />
         )}
         {onAddDependency !== undefined && (
           <button type="button" onKeyDown={onActionKeyDown} onClick={onAddDependency}>

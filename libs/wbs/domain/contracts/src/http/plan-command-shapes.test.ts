@@ -19,6 +19,7 @@ const commands: PlanCommandWire[] = [
   { kind: 'setActual', stepId: 's', days: -1 },
   { kind: 'clearActual', stepId: 's' },
   { kind: 'setProgress', stepId: 's', state: 'done' },
+  { kind: 'setStepBlocked', stepId: 's', isBlocked: true },
   { kind: 'clearProgress', stepId: 's' },
   { kind: 'startAttempt', stepNodeId: 'sn1.w.s', at: 1, reference: 'PR #12' },
   { kind: 'endAttempt', stepId: 's', outcome: 'failed', note: 'flaky' },
@@ -66,8 +67,8 @@ const commands: PlanCommandWire[] = [
   { kind: 'deleteWorkItemType' },
 ];
 
-test('validates all 44 structural wire arms without applying semantic defaults or a batch cap', async () => {
-  expect(commands).toHaveLength(44);
+test('validates all structural wire arms without applying semantic defaults or a batch cap', async () => {
+  expect(commands).toHaveLength(45);
   for (const command of commands) {
     expect(await validateSchema(planCommandSchema, command)).toEqual({ value: command });
   }
@@ -127,6 +128,8 @@ test('rejects malformed structures and nested extras including derived numbering
     { kind: 'invented' },
     { kind: 'setActual', stepId: 's', days: '1' },
     { kind: 'setProgress', stepId: 's', state: 'not_started' },
+    { kind: 'setStepBlocked', stepId: 's' },
+    { kind: 'setStepBlocked', stepId: 's', isBlocked: 'true' },
     { kind: 'deleteWorkItem', strategy: 'unknown' },
     { kind: 'createWorkItem', number: '001' },
     { kind: 'createWorkItem', frozenNumber: '001' },
@@ -163,8 +166,8 @@ test('emits inline MCP-readable command branches with real nested patch and esti
   const descriptor = planCommandsBody.jsonSchema as Descriptor;
   expect(JSON.stringify(descriptor)).not.toContain('"$ref"');
   const branches = descriptor.properties?.['commands']?.items?.anyOf;
-  // 42 to 45 with the three attempt commands (`step-node-attempts` D2).
-  expect(branches).toHaveLength(45);
+  // Includes the public step blockage command.
+  expect(branches).toHaveLength(46);
   if (branches === undefined) throw new Error('Missing command alternatives');
   const find = (kind: string) =>
     branches.find((branch) => branch.properties?.['kind']?.const === kind);

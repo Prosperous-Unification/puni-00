@@ -4,6 +4,13 @@
  * (`cutover-rehearsal.ts`) and the production plan (docs/infra/cutover-plan.md) use.
  */
 
+import {
+  CUTOVER_REPLAY_SCRIPT,
+  cutoverEnvironment,
+  type CutoverIdentity,
+  validateCutoverReplay,
+} from './cutover-replay';
+
 /**
  * The cutover in order. `restore-into-pvc` is the rollback boundary's last reversible step:
  * until `switch-traffic` sends users to k3s, the old Compose writer, stopped but intact, is the
@@ -40,7 +47,9 @@ const REPORT_MARKER = 'PUNI_SQLITE_REPORT ';
  * `PUNI_KNOWN` is a JSON array of project names whose presence is reported; `counts` covers
  * every table, so any row lost in transit shows up as a count difference.
  */
-export const SQLITE_REPORT_SCRIPT = String.raw`
+export const SQLITE_REPORT_SCRIPT =
+  CUTOVER_REPLAY_SCRIPT +
+  String.raw`
 const { Database } = require('bun:sqlite');
 const fs = require('node:fs');
 const crypto = require('node:crypto');
@@ -49,8 +58,11 @@ const exportPath = process.env.PUNI_EXPORT || null;
 const known = JSON.parse(process.env.PUNI_KNOWN || '[]');
 if (!source || !fs.existsSync(source)) throw new Error('database ' + source + ' does not exist');
 let target = source;
+let replay = null;
 if (exportPath !== null) {
   if (fs.existsSync(exportPath)) throw new Error('export ' + exportPath + ' already exists');
+  // Proof: omitting pre-export observation made unsupported/nested-history fixtures create snapshots.
+  replay = observeCutoverReplay(source, '0'.repeat(64));
   const live = new Database(source, { readwrite: true, create: false });
   live.run('PRAGMA wal_checkpoint(TRUNCATE)');
   live.run("VACUUM INTO '" + exportPath.replaceAll("'", "''") + "'");
@@ -67,19 +79,25 @@ for (const t of tables) counts[t] = db.query('SELECT count(*) AS n FROM "' + t +
 const names = new Set(db.query('SELECT name FROM project').all().map((r) => r.name));
 db.close();
 const stat = fs.statSync(target);
+const sha256 = crypto.createHash('sha256').update(fs.readFileSync(target)).digest('hex');
+if(replay!==null) replay.exportSha256=sha256;
+if(process.env.PUNI_CUTOVER_REPLAY) replay=validateCutoverReplay(JSON.parse(process.env.PUNI_CUTOVER_REPLAY),cutoverIdentity(),sha256);
 console.log('${REPORT_MARKER}' + JSON.stringify({
+  ...(replay===null?{}:{replay}),
   path: target,
   integrity,
   foreignKeyViolations,
   migrations,
   counts,
   known: Object.fromEntries(known.map((n) => [n, names.has(n)])),
-  sha256: crypto.createHash('sha256').update(fs.readFileSync(target)).digest('hex'),
+  sha256,
   ownerUid: stat.uid,
 }));
 `;
 
 export interface SqliteReport {
+  /** Ordinary inspection reports may omit this; cutover admission requires validated versioned evidence. */
+  replay?: unknown;
   path: string;
   integrity: string[];
   foreignKeyViolations: number;
@@ -96,21 +114,37 @@ export function parseSqliteReport(output: string): SqliteReport {
   if (lines.length !== 1) {
     throw new Error(`expected one ${REPORT_MARKER.trim()} line, got ${String(lines.length)}`);
   }
-  const parsed = JSON.parse(lines[0].slice(REPORT_MARKER.length)) as Partial<SqliteReport>;
+  const parsed: unknown = JSON.parse(lines[0].slice(REPORT_MARKER.length));
+  const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === 'object' && value !== null && !Array.isArray(value);
+  // Proof: removing complete report validation accepted null/array counts, numeric migrations,
+  // nonboolean known rows and malformed hashes through production verify-restore fixtures.
   if (
-    typeof parsed.path !== 'string' ||
-    !Array.isArray(parsed.integrity) ||
-    typeof parsed.foreignKeyViolations !== 'number' ||
-    !Array.isArray(parsed.migrations) ||
-    typeof parsed.counts !== 'object' ||
-    typeof parsed.known !== 'object' ||
-    typeof parsed.sha256 !== 'string' ||
-    typeof parsed.ownerUid !== 'number'
-  ) {
+    !isRecord(parsed) ||
+    typeof parsed['path'] !== 'string' ||
+    parsed['path'] === '' ||
+    !Array.isArray(parsed['integrity']) ||
+    parsed['integrity'].some((line: unknown) => typeof line !== 'string') ||
+    typeof parsed['foreignKeyViolations'] !== 'number' ||
+    !Number.isSafeInteger(parsed['foreignKeyViolations']) ||
+    parsed['foreignKeyViolations'] < 0 ||
+    !Array.isArray(parsed['migrations']) ||
+    parsed['migrations'].some((name: unknown) => typeof name !== 'string' || name === '') ||
+    !isRecord(parsed['counts']) ||
+    Object.values(parsed['counts']).some(
+      (count) => typeof count !== 'number' || !Number.isSafeInteger(count) || count < 0,
+    ) ||
+    !isRecord(parsed['known']) ||
+    Object.values(parsed['known']).some((present) => typeof present !== 'boolean') ||
+    typeof parsed['sha256'] !== 'string' ||
+    !/^[0-9a-f]{64}$/.test(parsed['sha256']) ||
+    typeof parsed['ownerUid'] !== 'number' ||
+    !Number.isSafeInteger(parsed['ownerUid']) ||
+    parsed['ownerUid'] < 0
+  )
     throw new Error(`malformed SQLite report: ${lines[0]}`);
-  }
-  // Boundary: every field was checked above.
-  return parsed as SqliteReport;
+  // Boundary: all required fields and nested array/map values were validated; optional replay stays unknown.
+  return parsed as unknown as SqliteReport;
 }
 
 /**
@@ -175,16 +209,23 @@ export function assertRestoredMatches(exported: SqliteReport, restored: SqliteRe
 /**
  * The restore Job's command (`bun -e`). It waits for the operator to copy the export in, refuses
  * to overwrite an existing database or reuse a stale arrival marker, verifies the copied bytes
- * against `PUNI_EXPORT_SHA256` (deleting refused bytes), and renames the file into place; the
+ * against `PUNI_EXPORT_SHA256` and descriptor-bound replay evidence before rename. Refusal
+ * preserves incoming bytes and the stale marker for reviewed recovery; the
  * Job then prints the {@link SQLITE_REPORT_SCRIPT} report.
  */
-export const RESTORE_SCRIPT = String.raw`
+export const RESTORE_SCRIPT =
+  CUTOVER_REPLAY_SCRIPT +
+  String.raw`
 const fs = require('node:fs');
 const crypto = require('node:crypto');
-const incoming = '/data/cutover-incoming.sqlite';
-const done = '/data/cutover-incoming.done';
+const path = require('node:path');
+const incoming = path.join(path.dirname(process.env.PUNI_DB), 'cutover-incoming.sqlite');
+const done = path.join(path.dirname(process.env.PUNI_DB), 'cutover-incoming.done');
 const target = process.env.PUNI_DB;
 const expected = process.env.PUNI_EXPORT_SHA256;
+const identity = cutoverIdentity();
+// Proof: foreign version/image/export or legacy evidence reached restore when this validation was omitted.
+const evidence = validateCutoverReplay(JSON.parse(process.env.PUNI_EXPORT_REPLAY), identity, expected);
 if (fs.existsSync(target)) throw new Error(target + ' already exists; refusing to overwrite it');
 if (fs.existsSync(done)) throw new Error('stale ' + done + ' from an earlier attempt; remove it first');
 const deadline = Date.now() + Number(process.env.PUNI_WAIT_MS || '600000');
@@ -194,11 +235,16 @@ while (!fs.existsSync(done)) {
 }
 const actual = crypto.createHash('sha256').update(fs.readFileSync(incoming)).digest('hex');
 if (actual !== expected) {
-  fs.rmSync(incoming, { force: true });
-  fs.rmSync(done, { force: true });
   throw new Error('copied export is ' + actual + ', not ' + expected);
 }
+// Proof: omitting independent incoming observation admitted empty/move-only image capabilities before rename.
+const observed=observeCutoverReplay(incoming,actual);
+// Proof: dropping this comparison admitted changed-inventory evidence before rename.
+if(JSON.stringify(observed.inventory)!==JSON.stringify(evidence.inventory) || JSON.stringify(observed.capabilities)!==JSON.stringify(evidence.capabilities)) throw new Error('incoming cutover replay differs from export evidence');
+// Proof: an image CLI modifying incoming bytes otherwise failed only after the target rename.
+if(crypto.createHash('sha256').update(fs.readFileSync(incoming)).digest('hex')!==expected) throw new Error('incoming export changed during replay admission');
 fs.renameSync(incoming, target);
+process.env.PUNI_CUTOVER_REPLAY=JSON.stringify(observed);
 fs.rmSync(done);
 `;
 
@@ -236,7 +282,12 @@ export function exportArgv(
   databaseName: string,
   exportDirectory: string,
   known: readonly string[],
+  identity?: CutoverIdentity,
 ): string[] {
+  const binding = cutoverEnvironment(identity);
+  // Proof: export argv refuses a caller image differing from the recorded old backend.
+  if (image !== binding['PUNI_OLD_BACKEND_IMAGE'])
+    throw new Error('export image differs from old backend identity');
   return [
     'docker',
     'run',
@@ -253,6 +304,7 @@ export function exportArgv(
     'PUNI_EXPORT=/export/wbs-export.sqlite',
     '-e',
     `PUNI_KNOWN=${JSON.stringify(known)}`,
+    ...Object.entries(binding).flatMap(([key, value]) => ['-e', `${key}=${value}`]),
     '--entrypoint',
     'bun',
     image,
@@ -269,11 +321,18 @@ export function restoreCommand(): string[] {
   return ['bun', '-e', `{${RESTORE_SCRIPT}}\n{${SQLITE_REPORT_SCRIPT}}`];
 }
 
+/** Binds a restore Job to validated versioned export evidence; missing or foreign inputs throw. */
 export function restoreEnvironment(
   exportSha256: string,
   known: readonly string[],
+  identity: CutoverIdentity,
+  replay: unknown,
 ): Record<string, string> {
+  const binding = cutoverEnvironment(identity);
+  const evidence = validateCutoverReplay(replay, identity, exportSha256);
   return {
+    ...binding,
+    PUNI_EXPORT_REPLAY: JSON.stringify(evidence),
     PUNI_DB: '/data/wbs.sqlite',
     PUNI_EXPORT_SHA256: exportSha256,
     PUNI_KNOWN: JSON.stringify(known),

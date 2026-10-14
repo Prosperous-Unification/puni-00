@@ -326,6 +326,17 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
       );
       return { ...context.plain(), kind: command.kind };
     },
+    setStepBlocked: async (command, context) => {
+      context.value(
+        await workItems.setStepBlocked(
+          context.required(command.workItemId, command.workItemRef),
+          context.actorId,
+          command.stepId,
+          command.isBlocked,
+        ),
+      );
+      return { ...context.plain(), kind: command.kind };
+    },
     clearProgress: async (command, context) => {
       context.value(
         await workItems.clearProgress(
