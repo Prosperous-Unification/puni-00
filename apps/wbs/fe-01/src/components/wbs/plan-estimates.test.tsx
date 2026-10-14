@@ -1893,6 +1893,23 @@ describe('what the plan is still missing', () => {
     expect(document.activeElement).toBe(screen.getByLabelText('QA estimate for 010'));
   });
 
+  itDom('announces where the walk landed, so the jump is not silent (F-024)', async () => {
+    await rows(2);
+    await estimate('010', 'Dev');
+
+    fireEvent.click(theBadge());
+
+    // Proof: on 2026-10-13, before the badge had a live region, this failed on `expected null
+    // not to be null` — nothing on the page said where the caret had gone.
+    const notice = document.querySelector('[data-gap-notice]');
+    expect(notice).not.toBeNull();
+    expect(notice?.getAttribute('aria-live')).toBe('polite');
+    expect(notice?.textContent).toMatch(/^Unestimated 1 of 2: 010 .*, QA$/);
+
+    fireEvent.click(theBadge());
+    expect(notice?.textContent).toMatch(/^Unestimated 2 of 2: 020 .*, Dev$/);
+  });
+
   itDom('moves on to the next leaf on the next click, and wraps at the end', async () => {
     await rows(2);
 

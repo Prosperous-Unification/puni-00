@@ -58,6 +58,15 @@ import { shortIsoDate } from './short-date';
 import { statusOffersOf } from './status-offers';
 import type { TreeRow } from './wbs-rows';
 
+/**
+ * The Find count, matched on its whole text: since UI review F-016 it reads `3 of 6` with
+ * ` rows` in a visually hidden span, so no single text node holds the sentence.
+ */
+const rowCount =
+  (words: string) =>
+  (_content: string, node: Element | null): boolean =>
+    node?.getAttribute('role') === 'status' && node.textContent === words;
+
 /** A silent row's status entries on the ⋯ menu, in the menu order. */
 const SILENT_ROW_STATUSES = [
   'Set status to Draft',
@@ -3042,7 +3051,7 @@ describe('a filter on a phone', () => {
     fireEvent.click(await screen.findByText(/^Filters/));
     fireEvent.click(screen.getByLabelText('Team Billing'));
 
-    expect(screen.getByText('1 of 2 rows')).toBeInTheDocument();
+    expect(screen.getByText(rowCount('1 of 2 rows'))).toBeInTheDocument();
   });
 });
 

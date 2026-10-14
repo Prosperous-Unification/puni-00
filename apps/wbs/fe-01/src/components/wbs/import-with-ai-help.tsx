@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import { Button } from '@/components/ui/button';
+import { Button, MENU_ITEM } from '@/components/ui/button';
 import {
   Modal,
   ModalContent,
@@ -97,9 +97,11 @@ export function ImportWithAiHelp({ verifiedMcpUrl }: ImportWithAiHelpProps) {
     <Modal>
       <ModalTrigger asChild>
         <Button
-          variant="outline"
+          variant="ghost"
           size="sm"
           type="button"
+          // A row of the Export / Import menu it lives in, not a button in a column.
+          className={MENU_ITEM}
           data-hint="Connect an AI client to WBS and import an existing project through it"
         >
           Import with AI

@@ -12,15 +12,16 @@ import {
   useState,
 } from 'react';
 
-import { Button, buttonVariants } from '@/components/ui/button';
+import { Button, buttonVariants, MENU_ITEM } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import type { RunPlanWrite } from '@/lib/local-write';
+import { cn } from '@/lib/utils';
 import type { PersonView, PriorityBandView, TeamCapacityView, TeamView } from '@/lib/wbs-api';
 import { isEstimateMethod, type StepView } from '@/lib/wbs-api';
 import type { PlanCommands } from '@/modules/plan-commands/contract';
 
 import { MenuControl } from './actions-menu';
-import { useClosedByPointerOutside } from './close-on-outside-pointer';
+import { useClosedOnDismiss } from './close-on-dismiss';
 import { DateField } from './date-field';
 import { ImportWithAiHelp } from './import-with-ai-help';
 import type { PlanTableFeatures } from './plan-columns/column';
@@ -38,6 +39,7 @@ import {
   rememberMermaidSectionMode,
   rememberSavedViews,
 } from './remembered-layout';
+import { longIsoDate } from './short-date';
 import { type FrameLayoutState } from './table-frame';
 import { teamsOnThePlan } from './teams-panel';
 import { ArrangeIcon, CollapseIcon, ExpandIcon, KeyboardIcon } from './toolbar-icons';
@@ -52,6 +54,7 @@ import {
 } from './tree-search';
 import type { FacetOption } from './use-plan-filter';
 import { facetsChosen, toggledIn } from './use-plan-filter';
+import type { GapLanding } from './use-plan-keyboard';
 import type { ChartRead, PlanReadScope } from './use-plan-read';
 import { type TreeRow } from './wbs-rows';
 
@@ -201,7 +204,7 @@ export function FilterFacets({
   };
 
   return (
-    <details ref={useClosedByPointerOutside()} data-facets className="relative">
+    <details ref={useClosedOnDismiss()} data-facets className="relative">
       <summary
         className="border-input h-8 cursor-pointer rounded-md border px-2 py-1 text-xs select-none"
         data-hint="Narrow the plan to the rows carrying these — the table, the chart and the cards together"
@@ -215,7 +218,7 @@ export function FilterFacets({
       */}
       <div
         data-facet-panel
-        className="bg-popover absolute z-50 mt-1 max-h-80 w-56 overflow-y-auto rounded-md border p-3 text-sm shadow-md"
+        className="scroll-cue bg-popover absolute z-50 mt-1 max-h-[min(40rem,calc(100dvh-10rem))] w-56 overflow-y-auto rounded-md border p-3 text-sm shadow-md"
       >
         {group('Team', 'team', teams, facets.teamIds, (teamIds) => ({ ...facets, teamIds }))}
         {/*
@@ -372,7 +375,7 @@ export function ColumnsControl({
 }) {
   const prefix = useId();
   return (
-    <details ref={useClosedByPointerOutside()} data-columns className="relative">
+    <details ref={useClosedOnDismiss()} data-columns className="relative">
       <summary
         className="border-input h-8 cursor-pointer rounded-md border px-2 py-1 text-xs select-none"
         data-hint="Choose which columns are on the table. Number, Name and the row's controls always are."
@@ -381,7 +384,7 @@ export function ColumnsControl({
       </summary>
       <div
         data-columns-panel
-        className="bg-popover absolute z-50 mt-1 max-h-80 w-56 overflow-y-auto rounded-md border p-3 text-sm shadow-md"
+        className="scroll-cue bg-popover absolute z-50 mt-1 max-h-[min(40rem,calc(100dvh-10rem))] w-56 overflow-y-auto rounded-md border p-3 text-sm shadow-md"
       >
         {offered.map(({ id, label }) => {
           const boxId = `${prefix}-${id}`;
@@ -442,7 +445,7 @@ export function SavedViews({
   const filtering = isFiltering(current);
   const canSave = filtering && name.trim() !== '';
   return (
-    <details ref={useClosedByPointerOutside()} data-saved-views className="relative">
+    <details ref={useClosedOnDismiss()} data-saved-views className="relative">
       <summary
         className="border-input h-8 cursor-pointer rounded-md border px-2 py-1 text-xs select-none"
         data-hint="Name the current filter, or pick one already named"
@@ -451,7 +454,7 @@ export function SavedViews({
       </summary>
       <div
         data-saved-views-panel
-        className="bg-popover absolute z-50 mt-1 max-h-80 w-64 overflow-y-auto rounded-md border p-3 text-sm shadow-md"
+        className="scroll-cue bg-popover absolute z-50 mt-1 max-h-[min(40rem,calc(100dvh-10rem))] w-64 overflow-y-auto rounded-md border p-3 text-sm shadow-md"
       >
         <div className="mb-2 flex gap-1.5">
           <Input
@@ -582,6 +585,7 @@ export function PlanToolbar({
   search,
   gaps,
   walkToNextGap,
+  layoutReset,
   stack,
   stepStack,
   setCheatSheetOpen,
@@ -650,7 +654,12 @@ export function PlanToolbar({
   shownRows: Row<PlanTableFeatures, PlanRenderRow>[];
   search: TreeNarrowing;
   gaps: EstimateGaps;
-  walkToNextGap: () => void;
+  walkToNextGap: () => GapLanding | null;
+  /**
+   * The table's own Reset layout, or null while there is nothing to reset or
+   * the toolbar is in the phone's sheet. Drawn last in the schedule group.
+   */
+  layoutReset: ReactNode;
   stack: { undoable: boolean; redoable: boolean };
   stepStack: (direction: 'undo' | 'redo') => Promise<void>;
   setCheatSheetOpen: React.Dispatch<React.SetStateAction<boolean>>;
@@ -694,7 +703,9 @@ export function PlanToolbar({
    * one reads every parent created later as closed.
    */
   const hasNestedItems = flat.some((row) => row.parentId !== null);
-  const exportMenu = useClosedByPointerOutside();
+  const exportMenu = useClosedOnDismiss();
+  /** What the last walk to an unestimated leaf said, for the badge's live region. */
+  const [gapNotice, setGapNotice] = useState('');
   const [query, setQuery] = useState(criteria.query);
   const deferredQuery = useDeferredValue(query);
   useEffect(() => {
@@ -1067,25 +1078,66 @@ export function PlanToolbar({
       from the last cell of a row would put the caret somewhere no edit can
       be made.
     */}
-      <Input
-        className="h-8 w-32 text-xs"
-        aria-label="Find"
-        placeholder="Find…"
-        size={14}
-        data-hint="Show work items whose name contains this, with the rows above and below them"
-        value={query}
-        onChange={(e) => {
-          setQuery(e.currentTarget.value);
-        }}
-        onKeyDown={(e) => {
-          // Escape empties the box, which is how a search is left — and
-          // leaving it puts every collapsed branch back, because the search
-          // never wrote to the reader's own expansion.
-          if (e.key !== 'Escape') return;
-          e.preventDefault();
-          setQuery('');
-        }}
-      />
+      {/*
+        On the desktop bar the count lives inside the Find box's own edge
+        (UI review F-016): as a toolbar child it appeared on the first
+        keystroke and pushed every control to its right sideways by its width.
+        The box's width is fixed, so the count costs the typed text room, not
+        the bar a shift. The phone's sheet is a column with room for a line of
+        its own, so there the box stands alone and {@link filterCount} follows.
+      */}
+      {sheet ? (
+        <Input
+          className="h-8 w-32 text-xs"
+          aria-label="Find"
+          placeholder="Find…"
+          size={14}
+          data-hint="Show work items whose name contains this, with the rows above and below them"
+          value={query}
+          onChange={(e) => {
+            setQuery(e.currentTarget.value);
+          }}
+          onKeyDown={(e) => {
+            // Escape empties the box, which is how a search is left — and
+            // leaving it puts every collapsed branch back, because the search
+            // never wrote to the reader's own expansion.
+            if (e.key !== 'Escape') return;
+            e.preventDefault();
+            setQuery('');
+          }}
+        />
+      ) : (
+        <span className="relative inline-flex shrink-0">
+          <Input
+            className={cn('h-8 w-32 text-xs', filtering && 'pr-16')}
+            aria-label="Find"
+            placeholder="Find…"
+            size={14}
+            data-hint="Show work items whose name contains this, with the rows above and below them"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.currentTarget.value);
+            }}
+            onKeyDown={(e) => {
+              // Escape empties the box, which is how a search is left — and
+              // leaving it puts every collapsed branch back, because the search
+              // never wrote to the reader's own expansion.
+              if (e.key !== 'Escape') return;
+              e.preventDefault();
+              setQuery('');
+            }}
+          />
+          {filtering && (
+            <span
+              role="status"
+              className="text-muted-foreground pointer-events-none absolute inset-y-0 right-2 flex items-center text-[11px] whitespace-nowrap"
+            >
+              {shownRows.length} of {flat.length}
+              <span className="sr-only"> rows</span>
+            </span>
+          )}
+        </span>
+      )}
     </>
   );
   const filters = (
@@ -1163,7 +1215,7 @@ export function PlanToolbar({
   );
   const filterCount = (
     <>
-      {filtering && (
+      {sheet && filtering && (
         <span role="status" className="text-muted-foreground text-sm">
           {shownRows.length} of {flat.length} rows
         </span>
@@ -1205,20 +1257,39 @@ export function PlanToolbar({
       it writes nothing, and a button that greys out during somebody else's
       refetch reads as broken.
     */}
+      {/*
+        The badge and, inside the same box, where it just took the caret, said
+        out loud (UI review F-024): the walk opens branches, scrolls and moves
+        the focus, and nothing on screen names which of the gaps this is. The
+        region is visually hidden — the focused cell is the visual answer — and
+        polite, so it follows the focus move. A bare live region rather than
+        `role="status"`: the schedule cue is this table's one status. In the
+        badge's own box rather than a toolbar child of its own: an `sr-only`
+        child is still a flex item with a top of its own, and it read as a third
+        toolbar row in the 1280 budget.
+      */}
       {gaps.leaves.length > 0 && (
-        <Button
-          variant="outline"
-          size="sm"
-          type="button"
-          // The second control that aims the caret itself: `walkToNextGap`
-          // puts it in the cell that estimates the next gap. See
-          // {@link TAKES_THE_FOCUS}.
-          {...{ [TAKES_THE_FOCUS]: '' }}
-          data-fact={describeGaps(gaps)}
-          onClick={walkToNextGap}
-        >
-          {gaps.leaves.length} unestimated
-        </Button>
+        <span className="relative inline-flex">
+          <Button
+            variant="outline"
+            size="sm"
+            type="button"
+            // The second control that aims the caret itself: `walkToNextGap`
+            // puts it in the cell that estimates the next gap. See
+            // {@link TAKES_THE_FOCUS}.
+            {...{ [TAKES_THE_FOCUS]: '' }}
+            data-fact={describeGaps(gaps)}
+            onClick={() => {
+              const landing = walkToNextGap();
+              if (landing !== null) setGapNotice(gapLandingWords(landing, flat, steps));
+            }}
+          >
+            {gaps.leaves.length} unestimated
+          </Button>
+          <span aria-live="polite" aria-atomic="true" className="sr-only" data-gap-notice>
+            {gapNotice}
+          </span>
+        </span>
       )}
     </>
   );
@@ -1237,7 +1308,7 @@ export function PlanToolbar({
     */}
       <Button
         variant="outline"
-        size="sm"
+        size={sheet ? 'sm' : 'square'}
         type="button"
         disabled={busy || !stack.undoable}
         {...busyAffordance(busy)}
@@ -1255,7 +1326,7 @@ export function PlanToolbar({
     <>
       <Button
         variant="outline"
-        size="sm"
+        size={sheet ? 'sm' : 'square'}
         type="button"
         disabled={busy || !stack.redoable}
         {...busyAffordance(busy)}
@@ -1278,7 +1349,7 @@ export function PlanToolbar({
     */}
       <Button
         variant="outline"
-        size="sm"
+        size={sheet ? 'sm' : 'square'}
         type="button"
         aria-label="Keyboard shortcuts"
         data-hint="Keyboard shortcuts (?)"
@@ -1334,52 +1405,61 @@ export function PlanToolbar({
       {exportAvailable && (
         <details ref={exportMenu} data-export className="relative">
           <summary
-            className="border-input flex h-8 w-16 cursor-pointer items-center justify-center rounded-md border px-1 py-1 text-center text-xs leading-3 select-none"
+            className="border-input h-8 cursor-pointer rounded-md border px-2 py-1 text-xs whitespace-nowrap select-none"
             data-hint="Copy, download, or import the plan as Markdown, Mermaid, CSV, JSON, or what is on screen"
           >
             {/*
-            Two lines keep the renamed menu inside the width the old Export
-            summary occupied. Proof: allowing this summary to take its
-            natural one-line width made both 1280px toolbar budgets fail by
-            about 42px in the full browser gate on 2026-09-14.
-          */}
+              One line, in the shape of the Filters, Views and Columns summaries beside it. It
+              was a fixed `w-16` two-line label from 2026-09-14 to save 42px of the 1280
+              budget, and was the only control on the bar that wrapped and stood taller than
+              its neighbours (UI review F-004). The line costs 45px; Undo, Redo and Keyboard
+              shortcuts became the 32px squares the other icon buttons are (−18px), and
+              `project-settings.spec.ts` re-pins the bar's measured sum with the difference.
+            */}
             Export / Import
           </summary>
           <div
             data-export-panel
-            className="bg-popover absolute z-50 mt-1 flex w-56 flex-col items-stretch gap-1 rounded-md border p-2 shadow-md"
+            // Plain menu items, the row ⋯ menu's vocabulary: a borderless row per action that
+            // lights on hover and focus, with a rule between the exports, the imports and
+            // the one setting. It was nine bordered buttons in a column (UI review F-031).
+            className="bg-popover absolute z-50 mt-1 flex w-56 flex-col items-stretch rounded-md border p-1 shadow-md"
           >
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
               type="button"
+              className={MENU_ITEM}
               data-hint="Copy the whole plan as a Markdown table, with a header saying how to read it"
               onClick={copyAsMarkdown}
             >
               Copy as Markdown
             </Button>
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
               type="button"
+              className={MENU_ITEM}
               data-hint="Copy the chart as a Mermaid gantt, for a Markdown document that draws it"
               onClick={copyAsMermaid}
             >
               Copy as Mermaid
             </Button>
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
               type="button"
+              className={MENU_ITEM}
               data-hint="Download the whole plan as a CSV, with a header saying how to read it"
               onClick={downloadCsv}
             >
               Download CSV
             </Button>
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
               type="button"
+              className={MENU_ITEM}
               data-hint="Download the chart as a Mermaid gantt bundled with the Markdown table, with a header saying how to read it"
               onClick={downloadMermaidDocument}
             >
@@ -1399,9 +1479,10 @@ export function PlanToolbar({
           either.
         */}
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
               type="button"
+              className={MENU_ITEM}
               data-export-chart-svg
               data-hint="Download the chart as a standalone .svg — every bar, arrow, hand-off and colour, openable with no app around it"
               onClick={downloadChartSvg}
@@ -1417,27 +1498,30 @@ export function PlanToolbar({
           and the `Scope` line it writes says which of the two did it.
         */}
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
               type="button"
+              className={MENU_ITEM}
               data-hint="Download the rows on screen as a Markdown table, with a header saying what was filtered out and what is missing"
               onClick={downloadOnScreen}
             >
               Download what’s on screen
             </Button>
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
               type="button"
+              className={MENU_ITEM}
               data-hint="Download the complete versioned plan archive as JSON"
               onClick={downloadJson}
             >
               Download JSON
             </Button>
+            <div role="separator" className="bg-border my-1 h-px shrink-0" />
             <label
               aria-disabled={importBusy}
               data-import-file
-              className={buttonVariants({ variant: 'outline', size: 'sm' })}
+              className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), MENU_ITEM)}
             >
               Import JSON
               <input
@@ -1477,7 +1561,8 @@ export function PlanToolbar({
           that dismissed the sheet before the export it configures could be
           reached would be a setting nobody can spend.
         */}
-            <label className="mt-1 flex items-center justify-between gap-1 text-xs">
+            <div role="separator" className="bg-border my-1 h-px shrink-0" />
+            <label className="flex items-center justify-between gap-1 px-3 text-xs">
               Mermaid lanes
               <select
                 className="border-input bg-background h-8 rounded-md border px-2 text-xs"
@@ -1515,25 +1600,47 @@ export function PlanToolbar({
   );
   const starts = (
     <>
-      <label className="ml-auto flex items-center gap-1 text-sm">
+      <label data-start-field className="flex items-center gap-1 text-sm">
         Starts
         {/*
         The day the whole plan begins. Setting it moves every date at once,
         because every date is an offset from it — there is nothing stored
         per row to drag along.
       */}
-        <DateField
-          className="border-input bg-background h-8 rounded-md border px-2 text-sm"
-          aria-label="Project start date"
-          disabled={busy}
-          {...busyAffordance(busy)}
-          value={startDate ?? ''}
-          commit={(typed) => {
-            void run((write) =>
-              write.perform(['tree'], () => commands.setStartDate(typed === '' ? null : typed)),
-            );
-          }}
-        />
+        {/*
+          The day in the cells' own words, "19 Sep 2026", over the native
+          field, whose text is the platform's (`09/19/2026` in an en-US
+          Chromium) and disagreed with every date in the table (UI review
+          F-007). The native field stays underneath for picking and typing: its
+          text is transparent until it takes the focus, and the words never
+          take a pointer, so a click still lands on the field.
+        */}
+        <span data-start-box className="group relative inline-flex">
+          <DateField
+            className={cn(
+              'border-input bg-background h-8 rounded-md border px-2 text-sm',
+              startDate !== null && 'not-focus:text-transparent',
+            )}
+            aria-label="Project start date"
+            disabled={busy}
+            {...busyAffordance(busy)}
+            value={startDate ?? ''}
+            commit={(typed) => {
+              void run((write) =>
+                write.perform(['tree'], () => commands.setStartDate(typed === '' ? null : typed)),
+              );
+            }}
+          />
+          {startDate !== null && (
+            <span
+              aria-hidden="true"
+              data-start-day
+              className="pointer-events-none absolute inset-y-0 left-2 flex items-center text-sm group-focus-within:hidden"
+            >
+              {longIsoDate(startDate)}
+            </span>
+          )}
+        </span>
       </label>
     </>
   );
@@ -1637,8 +1744,21 @@ export function PlanToolbar({
       {redo}
       {shortcuts}
       {transfer}
-      {starts}
-      {method}
+      {/*
+        The schedule controls, as one group at the end of the bar (UI review
+        F-005): the day the plan starts, the figure it is planned with, and —
+        while there is one to forget — the table's layout reset. One flex item
+        rather than three, so the bar wraps them together: at 1440 the actions
+        fill the first row and the group stands right-aligned on the second,
+        rather than Plan with and Reset layout alone there while Starts held on
+        to the row above. `ml-auto` keeps the group at the right edge whichever
+        row it is on.
+      */}
+      <div data-schedule className="ml-auto flex shrink-0 items-center gap-1.5">
+        {starts}
+        {method}
+        {layoutReset}
+      </div>
 
       {/*
         No slot here for plan-level controls the table does not own, and that
@@ -1653,6 +1773,26 @@ export function PlanToolbar({
       */}
     </>
   );
+}
+
+/**
+ * The sentence the readiness badge's live region says after a walk:
+ * `Unestimated 3 of 87: 010.3.01 Run E1, Plan`.
+ *
+ * @throws When the landing names a row or a step the plan does not hold: the
+ *   walk chose both from this same plan's gaps, so a miss is a broken
+ *   invariant rather than a state to word.
+ */
+export function gapLandingWords(
+  landing: GapLanding,
+  flat: readonly TreeRow[],
+  steps: readonly StepView[],
+): string {
+  const row = flat.find((candidate) => candidate.id === landing.rowId);
+  const step = steps.find((candidate) => candidate.id === landing.stepId);
+  if (row === undefined || step === undefined)
+    throw new Error('a walk landed on a row or step the plan does not hold');
+  return `Unestimated ${String(landing.at)} of ${String(landing.of)}: ${row.number} ${row.name}, ${step.name}`;
 }
 
 /**
