@@ -456,6 +456,18 @@ export class ImportService {
           },
           stamp,
         );
+        // Proof: omitting the write, either ID remap, or exact time failed the memory source-contract remap/time test (2026-10-14).
+        // Proof: borrowing committed memory state or replacing SQLite rollback with COMMIT failed import rollback negatives after the first fact (2026-10-14).
+        for (const fact of prepared.stepBlockages) {
+          await writes.restoreBlockage(
+            {
+              workItemId: resolvedId(rowsByFileId, fact.workItemId, 'blocked work item'),
+              stepId: resolvedId(stepsByFileId, fact.stepId, 'blocked step'),
+              blockedAt: fact.blockedAt,
+            },
+            stamp,
+          );
+        }
         // Plan document version 7 names the zone; `createProject` wrote `UTC`.
         // Proof: this write skipped made `round-trips a Kyiv project whose
         // 010.dev holds attempts…` read the copy's zone as `UTC` for

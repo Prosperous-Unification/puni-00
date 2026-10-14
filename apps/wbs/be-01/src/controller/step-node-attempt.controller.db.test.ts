@@ -989,7 +989,7 @@ describe('the plan document carries the zone and the attempts', () => {
 
   it('round-trips a Kyiv project whose 010.dev holds attempts 1 failed and 2 running', async () => {
     const document = await attemptedExport();
-    expect(document.document.version).toBe(8);
+    expect(document.document.version).toBe(9);
     expect(document.settings.timezone).toBe('Europe/Kyiv');
     const row = document.workItems.find((each) => each.name === 'Strip');
     expect(row?.spans).toBeUndefined();
