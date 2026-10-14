@@ -419,6 +419,38 @@ shared organizations refuse. Modes and ranks restore atomically:
 docker exec be-01-<colour> bun run src/shared-people-rollback-cli.ts restore /data/shared-people-<date>.json
 ```
 
+### Host recovery preflight
+
+The host recovery owner runs directly on h2puni from this release's checkout, with Bun and
+Docker available. Stop every container with a writable mount over the production database
+before invoking it. Both `be-01-blue` and `be-01-green` must be stopped, exist and identify the same
+`/home/puni1/wbs/data/wbs.db` through their configured DB_PATH and mounts. The operator needs
+permission to inspect every mounted host source; absent, unreadable or ambiguous facts refuse. Running containers with writable directory mounts on the database filesystem also refuse: those directories can contain hardlinks to the database. Distinct-device mounts can be excluded by physical device comparison. Plan an attended maintenance window for these containers and for unreadable mount sources.
+
+```sh
+bun apps/wbs/be-01/src/shared-people-host-restore-cli.ts /home/puni1/wbs/data/shared-people-<date>.json
+```
+
+This process takes `/home/puni1/wbs/state/deploy.lock` itself and holds that exact flock through
+one backup read, full Docker inventory inspection, optional binding diagnostics and the isolated
+restore transaction. Do not wrap a detached writer with a separate locking process. A killed
+owner releases the flock and SQLite rolls its uncommitted transaction back. The owner never
+starts containers or changes runtime capability.
+
+An offline digest can be supplied to the personal approval endpoint before the attended restore.
+Operation and approval references can then be diagnosed without consuming them:
+
+```sh
+bun apps/wbs/be-01/src/shared-people-host-restore-cli.ts /home/puni1/wbs/data/shared-people-<date>.json \
+  --operation=<operation-id> --approval=<approval-id> --approval=<another-approval-id>
+```
+
+These IDs identify stored bindings; they assert no actor or session authority. Shared backups
+require references for binding diagnostics and still refuse before a writable database connection.
+Audited consumption, receipt/retry semantics and shared restoration remain unavailable until
+OpenSpec slices 10.3 and 10.4. The existing isolated container-local save/remove/restore commands
+above remain available.
+
 ## Step node attempt rollback
 
 **Code rollback with ended attempts.** The `be` swap's `stored-vocabularies` step compares the

@@ -38,6 +38,20 @@ The initial full store discovery inside the sandbox encountered `EPERM` writing 
 stdin; an unrestricted repeat is required for that concurrency suite. The full host gate
 and fresh hosted checks remain required after the reviewed stack is pushed.
 
+## Stacked hosted CI repair: host restore test tier (2026-10-14)
+
+At PR #431, the tier conformance test failed naming
+`shared-people-host-restore.test.ts opens a database and is not named .db.test.ts`
+(`/tmp/puni-431-tier-red.log`). Renamed it to `shared-people-host-restore.db.test.ts`;
+the opener check and tier selection commands are unchanged. No Nx input change is needed:
+backend `default` already covers its Drizzle tree, and `^production` covers the store
+helper imported by this suite. Existing commands below record historical paths.
+
+`bun test apps/wbs/be-01/src/test-tiers.test.ts apps/wbs/be-01/src/shared-people-host-restore.db.test.ts --timeout=60000`:
+20 pass, 1 skip, 0 fail (`/tmp/puni-431-focused-green.log`). The skipped case requires
+`WBS_HOST_RESTORE_REAL_DOCKER=1` and an explicitly supplied proof image; live Docker
+fencing was not rerun in this CI fixture repair.
+
 ## Slice 0 — spec
 
 Written on `batch-9/010-4-16-capacity-spec` from main `4bb71e5f`. The change name, the four
@@ -4754,3 +4768,209 @@ focused fault runs exited 1 with failed assertions, followed by the green regres
 | Open DB_PATH in digest branch                                                                                   | Poisoned-database process case failed                                                          |
 | Require DB_PATH in digest branch                                                                                | No-database process case failed                                                                |
 | Omit projectId, organizationId, position, createdAt, updatedAt or createdBy from rank normalization, separately | Six independent fixed-byte golden failures                                                     |
+
+## Host shared-restore preflight checkpoint (10.2b, 2026-10-14)
+
+Base: exact `6030f9872ab25af4ede435207ed76fb8c27db09a` (published draft #427).
+Isolated branch: `batch-10/shared-restore-host-preflight-sol`; published #427 is untouched.
+This checkpoint closes the host preflight only. Shared consumption/receipts and runtime activation
+remain 10.3–10.4; no capability changes, personal-authority assertions or child writers were added.
+
+The host CLI owns the canonical deploy flock in the same process that retains one parsed backup,
+inspects the full Docker inventory, diagnoses optional stored references read-only, and invokes the
+existing isolated restore adapter. Both colours must physically identify the canonical host database;
+every container with a writable mount over it must be stopped. Shared backups still refuse before
+a writable opener, including a backup with valid diagnostic references.
+
+### Fresh local checks
+
+- `bun test apps/wbs/be-01/src/shared-people-host-restore.test.ts apps/wbs/be-01/src/shared-people-backup-cli.test.ts libs/wbs/adapters/store-sqlite/src/shared-people-backup.test.ts libs/wbs/adapters/store-sqlite/src/shared-people-rollback.db.test.ts`:
+  **49 pass, 1 explicit real-Docker skip, 0 fail**, 299 assertions in
+  `/tmp/shared-restore-10.2b-regression.log`. The skipped case was run separately below.
+- `WBS_HOST_RESTORE_REAL_DOCKER=1 WBS_HOST_RESTORE_PROOF_IMAGE=wbs-be-01:f8-v1 bun test apps/wbs/be-01/src/shared-people-host-restore.test.ts`:
+  **15 pass, 0 fail**, 152 assertions, `/tmp/shared-restore-10.2b-docker.log`.
+  Actual temporary blue/green containers and an additional mounted writer were created on the local
+  daemon. The third writer running refused without ranks; stopping it admitted isolated restore.
+  Exact created IDs were removed; the final Docker inventory contained only the pre-existing buildx
+  container. A label-filtered Docker wrapper isolates this test's inventory; container state and
+  mount facts are real Docker inspection, while production always requests the full inventory.
+- `bunx eslint apps/wbs/be-01/src/shared-people-host-restore{,-cli,.test}.ts libs/wbs/adapters/store-sqlite/src/shared-people-restore-diagnostics.ts`:
+  no diagnostics after building the Nx graph; `/tmp/shared-restore-10.2b-lint.log`.
+- `bunx tsc --build apps/wbs/be-01/tsconfig.json --pretty false`: no diagnostics,
+  `/tmp/shared-restore-10.2b-types.log`.
+- `bun build apps/wbs/be-01/src/shared-people-host-restore-cli.ts --target=bun --outfile=/tmp/shared-restore-10.2b-host-cli.js`:
+  281 modules bundled, 0.63 MB; `/tmp/shared-restore-10.2b-build.log`.
+- `bunx @fission-ai/openspec@1.12.0 validate share-people-across-projects --json`:
+  one change passed, zero issues; `/tmp/shared-restore-10.2b-openspec.log`.
+
+### Watched production-path faults
+
+Each mutation was restored before the final GREEN runs. Adjacent production `Proof:` comments
+name these observations. Logs use `/tmp/shared-restore-10.2b-<fault>-red.log`.
+
+| Fault removed/injected                                                                                                                              | Observed RED                                                                                                            |
+| --------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `flock`, `active-writer`                                                                                                                            | Rival admitted while actual SQLite owner held its writer; live colours/third writer restored ranks.                     |
+| `database-file`, `inventory-shape`, `required-colour`, `empty-inventory`, `inventory-complete`, `container-shape`, `container-state`, `mount-shape` | Named boundary refusal lost for directory DB, object/empty/duplicate inventory, missing colour or malformed inspection. |
+| `identity`, `db-path`, `mount-writable`, `mount-ambiguity`                                                                                          | Distinct existing DB inode, noncanonical DB_PATH, readonly/duplicate mapping admitted.                                  |
+| `inspection-exit`, `retained-read`                                                                                                                  | Exit-17 Docker refusal lost; replaced malformed backup pathname reread by writer.                                       |
+| `shared-before-writer`, `readonly-diagnostics`                                                                                                      | Valid-reference shared refusal changed journal mode from DELETE to WAL.                                                 |
+| `references`, `operation-digest`, `approval-operation`, `approval-organization`, `approval-duplicates`, `approval-complete`                         | Missing/duplicate IDs, foreign digest/operation/organization or incomplete consent lost their named diagnostic refusal. |
+| `cli-arguments`                                                                                                                                     | Missing backup, asserted actor, empty/duplicate operation flags lost usage refusal.                                     |
+| `transaction` (existing restore transaction bypassed)                                                                                               | SIGKILL left the first organization's `updated_at` committed instead of null.                                           |
+
+The process-death proof reaches the second organization's restore update, spills more than 1 MB
+of uncommitted WAL bytes from its trigger, observes a real rival flock refusal, then SIGKILLs the
+owner. Organization audit state and probe rows roll back, the same lock inode is immediately
+available, and the successor restore succeeds. A separate process proof kills the owner during a
+live Docker inspection child: the inspector remains alive while the flock is released, proving
+that the child does not inherit the writer owner's lock.
+
+### Read-only h2puni receipt and remaining host constraints
+
+Docker and SSH initially required sandbox escalation; approved read-only access succeeded.
+The bundled production CLI was transported to a temporary host file and run with a temporary
+shared diagnostic backup carrying no approval references. That backup cannot admit a writer even
+if fencing passes. Temporary host files were removed. The real canonical-lock preflight refused:
+
+`database identity differs: /be-01-blue`
+
+Fresh inspection explains the refusal: both colours configure `DB_PATH=/data/wbs.db`, but stopped
+blue binds `/srv/wbs/data` while running green binds `/home/puni1/wbs/data`. The canonical host
+file is `/home/puni1/wbs/data/wbs.db`. Logs:
+`/tmp/shared-restore-10.2b-host-refusal.log`, `/tmp/shared-restore-10.2b-host-identity.log`.
+Fresh symlink-resolved physical evidence (both paths resolve to themselves):
+
+| Colour | Running/status | DB_PATH        | Writable bind source   | Physical DB device/inode        |
+| ------ | -------------- | -------------- | ---------------------- | ------------------------------- |
+| blue   | false / exited | `/data/wbs.db` | `/srv/wbs/data`        | 2049 / 260105 (root, mode 644)  |
+| green  | true / running | `/data/wbs.db` | `/home/puni1/wbs/data` | 2049 / 422761 (puni1, mode 644) |
+
+No production container was stopped/started, no database was written and no lock contents were
+changed. An attended successful production restore remains unverified and blocked by the physical
+colour mismatch and live green writer. They require operator correction/maintenance, not bypasses.
+
+The canonical exact-SHA h2puni gate, full CI and Astra review are pending; this local checkpoint
+claims no host gate or activation. Publication is deliberately deferred until Astra review.
+
+## Astra hardlink-fencing repair (10.2b, 2026-10-14)
+
+Review of `fa47ed1d67dee8a6fce914f47a2719429ed96308` found that physical colour identity could
+pass through a hardlinked database in an alternate mount directory while pathname coverage
+missed that running writer. The retained backup could then restore ranks. The repair requires
+both physically verified colours stopped unconditionally and audits additional writable mounts
+separately. A writable directory on the database's device is conservatively alias-capable even
+when no known path overlaps; snapshot directory scans cannot prove stable hardlink absence.
+Distinct-device sources remain distinguishable by device/inode comparison. No runtime activation
+or shared restore permission changes were made.
+
+Two mounted production-owner regressions first failed against the original code:
+`/tmp/shared-restore-10.2b-alias-original-red.log` (0 pass / 2 fail). Running green through a hardlink
+and a running third writer through a hardlink with both colours stopped are separate cases.
+Each now refuses before the writable opener, leaves ranks absent and preserves DELETE journal
+mode: `/tmp/shared-restore-10.2b-alias-green.log` (2 pass / 10 assertions). Independently bypassing
+the colour shutdown guard and the additional same-device directory check each produced RED in
+`/tmp/shared-restore-10.2b-colour-alias-red.log` and
+`/tmp/shared-restore-10.2b-third-alias-red.log`; both guards have adjacent `Proof:` comments.
+
+Fresh checks after repair:
+
+- The same four-file focused regression command above: **51 pass, 1 explicit real-Docker skip,
+  0 fail**, 309 assertions; `/tmp/shared-restore-10.2b-alias-regression.log`.
+- Real Docker command above: **17 pass, 0 fail**, 168 assertions;
+  `/tmp/shared-restore-10.2b-alias-docker.log`. The actual green and third-writer containers now
+  mount the alternate hardlink directory: each running state refuses with ranks and DELETE mode
+  unchanged, then stopping both admits the isolated restore. Exact created-container cleanup runs.
+- Scoped ESLint and `bunx tsc --build apps/wbs/be-01/tsconfig.json --pretty false`: exit 0 without
+  diagnostics. Scoped formatting and pinned OpenSpec validation were repeated before commit.
+
+### Attended host-operation blockers
+
+Read-only Docker name/mount projection and physical `stat` on h2puni found database device 2049.
+Six additional running containers have writable directory mounts on that same device and would
+be refused by the conservative rule:
+
+| Container             | Same-device writable sources                            |
+| --------------------- | ------------------------------------------------------- |
+| `wbs-dev-src`         | `/home/puni1/wbs-dev/data`, `/home/puni1/wbs-dev/src`   |
+| `netdata`             | `/home/puni1/monitoring/netdata-config`                 |
+| `dev-be-01-blue`      | `/home/puni1/wbs-dev/data`                              |
+| `aivn-studio-dev-src` | `/home/puni1/aivn-dev/src`, `/home/puni1/aivn-dev/data` |
+| `wbs-caddy-1`         | `/home/puni1/wbs/logs`                                  |
+| `aivn-dev-src`        | `/home/puni1/aivn-dev/data`, `/home/puni1/aivn-dev/src` |
+
+Six volume sources are unreadable as `puni1` and remain explicit fail-closed unknowns:
+`/var/lib/docker/volumes/logging-vector-data/_data` (`logging-vector`),
+`/var/lib/docker/volumes/netdatalib/_data` and `netdatacache/_data` (`netdata`),
+`/var/lib/docker/volumes/wbs_caddy_config/_data` and `wbs_caddy_data/_data` (`wbs-caddy-1`),
+`/var/lib/docker/volumes/wbs_registry_data/_data` (`wbs-registry-1`). No inspected writable sources
+were on a distinct device. Receipt: `/tmp/shared-restore-10.2b-alias-host-cost.json`.
+
+These are attended-operation blockers in addition to the physical blue/green mismatch and live
+green recorded above. No production container was stopped or changed, and no production database
+was written. The broad maintenance cost is explicit for Astra's assessment; the preflight does
+not bypass unknown state. Astra rereview and the canonical exact-SHA gate remain pending.
+
+## Host preflight delta-spec completion (10.2b, 2026-10-14)
+
+Astra's rereview of `22614906c5f60e3a3af4291c70f0322089c81e67` found no remaining P0/P1 in the
+hardlink repair but identified the missing R4 delta-spec contract. The new "Host restore excludes
+writers before opening the database for recovery" requirement in
+`specs/shared-people-mode/spec.md` states testable lock, owner-death rollback, physical colour
+identity/shutdown, additional same-device directory, inspection failure, retained-read and
+read-only-diagnostic scenarios. It references the existing canonical digest and combined backup
+requirements instead of replacing their contracts. No implementation or test behavior changed.
+The unchanged proposal remains 393 words, below the 400-word intent limit.
+
+Fresh validation: `bunx @fission-ai/openspec@1.12.0 validate share-people-across-projects --strict --json`
+passed with one valid change and zero issues; `/tmp/shared-restore-10.2b-spec-strict.json`.
+`bun test apps/wbs/be-01/src/shared-people-host-restore.test.ts` passed the local host scenarios;
+`/tmp/shared-restore-10.2b-spec-tests.log`. Its real-Docker case is explicitly skipped in this
+local run; the separate 17-pass real-Docker receipt above remains the latest container proof.
+Formatting and normal commit hooks were repeated for the documentation amendment.
+
+For WBS 010.4.16, successful actual h2puni recovery/activation remains blocked by the six extra
+running same-device containers, six unreadable volume sources, physical colour mismatch and live
+green recorded above. Stopping containers alone does not make unreadable sources inspectable.
+This amendment performed no production action and does not authorize bypassing these blockers.
+Canonical exact-SHA gate, publication and activation remain pending.
+
+## Additional mount-source boundary proofs (10.2b, 2026-10-14)
+
+Astra's review of `88c765283781b45a460ad878553404b77b353e86` required independent production-owner
+proofs for missing and unreadable additional Docker mount sources. The earlier read-only h2puni
+CLI receipt stopped at blue's physical identity mismatch and did not exercise this later boundary.
+
+Two separate mounted preflight tests now keep both verified colours and the extra container
+stopped, then reach the production `realpath(mount.source)` / `stat(source)` boundary:
+
+- An extra writable source that does not exist refuses with `ENOENT`.
+- An existing source beneath an actual mode-000 parent refuses with `EACCES` as the ordinary
+  non-root recovery owner. The parent permission is restored in `finally` for exact cleanup.
+
+Each uses an independent existing database in DELETE journal mode. Its refusal preserves empty
+ranks and DELETE mode, proving the writable opener did not run. Initial GREEN: two pass/eight
+assertions in `/tmp/shared-restore-10.2b-mount-source-green.log`. Substituting the canonical
+database for the mount-source resolver/stat dependency allowed recovery and separately failed
+both tests: `/tmp/shared-restore-10.2b-absent-mount-source-red.log` and
+`/tmp/shared-restore-10.2b-unreadable-mount-source-red.log`. The dependency bypass was restored;
+an adjacent production `Proof:` comment records it. No production behavior was changed.
+
+Fresh checks after those proofs:
+
+- Four-file focused regression command recorded above: **53 pass, 1 explicit real-Docker skip,
+  0 fail**, 317 assertions; `/tmp/shared-restore-10.2b-mount-source-regression.log`.
+- Real-Docker host suite command above: **19 pass, 0 fail**, 176 assertions;
+  `/tmp/shared-restore-10.2b-mount-source-docker.log`. Temporary local Docker IDs were cleaned up.
+- Scoped ESLint and `bunx tsc --build apps/wbs/be-01/tsconfig.json --pretty false`: exit 0,
+  no diagnostics. Formatting and normal commit hooks were repeated.
+- `bunx @fission-ai/openspec@1.12.0 validate share-people-across-projects --strict --json`:
+  one valid change, zero issues; `/tmp/shared-restore-10.2b-mount-source-openspec.json`.
+  The delta spec now explicitly distinguishes an absent extra stopped-container source from its
+  existing unreadable-source scenario. The proposal remains unchanged at 393 words.
+
+WBS 010.4.16 actual h2puni recovery remains blocked by the six additional running same-device
+containers, six unreadable volume sources, physical colour mismatch and running green detailed
+above. These proofs do not claim that stopping containers resolves unreadable source identity.
+No production action, container stop or database write was performed. The exact-SHA canonical
+gate, upstream-stack correction, publication and activation remain pending.
