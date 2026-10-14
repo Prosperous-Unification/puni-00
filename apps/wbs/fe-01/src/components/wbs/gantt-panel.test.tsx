@@ -1195,7 +1195,7 @@ describe('the chart is drawn in calendar days', () => {
     expect(barFor('sand-dev')).not.toBeNull();
     expect(document.querySelectorAll('[data-assumed]')).toHaveLength(1);
     expect(document.querySelector('[data-gantt-bar-label="sand-dev"]')?.textContent).toMatch(
-      /^(sand · )?no estimate$/,
+      'sand · no estimate',
     );
     // Two bars on a two-slice chart, counted rather than named: the count is
     // what would fall to 1 if the switch started hiding these again.
@@ -1224,7 +1224,7 @@ describe('the chart is drawn in calendar days', () => {
     expect(barFor('sand-dev')?.getAttribute('data-assumed')).toBe('true');
     expect(barFor('sand-dev')?.getAttribute('class')).toContain('[fill-opacity:0.35]');
     expect(document.querySelector('[data-gantt-bar-label="sand-dev"]')?.textContent).toMatch(
-      /^(sand · )?no estimate$/,
+      'sand · no estimate',
     );
     // And it says so in words as well as in paint: the width is a guess, and
     // the sentence that says so is a line of its own rather than a word tucked
@@ -1366,7 +1366,7 @@ describe('the chart is drawn in calendar days', () => {
     expect(bar?.getAttribute('class')).toContain('[fill-opacity:0.35]');
     expect(bar?.getAttribute('class')).toContain('stroke-dasharray');
     expect(document.querySelector('[data-gantt-bar-label="sand-dev"]')?.textContent).toMatch(
-      /^(sand · )?no estimate$/,
+      'sand · no estimate',
     );
     // In words as well as in paint: the sentence names the guess, the span it
     // is drawn across, and that the schedule does not spend it.
@@ -3272,13 +3272,14 @@ describe('the words on the bars are HTML over the chart', () => {
 
   itDom('writes on an assumed bar its number and that nobody estimated it', () => {
     // The `?` lead read as an error (ui-review F-037, 2026-10-13); the number
-    // stays first, by the 2026-09-13 rule every bar label keeps. Four
-    // workdays hold both; two hold only the phrase; one holds too little of
-    // it to read, and the dashed outline is what still says "a guess".
+    // stays first, by the 2026-09-13 rule every bar label keeps, and the
+    // phrase yields to it as a name does. Two workdays and up hold the number
+    // and the phrase; one holds the number alone; a number that does not fit
+    // whole is not written, and the dashed outline still says "a guess".
     expect(barText('KB', 'Strip', assumedRoomAt(4, '010'))).toBe('010 · no estimate');
-    expect(barText('KB', 'Strip', assumedRoomAt(2, '010'))).toBe('no estimate');
-    expect(barText(null, 'Strip', assumedRoomAt(2, '010'))).toBe('no estimate');
-    expect(barText('KB', 'Strip', assumedRoomAt(1, '010'))).toBeNull();
+    expect(barText('KB', 'Strip', assumedRoomAt(2, '010'))).toBe('010 · no estimate');
+    expect(barText(null, 'Strip', assumedRoomAt(2, '010'))).toBe('010 · no estimate');
+    expect(barText('KB', 'Strip', assumedRoomAt(1, '010'))).toBe('010');
     expect(barText('KB', 'Strip', assumedRoomAt(1, '170.1'))).toBeNull();
   });
 

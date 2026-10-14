@@ -11,9 +11,11 @@ the anchor-slice reach's choice of first **estimated** slice.
 An unestimated slice's bar SHALL continue to be painted as a guess — its dotted
 outline and its translucent fill unchanged — and SHALL say so in words: its
 on-bar label SHALL open with the row's number, as every bar label does, and
-read `<number> · no estimate` where the number and a legible start of the
-phrase fit, `no estimate` where only the phrase fits, and nothing otherwise.
-It SHALL NOT lead with `?`, and SHALL write the number at most once.
+the phrase SHALL yield to the number as a name does on an estimated bar:
+`<number> · no estimate` (the phrase cropped by the box) where the number and
+the crop mark fit, the number alone where only it fits, and nothing where the
+number does not fit whole. It SHALL NOT lead with `?`, and SHALL write the
+number at most once.
 
 #### Scenario: an unestimated item still reports no estimate
 
@@ -128,8 +130,9 @@ Days axis SHALL print what it printed before.
 When the schedule is narrower than the chart's panel, the calendar SHALL run
 on to the panel's edge without passing it. Every bar with a positive span
 SHALL be painted at least 4px wide at every rung; its scheduled span is
-unchanged. A done bar narrower than 8px SHALL NOT wear the 2px green outline
-or the tick; its accessible name still says done.
+unchanged. A done bar narrower than 8px SHALL wear the done green as a 1px
+edge instead of the 2px outline, and no tick; its accessible name still says
+done.
 
 A label on a bar hatched as blocked by proxy SHALL sit on a patch of the bar's
 own ground, so the hatch does not run under its glyphs.
@@ -141,8 +144,8 @@ struck through or dashed, and a pressed toggle SHALL be drawn filled.
 
 - **GIVEN** a leaf whose two steps are both unestimated
 - **WHEN** the chart draws its two placeholders in two lanes
-- **THEN** each reads `no estimate` (after its number where that fits) inside
-  its own lane and the two labels do not overlap
+- **THEN** each reads its number (and `no estimate` after it where that fits)
+  inside its own lane and the two labels do not overlap
 
 #### Scenario: every bar colour, light and dark
 

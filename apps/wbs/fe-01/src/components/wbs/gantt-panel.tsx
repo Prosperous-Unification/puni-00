@@ -620,9 +620,9 @@ const DONE_MARK_PX = 12;
  *
  * At Months a one-workday done bar is 4px, and two pixels of green either side
  * of it read as a box rather than a bar (ui-review F-026). Narrower than this,
- * a done bar wears its own colour's 1px edge like any bar, and its accessible
- * name and hover card still say done; the tick already needs
- * `DONE_MARK_PX + 6`.
+ * a done bar keeps the done green as a 1px edge — which is what still tells it
+ * from an unassigned grey sliver — and its accessible name and hover card say
+ * done; the tick already needs `DONE_MARK_PX + 6`.
  */
 const DONE_OUTLINE_MIN_PX = 8;
 
@@ -1067,14 +1067,6 @@ function leadOf(room: LabelRoom): string {
 const PLACEHOLDER_WORDS = 'no estimate';
 
 /**
- * The fewest characters of {@link PLACEHOLDER_WORDS} worth writing before the
- * box crops the rest with its ellipsis: `no est…` still reads as the phrase;
- * fewer is a stray word. {@link LABEL_CHAR_PX} is generous, so at the opening
- * scale a two-workday placeholder writes the phrase whole in Chromium.
- */
-const PLACEHOLDER_LEGIBLE_CHARS = 6;
-
-/**
  * How tall a lane must be before a label is written in it, in CSS pixels.
  *
  * A bar shares its row with others only in a cluster that holds an unestimated
@@ -1463,9 +1455,9 @@ export function poolLabelFor(
  * 3. `lead` alone where only the lead fits — nothing follows, so no mark is
  *    drawn and nothing eats into it.
  *
- * An assumed bar writes `number · `{@link PLACEHOLDER_WORDS} where the number
- * and a legible start of the phrase fit, the phrase alone where only that
- * fits, and nothing otherwise (ui-review F-037).
+ * An assumed bar reads the same way with {@link PLACEHOLDER_WORDS} in the
+ * name's place: `number · no estimate` where the number and the crop mark fit,
+ * the number alone where only it fits, nothing otherwise (ui-review F-037).
  *
  * And nothing where the number itself does not fit: half a number is the
  * misreading this exists to remove, and a label box over a 5px bar is a stray
@@ -1485,17 +1477,19 @@ export function poolLabelFor(
  */
 export function barText(who: string | null, name: string, room: LabelRoom): string | null {
   if (!room.estimated) {
-    // Number first, as on every bar; the words may crop, the number may not.
-    // Proof: the number arm removed (the first F-037 cut), and `names a
-    // placeholder for what it is, and writes its number once per bar` failed
-    // on `expected 'no estimate' to be '010 · no estimate'`; watched
-    // 2026-10-14.
-    const legiblePx = PLACEHOLDER_LEGIBLE_CHARS * LABEL_CHAR_PX + ELLIPSIS_PX;
-    const leadPx = (room.number.length + LABEL_SEPARATOR.length) * LABEL_CHAR_PX;
-    if (room.px >= leadPx + legiblePx) {
+    // Number first, as on every bar, and the phrase yields to it exactly as a
+    // name does below: the box crops the phrase, never the number, and a bar
+    // with room for the number alone says the number.
+    // Proof: the phrase put ahead of the number (round 1 of the #401 review:
+    // `no estimate` alone where the number and the phrase did not both fit
+    // whole), and `names a placeholder for what it is, and writes its number
+    // once per bar` failed on `expected 'no estimate' to be '010 · no
+    // estimate'` at two workdays; watched 2026-10-14.
+    const leadPx = room.number.length * LABEL_CHAR_PX;
+    if (room.px >= leadPx + ELLIPSIS_PX) {
       return [room.number, PLACEHOLDER_WORDS].join(LABEL_SEPARATOR);
     }
-    return room.px >= legiblePx ? PLACEHOLDER_WORDS : null;
+    return room.px >= leadPx ? room.number : null;
   }
   const lead = leadOf(room);
   const words = nameWords(name);
@@ -5413,8 +5407,8 @@ export function GanttRenderer({
 
         {drawnBars.map(({ bar, x, width }) => {
           const surface = placeBarSurface(x, width, rung);
-          // The green done outline only where it frames a bar — see
-          // {@link DONE_OUTLINE_MIN_PX}.
+          // The done outline's 2px only where it frames a bar; a sliver keeps
+          // the green at 1px — see {@link DONE_OUTLINE_MIN_PX}.
           const doneOutlined = bar.done && surface.width * dayPx >= DONE_OUTLINE_MIN_PX;
           const middle = bar.rowIndex + BAR_INSET + ((bar.lane + 0.5) * BAR_HEIGHT) / bar.lanes;
           const hitHeight = Math.max(BAR_HEIGHT / bar.lanes, 18 / ROW_PX);
@@ -5628,15 +5622,13 @@ export function GanttRenderer({
                 // A blocked bar wears the blocked red as its outline, the done
                 // bar's green's way (`add-work-item-statuses`).
                 stroke={
-                  doneOutlined
+                  bar.done
                     ? DONE_BAR_STROKE
-                    : bar.done
-                      ? bar.personColor
-                      : bar.stop === 'blocked'
-                        ? BLOCKED_STROKE
-                        : bar.critical
-                          ? undefined
-                          : bar.personColor
+                    : bar.stop === 'blocked'
+                      ? BLOCKED_STROKE
+                      : bar.critical
+                        ? undefined
+                        : bar.personColor
                 }
                 className={cn(
                   barClasses(
