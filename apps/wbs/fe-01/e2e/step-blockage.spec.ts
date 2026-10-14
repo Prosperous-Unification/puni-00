@@ -129,6 +129,92 @@ test.describe('step blockage on the production preview path', () => {
     expect((await action.boundingBox())?.height).toBeGreaterThanOrEqual(44);
     await page.screenshot({ path: testInfo.outputPath('proxy-phone.png') });
   });
+
+  test('nested blocked leaf and its downstream node retain named causes in both layouts', async ({
+    page,
+  }) => {
+    const { projectId, source, dev, target, qa } = await seedBlockages(page);
+    const nested = await page.evaluate(
+      async ({ projectId, source, dev }) => {
+        const written = await fetch(`/api/projects/${projectId}/commands`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            commands: [
+              {
+                kind: 'createWorkItem',
+                ref: 'branch',
+                parentId: null,
+                afterId: source,
+                name: 'Nested release',
+              },
+              { kind: 'moveWorkItem', workItemId: source, parentRef: 'branch', afterId: null },
+            ],
+          }),
+        });
+        if (!written.ok)
+          throw new Error(
+            `Nested fixture write failed: ${String(written.status)} ${await written.text()}`,
+          );
+        const response = await fetch(`/api/projects/${projectId}/work-items`);
+        const tree = (await response.json()) as {
+          workItems: { id: string; number: string }[];
+          stepNodes: { workItemId: string; stepId: string; reference: string | null }[];
+        };
+        const number = tree.workItems.find((row) => row.id === source)?.number;
+        const reference = tree.stepNodes.find(
+          (node) => node.workItemId === source && node.stepId === dev,
+        )?.reference;
+        if (number === undefined || reference === undefined || reference === null)
+          throw new Error('Missing nested fixture address');
+        return { number, reference };
+      },
+      { projectId, source, dev },
+    );
+    await page.reload();
+    await expect(page.getByLabel(`Name of ${nested.number}`)).toBeVisible();
+    const direct = await openCard(page, `Dev estimate for ${nested.number}`);
+    await expect(direct.getByText('Direct step blockage', { exact: true })).toBeVisible();
+    await expect(
+      direct.getByText(`Cause: ${nested.reference} · Refund policy · Dev`, { exact: true }),
+    ).toBeVisible();
+    const proxy = await openCard(page, 'QA estimate for 020');
+    await expect(proxy.getByText('Blocked by dependency', { exact: true })).toBeVisible();
+    await expect(
+      proxy.getByText(`Cause: ${nested.reference} · Refund policy · Dev`, { exact: true }),
+    ).toBeVisible();
+    await page.setViewportSize({ width: 375, height: 850 });
+    for (const [ownerId, stepId, wording] of [
+      [source, dev, 'Direct step blockage'],
+      [target, qa, 'Blocked by dependency'],
+    ] as const) {
+      const details = page.locator(`[data-card="${ownerId}"] [data-step-blockage="${stepId}"]`);
+      await details.locator('summary').click();
+      await expect(details.getByText(wording, { exact: true })).toBeVisible();
+      await expect(
+        details.getByText(`Cause: ${nested.reference} · Refund policy · Dev`, { exact: true }),
+      ).toBeVisible();
+    }
+  });
+  test('supported blockage facts without node readings reach the Error Boundary', async ({
+    page,
+  }) => {
+    const { source } = await seedBlockages(page);
+    await page.route('**/api/projects/*/work-items*', async (route) => {
+      const response = await route.fetch();
+      const tree = (await response.json()) as {
+        workItems: { id: string; nodeReadings?: unknown }[];
+      };
+      const row = tree.workItems.find((row) => row.id === source);
+      if (row === undefined) throw new Error('Missing supported fixture row');
+      delete row.nodeReadings;
+      await route.fulfill({ response, json: tree });
+    });
+    await page.reload();
+    await expect(page.getByText('Something went wrong!', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Show Error' }).click();
+    await expect(page.getByText(/Missing node reading for/)).toBeVisible();
+  });
   test('malformed supported cause metadata reaches the application Error Boundary', async ({
     page,
   }) => {

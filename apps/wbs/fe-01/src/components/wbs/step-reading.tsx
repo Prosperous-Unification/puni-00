@@ -53,7 +53,8 @@ export function nodeReadingOf(row: TreeRow, stepId: string): NodeReadingView | n
  *
  * @throws Error when the leaf carries readings but none for this step: be-01
  * reads every node of a leaf, so a gap is a malformed read, routed to the
- * Error Boundary like a missing step node.
+ * Error Boundary like a missing step node. Supported blockage metadata also
+ * requires readings; only a genuinely older read may omit all three collections.
  */
 export function stepNodeReadingsOf(
   row: TreeRow,
@@ -62,6 +63,8 @@ export function stepNodeReadingsOf(
   timezone: string | null,
   causeLabels: ReadonlyMap<string, string> = new Map(),
 ): StepNodeReadings | null {
+  // Proof: validating after the null return made `rejects supported blockage metadata without node readings through the public projection` not throw, and the preview browser `supported blockage facts without node readings reach the Error Boundary` render unknown instead (2026-10-14).
+  const blockage = stepBlockageOf(row, stepId, causeLabels);
   const reading = nodeReadingOf(row, stepId);
   if (reading === null) return null;
   const attempts = row.attempts?.[stepId] ?? [];
@@ -69,7 +72,7 @@ export function stepNodeReadingsOf(
     executor === null ? null : (peopleById.get(executor)?.name ?? '(unknown)');
   return {
     reading,
-    blockage: stepBlockageOf(row, stepId, causeLabels),
+    blockage,
     attempts,
     executorName: nameOf(attempts.at(-1)?.executorPersonId ?? null),
     executorNames: new Map(

@@ -1465,7 +1465,8 @@ export function WbsTable({
       nodesByRow === null
         ? null
         : new Map([...nodesByRow].map(([rowId, nodes]) => [rowId, [...nodes.keys()]]));
-    const causeLabels = blockageLabelsOf(workItems, steps, stepNodes);
+    // Proof: indexing only top-level workItems made `nested blocked leaf and its downstream node retain named causes in both layouts` reach the router Error Boundary (2026-10-14).
+    const causeLabels = blockageLabelsOf(flat, steps, stepNodes);
     const rows = attachRowReadings(workItems, (row) => {
       if (nodesByRow !== null && !row.rolledUp) {
         for (const step of steps) {

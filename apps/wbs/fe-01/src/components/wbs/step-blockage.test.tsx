@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { stepBlockageOf, StepBlockageSection } from './step-blockage';
+import { stepNodeReadingsOf } from './step-reading';
 import type { TreeRow } from './wbs-rows';
 const leaf = (fields: Partial<TreeRow>): TreeRow =>
   ({
@@ -123,6 +124,20 @@ describe('step blockage details', () => {
     expect(screen.getByText('Blocked by work-item hold')).toBeVisible();
     expect(screen.getByRole('button', { name: 'Block step 020.dev' })).toBeEnabled();
     expect(screen.getByText('Cause: 010 · Checkout')).toBeVisible();
+  });
+  it('rejects supported blockage metadata without node readings through the public projection', () => {
+    expect(() =>
+      stepNodeReadingsOf(leaf({ nodeReadings: undefined }), 'dev', new Map(), 'UTC', labels),
+    ).toThrow('Missing node reading');
+    expect(
+      stepNodeReadingsOf(
+        leaf({ nodeReadings: undefined, blockages: undefined, blockageCauses: undefined }),
+        'dev',
+        new Map(),
+        'UTC',
+        labels,
+      ),
+    ).toBeNull();
   });
   it('rejects an empty blocked cause collection', () => {
     expect(() => stepBlockageOf(leaf({ blockageCauses: { dev: [] } }), 'dev', labels)).toThrow(

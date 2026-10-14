@@ -868,3 +868,107 @@ Not run by this UI worker: the host-wide exact-SHA h2puni gate, packaged Caddy
 browser suite, full backend/domain/import/saved-plan checks, hosted CI, migration
 lint or production activation/deploy. PR #450's known unrelated Burokrat pilot
 index failure is coordinator-owned; it is not repaired by this UI slice.
+
+### Public setter module-index CI repair — 2026-10-14
+
+Exact base: PR #450 head `c622d20fd26d276f618779fbb085e3cb1aeb79b4`;
+isolated clone `/tmp/puni-setter-module-index-ci-sol`. Hosted run `38518467695`
+reported the plan-commands index omitted the new `step-blockage.test.ts`.
+The repair adds its exact path membership between `run-command-batch.ts` and
+`tsconfig.json`; existing membership order and production policy stay unchanged.
+
+Proof: the following production-CLI pilot test first exited 1 with **0 pass,
+1 fail, 53 assertions** and the exact `unindexed candidate path` for that test.
+Adding the membership exited 0 with **1 pass, 0 fail, 60 assertions**. Removing
+only the added membership reproduced exit 1 and the same refusal; the membership
+was restored before subsequent checks. The omission output is retained in
+[setter-module-index-omission.txt](evidence/setter-module-index-omission.txt).
+No production safety check was added or changed.
+
+```sh
+BUN_TMPDIR=/tmp TMPDIR=/tmp TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/node_modules bun test --preload ./tools/test/scratch/preload.ts apps/twilight-structure/twilight-burokrat/cli/src/policy/pilot-policy.test.ts -t 'pins exact pre-index tuples' --timeout=60000
+```
+
+Fresh local evidence:
+
+- Frozen Bun installation exits 0, **1573 installs checked**. The initial install
+  failed with EROFS despite writable temporary paths; repeating with
+  `BUN_INSTALL=/tmp/puni-setter-module-index-bun` and
+  `BUN_INSTALL_CACHE_DIR=/tmp/puni-setter-module-index-bun-cache` succeeded.
+- `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`:
+  exit 0, **39 indexes, empty review debt**.
+- Full `pilot-policy.test.ts` and `indexes.test.ts` with the same scratch preload,
+  trusted dependency root and 60000 ms timeout: exit 0, **81 pass, 0 fail,
+  880 assertions, 2 files**. Log `/tmp/puni-setter-module-index-tests.log`.
+- Touched Markdown Prettier check and `git diff --check`: exit 0.
+- Pinned OpenSpec 1.12.0 `validate add-step-node-blocking --strict --json`:
+  exit 0, **1 passed, 0 failed, no issues**. Normal `validate --all --json`:
+  exit 0, **196 passed, 0 failed**.
+
+Full h2puni heavy gate/build, hosted CI rerun and browser checks remain coordinator
+work and are unverified by this documentation repair. No push, merge, deploy or
+activation was performed.
+
+### Hosted admission fixture corrections — 2026-10-14
+
+Reported CI run `38518185689` failed against release candidate `895eac61a6a9816cbf22ec39cd92648b79b95f88`. Reproduction in isolated clone `/tmp/puni-admission-ci-repair-sol` found five typed-dependency lifecycle assertions expecting successful structural replay while their migrated test database still had disabled writer admission, plus a migration CLI expectation naming the previous latest migration. The original unmigrated boot fixture also expected startup success; a socket-free listener/app seam reached the same production refusal as CI: `no such table: __drizzle_migrations`. Real local listening first refused sandbox `EPERM`, so that initial socket failure is not counted as the admission reproduction.
+
+Only fixtures and expectations changed: the lifecycle suite explicitly activates its own temporary database with `activateTestStepBlockages`, the CLI expects `20261014140000_add_step_blockage_activation`, and the unmigrated boot test asserts readiness refusal and no running process. Production admission, boot, migration and recovery code remain unchanged; no safety check was added or relaxed, so no new production omission proof is required.
+
+Fresh checks:
+
+- `bun test ./apps/wbs/be-01/src/controller/typed-dependency-lifecycle.controller.db.test.ts --timeout=30000` before correction: **8 pass, 5 fail**, each failed assertion receiving 409.
+- `bun test ./apps/wbs/be-01/src/migration-cli.db.test.ts --test-name-pattern 'older newly introduced migration' --timeout=30000` before correction: **0 pass, 1 fail**, actual latest migration `20261014140000_add_step_blockage_activation`.
+- The old successful-start boot expectation with the injected listener seam: **0 pass, 1 fail**, native missing-ledger error above.
+- `bun test ./apps/wbs/be-01/src/migration-cli.db.test.ts ./apps/wbs/be-01/src/controller/typed-dependency-lifecycle.controller.db.test.ts --timeout=30000` after correction: exit 0, **63 pass, 0 fail, 561 assertions**.
+- `bun test ./apps/wbs/be-01/src/boot.db.test.ts --test-name-pattern 'unmigrated database|blockage admission authority|boots committed fan-out' --timeout=30000`: exit 0, **3 pass, 0 fail, 10 assertions**, covering valid migrated startup and both absent-ledger and missing-marker refusal.
+- `bun test ./libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts --timeout=30000`: exit 0, **28 pass, 0 fail, 73 assertions**; default-disabled admission, exact sentinel handling, rollback, restart and retained-history down remain covered.
+- `bunx tsc --build --force apps/wbs/be-01/tsconfig.json`: exit 0, no diagnostics. Touched-file ESLint uses a freshly generated Nx project graph and exits 0 without diagnostics. Touched Prettier check, strict change validation and `git diff --check` also exit 0.
+
+The full boot suite requiring real listening, full hosted CI and exact host gate are not claimed here. The coordinator will integrate this follow-up and requeue the exact candidate gate; no push, merge, deploy or host gate was performed in this repair.
+
+## 2026-10-14 — Astra UI review repairs and #450 composition
+
+Review of `16e0e7e420dca71fe507ac37572ebc7757d25034` found two gaps:
+indexing only top-level tree rows omitted nested blockage roots, and the public
+node projection returned its older-server null before validating supported blockage
+metadata. The cause index now uses the existing flattened rows. The projection
+validates supported blockage metadata before its nullable reading return; a
+fully older read still returns null and renders explicit unknown.
+
+Watched negatives before repair:
+
+- The real-preview nested leaf fixture (explicit child Dev fact, downstream root QA
+  dependency) failed visibility of `Name of 040.1`, with the router Error Boundary
+  shown. It exercises the complete retained read and both desktop and phone layouts.
+- `rejects supported blockage metadata without node readings through the public
+projection` expected an error and received none from `stepNodeReadingsOf`.
+- Restoring the old validation order in a fresh isolated preview database made
+  `supported blockage facts without node readings reach the Error Boundary` fail
+  visibility of `Something went wrong!`. The first combined negative run's second
+  case failed fixture creation because the earlier broken nested plan was last
+  opened; that output was rejected as P2 evidence and replaced by this isolated run.
+- All injected faults were restored; adjacent Proof comments describe both paths.
+
+Pre-composition checks: four focused UI suites **247 passed**, application tsc
+build exit **0**. A targeted lint import-sort finding in the new test was corrected.
+
+Latest authoring parent was fetched locally from
+`/tmp/puni-step-setter-integration-sol` at exact
+`4cae32f5e3ba2984ef94e63b0183685143367871` (repaired #449 parent `9b2f93ba`).
+Read-only merge-tree found no code conflict and only the additive verify.md EOF
+conflict: Step UI authoring evidence versus Public setter module-index CI repair
+and Hosted admission fixture corrections. The isolated merge retains all sections
+and their original exact results. No UI-review branch or worktree was changed.
+
+Combined-tree verification after resolving the evidence conflict:
+
+- `CI=1 E2E_PORT_SHIFT=5400 bunx playwright test --config apps/wbs/fe-01/playwright.config.ts apps/wbs/fe-01/e2e/step-blockage.spec.ts`: **8 passed**. Both new review regressions pass, including nested direct/downstream named causes on desktop and phone and supported missing-reading metadata reaching the router Error Boundary; genuinely older reads remain unknown without write actions.
+- `bunx vitest run src/components/wbs/step-blockage.test.tsx src/components/wbs/folded-step-card.test.tsx src/components/wbs/plan-cards.test.tsx src/components/wbs/plan-estimates.test.tsx --maxWorkers=1` from fe-01: **4 files, 247 passed**.
+- `bunx tsc --build --force apps/wbs/fe-01/tsconfig.json`: exit **0**.
+- `bunx eslint` over the four changed UI production/test files: exit **0** after import sorting.
+- Pinned OpenSpec all validation: **196 passed, 0 failed**.
+- `git diff --check`: exit **0**; no unresolved merge paths.
+- Read-only alternate-index three-way application of both shared card patches against #417 `abd06e9ad`: both **applied cleanly**. The branch was not restacked onto #417.
+
+The full exact-SHA host gate, hosted CI and unrelated Gantt pixel fixture diagnosis remain coordinator-owned. Parent repairs are retained verbatim; this worker adds only the two UI review repairs and their regressions/evidence.
