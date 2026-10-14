@@ -246,6 +246,9 @@ bytes or projections. Finish legacy transactions with their prior executor or
 manual recovery before switching coordinators; preserve the journal for evidence.
 Inventory summaries describe replay requirements, not all journal contents.
 
-F11.1 remains open for the Compose-to-Kubernetes restore/cutover guard and live h4
-proof. Do not import guarded history or activate Kubernetes delivery until those
+Cutover export/restore now carry descriptor-bound replay evidence version 1 and
+refuse unsupported history before snapshot or database rename. See the
+[cutover plan](cutover-plan.md) for original descriptor-byte pins and reviewed
+retry handling. Prepared manifests hold all Deployments at zero. F11.1 remains
+open for first-start scale/release-record/Flux admission and live h4 proof. Do not import guarded history or activate Kubernetes delivery until those
 prerequisites are met. See the [pre-cutover obligation](../../openspec/changes/add-step-node-blocking/design.md#kubernetes-pre-cutover-obligation).

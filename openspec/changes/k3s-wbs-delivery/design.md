@@ -152,3 +152,48 @@ Inventory is a compatibility kind/count summary, not a digest of all journal row
 The writer fence and stopped writer are the authority for its stability. Restore
 and first cutover admission, h4 rollout, staging acceptance and the host gate remain
 separate prerequisites under F11.1.
+
+## F11.1c export and restore replay admission
+
+Cutover is separately versioned from the release journal. Export, restore-job and
+verify-restore require the original descriptor file, a separate SHA-256 pin of
+those exact bytes, and old/incoming backend identities. The incoming reference
+must match the descriptor; old and incoming references may differ for Docker and
+cluster routing, but their immutable SHA-256 digests must be identical. The raw
+file pin includes its trailing newline and is distinct from the existing
+canonical descriptor identity used for promotion.
+
+Before the old image checkpoints or exports SQLite, it runs the coordinator's
+independent read-only command-journal inventory and its own capability CLI. It
+refuses missing/unreadable/malformed sources and unsupported retained history
+without producing a snapshot. The SQLite report carries replay evidence version 1
+binding original descriptor bytes/pin, both image references, inventory,
+capabilities and the completed export SHA-256.
+
+The restore Job validates this evidence before waiting for incoming bytes, then
+checks their SHA-256, inventories the incoming database independently and runs
+its own image CLI. Inventory and capability observations must match the export
+evidence before rename into `/data/wbs.sqlite`. Failure preserves the source
+export, refused incoming bytes and arrival marker for reviewed recovery. A new
+attempt refuses a stale marker; the operator must inspect and explicitly clear
+or move failed arrival artifacts before retrying. Verification requires matching
+versioned evidence and refuses legacy SQLite reports.
+
+Prepared cutover manifests hold every Deployment at zero. First-start admission
+for scaling, release-record persistence and Flux handoff remains a separate open
+slice; this code does not make cutover activation ready. The local rehearsal
+carries exact descriptor bytes for actual built digests using laboratory-only
+admission fields, and explicitly clears rejected arrival files after retaining
+failure logs and the host export. That descriptor is not staging proof. No live
+Docker/k3d execution is claimed by this slice. Existing-host storage is
+`puni-retain`; future host topology is outside these admission changes.
+
+The coordinated StepBlockage deletion slice adds own `deletionState` metadata on
+`delete_subtree`/`restore_subtree`. Independent Kubernetes traversal recognizes
+those properties through nested forward/inverse batches, counts `delete_state_v1`
+once per affected journal row, and resets the flag between rows. Markerless legacy
+commands remain unguarded. `moveProgress` preconditions independently require
+`move_progress_v1`, so a row can require both capabilities. Coordinator and cutover
+validators admit this inventory vocabulary but still require each actual image's
+own advertisement. This adds no capability to an old image and does not alter the
+release journal schema. Application deletion behavior remains in its separate slice.

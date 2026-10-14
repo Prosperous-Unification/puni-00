@@ -466,3 +466,29 @@ for (const fault of ['null', 'missing'] as const) {
     expect(readFileSync(journalPath, 'utf8')).toBe(bytes);
   });
 }
+
+for (const supportsDelete of [false, true]) {
+  it(`requires image-owned delete_state_v1 capability in the coordinator (supported=${String(supportsDelete)})`, async () => {
+    const { fake, journal, path, vocabularies, run } = fixture();
+    const db = new Database(path);
+    db.query('UPDATE command_journal SET payload=?,inverse=?,preconditions=?').run(
+      JSON.stringify({ forward: { do: 'delete_subtree', deletionState: { blockages: [] } } }),
+      JSON.stringify({ do: 'restore_subtree', deletionState: { blockages: [] } }),
+      '{}',
+    );
+    db.close();
+    if (supportsDelete)
+      for (const image of [old.images.backend, incoming.images.backend])
+        vocabularies.set(image, ['replace_blockage', 'move_progress_v1', 'delete_state_v1']);
+    if (supportsDelete) {
+      expect((await run()).phase).toBe('lease-released');
+      expect(journal.read()?.state.replayForward?.inventory).toEqual([
+        { kind: 'delete_state_v1', count: 1 },
+      ]);
+    } else {
+      expect(await rejectedMessage(run())).toContain('delete_state_v1');
+      expect(fake.calls).not.toContain('capture');
+      expect(fake.writesOpen).toBe(false);
+    }
+  });
+}

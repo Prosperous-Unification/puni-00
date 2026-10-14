@@ -39,6 +39,13 @@
   - [x] Bound read-only inventory/image Jobs, verify reused manifests, and retain explicit rollback failure evidence.
   - [x] Watch production-path omission faults and record focused tests, scoped Nx checks, strict OpenSpec and limitations.
   - [x] Repair Astra P1/P2: pin effective mount options including omitted subpaths, and require prior forward evidence for recovery-required before disk parsing permits takeover.
+- [x] F11.1c — Guard cutover export and restore replay compatibility without first-start activation.
+  - [x] TDD generated-command SQLite export admission and descriptor/digest-bound evidence.
+  - [x] TDD incoming restore admission before rename, legacy report refusal and stale-marker retry refusal.
+  - [x] Carry descriptor evidence through CLI/rehearsal callers and prepare all Deployments at zero.
+  - [x] Coordinate delete_state_v1 inventory/allowlists with the deletion slice; prove nested own markers, legacy rows and unsupported image refusal.
+  - [x] Watch omission negatives and record scoped test/lint/typecheck/format/OpenSpec checks.
+- [ ] F11.1d — Implement first-start scale/release-record/Flux admission, then observe live acceptance before cutover activation.
 - [ ] F11.1 — Before guarded-history import or first rollout, implement the [Kubernetes replay capability prerequisite](../add-step-node-blocking/design.md#kubernetes-pre-cutover-obligation), including rollback refusal before writer reopening and watched nested-marker omission proofs.
   - [x] `tool-fleet:check`: schema, strict YAML, Ansible syntax and real hcloud inventory
         plugin against a fixture API, kustomize and helm rendering, shellcheck, actionlint,

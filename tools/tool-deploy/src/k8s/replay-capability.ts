@@ -75,6 +75,8 @@ try {
   let count=0;
   let moves=0;
   let hasGuardedMove=false;
+let hasDeletionState=false;
+let deletions=0;
   const legacy=new Set('patch set_estimate clear_estimate set_actual clear_actual set_measure clear_measure set_progress clear_progress assign restore_attempt remove_attempt add_dependency remove_dependency add_typed_dependency remove_typed_dependency update_typed_dependency move set_frozen set_step_allowance set_positions delete_subtree restore_subtree'.split(' '));
   function visit(command) {
     // Proof: removing command shape validation lost the named diagnostic for null/numeric-do fixtures.
@@ -83,6 +85,8 @@ try {
     if (command.do==='replace_blockage') { count++; return; }
     // Proof: removing this marker failed the nested forward/inverse inventory fixtures.
     if (command.do==='move'&&Object.hasOwn(command,'expectedProgress')) hasGuardedMove=true;
+    // Proof: omission admits unsupported nested own deletionState history through cutover; legacy commands stay empty.
+    if ((command.do==='delete_subtree'||command.do==='restore_subtree')&&Object.hasOwn(command,'deletionState')) hasDeletionState=true;
     if (command.do==='batch') {
       // Proof: removing batch validation lost the named diagnostic for object-valued steps.
       if (!Array.isArray(command.steps)) throw new Error('journal batch is malformed');
@@ -102,12 +106,15 @@ try {
     // Proof: removing this marker failed precondition/empty-map fixtures; retaining it across rows
     // failed their added plain-row controls.
     hasGuardedMove=Object.hasOwn(preconditions,'moveProgress');
+    // Proof: removing this reset counted the following markerless row in deletionState fixtures.
+    hasDeletionState=false;
     // Proof: omitting either direction failed its nested marker fixture.
     visit(payload.forward);
     visit(JSON.parse(row.inverse));
     if (hasGuardedMove) moves++;
+    if (hasDeletionState) deletions++;
   }
-  console.log(JSON.stringify([...(count===0?[]:[{kind:'replace_blockage',count}]),...(moves===0?[]:[{kind:'move_progress_v1',count:moves}])]));
+  console.log(JSON.stringify([...(count===0?[]:[{kind:'replace_blockage',count}]),...(moves===0?[]:[{kind:'move_progress_v1',count:moves}]),...(deletions===0?[]:[{kind:'delete_state_v1',count:deletions}])]));
 } finally {db.close();}`,
   ];
 }

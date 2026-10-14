@@ -124,3 +124,61 @@ Resume SHALL refuse missing, malformed, changed or foreign receipt progress befo
 - **WHEN** the observed Job adds a subpath expression or changes effective access or propagation
 - **THEN** inventory and capability output are refused even when completion and output are valid
 - **AND** equivalent explicit Kubernetes defaults remain accepted
+
+### Requirement: Cutover replay evidence binds original inputs
+
+Cutover export and restore SHALL require original descriptor bytes and their separate SHA-256 pin. Incoming backend identity SHALL match the descriptor, and old/incoming immutable backend digests SHALL be equal. Export SHALL inventory retained history independently and execute the old image's own capability CLI before checkpoint or VACUUM, refusing unsupported history without a snapshot. Versioned replay evidence SHALL bind these inputs to the export SHA-256.
+
+#### Scenario: Guarded retained history meets an incompatible image
+
+- **GIVEN** nested forward/inverse or precondition-only move markers, including empty snapshots, or retained replacement commands
+- **WHEN** the old image has empty or insufficient replay capabilities
+- **THEN** export refuses before checkpoint and snapshot creation, preserving the stopped source database
+
+#### Scenario: Descriptor bytes or backend identity change
+
+- **GIVEN** an independently pinned descriptor and equal immutable backend digests under different host/cluster references
+- **WHEN** original bytes, their pin, the incoming descriptor image or old digest differ
+- **THEN** export/restore preparation refuses
+- **AND** matching digest aliases remain valid
+
+#### Scenario: Optional deletion snapshots require their own capability
+
+- **GIVEN** own `deletionState` properties on nested forward/inverse `delete_subtree` or `restore_subtree`, including empty collections
+- **WHEN** independent inventory runs
+- **THEN** it reports `delete_state_v1` once per marked row, resetting between rows
+- **AND** any own `moveProgress` precondition independently reports `move_progress_v1`
+- **AND** export/coordinator admission refuses images lacking the required capability while legacy markerless rows remain valid
+
+### Requirement: Restore replay admission precedes database rename
+
+The restore Job SHALL verify incoming bytes, independently inventory the incoming database and run its own image capability CLI. It SHALL require matching descriptor, image, inventory, capabilities and export identity before database rename. Refusal SHALL preserve the source export and failed arrival artifacts with the target absent. Verification SHALL require matching versioned replay evidence and explicitly refuse legacy reports. Stale arrival markers SHALL never authorize retry.
+
+#### Scenario: Restore cannot replay imported history
+
+- **GIVEN** matching exported bytes and versioned replay evidence
+- **WHEN** incoming history or image observation is missing, unreadable, malformed, changed or unsupported
+- **THEN** the target remains absent and source export remains intact
+
+#### Scenario: Retry encounters a stale arrival marker
+
+- **GIVEN** arrival artifacts retained after a refused restore
+- **WHEN** another restore starts using the same marker, even after capabilities become compatible
+- **THEN** it refuses before rename and requires explicit reviewed cleanup
+
+#### Scenario: Exact matching control
+
+- **GIVEN** matching original descriptor bytes, immutable image digests and replay evidence
+- **WHEN** restore independently validates matching incoming bytes and replay observations
+- **THEN** the restored database is byte-for-byte equal to the export and reports the same versioned evidence
+
+### Requirement: Cutover preparation does not start tiers
+
+Prepared cutover manifests SHALL hold every Deployment at zero. First-start scale admission, release-record persistence and Flux handoff SHALL remain pending a separate guard.
+
+#### Scenario: Preparation renders a running backend
+
+- **GIVEN** rendered release manifests with nonzero replicas
+- **WHEN** cutover preparation emits manifests
+- **THEN** all Deployment replicas are zero
+- **AND** malformed manifests or an absent/duplicate backend are refused
