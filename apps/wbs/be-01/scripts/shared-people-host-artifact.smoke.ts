@@ -23,3 +23,39 @@ it('runs the host restore artifact outside its checkout and refuses missing argu
     rmSync(directory, { recursive: true, force: true });
   }
 });
+
+// Proof: removing ^build loses wbs-solver-supervisor-protocol:build; removing build-host-restore loses the artifact prerequisite. Both production target mutations failed this real Nx graph test.
+it('keeps upstream protocol and packaged restore prerequisites in the backend build graph', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'wbs-host-build-graph-'));
+  try {
+    const path = join(directory, 'build-graph.json');
+    const environment: NodeJS.ProcessEnv = {
+      ...process.env,
+      NX_DAEMON: 'false',
+      NX_ISOLATE_PLUGINS: 'false',
+    };
+    // Nx sets FORCE_COLOR while the test runner sets NO_COLOR; use the runner's colour policy for the nested graph CLI.
+    delete environment['FORCE_COLOR'];
+    const child = Bun.spawn(
+      ['bunx', '--no-install', 'nx', 'run', 'wbs-be-01:build', '--graph=' + path],
+      {
+        env: environment,
+        stdout: 'pipe',
+        stderr: 'pipe',
+      },
+    );
+    const stderr = await new Response(child.stderr).text();
+    expect(await child.exited).toBe(0);
+    expect(stderr).toBe('');
+    // The test-owned JSON file is emitted by Nx's task graph command with this fixed graph schema.
+    const graph = (await Bun.file(path).json()) as {
+      tasks: { dependencies: Record<string, string[]> };
+    };
+    expect(graph.tasks.dependencies['wbs-be-01:build']).toContain(
+      'wbs-solver-supervisor-protocol:build',
+    );
+    expect(graph.tasks.dependencies['wbs-be-01:build']).toContain('wbs-be-01:build-host-restore');
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});

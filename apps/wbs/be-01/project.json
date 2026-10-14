@@ -25,7 +25,7 @@
         "parallel": false
       },
       "outputs": ["{workspaceRoot}/dist/apps/wbs/be-01"],
-      "dependsOn": ["build-host-restore"]
+      "dependsOn": ["^build", "build-host-restore"]
     },
     "solver-image-smoke": {
       "executor": "nx:run-commands",

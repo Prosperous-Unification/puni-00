@@ -5287,9 +5287,9 @@ all source edits and bytes were restored after each. Adjacent `Proof:` comments 
 | Artifact externalized to `/missing-production-dependency.js` | Outside-checkout usage assertion instead received missing-module error.          |
 | `SUPPORTED_CAPACITY_MODES` widened to shared                 | Valid approved shared restore changed journal from DELETE to WAL.                |
 | Host pre-opener guard bypassed                               | Valid approved shared restore changed journal from DELETE to WAL.                |
-| Host flock guard bypassed                                    | Competing fixed lock holder was incorrectly admitted with exit 0.                |
-| Stopped-colour guard bypassed                                | Running green was incorrectly admitted with exit 0.                              |
-| Physical identity guard bypassed                             | Foreign green database inode was incorrectly admitted with exit 0.               |
+| Host flock guard bypassed                                    | Competing fixed lock holder no longer preserved DELETE; observed WAL.            |
+| Stopped-colour guard bypassed                                | Running green no longer preserved DELETE; observed WAL.                          |
+| Physical identity guard bypassed                             | Foreign green database inode no longer preserved DELETE; observed WAL.           |
 | Audited host dispatch replaced by legacy dispatch            | Expected durable receipt was absent after isolated rank recovery.                |
 | Receipt retry branch bypassed                                | Fresh CLI retry after later edits refused instead of returning original success. |
 
@@ -5332,3 +5332,41 @@ Final complete regression evidence, after restoring all faults and holding the t
 All final tests used the same unchanged production restore sources as the exact stacked base.
 The isolated clone reused the existing installed dependency tree; no frozen install or canonical
 host gate is claimed for this local checkpoint.
+
+### 10.4a review corrections
+
+Astra review found that the explicit backend `build.dependsOn` replaced inherited `^build`.
+It now declares `["^build", "build-host-restore"]`, preserving the existing
+`wbs-solver-supervisor-protocol:build` task and the new host artifact task. The owning artifact
+smoke file runs Nx's actual build-graph command and checks both direct task prerequisites.
+Before correction it observed only `wbs-be-01:build-host-restore`. Watched removal of `^build`
+again lost the protocol task; watched removal of `build-host-restore` lost the artifact task.
+Both failed the real graph test with the missing prerequisite named in its assertion.
+The restored graph test passed (1 test, 4 assertions); logs:
+`/tmp/puni-host-bundle-graph-{green,proof-upstream,proof-artifact}.log`.
+
+The three original flock/colour/identity fault-log descriptions above now report their actual
+first observed assertion: DELETE journal became WAL. Their journal assertions threw before
+the later exit-code assertion; no exit 0 observation is claimed for those logs.
+
+This bounded review correction installs the clone's own dependencies with
+`BUN_TMPDIR=/tmp BUN_INSTALL_CACHE_DIR=/tmp/puni-host-bundle-bun-cache bun install --frozen-lockfile`
+(**1573 installs / 1447 packages checked**, Nx **23.2.1**) after removing only the clone's
+node_modules symlink. The earlier full regression evidence retains its stated dependency scope.
+No production restore source changed.
+
+Review correction checks with that locked tree:
+
+- Normal backend build: passed with **two prerequisite tasks** (`^build` protocol plus host bundle),
+  `/tmp/puni-host-bundle-review-build.log`.
+- Explicit uncached packaged target: **5 pass, 0 fail, 54 assertions, no skips**,
+  `/tmp/puni-host-bundle-review-target.log`. The extra test is the production Nx build graph.
+- Backend module/typecheck, scoped scripts lint, changed-file Prettier and OpenSpec all: passed.
+- Locked-dependency standalone artifact SHA-256:
+  `0dbdec39e95602b1413ed103c693f7dd08081c5e9500f0cc10cdf981151652e5`.
+
+The graph child removes inherited FORCE_COLOR so it uses Bun test's NO_COLOR convention;
+this avoids Node's conflicting-colour warning without suppressing stderr or other failures.
+Full backend/SQLite suites were not repeated for this configuration/test/evidence correction;
+the preceding complete suite counts remain evidence for the original checkpoint and dependency
+scope. No push, merge or canonical host gate was performed.
