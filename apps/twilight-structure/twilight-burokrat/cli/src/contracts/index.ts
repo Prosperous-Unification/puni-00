@@ -5,6 +5,7 @@ export * from './decode-record';
 export * from './navigator-records';
 export * from './plan-tasks';
 export * from './records';
+export * from './validate-plan-tasks';
 
 const IndexPathPattern = /^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))(?!.*[*?[\]{}\\])(?!.*\/\/)(?!.*\/$).+$/;
 const StableId = type(/^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/);

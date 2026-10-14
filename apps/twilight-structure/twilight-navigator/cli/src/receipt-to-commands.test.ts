@@ -1,7 +1,12 @@
 import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { digestOf, PlanReferenceRecord, PlanTasks } from '@twilight-burokrat/contracts';
+import {
+  digestOf,
+  digestWithout,
+  PlanReferenceRecord,
+  PlanTasks,
+} from '@twilight-burokrat/contracts';
 import { applyProjectCommands, validateSchema } from '@wbs/contracts';
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 
@@ -144,32 +149,101 @@ describe('twin receipt-to-commands', () => {
     });
   });
 
-  test('historical task export keeps its digest and emits the same commands', async () => {
-    const directory = join(scratch.path, 'historical');
-    await writePlanReference(
-      directory,
-      reference.planRef.change,
-      join(import.meta.dir, 'fixtures', 'plan-export.v7.json'),
-    );
-    tasksPath = join(directory, 'tasks.json');
-    referencePath = join(directory, 'plan-reference.json');
-    const historical = JSON.parse(readFileSync(tasksPath, 'utf8')) as unknown;
-    const decoded = PlanTasks.assert(historical);
-    expect(decoded.schemaVersion).toBe(1);
-    expect(historical).toEqual(decoded);
-    const bound = PlanReferenceRecord.assert(JSON.parse(readFileSync(referencePath, 'utf8')));
-    expect(digestOf(decoded)).toBe(bound.tasksDigest);
+  test.each([6, 7] as const)(
+    'historical v%s task export keeps its digest and commands',
+    async (version) => {
+      const directory = join(scratch.path, 'historical');
+      await writePlanReference(
+        directory,
+        reference.planRef.change,
+        join(import.meta.dir, 'fixtures', 'plan-export.v7.json'),
+      );
+      tasksPath = join(directory, 'tasks.json');
+      referencePath = join(directory, 'plan-reference.json');
+      if (version === 6) {
+        const historicalReference = JSON.parse(readFileSync(referencePath, 'utf8')) as Record<
+          string,
+          unknown
+        >;
+        historicalReference['planDocumentVersion'] = 6;
+        historicalReference['referenceDigest'] = digestWithout(
+          historicalReference,
+          'referenceDigest',
+        );
+        writeFileSync(referencePath, JSON.stringify(historicalReference));
+      }
+      const historical = JSON.parse(readFileSync(tasksPath, 'utf8')) as unknown;
+      const decoded = PlanTasks.assert(historical);
+      expect(decoded.schemaVersion).toBe(1);
+      expect(historical).toEqual(decoded);
+      const bound = PlanReferenceRecord.assert(JSON.parse(readFileSync(referencePath, 'utf8')));
+      expect(digestOf(decoded)).toBe(bound.tasksDigest);
+      writeReceipt(receiptBody());
+      const run = await runTwinInProcess(receiptToCommands());
+      expect(run.exitCode).toBe(0);
+      expect(
+        (JSON.parse(readFileSync(output, 'utf8')) as { commands: unknown[] }).commands[0],
+      ).toEqual({
+        kind: 'setProgress',
+        workItemId: RECORDS_TASK,
+        stepId: DEV_STEP,
+        state: 'done',
+      });
+    },
+  );
+
+  test.each([
+    ['plan mismatch', /plan identity/],
+    ['count mismatch', /task count/],
+    ['v6 schema2', /schema pairing/],
+    ['v7 schema2', /schema pairing/],
+    ['v8 schema1', /schema pairing/],
+    ['duplicate task ID', /unique task IDs/],
+    ['duplicate step ID', /unique step IDs/],
+    ['duplicate step code named by receipt', /unique step codes/],
+  ] as const)('refuses re-digested %s before writing', async (fault, diagnostic) => {
+    if (fault === 'v8 schema1') {
+      const directory = join(scratch.path, 'historical-pair');
+      await writePlanReference(
+        directory,
+        reference.planRef.change,
+        join(import.meta.dir, 'fixtures', 'plan-export.v7.json'),
+      );
+      tasksPath = join(directory, 'tasks.json');
+      referencePath = join(directory, 'plan-reference.json');
+    }
+    const tasks = JSON.parse(readFileSync(tasksPath, 'utf8')) as {
+      plan: string;
+      tasks: { id: string }[];
+      steps: { id: string; code: string }[];
+    };
+    const bound = JSON.parse(readFileSync(referencePath, 'utf8')) as Record<string, unknown>;
+    if (fault === 'plan mismatch') tasks.plan = 'another-plan';
+    if (fault === 'count mismatch') bound['taskCount'] = 99;
+    if (fault === 'v6 schema2') bound['planDocumentVersion'] = 6;
+    if (fault === 'v7 schema2') bound['planDocumentVersion'] = 7;
+    if (fault === 'v8 schema1') bound['planDocumentVersion'] = 8;
+    if (fault === 'duplicate task ID') tasks.tasks[1].id = tasks.tasks[0].id;
+    if (fault === 'duplicate step ID') tasks.steps[1].id = tasks.steps[0].id;
+    if (fault === 'duplicate step code named by receipt') tasks.steps[1].code = 'dev';
+    bound['tasksDigest'] = digestOf(tasks);
+    bound['referenceDigest'] = digestWithout(bound, 'referenceDigest');
+    writeFileSync(tasksPath, JSON.stringify(tasks));
+    writeFileSync(referencePath, JSON.stringify(bound));
+    writeReceipt(receiptBody({ entries: [doneEntry] }));
+    const run =
+      fault === 'plan mismatch'
+        ? runTwin(receiptToCommands())
+        : await runTwinInProcess(receiptToCommands());
+    expectRefusal(run, diagnostic);
+  });
+
+  test('refuses a malformed task digest before writing', async () => {
+    const bound = { ...reference, tasksDigest: 'not-a-digest' };
+    bound.referenceDigest = digestWithout(bound, 'referenceDigest');
+    writeFileSync(referencePath, JSON.stringify(bound));
     writeReceipt(receiptBody());
-    const run = await runTwinInProcess(receiptToCommands());
-    expect(run.exitCode).toBe(0);
-    expect(
-      (JSON.parse(readFileSync(output, 'utf8')) as { commands: unknown[] }).commands[0],
-    ).toEqual({
-      kind: 'setProgress',
-      workItemId: RECORDS_TASK,
-      stepId: DEV_STEP,
-      state: 'done',
-    });
+    expectRefusal(await runTwinInProcess(receiptToCommands()), /plan reference is malformed/);
   });
 
   test.each(['missing unit', 'unknown key', 'future schema'])(
@@ -197,10 +271,24 @@ describe('twin receipt-to-commands', () => {
     if (fault === 'unit') tasks.tasks[0].estimates[0]['unit'] = 'minutes';
     if (fault === 'value') tasks.tasks[0].estimates[0]['realistic'] = 99;
     writeFileSync(tasksPath, JSON.stringify(tasks));
-    expectRefusal(
-      await runTwinInProcess(receiptToCommands()),
-      /does not match the plan reference tasksDigest/,
-    );
+    expectRefusal(await runTwinInProcess(receiptToCommands()), /tasksDigest does not match tasks/);
+  });
+
+  test('current native estimates retain their digest and produce deterministic batches', async () => {
+    const persisted = JSON.parse(readFileSync(tasksPath, 'utf8')) as unknown;
+    const decoded = PlanTasks.assert(persisted);
+    expect(decoded.schemaVersion).toBe(2);
+    expect(persisted).toEqual(decoded);
+    expect(digestOf(decoded)).toBe(reference.tasksDigest);
+    writeReceipt(receiptBody());
+    const first = await runTwinInProcess(receiptToCommands());
+    expect(first.exitCode).toBe(0);
+    const secondOutput = join(scratch.path, 'second-batch.json');
+    const second = await runTwinInProcess(receiptToCommands({ '--output': secondOutput }));
+    expect(second).toEqual(first);
+    expect(readFileSync(secondOutput, 'utf8')).toBe(readFileSync(output, 'utf8'));
+    expect(statSync(secondOutput).mode & 0o777).toBe(0o600);
+    expect(JSON.parse(readFileSync(tasksPath, 'utf8'))).toEqual(persisted);
   });
 
   test('the emitted batch validates against the WBS command endpoint', async () => {
@@ -237,7 +325,7 @@ describe('twin receipt-to-commands', () => {
     );
     expectRefusal(
       await runTwinInProcess(receiptToCommands({ '--tasks': otherTasks })),
-      /task export does not match the plan reference tasksDigest/,
+      /tasksDigest does not match tasks/,
     );
   });
 
@@ -278,7 +366,7 @@ describe('twin receipt-to-commands', () => {
     );
     expectRefusal(
       await runTwinInProcess(receiptToCommands({ '--tasks': tamperedTasks })),
-      /does not match the plan reference tasksDigest/,
+      /tasksDigest does not match tasks/,
     );
   });
 
