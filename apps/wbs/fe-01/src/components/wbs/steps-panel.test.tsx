@@ -46,9 +46,17 @@ const UNDATED: FrameLayoutState = {
   hasAnyNotBefore: false,
   deepestDepth: 0,
   numberingFrozen: false,
+  widestDependencyChip: null,
+  waitsForSeveral: false,
 };
 /** And one where somebody has, which is 28px wider. */
-const DATED: FrameLayoutState = { hasAnyNotBefore: true, deepestDepth: 0, numberingFrozen: false };
+const DATED: FrameLayoutState = {
+  hasAnyNotBefore: true,
+  deepestDepth: 0,
+  numberingFrozen: false,
+  widestDependencyChip: null,
+  waitsForSeveral: false,
+};
 
 const NUMBERS: Record<string, string> = { w1: '010', w2: '020' };
 const PEOPLE: Record<string, string> = { p1: 'Kat', p2: 'Ada' };
@@ -660,6 +668,8 @@ describe('how wide the steps make the table', () => {
       hasAnyNotBefore: false,
       deepestDepth: 0,
       numberingFrozen: false,
+      widestDependencyChip: null,
+      waitsForSeveral: false,
       columnWidthOverrides: new Map([['step-dev-final', 140]]),
     };
     stubbed({ steps: [DEV, QA], frameState: dragged });

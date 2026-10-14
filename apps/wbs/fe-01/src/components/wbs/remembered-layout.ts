@@ -340,6 +340,9 @@ export const STATE_AT_MOUNT: FrameLayoutState = {
   // without knowing the plan.
   deepestDepth: 0,
   numberingFrozen: false,
+  // Depends on's plan widths (84px and up) share the same 36px floor too.
+  widestDependencyChip: null,
+  waitsForSeveral: false,
 };
 
 /**

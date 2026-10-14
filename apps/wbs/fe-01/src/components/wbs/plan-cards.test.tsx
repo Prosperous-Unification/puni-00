@@ -3298,6 +3298,26 @@ describe('setting a card’s tags and services', () => {
     return api;
   }
 
+  itDom('says `search` in every card sheet’s box, the table’s word', async () => {
+    // UI review F-063: one placeholder word for every creatable picker.
+    // Proof: watched 2026-10-14 on the code before this change — failed on
+    // `expected 'search or add' to be 'search'` at the Teams sheet.
+    await aPhonePlan();
+    for (const [field, box] of [
+      ['[data-card-team-field]', 'Service or team for 010'],
+      ['[data-card-tags-field]', 'Tags for 010'],
+      ['[data-card-service-field]', 'Services for 010'],
+    ] as const) {
+      fireEvent.click(document.querySelector<HTMLElement>(field)!);
+      const input = await screen.findByRole('combobox', { name: box });
+      expect(input.getAttribute('placeholder')).toBe('search');
+      fireEvent.keyDown(input, { key: 'Escape' });
+      await waitFor(() => {
+        expect(screen.queryByRole('dialog')).toBeNull();
+      });
+    }
+  });
+
   itDom('creates and applies a tag from the card sheet', async () => {
     // Proof: watched RED on h2puni at test-only 197da4f — the card field was
     // absent and fireEvent.click(null) failed; 100/103 passed.

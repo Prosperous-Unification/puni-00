@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { type CSSProperties, type RefObject, useLayoutEffect, useRef, useState } from 'react';
 
 import {
   Modal,
@@ -99,7 +99,7 @@ export interface ReferenceSetStripProps {
    * The sheet is a surface with room, so there it is laid out as a form: the
    * chips on their own wrapping line, the search under them at the sheet's
    * width, always in the flow. None of the cell's machinery for a 120px column
-   * applies there — the clip and fade at rest, the floating panel while
+   * applies there — the clip and `+N` at rest, the floating panel while
    * editing, the hover card — and drawn with it, the sheet's anchor took the
    * sheet's whole height (`flex: 1` in a column) and centred one search box in
    * it: the blank middle and bottom-docked field of F-049 (2026-10-13).
@@ -147,28 +147,6 @@ export const REFERENCE_SET_STRIP_STYLE = {
 } as const;
 
 /**
- * The truncation cue a clipped rest line wears — the last 14px faded out.
- *
- * The Depends-on cell's own, shared rather than measured twice: `DEP_EDGE_FADE`
- * in `wbs-table.tsx` is this constant, and the reasoning for a fade rather than
- * a `+N` marker is written there. It belongs to **rest** alone on both cells:
- * the picker's list opens inside the element this masks, and a mask over an
- * open directory cuts the list somebody is reading.
- *
- * Spelled from the right edge (`to left … 14px`) rather than as `to right …
- * calc(100% - 14px)`: the same fade, without a `calc()` stop. jsdom 30's CSS
- * model drops a gradient it cannot parse, declaration and all, and the jsdom
- * tests of both cells read this declaration back — with the `calc()` form
- * they could not see the fade at all, on or off.
- *
- * Proof, both cells, 2026-09-06: with this set to `''`, `keeps the truncation
- * fade on the rested strip, and off the open one` failed on `expected '' to
- * contain 'linear-gradient'` and `fades and clips the rest line, and does
- * neither while editing` on `expected '' to contain 'linear-gradient(to left'`.
- */
-export const REFERENCE_SET_EDGE_FADE = 'linear-gradient(to left, transparent, #000 14px)';
-
-/**
  * How tall one resting reference strip stands, in px.
  *
  * The strip leaves the flow while it is edited (see {@link ReferenceSetStrip}),
@@ -188,6 +166,128 @@ export const REFERENCE_SET_LINE_HEIGHT = 24;
 
 /** The one chip line a resting strip shows; chips that would start a second wrap out of sight. */
 const REST_CHIP_LINE_PX = 18;
+
+/**
+ * The chip group's line, shared by the four reference strips and the Depends
+ * on strip so both say "more than fits" the same way (decision D4, UI review
+ * F-057).
+ *
+ * At rest it wraps into a line nobody sees: the row gap pushes every chip
+ * that does not fit whole onto a second line, and `maxHeight` with the
+ * `hidden` overflow keeps only the first. So the rest line ends on a whole
+ * chip — `Frontend ×` rather than `Frontend × Ba` — and {@link useHiddenChips}
+ * counts what went. 18px holds a chip's 16px and the inherited chip's dashed
+ * border. While `wrapping` (an open cell) every chip is drawn and nothing
+ * clips.
+ *
+ * The `hidden` overflow at rest is also what keeps a chip from painting over
+ * the search box beside the group: the box, later in the DOM, would take the
+ * press aimed at the chip's ✕ (`round-trips every desktop reference set`,
+ * 2026-08-29).
+ */
+export function chipLineStyle(wrapping: boolean, columnGap: number): CSSProperties {
+  return {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    alignContent: 'flex-start',
+    columnGap,
+    rowGap: wrapping ? 3 : REST_CHIP_LINE_PX,
+    ...(wrapping ? {} : { maxHeight: REST_CHIP_LINE_PX }),
+    minWidth: 0,
+    maxWidth: '100%',
+    overflow: wrapping ? 'visible' : 'hidden',
+  };
+}
+
+/** One chip a resting line could not draw whole: its key and its words. */
+export interface HiddenChip {
+  key: string;
+  text: string;
+  /**
+   * Whether it is hidden for being wider than what is left of the line, not
+   * for having wrapped below it — a first chip a wrap cannot move. Its caller
+   * may take it out of the flow (it keeps its width, so it stays measured as
+   * too wide and the answer is stable) so it leaves no blank gap.
+   */
+  overruns: boolean;
+}
+
+/**
+ * The chips a resting {@link chipLineStyle} line could not draw whole — a
+ * layout fact, so measured: every `[data-rest-chip]` whose top is at or below
+ * the line's bottom (wrapped out of sight), or whose right edge runs past the
+ * line's (a first chip wider than the whole line, which a wrap cannot move;
+ * the caller hides it rather than draw it cut, decision D4).
+ *
+ * Empty while `measuring` is false — an open cell wraps every chip into reach
+ * — and in jsdom, which has no `ResizeObserver` and lays nothing out; the
+ * count is proven in `e2e/plan-table-review.spec.ts`. Re-measured when the
+ * line resizes and whenever `chipsKey` (the chips' identities) changes.
+ */
+export function useHiddenChips(
+  line: RefObject<HTMLElement | null>,
+  measuring: boolean,
+  chipsKey: string,
+): readonly HiddenChip[] {
+  const [hidden, setHidden] = useState<readonly HiddenChip[]>([]);
+  useLayoutEffect(() => {
+    const group = line.current;
+    if (!measuring || group === null || typeof ResizeObserver === 'undefined') {
+      setHidden((was) => (was.length === 0 ? was : []));
+      return;
+    }
+    const measure = (): void => {
+      const edge = group.getBoundingClientRect();
+      const now = [...group.querySelectorAll<HTMLElement>('[data-rest-chip]')].flatMap((chip) => {
+        const box = chip.getBoundingClientRect();
+        // A caller that takes an overrunning chip out of the flow (the Depends
+        // on strip) leaves a line with no in-flow content; the chip then still
+        // reads as overrunning rather than wrapped only because this line's
+        // `alignItems: 'center'` (`chipLineStyle`) puts its static top above
+        // the line's bottom (-9px on an empty 18px line). Align it to the
+        // start or the end and it would read as wrapped, re-enter the flow,
+        // overrun again, and flip every frame. Held by `holds a lone chip too
+        // wide for its cell steady, counted` (`e2e/plan-table-review.spec.ts`).
+        const wrapped = box.top >= edge.bottom - 0.5;
+        const overruns = !wrapped && box.right > edge.right + 0.5;
+        if (!wrapped && !overruns) return [];
+        const key = chip.dataset['restChip'];
+        // The selector above matched the attribute, so it is there.
+        if (key === undefined) throw new Error('a rest chip without its key');
+        return [{ key, text: chip.textContent.replace(/[×✕✓]/g, '').trim(), overruns }];
+      });
+      const said = (chips: readonly HiddenChip[]): string =>
+        chips.map(({ key, text, overruns }) => `${key}\0${text}\0${String(overruns)}`).join('\0');
+      setHidden((was) => (said(was) === said(now) ? was : now));
+    };
+    measure();
+    const watching = new ResizeObserver(measure);
+    watching.observe(group);
+    return () => {
+      watching.disconnect();
+    };
+  }, [line, measuring, chipsKey]);
+  return hidden;
+}
+
+/**
+ * How many chips a resting line hid — `+N`, after the chips, with a `title`
+ * naming them (`Also: 010.3.02, 010.3.03`). Nothing when none is hidden. The
+ * cell's own hover card still lists the whole set.
+ */
+export function HiddenChipCount({ hidden }: { hidden: readonly HiddenChip[] }) {
+  if (hidden.length === 0) return null;
+  return (
+    <span
+      data-reference-hidden-count={hidden.length}
+      title={`Also: ${hidden.map(({ text }) => text).join(', ')}`}
+      className="text-muted-foreground shrink-0 text-xs"
+    >
+      +{hidden.length}
+    </span>
+  );
+}
 
 /**
  * Where an open panel sits in the stack.
@@ -243,7 +343,7 @@ interface ReferenceSetLine {
  * draws it — what the hover card says.
  *
  * The card exists because the rest line is **one clipped line**: a 120px column
- * fits about two chips, the fade at its end announces that the rest was cut,
+ * fits about two chips, the `+N` after them announces that the rest was cut,
  * and until 2026-08-31 there was no way at all to read what had been cut
  * without clicking into the cell and opening a panel over the rows below. Dany,
  * that day: *"cannot hover over tags cell to see the list of tags"*. The
@@ -304,13 +404,6 @@ export function ReferenceSetStrip({
   const sheet = face === 'sheet';
   const root = useRef<HTMLSpanElement>(null);
   const chipLine = useRef<HTMLSpanElement>(null);
-  /**
-   * The chips the resting line wrapped out of sight, by their words — a layout
-   * fact, so measured: every chip whose top is at or below the line's bottom.
-   * Drawn as `+N` beside the line, and the edge fade follows it, so the line
-   * never hides a chip silently (review of PR #409, decision D4).
-   */
-  const [hiddenChips, setHiddenChips] = useState<readonly string[]>([]);
   const ownIds = unique(adapter.ownIds);
   const holdsOne = holdsOneMember(adapter.kind);
   // Proof: forced false and `flags a type conflict, shows every type, and keeps
@@ -344,30 +437,13 @@ export function ReferenceSetStrip({
   const chipsKey = [...ownIds, ...(adapter.inheritedEntries ?? []).map((entry) => entry.id)].join(
     '\0',
   );
-  useLayoutEffect(() => {
-    const line = chipLine.current;
-    // jsdom has no ResizeObserver and lays nothing out, so nothing there can be
-    // measured as hidden; the count is proven in `e2e/plan-table-review.spec.ts`.
-    if (editing || line === null || typeof ResizeObserver === 'undefined') {
-      setHiddenChips((was) => (was.length === 0 ? was : []));
-      return;
-    }
-    const measure = (): void => {
-      const bottom = line.getBoundingClientRect().bottom;
-      const hidden = [
-        ...line.querySelectorAll('[data-reference-chip], [data-reference-inherited-chip]'),
-      ]
-        .filter((chip) => chip.getBoundingClientRect().top >= bottom - 0.5)
-        .map((chip) => chip.textContent.replace(/[×✓]/g, '').trim());
-      setHiddenChips((was) => (was.join('\0') === hidden.join('\0') ? was : hidden));
-    };
-    measure();
-    const watching = new ResizeObserver(measure);
-    watching.observe(line);
-    return () => {
-      watching.disconnect();
-    };
-  }, [editing, chipsKey]);
+  /**
+   * The chips the resting line could not draw whole. Drawn as `+N` beside the
+   * line, so the line never hides a chip silently (review of PR #409, decision
+   * D4). No edge fade: a fade over the line's end dimmed the last whole chip's
+   * ✕ to 1.8:1, and `+N` already says what it said (review of PR #457).
+   */
+  const hiddenChips = useHiddenChips(chipLine, !editing && !sheet, chipsKey);
   /**
    * Whether the pointer is on this cell — which is the same question as "is the
    * hover card open", subject to the two conditions on it below.
@@ -597,33 +673,20 @@ export function ReferenceSetStrip({
                 boxShadow: '0 4px 12px oklch(0 0 0 / 12%)',
               }
             : {}),
-          // Rest clips and fades; editing does neither. The picker's list is an
+          // Rest clips; editing does not. The picker's list is an
           // absolutely positioned child of this element, so a rest-state clip
           // that outlived the focus would cut the directory off at the cell's
           // edge. `editing` is exactly "the list may be open".
           //
-          // Proof, two faults, both watched 2026-08-29 by `fades and clips the
-          // rest line, and does neither while editing`: `overflow` pinned to
-          // `visible` failed on `expected 'visible' to be 'hidden'`, and the
-          // mask deleted failed on `expected 'display: flex; flex-wrap: nowrap;
-          // ali…' to contain 'linear-gradient(to right, #000 calc(1…'`.
+          // Proof, watched 2026-08-29 by `fades and clips the rest line, and
+          // does neither while editing`: `overflow` pinned to `visible` failed
+          // on `expected 'visible' to be 'hidden'`.
           //
-          // Both again in Chromium, which is where clipping is a fact rather
-          // than a property: the fade deleted failed `the clipped rest line
-          // wears no truncation cue` on `Expected: not "none"`, and
-          // `overflow: 'visible'` never reached an assertion at all — the
+          // Again in Chromium, which is where clipping is a fact rather than a
+          // property: `overflow: 'visible'` never reached an assertion at all — the
           // spilled chips cover the cell, and clicking the box timed out on
           // `<td data-column="tag"> intercepts pointer events`.
           overflow: editing || sheet ? 'visible' : 'hidden',
-          // Only where a chip was wrapped out of sight: a line that ends on
-          // its last chip has nothing to fade (review of PR #409, D4). The
-          // sheet wraps whole and never fades (PR #399).
-          ...(editing || sheet || hiddenChips.length === 0
-            ? {}
-            : {
-                WebkitMaskImage: REFERENCE_SET_EDGE_FADE,
-                maskImage: REFERENCE_SET_EDGE_FADE,
-              }),
         }}
       >
         <button
@@ -700,52 +763,17 @@ export function ReferenceSetStrip({
           ref={chipLine}
           data-reference-chips=""
           style={{
-            display: 'flex',
             // The strip's rule, said again here because a `nowrap` strip holding
-            // a `wrap` group is still a cell that grows a line per chip.
-            //
-            // At rest it wraps too, into a line nobody sees (review of PR #409,
-            // F-035/F-048): the row gap pushes every chip that does not fit
-            // whole onto a second line, and `maxHeight` with the `hidden`
-            // overflow below keeps only the first. So the rest line ends on a
-            // whole chip — `Frontend ×` rather than `Frontend × Ba` — and the
-            // first chip alone may still end in an ellipsis (`max-w-full`).
-            // 18px holds a chip's 16px and the inherited chip's dashed border.
-            flexWrap: 'wrap',
-            alignItems: 'center',
-            alignContent: 'flex-start',
-            columnGap: sheet ? 6 : 3,
-            rowGap: sheet ? 6 : wrapping ? 3 : REST_CHIP_LINE_PX,
-            ...(wrapping ? {} : { maxHeight: REST_CHIP_LINE_PX }),
-            minWidth: 0,
-            maxWidth: '100%',
+            // a `wrap` group is still a cell that grows a line per chip. At rest
+            // it wraps into a line nobody sees — see {@link chipLineStyle}
+            // (review of PR #409, F-035/F-048) — and the first chip alone may
+            // still end in an ellipsis (`max-w-full`): a name, unlike a
+            // dependency's number, still says something cut.
+            ...chipLineStyle(wrapping, sheet ? 6 : 3),
+            ...(sheet ? { rowGap: 6 } : {}),
             // On the sheet the chips are the first line of the form, whole,
             // and the `+` and the search share the line under them.
             ...(sheet ? { flexBasis: '100%', order: -1 } : {}),
-            /*
-              A chip may not paint outside this group, because what is beside
-              it is the search box — and the box, being later in the DOM, takes
-              the press.
-
-              The group shrinks below its content (`minWidth: 0`, which is what
-              lets the line clip rather than widen the column), and a `visible`
-              overflow then draws the last chip straight across the box:
-              measured live on 2026-08-29 at `chips` 750–835 with a
-              `scrollWidth` of 101, the last chip's own box running to 851, and
-              the input standing at 839. Clicking that chip's `✕` hit the input
-              instead — the browser gate's `<input … aria-label="Tags for 010">
-              from <span data-reference-search> subtree intercepts pointer
-              events`, a 60s timeout in `round-trips every desktop reference
-              set`.
-
-              Clipping here is what the cell already promises: the rest line is
-              one clipped line, the fade on the strip says so, and a chip that
-              has run out of room is reached by opening the cell rather than by
-              aiming at the sliver of it that is still drawn. While the cell is
-              open the chips wrap into the panel and there is nothing to clip,
-              which is why this follows `wrapping` rather than being pinned.
-            */
-            overflow: wrapping ? 'visible' : 'hidden',
           }}
         >
           {conflicted && (
@@ -764,6 +792,7 @@ export function ReferenceSetStrip({
             <span
               key={entry.id}
               data-reference-chip={entry.id}
+              data-rest-chip={entry.id}
               className={sheet ? SHEET_CHIP_CLASS : REFERENCE_SET_CHIP_CLASS}
             >
               <span className="truncate">{entry.name}</span>
@@ -863,6 +892,7 @@ export function ReferenceSetStrip({
             <span
               key={entry.id}
               data-reference-inherited-chip={entry.id}
+              data-rest-chip={entry.id}
               data-fact={`${entry.name} — inherited from ${entry.fromRow}. Remove it there.`}
               className={REFERENCE_SET_INHERITED_CHIP_CLASS}
             >
@@ -876,15 +906,7 @@ export function ReferenceSetStrip({
           shown rather than the whole set. Its `title` names them; the cell's
           own card lists the whole set, as before.
         */}
-        {!editing && hiddenChips.length > 0 && (
-          <span
-            data-reference-hidden-count={hiddenChips.length}
-            title={`Also: ${hiddenChips.join(', ')}`}
-            className="text-muted-foreground shrink-0 text-xs"
-          >
-            +{hiddenChips.length}
-          </span>
-        )}
+        <HiddenChipCount hidden={hiddenChips} />
         {/*
           The search box takes what the chips leave, and at rest that is
           allowed to be nothing.

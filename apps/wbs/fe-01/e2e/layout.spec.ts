@@ -34,6 +34,8 @@ const SEEDED_PLAN: FrameLayoutState = {
   hasAnyNotBefore: false,
   deepestDepth: 0,
   numberingFrozen: false,
+  widestDependencyChip: null,
+  waitsForSeveral: false,
 };
 const LINKS_SHOWN_HIDDEN_COLUMNS = resetHiddenColumns(true);
 const LINKS_SHOWN_COLUMN_SET = FIXED_COLUMNS.filter(
@@ -3310,9 +3312,14 @@ test.describe('the table, measured by a browser', () => {
     // expander, the lock and two levels of number.
     // Frozen above, so the column is at its deep width — the one the lock and
     // the envelope were measured for (`NUMBER_DEEP_WIDTH`, 2026-09-13).
-    expect(widthFor('number', { ...SEEDED_PLAN, numberingFrozen: true })).toBeGreaterThanOrEqual(
-      needed.contentWidth,
-    );
+    expect(
+      widthFor('number', {
+        ...SEEDED_PLAN,
+        numberingFrozen: true,
+        widestDependencyChip: null,
+        waitsForSeveral: false,
+      }),
+    ).toBeGreaterThanOrEqual(needed.contentWidth);
     // And all of it is really inside the column rather than merely declared to
     // be: `overflow: hidden` would hide the difference otherwise.
     expect(needed.contentRight).toBeLessThanOrEqual(needed.cellRight + 1);

@@ -27,7 +27,17 @@ export function createTeamColumn({ live }: { live: PlanLive }) {
         <ReferenceSetStrip
           label={`Service or team for ${row.original.number}`}
           addLabel={`Add a team to ${row.original.number}`}
-          placeholder={inherited.state === 'inherited' ? `↳ ${inherited.name}` : 'search or add'}
+          // The Services cell's three words, one dimension over: `search` on
+          // an empty box like every creatable picker, `add` beside the row's
+          // own chips while it is open (UI review F-063). Creating is said by
+          // the list's own `Add “…”` line the moment a name is typed.
+          placeholder={
+            row.original.teamIds.length > 0
+              ? 'add'
+              : inherited.state === 'inherited'
+                ? `↳ ${inherited.name}`
+                : 'search'
+          }
           data-fact={
             inherited.state === 'inherited'
               ? `${inherited.name} — inherited from ${inherited.fromRow}. This row carries no team of its own.`

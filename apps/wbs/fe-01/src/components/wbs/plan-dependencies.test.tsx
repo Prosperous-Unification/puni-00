@@ -855,12 +855,6 @@ describe('dependencies in the table', () => {
     return api;
   };
 
-  /** One row's dependency count, or `null` where the cell shows none. */
-  const dependsCountOf = (number: string): HTMLElement | null => {
-    const found = dependsCellOf(number).querySelector('[data-dep-count]');
-    return found instanceof HTMLElement ? found : null;
-  };
-
   const waitFor050 = async (predecessor: string) => {
     dependOn('050', predecessor);
     await waitFor(() => {
@@ -868,43 +862,22 @@ describe('dependencies in the table', () => {
     });
   };
 
-  itDom('counts what a row waits for, where the chips saying it are clipped', async () => {
-    // The filed bug, in a fixture: four predecessors, a 110px column, and two
-    // chips on screen. The count is the cell's answer to "is that all of
-    // them" — asked of the *data*, so it is right whatever the column's width
-    // does to the chips, which is why nothing here measures anything.
+  itDom('draws no bare total beside the `+`, only the measured `+N` after the chips', async () => {
+    // UI review F-057: a data-only `4` stood between the `+` and the chips —
+    // read as "add 4", counting the chips on screen too, said before them.
+    // The count is the reference strips' now, measured from the resting
+    // line's layout (decision D4), so jsdom — which lays nothing out —
+    // draws none; `e2e/plan-table-review.spec.ts` proves it in Chromium.
+    // Proof: watched 2026-10-14 on the code before this change, failed on
+    // `expected <span data-dep-count="w5" …(2)></span> to be null`.
     await fiveRoots();
     for (const predecessor of ['010', '020', '030', '040']) await waitFor050(predecessor);
 
-    expect(dependsCountOf('050')?.textContent).toBe('4');
-  });
-
-  itDom('says nothing where one chip is the whole truth', async () => {
-    // A `1` beside a single chip is the cell saying the same thing twice in a
-    // column with no room to say anything once.
-    await fiveRoots();
-    await waitFor050('010');
-
-    expect(dependsCountOf('050')).toBeNull();
-  });
-
-  itDom('keeps the count off the line a reader is already told in full', async () => {
-    // The cell's sr-only line names every dependency; a count spoken beside it
-    // is a third voice saying less.
-    //
-    // **And the pointer gets nothing here either**, which is what
-    // `hints-are-the-page-s-own` changed: the count used to carry the same fact
-    // as a `title`, and this cell draws its **own** card over these pixels
-    // listing every row it waits for by name. A hint card beside that one is
-    // two surfaces on one hover — watched in Chromium as `no card opened on the
-    // depends cell · Expected: 1 · Received: 2`, in three of
-    // `e2e/hover-cards.spec.ts`'s cases at once.
-    await fiveRoots();
-    for (const predecessor of ['010', '020', '030', '040']) await waitFor050(predecessor);
-
-    const count = dependsCountOf('050');
-    expect(count?.getAttribute('aria-hidden')).toBe('true');
-    expect(saidBy(count)).toBeNull();
+    const cell = dependsCellOf('050');
+    expect(cell.querySelector('[data-dep-count]')).toBeNull();
+    expect(cell.querySelector('[data-reference-hidden-count]')).toBeNull();
+    // Every chip stands in the one measured group, whole.
+    expect(cell.querySelectorAll('[data-reference-chips] [data-rest-chip]')).toHaveLength(4);
   });
 
   /**
@@ -1300,11 +1273,16 @@ describe('dependencies in the table', () => {
     const waited = await sevenChips();
 
     const { strip, wrapper } = stripOf('030');
-    // All seven chips share the strip with the box: the clamp is about the
-    // whole crowd, not a token pair.
+    // All seven chips share the strip with the box, in its one chip group
+    // (the reference strips' measured line, UI review F-057): the clamp is
+    // about the whole crowd, not a token pair.
+    const group = strip.querySelector<HTMLElement>('[data-reference-chips]');
     for (const number of waited) {
-      expect(screen.getByLabelText(`Stop 030 waiting for ${number}`).parentElement).toBe(strip);
+      expect(screen.getByLabelText(`Stop 030 waiting for ${number}`).parentElement).toBe(group);
     }
+    // The group wraps into a hidden second line, one 18px line tall.
+    expect(group?.style.maxHeight).toBe('18px');
+    expect(group?.style.overflow).toBe('hidden');
     expect(strip.style.display).toBe('flex');
     expect(strip.style.flexWrap).toBe('nowrap');
     expect(strip.style.whiteSpace).toBe('nowrap');
@@ -1317,34 +1295,20 @@ describe('dependencies in the table', () => {
     expect(wrapper.style.whiteSpace).toBe('');
   });
 
-  itDom('keeps the truncation fade on the rested strip, and off the open one', async () => {
-    // The fade is the *rest* state's truncation cue, by the picker's state
-    // and never by a measurement — "fade only when clipped" would need the
-    // `scrollWidth` read the `+N` marker was rejected for. It comes off while
-    // the picker owns the cell: the strip wraps then, nothing is clipped, and
-    // the box spans the full width — a mask there fades the focus ring, the
-    // caret and the typed text across the last 14px (codex + agy review,
-    // 2026-08-10).
-    //
-    // Proof, two faults, both watched 2026-08-10: the fade deleted from the
-    // strip, this failed at rest on `expected '' to contain
-    // 'linear-gradient'`; the fade applied unconditionally, it failed at the
-    // assertion below the focus — the picker open — on
-    // `expected 'linear-gradient(to right, #000 calc(1…' to be ''`.
-    //
-    // Since F-033 (2026-10-13) one chip is held inside the strip whole or with
-    // an ellipsis, so the fade is for a second chip, the only one that can be
-    // cut. Proof: the `chipCount > 1` condition dropped, the one-chip
-    // assertion failed on `expected 'linear-gradient(…' to be ''`. Watched
-    // 2026-10-13.
+  itDom('wears no truncation fade, at rest or open', async () => {
+    // There is no edge fade on the Depends on strip or its chips' line: the
+    // cue that the line hid chips is the `+N` after them (decision D4 as
+    // amended 2026-10-14, review of PR #457 — a fade over the line's end
+    // dimmed the last chip's ✕ to 1.8:1). The count itself is Chromium's
+    // proof, `e2e/plan-table-review.spec.ts`; jsdom lays nothing out.
+    // Proof: the fade put back on every resting strip with chips, this failed
+    // on `expected 'linear-gradient(to left, transparent,…' to be ''`.
+    // Watched 2026-10-14.
     await threeRoots();
     dependOn('030', '010');
     await waitFor(() => {
       expect(screen.getByLabelText(/^Stop 030 waiting for 010/)).toBeDefined();
     });
-    fireEvent.blur(screen.getByLabelText('Add a dependency to 030'));
-    expect(stripOf('030').strip.style.maskImage).toBe('');
-
     dependOn('030', '020');
     await waitFor(() => {
       expect(screen.getByLabelText(/^Stop 030 waiting for 020/)).toBeDefined();
@@ -1352,11 +1316,14 @@ describe('dependencies in the table', () => {
     fireEvent.blur(screen.getByLabelText('Add a dependency to 030'));
 
     const { strip } = stripOf('030');
-    expect(strip.style.maskImage).toContain('linear-gradient');
+    const line = (): string =>
+      strip.querySelector<HTMLElement>('[data-reference-chips]')?.style.maskImage ?? '(no line)';
+    expect(strip.style.maskImage).toBe('');
+    expect(line()).toBe('');
 
     fireEvent.focus(screen.getByLabelText('Add a dependency to 030'));
     expect(screen.getAllByRole('listbox')).toHaveLength(1);
-    expect(strip.style.maskImage).toBe('');
+    expect(line()).toBe('');
     // While the picker owns the cell the strip wraps as the cell always did,
     // so nothing about typing or the open list changes.
     expect(strip.style.flexWrap).toBe('wrap');

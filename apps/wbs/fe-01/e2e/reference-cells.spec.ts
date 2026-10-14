@@ -260,7 +260,10 @@ test('round-trips every desktop reference set with three reachable values in bot
   await choose(page, 'Tags for 010', seeded.tags[2].name);
   await choose(page, 'Services for 010', seeded.services[2].name);
   const depends = page.getByLabel('Add a dependency to 040');
-  await depends.click();
+  // Through the `+`: beside resting chips the box takes no width (UI review
+  // F-058), and the `+` is the cell's way in.
+  await page.getByRole('button', { name: 'Make 040 wait for something' }).click();
+  await expect(depends).toBeFocused();
   await depends.fill('030');
   await depends.press('Enter');
   await expect(page.getByRole('button', { name: /^Stop 040 waiting for / })).toHaveCount(3);
@@ -507,10 +510,20 @@ test('rests every reference row on one line and opens a crowded cell to reach ev
     await hitsItself(strip.locator('[data-reference-chip]').last()),
     'the clipped chip is still hit-testable, so the rest line does not clip',
   ).toBe(false);
-  expect(
-    await strip.evaluate((node) => getComputedStyle(node).maskImage),
+  // The cue is the `+N` after the chips, and nothing fades: a fade over the
+  // line's end dimmed the last chip's ✕ (D4 as amended 2026-10-14, review of
+  // PR #457). Proof: the fade put back on the chips' line, this failed on
+  // `the rest line fades · Expected: "none"`. Watched 2026-10-14.
+  await expect(
+    strip.locator('[data-reference-hidden-count]'),
     'the clipped rest line wears no truncation cue',
-  ).not.toBe('none');
+  ).toHaveText(/^\+[1-9]/);
+  expect(
+    await strip
+      .locator('[data-reference-chips]')
+      .evaluate((node) => getComputedStyle(node).maskImage),
+    'the rest line fades',
+  ).toBe('none');
 
   // Entering the cell is what brings a clipped member back into reach — the
   // state a member is removed from, and therefore the state it must be in.
