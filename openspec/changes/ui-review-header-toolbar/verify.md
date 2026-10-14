@@ -60,3 +60,112 @@ to be false` without the listener; browser: `Expected: false · Received: true`)
 - Sheet panels: with the sheet rule's reset taken out, `Received: "640px"`.
 - Import JSON from the No project open card opens the imported project
   (`e2e/home.spec.ts`).
+
+## UI integration restack — 2026-10-14
+
+Prepared in the isolated clone `/tmp/puni-ui-integration-restack`, branch
+`candidate/ui-integration-restack`. Composition commit `ff5f5fd87` has first parent
+reviewed organization context/selection #405 at
+`9fef922631dda1be513edde718fdd3b74c154256` and second parent original UI integration
+#417 at `f24b7354d6e5f2f0b978aebedcd409a22dce5d72`. Commit `bc17c9e86` then merges
+current main `8f324607e6c73c249faa79733c4cb7a7dddc605b` without conflicts. No push,
+merge to the remote main branch, host gate, or #442 session feature work is included.
+
+### Preservation and conflict choices
+
+Against common base `db78a3244fa74fdc34e0e89317bbb261457d712d`, the original UI
+integration changes 252 files and #405 changes 132. Exactly five overlap:
+`organization-access.ts`, `organization-page.test.tsx`, `space-access.ts`,
+`spaces-page.test.tsx`, and `spaces-page.tsx`. The other 247 original integration
+files remain byte-identical after both composition merges. The phone, header/toolbar,
+settings pages and plan table branch heads are all ancestors of the candidate.
+
+Only two files required manual conflict resolution:
+
+- `space-access.ts`: retained #405's `organization_context_changed` page refusal
+  and its existing proof, and retained #417's required page-detail field. The
+  context refusal now supplies “Reload to see the spaces in your selected
+  organization.” as that detail.
+- `spaces-page.tsx`: retained #405's `useResourceClient` organization scope and
+  #417's `cn` presentation import. The module-global unscoped client stays removed.
+
+The three other overlapping files merged automatically: #405's context refusal
+handling and organization-aware test harnesses coexist with #417's rendered access
+states and copy. Before the current-main merge, every difference from old #417 was
+inside #405's changed-file set. Current main changed no frontend files, WBS library
+files, `package.json`, or `bun.lock` relative to composition `ff5f5fd87`.
+
+### Verification
+
+- `BUN_TMPDIR=/tmp/puni-ui-bun-tmp BUN_INSTALL_CACHE_DIR=/tmp/puni-ui-bun-cache bun install --frozen-lockfile`
+  passed: 1573 installs across 1447 packages checked, no changes. The first attempt
+  without a writable Bun temporary directory exited with EROFS; it is not evidence
+  of a dependency failure.
+- `NX_DAEMON=false bunx nx run-many -t lint,typecheck --projects=wbs-fe-01 --skip-nx-cache`
+  passed all three frontend lint, module typecheck and application typecheck tasks,
+  without cache. Nx reported sandbox plugin socket denial and used its documented
+  main-process fallback.
+- `CI=1 bunx playwright test --config apps/wbs/fe-01/playwright.organization.config.ts`
+  passed 1/1 against its dedicated activated real backend fixture, with local
+  listener permission.
+- `bunx @fission-ai/openspec@1.12.0 validate --all --json` on `bc17c9e86` passed
+  190/190 entries, zero failures. The pre-main composition passed 189/189.
+- Prettier on every added/modified staged supported file passed. A first command
+  included a deleted path and was rejected; rerunning with `--diff-filter=ACMR`
+  passed. `git diff --cached --check` passed.
+- `git merge-tree --write-tree HEAD origin/current-main` exits 0 with tree
+  `bdd3cd715dda238c4330717b64a38c16d041d34c` before this evidence-only edit.
+- Normal hooks installed with `tool-git-hooks:install`; the composition commit's
+  lint, formatting, plaintext-secret and private-nesting checks passed. Migration
+  checks had no matching files. Tool Wiki explicitly reported inactive because its
+  external activation root is not provisioned; no certification is claimed.
+
+Frontend suite and selected ordinary browser results are recorded below when the
+runs finish. The initial sandbox frontend test attempt ended at its node-tier
+command without Vitest results (exit 130); the permission-enabled rerun is the
+verification run. Exact-SHA host gate, CI, full ordinary browser coverage, backend
+checks, and changes outside the requested frontend scope remain unverified here.
+
+### Observed composition regressions and repairs
+
+The ordinary browser command was
+`CI=1 E2E_PORT_SHIFT=3550 bunx playwright test --config apps/wbs/fe-01/playwright.config.ts header home toolbar-panels mobile plan-table-review settings-layout page-states layout project-settings reference-cells external-refs`.
+It finished **151 passed, 1 failed** (10.9m). The failure was the Organization
+local-mode recovery case: an organization panel's `no_active_organization` refusal
+withdrew the legacy runtime and replaced the useful page-level access state with
+organization selection, which is unavailable in local mode. The trace showed two
+alerts and no “Open the plan” link. This was a production integration failure.
+
+The repair keeps `no_active_organization` and `not_a_member` at page level when the
+captured resource scope is explicitly `legacy`. Active organization scopes still
+withdraw on both errors; unauthenticated, changed-context and credential refusals
+keep their existing withdrawal behavior. This restores the existing legacy
+permissions/behavior requirement and UI recovery, without editing the #405 branch.
+
+R5/TDD proof: new production HTTP-boundary tests first ran before the guard;
+**2 legacy cases failed, 7 passed** (`/tmp/puni-ui-legacy-red.log`), because each
+legacy refusal unexpectedly called the runtime withdrawal callback. The guard's
+adjacent `Proof:` comment names those failures and the observed browser failure.
+Tests also explicitly require withdrawal for both refusals in an active scope.
+After repair, all **4 page-states browser cases passed** (19.1s), and the dedicated
+real-organization browser case passed again **1/1** (8.1s).
+
+The full frontend attempt passed the node tier (**74 files, 928 tests**), then the
+UTC DOM tier finished **197 files passed, 1 failed; 3923 tests passed, 1 failed**.
+Its sole failure was a #405-added context-refusal test expecting the old headline
+“No organization is selected for this session.”, while #417 intentionally renders
+“This session has no organization.” The assertion now matches that UI copy and
+still requires the Members panel to be absent. This test failure is separate from
+the runtime withdrawal bug.
+
+The final six affected runtime, organization/refusal and spaces suites passed
+**65/65 across 6 files** (`/tmp/puni-ui-legacy-green.log`). The separately executed
+Pacific/Auckland tier passed **5/5 across 4 files** (`/tmp/puni-ui-zoned-final.log`).
+The complete DOM suite was not repeated after these focused repairs, so no fully
+green final frontend run is claimed. Full ordinary browser coverage beyond the
+152-case selection, backend checks, exact-SHA host gate and CI remain unverified.
+
+Final repair checks: uncached `wbs-fe-01:test:unit` passed **928 tests across
+74 files**. Uncached `wbs-fe-01` lint, module typecheck and application typecheck
+passed again. OpenSpec passed **190/190**, and Prettier plus `git diff --check`
+passed on all repair/evidence files. These final checks ran after the repair.
