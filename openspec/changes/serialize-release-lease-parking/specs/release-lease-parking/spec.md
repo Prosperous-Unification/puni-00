@@ -2,7 +2,7 @@
 
 ### Requirement: Terminal parking follows renewal shutdown
 
-The release coordinator SHALL stop its heartbeat and finish all pending renewals before parking a held Lease for rollback-failed, recovery-required, or flux-revert-required. It SHALL leave the terminal journal record, closed writes, and suspended Flux intact.
+The release coordinator SHALL stop its heartbeat and finish all pending renewals before parking a held Lease for rollback-failed, recovery-required, or flux-revert-required. It SHALL preserve the terminal journal record and the existing write-fence and Flux states.
 
 #### Scenario: Heartbeat remains in flight when rollback fails
 
