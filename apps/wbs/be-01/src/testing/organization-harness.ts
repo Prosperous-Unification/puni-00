@@ -196,6 +196,14 @@ export class OrganizationHarness {
     this.close();
   }
 
+  /** Stops the composed app and closes both connections, leaving its exact database for host recovery. Caller owns directory cleanup. */
+  async stopForRecovery(): Promise<string> {
+    await this.optimizerCoordinator?.stop();
+    await this.composedSource?.close();
+    this.sqlite.close();
+    return this.databasePath();
+  }
+
   /** Reads one coherent source input for a selected-ready mounted fixture. */
   capturePlanInput(projectId: string) {
     if (this.savedPlanCapture === undefined) throw new Error('saved-plan capture is absent');

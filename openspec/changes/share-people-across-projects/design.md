@@ -486,3 +486,25 @@ operation IDs use the installed owner on one retained connection. Shared backups
 before the writable opener while release capability remains isolated-only. The legacy local
 restore adapter refuses shared backups unconditionally, including in a test-supported release.
 Shared physical acceptance, runtime activation and attended live proofs remain 10.3b/10.4.
+
+### D10.3b Process and physical shared recovery rehearsal
+
+The rehearsal obtains both organizations' personal approvals through the mounted authenticated
+application, closes its optimizer/source/raw connections, and hands that same SQLite file to a
+separate Bun host-owner process. One organization changes to shared and owns an unranked project;
+the second remains isolated and restores a historical rank. A test-only child fixture widens its
+own imported capability array. Production paths, CLI options and capability declarations gain no
+override or authority. A separate child imports the unchanged production CLI with only its host
+paths redirected by a test module seam and proves the actual release refusal before writable open.
+
+Precommit SIGKILL waits for a shared transaction to spill WAL pages, compares every affected
+state/evidence table after death, and checks flock exclusion and successor acquisition. A child
+exits after committed recovery without printing its receipt; another cold process returns that
+same receipt after later rank/membership edits, with a complete unchanged-state comparison.
+Physical tests retain DELETE journal mode as the before-writable-open witness. Real daemon
+fixtures use only labelled test-owned containers with production blue/green names; source,
+identity and state facts come from Docker inspect. Each colour and an alias-mounted extra writer
+must refuse while running, foreign database identity and absent/unreadable sources refuse, then
+all stopped test-owned writers permit shared audited recovery. Cleanup removes only created IDs.
+These are local process/daemon proofs. Production activation and attended live-host acceptance
+remain task 10.4, together with independent review and the exact-SHA canonical gate.

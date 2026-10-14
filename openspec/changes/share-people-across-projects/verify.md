@@ -5112,3 +5112,145 @@ application TypeScript build and strict change OpenSpec validation all exited 0;
 `/tmp/shared-restore-103a-receipt-pk-` prefix. `git diff --check` passed. Real Docker and live h2
 checks were not repeated for this test/proof-comment-only correction; prior Docker evidence
 remains recorded above. No production behavior, supported mode, host access or push changed.
+
+## 10.3b process-level shared host recovery rehearsal (2026-10-14)
+
+The following original candidate record is historical evidence from the old parent. Fresh
+verification on the corrected #434 parent is recorded in the restack section below; its test
+selection uses the renamed `shared-people-host-restore.db.test.ts`.
+
+Review candidate is based on published/reviewed #434 head
+`12cf060d844e534793b85c2bf08f93cc51d678c5`, isolated branch
+`shared-process-rehearsal-10-3b` in `/tmp/puni-shared-process-rehearsal`.
+Production host owner, CLI, SQLite owner and `SUPPORTED_CAPACITY_MODES = ['isolated']`
+are unchanged. Only the test fixture widens its own child-process release capability;
+there is no production environment, CLI override, new approval authority or live operation.
+
+`shared-people-host-restore-process.db.test.ts` issues approvals through the composed mounted
+application with authenticated distinct Alice/Bob actors. The organization binding uses the
+existing harness selection adapter; production credential/membership/approval issuance remain
+installed. Org A changes to shared and owns two projects, including an unranked project;
+Org B remains isolated and contributes the historical rank. The backup deliberately lists
+organizations out of order and checks its digest against independently constructed canonical
+JSON bytes. `OrganizationHarness.stopForRecovery()` stops the optimizer and closes the source
+and raw connections without deleting the exact database; test cleanup owns its directory.
+A separate Bun fixture invokes the real host owner on that file.
+
+Success asserts exact personal audit attribution, historical rank author/timestamps/position,
+mode and audit times, complete null-cause events/sequences, original digest/counts, and exact
+receipt consumption. The lost-output child exits 73 after commit before printing. After later
+rank/membership edits a cold child returns the same original receipt/completion time, and the
+complete ten-table snapshot stays unchanged. Demotion and deletion of each recorded local
+actor refuse even when that actor is super-admin elsewhere and another local super-admin exists.
+Precommit SIGKILL waits for the receipt-trigger transaction to spill more than 1 MB of WAL,
+checks a rival flock refusal, then proves complete rollback (including probe), automatic lock
+release and successful successor recovery.
+
+Real Docker is explicitly enabled with
+`WBS_HOST_RESTORE_REAL_DOCKER=1 WBS_HOST_RESTORE_PROOF_IMAGE=alpine:3`. Inspection inventory is
+restricted to the test label; each inspected physical mount/state comes from the actual daemon.
+Each real blue/green container and a hardlink-alias extra writer refuses while running. A real
+green mapping a foreign existing database inode refuses; a real stopped extra mount whose source
+is removed or permission-denied refuses. DELETE journal mode remains unchanged on every physical
+refusal, proving the writable WAL opener did not run. With all test-owned writers stopped and
+valid mappings restored, the separate shared process commits its receipt and both consumptions.
+Cleanup removes only captured created container IDs. Synthetic shared cases also prove the
+canonical flock, named colours, extra writer, foreign identity and separate ENOENT/EACCES sources.
+The unchanged production CLI is imported in a child with only test paths redirected by a module
+seam; its real host policy refuses shared before writable open. An inspection child replacing the
+backup pathname with malformed JSON cannot alter the retained approved shared backup.
+
+### Watched production faults
+
+All injections were temporary and restored in `finally`; production files have zero final diff.
+Each command selected the named new test with `bun test ... --test-name-pattern <name>`.
+Each returned exit 1 with an assertion failure, rather than relying solely on process exit.
+Logs are `/tmp/shared-process-fault-<fault>.log`; aggregate receipts are
+`/tmp/shared-process-mutation-receipts.json` (first eleven), with the CLI guard logged separately.
+Adjacent `Proof:` comments identify these observations in the new test suite.
+
+| Injected production fault                                                       | Observed new-test RED                                                                                  |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `legacy-dispatch`: use legacy restore for approved dispatch                     | Lost-output child did not exit 73 with committed receipt                                               |
+| `actor-identity`: replace approval actor predicate with organization predicate  | Deleted recorded local actor admitted using another local super-admin                                  |
+| `local-organization`: replace local organization predicate with actor predicate | Demoted local approver admitted using authority elsewhere                                              |
+| `current-role`: bypass super-admin role check                                   | Demoted personal approver admitted                                                                     |
+| `outer-transaction`: execute owner body directly                                | After SIGKILL the complete snapshot retained modes/audits/events/sequences; full-state equality failed |
+| `receipt-retry`: bypass existing-receipt branch                                 | Cold retry after rank/membership edits refused instead of returning original receipt                   |
+| `early-flock`: close descriptor immediately after Docker fencing                | Live shared SQLite owner's rival flock returned 0; expected 1                                          |
+| `physical-shutdown`: bypass named colour stopped guard                          | Running colour admitted instead of refusing before opener                                              |
+| `mount-source`: resolve canonical DB instead of actual extra mount source       | Absent/unreadable extra source admitted instead of refusing                                            |
+| `pathname-reread`: parse pathname again at audited dispatch                     | Malformed replacement prevented approved retained-backup recovery                                      |
+| `capability-widening`: advertise production shared mode                         | Exact production isolated-only declaration assertion failed                                            |
+| `production-cli-guard`: bypass host capability refusal                          | Unchanged production CLI returned success (0); expected refusal                                        |
+
+### Commands and bounds
+
+- Initial RED: new process suite failed all six initial cases because `stopForRecovery` did not
+  exist, after mounted approvals had succeeded. Test-only lifecycle/child seams then made them GREEN.
+- First complete real Docker process run: **7 passed, 0 failed/skipped, 135 assertions**,
+  9.92 seconds. Subsequent canonical-byte and audit-time assertions are included in final regression.
+- `NX_DAEMON=false bunx nx run wbs-be-01:typecheck`: final exit 0, including module checks,
+  `/tmp/shared-process-nx-typecheck-final.log`. Initial run found one test-only nested-function
+  image narrowing error; introducing a narrowed local string corrected it.
+- Scoped ESLint: exit 0, `/tmp/shared-process-lint-final.log`; scoped Prettier check and
+  `git diff --check`: exit 0. Nx project graph was generated before final lint, so the module
+  boundary rule was available. Initial pre-graph lint warned that rule was skipped.
+- `BUN_TMPDIR=/tmp BUN_INSTALL_CACHE_DIR=/tmp/puni-bun-cache bunx
+@fission-ai/openspec@1.12.0 validate share-people-across-projects --strict --json`: 1/1 valid,
+  no issues; `validate --all --json`: **189/189 valid**. Logs:
+  `/tmp/shared-process-openspec-{change,all}.log`. Bare openspec was unavailable; the pinned
+  repository package command succeeded. Docker socket was denied under default sandbox;
+  authorized local sandbox escalation succeeded. No required local tool remained unavailable.
+
+Task 10.3b closes this local process/physical rehearsal only. Tasks 10.3/10.4 retain their remaining
+integration/activation obligations. Independent Astra review, push, merge, live-host operation
+and the exact-SHA canonical h2 gate have not run for this review candidate and are not claimed.
+
+Final combined recovery regression: **153 passed, zero failed/skipped, 918 assertions**, thirteen
+files, 123.80 seconds. Log: `/tmp/shared-process-regression.log`. Exact command (brace expansion
+selects the thirteen files, including both real Docker cases):
+
+```sh
+WBS_HOST_RESTORE_REAL_DOCKER=1 WBS_HOST_RESTORE_PROOF_IMAGE=alpine:3 bun test \
+  apps/wbs/be-01/src/{shared-people-host-restore-process.db,shared-people-host-restore,shared-people-backup-cli,app}.test.ts \
+  apps/wbs/be-01/src/controller/shared-people-restore-approval.controller.db.test.ts \
+  libs/wbs/adapters/store-sqlite/src/{shared-people-restore,shared-people-restore-approval,shared-people-rollback,shared-people-audit,shared-people-mode,project-rank,migrate-down}.db.test.ts \
+  libs/wbs/adapters/store-sqlite/src/shared-people-backup.test.ts --timeout=30000
+```
+
+Normal lefthook hooks were installed in this isolated clone for the review commit. Final scoped
+format/lint, strict change validation, all-spec validation and whitespace checks are rerun after
+these documentation receipts. Production source files remain byte-identical to the base.
+
+### 10.3b restack onto corrected #434 parent (2026-10-14)
+
+Imported candidate `8838efecf42310422f4a5dfa47adbe9415edf51d` onto corrected parent
+`5f84c464e6328b4ad92e5fb6ecdeb7e16b7dfcee` in `/tmp/puni-shared-restore-ci-repair`.
+The application of the seven candidate paths had no conflicts. The parent correction renamed
+the original host recovery suite to `shared-people-host-restore.db.test.ts`; the current command
+below selects that filename. No production source or migration changed relative to this parent;
+the application changes are confined to test files and test fixtures.
+
+Fresh combined regression, with authorized access to the local Docker daemon, passed **153 tests,
+zero failures/skips, 918 assertions across thirteen files**, in 35.16 seconds. Log:
+`/tmp/shared-process-restack-regression.log`.
+
+```sh
+WBS_HOST_RESTORE_REAL_DOCKER=1 WBS_HOST_RESTORE_PROOF_IMAGE=alpine:3 bun test \
+  apps/wbs/be-01/src/{shared-people-host-restore-process.db,shared-people-host-restore.db,shared-people-backup-cli,app}.test.ts \
+  apps/wbs/be-01/src/controller/shared-people-restore-approval.controller.db.test.ts \
+  libs/wbs/adapters/store-sqlite/src/{shared-people-restore,shared-people-restore-approval,shared-people-rollback,shared-people-audit,shared-people-mode,project-rank,migrate-down}.db.test.ts \
+  libs/wbs/adapters/store-sqlite/src/shared-people-backup.test.ts --timeout=30000
+```
+
+`NX_DAEMON=false bunx nx run wbs-be-01:typecheck` exited 0 with both tasks uncached;
+`/tmp/shared-process-restack-typecheck.log`. Scoped ESLint and Prettier checks exited 0;
+`/tmp/shared-process-restack-{lint,format}.log`. Pinned OpenSpec 1.12.0 strict change validation
+passed 1/1 without issues, and normal all-spec validation passed 189/189;
+`/tmp/shared-process-restack-openspec-{change,all}.log`. Both staged and unstaged whitespace
+checks passed. The twelve watched fault injections were not repeated on this restack; their
+observations above remain historical evidence about the unchanged production paths.
+
+No push, merge, live-host operation, full build, full repository gate or exact-SHA h2 gate was
+performed for this restack. Those checks remain outside this local handoff.
