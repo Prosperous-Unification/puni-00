@@ -14,3 +14,11 @@ export interface StepBlockageStore {
   /** Transfers facts without changing their original blocked time; bumps only changed owners. */
   moveAll(fromWorkItemId: string, toWorkItemId: string, stamp: WriteStamp): Promise<void>;
 }
+
+/** Writer admission is disabled; clients may retry after controlled activation. */
+export class StepBlockageInactive extends Error {
+  constructor() {
+    super('step_blockage_inactive');
+    this.name = 'StepBlockageInactive';
+  }
+}

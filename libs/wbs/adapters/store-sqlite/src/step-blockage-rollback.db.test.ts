@@ -12,6 +12,7 @@ import {
   restoreStepBlockages,
   saveStepBlockages,
 } from './step-blockage-rollback';
+import { activateTestStepBlockages } from './testing/step-blockage-activation';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 let directory: string;
@@ -22,6 +23,7 @@ beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'wbs-step-blockage-recovery-'));
   path = join(directory, 'plan.db');
   runMigrations(path, FOLDER);
+  activateTestStepBlockages(path);
   connection = openConnection(path);
   connection.db.run(
     "INSERT INTO users (id,username,password_hash,created_at) VALUES ('u','owner','x',1)",

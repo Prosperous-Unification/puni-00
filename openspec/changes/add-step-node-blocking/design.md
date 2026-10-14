@@ -203,3 +203,15 @@ Navigator accepts external v7 and v8: both strict wire shapes exclude the new
 root field, while their internal adapters supply v9 and empty facts. External v9
 remains refused. Version 7 retains task schema1 with workday estimates; version 8
 retains task schema2 with native estimate units. Schedule calculations and progress are independent of these facts.
+
+## Immediate writer admission (task 3.0.6)
+
+Exact base `4bb78ec2674869c2bfd18114ef4f39e05d403863` already contains document v9 import and migration folders through `20261014130000_add_shared_people_restore_receipts`. The additive admission migration is therefore `20261014140000_add_step_blockage_activation`; the existing blockage migration bytes remain unchanged.
+
+A constrained singleton marker initializes `DISABLED`. Three `BEFORE INSERT/UPDATE/DELETE` triggers require exactly one valid enabled marker and abort with the exact `step_blockage_inactive` sentinel. The adapter checks the required ledger identity, singleton shape and exact trigger definitions at boot after migrations and on readiness. Disabled is a valid readable database state; missing, malformed or unreadable authority throws.
+
+The adapter translates only a native SQLite error with the exact message and `SQLITE_CONSTRAINT_TRIGGER` code, walking Drizzle cause wrappers without accepting ordinary errors or message substrings. Repository savepoints and the full owning unit of work roll back before the typed `StepBlockageInactive` escapes. The mounted HTTP boundary translates that type to 409; unrelated SQL keeps its failure identity and existing response behavior.
+
+Journal cursor flips inventory both nested persisted directions and `moveProgress` preconditions. This gate includes empty deletion and move snapshots even when the fact triggers would see no rows; any earlier replay mutations roll back in the same unit of work. Ordinary empty imports and existing reads/export remain available. Tests activate only their isolated database through `activateTestStepBlockages`; boot has no environment or global activation switch.
+
+The admission down migration refuses both retained facts and relevant forward, inverse or precondition history before dropping authority. Existing raw project deletion may hit its step foreign key restriction before the new fact deletion trigger; it remains a foreign key refusal. Mounted work-item deletion reaches the blockage writer guard and refuses atomically. The existing lossless recovery file protocol stays intact, while disabled remove/restore and newer down migrations remain blocked until stopped-writer recovery integration. No production activation interface belongs to this slice. Setter proof waits for composition with #450; incompatible-writer barriers and F11.1d are separate release work.

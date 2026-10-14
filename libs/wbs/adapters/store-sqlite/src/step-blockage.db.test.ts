@@ -8,6 +8,7 @@ import { type Connection, openConnection } from './db';
 import { OPEN } from './gate';
 import { runMigrations } from './migrate';
 import { StepBlockageRepository } from './step-blockage';
+import { activateTestStepBlockages } from './testing/step-blockage-activation';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 let directory: string;
@@ -19,6 +20,7 @@ beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'wbs-step-blockage-'));
   const path = join(directory, 'plan.db');
   runMigrations(path, FOLDER);
+  activateTestStepBlockages(path);
   connection = openConnection(path);
   connection.db.run(
     "INSERT INTO users (id,username,password_hash,created_at) VALUES ('u','owner','x',1)",

@@ -10,6 +10,7 @@ import { afterEach, describe, expect, it } from 'bun:test';
 import { type Connection, openConnection } from './db';
 import { runMigrations } from './migrate';
 import { openSqliteSource } from './source';
+import { activateTestStepBlockages } from './testing/step-blockage-activation';
 
 const MIGRATIONS = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const dirs: string[] = [];
@@ -28,6 +29,7 @@ describe('openSqliteSource', () => {
   it('keeps blockage writes and refreshed owner revisions transactional', async () => {
     const path = databasePath();
     runMigrations(path, MIGRATIONS);
+    activateTestStepBlockages(path);
     const source = openSqliteSource({ dbPath: path });
     const stamp = { at: 10, by: 'owner' };
     const fact = { workItemId: 'blocked-owner', stepId: 'dev', blockedAt: 123 };
@@ -140,6 +142,7 @@ describe('openSqliteSource', () => {
   it('uses one process connection for transactional stores and independent history connections', async () => {
     const path = databasePath();
     runMigrations(path, MIGRATIONS);
+    activateTestStepBlockages(path);
     let opens = 0;
     const source = openSqliteSource({
       dbPath: path,
@@ -162,6 +165,7 @@ describe('openSqliteSource', () => {
   it('reports a present schema as healthy', async () => {
     const path = databasePath();
     runMigrations(path, MIGRATIONS);
+    activateTestStepBlockages(path);
     const source = openSqliteSource({ dbPath: path });
     expect(await source.health()).toEqual({ ok: true });
     await source.close();

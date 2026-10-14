@@ -677,6 +677,7 @@ describe('readMigrationFolders', () => {
       '20261013140000_add_step_node_blockages',
       '20261014120000_add_shared_people_restore_approvals',
       '20261014130000_add_shared_people_restore_receipts',
+      '20261014140000_add_step_blockage_activation',
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
   });
@@ -752,7 +753,7 @@ describe('rollbackTo, against a real database', () => {
       cpSync(FOLDER, candidateFolder, { recursive: true });
       runMigrations(db.path, FOLDER);
       const originalNames = appliedNames(db.path);
-      expect(originalNames.at(-1)).toBe('20261014130000_add_shared_people_restore_receipts');
+      expect(originalNames.at(-1)).toBe('20261014140000_add_step_blockage_activation');
       const candidate = join(candidateFolder, candidateName);
       mkdirSync(candidate);
       writeFileSync(
@@ -857,11 +858,13 @@ describe('rollbackTo, against a real database', () => {
         '20261013140000_add_step_node_blockages',
         '20261014120000_add_shared_people_restore_approvals',
         '20261014130000_add_shared_people_restore_receipts',
+        '20261014140000_add_step_blockage_activation',
       ]);
 
       const reversed = rollbackTo(db.path, FOLDER, INIT);
 
       expect(reversed).toEqual([
+        '20261014140000_add_step_blockage_activation',
         '20261014130000_add_shared_people_restore_receipts',
         '20261014120000_add_shared_people_restore_approvals',
         '20261013140000_add_step_node_blockages',
@@ -1028,6 +1031,7 @@ describe('rollbackTo, against a real database', () => {
         '20261013140000_add_step_node_blockages',
         '20261014120000_add_shared_people_restore_approvals',
         '20261014130000_add_shared_people_restore_receipts',
+        '20261014140000_add_step_blockage_activation',
       ]);
     } finally {
       db.cleanup();
@@ -1099,6 +1103,7 @@ describe('rollbackTo, against a real database', () => {
 
       // Proof: omitting restore approvals from production rollback selection failed this complete descending order.
       expect(reversed).toEqual([
+        '20261014140000_add_step_blockage_activation',
         '20261014130000_add_shared_people_restore_receipts',
         '20261014120000_add_shared_people_restore_approvals',
         '20261013140000_add_step_node_blockages',
@@ -1216,6 +1221,7 @@ describe('rollbackTo, against a real database', () => {
       expect(newest).toBeDefined();
       expect(rollbackTo(db.path, FOLDER, newest ?? '')).toEqual([]);
       expect(rollbackTo(db.path, FOLDER, AUDIT_COLUMNS)).toEqual([
+        '20261014140000_add_step_blockage_activation',
         '20261014130000_add_shared_people_restore_receipts',
         '20261014120000_add_shared_people_restore_approvals',
         '20261013140000_add_step_node_blockages',
@@ -1318,6 +1324,7 @@ describe('rollbackTo, against a real database', () => {
       // Descending — newest reversed first — so the audit columns come off
       // before the rename they were written against.
       expect(rollbackTo(db.path, FOLDER, WEIGHTS_AND_ROUNDING)).toEqual([
+        '20261014140000_add_step_blockage_activation',
         '20261014130000_add_shared_people_restore_receipts',
         '20261014120000_add_shared_people_restore_approvals',
         '20261013140000_add_step_node_blockages',
