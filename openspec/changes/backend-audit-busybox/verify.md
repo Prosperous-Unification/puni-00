@@ -10,3 +10,8 @@
 - `bunx tsc --build --force tools/tool-remote-scripts/tsconfig.json`: passed.
 - Prettier cannot infer a parser for Dockerfile; TypeScript and Markdown checks are run separately. Dockerfile formatting is unverified by Prettier.
 - Dockerfile build-input and toolchain-pin regressions: 67 pass / 0 fail, 159 assertions. TypeScript/Markdown Prettier check passed. `git diff --check` passed.
+
+- Review correction: the first dash mutation removed argv indices 6–7, producing a malformed BusyBox invocation. Its earlier claimed dash evidence is superseded by this rerun. Tightened diagnostic assertions watched that mutation fail because it produced `can't open` without SESSION, rather than `read: Illegal option -t`.
+- Corrected mutation asserts original argv indices 5–8, substitutes `/bin/sh` at index 5, preserves `-c`, and replaces the child shell in the supervisor at new index 7. Only the tested work session is mutated; cleanup retains the production BusyBox protocol.
+- Corrected actual-image rehearsal: normal writable census admitted, SESSION and cleanup REAPED observed. Missing binary omits the read-only bind; Docker exec independently returned exit 127, `exec: "/bin/busybox": stat /bin/busybox: no such file or directory`; production admission refused without SESSION.
+- Corrected dash fault: nested production runner error contains `--: 17: read: Illegal option -t`; SESSION and cleanup REAPED observed, no `cleanup unproved` diagnostic. Stalled scanner/descendant: real >=14-second elapsed bound, incomplete receipt refusal, SESSION and cleanup REAPED observed, no `cleanup unproved`, no BusyBox descendants remain.
