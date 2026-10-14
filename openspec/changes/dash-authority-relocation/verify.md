@@ -198,3 +198,55 @@ repository history is read, so a squash, rebase or gc of `e57278139` cannot brea
 Documents: ADR 0050 (0048 and 0049 were taken), the pointer line in ADR 0021, `names.md` row and
 bullet, `LLM_README.md` line (139 lines), and three `CONTEXT.md` terms (Generation, Publication
 marker, Authority bootstrap). Dash README lists five commands.
+
+## 2026-10-14: lifecycle fixture contention budget
+
+PR #460 (`6586e69ae96d36b1326bf1af79e52be4b069e333`) changed no Twilight code,
+dependencies or CI workflow. CI run `38541110423` failed the lifecycle property in both
+attempts on exhaustion of the existing 50-attempt, 5 ms worker budget. Attempt 2 reached the
+three-overlapping-acquisitions case after 60.77 seconds; the isolated property passed in
+16.06 seconds. A single-CPU baseline passed in 52.68 seconds; adding competing CPU work on
+that CPU passed in 75.90 seconds. These timings support scheduling pressure, but the CI logs
+do not identify the particular lock holder's stall.
+
+The deterministic reproducer holds a real SQLite reserved writer lock until all three
+contenders have opened the authority and announced their acquisition attempt, then releases
+it after 600 ms. With the old fixture budget, two observed runs failed: all contenders returned
+`untyped: authority database remained busy after 50 attempts`, rather than one winner and two
+overlap refusals. The explicit fixture options now use the production-supported ceilings of
+100 attempts and 50 ms delay: at most 99 sleeps, or 4.95 seconds, per retry loop. Production
+defaults, option validation, overlap checks and all six model invariants are unchanged.
+
+This restores the existing model's eventual-linearization intent within a deliberate finite
+fixture budget; no new observable production behavior or OpenSpec delta is introduced. It does
+not promise progress under unlimited lock retention or unlimited operating-system starvation.
+
+| Check or injected fault                                                                                                                                          | Observed outcome                                                                                                                        |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun test --preload ./tools/test/scratch/preload.ts ./apps/twilight-structure/twilight-dash/cli/src/authority/authority-lifecycle.model.test.ts --timeout=60000` | 3 pass, 0 fail, 106 assertions, 25.75 s; existing property 17.41 s                                                                      |
+| Real writer held 600 ms, then released                                                                                                                           | Exactly generation 1 acquired, two overlap refusals; one persisted owner and next generation 2                                          |
+| Real writer kept locked                                                                                                                                          | Worker exhausted 100 attempts; test 5.82 s, no owner persisted and next generation remained 1; observed elapsed constrained to 4.5–15 s |
+| Production `pathsOverlap` replaced with `false`, then restored                                                                                                   | Stalled-writer regression failed: three acquired owners at generations 1, 2 and 3 instead of two overlap refusals                       |
+| `bunx tsc --build --force apps/twilight-structure/twilight-dash/cli/tsconfig.json`                                                                               | Exit 0                                                                                                                                  |
+
+Two whole-file repetitions used `taskset -c 0` for the test runner (inherited by its workers)
+and a competing Python CPU loop with a 190-second deadline on the same CPU. Both passed all
+three tests and 106 assertions in 96.61 and 92.51 seconds; the existing property took 81.16
+and 77.42 seconds. The other CPUs were available to unrelated host work.
+
+Additional scoped checks:
+
+- The same Bun test command against `claims.db.test.ts` with `-t 'bounds|retries'`: 3 pass,
+  0 fail, 10 assertions (write-lock convergence, reader-blocked commit convergence and bounded
+  rollback); with `-t 'finite authority budget'`: 1 pass, 0 fail, 2 assertions.
+- `bunx eslint apps/twilight-structure/twilight-dash/cli/src/authority/authority-lifecycle.model.test.ts`:
+  exit 0 after `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx graph --file=/tmp/twilight-contention-graph.json`
+  populated the cached graph; no skipped rules. The first direct lint attempt warned that no
+  cached graph existed and skipped module boundaries, so it was repeated after graph creation.
+- Prettier check on the changed test and this record, and `git diff --check`: exit 0.
+
+The two added regression cases account for approximately 7.5 seconds of the isolated file's
+duration. Existing claim/database suites already prove attempt and delay validation and
+whole-transaction retry; this fix changes only the model fixture's options and its tests.
+The full host gate and CI rerun belong to the integration owner; neither is claimed by these
+scoped checks.
