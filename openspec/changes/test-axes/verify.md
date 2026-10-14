@@ -2742,3 +2742,59 @@ RED production CLI tests used four real, valid committed fixtures with annotated
 R5 watched faults: replacing each of the four requested/selected comparisons with `if (false)` separately failed its named annotated-tag production test (one failed test in each targeted run). Replacing the Performance committed-kind check with `if (false)` failed its named staged-reader production test. Every guard was restored before final checks. This preserves upstream failures while preventing a tag object from masquerading as a commit.
 
 The four exact owning source suites passed 172/172 tests with 464 assertions; the dependent Performance source, Manual and installed-dispatch suites passed 172/172 with 520 assertions, both with a 60-second per-test timeout. Uncached `twilight-burokrat:typecheck`, focused ESLint, strict OpenSpec validation and scenario provenance validation (`{"unidentified":[]}`) passed. Changed-file Prettier and `git diff --check` are recorded with the local commit. The canonical host gate, CI, push and certification remain outside this worker slice. Tasks 2.1, 2.2 and 4.1 stay open.
+
+# Proposed 4.1b.6 authority/facts boundary — 2026-10-13
+
+Design-only checkpoint on a new isolated branch from reviewed #412 SHA
+`9d2f7e3c61cf78c903a6f65841c1fdd08d886d92`. No production code, scenario IDs,
+classification or public facts CLI has been added. The pure classifier's bare empty sets and
+devsync's working-tree runner checks cannot establish reviewed absence or immutable authority.
+The proposed first scope is one Performance publication's committed fixture set with explicit
+external authority pins and reviewed-empty semantics. Four authority/completeness questions in
+`design.md` require Astra review before a precise delta spec and production TDD fixtures can be
+written. Task 4.1b.6 remains open; Tasks 2.1/2.2/4.1 and existing noncertifying status remain
+unchanged. `bunx @fission-ai/openspec@1.12.0 validate test-axes --strict` passed, and changed-file
+Prettier completed. No production or R5 checks apply to this design-only checkpoint.
+
+## 4.1b.6a external facts authority — 2026-10-13
+
+After Astra reviewed the design checkpoint, the scope was split: 4.1b.6a implements one
+Performance declaration's strict external authority and committed facts; 4.1b.6b retains the
+Conformance command and Architecture policy adapters. The production allocator proposed and
+issued TEST-AXES-077 through TEST-AXES-080; its proposed journal preserved every prior event
+as an exact prefix. The CLI's unknown-command RED failed all three initial production tests.
+The committed Conformance-target contradiction test and array-valued manifest test each failed
+on a success observation before its guard fix. Other boundary tests were added after the minimal
+implementation and watched fail under the injected guard-off faults below. The installed package
+test failed on missing help/dispatch before
+registration and passed afterward. The diagnostic emits no level, coverage or certification.
+
+R5 guard-off probes were run against the production CLI test file with one fault at a time, then
+restored. Each targeted test exited 1 for a changed named refusal or an unexpected success;
+logs are `/tmp/puni-level-facts-r5-{symbolic-sha,tag-object,candidate-pin,manifest-path,unique-fixtures,outside-scope,conflicting-source,regular-blob,pin-digest,conformance-empty,declaration-config,complete-fixtures,unsupported-conformance,unsupported-architecture,digest-completeness,authentication,certification,manual-only,unknown-key,arity,installed-registration}.log`. The installed-registration fault was run against the packaged executable test. These logs were inspected for assertion failures rather than parse/compiler errors. The selected-blob deletion and working-tree replacement case remained a named refusal; the sentinel config and fixture source would throw if candidate JavaScript executed.
+
+Fresh scoped checks after restoring every fault: owning facts and installed-dispatch suites
+14/14 tests, 85 assertions; uncached `twilight-burokrat:typecheck` and `lint:fast` passed.
+`scenario validate` returned `{"unidentified":[]}` and strict OpenSpec validation passed.
+Changed-file Prettier, `git diff --check` and normal Lefthook hooks are recorded with the
+commit. No host gate, push, publication authenticity or coverage certification is claimed.
+
+Dependent Performance-source/judge suites initially hit Bun's default five-second timeout in
+one existing digest test during the combined run (38 passed, 1 timed out). Re-running the same
+two suites with `--timeout 60000` passed 39/39 tests and 251 assertions. The timeout was a
+harness deadline, not an assertion failure; the longer run is the scoped regression evidence.
+
+## 4.1b.6a UTF-8 and JSON R5 review repair — 2026-10-13
+
+An otherwise valid pinned committed project manifest had one `0xff` byte inside its `name`
+JSON string. The fixture recomputed the manifest digest, committed revision and candidate pin.
+The real `inspect-level-facts` CLI exited 1 with empty stdout and named `project manifest is
+not UTF-8`. Removing only `fatal:true` from `TextDecoder` made that same test fail because the
+CLI emitted success JSON with exit zero; raw fault log:
+`/tmp/puni-level-facts-r5-utf8-fatal.log`. Replacing the neighboring `JSON.parse` with an empty
+record made the malformed external authority test fail its named JSON-refusal assertion on a
+later schema error; raw fault log: `/tmp/puni-level-facts-r5-json-malformed.log`. Both faults
+were restored. Adjacent `Proof:` comments now name the injected faults and observed failures.
+After restoration, the owning facts suite passed 14/14 tests with 71 assertions. Uncached
+typecheck, focused ESLint, changed-file Prettier, `git diff --check` and strict OpenSpec
+validation passed. Normal Lefthook hooks run on the repair commit.

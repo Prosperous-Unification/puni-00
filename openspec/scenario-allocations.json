@@ -744,6 +744,30 @@
       "id": "TEST-AXES-076",
       "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
       "title": "Performance inspection requires the exact committed object"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-077",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Explicit reviewed absence is bound to one Performance scope"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-078",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Missing or contradictory authority refuses facts"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-079",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Committed Performance scope resists working repair"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-080",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Exact committed selection and fact identity resist substitution"
     }
   ]
 }

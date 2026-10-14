@@ -96,6 +96,60 @@ diagnostics remain noncertifying and gain no coverage or admission authority.
 
 ## Level classification and runner evidence
 
+### Candidate-bound level facts authority (4.1b.6)
+
+The pure `classifyTestFile` accepts bare sets, whose emptiness cannot distinguish reviewed
+absence from an unknown source. The devsync helpers use working-tree collection and permissive
+command parsing, so they cannot serve as immutable Burokrat authority. The first facts scope
+is exactly one complete committed Performance declaration under one project root. It is not a
+claim about all tests in the repository or the publication's complete collected case set.
+
+The external authority is a strict version-1 JSON record `{schemaVersion,revision,candidate,
+scope,manual,conformance,architecture}` selected outside the candidate. `scope` contains
+`projectRoot`, pinned `{path,digest}` records for `projectManifest`, `declaration` and `config`,
+`project` (the Playwright project), and unique workspace-relative `fixtures`. The fixture set
+must equal the full decoded Performance declaration, and all paths must be under `projectRoot`.
+The selected committed SHA and candidate digest must equal the authority pins. A missing field,
+unknown kind, duplicate or contradictory pin refuses. Membership overlap across precedence rows
+is legitimate and remains recorded; classification and target isolation come later.
+
+`manual` is only `{kind:'reviewed-empty'}` for this exact fixture scope in version 1. This is an
+external assertion, included in the authority byte digest, not an inference from absent reports
+or a B3 procedure inventory. Missing Manual, a committed/nonempty variant or unknown state
+refuses. `conformance` and `architecture` are either explicit reviewed-empty for this scope or
+committed sources. Conformance names the pinned manifest's `test:conformance` target; the only
+supported command form is exact `bun test <one-or-more canonical project-relative .test.ts paths>
+--timeout=<positive decimal integer>` in an `nx:run-commands` envelope with exact project cwd,
+`forwardAllArgs:false`, no dependencies, config or environment overrides. Globs, directories,
+shell indirection, filters, extra flags, duplicate and outside paths refuse. A present unsupported
+target cannot be treated as reviewed empty; a reviewed-empty declaration contradicting a
+present target refuses. Architecture names a committed policy under its project root. Extract
+its schema, registry mapping, exact rule-file relation and nonrecursive unmapped-fixture check
+into pure functions shared by the existing runner and the committed blob reader. Preserve the
+runner's current validation order, error text and report-clearing/execution side effects; stop
+if that cannot be done without a behavioral change.
+
+Capture `readCandidate` once, require committed kind and exact requested SHA (including refusal
+of full-hex tag objects), and hash the selected snapshot. Read each named candidate file from
+its selected regular Git blob; compare exact byte digests with the external pins and reject
+absent/unreadable blobs, symlink/special modes and working-tree-only repairs. Validate the
+committed declaration through `decodePerformanceCases`, its config, fixture files and project
+manifest without executing candidate JavaScript. The facts-only output binds candidate,
+authority digest, scope, selected source tuples and explicit membership source states in a
+complete-payload observation digest with `authentication:{kind:'absent'}` and `certifies:false`.
+It does not call `classifyTestFile`, inspect a mutable publication, grant a test level or emit
+coverage credit. The existing Performance-source v1 output remains unresolved.
+
+Implement 4.1b.6 in coherent review slices: (a) strict authority, exact candidate and
+Performance scope, Manual reviewed-empty, with Conformance/Architecture reviewed-empty only;
+(b) committed Conformance grammar and shared Architecture policy extraction. The task stays
+open until both are complete. A later 4.1b.7 can capture one Performance publication once,
+reconcile collection against these facts, apply precedence before target isolation and bind an
+immutable context. It must refuse a higher-precedence fixture collected by Performance and
+missing/extra/duplicate cases or changed publication identity. Report-derived collection alone
+cannot prove candidate-wide completeness. Full B4 still needs Tasks 2.1/2.2, trusted receipts
+and reviewed source lineage.
+
 `libs/shared/domain/test-levels` owns the pure ten-row precedence function. It has no runner or policy imports, and its caller supplies the frontend source root. Burokrat supplies Conformance, Architecture, Performance, Browser, frontend Node and manual membership evidence, then applies that function to the selected candidate. Devsync consumes the same public library for target checks. The shared-domain placement satisfies Nx's existing product and scope rules for the Burokrat application and the product-less devsync tool; Burokrat still owns discovery, thresholds and enforcement.
 
 A collection adapter must produce either a nonempty file plan with its discovery inputs or an explicit `no-cases` result with a reason. The earlier pure planner had no production caller and was removed; the union is a required future runner-boundary contract, not an enforced Burokrat check today. The three new find-based memory/SQLite level targets currently clear their prior report, fail on selector errors, and refuse empty selections before Bun can default-discover another level. Performance declares `[TEST-AXES-038]` with a 100-row WBS fixture and a mounted-cell threshold of 1200. An empty Performance declaration still refuses with `no-cases`, without a passing JUnit report. Task 2.1 remains open until the exact committed real-stack execution is observed twice. Manual requires a reviewed procedure and report bound to source and environment; its validator must refuse absent or stale evidence and may never synthesize a human pass.

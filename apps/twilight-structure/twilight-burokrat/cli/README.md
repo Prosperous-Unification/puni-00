@@ -89,6 +89,16 @@ publication and index identities, and index review debt. Every case has an unres
 the observation has absent authentication, `certifies:false`, and no tested-module, coverage or
 admission claim. A refused Performance publication remains a refusal.
 
+`inspect-level-facts <repository> <committed-sha> <external-authority>` observes one complete
+Performance declaration and its exact selected fixture blobs under an external version-1
+authority. The authority pins the commit, candidate, project manifest, declaration, config,
+Playwright project and fixture set. In this first slice, Manual, Conformance and Architecture
+must each be explicitly reviewed empty for that fixture scope; a present Conformance target
+contradicts that assertion. Committed Conformance and Architecture sources await their bounded
+adapters. The output binds source tuples and explicit membership states with absent
+authentication and `certifies:false`; it does not classify tests, read the publication or award
+coverage.
+
 `inspect-manual-observation <repository> <committed-sha> <external-rule-policy> <report-path> --now <UTC instant>`
 wraps the complete `inspect-manual` result with the exact committed candidate identity and
 canonical evaluation instant. The digest binds the entire envelope, including the nested Manual
