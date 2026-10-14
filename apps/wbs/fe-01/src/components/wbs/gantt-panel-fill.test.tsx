@@ -71,41 +71,46 @@ describe('a short plan at a coarse rung (ui-review F-026)', () => {
     expect(Number(bar?.getAttribute('width')) * 4).toBeGreaterThanOrEqual(4);
   });
 
-  itDom('draws a done sliver as a bar, not as a green box with a tick', () => {
-    // At Months a one-workday done bar is 4px, and its 2px green outline made
-    // it a box wider than the bar inside it (ui-review F-026). Below 8px the
-    // done bar wears its own colour's 1px edge and no tick; its accessible
-    // name still says done.
-    render(
-      <GanttPanel
-        plan={planOf({
-          rows: [
-            rowAt('wide', 0, 10, { status: 'done', factEndStop: 10 }),
-            rowAt('tiny', 10, 11, { status: 'done', factEndStop: 11 }),
-          ],
-          slices: [sliceAt('wide-dev', 'wide', 0, 10), sliceAt('tiny-dev', 'tiny', 10, 11)],
-        })}
-        startDate={MONDAY_START}
-        scheduleError={null}
-        generation={0}
-        heightPx={null}
-        dayPx={4}
-        onPickDayPx={() => undefined}
-        onPickRow={() => undefined}
-        onPointRow={() => undefined}
-        pointed={pointedAtRow(null)}
-      />,
-    );
-    const tiny = document.querySelector('[data-gantt-bar="tiny-dev"]');
-    const wide = document.querySelector('[data-gantt-bar="wide-dev"]');
-    // Proof: the width floor removed, and this failed on `expected '#16a34a'
-    // not to be '#16a34a'`; watched 2026-10-14.
-    expect(tiny?.getAttribute('stroke')).not.toBe(DONE_BAR_STROKE);
-    expect((tiny?.getAttribute('class') ?? '').split(' ')).not.toContain('[stroke-width:2]');
-    expect(tiny?.getAttribute('aria-label') ?? '').toMatch(/done/i);
-    expect(document.querySelector('[data-done-mark="tiny-dev"]')).toBeNull();
-    // A wide done bar keeps the outline and the tick.
-    expect(wide?.getAttribute('stroke')).toBe(DONE_BAR_STROKE);
-    expect(document.querySelector('[data-done-mark="wide-dev"]')).not.toBeNull();
-  });
+  itDom(
+    'draws a done sliver as a bar with a 1px green edge, not as a green box with a tick',
+    () => {
+      // At Months a one-workday done bar is 4px, and its 2px green outline made
+      // it a box wider than the bar inside it (ui-review F-026). Below 8px the
+      // done bar keeps the done green as a 1px edge and drops the tick, so it
+      // still reads apart from an unassigned grey sliver.
+      render(
+        <GanttPanel
+          plan={planOf({
+            rows: [
+              rowAt('wide', 0, 10, { status: 'done', factEndStop: 10 }),
+              rowAt('tiny', 10, 11, { status: 'done', factEndStop: 11 }),
+            ],
+            slices: [sliceAt('wide-dev', 'wide', 0, 10), sliceAt('tiny-dev', 'tiny', 10, 11)],
+          })}
+          startDate={MONDAY_START}
+          scheduleError={null}
+          generation={0}
+          heightPx={null}
+          dayPx={4}
+          onPickDayPx={() => undefined}
+          onPickRow={() => undefined}
+          onPointRow={() => undefined}
+          pointed={pointedAtRow(null)}
+        />,
+      );
+      const tiny = document.querySelector('[data-gantt-bar="tiny-dev"]');
+      const wide = document.querySelector('[data-gantt-bar="wide-dev"]');
+      // Proof: with the sliver's edge in its own colour (round 1 of the #401
+      // review), this failed on `expected '#94a3b8' to be '#16a34a'`; with the
+      // 8px floor removed, on `expected [ '[stroke-width:2]', …(2) ] to not
+      // include '[stroke-width:2]'`. Watched 2026-10-14.
+      expect(tiny?.getAttribute('stroke')).toBe(DONE_BAR_STROKE);
+      expect((tiny?.getAttribute('class') ?? '').split(' ')).not.toContain('[stroke-width:2]');
+      expect(tiny?.getAttribute('aria-label') ?? '').toMatch(/done/i);
+      expect(document.querySelector('[data-done-mark="tiny-dev"]')).toBeNull();
+      // A wide done bar keeps the outline and the tick.
+      expect(wide?.getAttribute('stroke')).toBe(DONE_BAR_STROKE);
+      expect(document.querySelector('[data-done-mark="wide-dev"]')).not.toBeNull();
+    },
+  );
 });

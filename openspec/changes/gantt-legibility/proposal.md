@@ -14,9 +14,10 @@ read as disabled (F-013).
 
 ## What Changes
 
-- Labels take their own lane; placeholders say `<number> · no estimate`.
-- A hatched bar's label sits on its own fill; done slivers under 8px drop the
-  green outline and tick.
+- Labels take their own lane; placeholders say `<number> · no estimate`, or
+  the number alone where only it fits.
+- A hatched bar's label sits on its own fill; done slivers under 8px keep a
+  1px green edge and drop the 2px outline and tick.
 - Four palette entries move along OKLab lightness; the ink is the stronger of
   two; done bars are opaque.
 - Compressed rungs name months at their first day, with boundaries.
