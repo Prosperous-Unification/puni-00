@@ -204,7 +204,11 @@ describe('move destination progress preconditions', () => {
 });
 
 it('advertises move safety metadata without accepting its capability as a command', () => {
-  expect(STEP_BLOCKAGE_REPLAY_CAPABILITIES).toEqual(['replace_blockage', 'move_progress_v1']);
+  expect(STEP_BLOCKAGE_REPLAY_CAPABILITIES).toEqual([
+    'replace_blockage',
+    'move_progress_v1',
+    'delete_state_v1',
+  ]);
   expect(() => readCommand({ do: 'move_progress_v1' })).toThrow(/cannot apply/);
 });
 
@@ -240,4 +244,78 @@ it('attributes exact progress writes to the selected command through nested and 
   expect(
     progressKeysOf({ do: 'set_progress', workItemId: 'parent', stepId: 'dev', state: 'done' }),
   ).toEqual([{ workItemId: 'parent', stepId: 'dev' }]);
+});
+
+describe('deletion state boundary', () => {
+  const state = {
+    blockages: [{ workItemId: 'child', stepId: 'dev', blockedAt: -10 }],
+    parentId: 'parent',
+    parentBlockages: [],
+    restoredParentProgress: [],
+  };
+  const deleted = {
+    do: 'delete_subtree' as const,
+    rootId: 'child',
+    remove: ['child'],
+    expectedSubtree: ['child'],
+    reparented: [],
+    setEstimates: [],
+    setActuals: [],
+    setProgress: [],
+    setMeasures: [],
+    deletionState: state,
+  };
+  it.each([
+    null,
+    {},
+    { ...state, parentId: '' },
+    { ...state, blockages: null },
+    { ...state, blockages: [{ ...state.blockages[0], workItemId: 'stray' }] },
+    { ...state, blockages: [{ ...state.blockages[0], blockedAt: 1.5 }] },
+    { ...state, blockages: [...state.blockages, ...state.blockages] },
+    { ...state, parentBlockages: state.blockages },
+    { ...state, restoredParentProgress: null },
+    {
+      ...state,
+      parentId: null,
+      restoredParentProgress: [{ workItemId: 'parent', stepId: 'dev', state: 'done', statedAt: 1 }],
+    },
+  ])('refuses malformed deletion state %j', (deletionState) => {
+    expect(() => readCommand({ ...deleted, deletionState })).toThrow(/journal/);
+  });
+  it('validates nested restore owners and includes empty snapshot parent and step references', () => {
+    expect(readCommand(deleted)).toEqual(deleted);
+    expect(() =>
+      readCommand({
+        do: 'batch',
+        steps: [
+          {
+            do: 'restore_subtree',
+            rows: [{ id: 'other', parentId: 'parent' }],
+            deletionState: state,
+          },
+        ],
+      }),
+    ).toThrow(/blockage/);
+    const command = readCommand({
+      ...deleted,
+      expectedSubtree: ['child'],
+      reparented: [],
+      setEstimates: [],
+      setActuals: [],
+      setProgress: [],
+      setMeasures: [],
+    });
+    expect(referencesOf(command).workItems).toContain('parent');
+    expect(referencesOf(command).steps).toContain('dev');
+  });
+  it('binds restore deletion metadata to the recorded root parent', () => {
+    expect(() =>
+      readCommand({
+        do: 'restore_subtree',
+        rows: [{ id: 'child', parentId: 'different' }],
+        deletionState: state,
+      }),
+    ).toThrow(/wrong restoration parent/);
+  });
 });

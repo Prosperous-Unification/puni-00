@@ -339,3 +339,64 @@ This committed checkpoint implements persistence and rollback only. Journaled co
 - Retained that ordinary stale revision scenario and added the same graph scenario with only journal revision evidence refreshed to current owner revisions. Production guards are unchanged.
 - Watched negative: temporarily bypassed the post-apply replay `findCycle` refusal; `--test-name-pattern 'a legacy cycle after refreshing'` reported 0 pass, 1 fail, HTTP 200 instead of 409. Restored production code.
 - Repaired file: 13 pass, 0 fail. Full canonical gate deferred to the PM gate queue; no full Nx gates run here.
+
+## Task 3.0.4 — work-item deletion closure (2026-10-14)
+
+Base: exact #424 `e9d420272b8a0115c16b83f45c84b24ae82c68d4`. Isolated local clone `/tmp/puni-step-blockage-delete`, branch `step-blockage-delete`; the shared checkout and #424 tree were not edited. No push, UI, public setter, project-step deletion, deployment or live action.
+
+### Behavior and regression evidence
+
+- Initial RED: `bun test libs/wbs/application/core/src/module/work-item/work-item.resource.test.ts --test-name-pattern 'deleting blocked'` — 0 pass, 4 fail. Memory deletion left an orphaned blockage and its next real plan read threw `step blockage has an invalid work-item reference`. SQLite's cascade would instead lose that fact.
+- Final focused regression: `bun test libs/wbs/application/core/src/module/work-item/work-item.resource.test.ts libs/wbs/application/core/src/service/compensating.test.ts libs/wbs/application/core/src/module/plan-commands/plan-commands.test.ts apps/wbs/be-01/src/controller/step-node-attempt.controller.db.test.ts apps/wbs/be-01/src/service/undo.db.test.ts tools/tool-remote-scripts/src/swap.test.ts` — **534 pass, 0 fail, 1922 assertions, 46.28s**. Includes root/cascade exact restoration beneath done, per-step unanimous negative-time hand-up, partial disagreement, existing deletion progress fold, historical parent progress, promotion, stale parent progress with unchanged revisions, changed/missing/added subtree blockage, unrecorded parent blockage, collected mixed commands, parent revision after flip, neighboring rename/progress replay and first-child/move/duplicate regressions.
+- Memory runner rollback: later command refusal restores rows/progress/blockage; injected blockage restore failure after owner insertion restores the same snapshot. Mounted SQLite rollback: later command refusal and a trigger failing the second blockage insert preserve rows, exact facts, progress, events and journal snapshot. Expected endpoint error logging accompanies the injected 500s. Stale 409 tests preserve tree/facts/events and observe the intended one-entry journal discard.
+- Decoder regression after consolidating metadata references: `bun test libs/wbs/application/core/src/service/compensating.test.ts` — **27 pass, 0 fail, 75 assertions**. Present deletion metadata validates owner membership, safe times, unique pairs, parent binding and historical progress. Mounted malformed owner/time/duplicate cases additionally spy on the real `SubtreeRepository.insertSubtree`: refusal must happen before insertion is attempted, independently of transaction rollback.
+- Replay compatibility: `bun test tools/tool-remote-scripts/src/lib/docker.test.ts --test-name-pattern 'step blockage replay compatibility probes'` — **13 pass, 0 fail, 40 assertions**. Independent SQLite inventory covers nested forward, inverse and both directions, empty metadata, once-per-journal-row counting and a following markerless row, plus the existing absent/unreadable database/source controls. Compose admission tests cover prior capability refusal before migration and after writer stop, and matching-capability admission.
+
+### Watched production-path faults
+
+Each injected fault below produced exit 1; the original production source was restored before GREEN runs. Local detailed logs are `/tmp/delete-proof-<fault>.log` (and `/tmp/delete-proofs-second.log` for the repeated boundary series).
+
+| Fault                                                | Observed failing production-path test                                             |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Drop deletion blockage capture                       | Root leaf delete/undo throws invalid work-item reference                          |
+| Skip subtree blockage restoration                    | Mounted done-leaf undo loses exact blockage                                       |
+| Accept any former leaf instead of every leaf         | Mounted cascade incorrectly hands partial QA blockage up                          |
+| Seed maximum blocked time with zero                  | Mounted cascade gets 0 instead of -10                                             |
+| Bypass complete pre-batch progress equality          | Peer parent progress undo returns 200 instead of 409                              |
+| Skip complete parent blockage comparison             | Unrecorded parent blockage undo reaches insertion and returns 500 instead of 409  |
+| Skip complete removed-owner blockage comparison      | Added subtree blockage redo returns 200 instead of 409                            |
+| Skip historical parent statement restoration         | Mounted deletion undo loses original state/time                                   |
+| Ignore conditional replacement refusal               | Refused deletion blockage hand-up resolves                                        |
+| Ignore historical progress store refusal             | Refused historical progress restoration resolves                                  |
+| Remove mandatory parent progress snapshot validation | Damaged deletion history undo returns 200 instead of 500                          |
+| Omit safe-time validation                            | Mounted malformed time attempts subtree insertion                                 |
+| Omit blockage owner membership                       | Mounted malformed owner attempts subtree insertion                                |
+| Omit duplicate-pair refusal                          | Mounted duplicate metadata attempts subtree insertion                             |
+| Omit restored-root parent binding                    | Decoder accepts wrong restoration parent                                          |
+| Omit live-root parent binding                        | Persisted redo accepts a different removal parent, 200 instead of 500             |
+| Omit deletion parent from flip owner tracking        | Peer parent revision after undo is accepted on redo, 200 instead of 409           |
+| Drop collected progress snapshot owners              | Collected deletion undo returns 500 instead of 200                                |
+| Drop progress snapshots at flip                      | Deletion redo returns 500 instead of 200                                          |
+| Disable exact-pair neighbor progress refresh         | Legitimate neighboring progress undo/redo returns 409 instead of 200              |
+| Omit metadata replay references                      | Empty parent and recorded step disappear from replay reference test               |
+| Omit deletion compatibility marker                   | Nested empty forward/inverse inventories return `[]`                              |
+| Omit per-row deletion marker reset                   | Following markerless row is counted as a second deletion entry                    |
+| Bypass supported-capability comparison               | Before/after-stop deletion admission negatives no longer refuse `delete_state_v1` |
+
+### Scoped checks and delivery boundary
+
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint:fast -p wbs-core,wbs-be-01,tool-remote-scripts --output-style=static` — all three targets passed. Initial lint found unsafe inferred arrays and test typing; the boundary now narrows from `readonly unknown[]`, and those failures were corrected. An initial plain Nx invocation could not use sandbox sockets and did not prove task execution; explicit in-process Nx settings produced the recorded target output.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t typecheck -p wbs-core,wbs-be-01,tool-remote-scripts --output-style=static` — all five tasks passed in the final rerun (0/5 cache hits, 37.4s). Initial codec-test fixture typing failure was corrected before this run.
+- `bunx @fission-ai/openspec@1.12.0 validate add-step-node-blocking --strict --json` — valid, zero issues.
+- Explicit Prettier check over all 15 changed files — all matched files use Prettier code style. `git diff --check` — exit 0.
+- Final mounted deletion-only rerun after metadata-reference consolidation and generic guarded-progress refusal wording: `bun test apps/wbs/be-01/src/controller/step-node-attempt.controller.db.test.ts --test-name-pattern 'deletion blockage preservation'` — **26 pass, 0 fail, 124 assertions, 9.25s**.
+- New image capability: `delete_state_v1`. Inventory detects own `deletionState` on `delete_subtree`/`restore_subtree` recursively in **both** stored journal directions, including empty metadata, once per journal row. Existing `moveProgress` snapshots cumulatively require `move_progress_v1`; fact rollback never erases history compatibility obligations.
+- Kubernetes #428/#429 integration was coordinated with F11.1c's worker, who reported its independent inventory and all replay/cutover capability validators now recognize `delete_state_v1` with watched omission proofs. Those edits are on that worker's branch, not this one; parent integration must review both branches together. This branch alone claims Compose protection only.
+- The full exact-SHA host gate, uncached full lint/build, CI secrets/migration lint, browser checks and live release actions were **not run in this bounded worker slice**. Parent integration owns `bin/h2puni-gate.sh <candidate-sha>` and Astra review before merge. The broader WBS feature remains unfinished; task 3.0.4 alone is checked off.
+
+## CI repair: independent delete restore shape refusal (2026-10-14)
+
+- Before repair: `bun test apps/wbs/be-01/src/controller/typed-dependency-lifecycle.controller.db.test.ts --timeout=10000` reported 11 pass, 1 fail: a peer typed relationship bumped the surviving parent revision, so undo refused with `“010” has changed since then.` before restore shape validation.
+- Retained the stale surviving parent scenario and added the same relationship scenario with journal revision evidence refreshed to current owner revisions. The refreshed case asserts the exact peer relationship refusal and unchanged deleted child/relationship state.
+- Watched negative: temporarily bypassed `applyRestore` typed shape validation; `--test-name-pattern 'pinned peer relationship after refreshing'` reported 0 pass, 1 fail, HTTP 500 instead of 409 (the later graph resolver detected a node endpoint on a parent). Restored production code.
+- Repaired file: 13 pass, 0 fail. Canonical gate remains queued by the PM.

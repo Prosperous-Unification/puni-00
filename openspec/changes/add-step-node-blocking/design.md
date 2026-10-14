@@ -160,3 +160,13 @@ stops and before capture/migrate. Rollback must check before `rolloutTiers` or
 nested inverse/precondition markers and watched omissions. Migration capability
 capture/restore alone is insufficient. This slice implements Compose protection
 and records the Kubernetes prerequisite without claiming it is protected.
+
+## Deletion closure (task 3.0.4)
+
+`remove` reads direct blockage before cascades, explicitly clears each removed fact using conditional `replace_blockage`, deletes owners, then sets agreed surviving-parent blockage after it is a leaf. Agreement uses every former leaf per project step and the maximum original blocked time without a zero seed; done facts remain eligible and proxy readings never enter the fold. Progress keeps the existing deletion fold.
+
+Both subtree command directions carry optional `deletionState`: exact removed blockage, surviving `parentId`, expected `parentBlockages`, prior `restoredParentProgress`, and forward `handedBlockages`. The decoder validates owner membership, unique pairs, safe times, parent shape and owner-bound historical progress. References include metadata owners and steps even for empty parent snapshots. Legacy markerless commands retain their existing behavior.
+
+The existing complete `Preconditions.moveProgress` mechanism also guards deletion parents, including empty sets. Modern deletion metadata requires that owner snapshot in both directions. Collection captures final batch state; flip captures current facts; the existing revision equality and exact written-pair rebase rules carry neighbors without accepting unrelated facts. Historical parent progress restoration participates in exact progress write attribution. Restore compares the complete parent blockage set, clears it conditionally before inserting children, restores prior parent statements after the repository removes the handed-up keys, then restores exact subtree blockage after owners exist. Redo compares the complete removed-owner blockage set before conditional clearing or deletion. All steps run within the command runner transaction; stale refusal keeps the existing journal-discard policy.
+
+`delete_state_v1` is a separate replay capability, detected by own metadata property recursively in both stored directions and counted once per journal row, including empty metadata. Compose protects both existing admission phases. Kubernetes #428/#429 follow-up integration is coordinated in F11.1c: its independent replay inventory and all capability validators must recognize this marker before guarded deletion histories enter that delivery path. No live action belongs to this slice.

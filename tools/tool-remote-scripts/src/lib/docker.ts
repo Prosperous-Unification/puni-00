@@ -1229,6 +1229,8 @@ try {
   if (exists===null) throw new Error('command journal table is missing');
   let count=0;
   let moves=0;
+  let deletions=0;
+  let hasDeletionState=false;
   let hasGuardedMove=false;
   const legacy=new Set('patch set_estimate clear_estimate set_actual clear_actual set_measure clear_measure set_progress clear_progress assign restore_attempt remove_attempt add_dependency remove_dependency add_typed_dependency remove_typed_dependency update_typed_dependency move set_frozen set_step_allowance set_positions delete_subtree restore_subtree'.split(' '));
   function visit(command) {
@@ -1236,6 +1238,8 @@ try {
     if (command.do==='replace_blockage') { count++; return; }
     // Proof: omitting this marker lost nested forward/inverse snapshot history; watched 2026-10-14.
     if (command.do==='move'&&Object.hasOwn(command,'expectedProgress')) hasGuardedMove=true;
+    // Proof: omitting this own-property marker lost both nested empty deletion directions; watched 2026-10-14.
+    if ((command.do==='delete_subtree'||command.do==='restore_subtree')&&Object.hasOwn(command,'deletionState')) hasDeletionState=true;
     if (command.do==='batch') {
       if (!Array.isArray(command.steps)) throw new Error('journal batch is malformed');
       for (const step of command.steps) visit(step);
@@ -1251,11 +1255,14 @@ try {
     if (typeof preconditions!=='object'||preconditions===null||Array.isArray(preconditions)) throw new Error('journal preconditions are malformed');
     // Proof: omitting this marker lost precondition-only and empty-map history; watched 2026-10-14.
     hasGuardedMove=Object.hasOwn(preconditions,'moveProgress');
+    // Proof: omitting this reset counted the following markerless row; both-direction empty deletion inventory failed, watched 2026-10-14.
+    hasDeletionState=false;
     visit(payload.forward);
     visit(JSON.parse(row.inverse));
     if (hasGuardedMove) moves++;
+    if (hasDeletionState) deletions++;
   }
-  console.log(JSON.stringify([...(count===0?[]:[{kind:'replace_blockage',count}]),...(moves===0?[]:[{kind:'move_progress_v1',count:moves}])]));
+  console.log(JSON.stringify([...(count===0?[]:[{kind:'replace_blockage',count}]),...(moves===0?[]:[{kind:'move_progress_v1',count:moves}]),...(deletions===0?[]:[{kind:'delete_state_v1',count:deletions}])]));
 } finally {db.close();}`,
   ];
 }

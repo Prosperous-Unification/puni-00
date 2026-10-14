@@ -349,3 +349,47 @@ to another step on that owner.
 - **GIVEN** a guarded move destination's QA fact is unchanged
 - **WHEN** the neighboring Dev progress command is undone and redone through matching revisions
 - **THEN** only Dev's snapshot changes, QA's stored columns remain unchanged, and move redo succeeds
+
+### Requirement: Work-item deletion preserves exact blockage and refuses stale replay
+
+Deleting a root leaf or cascading a branch SHALL capture and conditionally clear every removed owner's direct blockage before removing owners. Undo SHALL recreate owners before conditionally restoring their exact owner, step and blocked time, including blockage retained under done progress. Redo SHALL refuse changed, missing or added blockage anywhere in the removed set. Deleting a parent by promotion SHALL preserve its surviving children's blockage.
+
+When deletion removes the last child, the surviving parent SHALL receive blockage for a project step only when every former leaf held a direct fact for that step. Its blocked time SHALL be the maximum original timestamp, including negative times. Derived proxy blockage SHALL NOT count as agreement. The existing deletion progress fold SHALL remain in force. Undo SHALL restore the previous historical parent progress facts, including state and stated time.
+
+Complete surviving-parent progress SHALL be checked before any replay batch step removes facts. Added, removed or changed progress SHALL refuse even with unchanged revisions. Parent blockage SHALL be compared as a complete set before undo clears handed-up facts and inserts children. Refusals SHALL preserve tree, facts and events while discarding the stale journal entry. Conditional replacements, deletion, restoration and journal/event writes SHALL share one transaction. Parent snapshot owners SHALL survive collection, flip and exact-pair attributed neighbor rebase.
+
+#### Scenario: Exact root leaf restore includes a completed blocked node
+
+- **GIVEN** a root leaf has Dev done and a direct blockage at -30
+- **WHEN** deletion is undone and redone
+- **THEN** undo restores the original progress and blockage facts and redo removes them together
+
+#### Scenario: Last-child cascade requires direct agreement per step
+
+- **GIVEN** a branch has two leaves blocked on Dev at -30 and -10, including a done leaf, and only one directly blocked on QA
+- **WHEN** the branch is deleted as its parent's last child
+- **THEN** the surviving parent receives Dev blockage at -10, no QA blockage, and the existing folded progress
+
+#### Scenario: Stale parent facts survive deletion undo
+
+- **GIVEN** deletion made a parent a leaf and a peer changed, removed or added progress, or added an unrecorded blockage, without changing revisions
+- **WHEN** undo would remove handed-up facts and recreate children
+- **THEN** replay refuses atomically before losing any fact and discards the stale entry
+
+#### Scenario: An intermediate restore failure rolls back every write
+
+- **GIVEN** deletion removed multiple blockage facts
+- **WHEN** restoring a later fact fails after owners and an earlier fact were inserted
+- **THEN** owners, facts, events and journal state match the pre-replay snapshot
+
+### Requirement: Deletion replay metadata is validated and independently inventoried
+
+Optional `deletionState` metadata on subtree deletion/restoration SHALL validate parent identity, owner-bound progress, blockage owner membership, unique owner/step pairs and safe-integer blocked times. Every referenced owner and step SHALL participate in replay authorization, including empty parent snapshots. A surviving deletion parent SHALL require a complete `Preconditions.moveProgress` snapshot; damaged modern history SHALL NOT fall back to legacy replay.
+
+Images SHALL advertise `delete_state_v1` separately from command discriminators. Independent inventory SHALL require it once per journal row carrying an own `deletionState` property on `delete_subtree` or `restore_subtree`, walking both directions recursively through batches, including empty collections. Existing progress snapshot capability requirements remain cumulative. Both Compose swap checks SHALL refuse images lacking any required capability. Kubernetes build/cutover admission SHALL integrate the same independently computed marker before these histories enter its release path.
+
+#### Scenario: Empty nested deletion history still prevents an older image
+
+- **GIVEN** a nested forward or inverse subtree command carries empty deletion metadata and no live blockage facts
+- **WHEN** an image advertises only prior blockage/move replay capabilities
+- **THEN** release admission refuses `delete_state_v1` history before migration or reopening writes

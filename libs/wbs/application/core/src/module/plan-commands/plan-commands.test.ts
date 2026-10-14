@@ -2508,4 +2508,119 @@ describe('transactional memory move blockage closure', () => {
       }
     },
   );
+  it('rolls back memory deletion facts and rows when a later batch command refuses', async () => {
+    const { source, graph, projectId, snapshot } = await seeded();
+    try {
+      const before = await snapshot();
+      const runner = runnerOver(source, graph);
+      expect(
+        await runner.run(projectId, OWNER, [
+          { kind: 'deleteWorkItem', workItemId: 'moving' },
+          { kind: 'patchWorkItem', workItemId: 'missing', patch: { name: 'Lost' } },
+        ]),
+      ).toMatchObject({ ok: false });
+      expect(await snapshot()).toEqual(before);
+    } finally {
+      await source.close();
+    }
+  });
+
+  it('preserves collected memory deletion facts and progress through undo redo', async () => {
+    const { source, graph, projectId, stepId, snapshot } = await seeded();
+    try {
+      await source.stores.progress.set(
+        { workItemId: 'moving', stepId, state: 'done', statedAt: 50 },
+        { at: 1, by: OWNER },
+      );
+      const before = await snapshot();
+      const runner = runnerOver(source, graph);
+      expect(
+        await runner.run(projectId, OWNER, [
+          { kind: 'deleteWorkItem', workItemId: 'moving' },
+          { kind: 'patchWorkItem', workItemId: 'destination', patch: { name: 'After deletion' } },
+        ]),
+      ).toMatchObject({ ok: true });
+      const after = await snapshot();
+      expect(await runner.undo(projectId, OWNER)).toMatchObject({ ok: true });
+      expect(await snapshot()).toEqual(before);
+      expect(await runner.redo(projectId, OWNER)).toMatchObject({ ok: true });
+      expect(await snapshot()).toEqual(after);
+    } finally {
+      await source.close();
+    }
+  });
+
+  it.each(['state', 'time', 'missing', 'blockage'] as const)(
+    'refuses memory parent %s changes before deletion undo',
+    async (fault) => {
+      const { source, graph, projectId, stepId, snapshot } = await seeded();
+      try {
+        await source.stores.progress.set(
+          { workItemId: 'moving', stepId, state: 'done', statedAt: 50 },
+          { at: 1, by: OWNER },
+        );
+        const runner = runnerOver(source, graph);
+        expect(
+          await runner.run(projectId, OWNER, [{ kind: 'deleteWorkItem', workItemId: 'moving' }]),
+        ).toMatchObject({ ok: true });
+        if (fault === 'state' || fault === 'time')
+          await source.stores.progress.set(
+            {
+              workItemId: 'parent',
+              stepId,
+              state: fault === 'state' ? 'in_progress' : 'done',
+              statedAt: fault === 'time' ? 99 : 50,
+            },
+            { at: 2, by: OWNER },
+          );
+        if (fault === 'missing')
+          await source.stores.progress.remove('parent', stepId, { at: 2, by: OWNER });
+        if (fault === 'blockage')
+          await source.stores.blockages.set(
+            { workItemId: 'parent', stepId, blockedAt: 99 },
+            { at: 2, by: OWNER },
+          );
+        const before = await snapshot();
+        expect(await runner.undo(projectId, OWNER)).toMatchObject({ ok: false });
+        expect(await snapshot()).toEqual(before);
+      } finally {
+        await source.close();
+      }
+    },
+  );
+
+  it('rolls back memory restore rows and earlier blockage writes after an injected insertion failure', async () => {
+    const { source, graph, projectId, stepId, snapshot } = await seeded();
+    try {
+      const runner = runnerOver(source, graph);
+      expect(
+        await runner.run(projectId, OWNER, [{ kind: 'deleteWorkItem', workItemId: 'moving' }]),
+      ).toMatchObject({ ok: true });
+      const before = await snapshot();
+      const failed = runnerOver(source, graph, source.uow, (scope, broadcast) =>
+        compose(
+          {
+            ...scope.stores,
+            blockages: {
+              ...scope.stores.blockages,
+              set: async (fact, stamp) => {
+                if (fact.workItemId === 'moving' && fact.stepId === stepId)
+                  throw new Error('injected memory blockage failure');
+                return scope.stores.blockages.set(fact, stamp);
+              },
+            },
+          },
+          broadcast,
+        ),
+      );
+      const rejection = await failed.undo(projectId, OWNER).then(
+        () => 'resolved',
+        (error: unknown) => String(error),
+      );
+      expect(rejection).toContain('injected memory blockage failure');
+      expect(await snapshot()).toEqual(before);
+    } finally {
+      await source.close();
+    }
+  });
 });
