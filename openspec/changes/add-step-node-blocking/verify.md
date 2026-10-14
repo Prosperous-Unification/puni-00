@@ -652,3 +652,16 @@ The initial sandboxed FE unit run had 924 pass and 5 fail, including subprocess
 EPERM; it is not accepted as release validation. Broad tests/type/lint and focused
 Gantt/organization checks are recorded separately once complete. The h2puni gate,
 full browser suite, deployment and host rehearsal have not been run by this worker.
+
+### Combined frontend export contract fixture — 2026-10-14
+
+The broad cumulative FE run found two `wbs-api.test.ts` JSON download assertions
+rejecting with `invalid_response`. Isolated reproduction: 63 pass, 2 fail.
+The mocked export still advertised document v8 and omitted root `stepBlockages`,
+while the reviewed export response contract requires v9 and that collection.
+Updated only the fixture header, empty direct-fact collection and its description;
+the legacy import helper still removes that field for its v3 input. The current
+decoder and Navigator external v7/v8 support remain unchanged. Isolated rerun:
+65 pass, 0 fail. Logs: `json-transfer-red.log` and `json-transfer-green.log` in
+`/tmp/puni-release-candidate-evidence`. This corrects test state rather than adding
+a new production safety check.
