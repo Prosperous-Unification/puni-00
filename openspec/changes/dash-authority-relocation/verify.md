@@ -221,13 +221,13 @@ This restores the existing model's eventual-linearization intent within a delibe
 fixture budget; no new observable production behavior or OpenSpec delta is introduced. It does
 not promise progress under unlimited lock retention or unlimited operating-system starvation.
 
-| Check or injected fault                                                                                                                                          | Observed outcome                                                                                                                        |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `bun test --preload ./tools/test/scratch/preload.ts ./apps/twilight-structure/twilight-dash/cli/src/authority/authority-lifecycle.model.test.ts --timeout=60000` | 3 pass, 0 fail, 106 assertions, 25.75 s; existing property 17.41 s                                                                      |
-| Real writer held 600 ms, then released                                                                                                                           | Exactly generation 1 acquired, two overlap refusals; one persisted owner and next generation 2                                          |
-| Real writer kept locked                                                                                                                                          | Worker exhausted 100 attempts; test 5.82 s, no owner persisted and next generation remained 1; observed elapsed constrained to 4.5–15 s |
-| Production `pathsOverlap` replaced with `false`, then restored                                                                                                   | Stalled-writer regression failed: three acquired owners at generations 1, 2 and 3 instead of two overlap refusals                       |
-| `bunx tsc --build --force apps/twilight-structure/twilight-dash/cli/tsconfig.json`                                                                               | Exit 0                                                                                                                                  |
+| Check or injected fault                                                                                                                                          | Observed outcome                                                                                                  |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `bun test --preload ./tools/test/scratch/preload.ts ./apps/twilight-structure/twilight-dash/cli/src/authority/authority-lifecycle.model.test.ts --timeout=60000` | 3 pass, 0 fail, 106 assertions, 25.75 s; existing property 17.41 s                                                |
+| Real writer held 600 ms, then released                                                                                                                           | Exactly generation 1 acquired, two overlap refusals; one persisted owner and next generation 2                    |
+| Real writer kept locked                                                                                                                                          | Worker exhausted 100 attempts; test 5.82 s, no owner persisted and next generation remained 1                     |
+| Production `pathsOverlap` replaced with `false`, then restored                                                                                                   | Stalled-writer regression failed: three acquired owners at generations 1, 2 and 3 instead of two overlap refusals |
+| `bunx tsc --build --force apps/twilight-structure/twilight-dash/cli/tsconfig.json`                                                                               | Exit 0                                                                                                            |
 
 Two whole-file repetitions used `taskset -c 0` for the test runner (inherited by its workers)
 and a competing Python CPU loop with a 190-second deadline on the same CPU. Both passed all
@@ -250,3 +250,27 @@ duration. Existing claim/database suites already prove attempt and delay validat
 whole-transaction retry; this fix changes only the model fixture's options and its tests.
 The full host gate and CI rerun belong to the integration owner; neither is claimed by these
 scoped checks.
+
+### Review correction: measure no retry duration in the parent
+
+The parent observed the worker's attempt marker before starting its stopwatch. A parent paused
+while the child retries can observe that marker late, so its elapsed time cannot establish the
+child's retry duration. Both parent duration assertions have been removed. Exact 100-attempt
+exhaustion, the finite 60-second test timeout, no persisted claims and the separate production
+transaction-delay tests remain; all model outcomes and delayed-writer overlap assertions are
+unchanged.
+
+A temporary diagnostic paused only the test parent with `SIGSTOP` immediately after writing the
+start barrier. A Python observer waited for the child's attempt marker, allowed the child one
+second of retry time, then resumed the parent with `SIGCONT`. Before the correction, the exact
+exhaustion assertion passed but the timing assertion failed: 4161.44 ms observed versus a
+4500 ms minimum. After removing the timing assertions, the same parent pause passed: 1 test,
+4 assertions, 0 failures; no owner was persisted and the next generation remained 1. The pause
+instrumentation was then removed. Reproducer and logs are `/tmp/twilight-parent-pause.py`,
+`/tmp/twilight-parent-paused-red.log` and `/tmp/twilight-parent-paused-green.log`.
+
+After restoring the ordinary runner, the whole lifecycle file passed: 3 tests, 104 assertions,
+0 failures in 28.25 seconds (existing property 19.67 seconds). The scoped production contention
+checks passed again: 3 tests, 10 assertions, 0 failures in 2.07 seconds. Typecheck, ESLint with
+the cached graph, Prettier and `git diff --check` all exited 0. The full host gate and CI remain
+the integration owner's checks.

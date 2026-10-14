@@ -460,16 +460,12 @@ test('concurrent acquisition exhausts its finite budget while a writer remains l
   ]);
   try {
     while (!existsSync(attemptPath)) await Bun.sleep(1);
-    const started = performance.now();
     expect(await pending).toEqual([
       {
         failure: 'untyped: authority database remained busy after 100 attempts',
         kind: 'refused',
       },
     ]);
-    const elapsed = performance.now() - started;
-    expect(elapsed).toBeGreaterThanOrEqual(4_500);
-    expect(elapsed).toBeLessThan(15_000);
   } finally {
     blocker.run('ROLLBACK');
     blocker.close();
