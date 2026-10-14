@@ -845,6 +845,11 @@ uncached and verified zero remaining project containers or network.
 
 ## Compose SQLite family and read-only probe correction — 2026-10-14
 
+Historical `6af0fc1` evidence: Astra subsequently reproduced unmanaged hardlink
+writer admission and a supplied recovery basename alias bypassing retained WAL.
+The physical identity/recovery-path correction below supersedes that revision’s
+safety conclusion.
+
 Astra reproduced ordinary SQLite readonly opening a clean WAL database under a
 readonly directory failing with SQLITE_READONLY_DIRECTORY 1544 after writer
 stop. The exact shipped `storedRelationshipTypesCommand` now runs against a
@@ -904,3 +909,59 @@ matched files formatted (`/tmp/sqlite-family-final-format-check.log`). Pinned
 OpenSpec1.12.0 strict validation returned one valid change, zero issues
 (`/tmp/sqlite-family-final-openspec.log`). `git diff --check` exited0. These are
 scoped evidence, not the canonical host gate or approval to deploy.
+
+## Compose physical identity and recovery-path correction — 2026-10-14
+
+Astra's hardlink counterexample is addressed at production writer inventory.
+Canonical overlap still refuses unmanaged writers; a non-overlapping unmanaged
+writable regular mount now requires device/inode comparison against the main DB
+and each existing WAL/SHM/journal. Required metadata absence/unreadability and
+nonregular family state refuse. Optional absent sidecar ENOENT is modeled.
+
+The deliberate admission tradeoff is that unmanaged writable directories and
+special files now refuse: canonical names cannot exclude their nested filesystem
+aliases. This may require changing unrelated writable directory mounts to
+read-only or removing them before a backend swap. Distinct writable regular files
+with different physical identities remain admitted. Read-only mounts are
+unaffected, and the executor never stops unrelated containers.
+
+Recovery now resolves the supplied database path through the complete family
+resolver and the fixed `/data` probe mapping before any Docker inventory or
+vocabulary command. A real SQLite killed-writer fixture leaves SS in wbs.db-wal;
+alias.db -> wbs.db refuses before probes with both a managed writer and no
+containers. This protects the standalone attended CLI and pre-boot admission.
+
+The runbook's early backfill, restore/capture and typed-dependency sections now
+match the stopped-writer flow: no automatic candidate stop/down/snapshot restore
+or older writer restart after boot exposure. Snapshot/capture integrity alone is
+not authority to discard post-boot writes or reverse schema.
+
+New production-path negatives were watched fail before implementation:
+`/tmp/compose-physical-family-red.log` (hardlink, unresolved directory, managed and
+no-container recovery aliases). Restored focused output:
+`/tmp/compose-physical-final-focused.log`, **71 pass, 0 fail, 466 expectations**.
+
+Watched guard omissions, restored after every nonzero test run:
+
+| Omitted protection                    | Observed negative / log                                                                                              |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Device/inode comparison               | Main/WAL/SHM/journal hardlinks all admitted; four tests failed, `/tmp/omit-physical-database-identity.log`           |
+| Unresolved writable directory refusal | Unmanaged directory admitted; one test failed, `/tmp/omit-unresolved-directory-refusal.log`                          |
+| Required regular family metadata      | Directory admitted as trusted main DB; one test failed, `/tmp/omit-regular-family-metadata.log`                      |
+| Supplied recovery family resolution   | Retained-WAL aliases admitted with managed/no containers; two tests failed, `/tmp/omit-recovery-family-identity.log` |
+
+Adjacent Proof comments record these observations. Tests also break required path
+metadata with absence/unreadability, assert no unrelated stop command, and prove
+distinct writable regular-file admission. No live or disposable Docker command,
+push, merge, deploy or host gate was run for this followup. Independent Astra
+review and canonical exact-SHA gate remain pending. Final scoped evidence follows.
+
+Fresh final nine-file scoped suite: **249 pass, 0 fail, 948 expectations**
+(`/tmp/compose-physical-final-tests.log`). Uncached scoped
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_TUI=false bunx nx run-many -t
+lint,typecheck -p tool-remote-scripts,wbs-be-01 --parallel=1
+--output-style=stream --skip-nx-cache` passed both projects and their one dependent
+target (`/tmp/compose-physical-final-checks.log`). Changed-file Prettier reported
+all matched files formatted (`/tmp/compose-physical-final-format.log`). Pinned
+OpenSpec1.12.0 strict validation returned one valid change and zero issues
+(`/tmp/compose-physical-final-openspec.log`). `git diff --check` exited0.

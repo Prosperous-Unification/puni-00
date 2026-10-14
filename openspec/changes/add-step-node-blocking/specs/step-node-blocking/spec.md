@@ -567,3 +567,19 @@ Stored fact/replay admission SHALL keep the production directory mounted read-on
 - **GIVEN** an outgoing renamed file bind resolves to the candidate main file or a candidate mount shadows only WAL or SHM
 - **WHEN** preflight resolves the database family
 - **THEN** it refuses without stopping blue or publishing stop intent
+
+### Requirement: Compose writer exclusion covers physical aliases and recovery path families
+
+Unmanaged writable regular mounts SHALL be compared by device and inode against the main database and every existing WAL/SHM/journal file. Missing or unreadable physical metadata SHALL refuse. Unmanaged writable directories and special files whose nested aliases cannot be excluded SHALL refuse without stopping those containers. Distinct unrelated regular files and read-only mounts MAY remain. Recovery admission SHALL validate the supplied database path through the fixed probe directory's complete SQLite family mapping before inventory/probes, including when no containers remain.
+
+#### Scenario: Unmanaged mount uses a hardlink outside the canonical data directory
+
+- **GIVEN** an unmanaged container has a writable hardlink to a SQLite family file with a distinct canonical pathname
+- **WHEN** writer inventory runs
+- **THEN** equal device and inode refuse before any stop command
+
+#### Scenario: Recovery alias conceals retained WAL
+
+- **GIVEN** alias.db resolves to wbs.db while committed SS facts remain in wbs.db-wal
+- **WHEN** recovery admission receives DB_PATH=/data/alias.db with or without a managed container
+- **THEN** the family mismatch refuses before any vocabulary probe

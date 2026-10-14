@@ -66,3 +66,6 @@
 
 - [x] 6.4.8 Repair Astra SQLite probe/family blockers with quiescent private main/WAL copies under read-only source mount, production-command clean/retained-WAL proofs, whole-family directory mapping and pre-stop shadow/alias negatives; watch protection omissions fail.
 - [ ] 6.4.9 Obtain Astra re-review of the SQLite family/probe correction before integration or deployment.
+
+- [x] 6.4.10 Repair physical hardlink exclusion and recovery-path family admission; refuse unresolved unmanaged directory aliases, preserve read-only/distinct-file admission, correct stale automatic recovery prose, and watch all three production omissions fail.
+- [ ] 6.4.11 Obtain independent Astra re-review of physical/family admission before integration or deployment.

@@ -1,4 +1,4 @@
-import { chmod, mkdtemp, readdir, readFile, realpath, rm } from 'node:fs/promises';
+import { chmod, mkdtemp, readdir, readFile, realpath, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -105,6 +105,63 @@ for (const fault of ['absent-main', 'unreadable-main', 'unreadable-wal'] as cons
       const stderr = await new Response(child.stderr).text();
       expect(await child.exited).not.toBe(0);
       expect(stderr).toContain(fault === 'absent-main' ? 'ENOENT' : 'EACCES');
+    } finally {
+      await rm(root, { recursive: true });
+    }
+  });
+}
+
+for (const managed of [false, true]) {
+  test(`recovery main alias refuses retained WAL before probes with ${managed ? 'managed writer' : 'no containers'}`, async () => {
+    const root = await mkdtemp(join(tmpdir(), 'recovery-family-'));
+    const path = join(root, 'wbs.db');
+    try {
+      const sqlite = new Database(path);
+      sqlite.run('PRAGMA journal_mode=WAL; CREATE TABLE typed_dependency(type TEXT)');
+      sqlite.close();
+      const child = Bun.spawn(
+        [
+          'bun',
+          '-e',
+          `import { Database } from 'bun:sqlite'; const db=new Database(process.env.DB_PATH); db.run("INSERT INTO typed_dependency VALUES ('SS')"); process.kill(process.pid,'SIGKILL');`,
+        ],
+        { env: { ...process.env, DB_PATH: path }, stdout: 'pipe', stderr: 'pipe' },
+      );
+      await child.exited;
+      await symlink('wbs.db', join(root, 'alias.db'));
+      expect(await readdir(root)).toContain('wbs.db-wal');
+      const image = `registry/wbs-be-01@sha256:${'c'.repeat(64)}`;
+      const identity = 'a'.repeat(64);
+      const backend = {
+        Id: identity,
+        Name: '/be-01-blue',
+        Config: { Env: ['DB_PATH=/data/wbs.db'] },
+        Mounts: [{ Type: 'bind', Source: `${ROOT}/data`, Destination: '/data', RW: true }],
+        State: { Running: false, Paused: false, Restarting: false, Status: 'exited' },
+      };
+      const commands: string[][] = [];
+      let refusal = '';
+      try {
+        await checkBackendRecovery(
+          image,
+          image,
+          '/data/alias.db',
+          (args) => {
+            commands.push(args);
+            if (args[0] === 'ps') return Promise.resolve(managed ? identity : '');
+            if (args[0] === 'inspect')
+              return Promise.resolve(
+                JSON.stringify(args.includes('--format') ? backend : [backend]),
+              );
+            return Promise.resolve('[]');
+          },
+          (host) => realpath(host.replace(`${ROOT}/data`, root)),
+        );
+      } catch (cause) {
+        refusal = cause instanceof Error ? cause.message : String(cause);
+      }
+      expect(refusal).toContain('database family');
+      expect(commands.some((args) => args[0] === 'run')).toBe(false);
     } finally {
       await rm(root, { recursive: true });
     }

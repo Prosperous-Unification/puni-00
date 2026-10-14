@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, realpath, rm } from 'node:fs/promises';
+import { chmod, link, mkdir, mkdtemp, readFile, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -898,3 +898,100 @@ for (const suffix of ['-wal', '-shm']) {
     expect(events).not.toContain('up');
   });
 }
+
+for (const kind of [
+  'hardlink',
+  'wal-hardlink',
+  'shm-hardlink',
+  'journal-hardlink',
+  'directory',
+  'absent',
+  'unreadable',
+  'absent-main',
+  'nonregular-main',
+] as const) {
+  test(`unmanaged physical writer refuses ${kind} before any stop`, async () => {
+    const root = await mkdtemp(join(tmpdir(), 'physical-writer-'));
+    roots.push(root);
+    await mkdir(join(root, 'data'));
+    await mkdir(join(root, 'external'));
+    const path = join(root, 'data/wbs.db');
+    await Bun.write(path, 'main');
+    const alias = join(root, 'external/alias.db');
+    if (kind.endsWith('hardlink')) {
+      const suffix =
+        kind === 'hardlink'
+          ? ''
+          : kind === 'wal-hardlink'
+            ? '-wal'
+            : kind === 'shm-hardlink'
+              ? '-shm'
+              : '-journal';
+      if (suffix !== '') await Bun.write(`${path}${suffix}`, 'sidecar');
+      await link(`${path}${suffix}`, alias);
+    }
+    if (kind === 'unreadable') {
+      await Bun.write(alias, 'other');
+      await chmod(join(root, 'external'), 0o000);
+    }
+    if (kind === 'absent-main') {
+      await Bun.write(alias, 'other');
+      await rm(path);
+    }
+    if (kind === 'nonregular-main') {
+      await Bun.write(alias, 'other');
+      await rm(path);
+      await mkdir(path);
+    }
+    const source = kind === 'directory' ? join(root, 'external') : alias;
+    const commands: string[][] = [];
+    await refuses(
+      inspectBackendWriters(
+        (args) => {
+          commands.push(args);
+          if (args[0] === 'ps') return Promise.resolve(incomingId);
+          return Promise.resolve(
+            JSON.stringify([
+              {
+                Id: incomingId,
+                Name: '/unmanaged-writer',
+                Mounts: [{ Type: 'bind', Source: source, Destination: '/database', RW: true }],
+              },
+            ]),
+          );
+        },
+        path,
+        (host) => realpath(host.replace(`${ROOT}/data`, join(root, 'data'))),
+      ),
+    );
+    if (kind === 'unreadable') await chmod(join(root, 'external'), 0o700);
+    expect(commands.some((args) => args[0] === 'stop')).toBe(false);
+  });
+}
+
+test('an unrelated writable regular file is accepted with distinct physical identity', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'physical-nonwriter-'));
+  roots.push(root);
+  await mkdir(join(root, 'data'));
+  const path = join(root, 'data/wbs.db');
+  const other = join(root, 'unrelated.log');
+  await Bun.write(path, 'main');
+  await Bun.write(other, 'other');
+  const writers = await inspectBackendWriters(
+    (args) =>
+      Promise.resolve(
+        args[0] === 'ps'
+          ? incomingId
+          : JSON.stringify([
+              {
+                Id: incomingId,
+                Name: '/unrelated-writer',
+                Mounts: [{ Type: 'bind', Source: other, Destination: '/log', RW: true }],
+              },
+            ]),
+      ),
+    path,
+    (host) => realpath(host.replace(`${ROOT}/data`, join(root, 'data'))),
+  );
+  expect(writers.size).toBe(0);
+});

@@ -16,7 +16,8 @@
 // resulting bundle still runs correctly when moved and executed from an
 // unrelated directory.
 import { createHash, randomUUID } from 'node:crypto';
-import { realpath, unlink } from 'node:fs/promises';
+import type { BigIntStats } from 'node:fs';
+import { realpath, stat, unlink } from 'node:fs/promises';
 
 import { renderTemplate, siteCaddyTmpl, tierComposeTmpl } from '@tools/compose';
 import { Database } from 'bun:sqlite';
@@ -1000,7 +1001,9 @@ export function parseBackupReport(output: string, expectedPath: string): string 
 
 /**
  * Inventories every Docker mount before an outage; only the two known backend
- * colours may hold the shared writable data bind. Unknown writers refuse.
+ * colours may hold the shared writable data bind. Canonical paths and physical
+ * file identities both count as overlap; unmanaged writable directories or
+ * special files cannot prove absence of nested aliases and therefore refuse.
  */
 export async function inspectBackendWriters(
   runDocker: SwapExecutionIo['sh'],
@@ -1034,6 +1037,8 @@ export async function inspectBackendWriters(
     )
       throw new Error('Docker writer inspection is malformed');
     observed.add(identity);
+    const isBackend =
+      name === `/${containerName('be', 'blue')}` || name === `/${containerName('be', 'green')}`;
     let ownsData = false;
     const databaseMounts: DatabaseMount[] = [];
     for (const mount of mounts) {
@@ -1069,9 +1074,39 @@ export async function inspectBackendWriters(
         databaseHostPath.startsWith(`${canonicalSource.replace(/\/$/, '')}/`)
       )
         ownsData = true;
+      else if (!isBackend) {
+        const sourceIdentity = await stat(canonicalSource, { bigint: true });
+        // Proof: omitting this refusal admitted an unmanaged directory with unresolved nested aliases.
+        if (!sourceIdentity.isFile())
+          throw new Error(
+            `cannot exclude database aliases in unmanaged writable mount ${identity}; explicit recovery required`,
+          );
+        for (const suffix of ['', '-wal', '-shm', '-journal']) {
+          let familyIdentity: BigIntStats;
+          try {
+            familyIdentity = await stat(`${databaseHostPath}${suffix}`, { bigint: true });
+          } catch (cause) {
+            if (
+              suffix !== '' &&
+              cause instanceof Error &&
+              'code' in cause &&
+              cause.code === 'ENOENT'
+            )
+              continue;
+            throw cause;
+          }
+          // Proof: omitting this check admitted a directory as the trusted main DB; the nonregular-main negative failed.
+          if (!familyIdentity.isFile())
+            throw new Error('database family physical identity is not a regular file');
+          // Proof: omitting dev+ino equality admitted an unmanaged writable hardlink to the database family before stop.
+          if (
+            sourceIdentity.dev === familyIdentity.dev &&
+            sourceIdentity.ino === familyIdentity.ino
+          )
+            ownsData = true;
+        }
+      }
     }
-    const isBackend =
-      name === `/${containerName('be', 'blue')}` || name === `/${containerName('be', 'green')}`;
     // Proof: omitting this refusal admitted unmanaged writable directory/file/ancestor binds; all three negatives failed.
     if (ownsData && !isBackend)
       throw new Error(`unmanaged database writer ${identity}; explicit recovery required`);
@@ -1122,7 +1157,21 @@ export async function checkBackendRecovery(
   assertDigestPinnedRef(candidateImage, 'be');
   if (!/^\/data\/[A-Za-z0-9_./-]+$/.test(databasePath) || databasePath.includes('..'))
     throw new Error('recovery DB_PATH is outside the mounted data directory');
-  const expectedDatabase = await resolveMount(`${ROOT}${databasePath}`);
+  // Validate the family through the same directory mapping the probe uses.
+  // Proof: omitting this resolution admitted alias.db while wbs.db-wal held SS;
+  // both managed-writer and no-container recovery negatives failed before probes.
+  const expectedDatabase = await resolveDatabaseHost(
+    databasePath,
+    [
+      {
+        type: 'bind',
+        source: `${ROOT}/data`,
+        target: '/data',
+        writable: true,
+      },
+    ],
+    resolveMount,
+  );
   for (const identity of (
     await inspectBackendWriters(runDocker, expectedDatabase, resolveMount)
   ).values())

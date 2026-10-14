@@ -73,7 +73,7 @@ nothing.
 until 2026-08-04, so `--version=v1.2.3` read as a rollback and deployed HEAD instead.
 
 **Step-code backfill.** A `be` swap ends with `backfill-step-codes`, after `stop-blue` and before alias/routing exposure and `commit`. It runs `bun run src/backfill-step-codes-cli.ts` in the new colour, which codes every
-step an older release inserted without a code. If it fails, the candidate is stopped and inspected, the outgoing backend remains stopped, the interruption markers remain, and `commit` does not run. The error names the manual command,
+step an older release inserted without a code. If it fails, candidate boot has already established possible exposure: the executor retains the candidate and current writes, keeps the outgoing backend stopped, preserves interruption markers, and does not commit. The error names the manual command,
 `docker exec be-01-<colour> bun run src/backfill-step-codes-cli.ts`. That command is idempotent:
 run it until it prints `step codes backfilled: <n>`, then follow the backend interruption recovery procedure before another deploy
 (`backfillStepCodes` in `libs/wbs/adapters/store-sqlite/src/step-code-backfill.ts`).
@@ -134,38 +134,11 @@ If it refuses, stop: the rename is unsafe, and the expand/contract route in
 `openspec/changes/steps-schema-rename/design.md` D2 applies. Keep the accepted output and the
 dump with the deploy record.
 
-**Restore.** Backend failures after durable stop intent require the attended recovery below. They never automatically reverse migrations, restart the older writer, or restore a snapshot. A pre-migration snapshot is evidence; after possible exposure, restoring it would discard candidate writes and is forbidden. Gateway/frontend retain their existing pre-reload cleanup. An explicitly authorized disaster recovery may use the pre-migration backup only after accounting for every write since that snapshot. Stop both be-01 colours first, then run the restore from a
-throwaway container of the new image:
+**Restore and migration evidence.** Backend failures after durable stop intent require the attended recovery procedure below. They never automatically reverse migrations, stop a potentially exposed candidate, restart the older writer, or restore a snapshot. A pre-migration snapshot and capture are evidence. After possible boot exposure, restoring the earlier snapshot would discard candidate writes and is forbidden by the ordinary swap recovery procedure. Preserve current database files and interruption evidence before any recovery decision. Gateway/frontend retain their existing pre-reload cleanup.
 
-For a pre-route `be` abort, swap first captures the complete applied migration set from green,
-persists an attempt-specific private file under `/home/puni1/wbs/state`, and reads it back before
-running the forward migration. On abort it verifies that the retained and copied bytes still match,
-runs `migrate-down-cli.ts --capture-file` in green, and compares the complete final ledger with
-the captured set. A zero-exit down command with a different ledger is a rollback failure. The
-capture remains on the host after green stops. If rollback fails, use the **exact pinned-image
-`docker run` command printed by swap**: it binds that retained capture read-only, binds
-`/home/puni1/wbs/data` read-write, and sets the DB_PATH observed from green before migration.
-The exact-set CLI requires `--capture-file`, `--capture-sha256` (from the original durable
-capture), `--target`, `--attempt` and `--candidate`; the printed automatic/manual command
-passes all five. The backend refuses changed bytes before parsing the file or opening SQLite for
-reversal. Keep those fields and the image digest unchanged; inspect the capture and current
-ledger before retrying. An absent or unreadable capture is not an empty applied set.
-Before migrating, capture refuses with `applied migration <name> is absent or changed in candidate`
-when the incoming image lacks an applied migration or carries different bytes for it. Ship every
-applied migration unchanged in the candidate; never reformat a historical `migration.sql`.
-The `--to=<baseline>` commands below are legacy operator procedures for
-separate data-removal workflows, not the automatic swap abort path.
+Before forward migration, swap captures the complete applied set in an attempt-specific private file under `/home/puni1/wbs/state`, verifies copied bytes, and records capture identity durably. Capture refuses when the incoming image lacks an applied migration or carries changed migration bytes. Ship every applied migration unchanged; never reformat historical migration.sql. An absent, unreadable or changed capture is not authority to reverse the schema. The exact-set down CLI's capture-file, capture-sha256, target, attempt and candidate fields protect capture integrity, but passing those fields does not prove a downgrade preserves post-boot writes. The stopped-writer flow does not execute down or print an authorized down command.
 
-After `reload`, restore the pre-migration backup as follows:
-
-```sh
-docker run --rm -v /home/puni1/wbs/data:/data -e DB_PATH=/data/wbs.db \
-  --entrypoint bun <be-01 image> run src/restore-db-cli.ts /data/backups/<name>.db
-```
-
-The restore verifies the backup before replacing anything. It moves `wbs.db`, `-wal` and `-shm`
-aside as `.displaced-<stamp>` and never deletes them. Then restore `site.caddy`, `docker start`
-the old containers and `caddy reload`. Copy the backup off the host before deploying.
+An explicitly authorized disaster recovery must first account for every write since the proposed snapshot, prove all writers stopped, and review schema, captured ledger and fact/replay compatibility for the chosen immutable image. Restoring a snapshot, changing Caddy routing, restarting older containers or clearing interruption markers requires that separate reviewed recovery decision. The `--to=<baseline>` commands below belong to explicit data-removal workflows; they are not swap abort recovery.
 
 **Smoke.** After the swap, smoke also checks the read paths. `/api/auth/me` without a credential
 must answer `{"user":null}`, and `/api/projects` without one must be 401. For signed-in reads,
@@ -186,9 +159,9 @@ not an application fault.
 
 **Code rollback with SS/FF rows.** The `be` swap compares the incoming binary's
 supported types with the shared database before migration, then checks again
-after migration and health while the outgoing colour remains stopped, before candidate exposure. An older image without
+after migration and health while the outgoing colour remains stopped, before shared-alias/routing admission. Candidate boot is already possible write exposure. An older image without
 `relationship-types-cli.ts` is treated as FS-only. If either check finds unsupported
-types, the error lists their counts. A compatibility failure before exposure stops and inspects the candidate, leaves the older writer stopped, retains interruption state, and does not commit. Redeploy a release that understands those types,
+types, the error lists their counts. A pre-boot compatibility failure leaves the candidate unstarted and the older writer stopped with interruption state retained. A post-boot compatibility failure retains the possibly exposed candidate and current writes, keeps the older writer stopped, preserves interruption state, and does not commit. Redeploy a release that understands those types,
 or stop all typed-dependency writers and use a compatible container to `save` and `remove`
 the rows with the commands below. Copy the saved file off the host and keep it secure.
 Rerun the code deploy; no schema
@@ -608,7 +581,7 @@ enabled; the persistence checkpoint alone is not a deployable feature.
 
 Every Compose `be` swap has an attended outage window. Before stopping a writer, the executor checks registry/pull, environment, existing SQLite integrity and ledger, Caddy/exposure state and effective merged Compose configuration. The candidate's image/name must match, its network aliases may name only its own colour, and published ports, dependencies, external links and unresolved env files refuse. A private resolved JSON snapshot preserves exactly the checked environment and mounts. Startup uses that snapshot with `--force-recreate --no-deps --pull never`; an unchanged stopped idle container must never be restarted with a dynamically retained `be-01.internal` alias.
 
-The candidate database is resolved through its writable directory bind and canonical host directory plus filename. The main DB, `-wal`, `-shm` and `-journal` must share that mapping; main-file binds, sidecar shadows, renamed main-file symlinks and redirected/dangling sidecar links refuse before any writer stops. Outgoing and idle `Config.Env.DB_PATH` values are independently resolved through their Docker `Mounts.Destination` mappings and must identify that same file. A `/data` source mounted only at `/unused-backups` is not database proof. Missing/ambiguous environment, missing destinations, filename mismatch, unrelated live mounts and unreadable paths refuse before stop intent. Unmanaged writable mounts overlapping the database/data root refuse without receiving stop commands; read-only mounts remain permitted.
+The candidate database is resolved through its writable directory bind and canonical host directory plus filename. The main DB, `-wal`, `-shm` and `-journal` must share that mapping; main-file binds, sidecar shadows, renamed main-file symlinks and redirected/dangling sidecar links refuse before any writer stops. Outgoing and idle `Config.Env.DB_PATH` values are independently resolved through their Docker `Mounts.Destination` mappings and must identify that same file. A `/data` source mounted only at `/unused-backups` is not database proof. Missing/ambiguous environment, missing destinations, filename mismatch, unrelated live mounts and unreadable paths refuse before stop intent. Unmanaged writable mounts overlapping the database/data root or sharing a main/WAL/SHM/journal file device and inode refuse without receiving stop commands. Distinct writable regular files can be proved unrelated. Unmanaged writable directories and special files refuse because nested filesystem aliases cannot be excluded without a separate audit; make unrelated directory mounts read-only or remove them before a backend swap. Missing/unreadable physical metadata refuses. Read-only mounts remain permitted.
 
 The exclusive private files under `/home/puni1/wbs/state` are `be-writer-stop.json`, `be-writer-migration.json` and `be-writer-exposure.json`. Stop intent records exact outgoing and existing idle IDs before either is stopped. Both inspect as stopped, unpaused and not restarting; the complete identity/database inventory is checked again. The incoming digest first passes independent fact/replay admission in network-none one-offs with the production directory mounted read-only while every previous writer is stopped. Each stored probe copies the quiescent main file and any retained WAL/journal into a private writable container scratch directory; source SHM is excluded, and SQLite creates scratch SHM. This handles clean WAL closure with absent sidecars and retained WAL without modifying production files. Absence of optional WAL/journal is explicit; unreadability refuses. The source must remain quiescent throughout copying; an incompatible digest refuses before boot. **Possible writer exposure is durable before candidate startup**, because application boot can write or listen even before health and shared-alias grant. Migration capture identity is separately durable before migration. Fact/replay admission, backup, migration, health, final admission and backfill precede the gateway shared alias and Caddy route switch. Only recorded commit removes interruption files; ordinary retries refuse any retained, malformed or unreadable marker. Phase writes do not replace them.
 
@@ -616,7 +589,7 @@ Keep automation paused and preserve markers, migration capture, snapshot and fai
 
 Only with proved absence of boot exposure may the operator consider restoring the stopped previous backend. The candidate must never have started; verify its absence/stopped identity, the unchanged migration ledger, and every fact/replay requirement. Migration metadata or evidence of candidate boot contradicts that pre-boot recovery classification and requires a reviewed recovery decision. Do not recompute a replacement digest to admit edited capture bytes or remove a marker to bypass an ordinary deploy refusal.
 
-The following read-only proof takes the deploy lock, proves all managed database writers stopped, resolves their actual database identities, and compares independent candidate fact/replay inventories with the proposed previous immutable image. It never reverses schema, restarts a writer, restores a snapshot or clears a marker:
+The following read-only proof takes the deploy lock, proves all managed database writers stopped, validates the supplied DB_PATH through the full fixed `/data` family mapping even when no containers remain, resolves actual managed database identities, and compares independent candidate fact/replay inventories with the proposed previous immutable image. It never reverses schema, restarts a writer, restores a snapshot or clears a marker:
 
 ```sh
 bun /home/puni1/wbs/bin/swap.js be --check-backend-recovery \
