@@ -655,3 +655,28 @@ The application SHALL initialize a durable singleton blockage writer admission m
 - **WHEN** blockage facts or relevant nested forward, inverse or precondition journal history remain
 - **THEN** the admission down migration refuses before changing its schema or ledger
 - **AND** the recovery runbook describes the existing lossless save protocol and the refusal of remove or restore until stopped-writer recovery integration is available
+
+### Requirement: Backend migration uses inert maintenance before application startup
+
+Compose SHALL derive hash-pinned private application and maintenance configurations from the same validated digest, environment, effective working directory and database/solver mounts. Maintenance SHALL override entrypoint and command with a fixed inert Bun program, disable healthcheck, use restart=no and init=true, and start with forced recreation, no dependencies and no pull only after all prior writers are proved stopped. Its exact ID/image/configuration and snapshot hashes SHALL be durably recorded. Backup, migration capture and forward migration SHALL use that exact identity; capture bytes/digest/identity and durable migration intent SHALL precede forward migration. Maintenance SHALL stop and independently inspect stopped before durable application exposure and normal app recreation. The application boot admission check SHALL remain enabled with migrateOnStartup=false.
+
+#### Scenario: Authentic predecessor upgrade
+
+- **GIVEN** the database has every predecessor migration but lacks StepBlockage admission
+- **WHEN** Compose upgrades the backend
+- **THEN** actual application boot refuses before migration, maintenance applies the migration first, and subsequent nonmigrating application boot succeeds with admission still disabled
+
+#### Scenario: Maintenance identity or configuration drifts
+
+- **WHEN** exact ID/image, inert entrypoint/command/health/restart, environment, working directory or mounts differ, a private snapshot hash changes, or maintenance cannot be proved stopped
+- **THEN** database CLI or application startup refuses at that boundary and interruption evidence remains
+
+#### Scenario: Migration interruption precedes app exposure
+
+- **WHEN** forward migration applies schema changes and then fails before app startup
+- **THEN** current database, original capture/hash and migration intent remain, application exposure is absent, and no automatic down, snapshot restore or older writer restart occurs
+
+#### Scenario: App exposure cannot be published
+
+- **WHEN** maintenance migration and stop proof succeed but durable app exposure publication fails
+- **THEN** app boot does not run, schema/capture evidence remains, and ordinary retry refuses

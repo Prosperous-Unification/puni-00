@@ -91,7 +91,9 @@ describe('planSwap', () => {
     expect(plan.steps.indexOf('stored-vocabularies')).toBeGreaterThan(
       plan.steps.indexOf('start-green'),
     );
-    expect(plan.steps.indexOf('stored-vocabularies')).toBeLessThan(plan.steps.indexOf('migrate'));
+    expect(plan.steps.indexOf('stored-vocabularies-before-start')).toBeLessThan(
+      plan.steps.indexOf('migrate'),
+    );
     expect(plan.steps).toContain('migrate');
     expect(plan.steps.indexOf('migrate')).toBeLessThan(plan.steps.indexOf('health-gate'));
     expect(plan.steps.indexOf('grant-alias')).toBeLessThan(plan.steps.indexOf('render-route'));
@@ -99,7 +101,9 @@ describe('planSwap', () => {
 
   it('backs up before migrating, and never after', () => {
     const plan = planSwap('be', base);
-    expect(plan.steps.indexOf('stored-vocabularies')).toBeLessThan(plan.steps.indexOf('backup-db'));
+    expect(plan.steps.indexOf('stored-vocabularies-before-start')).toBeLessThan(
+      plan.steps.indexOf('backup-db'),
+    );
     expect(plan.steps.indexOf('backup-db')).toBe(plan.steps.indexOf('migrate') - 1);
     for (const tier of ['gw', 'fe'] as const) {
       expect(planSwap(tier, base).steps).not.toContain('backup-db');
@@ -160,4 +164,14 @@ describe('planSwap', () => {
   it('always ends by committing', () => {
     expect(planSwap('fe', base).steps.at(-1)).toBe('commit');
   });
+});
+
+it('migrates through inert maintenance before application startup', () => {
+  const steps = planSwap('be', base).steps;
+  expect(steps).toContain('start-maintenance');
+  expect(steps.indexOf('verify-blue-stopped')).toBeLessThan(steps.indexOf('start-maintenance'));
+  expect(steps.indexOf('start-maintenance')).toBeLessThan(steps.indexOf('backup-db'));
+  expect(steps.indexOf('migrate')).toBeLessThan(steps.indexOf('stop-maintenance'));
+  expect(steps.indexOf('stop-maintenance')).toBeLessThan(steps.indexOf('record-writer-exposure'));
+  expect(steps.indexOf('migrate')).toBeLessThan(steps.indexOf('start-green'));
 });

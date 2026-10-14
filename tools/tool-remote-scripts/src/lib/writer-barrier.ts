@@ -1,5 +1,6 @@
 import { open, readFile, stat, unlink } from 'node:fs/promises';
 
+import type { BackendSnapshot } from './backend-maintenance';
 import { writeNewMigrationCapture } from './migration-capture-file';
 import type { Color } from './state';
 
@@ -12,11 +13,21 @@ export interface WriterIntent {
   outgoingId: string | null;
   databaseHostPath?: string;
   idleId?: string | null;
+  snapshots?: { imageId: string; application: BackendSnapshot; maintenance: BackendSnapshot };
+  maintenance?: {
+    identity: string;
+    imageId: string;
+    application: BackendSnapshot;
+    maintenance: BackendSnapshot;
+  };
   capture?: { path: string; sha256: string; databasePath: string; target: string; attempt: string };
 }
 
-const boundaries = ['stop', 'exposure', 'migration'] as const;
-function markerPath(root: string, boundary: 'stop' | 'exposure' | 'migration'): string {
+const boundaries = ['stop', 'exposure', 'migration', 'maintenance'] as const;
+function markerPath(
+  root: string,
+  boundary: 'stop' | 'exposure' | 'migration' | 'maintenance',
+): string {
   return `${root}/be-writer-${boundary}.json`;
 }
 
@@ -45,16 +56,21 @@ export async function assertNoWriterBarrier(root: string): Promise<void> {
 /** Exclusively publishes and syncs intent before either destructive or exposing IO. */
 export async function writeWriterBarrier(
   root: string,
-  boundary: 'stop' | 'exposure' | 'migration',
+  boundary: 'stop' | 'exposure' | 'migration' | 'maintenance',
   intent: WriterIntent,
 ): Promise<void> {
   await writeNewMigrationCapture(markerPath(root, boundary), `${JSON.stringify(intent)}\n`);
 }
 
 /** Called only after the recorded candidate commit; directory sync makes removal durable. */
-export async function clearWriterBarrier(root: string, hasMigration = false): Promise<void> {
+export async function clearWriterBarrier(
+  root: string,
+  hasMigration = false,
+  hasMaintenance = false,
+): Promise<void> {
   for (const boundary of boundaries) {
     if (boundary === 'migration' && !hasMigration) continue;
+    if (boundary === 'maintenance' && !hasMaintenance) continue;
     await unlink(markerPath(root, boundary));
   }
   const directory = await open(root, 'r');

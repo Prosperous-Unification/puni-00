@@ -23,6 +23,7 @@ afterEach(async () => {
 });
 const outgoingId = 'a'.repeat(64);
 const incomingId = 'b'.repeat(64);
+const maintenanceId = 'd'.repeat(64);
 const image = 'registry/wbs-be-01@sha256:' + 'c'.repeat(64);
 
 async function fixture(
@@ -46,7 +47,10 @@ async function fixture(
     | 'idle-database'
     | 'preboot-replay'
     | 'outgoing-file-bind'
-    | 'outgoing-wal-shadow' = 'none',
+    | 'outgoing-wal-shadow'
+    | 'maintenance-drift'
+    | 'maintenance-running'
+    | 'migration-failure' = 'none',
 ) {
   const root = await mkdtemp(join(tmpdir(), 'compose-writer-'));
   roots.push(root);
@@ -72,6 +76,20 @@ async function fixture(
       return Promise.resolve({
         databasePath: '/data/wbs.db',
         databaseHostPath: `${ROOT}/data/wbs.db`,
+        imageId: `sha256:${'c'.repeat(64)}`,
+        snapshots: {
+          application: { path: '/application.json', sha256: 'e'.repeat(64) },
+          maintenance: { path: '/maintenance.json', sha256: 'f'.repeat(64) },
+        },
+        startMaintenance: () => {
+          events.push('maintenance');
+          greenRunning = true;
+          return Promise.resolve(maintenanceId);
+        },
+        verifyMaintenance: () =>
+          fault === 'maintenance-drift'
+            ? Promise.reject(new Error('maintenance identity drift'))
+            : Promise.resolve(),
         start: async () => {
           expect(await readFile(join(root, 'be-writer-exposure.json'), 'utf8')).toContain(image);
           events.push('start');
@@ -87,6 +105,30 @@ async function fixture(
     writePhase: () => Promise.resolve(),
     writeAtomic: () => Promise.resolve(),
     sh: async (args) => {
+      if (args.includes('printenv')) return '/data/wbs.db';
+      if (args.includes('src/backup-db-cli.ts'))
+        return JSON.stringify({ path: args.at(-1), migrations: ['baseline'] });
+      if (args.includes('src/migrate-status-cli.ts')) {
+        const flag = (name: string) =>
+          args.find((argument) => argument.startsWith(`--${name}=`))?.slice(name.length + 3);
+        return JSON.stringify({
+          format: 'applied-migration-set',
+          version: 1,
+          target: flag('target'),
+          attempt: flag('attempt'),
+          candidate: flag('candidate'),
+          applied: [],
+          pending: [],
+        });
+      }
+      if (args.includes('src/migrate-cli.ts')) {
+        expect(await readFile(join(root, 'be-writer-maintenance.json'), 'utf8')).toContain(
+          maintenanceId,
+        );
+        expect(await readFile(join(root, 'be-writer-migration.json'), 'utf8')).toContain(image);
+        if (fault === 'migration-failure') throw new Error('migration interrupted');
+        return 'migrated';
+      }
       if (args[0] === 'image') return image;
       if (args[0] === 'run') {
         expect(args).toContain('none');
@@ -187,7 +229,7 @@ async function fixture(
           if (fault !== 'running') blueRunning = false;
         } else {
           events.push('stop-green');
-          greenRunning = false;
+          if (fault !== 'maintenance-running') greenRunning = false;
         }
         return '';
       }
@@ -197,7 +239,12 @@ async function fixture(
         if (isBlue && fault === 'missing') throw new Error('No such container');
         if (isBlue) stoppedInspected = true;
         return JSON.stringify({
-          Id: isBlue && fault !== 'wrong-id' ? outgoingId : incomingId,
+          Id:
+            args[3] === maintenanceId
+              ? maintenanceId
+              : isBlue && fault !== 'wrong-id'
+                ? outgoingId
+                : incomingId,
           State: {
             Running: isBlue ? blueRunning : greenRunning,
             Paused: false,
@@ -249,6 +296,9 @@ test('candidate starts only after exact outgoing ID was stopped and inspected', 
     'stop-blue',
     'inspect-blue',
     'inspect-blue',
+    'maintenance',
+    'stop-green',
+    'inspect-green',
     'start',
   ]);
   expect(attempt.isBlueRunning()).toBe(false);
@@ -258,6 +308,9 @@ test('candidate starts only after exact outgoing ID was stopped and inspected', 
     'stop-blue',
     'inspect-blue',
     'inspect-blue',
+    'maintenance',
+    'stop-green',
+    'inspect-green',
     'start',
   ]);
 });
@@ -279,6 +332,9 @@ test('startup failure retains boot exposure and never authorizes schema recovery
     'stop-blue',
     'inspect-blue',
     'inspect-blue',
+    'maintenance',
+    'stop-green',
+    'inspect-green',
     'start',
   ]);
   expect(attempt.isBlueRunning()).toBe(false);
@@ -294,7 +350,7 @@ test('possible alias exposure is persisted before an alias operation can partly 
   };
   await refuses(execute(plan, image, 'deadbeef', attempt.io), 'explicit recovery');
   expect(attempt.events).toContain('alias');
-  expect(attempt.events).not.toContain('stop-green');
+  expect(attempt.events.filter((event) => event === 'stop-green')).toHaveLength(1);
   expect(attempt.isBlueRunning()).toBe(false);
   expect(await readFile(join(attempt.root, 'be-writer-exposure.json'), 'utf8')).toContain(image);
 });
@@ -415,7 +471,7 @@ test('backend preparation validates frozen Compose input before returning its no
     '/fixture/be.phase',
     backendPreparation(root, events),
   );
-  expect(events).toEqual(['read', 'read', 'read', 'write', 'write', 'config', 'write']);
+  expect(events).toEqual(['read', 'read', 'read', 'write', 'write', 'config', 'write', 'write']);
   await start.start();
   expect(events.slice(-2)).toEqual(['phase', 'start:never']);
   expect(events.filter((event) => event === 'read')).toHaveLength(3);
@@ -550,6 +606,9 @@ test('a pre-existing idle backend is stopped and inspected before the new candid
     'inspect-green',
     'inspect-blue',
     'inspect-green',
+    'maintenance',
+    'stop-green',
+    'inspect-green',
     'start',
   ]);
 });
@@ -609,11 +668,13 @@ function backendPreparation(
   events: string[],
 ): NonNullable<Parameters<typeof prepareBackend>[4]> {
   const oidcPath = '/fixture/oidc.env';
+  const frozen = new Map<string, string>();
   return {
     databaseHostRoot: root,
     resolveMount: (path) => realpath(path.replace(ROOT, root)),
     oidcEnvPath: oidcPath,
     readText: (path) => {
+      if (frozen.has(path)) return Promise.resolve(frozen.get(path)!);
       events.push('read');
       if (path.endsWith('/be-01.env'))
         return Promise.resolve(
@@ -627,7 +688,8 @@ function backendPreparation(
         'INTERNAL_AUTH_SECRET=shared-internal-secret-value-of-32-chars\nJWT_SIGNING_KEY_CURRENT=signing-key-value-at-least-32-characters\n',
       );
     },
-    writeAtomicFile: () => {
+    writeAtomicFile: (path, contents) => {
+      frozen.set(path, contents);
       events.push('write');
       return Promise.resolve();
     },
@@ -636,6 +698,12 @@ function backendPreparation(
       return Promise.resolve();
     },
     runDocker: (args) => {
+      if (args[0] === 'image')
+        return Promise.resolve(
+          args[3] === '{{.Id}}'
+            ? `sha256:${'c'.repeat(64)}`
+            : JSON.stringify('/app/apps/wbs/be-01'),
+        );
       events.push(
         args.includes('config')
           ? 'config'
@@ -791,6 +859,7 @@ test('backend startup force-recreates a private resolved snapshot and preserves 
       return prepared.writeAtomicFile(path, contents, mode);
     },
     runDocker: async (args) => {
+      if (args[0] === 'image') return prepared.runDocker(args);
       if (!args.includes('config')) {
         started.push(args);
         return '';
@@ -1006,3 +1075,185 @@ test('an unrelated writable regular file is accepted with distinct physical iden
   );
   expect(writers.size).toBe(0);
 });
+
+for (const fault of ['maintenance-drift', 'maintenance-running', 'migration-failure'] as const) {
+  test(`maintenance ${fault} retains recovery authority without app exposure`, async () => {
+    const attempt = await fixture(fault);
+    await refuses(execute(attempt.plan, image, 'deadbeef', attempt.io), 'explicit recovery');
+    expect(attempt.isBlueRunning()).toBe(false);
+    expect(attempt.events).not.toContain('start');
+    expect(await readFile(join(attempt.root, 'be-writer-maintenance.json'), 'utf8')).toContain(
+      maintenanceId,
+    );
+    await refuses(readFile(join(attempt.root, 'be-writer-exposure.json'), 'utf8'), 'ENOENT');
+    await refuses(assertNoWriterBarrier(attempt.root), 'explicit recovery');
+  });
+}
+
+test('application exposure refuses a plan that omitted exact maintenance stop proof', async () => {
+  const attempt = await fixture();
+  await refuses(
+    execute(
+      { ...attempt.plan, steps: attempt.plan.steps.filter((step) => step !== 'stop-maintenance') },
+      image,
+      'deadbeef',
+      attempt.io,
+    ),
+    'maintenance proof',
+  );
+  expect(attempt.events).not.toContain('start');
+});
+
+test('capture persistence failure retains inert maintenance and never starts app or forward migration', async () => {
+  const attempt = await fixture();
+  await refuses(
+    execute(attempt.plan, image, 'deadbeef', {
+      ...attempt.io,
+      writeCapture: () => Promise.reject(new Error('capture disk failure')),
+    }),
+    'capture disk failure',
+  );
+  expect(attempt.isBlueRunning()).toBe(false);
+  expect(attempt.events).not.toContain('start');
+  await refuses(readFile(join(attempt.root, 'be-writer-migration.json'), 'utf8'), 'ENOENT');
+  await refuses(readFile(join(attempt.root, 'be-writer-exposure.json'), 'utf8'), 'ENOENT');
+});
+
+test('failed app exposure publication keeps completed migration evidence and refuses app boot', async () => {
+  const attempt = await fixture();
+  const original = attempt.io.sh;
+  await refuses(
+    execute(attempt.plan, image, 'deadbeef', {
+      ...attempt.io,
+      sh: async (args) => {
+        const output = await original(args);
+        if (args.includes('src/migrate-cli.ts'))
+          await mkdir(join(attempt.root, 'be-writer-exposure.json'));
+        return output;
+      },
+    }),
+    'explicit recovery',
+  );
+  expect(attempt.events).not.toContain('start');
+  expect(await readFile(join(attempt.root, 'be-writer-migration.json'), 'utf8')).toContain(image);
+  expect(attempt.isBlueRunning()).toBe(false);
+});
+
+test('altered private maintenance snapshot refuses before container startup', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'maintenance-snapshot-'));
+  roots.push(root);
+  await mkdir(join(root, 'data'));
+  const sqlite = new Database(join(root, 'data/wbs.db'));
+  sqlite.run(
+    'CREATE TABLE __drizzle_migrations (name text); INSERT INTO __drizzle_migrations VALUES ("baseline");',
+  );
+  sqlite.close();
+  const events: string[] = [];
+  const prepared = backendPreparation(root, events);
+  let tampered = false;
+  const candidate = await prepareBackend('be', 'green', image, '/fixture/be.phase', {
+    ...prepared,
+    readText: (path) =>
+      tampered && path.endsWith('.compose.json') ? Promise.resolve('{}') : prepared.readText(path),
+  });
+  tampered = true;
+  await refuses(candidate.startMaintenance(), 'snapshot hash differs');
+  expect(events).not.toContain('start:never');
+});
+
+for (const fault of ['none', 'id', 'image', 'entrypoint'] as const) {
+  test(`prepared maintenance proves exact Docker receipt ${fault} before database CLI`, async () => {
+    const root = await mkdtemp(join(tmpdir(), 'maintenance-receipt-'));
+    roots.push(root);
+    await mkdir(join(root, 'data'));
+    const sqlite = new Database(join(root, 'data/wbs.db'));
+    sqlite.run(
+      'CREATE TABLE __drizzle_migrations (name text); INSERT INTO __drizzle_migrations VALUES ("baseline");',
+    );
+    sqlite.close();
+    const events: string[] = [];
+    const prepared = backendPreparation(root, events);
+    const commands: string[][] = [];
+    const candidate = await prepareBackend('be', 'green', image, '/fixture/be.phase', {
+      ...prepared,
+      runDocker: async (args) => {
+        commands.push(args);
+        if (args[0] !== 'inspect') return prepared.runDocker(args);
+        if (args[2] === '{{.Id}}') return maintenanceId;
+        return JSON.stringify({
+          Id: fault === 'id' ? incomingId : maintenanceId,
+          Image: `sha256:${(fault === 'image' ? 'd' : 'c').repeat(64)}`,
+          State: { Running: true, Paused: false, Restarting: false },
+          Config: {
+            Image: image,
+            Entrypoint:
+              fault === 'entrypoint'
+                ? ['application']
+                : ['bun', '-e', 'setInterval(() => {}, 60000)'],
+            Cmd: null,
+            WorkingDir: '/app/apps/wbs/be-01',
+            Env: ['DB_PATH=/data/wbs.db'],
+            Healthcheck: { Test: ['NONE'] },
+          },
+          HostConfig: {
+            Init: true,
+            Privileged: false,
+            CapAdd: null,
+            PidMode: '',
+            RestartPolicy: { Name: 'no' },
+            PortBindings: null,
+          },
+          Mounts: [{ Type: 'bind', Source: `${ROOT}/data`, Destination: '/data', RW: true }],
+        });
+      },
+    });
+    if (fault === 'none') {
+      expect(await candidate.startMaintenance()).toBe(maintenanceId);
+      await candidate.verifyMaintenance(maintenanceId);
+      expect(commands.filter((args) => args[0] === 'inspect').map((args) => args[3])).toEqual([
+        'be-01-green',
+        maintenanceId,
+        maintenanceId,
+      ]);
+    } else await refuses(candidate.startMaintenance(), 'maintenance');
+    expect(commands.some((args) => args[0] === 'exec')).toBe(false);
+  });
+}
+
+for (const fault of ['image-absent', 'image-malformed', 'working-directory-absent'] as const) {
+  test(`candidate immutable image metadata ${fault} refuses during preflight`, async () => {
+    const root = await mkdtemp(join(tmpdir(), 'maintenance-image-'));
+    roots.push(root);
+    await mkdir(join(root, 'data'));
+    const sqlite = new Database(join(root, 'data/wbs.db'));
+    sqlite.run(
+      'CREATE TABLE __drizzle_migrations (name text); INSERT INTO __drizzle_migrations VALUES ("baseline");',
+    );
+    sqlite.close();
+    const events: string[] = [];
+    const prepared = backendPreparation(root, events);
+    await refuses(
+      prepareBackend('be', 'green', image, '/fixture/be.phase', {
+        ...prepared,
+        runDocker: async (args) => {
+          if (args[0] === 'image' && args[3] === '{{.Id}}' && fault.startsWith('image'))
+            return fault === 'image-absent' ? '' : 'not-a-digest';
+          if (args[0] === 'image' && args[3] !== '{{.Id}}' && fault === 'working-directory-absent')
+            return 'null';
+          const output = await prepared.runDocker(args);
+          if (args.includes('config')) {
+            const config = JSON.parse(output) as {
+              services: Record<string, { working_dir?: string }>;
+            };
+            config.services['be-01-green'].working_dir = '/app/apps/wbs/be-01';
+            return JSON.stringify(config);
+          }
+          return output;
+        },
+      }),
+      fault.startsWith('image') ? 'image identity' : 'working directory',
+    );
+    expect(events).not.toContain('phase');
+    expect(events).not.toContain('start:never');
+  });
+}

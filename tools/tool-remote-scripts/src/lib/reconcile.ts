@@ -15,6 +15,8 @@ export type SwapStep =
   | 'record-writer-stop'
   | 'verify-blue-stopped'
   | 'stored-vocabularies-before-start'
+  | 'start-maintenance'
+  | 'stop-maintenance'
   | 'record-writer-exposure'
   | 'start-green'
   | 'stored-vocabularies'
@@ -71,11 +73,13 @@ export function planSwap(tier: Tier, observed: Observed): SwapPlan {
         'stop-blue',
         'verify-blue-stopped',
         'stored-vocabularies-before-start',
+        'start-maintenance',
+        'backup-db',
+        'migrate',
+        'stop-maintenance',
         'record-writer-exposure',
         'start-green',
         'stored-vocabularies',
-        'backup-db',
-        'migrate',
         'health-gate',
         'stored-vocabularies-after-stop',
         'backfill-step-codes',

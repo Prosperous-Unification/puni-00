@@ -30,6 +30,12 @@ import {
   resolveDatabaseHost,
 } from './lib/backend-config';
 import {
+  assertMaintenanceContainer,
+  type BackendSnapshot,
+  backendWorkingDirectory,
+  maintenanceConfig,
+} from './lib/backend-maintenance';
+import {
   assertDigestPinnedRef,
   assertOidcEnvAllowed,
   assertTierEnvAllowed,
@@ -559,6 +565,10 @@ export async function prepareGreen(
 /** One fully validated candidate, bound to its effective database and private config snapshot. */
 export interface PreparedBackend {
   start: () => Promise<void>;
+  startMaintenance: () => Promise<string>;
+  verifyMaintenance: (identity: string) => Promise<void>;
+  snapshots: { application: BackendSnapshot; maintenance: BackendSnapshot };
+  imageId: string;
   databasePath: string;
   databaseHostPath: string;
 }
@@ -643,19 +653,62 @@ export async function prepareBackend(
   // Proof: omitting identity equality admitted a different candidate file bind after app preflight; its negative failed.
   if (effective.databasePath !== databasePath || effective.databaseHostPath !== configuredHostPath)
     throw new Error('candidate effective database differs from validated database identity');
-  const snapshotPath = `${CURRENT_ENV.stateDir}/backend-${to}-${randomUUID()}.compose.json`;
-  // Compose config has resolved env_file/interpolation. Escape literal dollars
-  // so reloading this private snapshot cannot interpolate operator values again.
-  await deps.writeAtomicFile(
-    snapshotPath,
-    merged.replaceAll('$', () => '$$'),
-    0o600,
+  const attempt = randomUUID();
+  const serviceName = containerName(tier, to);
+  const imageId = (await deps.runDocker(['image', 'inspect', '--format', '{{.Id}}', image])).trim();
+  // Proof: omitting this check admitted the absent-image preflight negative before writer stop.
+  if (!/^sha256:[a-f0-9]{64}$/.test(imageId))
+    throw new Error('candidate local image identity is malformed');
+  const imageDirectory: unknown = JSON.parse(
+    await deps.runDocker(['image', 'inspect', '--format', '{{json .Config.WorkingDir}}', image]),
   );
+  // Proof: omitting this check admitted absent image metadata even with a valid service workdir.
+  if (typeof imageDirectory !== 'string')
+    throw new Error('candidate image working directory is malformed');
+  const resolved = backendWorkingDirectory(merged, serviceName, imageDirectory);
+  const application = resolved.replaceAll('$', () => '$$');
+  const maintenance = maintenanceConfig(resolved, serviceName).replaceAll('$', () => '$$');
+  const freeze = async (mode: string, contents: string): Promise<BackendSnapshot> => {
+    const path = `${CURRENT_ENV.stateDir}/backend-${to}-${attempt}-${mode}.compose.json`;
+    await deps.writeAtomicFile(path, contents, 0o600);
+    return { path, sha256: createHash('sha256').update(contents).digest('hex') };
+  };
+  const snapshots = {
+    application: await freeze('application', application),
+    maintenance: await freeze('maintenance', maintenance),
+  };
+  const startSnapshot = async (snapshot: BackendSnapshot): Promise<void> => {
+    const retained = await deps.readText(snapshot.path);
+    // Proof: altered private snapshot negative refuses before Compose can read replacement bytes.
+    if (createHash('sha256').update(retained).digest('hex') !== snapshot.sha256)
+      throw new Error('backend private snapshot hash differs');
+    await deps.runDocker(backendStartArgs(snapshot.path, serviceName, ROOT));
+  };
+  const verifyMaintenance = async (identity: string): Promise<void> => {
+    assertMaintenanceContainer(
+      await deps.runDocker(['inspect', '--format', '{{json .}}', identity]),
+      identity,
+      imageId,
+      maintenanceConfig(resolved, serviceName),
+      serviceName,
+    );
+  };
   return {
     ...effective,
+    snapshots,
+    imageId,
+    verifyMaintenance,
+    startMaintenance: async () => {
+      await startSnapshot(snapshots.maintenance);
+      const identity = (
+        await deps.runDocker(['inspect', '--format', '{{.Id}}', serviceName])
+      ).trim();
+      await verifyMaintenance(identity);
+      return identity;
+    },
     start: async () => {
       await deps.writePhaseFile(phasePath, 'preparing');
-      await deps.runDocker(backendStartArgs(snapshotPath, containerName(tier, to), ROOT));
+      await startSnapshot(snapshots.application);
     },
   };
 }
@@ -1307,6 +1360,9 @@ export async function execute(
   let writerStopped = false;
   let stopProven = false;
   let possiblyExposed = false;
+  let maintenanceId: string | null = null;
+  let maintenanceStopped = false;
+  let migrationCompleted = false;
   // Captured before this attempt writes anything, so an abort can put the
   // phase marker back to exactly what it said before — it must never
   // contradict be.json, which an aborted swap also leaves untouched.
@@ -1545,6 +1601,7 @@ export async function execute(
             throw new Error('unowned backend writer exists; explicit recovery required');
           writerIntent = {
             candidate: image,
+            snapshots: { imageId: backendPrepared.imageId, ...backendPrepared.snapshots },
             sha,
             from,
             to,
@@ -1600,9 +1657,33 @@ export async function execute(
             io.namespaceProof,
           );
           break;
+        case 'start-maintenance': {
+          if (backendPrepared === null || writerIntent === null || !stopProven || possiblyExposed)
+            throw new Error('maintenance startup lacks exclusive stopped-writer proof');
+          maintenanceId = await backendPrepared.startMaintenance();
+          Object.assign(writerIntent, {
+            maintenance: {
+              identity: maintenanceId,
+              imageId: backendPrepared.imageId,
+              ...backendPrepared.snapshots,
+            },
+          });
+          // Proof: receipt publication failure refuses before backup/capture/migration; no app has started.
+          await writeWriterBarrier(barrierRoot, 'maintenance', writerIntent);
+          break;
+        }
+        case 'stop-maintenance':
+          if (maintenanceId === null || backendPrepared === null || !migrationCompleted)
+            throw new Error('maintenance stop lacks completed migration identity');
+          await backendPrepared.verifyMaintenance(maintenanceId);
+          await io.sh(['stop', maintenanceId]);
+          // Proof: running/replaced maintenance stop negatives refuse app exposure and startup.
+          await assertContainerStopped(maintenanceId, io.sh);
+          maintenanceStopped = true;
+          break;
         case 'record-writer-exposure':
-          if (writerIntent === null || !stopProven)
-            throw new Error('backend exposure lacks stopped-writer proof');
+          if (writerIntent === null || !stopProven || !maintenanceStopped || !migrationCompleted)
+            throw new Error('backend exposure lacks stopped-writer and maintenance proof');
           // Proof: omitting persistence failed six protected startup paths; the startup callback observed no durable boot marker.
           await writeWriterBarrier(barrierRoot, 'exposure', writerIntent);
           // Proof: forgetting exposure stopped the partly-exposed candidate; partial-alias failure negative failed.
@@ -1625,13 +1706,16 @@ export async function execute(
         }
 
         case 'backup-db': {
-          // Before the migrate step changes the schema blue is serving from:
-          // a failure aborts with nothing migrated. The snapshot is the
-          // rollback once blue has stopped or a down script cannot be trusted;
-          // docs/runbook-prod-deploy.md#first-product-deploy restores it.
+          const maintenance = writerStopped ? maintenanceId : greenName;
+          if (maintenance === null || (writerStopped && backendPrepared === null))
+            throw new Error('backup lacks maintenance identity');
+          if (writerStopped && backendPrepared !== null)
+            await backendPrepared.verifyMaintenance(maintenance);
+          // The stopped backend uses its proven inert maintenance ID; the
+          // verified snapshot remains recovery evidence, never automatic restore authority.
           const snapshotPath = backupSnapshotPath(sha, new Date());
           const reported = parseBackupReport(
-            await io.sh(backupDbCommand(greenName, snapshotPath)),
+            await io.sh(backupDbCommand(maintenance, snapshotPath)),
             snapshotPath,
           );
           console.log(`[swap-${tier}] backed up to ${reported} (host: ${ROOT}/data/backups)`);
@@ -1639,14 +1723,13 @@ export async function execute(
         }
 
         case 'migrate': {
-          // Discrete step before green takes traffic: a failed migration
-          // aborts the deploy with the old colour untouched and un-migrated
-          // (decision 10). Green is stopped rather than left running, because a
-          // container that failed to migrate must not be one health-gate away
-          // from taking traffic on a later run. Thrown bare — the outer
-          // try/catch below delegates to abortSwap for every step at or
-          // before 'reload'.
-          //
+          const maintenance = writerStopped ? maintenanceId : greenName;
+          if (maintenance === null || (writerStopped && backendPrepared === null))
+            throw new Error('migration lacks maintenance identity');
+          if (writerStopped && backendPrepared !== null)
+            await backendPrepared.verifyMaintenance(maintenance);
+          // Forward migration runs before any application boot. Capture bytes,
+          // identity and durable migration intent must survive a failed CLI.
           // The exact set is captured by the incoming image before it can change the
           // shared schema, then persisted and read back under the owner state root.
           // A failed capture leaves migrationCapture unset, so no forward CLI runs.
@@ -1655,7 +1738,7 @@ export async function execute(
             attempt: randomUUID(),
             candidate: image,
           };
-          const databasePath = (await io.sh(migrationDatabasePathCommand(greenName))).trim();
+          const databasePath = (await io.sh(migrationDatabasePathCommand(maintenance))).trim();
           // Proof: accepting an unmounted or missing path made the pinned recovery
           // command unusable after green was stopped.
           if (!/^\/data\/[A-Za-z0-9_./-]+$/.test(databasePath) || databasePath.includes('..')) {
@@ -1663,8 +1746,10 @@ export async function execute(
               `green DB_PATH is not under the mounted /data directory: ${databasePath}`,
             );
           }
+          if (writerStopped && backendPrepared !== null)
+            await backendPrepared.verifyMaintenance(maintenance);
           const reported: unknown = JSON.parse(
-            await io.sh(migrateCaptureCommand(greenName, identity)),
+            await io.sh(migrateCaptureCommand(maintenance, identity)),
           );
           const captured = parseMigrationSetCapture(reported, identity);
           const path = `${io.captureStateDir ?? CURRENT_ENV.stateDir}/migration-${greenName}-${identity.attempt}.json`;
@@ -1700,7 +1785,10 @@ export async function execute(
               },
             });
           }
-          await io.sh(migrateCommand(greenName));
+          if (writerStopped && backendPrepared !== null)
+            await backendPrepared.verifyMaintenance(maintenance);
+          await io.sh(migrateCommand(maintenance));
+          migrationCompleted = true;
           break;
         }
 
@@ -1901,7 +1989,12 @@ export async function execute(
             await (io.removeCapture ?? ((file) => unlink(file)))(migrationCapture.path);
           }
           // Proof: omitting cleanup failed the complete planned commit on retained interruption state.
-          if (writerStopped) await clearWriterBarrier(barrierRoot, migrationCapture !== null);
+          if (writerStopped)
+            await clearWriterBarrier(
+              barrierRoot,
+              migrationCapture !== null,
+              maintenanceId !== null,
+            );
           break;
       }
     } catch (e: unknown) {
@@ -1917,7 +2010,7 @@ export async function execute(
           `backend transition failed during ${step}: ${e instanceof Error ? e.message : String(e)}; ` +
             `explicit recovery required; retain ${barrierRoot}/be-writer-stop.json and exposure marker; ` +
             `never restart ${from ?? 'an older writer'} or restore a snapshot after possible exposure; ` +
-            `candidate pinned image ${image}${capture}; see docs/runbook-prod-deploy.md#backend-writer-barrier-recovery`,
+            `candidate pinned image ${image}${capture}; maintenance ${maintenanceId ?? 'not recorded'}; migration intent ${migrationCapture === null ? 'absent' : 'retained: schema may have changed'}; app exposure ${possiblyExposed ? 'possible' : 'not recorded; absence must be proved'}; see docs/runbook-prod-deploy.md#backend-writer-barrier-recovery`,
           { cause: e },
         );
       }
