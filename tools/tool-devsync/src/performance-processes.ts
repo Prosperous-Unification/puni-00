@@ -45,6 +45,10 @@ const libc =
       })
     : undefined;
 
+/**
+ * Reads the process identity, returning undefined only for ENOENT or ESRCH disappearance.
+ * @throws For other stat read failures or malformed identity fields.
+ */
 function readIdentity(pid: number): ProcessIdentity | undefined {
   let source: string;
   try {
