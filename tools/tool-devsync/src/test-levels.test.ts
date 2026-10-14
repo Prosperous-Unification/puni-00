@@ -900,7 +900,7 @@ LIST_JSON="$listing" LIST_PHASE="$phase" "$REAL_BUN" -e 'const path=process.env.
     const command = manifest.targets[target.target]?.options?.command;
     if (command === undefined) throw new Error('SQLite API command is absent');
     const absent = command.replace(
-      "find src -name '*.db.test.ts' ! -name 'source-conformance.db.test.ts'",
+      "find ./src -name '*.db.test.ts' ! -name 'source-conformance.db.test.ts'",
       'printf src/absent.db.test.ts',
     );
     expect(absent).not.toBe(command);
@@ -918,7 +918,7 @@ LIST_JSON="$listing" LIST_PHASE="$phase" "$REAL_BUN" -e 'const path=process.env.
     const command = manifest.targets[target.target]?.options?.command;
     if (command === undefined) throw new Error('SQLite API command is absent');
     const empty = command.replace(
-      "find src -name '*.db.test.ts' ! -name 'source-conformance.db.test.ts'",
+      "find ./src -name '*.db.test.ts' ! -name 'source-conformance.db.test.ts'",
       'printf ""',
     );
     expect(empty).not.toBe(command);
@@ -933,8 +933,8 @@ LIST_JSON="$listing" LIST_PHASE="$phase" "$REAL_BUN" -e 'const path=process.env.
     const command = manifest.targets['test:unit:level']?.options?.command;
     if (command === undefined) throw new Error('memory Unit selector is absent');
     const omitted = command.replace(
-      "find src -name '*.test.ts' ! -path 'src/testing/source-conformance.test.ts'",
-      "find src -name '*.test.ts' ! -name 'space-fixture.test.ts' ! -path 'src/testing/source-conformance.test.ts'",
+      "find ./src -name '*.test.ts' ! -path './src/testing/source-conformance.test.ts'",
+      "find ./src -name '*.test.ts' ! -name 'space-fixture.test.ts' ! -path './src/testing/source-conformance.test.ts'",
     );
     expect(omitted).not.toBe(command);
     const scratch = mkdtempSync(join(tmpdir(), 'test-level-omitted-'));
@@ -1307,6 +1307,86 @@ LIST_JSON="$listing" LIST_PHASE="$phase" "$REAL_BUN" -e 'const path=process.env.
       }
     }
   }, 30_000);
+
+  // Proof: removing each of the six manifest find prefixes separately ran its nested
+  // marker/throw decoys and failed the command exit assertion (2026-10-14).
+  // Proof: reverting only Memory Unit's exclusion to the bare path ran the excluded
+  // Conformance marker/throw fixture and failed this command assertion (2026-10-14).
+  for (const target of LEVEL_TARGETS) {
+    it(`[TEST-AXES-092] executes exact find operands for ${target.project}:${target.target}`, async () => {
+      const manifest = await readManifest(target.root);
+      const command = manifest.targets[target.target]?.options?.command;
+      if (command === undefined) throw new Error('declared level command is absent');
+      const scratchRoot = mkdtempSync(join(tmpdir(), 'test-level-exact-'));
+      try {
+        const projectRoot = join(scratchRoot, target.root);
+        const report = join(scratchRoot, target.report);
+        const selected =
+          target.level === 'conformance'
+            ? [
+                target.project === 'wbs-store-memory'
+                  ? 'src/testing/source-conformance.test.ts'
+                  : 'src/testing/source-conformance.db.test.ts',
+              ]
+            : ['first', 'second'].map(
+                (name) => `src/${name}.${target.level === 'api' ? 'db.' : ''}test.ts`,
+              );
+        mkdirSync(dirname(report), { recursive: true });
+        writeFileSync(
+          report,
+          '<testsuites><testsuite><testcase name="stale" file="old"/></testsuite></testsuites>',
+        );
+        for (const file of selected) {
+          mkdirSync(dirname(join(projectRoot, file)), { recursive: true });
+          writeFileSync(
+            join(projectRoot, file),
+            `import { test, expect } from 'bun:test'; test('${file}', () => expect(true).toBe(true));\n`,
+          );
+          const decoy = join(projectRoot, 'nested', file);
+          mkdirSync(dirname(decoy), { recursive: true });
+          writeFileSync(
+            decoy,
+            `import { writeFileSync } from 'node:fs'; writeFileSync('decoy-ran', 'ran'); throw new Error('nested decoy executed');\n`,
+          );
+        }
+        if (target.project === 'wbs-store-memory' && target.level === 'unit') {
+          const excluded = join(projectRoot, 'src/testing/source-conformance.test.ts');
+          mkdirSync(dirname(excluded), { recursive: true });
+          writeFileSync(
+            excluded,
+            `import { writeFileSync } from 'node:fs'; writeFileSync('conformance-ran', 'ran'); throw new Error('Conformance executed in Unit');\n`,
+          );
+        }
+        const invocation = Bun.spawnSync(['sh', '-c', command], {
+          cwd: projectRoot,
+          stdout: 'pipe',
+          stderr: 'pipe',
+        });
+        const output = `${invocation.stdout.toString()}${invocation.stderr.toString()}`;
+        expect(invocation.exitCode, output).toBe(0);
+        expect(existsSync(join(projectRoot, 'decoy-ran'))).toBe(false);
+        expect(existsSync(join(projectRoot, 'conformance-ran'))).toBe(false);
+        expect(
+          [...readJUnitReport(readFileSync(report, 'utf8'))].sort((left, right) =>
+            left.file.localeCompare(right.file),
+          ),
+        ).toEqual(selected.sort().map((file) => ({ name: file, file, outcome: 'passed' })));
+      } finally {
+        rmSync(scratchRoot, { recursive: true, force: true });
+      }
+    });
+  }
+
+  // Proof: removing collectedFiles' one-prefix canonicalization failed this assertion
+  // and the real level collection comparison (2026-10-14).
+  it('canonicalizes exactly one leading dot slash from collected operands', () => {
+    expect(
+      collectedFiles(
+        'libs/wbs/adapters/store-memory',
+        "printf './src/first.test.ts\\n././src/second.test.ts\\n'",
+      ),
+    ).toEqual(['./src/second.test.ts', 'src/first.test.ts']);
+  });
 
   // Three shell spawns and three directory walks: the batch-2 brief's rule for a
   // test that spawns more than twice.

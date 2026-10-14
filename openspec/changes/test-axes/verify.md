@@ -3025,3 +3025,30 @@ Baseline runner tests: 13 pass, 0 fail, 53 assertions. Initial production subpro
 | Changed-file `bunx prettier --check`, `git diff --check`, pinned `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate test-axes --strict`                                                                                                                                                                                                                       | Exit 0 for all three; OpenSpec reported `Change 'test-axes' is valid`.                                                                                                                                              |
 
 No full raw Nx gate, h2puni exact-SHA gate, push, publication, authenticated receipt, admission, sync or archive was performed. The coordinator owns the exact-SHA host gate after independent review. Tasks 2.1/2.2/4.1 remain open; operational execution grants no certification.
+
+## Task 2.1j — literal find-based Bun operands (2026-10-14)
+
+Base: exact #422 `c474100c5158f213e805db095025e7c94906bac3`; isolated worktree `/tmp/puni-test-axes-21j`. Scenario TEST-AXES-092 is allocated in the existing journal. Scope: the six existing Memory Unit/Conformance, SQLite API/Unit/Conformance and core Unit commands; existing shell-compatible paths only, with no whitespace/glob safety claim. Task 2.1, trusted receipts, coverage and admission remain open.
+
+The production manifest commands now start find at `./src` or `./src/testing`. Memory Unit's exact path exclusion includes the prefix. `collectedFiles` removes exactly one leading `./` for canonical project-relative comparison. Report clearing, no-cases guard, selector-error propagation, command scopes, timeouts and flags are preserved. Literal command replacement fixtures were updated with the changed selectors.
+
+TDD RED: `bun test tools/tool-devsync/src/test-levels.test.ts --test-name-pattern 'executes exact find operands|canonicalizes exactly'` exited 1: zero pass, seven fail. All six real `sh -c` manifest commands executed nested marker/throw decoys outside their selector root; bare Bun operands acted as substring filters. The canonicalization assertion retained unwanted prefixes. GREEN after the bounded changes: exit 0, seven pass, zero fail, 25 assertions. Each Unit/API scratch project selects two files; each Conformance project uses its source filename. Every successful run overwrites stale JUnit with exactly the canonical selected passing cases and leaves decoy markers absent. Memory Unit also excludes a marker/throw Conformance fixture.
+
+Watched production mutations (restored afterward):
+
+- Remove each of the six find prefixes independently, retaining its original matching exclusion: each real command executed its nested decoys and failed the command assertion.
+- Revert only Memory Unit's exclusion to the bare path: the excluded Conformance fixture executed and failed the command assertion.
+- Remove `collectedFiles` canonicalization: the one-prefix assertion and real level collection comparison failed. The assertion also proves a second leading prefix is preserved.
+
+Focused validation:
+
+- `bun test tools/tool-devsync/src/test-levels.test.ts --timeout=60000`: exit 0, 99 pass, zero fail, 342 assertions. Existing selector-error, empty-selection and stale-report cases remain green.
+- `bun test libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts --timeout=30000`: exit 0, 146 pass, zero fail, 11,624 assertions.
+- `bun tools/tool-devsync/src/verify-test-levels-cli.ts`: exit 0, `Verified declared test collections`. An initial overlapping execution observed a temporary uncollected fixture created by the collection tests; sequential execution passed after those tests completed.
+- `bunx tsc --build --force tools/tool-devsync/tsconfig.json`: exit 0 after fixing the test's readonly-array sort with a copied array; initial check caught that test-only type error.
+- `NX_DAEMON=false bunx nx graph --file=/tmp/test-axes-21j-graph.json` then changed-source `bunx eslint`: both exit 0. Nx used its documented in-process fallback when plugin worker sockets were denied; final ESLint had no skipped ProjectGraph boundary warning. Initial ESLint before graph creation skipped module boundaries and is not the final lint evidence.
+- `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate test-axes --strict --json`: exit 0, one valid change, zero issues.
+
+Changed-file format and whitespace checks are recorded after this entry. The canonical h2puni host gate remains coordinator-owned and has not been run by this isolated implementation agent; no whole-tree gate success is claimed.
+
+Final restored-code validation: the 99-test collection/command suite again exited 0 with 342 assertions; changed-file `bunx prettier --check` and `git diff --check` exited 0. Host gate remains pending coordinator review.
