@@ -1886,3 +1886,13 @@ _Avoid_: restore session, operator session
 One organization's personal super-admin authorization for a specific restore operation and
 canonical backup digest.
 _Avoid_: operator assertion, delegated approval
+
+**Restore receipt**:
+The durable completion record for one restore operation, with its original canonical backup
+binding, stable recovery counts and exact consumed approval set.
+_Avoid_: restore log, retry token
+
+**Restore consumption**:
+The durable link between a completed restore operation and one personally issued organization
+approval used by that recovery.
+_Avoid_: operator attestation, approval deletion

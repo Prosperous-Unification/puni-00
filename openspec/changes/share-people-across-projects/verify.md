@@ -4974,3 +4974,95 @@ containers, six unreadable volume sources, physical colour mismatch and running 
 above. These proofs do not claim that stopping containers resolves unreadable source identity.
 No production action, container stop or database write was performed. The exact-SHA canonical
 gate, upstream-stack correction, publication and activation remain pending.
+
+## Installed audited restore transaction (WBS 010.4.16 / 10.3a)
+
+Scope: installed synchronous SQLite restore owner, receipt/consumption schema and host dispatch.
+`SUPPORTED_CAPACITY_MODES` remains `['isolated']`. Shared physical recovery is disabled before
+opening a writable connection; 10.3b, aggregate 10.3 and 10.4 remain open. No live host actions,
+production container stops, deployment or push were performed. The previously recorded h2
+inspection is not a fresh acceptance: blue/green physical identity disagrees, six additional
+running containers have same-device writable directories, and six mount sources are unreadable.
+These remain attended-operation blockers; stopping a container does not fix unreadable sources.
+
+The owner binds the original digest and exact personal approval set on one immediate transaction.
+Current local recorded actors must still be super-admins. Saved organizations must exist; all
+current modes must be isolated and ranks empty. Historical ranks, actual mode changes, attributed
+audits, all owned project events (including unranked projects), stable receipt and consumption
+commit together. Extra isolated organizations survive. Rank-only recovery consumes its approvals
+without a mode audit/event. A cold retry validates completion first and returns the original
+receipt despite later edits; changed digest/IDs or incomplete consumption refuse. Completion
+closes new approval issuance; identical existing personal approval retries remain available.
+The legacy container-local path independently refuses shared backups even in a test-supported
+release. Host dispatch retains the original single backup read and one writer connection.
+
+### RED/GREEN and R5 evidence
+
+Initial missing-owner tests failed; the first installed owner exposed the completion issuance and
+legacy shared bypasses. Host tests then failed with legacy dispatch before audited dispatch was
+installed. Logs: `/tmp/shared-restore-103a-initial-red.log`,
+`/tmp/shared-restore-103a-owner-first-green.log`, `/tmp/shared-restore-103a-host-red.log`.
+
+`python3 /tmp/shared-restore-103a-mutations.py` applied and restored **44 independent production
+faults**, each observed as a failed mounted Bun test (not a parser error). All reported `RED`;
+none survived. Each has `/tmp/shared-restore-103a-<fault>-red.log` and adjacent production `Proof:`
+comments. Faults were:
+
+- Input/identity/retry: references, operation-digest, receipt-replay, receipt-bindings,
+  receipt-completeness.
+- Eligibility/personal authority: activation, saved-org, current-isolated, empty-ranks,
+  approval-complete, approval-binding, role, member-org, member-actor, issuance-closed.
+- Actual writes/fan-out: actual-mode-only, audit-actor, mode-write, fanout-org, fanout-unranked,
+  null-cause, borrowed-events, borrowed-ranks, receipt-write, consumption-write.
+- Atomicity/exclusion: transaction (late consumption trigger left partial state without outer
+  transaction), immediate (a rival connection demoted before authorization with deferred mode).
+  Independent late event, receipt and consumption trigger negatives preserve all rows on failure.
+- Legacy/host: legacy-shared, host-dispatch, physical-capability (DELETE journal changed on bypass),
+  retained-backup (inspection replaces the backup pathname with malformed JSON).
+- Installed SQLite constraints: receipt-fk, consumption-binding-fk, consumption-receipt-fk,
+  receipt-unique, approval-consumption-unique, org-consumption-unique, check-completed_at,
+  check-organizations, check-ranks, check-mode_changes, check-events, down-completion, down-approval.
+
+Fresh GREEN after restored production code:
+
+- `bun test` on restore, approval, rollback, audit and migrate-down DB suites plus host suite:
+  **104 passed, 1 optional Docker skip, 602 assertions** (six files),
+  `/tmp/shared-restore-103a-regression.log`. An accidentally named nonexistent
+  `project-rank-rollback.db.test.ts` was not loaded; the actual project-rank suite was run below.
+- Caller suites: project-rank, shared-mode, backup parser, backup CLI, approval controller and
+  app routes: **43 passed, 1,245 assertions** (six files),
+  `/tmp/shared-restore-103a-callers-green.log`. The first run proved two frozen rollback lists stale
+  (missing approvals and receipts); minimal expectation updates restored GREEN without changing
+  migration behavior. RED: `/tmp/shared-restore-103a-callers.log`.
+- `WBS_HOST_RESTORE_REAL_DOCKER=1 WBS_HOST_RESTORE_PROOF_IMAGE=wbs-be-01:f8-v1 bun test
+apps/wbs/be-01/src/shared-people-host-restore.test.ts`: **23 passed, 188 assertions**, no skips,
+  `/tmp/shared-restore-103a-docker.log`. Real temporary local Docker mounts/states, flock lifetime,
+  owner SIGKILL/WAL rollback, alias refusal, ENOENT and EACCES source negatives remain GREEN.
+  Test-owned containers are removed; production was not contacted.
+- `bunx tsc --build apps/wbs/be-01/tsconfig.json --pretty false`: exit 0, no diagnostics,
+  `/tmp/shared-restore-103a-types-final.log`.
+- `BUN_TMPDIR=/tmp BUN_INSTALL_CACHE_DIR=/tmp/puni-bun-cache bunx @fission-ai/openspec@1.12.0
+validate share-people-across-projects --strict --json`: one valid change, zero issues,
+  `/tmp/shared-restore-103a-openspec.log`. Bare `openspec` and `bunx openspec` were unavailable;
+  the repo's pinned package invocation above succeeded.
+- Migration lint on the new migration/down pair: exit 0,
+  `/tmp/shared-restore-103a-migration-lint.log`. Forward SQL is additive; down refuses both
+  completion and earlier approval evidence before deleting schema or ledger entries.
+
+Scoped lint, formatting, final diff checks and normal commit hooks are recorded in the completion
+receipt. Full canonical h2 gate and live host acceptance are not run for this local review candidate.
+Astra review precedes any push or activation.
+
+Final scoped ESLint and Prettier checks passed, as did `git diff --check`.
+`validate --all --json` passed all 189 items. Additional `validate --all --strict --json` returned
+183/189: six unchanged main specs have inherited placeholder Purpose warnings (`dev-deploy`,
+`live-plan-snapshot`, `plan-command-registry`, `plan-import`, `saved-plans`,
+`scheduler-optimization`). Each was byte-compared with exact base d16aecf and is unchanged.
+All 171 change artifacts passed even in strict mode, including this change; no unrelated spec
+rewrites were made. Logs: `/tmp/shared-restore-103a-openspec-all{,-normal}.log`.
+
+Final combined command enabled real Docker and selected all twelve suites listed above in one
+Bun invocation: **148 passed, zero failed/skipped, 1,858 assertions** (23.44 seconds),
+`/tmp/shared-restore-103a-combined-final.log`. A read-only Docker label query returned no surviving
+test-owned containers. Final application typecheck exited 0 with no diagnostics; scoped lint,
+Prettier check and diff whitespace checks exited 0. Proposal intent remains 393 words.

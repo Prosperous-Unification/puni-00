@@ -455,3 +455,34 @@ authority. A shared backup requires diagnostic evidence for every saved organiza
 by shared mode or a rank, and still reaches the existing unsupported-mode refusal. Consumption,
 receipt, transactional membership recheck and shared writes remain 10.3; runtime activation
 remains 10.4. The existing container-local isolated CLI is preserved.
+
+### D10.3 Installed audited restore owner
+
+A synchronous SQLite owner borrows the host's retained connection and owns one immediate writer
+transaction. It validates the operation's original canonical digest before any recovery write.
+An existing receipt returns its persisted counts only after digest and exact consumed approval-set
+validation; retry never reapplies current modes/ranks or emits new audits/events, even after later
+edits. New recovery requires activated organization state, every saved organization present, all
+current organizations isolated and no ranks. Extra isolated organizations are preserved.
+
+Changed organizations are exactly the union of saved shared modes and saved rank organizations.
+Each requires one supplied approval, bound to that operation and organization, whose recorded
+personal actor is still a super-admin there on the immediate writer. Extra, duplicate, missing or
+foreign approvals refuse. Historical ranks restore through `restoreProjectRanks(tx)` on the
+borrowed transaction (nested savepoint, no independent writer). Only isolated-to-shared modes
+update organization audit fields and append mode audits attributed to those approvals. Every
+project owned by a mode-changing organization, including unranked projects, receives one durable
+null-cause `elsewhere_changed` event through `recordEventIn(tx)`; rank-only recovery emits none.
+
+Additive receipt and consumption tables persist the original digest, completion time, stable
+organization/rank/mode/event counts and exact approval IDs. Composite references bind receipt to
+operation/digest and consumption to approval/operation/organization. Evidence closes schema
+rollback. Approval issuance may return an existing identical personal approval but cannot add an
+approval to a completed operation. Writes, audit rows, event sequences, receipt and consumption
+commit together or all roll back.
+
+The host retains canonical flock, container fencing and one parsed backup; eligible requests with
+operation IDs use the installed owner on one retained connection. Shared backups still refuse
+before the writable opener while release capability remains isolated-only. The legacy local
+restore adapter refuses shared backups unconditionally, including in a test-supported release.
+Shared physical acceptance, runtime activation and attended live proofs remain 10.3b/10.4.

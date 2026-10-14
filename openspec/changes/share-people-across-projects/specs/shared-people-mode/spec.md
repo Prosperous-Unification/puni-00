@@ -868,3 +868,111 @@ are valid. The host entrypoint SHALL NOT start containers or activate runtime ca
 - **WHEN** the intermediate host entrypoint completes read-only diagnostics
 - **THEN** the existing unsupported-shared-mode refusal occurs before a writable connection opens
 - **AND** approval evidence and database journal mode remain unchanged
+
+### Requirement: Approved restore commits one durable completion without replay
+
+The installed SQLite restore owner SHALL validate the operation's original canonical backup digest
+and exact supplied approval-ID set inside one immediate writer transaction. An existing receipt
+SHALL be returned only for that same digest and exact consumed approval set, before checking
+current restore eligibility or membership. Its original completion time and organization, rank,
+mode-change and event counts SHALL remain stable; retry SHALL NOT replay state, audits or events
+following later edits. Missing or inconsistent receipt consumption SHALL refuse.
+
+A new completion SHALL require activated organization state, every saved organization present,
+all current organizations isolated and no current ranks. It SHALL preserve additional isolated
+organizations. Changed organizations SHALL be exactly saved shared-mode organizations union saved
+rank organizations. Each SHALL have exactly one supplied personally issued approval for the same
+operation, organization and original digest, whose recorded actor remains a super-admin there on
+the immediate writer. Missing, duplicate, foreign or extra approvals SHALL refuse atomically.
+
+Historical rank fields SHALL be restored through the borrowed rank writer. Only actual
+isolated-to-shared changes SHALL update organization audit fields or append a mode audit, with
+the corresponding approval actor. Every project owned by each mode-changing organization,
+including unranked projects, SHALL receive exactly one durable null-cause `elsewhere_changed`
+event on the borrowed writer. Isolated rank-only recovery SHALL produce neither mode audits nor
+mode-change events. Modes, ranks, audits, event sequences, receipt and approval-consumption links
+SHALL commit together or all roll back. Public asynchronous writers SHALL NOT be used inside
+this owner.
+
+The additive receipt schema SHALL bind the original operation/digest, completion time and
+nonnegative integer counts. Consumption SHALL bind exact approval/operation/organization
+identities and prevent duplicate consumption. Completion or pre-existing approval evidence SHALL
+prevent schema rollback without advancing the migration ledger. A completed operation SHALL NOT
+gain further approvals; an identical existing personal approval retry retains its issuance contract.
+
+The host SHALL dispatch approved requests to this owner using its retained backup and connection
+under existing flock/container preflight. This installation SHALL NOT expand supported capacity
+modes: production physical shared restore remains refused before the writable opener. Legacy
+container-local recovery SHALL refuse shared input independently of release capability, including
+in a test-supported shared release. Shared physical acceptance and activation remain later work.
+
+#### Scenario: approved shared restoration includes unranked projects
+
+- **GIVEN** an isolated organization owns four projects, only one has a saved historical rank, and its recorded personal super-admin approval matches the operation and backup
+- **WHEN** the installed owner restores its saved shared mode
+- **THEN** the historical rank and one personally attributed mode audit commit with four null-cause durable project events
+- **AND** one receipt and its exact approval-consumption link commit with the original stable counts
+
+#### Scenario: isolated rank-only restoration
+
+- **GIVEN** a saved isolated organization has a historical rank and its exact matching personal approval
+- **WHEN** recovery completes
+- **THEN** rank, receipt and consumption commit without a mode audit, organization audit update or mode-change event
+
+#### Scenario: another isolated organization contributes only a saved rank
+
+- **GIVEN** one organization changes to shared and a second remains isolated but contributes a saved rank
+- **WHEN** only the mode-changing organization's approval is supplied
+- **THEN** recovery refuses before any state or evidence commits
+- **AND** supplying both exact approvals restores both facts while emitting mode-change events only for the first organization
+
+#### Scenario: authorization changes before the writer checks it
+
+- **GIVEN** a stored approval's actor is demoted or removed from that organization while remaining a super-admin elsewhere
+- **WHEN** new recovery checks authority on its immediate writer
+- **THEN** it refuses without changing modes, ranks, audit fields, event state, receipt or consumption
+- **AND** another local super-admin's membership cannot stand in for the recorded actor
+
+#### Scenario: late receipt or consumption failure
+
+- **GIVEN** recovery has attempted mode, historical rank, audit and event writes
+- **WHEN** an event, receipt or consumption insert fails
+- **THEN** every earlier mode, rank, audit, event sequence and evidence write rolls back
+
+#### Scenario: cold retry after later edits
+
+- **GIVEN** an operation completed and its connection closed, followed by later rank/mode edits or membership removal
+- **WHEN** another connection retries the same canonical backup and exact approval set
+- **THEN** it returns the original durable receipt without eligibility reapplication or new writes
+
+#### Scenario: a completed operation is retried with another identity
+
+- **GIVEN** a durable completion receipt exists
+- **WHEN** a caller changes the backup digest or supplied approval IDs
+- **THEN** retry refuses and preserves all later state and existing completion evidence
+
+#### Scenario: an approval is requested after completion
+
+- **GIVEN** an operation has completed
+- **WHEN** a personal super-admin requests a previously unissued approval for it
+- **THEN** issuance returns `restore_approval_conflict` without adding evidence
+- **AND** the original actor may still retry an identical existing approval under its existing membership checks
+
+#### Scenario: recovery evidence prevents schema rollback
+
+- **GIVEN** receipt/consumption evidence or pre-existing operation/approval evidence is durable
+- **WHEN** rollback attempts to remove the completion schema
+- **THEN** it refuses without discarding evidence or removing the migration's ledger entry
+
+#### Scenario: installed host owner retains its backup
+
+- **GIVEN** an approved isolated recovery has read its backup once
+- **WHEN** Docker inspection replaces the backup pathname with malformed bytes
+- **THEN** the installed owner restores the retained original contents and records its receipt without rereading that pathname
+
+#### Scenario: installation grants no physical shared capability
+
+- **GIVEN** production still supports only isolated mode and a shared backup has diagnostic approval references
+- **WHEN** the physical host CLI is invoked
+- **THEN** it refuses before opening a writable database connection despite the installed transaction owner
+- **AND** the legacy container-local restore also refuses shared input even when a test release supports shared
