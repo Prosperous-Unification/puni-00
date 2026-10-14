@@ -38,6 +38,10 @@ async function fixture(fault = 'none') {
       `${(index + 2).toString()} 1 ${device} / ${destination} ${readonly ? 'ro' : 'rw'} - ext4 fixture rw`,
     );
   }
+  if (fault === 'unreadable-hardlink') {
+    await link(database, `${namespace}/data/nested/alias`);
+    await chmod(`${namespace}/data/nested`, 0);
+  }
   if (fault.startsWith('hardlink:'))
     await link(`${database}${fault.slice(9)}`, `${namespace}/data/nested/alias`);
   if (['replaced-source', 'readonly-reader', 'nested-rw', 'all-ro-nested'].includes(fault))
@@ -379,6 +383,34 @@ test('production writer inventory delegates inaccessible named-volume sources to
     expect(proof.commands.some((args) => ['stop', 'restart', 'rm'].includes(args[0]))).toBe(false);
   } finally {
     await chmod(join(proof.root, 'family'), 0o700);
+    await rm(proof.root, { recursive: true, force: true });
+  }
+});
+
+test('reduced-capability census refuses unreadable directory hiding a SQLite hardlink', async () => {
+  const proof = await fixture('unreadable-hardlink');
+  Reflect.set(proof.container.HostConfig, 'CapDrop', ['ALL']);
+  try {
+    let refused = false;
+    try {
+      await verifyContainerNamespace(
+        proof.container,
+        proof.destinations,
+        proof.database,
+        image,
+        proof.runDocker,
+        null,
+        undefined,
+        proof.exec,
+      );
+    } catch (cause) {
+      expect(cause).toBeInstanceOf(Error);
+      expect(String(cause)).toContain('actual scanner failed 80');
+      refused = true;
+    }
+    expect(refused).toBe(true);
+  } finally {
+    await chmod(join(proof.root, 'namespace/data/nested'), 0o700);
     await rm(proof.root, { recursive: true, force: true });
   }
 });

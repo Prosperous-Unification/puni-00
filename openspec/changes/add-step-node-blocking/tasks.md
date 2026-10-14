@@ -76,3 +76,5 @@
 - [x] 6.4.14 Reproduce host Source replacement, top-level RO/nested RW and default-cap proc-root refusal; discard the unmergeable proc-root helper. Prove initialized default-image process groups on timeout/EOF/client cancellation, including scanner/grandchild, unrelated sentinel and zero zombie residue.
 - [x] 6.4.15 Replace source rebinds with strict in-target metadata sessions, immutable read-only code, per-entry stat failure propagation, actual mountinfo/family/ID stability, bounded complete Docker operations and verified initialized-group cleanup. Add attended init prerequisites and be-only candidate/render checks; document trusted nonadversarial quiescence explicitly. Watch safety omissions fail.
 - [ ] 6.4.16 Run final scoped checks/strict OpenSpec validation, record exact-source real-Docker evidence and obtain independent Astra review before integration. No live prerequisite application or activation belongs to this slice.
+
+- [x] 6.4.17 Refuse unreadable census directories explicitly before shell glob traversal; prove an empty directory remains admissible and a chmod000 hardlink cannot be hidden under reduced capabilities.
