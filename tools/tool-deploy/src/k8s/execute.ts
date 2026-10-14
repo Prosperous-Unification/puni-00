@@ -1118,7 +1118,7 @@ export function jobName(purpose: string, releaseId: string): string {
  * the database location and access; API defaults may only preserve those pinned semantics.
  * @see https://kubernetes.io/docs/reference/kubernetes-api/core/pod-v1/#VolumeMount
  */
-function matchesProjection(observed: unknown, expected: unknown): boolean {
+export function matchesProjection(observed: unknown, expected: unknown): boolean {
   if (Array.isArray(expected))
     return (
       Array.isArray(observed) &&

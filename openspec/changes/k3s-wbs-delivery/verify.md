@@ -753,3 +753,227 @@ execution of this updated rehearsal remains unverified. No live export/import,
 h4 rollout, first-start activation, staging/GitHub Actions acceptance, canonical
 host gate or full workspace gate ran. Existing-host storage documentation now says
 `puni-retain`. No push or production mutation was performed.
+
+## F11.1d first-start partial review candidate — 2026-10-14
+
+Base: exact cumulative candidate `3d6f80b0693b2178d8029e80631aa69f24a0d336`.
+Isolated clone: `/tmp/puni-f11-first-start-sol`; the shared candidate clone was not
+edited. **F11.1d remains open.** The source-tree admission blocker is recorded in
+the design and normative delta spec. The current candidate can detect and close
+an ingress fence opened by Flux after handoff, but it has not proved refusal
+before that opening. It must not be used for live activation.
+
+Implemented scope: separate durable version 1 first-start state/receipt without
+changing release journal schema 3; original descriptor/export/restore and target
+identity binding; WBS Lease, closed fence and suspended Flux; stopped tiers;
+completed restore Job UID/image/command/mount/report; fresh actual mounted SQLite
+inspection; independent retained replay inventory and image-owned disabled
+activation authority; empty WAL; admission persistence/readback before explicit
+all-tier start; digest/rollout verification; persisted release-record readback;
+matching Flux revision and post-handoff fence observation. CLI/rehearsal use the
+coordinator, and descriptor-only release records refuse. A failed or partial
+attempt keeps its Lease/fence/suspension; retry stops tiers and observes again
+with a fresh inspection Job. No activation-enable transition was added.
+
+TDD observations: first-start coordinator and adapter tests initially failed on
+missing implementation modules. The CLI bypass negative failed because the old
+descriptor-only route resolved. The 1ms heartbeat/2ms renewal resume test then
+timed out with unbounded queued heartbeats; pending-renewal suppression fixed it.
+
+### Watched omission proofs
+
+Each of these 37 temporary mutations returned exit 1 with a named failed test;
+original source was restored in `finally` before further checks. Detailed local
+output is retained under `/tmp/puni-f11-first-start-proofs/<fault>.log`.
+
+| Injected fault(s)                                                                                                   | Observed failing production-path negative                                                                                                |
+| ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `actual-bytes`, `actual-replay`, `disabled-authority`                                                               | Coordinator actual bytes/replay/enabled-marker refusal cases                                                                             |
+| `restore-evidence`, `record-readback`, `admission-readback`                                                         | Legacy restore-evidence refusal, missing release-record refusal, corruption after admission persistence                                  |
+| `request-pin`, `receipt-digest`, `receipt-transaction`, `receipt-request`                                           | Foreign resumed request and resealed progress corruption cases before Lease mutation                                                     |
+| `flux-source`                                                                                                       | Foreign desired revision refuses handoff                                                                                                 |
+| `target-preflight`                                                                                                  | Foreign target refuses before Lease, Flux, fence or tier mutation                                                                        |
+| `cluster-uid`, `namespace-uid`, `backend-namespace-uid`, `pvc-uid`                                                  | Actual cluster object boundary refuses each foreign UID                                                                                  |
+| `flux-suspended`, `writer-fence`, `stopped-writers`                                                                 | Actual cluster boundary refuses active reconciliation, open ingress or a running writer                                                  |
+| `backend-db-path`, `backend-migrations`, `backend-pvc`, `backend-mount`, `backend-recreate`, `backend-writer-label` | Production backend template boundary refuses changed DB path, startup migration, foreign claim/subPath, overlap strategy or writer label |
+| `rollout-image`, `rollout-ready`                                                                                    | Kubectl transport refuses a foreign tier image or zero ready replicas                                                                    |
+| `restore-manifest`, `restore-uid`, `restore-completed`                                                              | Kubectl transport refuses replaced restore command, foreign UID or incomplete Job                                                        |
+| `actual-manifest`                                                                                                   | Kubectl transport refuses a replaced actual-PVC observation command                                                                      |
+| `image-owned-authority`, `wal-refusal`                                                                              | Generated image-local command refuses missing marker and a nonempty ignored WAL                                                          |
+| `handoff-fence-count`, `fresh-marker-count`, `observation-marker-shape`, `durable-null`                             | Missing/duplicate handoff policy, duplicate fresh marker, numeric activation observation and literal-null durable file                   |
+
+The existing replay and activation validators are reused. New real SQLite
+fixtures also exercise nested forward/inverse/precondition markers, missing and
+unreadable DB files, missing/changed triggers, missing ledger, enabled marker and
+malformed retained replay. Kubectl transport fixtures exercise restore and actual
+Job command/image/subPath changes, deployment image/readiness/PVC changes and
+fresh Job naming across two observations. Durable tests cover file absence,
+malformation/unreadability, receipt corruption, foreign live Lease refusal,
+renewal loss, parked transaction takeover and serialized heartbeats.
+
+### Scoped command evidence and unavailable checks
+
+- `BUN_TMPDIR=/tmp bun install --frozen-lockfile`: exit 0, 1,573 installs checked.
+- `BUN_TMPDIR=/tmp NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run tool-deploy:lint --outputStyle=stream`: exit 0.
+- The same scoped `tool-deploy:typecheck`: exit 0. `bunx nx run-many -t lint,typecheck,build -p tool-deploy --outputStyle=stream` also passed all three targets and their seven dependency tasks (10 tasks, 5.9s).
+- Final scoped Nx lint/typecheck rerun after target preflight: exit 0 (two tasks, 6.0s). `bunx nx format:check --files=<the 14 changed paths>` and `git diff --check`: exit 0. These are scoped checks; the canonical full host gate remains unrun.
+- `bun test --preload ./tools/test/scratch/preload.ts --timeout=10000 tools/tool-deploy/src/k8s/first-start.test.ts tools/tool-deploy/src/k8s/first-start-adapter.test.ts tools/tool-deploy/src/k8s/cutover-cli.test.ts`: exit 0, 84 pass, 0 fail, 187 assertions across 3 files (26.39s), after adding read-only target admission before mutation.
+- The same scoped `tool-deploy:test`: exit 1, 520 pass, 6 fail and 1 error across 526 tests/26 files. These are sandbox-unavailable socket checks, **not a passing project suite**: four `registry.test.ts` cases and one `git-http.test.ts` case fail with `EPERM: operation not permitted, listen`; `deploy-k3s.test.ts` also fails at top-level `fakeRegistry` setup for that same reason. Focused rerun of registry/Git HTTP reproduces the five socket refusals.
+- `OPENSPEC_TELEMETRY=0 BUN_TMPDIR=/tmp BUN_INSTALL=/tmp/puni-f11-bun bunx @fission-ai/openspec@1.12.0 validate k3s-wbs-delivery --strict`: exit 0, change valid. A first cached-validator attempt caught a scenario displaced by the new requirement; it was restored under its preparation requirement and validation rerun. Plain `bunx openspec` did not name a callable package and was replaced with the pinned package command.
+
+No pre-resume source-tree admission proof, Docker/k3d execution, live cluster
+export/import or first rollout, h4 acceptance, staging/GitHub Actions acceptance,
+canonical host gate, full workspace gate, production cutover, marker activation,
+push or merge was performed. Independent architecture review must decide the
+source-tree admission repair before this candidate can satisfy F11.1d.
+
+## F11.1d repair candidate after independent high review
+
+The repair adds a version 2 separate coordinator state with sealed actual-source
+receipt; release journal schema 3 remains intact. It fetches the live referenced
+GitRepository URL at the exact desired SHA, requires only a regular release.yaml
+in the named subtree, and compares the complete flattened resource inventory to
+trusted environment render plus descriptor release record. Source/Kustomization
+UIDs, allowed specs and current-generation artifact are bound, commit pinning and
+resume use UID/resourceVersion/spec preconditions, and source admission is repeated
+immediately before resume. The rehearsal keeps the source pinned through its
+attended opening and explicitly returns to the F8 branch lab protocol afterward.
+
+Backend exact mounts/volumes/labels and startup overrides now refuse the reproduced
+shadow mount, initContainer, command, args, lifecycle and fence-selector label.
+Live Pod and capable controller inventory includes unlabeled and terminating PVC
+users and reviewed suspended backup workloads. Complete policy inventories require
+default deny, writer and public ingress fences, with backend reader allowances
+retained for gateway readiness. All tiers stop before restart. Missing durable
+journal with an existing Lease refuses before mutation.
+
+### Watched repair omissions
+
+Twenty-one temporary mutation groups returned exit 1 with named failed
+production-path tests. Source was restored in finally before final verification.
+Local logs: `/tmp/puni-f11-first-start-repair-proofs/<fault>.log`.
+
+| Injected fault groups                                                                                     | Observed failed negative                                                                                            |
+| --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| backend-overrides; backend-shadow-mount/init-container/command/args/lifecycle/fence-label (each isolated) | Production backend template refusal; each reproduced override becomes admitted when exact override guard is removed |
+| source-inventory, source-flat-tree                                                                        | Real Git open writer/public or extra resource revisions; real Git symlink/additional subtree entries                |
+| source-config, source-generation, source-preconditions                                                    | Unsupported postBuild/decryption/images/include; stale-generation artifact; removed UID/version/spec patch tests    |
+| policy-inventory, policy-selector                                                                         | Alternate allow policy; fenced selector selecting actual backend                                                    |
+| pvc-pods, pvc-controllers                                                                                 | Unlabeled/terminating/readonly/pending/init-only PVC user; unknown capable controller                               |
+| app-pods, app-completeness, app-controllers                                                               | Live public traffic Pod; missing intended Deployment; unknown app controller                                        |
+| namespace, parked-journal                                                                                 | Operator namespace outside trusted render; parked Lease with missing durable journal                                |
+
+The real Git fixtures map the observed HTTP fixture URL to a local bare repository
+through the source transport seam; they exercise actual commit/tree/blob parsing.
+They do not claim a live HTTP credential or Flux artifact download proof. Production
+source fetch requires operator Git credentials capable of reading the live URL.
+
+### Fresh scoped evidence
+
+- Focused six-file first-start/source/writers/policies/adapter/CLI Bun suite: exit 0,
+  135 pass, 0 fail, 293 assertions (35.15s); log `/tmp/puni-f11-repair-final-tests.log`.
+- Scoped Nx lint/typecheck with cache skipped: exit 0; log
+  `/tmp/puni-f11-repair-final-static.log`. Initial lint found import order and one
+  void-expression test callback; autofix resolved both and Nx was rerun.
+- `tool-deploy:build`: exit 0, target and seven dependencies; seven dependencies
+  cached, shellcheck target freshly ran. Log `/tmp/puni-f11-repair-final-build.log`.
+- Scoped Nx `format:check --files=<all changed and new paths>` and `git diff --check`: exit 0; format log `/tmp/puni-f11-repair-final-format.log`.
+- Pinned `OPENSPEC_TELEMETRY=0 BUN_TMPDIR=/tmp BUN_INSTALL=/tmp/puni-f11-bun bunx @fission-ai/openspec@1.12.0 validate k3s-wbs-delivery --strict`:
+  exit 0, change valid; log `/tmp/puni-f11-repair-openspec.log`.
+
+F11.1d remains unchecked for independent re-review and live acceptance. No live
+cluster was touched. kubectl and k3d are absent, and Docker socket access is denied
+in this sandbox. Required outstanding laboratory proof: both fences closed permits
+gateway readiness, authenticated external WebSocket forwarding cannot change the
+SQLite journal, and removing public fence makes that negative fail. Staging,
+attended opening, h4 and canonical full host gate remain unverified. The historical
+project socket suite EPERM checks remain unavailable, not passing. No push, merge,
+production cutover or marker activation occurred.
+
+## F11.1d startup repair after second independent high review
+
+The confirmed executable-probe and application-startup acceptances are repaired.
+Backend startup/readiness/liveness exec probes refuse directly. The production
+adapter compares every live tier Deployment, admitted ReplicaSet and actual Pod
+startup template with the descriptor-digest trusted render before scaling and
+during startup/handoff. Complete specs, labels and annotations compare after an
+explicit normalization of Kubernetes defaults and actual Pod scheduling fields.
+Added executable containers/probes, commands/args/hooks, mounts/volumes and env/envFrom
+references refuse. Existing differing ReplicaSet startup templates also refuse;
+operator cleanup or reviewed recovery is required rather than silently adopting them.
+
+Environment reference identity is exact; explicit backend DB_PATH and
+MIGRATE_ON_STARTUP values win over envFrom. Live Secret/ConfigMap value provenance
+remains separate external operational acceptance. No external value-byte pinning
+is claimed, and no SQLite authority enable transition was introduced.
+
+Fresh checks:
+
+- Seven-file focused Bun suite with `--timeout 30000`: exit 0, 244 pass, 0 fail,
+  402 assertions, 29.39s; `/tmp/puni-f11-startup-final-tests.log`. The previous
+  135 tests remain included. One initial default-5s SQLite fixture timeout occurred
+  under host load; a 30s per-test bound permits the real fixture work and retains
+  bounded failure. No assertion was removed.
+- Watched omission of trusted startup comparison: 96 named real-manifest negatives
+  failed across four tiers and Deployment/descendant Pod scopes. Independent kubectl
+  transport negatives for gateway Deployment initContainer, owned ReplicaSet command
+  and actual Pod initContainer also failed. Omission of executable backend probe
+  refusal made each of the three probe negatives fail. Source restored in finally;
+  logs `/tmp/puni-f11-first-start-startup-proofs/{trusted-startup,startup-transport,backend-probes}.log`.
+  The previous 21 watched repair groups remain recorded above.
+- Scoped Nx lint/typecheck with cache skipped: exit 0;
+  `/tmp/puni-f11-startup-static.log`. Initial lint/typecheck caught two unnecessary
+  escapes and a missed recursive-function rename; both were fixed before rerun.
+- Scoped Nx build: exit 0, target and seven dependencies (seven cached);
+  `/tmp/puni-f11-startup-build.log`. Scoped Nx format and `git diff --check`: exit 0;
+  `/tmp/puni-f11-startup-format-check.log`.
+- Pinned OpenSpec 1.12.0 strict validation: exit 0;
+  `/tmp/puni-f11-startup-openspec.log`.
+
+F11.1d stays unchecked for independent re-review and live acceptance. No live
+cluster, push, merge, activation, full host gate or execute.ts Lease race change.
+The prior Docker/k3d, staging and attended-opening proof gaps remain outstanding.
+
+## F11.1d asynchronous Lease-loss repair
+
+Independent review reproduced successful delayed safety followed by `start:backend`
+after the heartbeat had lost its Lease. The production-path delayed-safety negative
+first failed on the reviewed candidate (`/tmp/puni-f11-lease-window-red.log`) and
+passes with the post-await mutation guard (`/tmp/puni-f11-lease-window-green.log`).
+
+One guard is installed after Lease acquisition and checks known loss immediately
+before coordinator mutations and durable writes, queued renewal invocation, every
+local adapter mutating kubectl command, and internal source pin/resume writes after
+awaited observations. A missing adapter guard refuses mutations. The unused generic
+resumeFlux effect was removed from the first-start interface, retaining only its
+source-admitted resume path. Shared execute.ts was not changed; release/park delegates
+run after heartbeat shutdown and pending renewal drain.
+
+Five watched omission groups returned exit 1 with named failed production-path
+negatives: scale checkpoint, durable persistence checkpoint, queued renewal, source
+pin/resume checkpoints (both cases), and adapter transport checkpoints (observation
+Job and second fence write). Originals were restored in finally. Logs:
+`/tmp/puni-f11-first-start-lease-window-proofs/<fault>.log`. Added delayed observations
+cover source admission, actual PVC observation, rollout, record readback and source
+revision, with no subsequent mutation or durable phase write after known loss.
+
+Fresh verification:
+
+- Seven-file focused Bun suite, `--timeout 30000`: exit 0, 256 pass, 0 fail,
+  430 assertions, 28.88s; `/tmp/puni-f11-lease-window-final-tests.log`.
+  Previous reviewed tests and proof records are preserved.
+- Scoped Nx lint/typecheck, cache skipped: exit 0;
+  `/tmp/puni-f11-lease-window-static.log`. Initial lint caught test callback binding,
+  unnecessary escapes and Bun rejects matcher await usage; all were repaired and
+  scoped Nx rerun.
+
+- Scoped Nx build: exit 0, target plus seven dependencies (seven cached);
+  `/tmp/puni-f11-lease-window-build.log`.
+- Pinned OpenSpec 1.12.0 strict validation, scoped Nx format and `git diff --check`:
+  exit 0; `/tmp/puni-f11-lease-window-openspec.log` and
+  `/tmp/puni-f11-lease-window-format-check.log`.
+
+F11.1d remains unchecked for independent re-review and live acceptance. No live
+operations, push, merge, activation, full host gate or shared Lease executor changes.
+The previously recorded live acceptance and external configuration provenance gaps
+remain outstanding.

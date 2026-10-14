@@ -160,12 +160,27 @@ from a checkout of the authorized commit on h2puni (`/home/puni1/wbs-build`) unl
    arrival artifacts before retrying. `verify-restore` rejects legacy reports and requires
    matching versioned replay evidence, bytes, migrations/counts and owner UID 10001.
 
-8. **First-start admission remains blocked** (`start-tiers`). F11.1c covers export/restore
-   admission and leaves all prepared Deployments at zero. A separate reviewed executor must
-   admit scaling, release-record persistence and Flux handoff against matching restore evidence
-   before this step can be run. Do not substitute manual scale, record or Flux commands for
-   that missing guard. Production cutover is not ready for activation. Steps 9–10 below remain
-   future acceptance instructions after that prerequisite is implemented and reviewed.
+8. **First-start admission remains blocked on review and live acceptance** (`start-tiers`).
+   The F11.1d candidate routes the guarded operation through
+   `bun tools/tool-deploy/src/k8s/cutover-cli.ts first-start --request <reviewed-request.json>
+--state <protected-state-dir>/first-start-state.json --kubeconfig <file> --kubectl <locked-path>`.
+   Its request contains the original descriptor bytes/pin, complete export/restore reports,
+   context/cluster UID, app/backend namespace names/UIDs, PVC name/UID/path, completed restore
+   Job name/UID and Flux unit/revision (see `FirstStartRequest` in
+   [first-start.ts](../../tools/tool-deploy/src/k8s/first-start.ts)). The coordinator freshly
+   observes actual PVC replay and exact disabled activation authority, starts all tiers,
+   verifies their digests/rollout, persists and reads back the release record, then adopts Flux.
+   Descriptor-only `release-record` refuses. `handoff-manifests` renders the desired source
+   with a closed writer fence; preparation still holds every Deployment at zero.
+   **Do not run this candidate before independent re-review and live acceptance.**
+   The repaired source receipt pins the actual GitRepository commit and admits its
+   complete flat release inventory before scale/resume. Both writer and public ingress
+   fences remain closed, with backend reader allowances retained for gateway health.
+   Complete policy, Pod and controller inventories and exact backend startup mounts
+   are required. Docker/k3d/staging evidence and attended acceptance remain outstanding.
+   Step 9 pins a separately reviewed revision opening both fences; successful first-start
+   does not enable the SQLite blockage marker. The immutable source commit remains
+   pinned through attended opening.
 
 9. **Smoke with a host override** (`smoke-host-override`) `[operator]`:
    `curl --resolve wbs.bulletpoints.club:443:$NEW_IP https://wbs.bulletpoints.club/` (200) and
