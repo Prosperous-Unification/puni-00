@@ -122,3 +122,9 @@
   Fault: skip the audit write for `sso_connection_proven`, and observe the completeness test fail. Restore and add `Proof:`.
 
 - [ ] 5.4 Write `verify.md` with the commands, observed outputs and a failure-proof table for every fault above. Run the gate on the exact SHA.
+
+- [x] 5.5 Add a scoped session-policy administration panel to the organization page. Render absent/configured/loading/failure/refusal; validate optional bounds, serialize mutation, use returned policy, and withdraw on context or credential loss. Mounted tests include delayed responses across runtime withdrawal.
+
+  Red: panel import absent, then focused mounted cases for validation, authority, pending, scoping, reconciliation and late response.
+
+  Fault: relax the minimum, drop authority withdrawal, remove both pending admission guards, change the expected-organization header, and trust the submitted value. On review, hold an older same-runtime GET across a PUT and inject broken read/effect versioning, then remove mutation admission; separately break inline field naming and association. Each observed failure and restoration is recorded in `verify.md`.
