@@ -1,6 +1,7 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 
+import { OnboardingScreen } from '@/components/onboarding/onboarding-screen';
 import { fakeDirectoryApi } from '@/modules/directory/fake-directory-api';
 import { browserStorage } from '@/modules/preferences/browser-storage.repository';
 import { type ApplicationServices, installApplicationRuntime } from '@/runtime/application-runtime';
@@ -12,10 +13,87 @@ import { createSessionOwner, installSessionRuntime } from '@/runtime/session-run
 import { fakeProjectApi } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 import { SILENT_STREAM } from '@/testing/silent-stream';
+import { answerJson, stubServer } from '@/testing/stub-server';
 publishApplicationRuntimeForEachTest();
 import { OrganizationGate } from './organization-gate';
 const current = { organizationId: 'org-a', name: 'Alpha', role: 'admin' as const };
 afterEach(() => vi.unstubAllGlobals());
+it.each(['selection', 'switcher'] as const)(
+  'accepts another invitation from %s and refreshes choices without selection',
+  async (entry) => {
+    let accepted = false;
+    const sent = stubServer({
+      'GET /api/onboarding': [
+        () => answerJson(200, { state: 'selection_required', memberships: [current] }),
+      ],
+      'GET /api/organization/active': [
+        () =>
+          entry === 'selection'
+            ? answerJson(403, { error: 'no_active_organization' })
+            : answerJson(200, current),
+      ],
+      'GET /api/organization/memberships': [
+        () =>
+          answerJson(200, {
+            state: 'selection_required',
+            memberships: [
+              { ...current, ssoRequired: false },
+              ...(accepted
+                ? [{ organizationId: 'org-b', name: 'Beta', role: 'member', ssoRequired: false }]
+                : []),
+            ],
+          }),
+      ],
+      'POST /api/onboarding/invitations/accept': [
+        () => {
+          accepted = true;
+          return answerJson(200, { membership: { organizationId: 'org-b', role: 'member' } });
+        },
+      ],
+    });
+    render(
+      <OnboardingScreen
+        onSignOut={() => undefined}
+        renderOrganization={(mode) => (
+          <OrganizationGate
+            mode={mode}
+            identity={{ userId: 'u1', credential: credentialOf('tok') }}
+            openOwner={() =>
+              createSessionOwner({
+                clientFor: () => fakeDirectoryApi(),
+                projectClientFor: () => fakeProjectApi(),
+                streamDeps: SILENT_STREAM,
+              })
+            }
+            notices={() => ({ announce: () => undefined, close: () => undefined })}
+            onOwner={() => undefined}
+            onSignOut={() => undefined}
+            renderRuntime={(_runtime, switcher) => (
+              <>
+                {switcher}
+                <p>Alpha resources</p>
+              </>
+            )}
+          />
+        )}
+      >
+        <p>Legacy resources</p>
+      </OnboardingScreen>,
+    );
+    if (entry === 'switcher') fireEvent.click(await screen.findByText('Organization: Alpha'));
+    await screen.findByRole('button', { name: 'Choose Alpha' });
+    fireEvent.change(await screen.findByLabelText('Invitation code'), {
+      target: { value: 'beta-invitation' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Accept invitation' }));
+    await screen.findByRole('button', { name: 'Choose Beta' });
+    expect(screen.getByRole('button', { name: 'Choose Alpha' })).toBeTruthy();
+    expect(sent.filter((request) => request.route.startsWith('POST'))).toEqual([
+      { route: 'POST /api/onboarding/invitations/accept', body: { token: 'beta-invitation' } },
+    ]);
+    expect(screen.queryByText('Alpha resources') !== null).toBe(entry === 'switcher');
+  },
+);
 function mount(routes: OrganizationRoutes) {
   vi.stubGlobal('fetch', () =>
     Promise.resolve(

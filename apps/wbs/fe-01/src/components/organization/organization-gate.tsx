@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 
 import { LifetimeFault } from '@/components/chrome/lifetime-fault';
+import { InvitationAcceptance } from '@/components/onboarding/invitation-acceptance';
 import { useRetirementJoin } from '@/runtime/application-services-context';
 import { createOrganizationOwner, type OrganizationRoutes } from '@/runtime/organization-owner';
 import {
@@ -35,7 +36,10 @@ export function browserOrganizationNotices(
   };
 }
 
-/** Owns the complete signed-in resource region through explicit organization transitions. */
+/**
+ * Owns the complete signed-in resource region through explicit organization transitions.
+ * Invitation acceptance refreshes membership choices without changing the active context.
+ */
 export function OrganizationGate({
   identity,
   mode,
@@ -71,6 +75,7 @@ export function OrganizationGate({
   const state = useSyncExternalStore(owner.subscribe, owner.snapshot);
   const join = useRetirementJoin();
   const [fault, setFault] = useState<Error | null>(null);
+  const [membershipsRevision, setMembershipsRevision] = useState(0);
   const observe = (operation: Promise<unknown>) => {
     void operation.catch((cause: unknown) => {
       setFault(new Error('Unexpected organization transition failure', { cause }));
@@ -131,8 +136,17 @@ export function OrganizationGate({
   const switcher = (
     <section aria-label="Organization context">
       <MembershipChoices
+        // Proof: removing this key failed both invitation-entry regressions: accepted Beta never appeared in choices.
+        key={membershipsRevision}
         onChoose={choose}
         disabled={state.kind === 'switching' || state.kind === 'loading'}
+      />
+      {/* Proof: removing acceptance failed both `accepts another invitation from … and refreshes choices without selection` cases: no invitation-code field. */}
+      <InvitationAcceptance
+        onAccepted={() => {
+          setMembershipsRevision((revision) => revision + 1);
+          return Promise.resolve();
+        }}
       />
     </section>
   );
