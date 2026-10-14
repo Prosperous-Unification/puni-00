@@ -1012,3 +1012,29 @@ not an unbounded screenshot box, prove access to the footer and attempt action.
 The repaired authoring parent `4cae32f5e3ba2984ef94e63b0183685143367871`
 remains an ancestor. Full exact-SHA host/CI gates and unrelated release fixture
 triage remain coordinator-owned. No push, PR merge, deployment or live write.
+
+## UI cause-index review repair (2026-10-14)
+
+- Shared cause labels now use one `useMemo` after the flattened rows, keyed by
+  `[flat, steps, stepNodes]`; desktop readings and phone step projections reuse it.
+- Production-path call-through probe renders fifty phone rows and five steps,
+  with all blockage disclosures closed. It observes one index build, no further
+  build on an unchanged rerender, and exactly one additional build when a new
+  runtime read supplies a changed cause name. The second index contains that name.
+- Watched negative: the original per-phone-node indexing failed the first count
+  assertion with **251 builds instead of 1** (`/tmp/step-blockage-index-red.log`).
+  The adjacent `Proof:` records that injected fault. The final focused test passed
+  (`/tmp/step-blockage-index-green.log`). Intermediate fixture attempts using name
+  editing and expensive role queries timed out; the final fixture switches the
+  real reader and checks index inputs directly, with a bounded 15-second budget.
+- Focused production-preview Playwright command: `CI=1 E2E_PORT_SHIFT=5400 bunx
+playwright test --config apps/wbs/fe-01/playwright.config.ts
+apps/wbs/fe-01/e2e/step-blockage.spec.ts --grep 'phone disclosure|nested blocked|whole blocked step card|distinguishes direct'`:
+  **4 passed** (32.2s), preserving named nested causes, phone actions and the card
+  geometry/hit-target regression (`/tmp/step-blockage-index-browser.log`).
+- `bunx tsc --project apps/wbs/fe-01/tsconfig.app.json --noEmit`: exit 0.
+- Complete `plan-cards.test.tsx` suite: **141 passed** (17.92s), including
+  unchanged toolbar render-cost checks (`/tmp/step-blockage-index-suite.log`).
+- Touched-source ESLint: exit 0. Pinned OpenSpec validation: exit 0.
+- Full host gate and unrelated browser suites are deferred to the PM release
+  stack; this repair does not push, deploy, or change activation state.

@@ -1024,6 +1024,13 @@ export function WbsTable({
     return out;
   }, [workItems]);
 
+  // Proof: indexing only top-level workItems made `nested blocked leaf and its downstream node retain named causes in both layouts` reach the router Error Boundary (2026-10-14).
+  // Proof: per-node indexing made `builds the shared blockage index once per input change across fifty phone rows and five steps` observe 251 builds instead of one (2026-10-14).
+  const causeLabels = useMemo(
+    () => blockageLabelsOf(flat, steps, stepNodes),
+    [flat, steps, stepNodes],
+  );
+
   const attemptActions = useAttemptActions({
     commands,
     run,
@@ -1465,8 +1472,6 @@ export function WbsTable({
       nodesByRow === null
         ? null
         : new Map([...nodesByRow].map(([rowId, nodes]) => [rowId, [...nodes.keys()]]));
-    // Proof: indexing only top-level workItems made `nested blocked leaf and its downstream node retain named causes in both layouts` reach the router Error Boundary (2026-10-14).
-    const causeLabels = blockageLabelsOf(flat, steps, stepNodes);
     const rows = attachRowReadings(workItems, (row) => {
       if (nodesByRow !== null && !row.rolledUp) {
         for (const step of steps) {
@@ -1567,6 +1572,7 @@ export function WbsTable({
     anyAssigneeOn,
     assigneeOn,
     busy,
+    causeLabels,
     chartRead.timezone,
     combinedProblem,
     combinedValue,
@@ -2589,13 +2595,7 @@ export function WbsTable({
               mentionOptions={mentionOptions}
               assigneeOn={assigneeOn}
               attemptsOn={(row, stepId) =>
-                stepNodeReadingsOf(
-                  row,
-                  stepId,
-                  peopleById,
-                  chartRead.timezone,
-                  blockageLabelsOf(flat, steps, stepNodes),
-                )
+                stepNodeReadingsOf(row, stepId, peopleById, chartRead.timezone, causeLabels)
               }
               setStepBlocked={(row, stepId, isBlocked) => {
                 void run((write) =>
