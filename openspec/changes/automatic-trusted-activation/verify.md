@@ -3887,3 +3887,359 @@ GitHub CI passed.
     CPU spinners. Each failure read `Received: "R"`, the h2puni symptom.
   - Restored, the test passed 10 of 10 runs under the same load. The whole attestation suite
     passed 66/66.
+
+## Historical input retention — task 2.1d.1.2 (2026-10-14)
+
+Implementation starts from cumulative candidate `68d9a7b90ea2fa95d12c5f08719a246eff56fc5f`
+in isolated clone `/tmp/puni-history-retention-sol`; it does not modify the integration
+checkout, publish, merge, enable the trusted-wiki step or supply external trust authority.
+The existing approved design's declaration census and complete object-proof contract govern
+this packet. OpenSpec status/apply instructions were read with the repository-pinned CLI:
+`bunx --bun @fission-ai/openspec@1.12.0 status --change automatic-trusted-activation --json`
+and `bunx --bun @fission-ai/openspec@1.12.0 instructions apply --change automatic-trusted-activation --json`
+(schema `sdd-lean`, 4/45 tasks complete before this packet).
+
+The installed local source now optionally accepts explicit historical retention configuration.
+Its relationship request is cloned and frozen at installation. A configured source first derives
+all selectors and sorted declaration/fact provenance from retained head declarations, then
+acquires every exact selected commit while the private bare Git store still exists. It retains
+uncompressed commit, root-to-parent tree and terminal blob bodies, a canonical strict history
+manifest and the separately pinned history digest. Reopen checks request/snapshot/policy joins,
+complete selector provenance, every Git object body identity, commit tree header, parent and child
+edges, mode and terminal blob. Historical reads return owned copies, use the shared parser read
+budget and preserve raw symlink targets. They have no filesystem/Git/source fallback.
+
+Bounds cover declarations, facts, unique selectors/revisions, path depth, proof edges, individual
+bodies, unique retained bodies, bytes, the history manifest and preparation deadline including
+final ownership verification and cleanup. Aggregate retained storage also includes both canonical
+manifest bodies. Private-directory, exclusive-write, sync, atomic-publication, protected-reread
+and cleanup contracts reuse the existing proven retention owner. Owner loss or partial retention
+returns no selected complete preparation. Missing historical commit and absent historical path
+have distinct named refusals. Empty history is valid only for a complete installed declaration
+census deriving no selectors. Source checkout removal and deletion of the acquired bare object
+store preserve exact head/base/third-commit bytes at the same path for SHA-1 and SHA-256 captures.
+
+Legacy callers explicitly retain `history: null`; a history-configured open requires its expected
+history digest and cannot relabel a prior head-only capture. This packet does not implement the
+eleven-document producer, global retained-content policy installation, closed compiler/runtime
+hosts or selection-preparation composition; those remain in tasks 2.1d.1/2.1d.1.3 onward. External
+activation authority and the full release gate are outside this worker's claim. Astra exact-SHA
+review remains a parent integration step.
+
+### Observed production-path omission proofs
+
+The initial read test was RED with `candidate.readHistorical is not a function`; adding
+the capability restored GREEN. The two manifest-accounting tests were separately RED because
+preparation returned successfully with a budget fitting raw bodies but excluding metadata,
+then GREEN after accounting for both manifests. The first omission matrix exposed tests masked
+by other checks; their fixtures were corrected and every trial below was rerun independently.
+
+Each row ran `bun test apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-objects.test.ts --test-name-pattern "<pattern>"`
+after only the named omission, observed a named `(fail)` and nonzero exit, then restored the source.
+The decoder cases additionally break only the Git hash dependency for the altered body, allowing
+malformed commit/tree bytes to reach the decoder through the real retained owner. Both absent
+and unreadable retained-body cases use actual filesystem faults. Trial source hashes identify
+the observed mutated source before final Proof comments. Local orchestration and full outputs
+are `/tmp/history-mutations.py`, `/tmp/history-mutations.json` and `/tmp/history-mutations-summary.log`.
+
+| Independently omitted check      | Exact Bun test pattern                                                      | Exit    | Mutated source SHA-256                                             |
+| -------------------------------- | --------------------------------------------------------------------------- | ------- | ------------------------------------------------------------------ |
+| `requestIdentity`                | `historical reopen refuses independently changed request$`                  | 1 (RED) | `a05dfba3028bdeeb1277035eef2d3b9db46a91a01f36f790ad7d270301ce54e1` |
+| `snapshotIdentity`               | `historical reopen refuses independently changed snapshot$`                 | 1 (RED) | `5596b4b8b463e93c0fdd13545f50ac03297696bf6ff9004052a07664bd2aee8a` |
+| `retainedContentPolicyIdentity`  | `historical reopen refuses independently changed policy$`                   | 1 (RED) | `3f7d12ffe8753e5bac9ee567e013a80692a768bdd0d3aee0cf9d9a8671dd8045` |
+| `selector-census`                | `historical reopen refuses independently changed provenance$`               | 1 (RED) | `3ce316da0553a7e2c2f392ed2ec24efeae87129c60b7eade542690bf86b9266e` |
+| `selector-digest`                | `historical reopen refuses independently changed selector digest$`          | 1 (RED) | `dc7677dbf55bf07843688a7c409a3947ebb8253307bad5517306aa1100ff9fc8` |
+| `proof-count`                    | `historical reopen refuses independently changed missing proof$`            | 1 (RED) | `27de2320f70be5369f68fb7a9ce4520e54a32309da19be8421a45d1e8ce90aaf` |
+| `proof-revision`                 | `historical reopen refuses independently changed proof revision$`           | 1 (RED) | `a6935f652069baca0a2902727cdb584f081fa7e3c89ff2a89bc377ba5b49ed1f` |
+| `proof-path`                     | `historical reopen refuses independently changed proof path$`               | 1 (RED) | `8e69fd02ddf00d92b83eaae49573cae09c4aeebd3b4fe458cad3fb533b9febef` |
+| `proof-commit`                   | `historical reopen refuses independently changed commit$`                   | 1 (RED) | `98b4f78e9e0c6346fdaac09ae524d3f8aca7d3e11a68330feedd4c501efbe9e7` |
+| `tree-count`                     | `historical reopen refuses independently changed tree count$`               | 1 (RED) | `ab5c936a7c31a94e8ab3d86b4513c896ef871b382f799ce7b3314f8dfc3c384d` |
+| `root-parent`                    | `historical reopen refuses independently changed foreign root tree$`        | 1 (RED) | `bd4c04de678a3132020447901d5c25f1e4f890b894e362737e5995d6c2bf7341` |
+| `nested-parent`                  | `historical reopen refuses independently changed wrong parent tree$`        | 1 (RED) | `bd4c04de678a3132020447901d5c25f1e4f890b894e362737e5995d6c2bf7341` |
+| `terminal-mode`                  | `historical reopen refuses independently changed terminal mode$`            | 1 (RED) | `405ec7b433834bb35e4c5a78e4c48a46ec309c3a4442244cb44be0e2754b3da7` |
+| `terminal-gitObjectId`           | `historical reopen refuses independently changed terminal object$`          | 1 (RED) | `3197f12a81770a630594549bc23b0fd5c6d684cfac22d195cb246c16107c7384` |
+| `commit-body`                    | `historical reopen independently verifies commit Git body identity$`        | 1 (RED) | `a132c4ebaef49f3317594b10df0f2d438edc4aa2fcfee915db74f2bbcc74449b` |
+| `tree-body`                      | `historical reopen independently verifies tree Git body identity$`          | 1 (RED) | `a132c4ebaef49f3317594b10df0f2d438edc4aa2fcfee915db74f2bbcc74449b` |
+| `blob-body`                      | `historical reopen independently verifies blob Git body identity$`          | 1 (RED) | `a132c4ebaef49f3317594b10df0f2d438edc4aa2fcfee915db74f2bbcc74449b` |
+| `maximumDeclarationPaths`        | `historical preparation independently enforces maximumDeclarationPaths`     | 1 (RED) | `316ddbeff0dd31c94c5d1d36b874537d54ecbefa18409d1ea363bed5b9d4050e` |
+| `maximumDeclarationBytes`        | `historical preparation independently enforces maximumDeclarationBytes`     | 1 (RED) | `02c20cb5aad27316d721e346251baa5ef31b473f2e8698311189ba586094397a` |
+| `maximumDeclarationFacts`        | `historical preparation independently enforces maximumDeclarationFacts`     | 1 (RED) | `617fa106e49a19d9fb328557701cd47c3ffc4a297f2acd7f3f383d5a79080635` |
+| `maximumHistoricalRevisions`     | `historical preparation independently enforces maximumHistoricalRevisions`  | 1 (RED) | `cc33788282129754906852219d23645f9c31819e686e9ae3bc41a2358ea524bc` |
+| `maximumHistoricalTreeDepth`     | `historical preparation enforces maximumHistoricalTreeDepth`                | 1 (RED) | `5c502c9a6884e039caf70ee4130ed2e87f44196e7c3152442ae16ade0969f075` |
+| `maximumHistoricalProofEdges`    | `historical preparation enforces maximumHistoricalProofEdges`               | 1 (RED) | `5196a9303e7b0d6e41cf30c1ad347f5f7ded4b41c41ef7220e5eea09c69f92d8` |
+| `maximumRetainedObjects`         | `historical preparation enforces maximumRetainedObjects`                    | 1 (RED) | `5bf081a181f97786068936e2ad00f07ab3ea56687d3c7d001aaed7019e612878` |
+| `maximumObjectBytes`             | `historical preparation enforces maximumObjectBytes`                        | 1 (RED) | `1cf35d1f42588ad950964b34cba137cd55631bc7cee70c7a21ec147c19742658` |
+| `maximumRetainedBytes`           | `historical preparation enforces maximumRetainedBytes`                      | 1 (RED) | `fc86b44160805b3cabe126bd39ebce6203c4a9f465044502c2c65bcc15881faa` |
+| `maximumHistoricalManifestBytes` | `historical preparation enforces maximumHistoricalManifestBytes`            | 1 (RED) | `72cd44bcf7258e6dd83d3f26411392e579a2c7939827b8325a379c74fe89a8de` |
+| `maximumHistoricalSelections`    | `historical preparation independently enforces maximumHistoricalSelections` | 1 (RED) | `55fa955a38b826e4111cc82086be02911d5089538ba181352ac149f1979744b0` |
+| `owner-fence`                    | `historical held owner change fences ready publication`                     | 1 (RED) | `6bedc68cad79649cab15805ddc7a53f50578cadcdbc47e98d7624996d05219fd` |
+| `commit-header`                  | `historical proof decoder refuses commit header`                            | 1 (RED) | `0cd2b5316222aa0c5de36249da4f16976e9bcfcdac98871fe7efbfdf0e22bd61` |
+| `tree-body-bounds`               | `historical proof decoder refuses truncated tree`                           | 1 (RED) | `ebee253e090edfbbc1d9605cc56e0797ab55c5b0d2589a07b5b1eb448bb24516` |
+| `tree-mode-grammar`              | `historical proof decoder refuses invalid tree mode`                        | 1 (RED) | `c0d44b1b33b7ed989cad20c3b322062a94f69d8db1ee46dc0516f793cade3065` |
+| `tree-child-edge`                | `historical proof decoder refuses missing child edge`                       | 1 (RED) | `e41f555a3c39fae843bb566bb9ce3bd5a995923bad04f3334f93204f4d263851` |
+| `tree-parent-mode`               | `historical proof decoder refuses wrong parent mode`                        | 1 (RED) | `ee42efc94136370f54c38dec95fc941ef6b967640bf48009249f5a41f700c77f` |
+| `historical-read-count`          | `historical parser read count and bytes share`                              | 1 (RED) | `66815841ffac2962cc26ba61cfc02b2989d6ccd13d242c327accb11ca9214902` |
+| `historical-read-bytes`          | `historical parser read count and bytes share`                              | 1 (RED) | `a15552a6afe288d12296f03824620ec1cc82b1da4935ec4a747a4468a2c7eaa1` |
+| `historical-request-clone`       | `historical installed declaration paths remain owned`                       | 1 (RED) | `ebd9851ddbcd1ac75c3935c1f44fa4e91bef0f51bc898e99964f9e4ed5ec9830` |
+| `tree-name-grammar`              | `historical proof decoder refuses invalid tree name`                        | 1 (RED) | `1422497e25796fee7f45ca2094b2fa92c722b97d6a8242a67c5bdb1cd5bcd034` |
+| `tree-name-unique`               | `historical proof decoder refuses duplicate tree name`                      | 1 (RED) | `d30324cc20fa61155ae44009aab90d0e38bc28ec304f9e695584fd2d40037b8c` |
+| `terminal-blob-mode`             | `historical capture refuses directory terminals`                            | 1 (RED) | `bb9ba77b3748029160e8e76222ba4bb8e3c733690ccbc7ceda6aeda5141195a8` |
+| `history-limit-validation`       | `historical installation refuses missing or unrepresentable`                | 1 (RED) | `65888916190bb2ab44464d63fa7d7a67f4ca67d661353de79256375555497a7c` |
+| `history-canonical-manifest`     | `historical reopen refuses noncanonical manifest`                           | 1 (RED) | `2edb92abb560e6cda8e19d566c7db204cb3066c8bc016985b2e97830707c6c88` |
+| `history-final-owner-deadline`   | `historical final held owner check consumes preparation deadline`           | 1 (RED) | `2c72d29f7a837bdab206f2758e94e6e9e40cee898e829b3cf5c5eae30a9edbe3` |
+| `metadata-bytes-budget`          | `historical aggregate bytes includes both retained manifests`               | 1 (RED) | `547423ef0d973c18b8f79d7cbd795de9ad68a7a78626c0952f8388e9350e8aca` |
+| `metadata-object-budget`         | `historical aggregate objects includes both retained manifests`             | 1 (RED) | `0897cb9435d9c7965a0b47da468a3eef66d76fd51a8f51cbbc630404b29693e3` |
+
+### Final checks for this packet
+
+- `bun test apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-objects.test.ts apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-preparation.test.ts` — 177 passed, zero failed, 368 assertions. This includes 158 retained-owner tests and 19 acquisition-reader tests.
+- `NX_DAEMON=false bunx nx run twilight-dash:lint --outputStyle=stream` — passed, uncached; final run 15.5 seconds. Earlier lint failures were test-helper assertions/deprecated typing and were corrected before this successful run.
+- `NX_DAEMON=false bunx nx run twilight-dash:typecheck --outputStyle=stream` — passed, uncached; final run 1.5 seconds.
+- `bunx --bun @fission-ai/openspec@1.12.0 validate automatic-trusted-activation --strict --json` — one change passed, zero issues.
+- `git diff --check` — no whitespace errors.
+
+Nx reported denied Unix plugin sockets and explicitly ran plugins in the main process. Its scoped lint/typecheck targets completed successfully. The full host-wide gate, full monorepo tests/build, live remote acquisition, external provider review/authentication and independently deployed ownership were not run by this bounded worker. The parent integration owner retains the canonical release gate and Astra exact-SHA review.
+
+### Astra P1 correction: preserve BOM in exact Git tree filenames
+
+Independent review of `d8fc5bb8f13d41fbbfb46aa8cdcdd3958faea26d` found that default
+UTF-8 `TextDecoder` strips a leading BOM from each Git filename. A historical tree containing
+only `nested/\uFEFFsource.ts` therefore satisfied the absent selector `nested/source.ts`.
+The decoder now uses `ignoreBOM: true`, preserving the BOM as part of the filename. Both
+acquisition and retained reopen use this shared tree-edge decoder.
+
+The production regression `historical %s tree filenames preserve BOM and refuse absent
+unprefixed selectors` uses real SHA-1 and SHA-256 repositories. Git's exact plain selector
+exits 128. Preparation must refuse with `historical path absent: source.ts` and publish no
+ready state. The test then declares the exact BOM-prefixed path, captures it, deletes the
+source checkout, reopens and reads its exact bytes; the plain path remains unselected.
+
+Observed proof: `bun test apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-objects.test.ts --test-name-pattern 'tree filenames preserve BOM'`
+was RED for both formats before the fix, GREEN afterward (two tests, 12 assertions), then RED
+again after independently omitting only `ignoreBOM: true` from the filename decoder. The
+omission run exited 1 with two named failures; mutated source SHA-256 was
+`15e4a33769c7d294d5176b43b80f9bd78dfffe490b8051a3ff1929613707bdd0`.
+The option was restored before final verification. Local proof outputs are
+`/tmp/history-bom-red.log`, `/tmp/history-bom-omission.log` and `/tmp/history-bom-omission.json`.
+An adjacent `Proof:` comment names this fault and the observed production tests.
+
+Fresh successor checks: the same two-file Bun suite listed above passed 179 tests and 380
+assertions (zero failures, 14.10 seconds); scoped uncached Nx lint passed in 14.2 seconds and
+typecheck in 1.5 seconds. This is a correction restoring the precise existing historical-path
+contract; no new observable contract or external authority was introduced. Full canonical gate
+and independent successor review remain the parent integration owner's work.
+
+## 2026-10-14 bounded 2.1d.1.3a — retained declaration extraction
+
+Implemented in an isolated clone based exactly on reviewed #451 head
+`2642d153a975b6911e9ce33784e4bf02e9b16827`; the root workspace and #451 branch were not
+edited. Burokrat owns one `DeclarationSource` and common selector core; its existing
+Git/filesystem adapter preserves the public API and per-document diagnostic order.
+The judge facade exposes the shared core, extractor identity helper, types and a narrow
+legacy adapter export for permitted parity testing. Dash accepts only the branded retained
+candidate, selected relationship request, explicit verified extractor bytes/identity, explicit
+Nx relationships and a pinned Git format validated from unknown at its boundary.
+
+The retained wrapper reuses the current symlink resolver and retained historical read,
+requires complete historical selector/provenance/digest/proof census, and refuses legacy
+`history: null` even for empty historical work. Declaration discovery, parser read count/bytes
+and canonical output bytes obey explicit positive safe-integer ceilings. Current generated/
+vendored facts hash the resolved selected bytes with the Git object header; historical
+symlink facts keep raw `git show revision:path` semantics. Exact SHA-256 filenames and BOM
+symlink targets remain intact. Extractor identity still uses the legacy implementation-byte
+formula; independently installing/verifying the full runtime closure remains parent work.
+
+### RED, GREEN and watched faults
+
+Initial RED was a missing retained extraction module. The missing pin/census/boundary guards
+then produced 24 failing cases after the first parity implementation. A fixture family typo,
+an unclassified BOM filename and overlapping fixture classification rules were corrected;
+these are setup failures, not accepted R5 proofs. The focused restored suite passed 50 tests
+and 58 assertions before the combined final check below.
+
+Forty-one independent source omissions or injected byte/effect dependencies each exited 1
+with the named production test assertion below. Every source was restored in `finally` before
+the next trial; the final combined GREEN proves restoration. Each trial ran
+`bun test apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.test.ts --test-name-pattern '<named test fragment>'`.
+The adjacent production `Proof:` comments name the accepted faults. Local raw outputs and
+trial details are `/tmp/declarations-fault-01.log` through `/tmp/declarations-fault-40.log`,
+`/tmp/declarations-mutations.json` and `/tmp/declarations-blob-mutation.json` (the separately
+run blob substitution rewrote `declarations-fault-41.log`). These temporary files are diagnostic
+copies, not production provenance or a substitute for this record.
+
+| Fault                               | Exact omitted check or injected dependency                                                                                                                           | Observed failing production assertion                                                                                                                                                                                |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| invalid maximumReads                | `if (!Number.isSafeInteger(value) &#124;&#124; value < 1)` → `if (name !== 'maximumReads' && (!Number.isSafeInteger(value) &#124;&#124; value < 1))`                 | retained declarations refuse invalid maximumReads                                                                                                                                                                    |
+| invalid maximumReadBytes            | `if (!Number.isSafeInteger(value) &#124;&#124; value < 1)` → `if (name !== 'maximumReadBytes' && (!Number.isSafeInteger(value) &#124;&#124; value < 1))`             | retained declarations refuse invalid maximumReadBytes                                                                                                                                                                |
+| invalid maximumOutputBytes          | `if (!Number.isSafeInteger(value) &#124;&#124; value < 1)` → `if (name !== 'maximumOutputBytes' && (!Number.isSafeInteger(value) &#124;&#124; value < 1))`           | retained declarations refuse invalid maximumOutputBytes                                                                                                                                                              |
+| invalid maximumDeclarationPaths     | `if (!Number.isSafeInteger(value) &#124;&#124; value < 1)` → `if (label !== 'maximumDeclarationPaths' && (!Number.isSafeInteger(value) &#124;&#124; value < 1))`     | retained declarations refuse invalid maximumDeclarationPaths                                                                                                                                                         |
+| invalid maximumDeclarationBytes     | `if (!Number.isSafeInteger(value) &#124;&#124; value < 1)` → `if (label !== 'maximumDeclarationBytes' && (!Number.isSafeInteger(value) &#124;&#124; value < 1))`     | retained declarations refuse invalid maximumDeclarationBytes                                                                                                                                                         |
+| invalid maximumDeclarationFacts     | `if (!Number.isSafeInteger(value) &#124;&#124; value < 1)` → `if (label !== 'maximumDeclarationFacts' && (!Number.isSafeInteger(value) &#124;&#124; value < 1))`     | retained declarations refuse invalid maximumDeclarationFacts                                                                                                                                                         |
+| invalid maximumHistoricalSelections | `if (!Number.isSafeInteger(value) &#124;&#124; value < 1)` → `if (label !== 'maximumHistoricalSelections' && (!Number.isSafeInteger(value) &#124;&#124; value < 1))` | retained declarations refuse invalid maximumHistoricalSelections                                                                                                                                                     |
+| format allowlist                    | `if (format !== 'sha1' && format !== 'sha256')` → `if (false)`                                                                                                       | retained declarations refuse an invalid pinned Git format                                                                                                                                                            |
+| format metadata                     | `revision.length !== width` → `false`                                                                                                                                | retained declarations refuse a Git format differing from selected metadata                                                                                                                                           |
+| extractor identity                  | `serializeCanonical(identifyDeclarationExtractor(extractorBytes)) !==     serializeCanonical(input.extractor)` → `false`                                             | retained declarations refuse changed extractor bytes; retained declarations refuse changed extractor id; retained declarations refuse changed extractor version; retained declarations refuse changed extractor blob |
+| legacy history                      | `if (candidate.history === null)` → `if (false)`                                                                                                                     | retained declarations refuse legacy null history before reading                                                                                                                                                      |
+| read count                          | `if (readCount >= limits.maximumReads)` → `if (false)`                                                                                                               | retained declarations enforce maximumReads                                                                                                                                                                           |
+| read bytes                          | `if (nextBytes > limits.maximumReadBytes)` → `if (false)`                                                                                                            | retained declarations enforce maximumReadBytes                                                                                                                                                                       |
+| output bytes                        | `if (Buffer.byteLength(serializeCanonical(extracted)) > limits.maximumOutputBytes)` → `if (false)`                                                                   | retained declarations enforce maximumOutputBytes                                                                                                                                                                     |
+| census                              | `serializeCanonical(selections) !== serializeCanonical(history.selections)                                                                                           |                                                                                                                                                                                                                      | `→`false |     | `   | retained declarations refuse changed history census; retained declarations refuse changed history provenance |
+| selector digest                     | `hashBytes(serializeCanonical(selections)) !== history.historicalSelectionsIdentity                                                                                  |                                                                                                                                                                                                                      | `→`false |     | `   | retained declarations refuse changed history digest                                                          |
+| proof count                         | `history.proofs.length !== selections.length                                                                                                                         |                                                                                                                                                                                                                      | `→`false |     | `   | retained declarations refuse changed history proofs                                                          |
+| proof revision                      | `proof.revision !== selections.at(index)?.revision                                                                                                                   |                                                                                                                                                                                                                      | `→`false |     | `   | retained declarations refuse a changed history proof revision                                                |
+| proof path                          | `proof.path !== selections.at(index)?.path,` → `false,`                                                                                                              | retained declarations refuse a changed history proof path                                                                                                                                                            |
+| declaration paths                   | `if (paths.length > limits.maximumDeclarationPaths)` → `if (false)`                                                                                                  | retained declarations enforce maximumDeclarationPaths                                                                                                                                                                |
+| declaration bytes                   | `if (bytes.length > limits.maximumDeclarationBytes)` → `if (false)`                                                                                                  | retained declarations enforce maximumDeclarationBytes                                                                                                                                                                |
+| declaration facts                   | `if (!Number.isSafeInteger(factCount) &#124;&#124; factCount > limits.maximumDeclarationFacts)` → `if (false)`                                                       | retained declarations enforce maximumDeclarationFacts                                                                                                                                                                |
+| historical pairs                    | `if (bySelector.size > limits.maximumHistoricalSelections)` → `if (false)`                                                                                           | retained declarations enforce the historical selection ceiling                                                                                                                                                       |
+| BOM target                          | `target = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true })` → `target = new TextDecoder('utf-8', { fatal: true })`                                         | retained declarations preserve BOM filenames through current symlinks                                                                                                                                                |
+| symlink cycle                       | `if (seen.has(path))` → `if (false)`                                                                                                                                 | retained declarations refuse a current symlink cycle without ambient reads                                                                                                                                           |
+| symlink escape                      | `if (resolved.pop() === undefined)` → `if ((resolved.pop(), false))`                                                                                                 | retained declarations refuse a current symlink escape without ambient reads                                                                                                                                          |
+| symlink absolute                    | `target.startsWith('/')                                                                                                                                              |                                                                                                                                                                                                                      | `→`false |     | `   | retained declarations refuse a current symlink absolute without ambient reads                                |
+| symlink empty                       | `target.length === 0                                                                                                                                                 |                                                                                                                                                                                                                      | `→`false |     | `   | retained declarations refuse invalid current symlink target ""                                               |
+| symlink nul                         | `target.includes('\0')` → `false`                                                                                                                                    | retained declarations refuse invalid current symlink target "nul\u0000target"                                                                                                                                        |
+| symlink utf8                        | `target = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true })` → `target = new TextDecoder('utf-8', { fatal: false, ignoreBOM: true })`                       | retained declarations refuse a current symlink malformed without ambient reads                                                                                                                                       |
+| zero maximumReads                   | `!Number.isSafeInteger(value) &#124;&#124; value < 1` → `!Number.isSafeInteger(value) &#124;&#124; false`                                                            | retained declarations refuse zero maximumReads                                                                                                                                                                       |
+| zero maximumReadBytes               | `!Number.isSafeInteger(value) &#124;&#124; value < 1` → `!Number.isSafeInteger(value) &#124;&#124; false`                                                            | retained declarations refuse zero maximumReadBytes                                                                                                                                                                   |
+| zero maximumOutputBytes             | `!Number.isSafeInteger(value) &#124;&#124; value < 1` → `!Number.isSafeInteger(value) &#124;&#124; false`                                                            | retained declarations refuse zero maximumOutputBytes                                                                                                                                                                 |
+| zero maximumDeclarationPaths        | `!Number.isSafeInteger(value) &#124;&#124; value < 1` → `!Number.isSafeInteger(value) &#124;&#124; false`                                                            | retained declarations refuse zero maximumDeclarationPaths                                                                                                                                                            |
+| zero maximumDeclarationBytes        | `!Number.isSafeInteger(value) &#124;&#124; value < 1` → `!Number.isSafeInteger(value) &#124;&#124; false`                                                            | retained declarations refuse zero maximumDeclarationBytes                                                                                                                                                            |
+| zero maximumDeclarationFacts        | `!Number.isSafeInteger(value) &#124;&#124; value < 1` → `!Number.isSafeInteger(value) &#124;&#124; false`                                                            | retained declarations refuse zero maximumDeclarationFacts                                                                                                                                                            |
+| zero maximumHistoricalSelections    | `!Number.isSafeInteger(value) &#124;&#124; value < 1` → `!Number.isSafeInteger(value) &#124;&#124; false`                                                            | retained declarations refuse zero maximumHistoricalSelections                                                                                                                                                        |
+| ambient current fallback            | replace current byte port with `require('node:fs').readFileSync(path)`                                                                                               | both `retained %s declarations equal legacy after source removal without ambient reads` fail at the forbidden ambient read sentinel                                                                                  |
+| ambient history fallback            | replace historical byte port with `Bun.spawnSync(['git', 'show', revision + ':' + path]).stdout`                                                                     | the same SHA-1/SHA-256 parity tests fail at the forbidden execution sentinel                                                                                                                                         |
+| ambient extractor fallback          | replace extractor byte port with `require('node:fs').readFileSync(import.meta.path)`                                                                                 | the same SHA-1/SHA-256 parity tests fail at the forbidden ambient read sentinel                                                                                                                                      |
+| current symlink Git ID substitution | replace current generated/vendored blob hashing with the selected entry Git ID                                                                                       | both SHA-1/SHA-256 parity tests fail with `fact blob authority-selector mismatch`, proving resolved current bytes differ from Git symlink text                                                                       |
+
+Disqualified trials: first, omitting the Git format allowlist still satisfied an overly broad
+`Git object format` assertion through the metadata-format check; the expectation now names
+`unsupported` and the independent omission fails. Second, a duplicate declaration-path
+fixture failed request-schema validation before the path ceiling; it was replaced with two
+distinct selected declaration paths, then omission lost the named path-ceiling refusal.
+An initial mutation locator matched both current-symlink and historical-tree UTF-8 decoders;
+that trial never ran, was not counted, and was corrected to target only the current resolver.
+
+### Fresh scoped verification
+
+- `TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/node_modules bun test --preload ./tools/test/scratch/preload.ts apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.test.ts apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-objects.test.ts apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-preparation.test.ts apps/twilight-structure/twilight-burokrat/cli/src/relationships/selectors.test.ts apps/twilight-structure/twilight-burokrat/cli/src/judge-facade.test.ts --timeout=60000` — 249 passed, zero failures, 940 assertions; 46.48 seconds. The legacy production CLI explicitly passed separate absent/unreadable/malformed authority and declaration checks.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run twilight-dash:lint --outputStyle=stream` — passed, uncached; 16.3 seconds.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run twilight-burokrat:lint:source --outputStyle=stream` — passed, uncached; 17.9 seconds.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many --target=typecheck --projects=twilight-dash,twilight-burokrat --parallel=1 --outputStyle=stream` — both targets passed, uncached; 2.8 seconds.
+- `bunx prettier --check apps/twilight-structure/twilight-burokrat/cli/src/relationships/declarations.ts apps/twilight-structure/twilight-burokrat/cli/src/judge-facade.ts apps/twilight-structure/twilight-burokrat/cli/src/judge-facade.test.ts apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.ts apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.test.ts apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-history.ts openspec/changes/automatic-trusted-activation/tasks.md openspec/changes/automatic-trusted-activation/verify.md` — all eight matched files use Prettier style.
+- `bunx --package @fission-ai/openspec@1.12.0 openspec validate automatic-trusted-activation --strict --json` — one change passed, zero issues.
+- `bunx --package @fission-ai/openspec@1.12.0 openspec validate --all --json` — all 196 entries passed (178 changes, 18 specs), zero failures.
+- `git diff --check` — no whitespace errors.
+
+The first unconfigured Nx attempt reported denied daemon/plugin sockets and no executed
+target; its exit zero was rejected as evidence. Explicit daemon/plugin isolation settings
+produced the actual target outputs above. Earlier source lint findings (import/export sorting,
+a test-only cross-project internal import, an unused import and a runtime union check) and
+the filesystem sentinel's overloaded `realpathSync.native` test typing were corrected before
+these successful checks.
+
+Full canonical `bin/h2puni-gate.sh <sha>`, full monorepo tests/build, CI-only secrets/migration
+checks, independent exact-SHA review, compiler/process/runtime closure, all eleven documents,
+external provider acceptance and deployed authority were not run by this bounded worker.
+The parent integration owner retains the exact-SHA review and canonical gate. Only
+2.1d.1.3a is checked; 2.1d.1.3 and all encompassing tasks remain open. Trusted-wiki CI remains
+disabled and no publication, push, merge, activation, external authority or WBS completion is claimed.
+
+### Astra correction: preserve current fact membership and intermediate directories
+
+Review of `eba7f669112eab3851376e4069ff3df7f51f4bd9` found two retained/legacy
+refusal differences. A tracked symlink `env-link -> .env.example/../.env.example`
+traversed a regular file before normalization, and a fact naming the unselected
+`alias/.env.example` traversed a tracked directory symlink to selected `nested/.env.example`.
+The legacy adapter refuses both. Its actual first diagnostic is `authority absent: env-link`
+(`existsSync` maps the underlying ENOTDIR to false), and its second is
+`authority outside selected candidate: alias/.env.example`; the tests record these observed
+outputs without asserting an unreadable diagnostic the CLI did not produce.
+
+The current fact port now checks original selected-path membership and Gitlink exclusion
+before resolution. The shared current resolver rejects intermediate regular/Gitlink entries
+before processing `..`, and requires implicit directory prefixes to exist in the retained
+entry namespace. The latter also prevents `missing/../.env.example` from acquiring selected
+bytes through a nonexistent parent. Declaration discovery retains its existing directory-alias
+semantics; original fact membership applies specifically to executable fact selectors.
+
+Six production regressions (three faults under both real Git formats) were RED before the
+fix with twelve assertions, then GREEN. A separate original-fact Gitlink boundary test and
+two positive declaration-directory-alias parity controls were added. All retained extractions
+run after source deletion with the filesystem/Git execution sentinels mounted.
+
+Observed R5 proofs: independently omit each exact source condition below, run
+`bun test apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.test.ts --test-name-pattern '<named test fragment>'`,
+then restore the source in `finally`. All four trials exited 1 at the named assertions.
+Adjacent production `Proof:` comments identify these faults.
+
+| Omitted check                                                                                                                                                      | Observed assertion failure                                                                                                                                                          |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `entry !== undefined && remaining.length > 0` → `false`                                                                                                            | both `retained %s refuses traversal through a regular file before parent normalization` tests stop throwing and incorrectly extract the selected PORT                               |
+| remove the `!candidate.snapshot.entries.some((selected) => selected.path.startsWith(path + '/'))` intermediate prefix condition, retaining terminal absence checks | both `retained %s refuses traversal through a missing directory before parent normalization` tests stop throwing and incorrectly extract the selected PORT                          |
+| `entry === undefined` from the original fact guard, retaining `entry?.mode === '160000'`                                                                           | both `retained %s refuses an unselected original fact path through a selected directory symlink` tests stop throwing and extract through the alias                                  |
+| `entry.mode === '160000'` from the original fact guard, retaining `entry === undefined`                                                                            | `retained declarations refuse a Gitlink at the original fact membership boundary` loses its named fact-membership refusal and reaches the later generic unsupported-mode diagnostic |
+
+Restored focused GREEN: seven negative tests passed with fourteen assertions; both positive
+alias controls passed with four assertions. Local trial copies are
+`/tmp/declarations-parity-red.log`, `/tmp/declarations-parity-green.log`,
+`/tmp/declarations-parity-fault-1.log` through `-4.log`,
+`/tmp/declarations-parity-mutations.json` and `/tmp/declarations-parity-restored.log`.
+
+Fresh successor verification:
+
+- Repeated the exact five-file Bun command in the preceding entry with the trusted-runtime
+  environment, scratch preload and 60000 ms timeout: **258 passed, zero failures, 958 assertions**,
+  49.77 seconds. This includes the updated retained extractor, retained capture/reopen, legacy
+  production CLI selectors and judge facade. Raw output: `/tmp/declarations-parity-final-tests.log`.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run twilight-dash:lint --outputStyle=stream`
+  — passed, uncached; 14.3 seconds.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run twilight-dash:typecheck --outputStyle=stream`
+  — passed, uncached; 1.3 seconds.
+- `bunx --package @fission-ai/openspec@1.12.0 openspec validate automatic-trusted-activation --strict --json`
+  — one change passed with zero issues.
+- `bunx prettier --check apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.ts apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.test.ts apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-history.ts openspec/changes/automatic-trusted-activation/verify.md`
+  — all four matched files use Prettier style; `git diff --check` reported no whitespace errors.
+
+This restores the precise current-selection contract within checked bounded component
+2.1d.1.3a; parent 2.1d.1.3 remains open. Burokrat source was unchanged in this correction;
+its selectors/facade tests are included above and its source lint/typecheck were not repeated.
+Full canonical gate, monorepo build, CI-only checks, independent successor review and external
+authority remain unrun by this worker. Trusted-wiki workflow, root/#451 branch, publication,
+merge, activation and WBS state were not changed; no push was performed.
+
+### Hosted CI correction: declare Dash's CI workflow test input
+
+At clean #451 head `c99a0c2606fbe76b7d257dc2374f117baa25584a`, the parent reported
+hosted CI run `38518267917` failing `tool-devsync:test` because
+`twilight-dash:test does not declare .github/workflows/ci.yml`. The existing workflow
+reader detector conservatively recognizes workflow names in test source, including the
+CI fixture/selector paths in `review-declarations.test.ts`. Dash's test target declared
+`trusted-wiki.yml` but omitted `ci.yml`.
+
+The correction adds only `{workspaceRoot}/.github/workflows/ci.yml` to Dash's test inputs.
+The detector and assertion remain unchanged; an adjacent `Proof:` comment records the
+watched omission. This restores the existing workspace-input contract and adds no new
+OpenSpec task or activation behavior.
+
+- `bun test --preload ./tools/test/scratch/preload.ts tools/tool-devsync/src/workspace-targets.test.ts --test-name-pattern 'every suite that reads a CI workflow declares it' --timeout=30000`
+  — RED at the exact missing-input assertion (one failure, nine assertions), then GREEN
+  (one pass, nine assertions). Removing only the new input after GREEN reproduced the
+  exact same diagnostic with exit 1; the manifest was restored in `finally`.
+  Local diagnostic copies: `/tmp/declarations-ci-input-green.log` and
+  `/tmp/declarations-ci-input-omission.log`.
+- `bun test --preload ./tools/test/scratch/preload.ts tools/tool-devsync/src/workspace-targets.test.ts --timeout=30000`
+  — restored full file GREEN: 23 passed, zero failures, 84 assertions; 4.36 seconds.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run tool-devsync:lint --outputStyle=stream`
+  — passed, uncached; 11.5 seconds.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run tool-devsync:typecheck --outputStyle=stream`
+  — passed, uncached; 668 ms.
+- `bunx prettier --check apps/twilight-structure/twilight-dash/cli/project.json tools/tool-devsync/src/workspace-targets.test.ts openspec/changes/automatic-trusted-activation/verify.md`
+  — all three matched files use Prettier style; `git diff --check` found no whitespace errors.
+- `bunx --package @fission-ai/openspec@1.12.0 openspec validate automatic-trusted-activation --strict --json`
+  — one change passed, zero issues.
+
+Dash source/tests were unchanged and its suites/lint/typecheck were not repeated in this
+manifest-only correction. Hosted CI retry, full monorepo checks/build, canonical host gate,
+external authority, push, merge and deployment were not performed by this worker. The
+parent retains successor review, publication of the follow-up and gate requeue ownership;
+parent extraction tasks and external acceptance remain open.
