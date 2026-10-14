@@ -1,0 +1,82 @@
+[
+  {
+    "fault": "collection",
+    "test": "refuses missing current facts",
+    "exit": 1
+  },
+  {
+    "fault": "reference-lists",
+    "test": "refuses malformed owner list",
+    "exit": 1
+  },
+  {
+    "fault": "owner-shape",
+    "test": "refuses malformed owner row",
+    "exit": 1
+  },
+  {
+    "fault": "step-shape",
+    "test": "refuses malformed step row",
+    "exit": 1
+  },
+  {
+    "fault": "fact-shape",
+    "test": "refuses fractional time",
+    "exit": 1
+  },
+  {
+    "fault": "owner",
+    "test": "refuses unknown owner",
+    "exit": 1
+  },
+  {
+    "fault": "leaf",
+    "test": "refuses parent owner",
+    "exit": 1
+  },
+  {
+    "fault": "step",
+    "test": "refuses unknown step",
+    "exit": 1
+  },
+  {
+    "fault": "duplicate",
+    "test": "refuses duplicate",
+    "exit": 1
+  },
+  {
+    "fault": "capture-boundary",
+    "test": "refuses duplicate current facts on capture",
+    "exit": 1
+  },
+  {
+    "fault": "read-boundary",
+    "test": "refuses duplicate current facts on stored read",
+    "exit": 1
+  },
+  {
+    "fault": "upgrade",
+    "test": "upgrades schema6",
+    "exit": 1
+  },
+  {
+    "fault": "memory-capture",
+    "test": "captures direct blockage detached",
+    "exit": 1
+  },
+  {
+    "fault": "sqlite-capture",
+    "test": "captures direct blockage on the same",
+    "exit": 1
+  },
+  {
+    "fault": "fold",
+    "test": "captures direct blockage while",
+    "exit": 1
+  },
+  {
+    "fault": "schedule",
+    "test": "captures direct blockage while",
+    "exit": 1
+  }
+]

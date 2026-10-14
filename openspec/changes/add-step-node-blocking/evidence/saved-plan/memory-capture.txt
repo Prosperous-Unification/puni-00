@@ -1,0 +1,32 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-memory/src/memory-source.test.ts:
+860 |   try {
+861 |     await source.stores.workItems.insert(workItemRow({ id: 'wi-blocked', projectId: 'p1' }), [], stamp);
+862 |     const fact = { workItemId: 'wi-blocked', stepId: 'st-1', blockedAt: -123 };
+863 |     expect(await source.stores.blockages.set(fact, stamp)).toBe('written');
+864 |     const captured = await source.history.savedPlanCapture.readPlanInput('p1');
+865 |     expect(captured?.stepBlockages).toEqual([fact]);
+                                          ^
+error: expect(received).toEqual(expected)
+
+- [
+-   {
+-     "blockedAt": -123,
+-     "stepId": "st-1",
+-     "workItemId": "wi-blocked",
+-   },
+- ]
++ []
+
+- Expected  - 7
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-step-saved-sol/libs/wbs/adapters/store-memory/src/memory-source.test.ts:865:37)
+(fail) captures direct blockage detached from later memory writes [12.07ms]
+
+ 0 pass
+ 14 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [7.50s]

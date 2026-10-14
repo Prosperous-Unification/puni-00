@@ -37,6 +37,8 @@
 - [ ] 4.3 Add blockage fields to domain contracts, OpenAPI shapes, core reads, plan documents, saved-plan capture and comparison. Allocate versions only after task 0.2.
 - [ ] 4.4 Add import production-path negatives for each ownership/reference validator; disable each guard and watch its specific test fail. Add adjacent `Proof:` comments.
 
+- [x] 4.2.1 Saved-plan direct capture: required detached direct facts, schema7 sorted owner/step/time rows, schema1–6 upgrade to empty, strict current capture/read refusals, pair-addressed comparison, memory/SQLite capture and schedule neutrality proofs. Plan-document and public read work in 4.1–4.4 remains separate.
+
 ## 5. Step-scoped user interface
 
 - [ ] 5.1 Red: test the step cell and card action for direct block/clear, direct versus proxy wording, retained progress, blocker cause, keyboard access and accessible name/description. Add a browser test on the production preview path.

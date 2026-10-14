@@ -952,6 +952,7 @@ async function capturePlanInput(
     estimates,
     actuals,
     progress,
+    stepBlockages,
     measures,
     dependencies,
     typedDependencies,
@@ -970,6 +971,8 @@ async function capturePlanInput(
     stores.estimates.listByProject(projectId),
     stores.actuals.listByProject(projectId),
     stores.progress.listByProject(projectId),
+    // Proof: capture read replaced with empty; detached blockage capture test failed (memory-source.test.ts), 2026-10-14.
+    stores.blockages.listByProject(projectId),
     stores.measures.listByProject(projectId),
     stores.dependencies.listByProject(projectId),
     stores.typedDependencies.listByProject(projectId),
@@ -990,6 +993,7 @@ async function capturePlanInput(
     estimates,
     actuals,
     progress,
+    stepBlockages,
     measures,
     dependencies,
     typedDependencies: typedDependencies.map(({ id, predecessor, successor, type }) => ({

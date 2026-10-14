@@ -1,0 +1,21 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/saved-plan/step-blockages.test.ts:
+621 | }
+622 | 
+623 | /** Validates direct blockage at capture and stored-body boundaries without repairing trusted state. */
+624 | export function assertStepBlockages(body: unknown): void {
+625 |   if (typeof body !== 'object' || body === null || !('stepBlockages' in body) || !Array.isArray(body.stepBlockages))
+626 |     throw new Error('step blockage collection is missing or malformed');
+                                                                            ^
+error: step blockage collection is missing or malformed
+      at assertStepBlockages (/tmp/puni-step-saved-sol/libs/wbs/domain/domain/src/saved-plan/canonical-plan-input.ts:626:71)
+      at normalisePlanInputForward (/tmp/puni-step-saved-sol/libs/wbs/domain/domain/src/saved-plan/normalise-plan-input.ts:207:27)
+      at <anonymous> (/tmp/puni-step-saved-sol/libs/wbs/domain/domain/src/saved-plan/step-blockages.test.ts:26:12)
+(fail) saved direct step blockage > upgrades schema6 without mutating stored facts or bytes [6.32ms]
+
+ 0 pass
+ 26 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [72.00ms]
