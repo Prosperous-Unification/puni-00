@@ -74,12 +74,17 @@ test.describe('the toolbar popovers', () => {
     await page.keyboard.press('Enter');
     await summaryOf(page, 'Views').focus();
     await page.keyboard.press('Enter');
-    const open = await page.evaluate(() =>
-      [...document.querySelectorAll('details[open] > summary')].map((node) => node.textContent),
-    );
+    // Polled: `toggle` is dispatched as a task after the open, so the close of the other
+    // lands a moment later (CI read both open on an immediate read, 2026-10-14).
     // Proof: on 2026-10-13, without the toggle listener in `useClosedOnDismiss`, this failed
     // listing both Filters and Views.
-    expect(open).toEqual(['Views']);
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          [...document.querySelectorAll('details[open] > summary')].map((node) => node.textContent),
+        ),
+      )
+      .toEqual(['Views']);
   });
 
   test('a popover the keyboard leaves is closed (F-028)', async ({ page }) => {
