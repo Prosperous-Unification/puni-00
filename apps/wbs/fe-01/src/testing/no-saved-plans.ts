@@ -12,6 +12,7 @@ export const NO_SAVED_PLANS: SavedPlanRoutes = {
   list: notServed,
   save: notServed,
   rename: notServed,
+  remove: notServed,
   compare: notServed,
   subscribe: () => ({ unsubscribe: () => undefined }),
 };

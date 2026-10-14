@@ -949,7 +949,7 @@ function CardTeamField({
         // Not the cell's `↳ name`: the sheet says where the label came from on
         // its own `Inherited:` line, and a placeholder repeating it is the
         // same claim twice on a surface that already had room for the first.
-        placeholder="search or add"
+        placeholder="search"
         data-fact={inheritedNote}
       />
     </>
@@ -1037,7 +1037,7 @@ function CardServiceField({
         removeLabel={(entry) => `Remove ${entry.name} from ${row.number}`}
         // The team sheet's reason, one dimension over: the `Inherited:` line
         // above the strip is this surface's single reading of inheritance.
-        placeholder="search or add"
+        placeholder="search"
         data-fact={title}
       />
     </>
@@ -1130,7 +1130,7 @@ function CardTagsField({
         dataCell={cellKey(row.id, 'tag')}
         addLabel={`Add a tag to ${row.number}`}
         removeLabel={(entry) => `Remove ${entry.name} from ${row.number}`}
-        placeholder="search or add"
+        placeholder="search"
         data-fact={title}
       />
     </>

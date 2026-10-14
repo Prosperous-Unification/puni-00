@@ -312,4 +312,64 @@ test.describe('Gantt legibility (ui-review 2026-10-13)', () => {
     expect(fit.chartRight).toBeGreaterThan(fit.panelRight - 20);
     expect(fit.scrolls).toBe(false);
   });
+
+  for (const width of [1440, 1024] as const) {
+    test(`full screen fills its width at every rung, ${String(width)}px (F-062)`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: width === 1440 ? 900 : 768 });
+      await seedEveryBarColour(page);
+      await page.locator('[data-gantt-fullscreen-toggle]').click();
+      await expect(page.locator('[data-gantt-fullscreen]')).toBeVisible();
+      for (const pxPerWorkday of [28, 12, 4] as const) {
+        await page.locator('[data-gantt-day-scale]').selectOption(String(pxPerWorkday));
+        // How far the last axis column stops short of the scroll box's inner
+        // right edge, and whether the box scrolls sideways. The fill is floored
+        // to whole columns and keeps the chart's own right pad (12px), so a
+        // filled chart is short by less than one column plus that pad and the
+        // box never scrolls: a scrollbar here would be one for nothing.
+        const fill = (): Promise<string> =>
+          page.evaluate((columnPx) => {
+            const panel = document.querySelector('[data-gantt-fullscreen] [data-gantt-panel]');
+            const columns = document.querySelectorAll('[data-gantt-axis] [data-axis-day]');
+            if (!(panel instanceof HTMLElement) || columns.length === 0) {
+              throw new Error('the full-screen chart is not on the page');
+            }
+            const last = columns.item(columns.length - 1).getBoundingClientRect().right;
+            const shortfall = panel.getBoundingClientRect().left + panel.clientWidth - last;
+            const scrolls = panel.scrollWidth > panel.clientWidth;
+            return shortfall >= 0 && shortfall < columnPx + 12 && !scrolls
+              ? 'filled'
+              : `last column ${String(shortfall)}px short of the edge, scrolls: ${String(scrolls)}`;
+          }, pxPerWorkday);
+        // Proof: on integration-1 abd06e9ad (the scroll box remounts into the
+        // overlay while the width observers keep watching the detached box,
+        // which measures 0) this failed at Days on a last column 804px short of
+        // the edge at 1440 and 388px short at 1024. With the observers fixed and
+        // `axisMonthWords`'s room check not yet written, at Weeks 1440 on `last
+        // column 16px short of the edge, scrolls: true` — "Jan 2027" on the
+        // last cell ran 15px past the chart. Watched 2026-10-14.
+        await expect
+          .poll(fill, { message: `the chart at ${String(pxPerWorkday)}px a day` })
+          .toBe('filled');
+      }
+      await page.keyboard.press('Escape');
+      await expect(page.locator('[data-gantt-fullscreen]')).toHaveCount(0);
+      // And back under the plan, the panel fills its own width again: the
+      // scroll box remounts on the way out as well as on the way in.
+      // Proof: with `fullScreen` dropped from the measuring effect's
+      // dependencies and the loop above skipped, this failed on `expected 1144
+      // to be less than 20` at 1440 and 728 at 1024. Watched 2026-10-14.
+      await expect
+        .poll(() =>
+          page.evaluate(() => {
+            const panel = document.querySelector('[data-gantt-panel]');
+            const chart = document.querySelector('[data-gantt-chart]');
+            if (panel === null || chart === null) throw new Error('the chart is not on the page');
+            return panel.getBoundingClientRect().right - chart.getBoundingClientRect().right;
+          }),
+        )
+        .toBeLessThan(20);
+    });
+  }
 });

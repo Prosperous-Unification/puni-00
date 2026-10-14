@@ -18,3 +18,8 @@
 - [x] 4.1 Failing browser test: an off toggle is neither struck nor dashed, and pressed differs from off
 - [x] 4.2 Plain off state and filled pressed state at the strip's existing metrics
 - [ ] 4.3 The toolbar's 32px size for the strip: open decision (scroll-stability and marker-rule gates)
+
+## 5. Full screen fills its width (F-062)
+
+- [x] 5.1 Failing browser test: full screen at Days, Weeks and Months, 1440 and 1024, the last axis column within one column and the pad of the edge, no sideways scroll, and the panel filled again after Escape
+- [x] 5.2 The measuring observers follow the scroll box into and out of the overlay; a month name with no room before the axis ends is not drawn

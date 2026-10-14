@@ -201,7 +201,8 @@ test.describe('attempts on the step card, in a browser (step-node-attempts D7)',
         path: testInfo.outputPath(`attempts-settings-timezone-1280-${scheme}.png`),
       });
       await zone.fill('America/New_York');
-      await expect(settings.getByRole('button', { name: 'Save timezone' })).toBeEnabled();
+      // Applied as the box is left (UI review D7, F-060); the line under it says so.
+      await expect(settings.getByText(/Press Enter or leave the box/)).toBeVisible();
       await page.screenshot({
         path: testInfo.outputPath(`attempts-settings-timezone-edited-1280-${scheme}.png`),
       });

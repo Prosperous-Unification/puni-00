@@ -1,4 +1,4 @@
-import { type KeyboardEvent, useCallback, useMemo, useRef, useState } from 'react';
+import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -119,7 +119,7 @@ const storedSection = (
 ): Remembered<SettingsSection> => remembered.projectSettingsSection(projectId, isSettingsSection);
 
 /** What each section gets from the plan, less what the modal itself supplies. */
-type SectionOwn<P> = Omit<P, 'onDirtyChange' | 'onDone'>;
+type SectionOwn<P> = Omit<P, 'onDirtyChange'>;
 
 export interface ProjectSettingsModalProps {
   projectId: string;
@@ -179,6 +179,19 @@ export interface ProjectSettingsModalProps {
  * records from 2026-08-06. The cost is three panels' render at once; each reads
  * the plan's existing data rather than fetching its own.
  *
+ * **One commit model: every section applies as its field is left** (UI review
+ * D7, F-060). No section has a Save, a Cancel or a Done; a capacity, a step, a
+ * zone apply on blur or Enter, and the ladder and the weights — values that are
+ * only meaningful together — apply as one when the focus leaves the group, with
+ * an Undo once they land. Escape in a field puts that field back.
+ *
+ * **The ✕ and a click outside mean "keep this and leave"**, which is what Done
+ * meant. The click blurs the field, which applies it; the close is refused while
+ * the write is in the air, and the modal then closes by itself once nothing is
+ * held — or stays open on the refusal if be-01 said no. Escape waits the same
+ * way, except in a field, where it is the field's own key: it puts the field
+ * back and the modal stays.
+ *
  * **Closing over an edit is refused, and the refusal shows where** (D3). Each
  * panel reports whether it holds an uncommitted draft or a write in flight;
  * Escape, the ✕ and a click outside all go through {@link requestClose}, which
@@ -229,9 +242,26 @@ export function ProjectSettingsModal({
    * so a refusal whose cause has since landed says nothing stale.
    */
   const [refused, setRefused] = useState(false);
+  /**
+   * Whether a ✕ or a click outside was refused while something was held, and the
+   * modal should close once it is not. Dropped by any key or pointer inside the
+   * surface: a reader who has started on the refusal has not asked to leave.
+   */
+  const [closeWanted, setCloseWanted] = useState(false);
+
+  /**
+   * The sections with a write in the air — a subset of the holds above, kept
+   * apart because a travelling write clears by itself and a draft or a refusal
+   * does not. Ref and state for the reason `dirtyRef` gives.
+   */
+  const busyRef = useRef(new Set<SettingsSection>());
+  const [busySections, setBusySections] = useState<readonly SettingsSection[]>([]);
 
   const publishDirty = (): void => {
     setDirtySections(SECTIONS.map((s) => s.id).filter((id) => dirtyRef.current.has(id)));
+  };
+  const publishBusy = (): void => {
+    setBusySections(SECTIONS.map((s) => s.id).filter((id) => busyRef.current.has(id)));
   };
 
   /**
@@ -250,6 +280,27 @@ export function ProjectSettingsModal({
     // `publishDirty` closes over a setter and a ref, both stable for the life
     // of the component, so the reporters are made once.
     [],
+  );
+  const busyReporterFor = useCallback(
+    (section: SettingsSection) =>
+      (busy: boolean): void => {
+        if (busy) busyRef.current.add(section);
+        else busyRef.current.delete(section);
+        publishBusy();
+      },
+    // Stable for the reason `reporterFor` gives.
+    [],
+  );
+  const busyReporters = useMemo(
+    () => ({
+      teams: busyReporterFor('teams'),
+      priorities: busyReporterFor('priorities'),
+      steps: busyReporterFor('steps'),
+      estimating: busyReporterFor('estimating'),
+      optimization: busyReporterFor('optimization'),
+      timezone: busyReporterFor('timezone'),
+    }),
+    [busyReporterFor],
   );
   const reporters = useMemo(
     () => ({
@@ -293,10 +344,10 @@ export function ProjectSettingsModal({
    * Closes if nothing is held, or refuses and shows what is holding it.
    *
    * Every way out goes through here — Escape and the click away via Radix's
-   * handlers below, the ✕ via `onOpenChange(false)`, and a panel's own `Done`,
-   * `Save` or `Cancel` via {@link closeFrom}. Answers whether it closed, so a
-   * Radix handler can `preventDefault()` the dismissal it would otherwise
-   * perform on its own.
+   * handlers below, the ✕ via `onOpenChange(false)`. Answers whether it closed,
+   * so a Radix handler can `preventDefault()` the dismissal it would otherwise
+   * perform on its own. `leaving` is the ✕ and the click outside: refused, they
+   * leave {@link closeWanted} set, and the close happens when the hold clears.
    *
    * Proof: the `if (first !== undefined)` refusal below deleted, so this always
    * closes, and both `an in-flight write holds the modal open and is shown` and
@@ -305,44 +356,70 @@ export function ProjectSettingsModal({
    * "Project settings"` — the close went through over a ladder still
    * travelling and over a typed capacity. Watched 2026-08-30.
    */
-  function requestClose(): boolean {
-    const first = SECTIONS.map((s) => s.id).find((id) => dirtyRef.current.has(id));
+  function requestClose(leaving = false): boolean {
+    const held = SECTIONS.map((s) => s.id).filter((id) => dirtyRef.current.has(id));
+    const first = held.at(0);
     if (first !== undefined) {
+      // Leaving over writes that are only travelling is not refused out loud:
+      // the ✕ or the click away that blurred the field is what sent them, and
+      // the modal closes when they land. Jumping to their section with the red
+      // "Finish it or cancel it" was the refusal contradicting the close it was
+      // about to make (Fable review of #453, blocking 1).
+      // Proof: on 2026-10-14, against 6d4d02f33 (no such branch), `leaving over
+      // a write in flight says it is saving, not that an edit is unsaved` failed
+      // on `expected <p role="alert" …(1)></p> to be null`.
+      if (leaving && held.every((id) => busyRef.current.has(id))) {
+        setCloseWanted(true);
+        return false;
+      }
       show(first);
       setRefused(true);
+      setCloseWanted(leaving);
       return false;
     }
     setOpen(false);
     setRefused(false);
+    setCloseWanted(false);
     return true;
   }
 
-  /**
-   * A panel saying it is clean and asking to close, in one call.
-   *
-   * The panel is believed rather than waited on: its own dirty report arrives
-   * from an effect a render after the state that cleared it, and a `Done` that
-   * had to be clicked twice — once to be refused by a report about the previous
-   * render, once to land — would be a button that reads as broken.
-   */
-  function closeFrom(section: SettingsSection): void {
-    dirtyRef.current.delete(section);
-    publishDirty();
-    requestClose();
-  }
+  // The ✕'s second half: the blur it caused has applied the field, and once the
+  // write lands and nothing is held the modal closes without a second click.
+  // Proof: on 2026-10-14, with this effect removed, `the ✕ applies a typed
+  // capacity and closes once it lands` in project-settings-modal.test.tsx failed
+  // on the dialog still open after the write landed.
+  // A write that was refused instead turns the quiet wait into the refusal: its
+  // section is shown with the sentence, and the modal stays.
+  useEffect(() => {
+    if (!open || !closeWanted) return;
+    if (dirtySections.length === 0) {
+      requestClose();
+      return;
+    }
+    const stuck = dirtySections.find((id) => !busySections.includes(id));
+    if (stuck === undefined) return;
+    show(stuck);
+    setRefused(true);
+    // `requestClose` and `show` are plain functions of this render; the four
+    // values are what decide whether either runs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, closeWanted, dirtySections, busySections]);
 
   function onOpenChange(next: boolean): void {
     if (next) {
       dirtyRef.current.clear();
       setDirtySections([]);
+      busyRef.current.clear();
+      setBusySections([]);
       setRefused(false);
+      setCloseWanted(false);
       // Proof: on 2026-09-24, showing `FIRST_SECTION` here instead of reading the runtime failed `reopens
       // on a replacement runtime’s own remembered section` on `toHaveAttribute("aria-selected", "true")`.
       setShown(rememberedSettingsSection(readServices(), projectId).value);
       setOpen(true);
       return;
     }
-    requestClose();
+    requestClose(true);
   }
 
   /**
@@ -370,7 +447,13 @@ export function ProjectSettingsModal({
     document.getElementById(tabId(target.id))?.focus();
   }
 
-  const holding = refused ? dirtySections[0] : undefined;
+  const holding = refused
+    ? (dirtySections.find((id) => !busySections.includes(id)) ?? dirtySections[0])
+    : undefined;
+  const travelling =
+    closeWanted && holding === undefined
+      ? SECTIONS.filter((s) => dirtySections.includes(s.id)).map((s) => s.label)
+      : [];
   const holdingLabel = SECTIONS.find((s) => s.id === holding)?.label;
 
   return (
@@ -404,20 +487,40 @@ export function ProjectSettingsModal({
         className="top-[5vh] translate-y-0 overflow-y-hidden sm:max-w-3xl"
         // Radix performs the dismissal itself unless the event is prevented, so
         // a refused close has to be said here and not only in `onOpenChange`.
+        //
+        // Escape in a field is that field's: it puts the field back, so the
+        // refusal it meets is not a request to leave once the hold clears.
+        // Radix listens on the document's capture phase, before the field's own
+        // handler, so the target is what tells the two apart.
         onEscapeKeyDown={(event) => {
-          if (!requestClose()) event.preventDefault();
+          if (!requestClose(!isField(event.target))) event.preventDefault();
         }}
         onInteractOutside={(event) => {
-          if (!requestClose()) event.preventDefault();
+          if (!requestClose(true)) event.preventDefault();
+        }}
+        onKeyDownCapture={(event) => {
+          if (event.key !== 'Escape') setCloseWanted(false);
+        }}
+        onPointerDownCapture={() => {
+          setCloseWanted(false);
+        }}
+        onClickCapture={() => {
+          setCloseWanted(false);
         }}
       >
         <ModalHeader>
           <ModalTitle>Project settings</ModalTitle>
           <ModalDescription>
-            What this project configures about itself. Every setting here is this plan’s own.
+            What this project configures about itself. Every setting here is this plan’s own, and
+            each applies as you leave its field.
           </ModalDescription>
         </ModalHeader>
 
+        {travelling.length > 0 && (
+          <p role="status" className="text-muted-foreground text-sm">
+            Saving {travelling.join(' and ')}. The window closes when it lands.
+          </p>
+        )}
         {holdingLabel !== undefined && (
           <p role="alert" className="text-destructive text-sm">
             {holdingLabel} has an unsaved edit. Finish it or cancel it before closing.
@@ -476,9 +579,7 @@ export function ProjectSettingsModal({
               <TeamsPanel
                 {...teams}
                 onDirtyChange={reporters.teams}
-                onDone={() => {
-                  closeFrom('teams');
-                }}
+                onBusyChange={busyReporters.teams}
               />
             </div>
             <div
@@ -490,9 +591,7 @@ export function ProjectSettingsModal({
               <PrioritiesPanel
                 {...priorities}
                 onDirtyChange={reporters.priorities}
-                onDone={() => {
-                  closeFrom('priorities');
-                }}
+                onBusyChange={busyReporters.priorities}
               />
             </div>
             <div
@@ -501,7 +600,11 @@ export function ProjectSettingsModal({
               aria-labelledby={tabId('steps')}
               hidden={shown !== 'steps'}
             >
-              <StepsPanel {...steps} onDirtyChange={reporters.steps} />
+              <StepsPanel
+                {...steps}
+                onDirtyChange={reporters.steps}
+                onBusyChange={busyReporters.steps}
+              />
             </div>
             <div
               role="tabpanel"
@@ -512,9 +615,7 @@ export function ProjectSettingsModal({
               <EstimatingPanel
                 {...estimating}
                 onDirtyChange={reporters.estimating}
-                onDone={() => {
-                  closeFrom('estimating');
-                }}
+                onBusyChange={busyReporters.estimating}
               />
             </div>
             <div
@@ -531,6 +632,7 @@ export function ProjectSettingsModal({
                 <OptimizationSettingsPanel
                   {...optimization}
                   onDirtyChange={reporters.optimization}
+                  onBusyChange={busyReporters.optimization}
                 />
               )}
             </div>
@@ -540,7 +642,11 @@ export function ProjectSettingsModal({
               aria-labelledby={tabId('timezone')}
               hidden={shown !== 'timezone'}
             >
-              <TimezonePanel {...timezone} onDirtyChange={reporters.timezone} />
+              <TimezonePanel
+                {...timezone}
+                onDirtyChange={reporters.timezone}
+                onBusyChange={busyReporters.timezone}
+              />
             </div>
           </div>
         </div>
@@ -548,6 +654,12 @@ export function ProjectSettingsModal({
     </Modal>
   );
 }
+
+/** Whether an event came from a box a reader types or picks in, whose Escape is its own. */
+const isField = (target: EventTarget | null): boolean =>
+  target instanceof HTMLInputElement ||
+  target instanceof HTMLTextAreaElement ||
+  target instanceof HTMLSelectElement;
 
 const tabId = (section: SettingsSection): string => `project-settings-tab-${section}`;
 const panelId = (section: SettingsSection): string => `project-settings-panel-${section}`;

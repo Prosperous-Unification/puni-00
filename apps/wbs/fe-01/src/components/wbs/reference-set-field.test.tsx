@@ -428,17 +428,18 @@ describe('the reference strip on one rest line', () => {
   });
 
   itDom(
-    'clips the rest line, fades it only over hidden chips, and does neither while editing',
+    'clips the rest line, counts what it hid, never fades it, and clips nothing while editing',
     () => {
-      // Since the review of PR #409 (D4) the fade and a `+N` count say that the
-      // line wrapped chips out of sight — a layout fact, measured with a
+      // Since the review of PR #409 (D4) a `+N` count says that the line
+      // wrapped chips out of sight — a layout fact, measured with a
       // ResizeObserver. jsdom has neither, so both are stubbed here: the line's
-      // bottom at 18 and every chip after the first at 40, below it.
+      // bottom at 18 and every chip after the first at 40, below it. No fade
+      // on the line or the strip since D4's amendment of 2026-10-14 (review of
+      // PR #457): it dimmed the last chip's ✕, and the count already says it.
       // Proof: the count's render removed, this failed on `.toMatch()
-      // expects to receive a string, but got undefined`; and with the fade made
-      // unconditional, `a line that hides nothing wears no fade` in
-      // `e2e/plan-table-review.spec.ts` failed on `Expected: "none"`.
-      // Watched 2026-10-14.
+      // expects to receive a string, but got undefined`; the fade put back on
+      // the chips' line, on `expected 'linear-gradient(to left, transparent,…'
+      // to be ''`. Watched 2026-10-14.
       const observed: (() => void)[] = [];
       vi.stubGlobal(
         'ResizeObserver',
@@ -462,9 +463,10 @@ describe('the reference strip on one rest line', () => {
         render(<ReferenceSetStrip label="Teams" adapter={crowded()} />);
 
         expect(strip().style.overflow).toBe('hidden');
-        // Read back as a property rather than matched against the constant's
-        // text: jsdom 30 re-spells `#000` as `rgb(0, 0, 0)` on the way in.
-        expect(strip().style.maskImage).toContain('linear-gradient(to left');
+        expect(strip().style.maskImage).toBe('');
+        expect(strip().querySelector<HTMLElement>('[data-reference-chips]')?.style.maskImage).toBe(
+          '',
+        );
         const count = strip().querySelector('[data-reference-hidden-count]');
         expect(count?.textContent).toMatch(/^\+[1-9]/);
         expect(count?.getAttribute('title')).toMatch(/^Also: /);
@@ -479,6 +481,9 @@ describe('the reference strip on one rest line', () => {
       // cell's own rule, and why both belong to rest alone.
       expect(strip().style.overflow).toBe('visible');
       expect(strip().style.maskImage).toBe('');
+      expect(strip().querySelector<HTMLElement>('[data-reference-chips]')?.style.maskImage).toBe(
+        '',
+      );
     },
   );
 
@@ -650,7 +655,7 @@ describe('ReferenceSetSheet', () => {
         label="Teams"
         title="Teams for 020 - Survey"
         adapter={adapter({ ownIds: [], inheritedLabel: 'Core from 010' })}
-        placeholder="search or add"
+        placeholder="search"
         open
         onClose={vi.fn()}
       />,

@@ -217,15 +217,35 @@ export function axisNumberShown(day: { shown: string; heavy: boolean }, dayPx: n
  * So the first of each month carries its name, on a line of its own above the
  * numbers, and a boundary down the axis and the chart under it.
  *
+ * `cellsToEnd` counts this cell and every cell after it; a name with less
+ * than {@link MONTH_WORDS_PX} of axis left to run into is not drawn.
+ *
  * The first cell is **not** named unless it is the first of a month: the
  * strip's caption already names the month at the left edge as it scrolls, and
  * a second name there would collide with October's whenever the plan starts
  * late in September.
  */
-export function axisMonthWords(day: { date: IsoDate | null }, dayPx: number): string | null {
+export function axisMonthWords(
+  day: { date: IsoDate | null },
+  dayPx: number,
+  cellsToEnd: number,
+): string | null {
   if (dayPx >= AXIS_NUMBER_PX || day.date === null || !isMonthStart(day)) return null;
+  if (cellsToEnd * dayPx + CHART_PAD_PX < MONTH_WORDS_PX) return null;
   return monthWords(day.date);
 }
+
+/**
+ * The room a month's name needs on the axis: `Mmm YYYY` in the axis's 10px
+ * semibold, about 44px, rounded up.
+ *
+ * A month that begins closer to the axis's end than this keeps its boundary
+ * and loses its name. The name ran on past the chart's last column, and its
+ * glyphs are scrollable overflow: a chart filled to the panel's edge then
+ * scrolled sideways by the width of a word (ui-review F-062). The caption
+ * names that month as soon as it is scrolled to, which it then is.
+ */
+export const MONTH_WORDS_PX = 48;
 
 /** Whether a dated axis cell is the first day of its month. */
 export function isMonthStart(day: { date: IsoDate | null }): boolean {
@@ -2707,7 +2727,7 @@ function buildStandaloneGanttSvg(input: StandaloneGanttSvgInput): SVGSVGElement 
   root.appendChild(chipClips);
 
   const rung = resolveAxisRung(dayPx);
-  for (const day of axis) {
+  for (const [at, day] of axis.entries()) {
     const cellX = gutterPx + CHART_PAD_PX + day.offset * dayPx;
     if (day.weekend) {
       const band = svgRect(cellX, 0, dayPx, ROW_PX, theme.mutedForeground);
@@ -2717,7 +2737,7 @@ function buildStandaloneGanttSvg(input: StandaloneGanttSvgInput): SVGSVGElement 
     // The same gate the live axis prints under: a downloaded chart of a
     // compressed plan is a picture somebody looks at, and 91 two-digit numbers
     // in 366px is a grey smear there for exactly the reason it is one on screen.
-    const monthName = axisMonthWords(day, dayPx);
+    const monthName = axisMonthWords(day, dayPx, axis.length - at);
     if (monthName !== null) {
       root.appendChild(svgLine(cellX, 0, cellX, ROW_PX, theme.foreground));
       root.appendChild(
@@ -3530,6 +3550,16 @@ export function GanttRenderer({
   // name the month actually on screen.
   const [scrolledPx, setScrolledPx] = useState(0);
   const scrolledPxReading = useRef(0);
+  // Whether the chart has taken the whole viewport. Chunk 4 of
+  // `wbs-gantt-phone-scale`, and Dany's R8 #1 — built once, for both faces.
+  //
+  // **Not remembered, where the scale and the names both are.** Those two are
+  // answers about how to draw a chart and are worth keeping; this one is a
+  // reader standing closer for a moment. An overlay that survives a reload is
+  // an app that opens covering itself, with no table, no toolbar and one small
+  // button between the reader and everything they came for — and the reader who
+  // would meet it is the one who closed the tab *because* they were finished.
+  const [fullScreen, setFullScreen] = useState(false);
   /**
    * The panel's own scroll box, so what is below its bottom edge can be
    * measured off the boxes the browser really laid out.
@@ -3654,6 +3684,16 @@ export function GanttRenderer({
    * is nothing to observe anyway; the fade stays off there and Chromium is the
    * oracle (`e2e/gantt.spec.ts`), as it is for the panel's room next door.
    *
+   * Re-run on {@link fullScreen}: the overlay wraps the chart in a layer the
+   * ordinary chart is not in, so React mounts a **new** scroll box on each
+   * switch. Observers left on the old one watch a detached box that measures 0,
+   * and a 0 viewport is the schedule's own horizon — full screen at Months
+   * stopped at the plan's end with most of the screen blank (ui-review F-062).
+   * Proof: with `fullScreen` dropped from the dependencies,
+   * `e2e/gantt-legibility.spec.ts` `full screen fills its width at every rung`
+   * failed at Days on a last column 804px short of the edge at 1440 and 388px
+   * at 1024. Watched 2026-10-14.
+   *
    * @throws When the panel drew no scroll box, or that box no content row.
    * Both are drawn on every render of this component, so either absence is a
    * broken invariant rather than a state to skip past.
@@ -3679,7 +3719,7 @@ export function GanttRenderer({
     return () => {
       watch.disconnect();
     };
-  }, [measureTheFold, measureTheSpan, measureTheViewport]);
+  }, [fullScreen, measureTheFold, measureTheSpan, measureTheViewport]);
   // Dependency arrows and parent summary brackets open with detail shown when
   // either legacy or typed dependencies exist. {@link useGanttDetail} owns the
   // stored answer; this panel draws the marks and the switch.
@@ -3687,16 +3727,6 @@ export function GanttRenderer({
     plan.dependencies.length > 0 || (plan.typedDependencies?.length ?? 0) > 0,
   );
   const detailShown = detail.shown;
-  // Whether the chart has taken the whole viewport. Chunk 4 of
-  // `wbs-gantt-phone-scale`, and Dany's R8 #1 — built once, for both faces.
-  //
-  // **Not remembered, where the scale and the names both are.** Those two are
-  // answers about how to draw a chart and are worth keeping; this one is a
-  // reader standing closer for a moment. An overlay that survives a reload is
-  // an app that opens covering itself, with no table, no toolbar and one small
-  // button between the reader and everything they came for — and the reader who
-  // would meet it is the one who closed the tab *because* they were finished.
-  const [fullScreen, setFullScreen] = useState(false);
   const fullScreenRef = useRef<HTMLDivElement | null>(null);
   const fullScreenToggleRef = useRef<HTMLButtonElement | null>(null);
   const wasFullScreen = useRef(false);
@@ -6267,7 +6297,7 @@ export function GanttRenderer({
               // calendar sits {@link CHART_PAD_PX} left of the bars it labels.
               style={{ height: ROW_PX, paddingLeft: CHART_PAD_PX }}
             >
-              {axis.map((day) => (
+              {axis.map((day, at) => (
                 <span
                   key={day.offset}
                   // Where the cell stands, which is the same number every mark
@@ -6432,9 +6462,11 @@ export function GanttRenderer({
                     <>
                       <span
                         className="text-foreground block h-3 text-left leading-3 font-semibold whitespace-nowrap"
-                        {...(axisMonthWords(day, dayPx) === null ? {} : { 'data-axis-month': '' })}
+                        {...(axisMonthWords(day, dayPx, axis.length - at) === null
+                          ? {}
+                          : { 'data-axis-month': '' })}
                       >
-                        {axisMonthWords(day, dayPx)}
+                        {axisMonthWords(day, dayPx, axis.length - at)}
                       </span>
                       <span className="block leading-4">{axisNumberShown(day, dayPx)}</span>
                     </>

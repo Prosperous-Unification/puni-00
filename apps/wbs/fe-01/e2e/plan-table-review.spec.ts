@@ -149,6 +149,157 @@ async function seedReviewPlan(page: Page, testName: string, worker: number): Pro
   return { seeded };
 }
 
+/**
+ * The PUNI plan's numbering (F-057, F-058): three segments with a two-digit
+ * leaf, `010.3.01`, the widest number the Depends on column draws by default.
+ * `Website` (020) waits for three of them, `Launch` (030) for one, and
+ * `Domains` (010.1) for three plain roots' worth of short numbers.
+ */
+async function seedDeepPlan(page: Page, testName: string, worker: number): Promise<SeededPlan> {
+  const seeded = await seedPlan(
+    page,
+    {
+      name: 'Deep numbers',
+      rows: [
+        { ref: 'infra', name: 'Infrastructure' },
+        { ref: 'site', name: 'Website' },
+        { ref: 'launch', name: 'Launch' },
+      ],
+    },
+    identity(testName, worker),
+  );
+  const infra = seeded.rowIds['infra'];
+  const hosts = Array.from({ length: 10 }, (_, index) => `host${String(index)}`);
+  const commands: PlanCommandWire[] = [
+    { kind: 'createWorkItem', ref: 'domains', name: 'Domains', parentId: infra, afterId: null },
+    { kind: 'createWorkItem', ref: 'mail', name: 'Mail', parentId: infra, afterRef: 'domains' },
+    { kind: 'createWorkItem', ref: 'hosting', name: 'Hosting', parentId: infra, afterRef: 'mail' },
+    ...hosts.map((ref, index): PlanCommandWire => ({
+      kind: 'createWorkItem',
+      ref,
+      name: `Host task ${String(index + 1)}`,
+      parentRef: 'hosting',
+      ...(index === 0 ? { afterId: null } : { afterRef: hosts[index - 1] }),
+    })),
+    ...['host0', 'host1', 'host2'].map((ref): PlanCommandWire => ({
+      kind: 'addDependency',
+      workItemId: seeded.rowIds['site'],
+      predecessorRef: ref,
+    })),
+    { kind: 'addDependency', workItemId: seeded.rowIds['launch'], predecessorRef: 'host0' },
+  ];
+  const client = fixtureClient(page);
+  fixtureSuccess(
+    'postApiProjectsByIdCommands',
+    await client.postApiProjectsByIdCommands({
+      params: { id: seeded.projectId },
+      body: { commands },
+    }),
+  );
+  await openSeededPlan(page, seeded);
+  await expect(page.getByLabel('Name of 010.3.10')).toBeVisible();
+  return seeded;
+}
+
+/** What one resting Depends on strip draws, measured: whole chips, cut chips, and its count. */
+/**
+ * The worst contrast the ✕ of the last chip drawn on a row's resting Depends
+ * on line has, as painted — a mask over it is a fact only the pixels know.
+ *
+ * Screenshots the ✕'s own text box at the device's scale, decodes it on a
+ * canvas, and splits the box into thirds across. In each third it takes the
+ * strongest ink against its column's top pixel (the chip's ground above the
+ * glyph, faded or not with it); the answer is the weakest third. So a ✕ whose
+ * right end runs into a fade reads as that end, while the antialiased edge
+ * pixels of an unfaded stroke cannot drag the answer down.
+ */
+async function lastCrossContrast(page: Page, rowName: string): Promise<number> {
+  const strip = page.locator('tr', { hasText: rowName }).locator('[data-depends-strip]');
+  const clip = await strip.evaluate((node) => {
+    const line = node.querySelector('[data-reference-chips]');
+    if (line === null) throw new Error('no chip line on the strip');
+    const bottom = line.getBoundingClientRect().bottom;
+    const drawn = [...line.querySelectorAll<HTMLElement>('[data-rest-chip]')].filter(
+      (chip) =>
+        getComputedStyle(chip).opacity !== '0' && chip.getBoundingClientRect().top < bottom - 0.5,
+    );
+    const last = drawn.at(-1);
+    if (last === undefined) throw new Error('no chip drawn on the line');
+    const cross = [...last.childNodes].find(
+      (child) => child.nodeType === Node.TEXT_NODE && child.textContent?.includes('✕') === true,
+    );
+    if (cross === undefined) throw new Error('the last chip draws no ✕');
+    const range = document.createRange();
+    range.selectNodeContents(cross);
+    const box = range.getBoundingClientRect();
+    return { x: box.x, y: box.y, width: box.width, height: box.height };
+  });
+  const shot = await page.screenshot({ clip, scale: 'device' });
+  return page.evaluate(async (png) => {
+    const image = new Image();
+    image.src = `data:image/png;base64,${png}`;
+    await image.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = image.width;
+    canvas.height = image.height;
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    if (context === null) throw new Error('no 2d canvas in this browser');
+    context.drawImage(image, 0, 0);
+    const { data, width, height } = context.getImageData(0, 0, image.width, image.height);
+    const channel = (value: number): number => {
+      const part = value / 255;
+      return part <= 0.04045 ? part / 12.92 : ((part + 0.055) / 1.055) ** 2.4;
+    };
+    const luminance = (at: number): number =>
+      0.2126 * channel(data[at]) + 0.7152 * channel(data[at + 1]) + 0.0722 * channel(data[at + 2]);
+    const ratio = (one: number, two: number): number =>
+      (Math.max(one, two) + 0.05) / (Math.min(one, two) + 0.05);
+    const thirds = [0, 0, 0];
+    for (let x = 0; x < width; x += 1) {
+      const ground = luminance(x * 4);
+      const third = Math.min(2, Math.floor((x * 3) / width));
+      for (let y = 1; y < height; y += 1)
+        thirds[third] = Math.max(thirds[third], ratio(ground, luminance((y * width + x) * 4)));
+    }
+    return Math.min(...thirds);
+  }, shot.toString('base64'));
+}
+
+async function readDependsStrip(page: Page, rowName: string) {
+  return page
+    .locator('tr', { hasText: rowName })
+    .locator('[data-depends-strip]')
+    .evaluate((strip) => {
+      const line = strip.querySelector('[data-reference-chips]') ?? strip;
+      const edge = line.getBoundingClientRect();
+      const chips = [...strip.querySelectorAll('[data-reference-chip]')].map((chip) => {
+        const box = chip.getBoundingClientRect();
+        const words = chip.querySelector('span') ?? chip;
+        return {
+          text: words.textContent.trim(),
+          drawn:
+            box.top < edge.bottom - 0.5 &&
+            box.left < edge.right &&
+            getComputedStyle(chip).opacity !== '0',
+          whole: box.right <= edge.right + 0.5 && words.scrollWidth <= words.clientWidth,
+          right: box.right,
+        };
+      });
+      const count = strip.querySelector('[data-reference-hidden-count]');
+      return {
+        chips,
+        count: count === null ? null : count.textContent.trim(),
+        countTitle: count?.getAttribute('title') ?? null,
+        countLeft: count?.getBoundingClientRect().left ?? null,
+        bareTotal: strip.querySelector('[data-dep-count]') !== null,
+        // Decision D4 as amended 2026-10-14: no fade anywhere on the strip.
+        fades: [strip, ...strip.querySelectorAll('*')].filter(
+          (each) => getComputedStyle(each).maskImage !== 'none',
+        ).length,
+      };
+    });
+}
+
 async function showEveryColumn(page: Page): Promise<void> {
   await page.getByText('Columns', { exact: true }).click();
   for (const label of ['Links', 'Status', 'Teams', 'Tags', 'Services', 'Types']) {
@@ -204,31 +355,33 @@ test.describe('the plan table, as the UI review read it', () => {
   test('keeps a typed dependency chip inside its cell', async ({ page }, testInfo) => {
     // F-033. Proof, watched 2026-10-13 on the code before this change:
     // failed on `010.s1-dev SS runs past its cell · Received: 17.015625`.
-    // And with `ONE_CHIP_ROOM` at 17px, on `Received: 0.015625` — the `+`
-    // is 15.02px.
+    // Since F-058 (2026-10-14) a chip is never cut, its words included: one
+    // that does not fit whole is hidden and named by the `+N` count's title
+    // (decision D4). Proof: the chip's undrawn style removed, this failed
+    // on `010.s1-dev SS runs past its cell · Received: 27.734375`.
     await page.setViewportSize({ width: 1440, height: 900 });
     await seedReviewPlan(page, 'typed-chips', testInfo.workerIndex);
+    await page.mouse.move(2, 890);
 
     const chips = await page.locator('[data-typed-dependency-chip]').evaluateAll((all) =>
       all.map((chip) => {
         const strip = chip.closest('[data-depends-strip]');
-        // The chip's words, or the chip itself where it draws them bare.
-        const words = chip.querySelector('span') ?? chip;
         if (strip === null) throw new Error('a typed chip outside its strip');
         return {
-          text: chip.textContent,
+          text: chip.textContent.trim(),
           title: chip.getAttribute('title') ?? '',
           past: chip.getBoundingClientRect().right - strip.getBoundingClientRect().right,
-          cut: words.scrollWidth > words.clientWidth,
-          ellipsis: getComputedStyle(words).textOverflow,
+          shown: getComputedStyle(chip).opacity !== '0',
+          countTitle:
+            strip.querySelector('[data-reference-hidden-count]')?.getAttribute('title') ?? '',
         };
       }),
     );
     expect(chips).toHaveLength(3);
     for (const chip of chips) {
-      expect(chip.past, `${chip.text} runs past its cell`).toBeLessThanOrEqual(0);
-      if (chip.cut) expect(chip.ellipsis).toBe('ellipsis');
       expect(chip.title).not.toBe('');
+      if (chip.shown) expect(chip.past, `${chip.text} runs past its cell`).toBeLessThanOrEqual(0);
+      else expect(chip.countTitle).toBe(`Also: ${chip.text}`);
     }
   });
 
@@ -395,11 +548,12 @@ test.describe('the plan table, as the UI review read it', () => {
     expect(cut).toEqual([]);
 
     // And the line says what it hid (decision D4): two teams in 120px is one
-    // drawn and `+1` beside it, named in the count's title; the fade only
-    // where something is hidden.
+    // drawn and `+1` beside it, named in the count's title — and no fade, the
+    // count being the cue (D4 as amended 2026-10-14, review of PR #457).
     // Proof, watched 2026-10-14: the count's render removed, this failed on
-    // `Expected: "+1" · element(s) not found`; the fade made unconditional, on
-    // `a line that hides nothing wears no fade · Received: "linear-gradient(…"`.
+    // `Expected: "+1" · element(s) not found`; the fade put back on the chips'
+    // line where it hides something, on `the line wears a fade · Expected:
+    // "none"`.
     await showEveryColumn(page);
     await page.mouse.move(2, 890);
     const teams = page
@@ -410,18 +564,14 @@ test.describe('the plan table, as the UI review read it', () => {
       'title',
       /^Also: (Backend|Frontend) whole-chips-w\d+$/,
     );
-    expect(
-      await teams
-        .locator('[data-reference-strip]')
-        .evaluate((strip) => getComputedStyle(strip).maskImage),
-    ).not.toBe('none');
-    const lone = page.locator('tr', { hasText: 'Sign-up form' }).locator('td[data-column="type"]');
-    expect(
-      await lone
-        .locator('[data-reference-strip]')
-        .evaluate((strip) => getComputedStyle(strip).maskImage),
-      'a line that hides nothing wears no fade',
-    ).toBe('none');
+    for (const strip of [
+      teams.locator('[data-reference-strip]'),
+      teams.locator('[data-reference-chips]'),
+    ])
+      expect(
+        await strip.evaluate((node) => getComputedStyle(node).maskImage),
+        'the line wears a fade',
+      ).toBe('none');
   });
 
   test('keeps the dependency list inside the window', async ({ page }, testInfo) => {
@@ -472,4 +622,153 @@ test.describe('the plan table, as the UI review read it', () => {
     expect(new Set(heights).size).toBe(1);
     expect(heights[0]).toBeGreaterThanOrEqual(24);
   });
+
+  test('draws a dependency number whole and counts what the line hid', async ({
+    page,
+  }, testInfo) => {
+    // F-057 and F-058 (decision D4), on the PUNI plan's numbers at the
+    // default column width. Proof, watched 2026-10-14 on the code before this
+    // change: failed on `010.… is drawn cut` — every chip ellipsised its
+    // number. On this change, each fault alone, watched 2026-10-14: the
+    // column fixed at 84 again failed on `expect(received).toBeGreaterThan
+    // · Received: 0` (the first chip hidden whole, `+3` alone); the count's
+    // render removed, on `Expected: "+2" · Received: null`. The fade is
+    // gone since the review of PR #457 (D4 amended); `keeps its ✕ at 4.5:1`
+    // below proves its absence by the pixels.
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await seedDeepPlan(page, 'deep-depends', testInfo.workerIndex);
+    await page.mouse.move(2, 890);
+
+    const three = await readDependsStrip(page, 'Website');
+    for (const chip of three.chips.filter(({ drawn }) => drawn))
+      expect(chip.whole, `${chip.text} is drawn cut`).toBe(true);
+    const drawn = three.chips.filter(({ drawn }) => drawn);
+    const hidden = three.chips.filter(({ drawn }) => !drawn).map(({ text }) => text);
+    expect(drawn.length).toBeGreaterThan(0);
+    expect(three.bareTotal, 'a bare total drawn before the chips').toBe(false);
+    expect(hidden.length).toBeGreaterThan(0);
+    expect(three.count).toBe(`+${String(hidden.length)}`);
+    expect(three.countTitle).toBe(`Also: ${hidden.join(', ')}`);
+    // After the chips, never before them beside the `+`.
+    expect(three.countLeft).toBeGreaterThanOrEqual(Math.max(...drawn.map(({ right }) => right)));
+    expect(three.fades, 'something on the strip wears a fade').toBe(0);
+
+    // One dependency: the chip whole, no count, no fade.
+    const one = await readDependsStrip(page, 'Launch');
+    expect(one.chips).toEqual([
+      expect.objectContaining({ text: '010.3.01', drawn: true, whole: true }),
+    ]);
+    expect(one.count).toBeNull();
+    expect(one.fades, 'something on the strip wears a fade').toBe(0);
+  });
+
+  test('says `search` in every empty creatable picker', async ({ page }, testInfo) => {
+    // F-063. Proof, watched 2026-10-14 on the code before this change: failed
+    // on the Teams box's `search or add` beside the others' `search`.
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await seedReviewPlan(page, 'search-word', testInfo.workerIndex);
+    await showEveryColumn(page);
+    const words = await page
+      .locator('tr', { hasText: 'Spike: evaluate' })
+      .locator(
+        ['team', 'tag', 'service', 'type']
+          .map((id) => `td[data-column="${id}"] [data-reference-strip] input`)
+          .join(', '),
+      )
+      .evaluateAll((boxes) =>
+        boxes.flatMap((box) => (box instanceof HTMLInputElement ? [box.placeholder] : [])),
+      );
+    expect(words).toEqual(['search', 'search', 'search', 'search']);
+  });
+});
+
+test.describe('the last dependency chip a resting line draws', () => {
+  // At 2× so the ✕'s strokes are painted at full ink rather than antialiased
+  // to a grey a 1× screenshot cannot tell from a fade.
+  test.use({ deviceScaleFactor: 2 });
+
+  for (const scheme of ['light', 'dark'] as const) {
+    test(`keeps its ✕ at 4.5:1 or more, ${scheme}`, async ({ page }, testInfo) => {
+      // Review of PR #457: the edge fade on the chips' line dimmed the last
+      // whole chip's ✕ — the only pointer target in a crowded cell. Proof,
+      // watched 2026-10-14 with 0c6e2e098's source: failed on `the ✕ of the
+      // last chip · Received: 2.395…` (light) and `Received: 3.173…` (dark);
+      // with the fade dropped but the chip still in `--muted-foreground`,
+      // light failed on `Received: 4.3486…`. And the fade put back on the
+      // chips' line alone fails `something on the resting strip wears a fade
+      // · Received: 1`.
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await seedDeepPlan(page, `cross-${scheme}`, testInfo.workerIndex);
+      await page.mouse.move(2, 890);
+      const strip = page.locator('tr', { hasText: 'Website' }).locator('[data-depends-strip]');
+      await expect(strip.locator('[data-reference-hidden-count]')).toHaveText('+2');
+      expect(
+        await lastCrossContrast(page, 'Website'),
+        'the ✕ of the last chip',
+      ).toBeGreaterThanOrEqual(4.5);
+      expect(
+        await strip.evaluate(
+          (node) =>
+            [node, ...node.querySelectorAll('*')].filter(
+              (each) => getComputedStyle(each).maskImage !== 'none',
+            ).length,
+        ),
+        'something on the resting strip wears a fade',
+      ).toBe(0);
+    });
+  }
+});
+
+test('holds a lone chip too wide for its cell steady, counted', async ({ page }, testInfo) => {
+  // Review of PR #457, finding 6: a first chip wider than the line leaves the
+  // flow and is counted as overrunning. Whether it then still measures as
+  // overrunning rather than wrapped depends on the line's `alignItems`
+  // (see `useHiddenChips`); were it to flip, the chip would re-style every
+  // frame. Three animation frames with no change on the strip, the same
+  // `+1`, and nothing logged.
+  // Proof: `chipLineStyle`'s `alignItems` set to `'flex-start'`, this failed
+  // on `the strip re-styled itself frame after frame · Expected: 0 ·
+  // Received: 6`, the count's text unchanged throughout. Watched 2026-10-14.
+  const logged: string[] = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error' || message.type() === 'warning') logged.push(message.text());
+  });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await seedReviewPlan(page, 'lone-chip', testInfo.workerIndex);
+  await page.mouse.move(2, 890);
+  const count = page
+    .locator('tr', { hasText: 'A dependency candidate' })
+    .locator('[data-reference-hidden-count]');
+  await expect(count).toHaveText('+1');
+  // Settled means nothing on the strip changes for three frames: a flip
+  // re-styles the chip (in the flow, out of it) whether or not the count's
+  // text moves, since wrapped and overrunning are both counted.
+  const changes = await count.evaluate(
+    (node) =>
+      new Promise<number>((settle) => {
+        const strip = node.closest('[data-depends-strip]');
+        if (strip === null) throw new Error('the count is outside its strip');
+        let seen = 0;
+        const watching = new MutationObserver((records) => {
+          seen += records.length;
+        });
+        watching.observe(strip, { subtree: true, attributes: true, childList: true });
+        const frames = (left: number): void => {
+          if (left === 0) {
+            watching.disconnect();
+            settle(seen);
+            return;
+          }
+          requestAnimationFrame(() => {
+            frames(left - 1);
+          });
+        };
+        frames(3);
+      }),
+  );
+  expect(changes, 'the strip re-styled itself frame after frame').toBe(0);
+  await expect(count).toHaveText('+1');
+  await expect(count).toHaveAttribute('title', /^Also: 010\.s1-dev SS$/);
+  expect(logged).toEqual([]);
 });

@@ -358,12 +358,16 @@ describe('one project’s saved plans', () => {
         sent.push(`list:${projectId}`);
         return new Promise((answer) => reads.push(answer));
       },
-      save: (projectId) => {
-        sent.push(`save:${projectId}`);
+      save: (projectId, name) => {
+        sent.push(name === undefined ? `save:${projectId}` : `save:${projectId}:${name}`);
         return refused();
       },
       rename: (savedPlanId, name) => {
         sent.push(`rename:${savedPlanId}:${name}`);
+        return refused();
+      },
+      remove: (savedPlanId) => {
+        sent.push(`remove:${savedPlanId}`);
         return refused();
       },
       compare: (projectId) => {
@@ -425,6 +429,7 @@ describe('one project’s saved plans', () => {
     const asked = [
       savedPlans.save(),
       savedPlans.rename('sp1', 'Kept'),
+      savedPlans.remove('sp1'),
       savedPlans.compare({ saved: 'sp1' }, 'current'),
     ];
 
@@ -465,11 +470,19 @@ describe('one project’s saved plans', () => {
 
     await Promise.allSettled([
       savedPlans.save(),
+      savedPlans.save('Before the re-plan'),
       savedPlans.rename('sp1', 'Kept'),
+      savedPlans.remove('sp1'),
       savedPlans.compare({ saved: 'sp1' }, 'current'),
     ]);
 
-    expect(held.sent).toEqual(['save:p1', 'rename:sp1:Kept', 'compare:p1']);
+    expect(held.sent).toEqual([
+      'save:p1',
+      'save:p1:Before the re-plan',
+      'rename:sp1:Kept',
+      'remove:sp1',
+      'compare:p1',
+    ]);
   });
 
   it('stops watching when it is closed', async () => {

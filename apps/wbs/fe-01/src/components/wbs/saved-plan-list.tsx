@@ -1,4 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { type KeyboardEvent, useEffect, useRef, useState } from 'react';
+
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 import type { SavedPlanListEntryView } from '../../lib/saved-plan-api';
 import type { SavedPlanListState } from '../../modules/saved-plans/contract';
@@ -72,11 +75,15 @@ function SavedPlanName({
 
   if (draft === null) {
     return (
-      <>
-        <span className="saved-plan-list__name">{row.name}</span>{' '}
-        <button
+      <span className="flex min-w-0 items-center gap-1">
+        <span className="saved-plan-list__name truncate font-medium" data-fact={row.name}>
+          {row.name}
+        </span>{' '}
+        <Button
+          variant="ghost"
+          size="square"
           type="button"
-          className="saved-plan-list__rename"
+          className="saved-plan-list__rename size-6 shrink-0"
           // Named for the plan it renames, because a shelf renders one of these
           // per row and `Rename` alone would give a screen reader a list of
           // identical controls.
@@ -85,15 +92,15 @@ function SavedPlanName({
             setDraft(row.name);
           }}
         >
-          ✎
-        </button>
-      </>
+          <span aria-hidden="true">✎</span>
+        </Button>
+      </span>
     );
   }
   return (
-    <input
+    <Input
       ref={field}
-      className="saved-plan-list__name-field"
+      className="saved-plan-list__name-field h-7 text-xs"
       aria-label="Saved plan name"
       value={draft}
       onChange={(e) => {
@@ -123,6 +130,8 @@ function SavedPlanName({
 export function SavedPlanList({
   state,
   onRename,
+  onCompare,
+  onRemove,
 }: {
   state: SavedPlanListState;
   /**
@@ -134,36 +143,109 @@ export function SavedPlanList({
    * worse surface than a name that plainly cannot be changed.
    */
   onRename?: (savedPlanId: string, name: string) => void;
+  /** Puts a row on the comparison's left against the current plan; absent offers no Compare. */
+  onCompare?: (savedPlanId: string) => void;
+  /** Deletes a row once its confirmation is pressed; absent offers no ✕. */
+  onRemove?: (savedPlanId: string) => void;
 }) {
   if (state.kind === 'unavailable') {
-    return <p className="saved-plan-list__note">{SAVED_PLANS_UNAVAILABLE}</p>;
+    return (
+      <p className="saved-plan-list__note text-muted-foreground text-xs">
+        {SAVED_PLANS_UNAVAILABLE}
+      </p>
+    );
   }
   if (state.kind === 'loading') {
     return (
-      <p className="saved-plan-list__note" role="status">
+      <p className="saved-plan-list__note text-muted-foreground text-xs" role="status">
         Loading saved plans…
       </p>
     );
   }
   if (state.kind === 'error') {
     return (
-      <p className="saved-plan-list__note" role="alert">
+      <p className="saved-plan-list__note text-destructive text-xs" role="alert">
         Saved plans could not be read ({state.code}).
       </p>
     );
   }
   if (state.rows.length === 0) {
-    return <p className="saved-plan-list__note">No plans saved yet.</p>;
+    // The Views panel's empty line, in its words' shape and its ink (F-061).
+    return (
+      <p className="saved-plan-list__note text-muted-foreground text-xs">No plans saved yet.</p>
+    );
   }
   return (
-    <ol className="saved-plan-list" aria-label="Saved plans">
+    <ol className="saved-plan-list m-0 flex list-none flex-col p-0" aria-label="Saved plans">
       {state.rows.map((row) => (
-        <li key={row.id} className="saved-plan-list__row">
-          {onRename === undefined ? (
-            <span className="saved-plan-list__name">{row.name}</span>
-          ) : (
-            <SavedPlanName row={row} onRename={onRename} />
-          )}{' '}
+        <SavedPlanRow
+          key={row.id}
+          row={row}
+          {...(onRename === undefined ? {} : { onRename })}
+          {...(onCompare === undefined ? {} : { onCompare })}
+          {...(onRemove === undefined ? {} : { onRemove })}
+        />
+      ))}
+    </ol>
+  );
+}
+
+/**
+ * One saved plan: its name over when and by whom, then Compare and ✕ — the Views
+ * row's shape with the facts a checkpoint carries (F-061).
+ *
+ * The ✕ asks before it deletes. A view is a filter a reader can tick again; a
+ * saved plan is a checkpoint of a plan that has since moved, and nothing can
+ * write it back, so one stray press must not be the end of it.
+ */
+function SavedPlanRow({
+  row,
+  onRename,
+  onCompare,
+  onRemove,
+}: {
+  row: SavedPlanListEntryView;
+  onRename?: (savedPlanId: string, name: string) => void;
+  onCompare?: (savedPlanId: string) => void;
+  onRemove?: (savedPlanId: string) => void;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  /**
+   * Where the focus goes as the confirmation opens and closes. Pressing ✕
+   * unmounts the focused button, so without this the focus fell to `<body>` and
+   * the next Escape closed the whole popover instead of the question (Fable
+   * review of #453, D): it opens on Keep, the safe answer, and Keep or Escape
+   * hands it back to the ✕.
+   */
+  const keep = useRef<HTMLButtonElement | null>(null);
+  const cross = useRef<HTMLButtonElement | null>(null);
+  const [returning, setReturning] = useState(false);
+  useEffect(() => {
+    if (confirming) keep.current?.focus();
+    else if (returning) {
+      cross.current?.focus();
+      setReturning(false);
+    }
+  }, [confirming, returning]);
+  const dismiss = (): void => {
+    setConfirming(false);
+    setReturning(true);
+  };
+  /** The question's own Escape answers Keep; the popover's dismiss hook leaves a handled key alone. */
+  const keepOnEscape = (event: KeyboardEvent<HTMLButtonElement>): void => {
+    if (event.key !== 'Escape') return;
+    event.preventDefault();
+    dismiss();
+  };
+  return (
+    <li className="saved-plan-list__row flex items-center gap-1 border-b py-1.5 text-xs last:border-b-0">
+      <div className="flex min-w-0 flex-1 flex-col">
+        {onRename === undefined ? (
+          <span className="saved-plan-list__name truncate font-medium">{row.name}</span>
+        ) : (
+          <SavedPlanName row={row} onRename={onRename} />
+        )}
+        <span className="text-muted-foreground truncate">
           {/*
             The machine-readable instant is the assertion, and the visible text
             is `toLocaleString`'s — deliberately. A saved plan's timestamp is
@@ -178,8 +260,66 @@ export function SavedPlanList({
           </time>{' '}
           <span className="saved-plan-list__who">saved by {row.createdBy}</span>{' '}
           <span className="saved-plan-list__schedule">{scheduleWords(row)}</span>
-        </li>
-      ))}
-    </ol>
+        </span>
+      </div>
+      {confirming && onRemove !== undefined ? (
+        <>
+          <Button
+            variant="destructive"
+            size="sm"
+            type="button"
+            onKeyDown={keepOnEscape}
+            onClick={() => {
+              setConfirming(false);
+              onRemove(row.id);
+            }}
+          >
+            Delete
+          </Button>
+          <Button
+            ref={keep}
+            variant="ghost"
+            size="sm"
+            type="button"
+            onClick={dismiss}
+            onKeyDown={keepOnEscape}
+          >
+            Keep
+          </Button>
+        </>
+      ) : (
+        <>
+          {onCompare !== undefined && (
+            <Button
+              variant="ghost"
+              size="sm"
+              type="button"
+              className="px-2"
+              aria-label={`Compare ${row.name} with the current plan`}
+              onClick={() => {
+                onCompare(row.id);
+              }}
+            >
+              Compare
+            </Button>
+          )}
+          {onRemove !== undefined && (
+            <Button
+              ref={cross}
+              variant="ghost"
+              size="square"
+              type="button"
+              aria-label={`Delete saved plan ${row.name}`}
+              data-hint="Delete this saved plan. The plan itself is untouched."
+              onClick={() => {
+                setConfirming(true);
+              }}
+            >
+              <span aria-hidden="true">✕</span>
+            </Button>
+          )}
+        </>
+      )}
+    </li>
   );
 }

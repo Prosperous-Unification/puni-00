@@ -374,6 +374,7 @@ const fakeSavedPlanRoutes = (
   save: () => Promise.resolve(savedPlanSaveReply()),
   compare: () => Promise.resolve(savedPlanCompareReply()),
   rename: () => Promise.resolve(savedPlanRenameReply()),
+  remove: () => Promise.reject(new Error('not answered in this case')),
 });
 
 const pageWith = (api: ProjectApi, savedPlanRoutes: SavedPlanRoutes = fakeSavedPlanRoutes()) =>

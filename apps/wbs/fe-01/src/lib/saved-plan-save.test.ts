@@ -231,6 +231,7 @@ describe('the Save plan action', () => {
       refresh: () => undefined,
       save: () => fake.deps.save('p1'),
       rename: () => Promise.reject(new Error('not asked in this case')),
+      remove: () => Promise.reject(new Error('not asked in this case')),
       compare: () => Promise.reject(new Error('not asked in this case')),
     };
     const held = renderHook(() => useSavedPlanSave(saveOf(savedPlans), 'p1'));

@@ -64,10 +64,18 @@ const UNDATED: FrameLayoutState = {
   hasAnyNotBefore: false,
   deepestDepth: 0,
   numberingFrozen: false,
+  widestDependencyChip: null,
+  waitsForSeveral: false,
 };
 
 /** And one where somebody has, which is 28px wider. */
-const DATED: FrameLayoutState = { hasAnyNotBefore: true, deepestDepth: 0, numberingFrozen: false };
+const DATED: FrameLayoutState = {
+  hasAnyNotBefore: true,
+  deepestDepth: 0,
+  numberingFrozen: false,
+  widestDependencyChip: null,
+  waitsForSeveral: false,
+};
 
 const numbersOnScreen = () =>
   screen

@@ -994,7 +994,7 @@ export function createEstimatesColumns({
                   >
                     <CreatablePicker
                       label={`${step.name} assignee for ${row.original.number}`}
-                      placeholder="search or add"
+                      placeholder="search"
                       entries={row.original.readings.assigneeEntries}
                       value={assigned ?? null}
                       onChoose={(id) => {

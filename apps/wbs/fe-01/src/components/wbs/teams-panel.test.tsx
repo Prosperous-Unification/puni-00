@@ -29,14 +29,13 @@ const DESIGN: TeamView = { id: 't-design', name: 'Design', serviceIds: [] };
  * Rendered bare, without the modal around it: this suite is about what the
  * section sends and says, and `project-settings-modal.test.tsx` is about the
  * shell — who opens it, who closes it, and what it refuses to close over. The
- * two contracts the panel has with that shell, `onDirtyChange` and `onDone`,
- * are recorded here so the cases below can watch the panel keep them.
+ * panel's contract with that shell, `onDirtyChange`, is recorded here so the
+ * cases below can watch the panel keep it.
  */
 function stubbed(overrides: Partial<Parameters<typeof TeamsPanel>[0]> = {}) {
   const setCapacity = vi.fn(() => Promise.resolve());
   const onChanged = vi.fn(() => Promise.resolve());
   const onDirtyChange = vi.fn();
-  const onDone = vi.fn();
   const props = {
     teams: [
       { id: 't-backend', name: 'Backend', stated: 2, rows: 4 },
@@ -45,11 +44,10 @@ function stubbed(overrides: Partial<Parameters<typeof TeamsPanel>[0]> = {}) {
     setCapacity,
     onChanged,
     onDirtyChange,
-    onDone,
     ...overrides,
   };
   render(<TeamsPanel {...props} />);
-  return { setCapacity, onChanged, onDirtyChange, onDone, props };
+  return { setCapacity, onChanged, onDirtyChange, props };
 }
 
 /** Lets the two awaits every change makes — the call, then the reread — settle. */
@@ -274,74 +272,39 @@ describe('stating how many of a team are at work at once on this plan', () => {
     expect(setCapacity).toHaveBeenCalledWith('t-platform', 5);
   });
 
-  itDom('Done keeps the number typed into a box it was never left', async () => {
-    // The fault this test exists for, observed live on dev by
-    // `wbs-e2e-planning-qa` chunk 3, 2026-08-22: `1` typed into `How many of
-    // growth-squad at once` and `Done` clicked sent `teamCapacities: []` — an
-    // unlevelled plan with four items on a one-person team all starting on day
-    // 0. Tab first and then `Done`, and the same gesture stated the number and
-    // levelled the plan. The scheduler was never wrong; the value never reached
-    // it, because `Done` closed the surface and `onOpenChange` cleared every
-    // draft on the way out.
-    //
-    // A blur is a defensible commit for a free-text cell. It is not defensible
-    // as the *only* commit for a button whose whole job is "keep this" — and a
-    // button that discards is worse than one that does nothing, because the
-    // reader has already been told it saved.
-    const { setCapacity } = stubbed();
-
-    fireEvent.change(boxFor('Platform'), { target: { value: '1' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Done' }));
-    await settle();
-
-    expect(setCapacity).toHaveBeenCalledWith('t-platform', 1);
+  itDom('has no Done: a box applies as it is left, like every section (F-060)', () => {
+    // D7. Done was the one control here whose meaning was "keep this"; the
+    // modal's ✕ carries it now (`project-settings-modal.test.tsx`, `the ✕
+    // applies a typed capacity and closes once it lands`).
+    stubbed();
+    // Proof: on 2026-10-14, against the panel with its Done, this failed on `expected
+    // <button …(2)></button> to be null`.
+    expect(screen.queryByRole('button', { name: 'Done' })).toBeNull();
   });
 
-  itDom('Done sends one request for a box that was left first', async () => {
-    // The ordinary mouse path: the click blurs the box before it reaches the
-    // button, so the commit is already out when `Done` runs. Two requests for
-    // one typed number would be two writes and two re-reads of the plan — which
-    // is why the outstanding request is what `Done` waits on rather than a
-    // second one it starts.
-    const { setCapacity } = stubbed();
+  itDom('a blur and an Enter over one number send one request', async () => {
+    // Two gestures over one typed number would be two writes and two re-reads
+    // of the plan, which is why the outstanding request is what the second
+    // gesture waits on rather than a second one it starts.
+    let land = (): void => {
+      throw new Error('the number never left');
+    };
+    const setCapacity = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          land = resolve;
+        }),
+    );
+    stubbed({ setCapacity });
 
     fireEvent.change(boxFor('Platform'), { target: { value: '4' } });
+    fireEvent.keyDown(boxFor('Platform'), { key: 'Enter' });
     fireEvent.blur(boxFor('Platform'));
-    fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+    land();
     await settle();
 
     expect(setCapacity).toHaveBeenCalledTimes(1);
     expect(setCapacity).toHaveBeenCalledWith('t-platform', 4);
-  });
-
-  itDom('Done keeps the surface open when be-01 refuses what it sent', async () => {
-    // A refusal is about the number on screen, and the number is only on screen
-    // while the panel is. Asking to close over the top of one would leave the
-    // reader with a plan that did not change and nothing anywhere saying why.
-    const setCapacity = vi.fn(() => Promise.reject(new Error('size_must_be_at_most_1000')));
-    const { onDone } = stubbed({ setCapacity });
-
-    fireEvent.change(boxFor('Platform'), { target: { value: '1001' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Done' }));
-    await settle();
-
-    expect(screen.getByRole('alert').textContent).toContain('at most 1000');
-    expect(boxFor('Platform').value).toBe('1001');
-    expect(onDone).not.toHaveBeenCalled();
-  });
-
-  itDom('Done asks to close once every box it kept has landed', async () => {
-    // The other half of the one above: a change that is accepted still leaves
-    // through the button, and a panel that stayed open on success would read as
-    // a save that failed silently. The panel does not close anything itself any
-    // more — it asks the modal, which is what `onDone` is.
-    const { onDone } = stubbed();
-
-    fireEvent.change(boxFor('Platform'), { target: { value: '3' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Done' }));
-    await settle();
-
-    expect(onDone).toHaveBeenCalledTimes(1);
   });
 
   itDom('says so when no work on the plan is labelled with a team', () => {
