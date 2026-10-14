@@ -47,7 +47,8 @@ const PlanDocumentHeader = type({
  * step and work-item shapes stay pinned here until Navigator supports native minute estimates.
  */
 const StrictPlanDocument = planDocument
-  .omit('document', 'steps', 'workItems')
+  // Proof: retaining WBS's required stepBlockages broke the valid v7 plan-reference path (2026-10-14).
+  .omit('document', 'steps', 'workItems', 'stepBlockages')
   .and({
     document: {
       format: "'wbs-plan'",
@@ -82,6 +83,7 @@ function decodePlanExport(bytes: Uint8Array, path: string): PlanDocument {
   // document before writing` (received `plan export is malformed`) (2026-10-11). With the pin at 7
   // (2026-10-12) the same pair is `refuses a version-6 document` and `refuses a version-8 document`;
   // the unbumped pin failed every case reading the v7 fixture on `plan export is malformed` (CI, PR #355).
+  // Proof: changing this pin to 9 failed `refuses a version-9 document before writing` (2026-10-14).
   if (header.document.version !== NAVIGATOR_PLAN_DOCUMENT_VERSION) {
     throw new Error(
       `${EXPORT_ROLE} ${path} has version ${String(header.document.version)}; twin reads version ${String(NAVIGATOR_PLAN_DOCUMENT_VERSION)} only`,
@@ -91,7 +93,8 @@ function decodePlanExport(bytes: Uint8Array, path: string): PlanDocument {
     const document = parseOrThrow(StrictPlanDocument, parsed);
     return {
       ...document,
-      document: { ...document.document, version: 8 },
+      document: { ...document.document, version: 9 },
+      stepBlockages: [],
       steps: document.steps.map((step) => ({ ...step, estimateUnit: 'workdays' })),
     };
   } catch (failure) {

@@ -7,18 +7,18 @@ import { numberedWorkItem, workItemTree } from './work-item-response';
 /**
  * The plan document version this release writes.
  *
- * `8` carries each step’s estimate unit. `7` carries the project's timezone and each leaf's attempts by step code
+ * `9` carries direct step blockage facts separately from rows. `8` carries each step’s estimate unit. `7` carries the project's timezone and each leaf's attempts by step code
  * (`step-node-attempts` D5); `6` each leaf's readiness and hold
  * (`add-work-item-statuses`); `5`
  * extends typed dependencies to SS/FF; `4` added FS separately from
  * legacy `dependsOn`; `3` added step codes and `2` step allowances. The
  * classifier converts earlier versions explicitly.
  */
-export const PLAN_DOCUMENT_VERSION = 8;
+export const PLAN_DOCUMENT_VERSION = 9;
 
 const planHeader = type({
   format: "'wbs-plan'",
-  version: '8',
+  version: '9',
   exportedAt: 'string',
 });
 
@@ -124,11 +124,16 @@ export type DocumentAttempt = (typeof documentAttempt)['infer'];
  * present only on a leaf that holds any.
  */
 const documentWorkItem = numberedWorkItem
-  .omit('attempts', 'spans', 'span')
+  .omit('attempts', 'spans', 'span', 'blockages', 'blockageCauses')
   .and({ 'attempts?': type({ '[string]': documentAttempt.array() }) });
 
 export const planDocument = workItemTree.omit('typedDependencies', 'workItems').and({
   workItems: documentWorkItem.array(),
+  stepBlockages: type({
+    workItemId: 'string',
+    stepId: 'string',
+    blockedAt: 'number.integer',
+  }).array(),
   typedDependencies: documentTypedDependency.array(),
   steps: type({ code: 'string', estimateUnit: "'workdays' | 'minutes'" }).array(),
   stepNodes: type({
@@ -178,6 +183,7 @@ const authoredWorkItem = type({
   // Opaque until the version is read: version 7 keys a leaf's attempts by
   // step code, and earlier versions carry none — see `classifyPlanDocument`.
   'attempts?': 'unknown',
+  'blockages?': 'unknown',
   // Proof: loosening this to unknown made the mounted document boundary accept
   // "high" at workItems[3].priority with 204 instead of 400 invalid_body.
   priority: 'number | null',
@@ -226,6 +232,7 @@ const writablePlanDocument = type({
     'code?': 'unknown',
   }).array(),
   'typedDependencies?': 'unknown',
+  'stepBlockages?': 'unknown',
 });
 
 export const planDocumentRequest = requestSchema(writablePlanDocument, {
@@ -243,16 +250,20 @@ export type PlanDocumentRequest = (typeof writablePlanDocument)['infer'];
  */
 export type PlanDocumentImport = Omit<
   PlanDocumentRequest,
-  'settings' | 'steps' | 'typedDependencies' | 'workItems'
+  'settings' | 'steps' | 'typedDependencies' | 'workItems' | 'stepBlockages'
 > & {
   /** The zone as version 7 names it, `UTC` for an earlier version. */
   settings: Omit<PlanDocumentRequest['settings'], 'timezone'> & { timezone: string };
   typedDependencies: DocumentTypedDependency[];
+  stepBlockages: { workItemId: string; stepId: string; blockedAt: number }[];
   /**
    * Readiness and hold as the file states them from version 6, null before;
    * the attempts version 7 gives a leaf, none before.
    */
-  workItems: (Omit<PlanDocumentRequest['workItems'][number], 'readiness' | 'hold' | 'attempts'> & {
+  workItems: (Omit<
+    PlanDocumentRequest['workItems'][number],
+    'readiness' | 'hold' | 'attempts' | 'blockages'
+  > & {
     readiness: 'draft' | 'ready' | null;
     hold: 'on_hold' | 'blocked' | null;
     attempts: ImportedAttempt[];

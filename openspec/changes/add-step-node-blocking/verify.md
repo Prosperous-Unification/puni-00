@@ -518,3 +518,105 @@ The existing Task 4.2.1 contract writes schema7, supports input versions 1–7, 
 - `BUN_TMPDIR=/tmp BUN_INSTALL_CACHE_DIR=/tmp/pr439-bun-cache bunx @fission-ai/openspec@1.12.0 validate --all --json` — **187 passed, 0 failed**: 169 changes, 18 specs (`/tmp/pr439-repair-openspec.log`). The CLI reports version 1.12.0.
 
 Full canonical host gate, full workspace build/tests, browser checks, CI secrets and migration lint are not run in this worker slice. The parent owns review and the exact-candidate host gate before integration. No push, merge or deployment was performed.
+
+## Task 4.2.2: plan-document v9 direct transfer (2026-10-14)
+
+Base: `b4537c83e8f0767f14b6e9304b6475c63e7cc239` (#439), isolated clone
+`/tmp/puni-step-document-transfer-sol`. Allocation confirmed: plan-document8 → 9;
+saved input7 and scheduler16 unchanged. No migration or replay capability change.
+Import is another real blockage writer; drain incompatible binaries before enabling
+it during shared-SQLite overlap. The parent release owns exact-SHA gate and CI.
+
+TDD red receipts: v9 export expected9/received8; absent-current-facts expected
+invalid_body/received unsupported_version; preparation expected facts/received
+undefined and admitted unknown owners, steps, fractional/unsafe times and duplicate
+pairs; both source contracts expected remapped exact facts/received[]. Derived-cause
+omission test first failed because `blockageCauses` remained on the exported row.
+
+Watched production faults, each restored before verification:
+
+| Injected fault                                                           | Observed negative                                                                                                                                                                                                |
+| ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Omit root facts; retain row `blockages`; retain derived `blockageCauses` | Each corresponding v9 direct/cause export test failed, exit1.                                                                                                                                                    |
+| Bypass trusted missing-leaf-map, step, parent or time refusal            | Each `v9 trusted export refuses …` resolved unexpectedly, exit1.                                                                                                                                                 |
+| Bypass root legacy or row-alias legacy refusal                           | Nonempty v1–8 facts were accepted in the indexed-path tests, exit1.                                                                                                                                              |
+| Bypass v9 required list or fact object checks                            | Missing/null collection or null entry escaped typed refusal and threw unexpectedly, exit1.                                                                                                                       |
+| Bypass v9 owner/step/time type checks                                    | Malformed-facts tests admitted numeric IDs or fractional/unsafe timestamps, exit1.                                                                                                                               |
+| Bypass prepared owner/leaf, step, safe time or duplicate check           | Each precise-path prepare-import negative admitted invalid facts, exit1.                                                                                                                                         |
+| Bypass refused store outcome check                                       | `rolls back direct blockage import after refused` resolved and leaked the import, exit1.                                                                                                                         |
+| Skip imported fact write, owner remap, step remap or exact timestamp     | Memory source remap/time tests failed on missing facts, invalid owners/steps or changed time, exit1. Initial red exercised both memory and SQLite.                                                               |
+| Bind memory UoW directly to committed state                              | `rolls back direct blockage import after second-write` leaked project/directory state, exit1. A first injection hit a different clone seam and survived; the actual UoW seam was then injected and watched fail. |
+| Replace SQLite exception rollback with COMMIT                            | Mounted second-insert failure left tables changed; whole-state equality failed, exit1.                                                                                                                           |
+| Change Navigator pin7 → 9                                                | External v9 refusal had the wrong outcome/message, exit1.                                                                                                                                                        |
+| Leave root facts required in Navigator's strict external schema          | Valid pinned-v7 output path failed before writing, exit1.                                                                                                                                                        |
+
+Adjacent `Proof:` comments name the guards and observed tests. Mutation stdout is
+in `/tmp/step-transfer-mutations{,-extra}.log` with individual fault logs beside it.
+Mounted SQLite rollback compares every table, including projects, directory,
+blockage facts, events and journal, to its pre-import state. Both source contracts
+round-trip facts through a second import whose file IDs collide with existing
+identities, preserve negative timestamps and retained done facts, and compare
+schedule/progress projections before and after removing a fact on the same IDs.
+
+Verification commands and results:
+
+- Explicit-file focused Bun suite (resource/module, preparation, boundary fixtures,
+  both source contracts, Navigator, mounted controller, organization DB, project
+  controller, attempt DB and import shape): final receipt below.
+- `NX_TUI=false NX_DAEMON=false bunx nx run-many -t typecheck -p wbs-contracts,wbs-core,twilight-navigator,wbs-be-01 --parallel=1 --output-style=stream`: final receipt below.
+- Same touched projects with `-t lint`: final receipt below. Direct ESLint exposed
+  test-only unnecessary guards/chains/cast and Bun rejection-await typing hidden
+  by Nx's default output; corrected, fresh core Nx lint passed.
+- `bun apps/wbs/be-01/src/openapi/emit-openapi-cli.ts /tmp/step-transfer-openapi.json`:
+  exit0, generated current OpenAPI.
+- `BUN_TMPDIR=/tmp bunx @fission-ai/openspec@1.12.0 validate add-step-node-blocking --strict --json`:
+  exit0, valid1, failed0, no issues.
+- Changed-file Prettier and `git diff --check`: final receipt below.
+
+Two inherited schema7 fixture omissions were repaired with empty direct-fact
+collections in `store-boundaries.test.ts` and `shared-people.test.ts` because the
+exact base failed touched core typecheck on required `PlanInputReads.stepBlockages`.
+One broad Bun directory filter accidentally collected compiled test copies in
+`dist`; final commands use explicit source files. Expected error logs in mounted
+negative tests are injected faults and malformed trusted-state refusals.
+
+Skipped: full host gate, build, CI and release integration (parent PM/release scope;
+this bounded candidate is committed locally only). No push, merge or deployment.
+
+Final receipts: explicit-file focused suite **432 passed, 0 failed**, 13 files,
+1852 assertions (67.34s). Touched four-project typecheck **passed all six tasks**
+(48.1s). Touched four-project lint **passed**, with current input-matched cached
+contracts/Navigator results and fresh core/be-01 runs (54.0s). Final self-review
+added a malformed trusted map case: an injected empty array previously exported
+silently, making `v9 trusted export refuses a malformed leaf blockage map` fail;
+after the guard it passes. Final resource suite **48 passed, 0 failed**. The last
+guard's focused core checks are recorded below.
+
+Last-guard receipt: `NX_TUI=false NX_DAEMON=false bunx nx run-many -t lint,typecheck -p wbs-core --parallel=1 --output-style=stream`
+passed both targets and module dependency. Changed-file Prettier check passed and
+`git diff --check` exited0. Strict OpenSpec revalidation passed valid1/failed0.
+
+### PR #443 restack onto repaired #439 — 2026-10-14
+
+Replayed exact child `ac14ec27e9a0e5f940cfd31aa10cc682c8405555` from old
+parent `b4537c83e8f0767f14b6e9304b6475c63e7cc239` onto repaired parent
+`cfea15fd9155dff9485003a78700971ffba6c072` in isolated clone
+`/tmp/puni-step-document-sol`. The sole conflict appended both verification
+records. Removed duplicate `PlanInputReads.stepBlockages` fixture fields introduced
+by Git's automatic merge: the repaired parent already supplies both fields.
+Production behavior and safety guards retain the original child delta; no new R5
+check or fault injection was introduced.
+
+Fresh checks: explicit-file focused suite passed **362 tests, 0 failures, 1474
+expectations**; memory and SQLite import-source contracts passed **70 tests, 0
+failures, 370 expectations**. Strict pinned OpenSpec 1.12.0 validation passed with
+zero issues. Changed-file Prettier and `git diff --check` passed. Logs are
+`/tmp/step-document-restack-{tests,source-tests,openspec,format}.log`.
+
+Fresh `NX_TUI=false NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many
+-t lint,typecheck -p wbs-contracts,wbs-core,twilight-navigator,wbs-be-01
+--parallel=1 --output-style=stream` passed all ten targets without cache hits
+(`/tmp/step-document-restack-checks.log`).
+
+Full canonical host gate, build, browser checks, CI secrets and migration lint
+remain the parent integration scope. No push, merge or deployment was performed.

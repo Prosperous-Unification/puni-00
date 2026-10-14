@@ -455,3 +455,28 @@ Saved-plan input schema7 SHALL require direct `stepBlockages` rows sorted by wor
 - **GIVEN** two saved inputs with a direct fact on the same owner and step at different times
 - **WHEN** the inputs are compared
 - **THEN** one progress difference names that owner/step pair and the blocked-time field
+
+### Requirement: Archival transfer preserves direct blockage statements
+
+Plan-document version 9 SHALL require a root `stepBlockages` array of direct
+`workItemId`, `stepId`, and safe-integer `blockedAt` facts, including negative times.
+Export SHALL omit row blockage aliases and derived causes. Import SHALL validate
+unique pairs, existing leaf owners and existing steps before writing, remap both
+identities, and preserve exact timestamps within the import transaction.
+
+#### Scenario: Older documents contain unsupported blockage statements
+
+- **WHEN** a version 1–8 file has nonempty root blockage facts or row blockage aliases
+- **THEN** import refuses `invalid_body` at the indexed collection path
+- **AND** absent or empty collections normalize to no direct facts
+
+#### Scenario: A later blockage write fails
+
+- **WHEN** importing valid direct facts fails after one fact has been written
+- **THEN** the project, directory, facts, events and journal remain exactly as before import
+
+#### Scenario: Navigator reads its pinned document version
+
+- **WHEN** Navigator receives external v7
+- **THEN** it adapts to internal v9 with empty direct facts
+- **AND** external v8 and v9 remain refused before output files are written

@@ -182,3 +182,23 @@ Only the HTTP older-server boundary permits an absent count. The frontend preser
 Against exact parent `f069af34082983003b0714ca59fd8532a396d605`, saved input schema6 is current and schema7 is free. This slice allocates schema7 only. Plan document v8 and scheduler schema16 remain unchanged; no migration is needed.
 
 `PlanInputReads.stepBlockages` contains only direct `(workItemId, stepId, blockedAt)` facts read inside the existing SQLite snapshot or memory capture turn. The detached fold preserves them and the canonical body sorts them by owner and step identity. Derived readings and proxy causes are excluded. Retained facts on done nodes remain captured. Schema1–6 upgrade through the existing chain to an empty direct collection without rewriting stored bytes. Current schema7 capture and stored-body normalization for comparison refuse absent/malformed collections, duplicate pairs, unknown owners/steps, non-leaf owners and unsafe/fractional timestamps. Comparison keys the collection by owner and step and reports additions, removals and time changes under progress. Saved bytes/hash change with direct facts; scheduler input and full Fast output remain unchanged.
+
+## Plan-document direct transfer (task 4.2.2)
+
+Exact parent `b4537c83e8f0767f14b6e9304b6475c63e7cc239` writes plan document v8;
+this slice allocates v9. Saved input schema7 and scheduler schema16 remain current.
+Version 9 requires root `stepBlockages` containing only direct owner/step/time facts.
+Exports detach and sort facts by owner and step, omit row `blockages` and derived
+`blockageCauses`, and throw on missing leaf maps or invalid trusted references/time.
+Versions 1–8 normalize empty or absent blockage collections to no facts; nonempty
+root facts or row aliases refuse `invalid_body` before they could be discarded.
+Current malformed collections and times refuse at their indexed field paths.
+Import preparation refuses unknown/non-leaf owners, unknown steps and duplicate
+pairs. The import resource remaps both file identities and writes exact timestamps
+after subtree insertion in the existing unit of work, before announcements.
+A refused store write throws; any later failure rolls the entire import back.
+Import is a blockage writer, so enabling it has the same incompatible-writer drain
+obligation as command writes during blue/green overlap.
+Navigator still accepts external v7 only: its strict wire shape excludes the new
+root field, while its internal adapter supplies v9 and empty facts. External v8/v9
+remain refused. Schedule calculations and progress are independent of these facts.

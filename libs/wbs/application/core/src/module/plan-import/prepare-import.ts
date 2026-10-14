@@ -166,6 +166,7 @@ export interface PreparedDependency {
 }
 
 export interface PreparedImport {
+  stepBlockages: PlanDocumentImport['stepBlockages'];
   settings: PlanDocumentImport['settings'];
   capacity: PreparedCapacity[];
   priorityBands: PlanDocumentImport['priorityBands'];
@@ -820,6 +821,25 @@ export function prepareImport(
   const typedDependencies: TypedDependency[] = [];
   const relationshipKeys = new Set<string>();
   const leafByFileId = new Map(preparedRows.map(({ fileId, isLeaf }) => [fileId, isLeaf]));
+  const stepBlockages: PlanDocumentImport['stepBlockages'] = [];
+  const blockagePairs = new Map<string, Set<string>>();
+  for (const [at, fact] of document.stepBlockages.entries()) {
+    const prefix = `stepBlockages[${String(at)}]`;
+    // Proof: bypassing this refusal admitted direct blockage unknown owner and parent in prepare-import.test.ts (2026-10-14).
+    if (leafByFileId.get(fact.workItemId) !== true)
+      return refuses('invalid_body', `${prefix}.workItemId`);
+    // Proof: bypassing this refusal admitted direct blockage unknown step in prepare-import.test.ts (2026-10-14).
+    if (!steps.byId.has(fact.stepId)) return refuses('invalid_body', `${prefix}.stepId`);
+    // Proof: bypassing this refusal admitted direct blockage fractional and unsafe time in prepare-import.test.ts (2026-10-14).
+    if (!Number.isSafeInteger(fact.blockedAt))
+      return refuses('invalid_body', `${prefix}.blockedAt`);
+    const held = blockagePairs.get(fact.workItemId) ?? new Set<string>();
+    // Proof: bypassing this refusal admitted direct blockage duplicate pair in prepare-import.test.ts (2026-10-14).
+    if (held.has(fact.stepId)) return refuses('invalid_body', prefix);
+    held.add(fact.stepId);
+    blockagePairs.set(fact.workItemId, held);
+    stepBlockages.push({ ...fact });
+  }
   const inStepOrder = [...document.steps].sort(
     (left, right) =>
       left.position - right.position || (left.id < right.id ? -1 : left.id > right.id ? 1 : 0),
@@ -921,6 +941,7 @@ export function prepareImport(
     ok: true,
     value: {
       settings: document.settings,
+      stepBlockages,
       capacity: document.capacity.map(({ teamId, size }) => ({ teamFileId: teamId, size })),
       priorityBands: document.priorityBands,
       calendarMarkers: document.calendarMarkers.map(({ id, date, name, color }) => ({

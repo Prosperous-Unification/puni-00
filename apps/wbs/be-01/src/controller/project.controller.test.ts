@@ -275,7 +275,7 @@ describe('projects', () => {
       slices: unknown[];
     };
     expect(body.project).toMatchObject({ id: project.id, name: 'Export me' });
-    expect(body.document).toMatchObject({ format: 'wbs-plan', version: 8 });
+    expect(body.document).toMatchObject({ format: 'wbs-plan', version: 9 });
     expect(Number.isNaN(Date.parse(body.document.exportedAt))).toBe(false);
     expect(body.settings).toMatchObject({
       name: 'Export me',
@@ -1654,7 +1654,12 @@ it('exports complete deadline tree fields without undo flags and rejects malform
   const exported = (await response.json()) as Record<string, unknown>;
   expect(exported).not.toHaveProperty('undoable');
   expect(exported).not.toHaveProperty('redoable');
-  expect(exported).toMatchObject(core);
+  expect(exported).toMatchObject({
+    ...core,
+    workItems: core.workItems.map(
+      ({ blockages: _blockages, blockageCauses: _causes, ...row }) => row,
+    ),
+  });
   const tree = spyOn(h.workItems, 'tree');
   try {
     const missingDeadline = structuredClone(core);
