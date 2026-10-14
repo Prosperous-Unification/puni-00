@@ -222,6 +222,29 @@ test.describe('the toolbar popovers', () => {
     ).toBeVisible();
   });
 
+  test('the Saved plans delete question keeps the keyboard inside the popover (F-061)', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openPlan(page);
+    await summaryOf(page, 'Saved plans').click();
+    const panel = page.locator('[data-saved-plans-panel]');
+    await panel.getByRole('textbox', { name: 'Name this plan' }).fill('Kept plan');
+    await panel.getByRole('button', { name: 'Save' }).click();
+    const cross = panel.getByRole('button', { name: 'Delete saved plan Kept plan' });
+    await cross.focus();
+    await page.keyboard.press('Enter');
+    await expect(panel.getByRole('button', { name: 'Keep' })).toBeFocused();
+    await page.keyboard.press('Escape');
+    // Proof: on 2026-10-14, against 6d4d02f33, this failed on `expect(locator).toBeFocused()
+    // failed … element(s) not found` — Escape on the question closed the whole popover.
+    await expect(cross).toBeFocused();
+    const open = await summaryOf(page, 'Saved plans')
+      .locator('..')
+      .evaluate((node) => (node as HTMLDetailsElement).open);
+    expect(open, 'Escape on the question closed the popover').toBe(true);
+  });
+
   test('Export / Import is one line and lists plain menu items (F-004, F-031)', async ({
     page,
   }) => {

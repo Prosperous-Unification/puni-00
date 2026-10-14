@@ -296,7 +296,7 @@ describe('closing over an edit', () => {
     },
   );
 
-  itDom('an in-flight write holds the modal open and is shown', async () => {
+  itDom('an in-flight write holds the modal open and says it is saving', async () => {
     // The spec's own scenario: the ladder is saving from the priorities section,
     // the reader has moved to the steps section, and Escape must neither close
     // nor leave them looking at the wrong section for why.
@@ -324,9 +324,13 @@ describe('closing over an edit', () => {
     escape();
     await settle();
 
+    // Held open, and said quietly: a write in flight clears by itself, so the
+    // reader is neither moved to its section nor told to finish it (Fable
+    // review of #453, blocking 1). The refusal sentence is for drafts.
     expect(dialog()).toBeInTheDocument();
-    expect(tab('Priorities')).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('alert').textContent).toContain('Priorities has an unsaved edit');
+    expect(tab('Steps')).toHaveAttribute('aria-selected', 'true');
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByRole('status').textContent).toContain('Saving Priorities');
 
     // Landed, the ladder is clean once the plan is reread; this harness does not
     // reread, so the close that follows is `Escape waits for a capacity in flight`.
@@ -454,6 +458,42 @@ describe('closing over an edit', () => {
     // `expected <div role="dialog" …(8)>…(3)</div> to be null` — still open after the write landed.
     expect(screen.queryByRole('dialog')).toBeNull();
   });
+
+  itDom(
+    'leaving over a write in flight says it is saving, not that an edit is unsaved',
+    async () => {
+      // The ✕ blurs the box, which sends the number; while it travels the modal
+      // neither jumps back to Teams nor shows the red "Finish it or cancel it" —
+      // it says it is saving and closes when the write lands.
+      const landing = held();
+      const setCapacity = vi.fn(() => landing.promise);
+      mounted({
+        teams: {
+          teams: [{ id: 't-platform', name: 'Platform', stated: null, rows: 1 }],
+          setCapacity,
+          onChanged: vi.fn(() => Promise.resolve()),
+        },
+      });
+      open();
+      const box = screen.getByLabelText('How many of Platform at once');
+      fireEvent.change(box, { target: { value: '3' } });
+      fireEvent.blur(box);
+      fireEvent.click(tab('Timezone'));
+      fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+      await settle();
+
+      // Proof: on 2026-10-14, against 6d4d02f33 (no busy report, the refusal
+      // shown on every held close), this failed on `expected <p role="alert"
+      // …(1)></p> to be null` — the "Teams has an unsaved edit" sentence.
+      expect(screen.queryByRole('alert')).toBeNull();
+      expect(tab('Timezone')).toHaveAttribute('aria-selected', 'true');
+      expect(screen.getByRole('status').textContent).toContain('Saving Teams');
+
+      landing.land();
+      await settle();
+      expect(screen.queryByRole('dialog')).toBeNull();
+    },
+  );
 
   itDom('the ✕ stays open on a refused capacity, with the sentence (F-060)', async () => {
     const setCapacity = vi.fn(() => Promise.reject(new Error('size_must_be_at_most_1000')));

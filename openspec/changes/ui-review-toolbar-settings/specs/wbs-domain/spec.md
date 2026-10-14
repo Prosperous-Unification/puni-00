@@ -20,14 +20,22 @@ that field back. The priority ladder and the PERT weights SHALL each be sent as 
 request when the focus leaves the group or Enter is pressed in it, never as the focus
 moves between their boxes, and once one lands the section SHALL offer Undo, which sends
 the values it replaced. The close control, a click outside and Escape outside a field
-SHALL close the modal; while a write is in flight the close SHALL be refused and SHALL
-then happen once nothing is held, and a refused write SHALL keep the modal open with its
-sentence.
+SHALL close the modal; while a write is in flight the close SHALL wait and SHALL then happen
+once nothing is held. While every hold is a write in flight the modal SHALL neither switch
+section nor show the unsaved-edit refusal, only a status that it is saving; a draft or a
+refused write SHALL keep the modal open on its section with the refusal and its sentence.
 
 #### Scenario: a capacity typed and the close control pressed
 
 - **WHEN** a reader types a capacity and presses the close control
 - **THEN** the capacity is sent, and the modal closes once it lands
+
+#### Scenario: closing while a write travels
+
+- **WHEN** a reader blurs a capacity, opens another section and presses the close control
+  while the capacity is in flight
+- **THEN** the section shown does not change, no refusal is shown, a status says it is saving,
+  and the modal closes once the capacity lands
 
 #### Scenario: the ladder applied and undone
 
@@ -38,7 +46,9 @@ sentence.
 
 The Saved plans popover SHALL show a name field and the primary Save on one line, the
 line `No plans saved yet.` in the Views panel's empty-state ink while nothing is saved,
-and one row per saved plan with Compare and a delete that asks for confirmation. Save
+and one row per saved plan with Compare and a delete that asks for confirmation. The
+confirmation SHALL take the focus on Keep; Keep or Escape on it SHALL dismiss the question,
+leave the popover open and return the focus to the row's delete control. Save
 with an empty name SHALL leave the name to the server. The popover SHALL share the Views
 panel's background, border, radius, padding and shadow.
 

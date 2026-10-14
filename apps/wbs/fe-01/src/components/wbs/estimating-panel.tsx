@@ -167,6 +167,7 @@ export function EstimatingPanel({
   onChanged,
   onRefused,
   onDirtyChange,
+  onBusyChange,
 }: EstimatingPanelProps) {
   const [draft, setDraft] = useState<WeightDraft>(() => draftOfWeights(pertWeights));
   /** The weights the last applied triple replaced, while Undo can still send them back. */
@@ -184,6 +185,7 @@ export function EstimatingPanel({
     words: ARITHMETIC_REFUSALS,
     dirty,
     onDirtyChange,
+    ...(onBusyChange === undefined ? {} : { onBusyChange }),
     onChanged,
     ...(onRefused === undefined ? {} : { onRefused }),
   });

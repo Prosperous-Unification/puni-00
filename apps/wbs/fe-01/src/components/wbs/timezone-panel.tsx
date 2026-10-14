@@ -69,6 +69,7 @@ export function TimezonePanel({
   onChanged,
   onRefused,
   onDirtyChange,
+  onBusyChange,
 }: TimezonePanelProps) {
   const [draft, setDraft] = useState(timezone ?? '');
   const [list, setList] = useState<ZoneList>({ state: 'loading' });
@@ -78,6 +79,7 @@ export function TimezonePanel({
     words: TIMEZONE_REFUSALS,
     dirty,
     onDirtyChange,
+    ...(onBusyChange === undefined ? {} : { onBusyChange }),
     onChanged,
     ...(onRefused === undefined ? {} : { onRefused }),
   });

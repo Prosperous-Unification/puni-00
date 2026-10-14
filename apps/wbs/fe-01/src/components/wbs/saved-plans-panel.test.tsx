@@ -266,6 +266,29 @@ describe('the saved-plans panel', () => {
     expect(screen.queryByRole('alert')).toBeNull();
   });
 
+  itDom('the delete question takes the focus, and Escape answers Keep (F-061)', async () => {
+    const wiring = fakeDeps([ROW]);
+    render(<SavedPlansPanelOver projectId="p1" routes={wiring.deps} />);
+    await flush();
+
+    const cross = screen.getByRole('button', { name: `Delete saved plan ${ROW.name}` });
+    cross.focus();
+    fireEvent.click(cross);
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Keep' }));
+
+    const handled = !fireEvent.keyDown(screen.getByRole('button', { name: 'Keep' }), {
+      key: 'Escape',
+    });
+    // Proof: on 2026-10-14, against 6d4d02f33, this failed on `expected false to be true` —
+    // the question left Escape unhandled, so the popover's dismiss hook closed the panel.
+    expect(handled).toBe(true);
+    expect(screen.queryByRole('button', { name: 'Keep' })).toBeNull();
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: `Delete saved plan ${ROW.name}` }),
+    );
+    expect(wiring.remove).not.toHaveBeenCalled();
+  });
+
   itDom('shows a plan the user just saved, with no broadcast to prompt it', async () => {
     // **The finding this chunk is built on.** `saved-plan.controller.ts`
     // publishes `saved_plans_changed` on save (TASK-255), so a collaborator's

@@ -20,6 +20,7 @@ export interface OptimizationSettingsProps {
   /** Recovery after a failure whose commit outcome is unknown. */
   readonly onRefused?: (thrown: unknown) => Promise<void>;
   readonly onDirtyChange: (dirty: boolean) => void;
+  readonly onBusyChange?: (busy: boolean) => void;
 }
 
 const OPTIMIZATION_REFUSALS: RefusalWords = {
@@ -34,11 +35,13 @@ export function OptimizationSettingsPanel({
   onChanged,
   onRefused,
   onDirtyChange,
+  onBusyChange,
 }: OptimizationSettingsProps) {
   const section = useSettingsSection({
     words: OPTIMIZATION_REFUSALS,
     dirty: false,
     onDirtyChange,
+    ...(onBusyChange === undefined ? {} : { onBusyChange }),
     onChanged,
     ...(onRefused === undefined ? {} : { onRefused }),
   });

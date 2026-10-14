@@ -249,8 +249,19 @@ export function ProjectSettingsModal({
    */
   const [closeWanted, setCloseWanted] = useState(false);
 
+  /**
+   * The sections with a write in the air — a subset of the holds above, kept
+   * apart because a travelling write clears by itself and a draft or a refusal
+   * does not. Ref and state for the reason `dirtyRef` gives.
+   */
+  const busyRef = useRef(new Set<SettingsSection>());
+  const [busySections, setBusySections] = useState<readonly SettingsSection[]>([]);
+
   const publishDirty = (): void => {
     setDirtySections(SECTIONS.map((s) => s.id).filter((id) => dirtyRef.current.has(id)));
+  };
+  const publishBusy = (): void => {
+    setBusySections(SECTIONS.map((s) => s.id).filter((id) => busyRef.current.has(id)));
   };
 
   /**
@@ -269,6 +280,27 @@ export function ProjectSettingsModal({
     // `publishDirty` closes over a setter and a ref, both stable for the life
     // of the component, so the reporters are made once.
     [],
+  );
+  const busyReporterFor = useCallback(
+    (section: SettingsSection) =>
+      (busy: boolean): void => {
+        if (busy) busyRef.current.add(section);
+        else busyRef.current.delete(section);
+        publishBusy();
+      },
+    // Stable for the reason `reporterFor` gives.
+    [],
+  );
+  const busyReporters = useMemo(
+    () => ({
+      teams: busyReporterFor('teams'),
+      priorities: busyReporterFor('priorities'),
+      steps: busyReporterFor('steps'),
+      estimating: busyReporterFor('estimating'),
+      optimization: busyReporterFor('optimization'),
+      timezone: busyReporterFor('timezone'),
+    }),
+    [busyReporterFor],
   );
   const reporters = useMemo(
     () => ({
@@ -325,8 +357,21 @@ export function ProjectSettingsModal({
    * travelling and over a typed capacity. Watched 2026-08-30.
    */
   function requestClose(leaving = false): boolean {
-    const first = SECTIONS.map((s) => s.id).find((id) => dirtyRef.current.has(id));
+    const held = SECTIONS.map((s) => s.id).filter((id) => dirtyRef.current.has(id));
+    const first = held.at(0);
     if (first !== undefined) {
+      // Leaving over writes that are only travelling is not refused out loud:
+      // the ✕ or the click away that blurred the field is what sent them, and
+      // the modal closes when they land. Jumping to their section with the red
+      // "Finish it or cancel it" was the refusal contradicting the close it was
+      // about to make (Fable review of #453, blocking 1).
+      // Proof: on 2026-10-14, against 6d4d02f33 (no such branch), `leaving over
+      // a write in flight says it is saving, not that an edit is unsaved` failed
+      // on `expected <p role="alert" …(1)></p> to be null`.
+      if (leaving && held.every((id) => busyRef.current.has(id))) {
+        setCloseWanted(true);
+        return false;
+      }
       show(first);
       setRefused(true);
       setCloseWanted(leaving);
@@ -343,18 +388,29 @@ export function ProjectSettingsModal({
   // Proof: on 2026-10-14, with this effect removed, `the ✕ applies a typed
   // capacity and closes once it lands` in project-settings-modal.test.tsx failed
   // on the dialog still open after the write landed.
+  // A write that was refused instead turns the quiet wait into the refusal: its
+  // section is shown with the sentence, and the modal stays.
   useEffect(() => {
-    if (!open || !closeWanted || dirtySections.length > 0) return;
-    requestClose();
-    // `requestClose` is a plain function of this render; the three values are
-    // what decide whether it runs.
+    if (!open || !closeWanted) return;
+    if (dirtySections.length === 0) {
+      requestClose();
+      return;
+    }
+    const stuck = dirtySections.find((id) => !busySections.includes(id));
+    if (stuck === undefined) return;
+    show(stuck);
+    setRefused(true);
+    // `requestClose` and `show` are plain functions of this render; the four
+    // values are what decide whether either runs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, closeWanted, dirtySections]);
+  }, [open, closeWanted, dirtySections, busySections]);
 
   function onOpenChange(next: boolean): void {
     if (next) {
       dirtyRef.current.clear();
       setDirtySections([]);
+      busyRef.current.clear();
+      setBusySections([]);
       setRefused(false);
       setCloseWanted(false);
       // Proof: on 2026-09-24, showing `FIRST_SECTION` here instead of reading the runtime failed `reopens
@@ -391,7 +447,13 @@ export function ProjectSettingsModal({
     document.getElementById(tabId(target.id))?.focus();
   }
 
-  const holding = refused ? dirtySections[0] : undefined;
+  const holding = refused
+    ? (dirtySections.find((id) => !busySections.includes(id)) ?? dirtySections[0])
+    : undefined;
+  const travelling =
+    closeWanted && holding === undefined
+      ? SECTIONS.filter((s) => dirtySections.includes(s.id)).map((s) => s.label)
+      : [];
   const holdingLabel = SECTIONS.find((s) => s.id === holding)?.label;
 
   return (
@@ -454,6 +516,11 @@ export function ProjectSettingsModal({
           </ModalDescription>
         </ModalHeader>
 
+        {travelling.length > 0 && (
+          <p role="status" className="text-muted-foreground text-sm">
+            Saving {travelling.join(' and ')}. The window closes when it lands.
+          </p>
+        )}
         {holdingLabel !== undefined && (
           <p role="alert" className="text-destructive text-sm">
             {holdingLabel} has an unsaved edit. Finish it or cancel it before closing.
@@ -509,7 +576,11 @@ export function ProjectSettingsModal({
               aria-labelledby={tabId('teams')}
               hidden={shown !== 'teams'}
             >
-              <TeamsPanel {...teams} onDirtyChange={reporters.teams} />
+              <TeamsPanel
+                {...teams}
+                onDirtyChange={reporters.teams}
+                onBusyChange={busyReporters.teams}
+              />
             </div>
             <div
               role="tabpanel"
@@ -517,7 +588,11 @@ export function ProjectSettingsModal({
               aria-labelledby={tabId('priorities')}
               hidden={shown !== 'priorities'}
             >
-              <PrioritiesPanel {...priorities} onDirtyChange={reporters.priorities} />
+              <PrioritiesPanel
+                {...priorities}
+                onDirtyChange={reporters.priorities}
+                onBusyChange={busyReporters.priorities}
+              />
             </div>
             <div
               role="tabpanel"
@@ -525,7 +600,11 @@ export function ProjectSettingsModal({
               aria-labelledby={tabId('steps')}
               hidden={shown !== 'steps'}
             >
-              <StepsPanel {...steps} onDirtyChange={reporters.steps} />
+              <StepsPanel
+                {...steps}
+                onDirtyChange={reporters.steps}
+                onBusyChange={busyReporters.steps}
+              />
             </div>
             <div
               role="tabpanel"
@@ -533,7 +612,11 @@ export function ProjectSettingsModal({
               aria-labelledby={tabId('estimating')}
               hidden={shown !== 'estimating'}
             >
-              <EstimatingPanel {...estimating} onDirtyChange={reporters.estimating} />
+              <EstimatingPanel
+                {...estimating}
+                onDirtyChange={reporters.estimating}
+                onBusyChange={busyReporters.estimating}
+              />
             </div>
             <div
               role="tabpanel"
@@ -549,6 +632,7 @@ export function ProjectSettingsModal({
                 <OptimizationSettingsPanel
                   {...optimization}
                   onDirtyChange={reporters.optimization}
+                  onBusyChange={busyReporters.optimization}
                 />
               )}
             </div>
@@ -558,7 +642,11 @@ export function ProjectSettingsModal({
               aria-labelledby={tabId('timezone')}
               hidden={shown !== 'timezone'}
             >
-              <TimezonePanel {...timezone} onDirtyChange={reporters.timezone} />
+              <TimezonePanel
+                {...timezone}
+                onDirtyChange={reporters.timezone}
+                onBusyChange={busyReporters.timezone}
+              />
             </div>
           </div>
         </div>

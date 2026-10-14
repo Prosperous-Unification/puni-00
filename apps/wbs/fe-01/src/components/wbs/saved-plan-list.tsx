@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { type KeyboardEvent, useEffect, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -210,6 +210,33 @@ function SavedPlanRow({
   onRemove?: (savedPlanId: string) => void;
 }) {
   const [confirming, setConfirming] = useState(false);
+  /**
+   * Where the focus goes as the confirmation opens and closes. Pressing ✕
+   * unmounts the focused button, so without this the focus fell to `<body>` and
+   * the next Escape closed the whole popover instead of the question (Fable
+   * review of #453, D): it opens on Keep, the safe answer, and Keep or Escape
+   * hands it back to the ✕.
+   */
+  const keep = useRef<HTMLButtonElement | null>(null);
+  const cross = useRef<HTMLButtonElement | null>(null);
+  const [returning, setReturning] = useState(false);
+  useEffect(() => {
+    if (confirming) keep.current?.focus();
+    else if (returning) {
+      cross.current?.focus();
+      setReturning(false);
+    }
+  }, [confirming, returning]);
+  const dismiss = (): void => {
+    setConfirming(false);
+    setReturning(true);
+  };
+  /** The question's own Escape answers Keep; the popover's dismiss hook leaves a handled key alone. */
+  const keepOnEscape = (event: KeyboardEvent<HTMLButtonElement>): void => {
+    if (event.key !== 'Escape') return;
+    event.preventDefault();
+    dismiss();
+  };
   return (
     <li className="saved-plan-list__row flex items-center gap-1 border-b py-1.5 text-xs last:border-b-0">
       <div className="flex min-w-0 flex-1 flex-col">
@@ -241,6 +268,7 @@ function SavedPlanRow({
             variant="destructive"
             size="sm"
             type="button"
+            onKeyDown={keepOnEscape}
             onClick={() => {
               setConfirming(false);
               onRemove(row.id);
@@ -249,12 +277,12 @@ function SavedPlanRow({
             Delete
           </Button>
           <Button
+            ref={keep}
             variant="ghost"
             size="sm"
             type="button"
-            onClick={() => {
-              setConfirming(false);
-            }}
+            onClick={dismiss}
+            onKeyDown={keepOnEscape}
           >
             Keep
           </Button>
@@ -277,6 +305,7 @@ function SavedPlanRow({
           )}
           {onRemove !== undefined && (
             <Button
+              ref={cross}
               variant="ghost"
               size="square"
               type="button"

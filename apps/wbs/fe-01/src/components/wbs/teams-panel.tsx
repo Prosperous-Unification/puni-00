@@ -78,6 +78,14 @@ export function teamsOnThePlan(
  */
 export interface SettingsSectionReport {
   onDirtyChange: (dirty: boolean) => void;
+  /**
+   * Whether a write this section sent is in the air — reported apart from
+   * `onDirtyChange`, which counts it too, so the modal can tell a hold that will
+   * clear by itself (a write travelling) from one the reader must act on (a
+   * draft, a refusal). Optional: a section shown outside the modal has nobody
+   * to tell.
+   */
+  onBusyChange?: (busy: boolean) => void;
 }
 
 export interface TeamsPanelProps extends SettingsSectionReport {
@@ -129,6 +137,7 @@ export function TeamsPanel({
   onChanged,
   onRefused,
   onDirtyChange,
+  onBusyChange,
 }: TeamsPanelProps) {
   /**
    * The numbers being typed over the plan's own, by team id.
@@ -163,6 +172,7 @@ export function TeamsPanel({
     words: CAPACITY_REFUSALS,
     dirty: Object.keys(typed).length > 0,
     onDirtyChange,
+    ...(onBusyChange === undefined ? {} : { onBusyChange }),
     onChanged,
     ...(onRefused === undefined ? {} : { onRefused }),
   });

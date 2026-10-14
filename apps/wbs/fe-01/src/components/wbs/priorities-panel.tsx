@@ -129,6 +129,7 @@ export function PrioritiesPanel({
   onChanged,
   onRefused,
   onDirtyChange,
+  onBusyChange,
 }: PrioritiesPanelProps) {
   const [drafts, setDrafts] = useState<BandDraft[]>(() => draftsOf(bands));
   /** The ladder the last applied one replaced, while Undo can still send it back. */
@@ -156,6 +157,7 @@ export function PrioritiesPanel({
     words: PRIORITY_BAND_REFUSALS,
     dirty,
     onDirtyChange,
+    ...(onBusyChange === undefined ? {} : { onBusyChange }),
     onChanged,
     ...(onRefused === undefined ? {} : { onRefused }),
   });

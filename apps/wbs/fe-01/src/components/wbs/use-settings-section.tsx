@@ -46,6 +46,8 @@ export interface SettingsSectionOptions {
    */
   dirty: boolean;
   onDirtyChange: (dirty: boolean) => void;
+  /** Told whether a write is in the air, apart from `onDirtyChange` — see `SettingsSectionReport`. */
+  onBusyChange?: (busy: boolean) => void;
   /** Re-reads the plan after a write landed. */
   onChanged: () => Promise<void>;
   /** Optional recovery read after a refusal whose target may have changed. */
@@ -70,7 +72,7 @@ export interface SettingsSectionOptions {
  * longer road.
  */
 export function useSettingsSection(options: SettingsSectionOptions): SettingsSection {
-  const { words, dirty, onDirtyChange, onChanged, onRefused } = options;
+  const { words, dirty, onDirtyChange, onBusyChange, onChanged, onRefused } = options;
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -94,6 +96,16 @@ export function useSettingsSection(options: SettingsSectionOptions): SettingsSec
       onDirtyChange(false);
     },
     [onDirtyChange],
+  );
+  // The travelling half on its own, withdrawn on unmount for the same reason.
+  useEffect(() => {
+    onBusyChange?.(busy);
+  }, [busy, onBusyChange]);
+  useEffect(
+    () => () => {
+      onBusyChange?.(false);
+    },
+    [onBusyChange],
   );
 
   return {

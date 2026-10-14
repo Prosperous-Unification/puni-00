@@ -27,3 +27,16 @@ base) or with the named fault injected; the observed text is the adjacent `Proof
   `Timezone: Save timezone`; the close-once-clear effect removed: dialog still open after the
   write landed (✕ and Escape cases). Browser (`settings-layout.spec.ts`): the ✕ over a typed
   band left the dialog visible on the old ladder.
+
+## Review fixes (Fable review of #453 @6d4d02f33)
+
+- Blocking 1: sections report a write in flight apart from a draft (`onBusyChange`); leaving
+  over writes that are only travelling waits quietly (`Saving Teams. The window closes when it
+lands.`) instead of switching section and showing the refusal. `project-settings-modal.test.tsx`
+  `leaving over a write in flight says it is saving, not that an edit is unsaved` and the
+  reworded `an in-flight write holds the modal open and says it is saving` both failed on
+  6d4d02f33 with `expected <p role="alert" …(1)></p> to be null`.
+- D: the Saved plans delete question takes the focus on Keep, Escape answers Keep and returns the
+  focus to the ✕. Unit case failed on 6d4d02f33 with `expected false to be true` (Escape left
+  unhandled); browser case `the Saved plans delete question keeps the keyboard inside the popover`
+  failed with `toBeFocused() failed … element(s) not found` (the popover had closed).
