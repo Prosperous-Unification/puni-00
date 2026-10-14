@@ -38,6 +38,20 @@ The initial full store discovery inside the sandbox encountered `EPERM` writing 
 stdin; an unrestricted repeat is required for that concurrency suite. The full host gate
 and fresh hosted checks remain required after the reviewed stack is pushed.
 
+## Stacked hosted CI repair: host restore test tier (2026-10-14)
+
+At PR #431, the tier conformance test failed naming
+`shared-people-host-restore.test.ts opens a database and is not named .db.test.ts`
+(`/tmp/puni-431-tier-red.log`). Renamed it to `shared-people-host-restore.db.test.ts`;
+the opener check and tier selection commands are unchanged. No Nx input change is needed:
+backend `default` already covers its Drizzle tree, and `^production` covers the store
+helper imported by this suite. Existing commands below record historical paths.
+
+`bun test apps/wbs/be-01/src/test-tiers.test.ts apps/wbs/be-01/src/shared-people-host-restore.db.test.ts --timeout=60000`:
+20 pass, 1 skip, 0 fail (`/tmp/puni-431-focused-green.log`). The skipped case requires
+`WBS_HOST_RESTORE_REAL_DOCKER=1` and an explicitly supplied proof image; live Docker
+fencing was not rerun in this CI fixture repair.
+
 ## Slice 0 — spec
 
 Written on `batch-9/010-4-16-capacity-spec` from main `4bb71e5f`. The change name, the four
