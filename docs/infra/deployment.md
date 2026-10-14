@@ -233,8 +233,19 @@ an exact SHA-256 image reference. The image runner must execute the supplied com
 image; the inventory runner must supply `DB_PATH` for the fenced database. Both refuse missing,
 unreadable or malformed required state. Neither consults the live blockage table for replay safety.
 
-These are observation primitives only. F11.1 remains open: the release coordinator must persist and
-validate forward/rollback/resume evidence under the writer fence and Lease; rollback must refuse
-before tier rollout or writer reopening. The Compose-to-Kubernetes restore/cutover guard and live h4
-proof also remain open. Do not import guarded history or activate Kubernetes delivery using these
-helpers alone. See the [pre-cutover obligation](../../openspec/changes/add-step-node-blocking/design.md#kubernetes-pre-cutover-obligation).
+The release coordinator now records `replay-checked` before capture and
+`rollback-replay-checked` before restoring tiers. Receipts bind the database target,
+transaction, direction, independent inventory and both exact image vocabularies.
+Forward admission requires both images; rollback requires the previous image and
+unchanged kind/count inventory. Reopening validates the corresponding durable
+receipt. Failed rollback admission retains the fence and parked Lease and reports
+the replay failure and manual completion command.
+
+Journal schema 3 refuses schema 1/2 journals, missing receipts and changed receipt
+bytes or projections. Finish legacy transactions with their prior executor or
+manual recovery before switching coordinators; preserve the journal for evidence.
+Inventory summaries describe replay requirements, not all journal contents.
+
+F11.1 remains open for the Compose-to-Kubernetes restore/cutover guard and live h4
+proof. Do not import guarded history or activate Kubernetes delivery until those
+prerequisites are met. See the [pre-cutover obligation](../../openspec/changes/add-step-node-blocking/design.md#kubernetes-pre-cutover-obligation).

@@ -78,3 +78,49 @@ The infrastructure replay inventory SHALL inspect both journal directions recurs
 - **THEN** it executes that image's own `src/step-blockage-replay-kinds-cli.ts` and binds the validated string vocabulary to the same image reference
 - **AND** only a genuinely absent CLI under a readable/searchable source directory yields the prior empty vocabulary
 - **AND** missing/unreadable source directories, dangling/nonregular CLI paths, unreadable CLI files, failed execution, malformed output or mutable image references refuse observation
+
+### Requirement: Kubernetes replay admission is durable under the writer fence
+
+The release coordinator SHALL inventory retained history under its Lease and writer fence after writers stop and before capture. It SHALL persist receipts binding target, transaction, direction, inventory and exact candidate/previous image capabilities. Forward admission SHALL require both images. Rollback SHALL record fresh previous-image admission before restoring tiers or reopening writes and SHALL refuse changed fenced inventory.
+
+#### Scenario: Guarded history precedes forward capture
+
+- **GIVEN** retained nested inverse or precondition-only guarded moves with empty snapshots
+- **WHEN** either exact backend image lacks `move_progress_v1`
+- **THEN** capture and migration do not start
+- **AND** a previous image lacking the capability prevents automatic tier restoration or reopening
+
+#### Scenario: Rollback refuses changed or unsupported inventory
+
+- **GIVEN** a failed forward transaction with writes closed
+- **WHEN** fresh rollback inventory differs from the durable forward summary, observation fails, or the previous image cannot replay it
+- **THEN** bounded abort records `rollback-failed`, retains the fence and Lease, and reports the failed replay step and manual recovery command
+
+### Requirement: Replay progress and reused Jobs retain their pinned inputs
+
+Resume SHALL refuse missing, malformed, changed or foreign receipt progress before any journal or cluster mutation. Reused replay Jobs SHALL preserve requested fields and effective mount options, including absent subpath, access and propagation settings, before their output is accepted. Refused rollback SHALL retain the fence and parked Lease with explicit failure evidence and a manual completion command.
+
+#### Scenario: Interrupted evidence is absent or changed
+
+- **GIVEN** a recorded forward or rollback replay phase
+- **WHEN** resume reads missing, malformed, altered or foreign evidence
+- **THEN** the journal is preserved and no Lease claim or cluster mutation occurs
+
+#### Scenario: A reused observation Job belongs to different inputs
+
+- **GIVEN** an existing observation Job for the transaction
+- **WHEN** its observed manifest differs from any pinned field, including image, command or database mount
+- **THEN** its output is refused even if it reports successful completion
+
+#### Scenario: Recovery loses the prior forward receipt
+
+- **GIVEN** a post-reopen failure parked at `recovery-required`
+- **WHEN** a recovery request reads a missing or null prior forward receipt
+- **THEN** disk parsing refuses before Lease takeover, cluster work or journal replacement
+
+#### Scenario: A reused Job changes omitted mount options
+
+- **GIVEN** a replay Job pinning the database PVC root with default mount options
+- **WHEN** the observed Job adds a subpath expression or changes effective access or propagation
+- **THEN** inventory and capability output are refused even when completion and output are valid
+- **AND** equivalent explicit Kubernetes defaults remain accepted

@@ -10,6 +10,7 @@ import { fakeRegistry } from './fake-registry';
 import { fileJournal } from './journal';
 import { checkDescriptor, readDeliveryTarget, requestFor } from './promotion';
 import { initialState } from './release';
+import { sealReplayReceipt } from './replay-receipt';
 
 const ROOT = resolve(import.meta.dir, '../../../..');
 const roots: string[] = [];
@@ -116,10 +117,19 @@ function resumable(recordedContext: string) {
   );
   const journalPath = join(state, 'staging', 'journal', 'release.json');
   mkdirSync(join(state, 'staging', 'journal'), { recursive: true, mode: 0o700 });
+  const progress = initialState(recorded);
+  const replayForward = sealReplayReceipt(
+    recorded,
+    progress.transactionId,
+    'forward',
+    [],
+    { image: recorded.release.images.backend, capabilities: [] },
+    { image: recorded.expectedCurrent.images.backend, capabilities: [] },
+  );
   fileJournal(journalPath).write({
-    schemaVersion: 2,
+    schemaVersion: 3,
     request: recorded,
-    state: { ...initialState(recorded), phase: 'writes-reopened', writesReopened: true },
+    state: { ...progress, replayForward, phase: 'writes-reopened', writesReopened: true },
     history: [{ phase: 'writes-reopened', at: '2026-09-18T00:00:00.000Z' }],
   });
   const kubectl = join(state, 'kubectl');
