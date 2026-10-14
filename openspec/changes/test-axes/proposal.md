@@ -70,3 +70,7 @@ SQLite target operands and canonical path consumers together; bare Bun filters c
 literal complete membership. The exact SQLite migration input is permitted only at
 its reviewed project root and remains dependency metadata. Non-goals: Architecture extraction,
 classification, target isolation, report inspection, reviewer authentication and coverage credit.
+
+## 4.1b.7 intent
+
+Problem: complete committed level facts and inspected Performance publications are separate observations, so they cannot yet establish target isolation. Outcome: a bounded `inspect-performance-levels` diagnostic joins those real inspectors against one exact committed declaration and classifies only its complete Performance fixture scope through the earlier rows of the shared first-match table. Constraints: compare exact revision/candidate, declaration path and semantic digest, config/project/digest, selected source tuples and complete recorded collection; preserve legitimate Conformance and Architecture overlap, then report it as typed wrong-level isolation with nonzero CLI status. Raw declaration byte pins and normalized declaration digests are distinct identities and must be verified through the shared decoder. Non-goals: later table rows, owner-output changes, coverage, independent authentication, certification, admission, sync or archive.

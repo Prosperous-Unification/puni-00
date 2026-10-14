@@ -690,3 +690,33 @@ Committed Architecture authority SHALL pin `<projectRoot>/src/architecture-fixtu
 - **GIVEN** an unmapped immediate suffix child including a directory with descendants, or reviewed-empty authority with a policy or Architecture target
 - **WHEN** the facts command inspects the selected candidate
 - **THEN** it refuses, while nested ordinary fixtures remain outside declared membership and the runner retains stale-report and error precedence behavior
+
+### Requirement: Performance level observations join complete facts and publication
+
+`inspect-performance-levels <repository> <committed-sha> <external-facts-authority> <external-rule-policy>` SHALL call the real level-facts and Performance publication inspectors. It SHALL require exact requested revision and matching candidate identity, matching declaration/config paths and Playwright project, matching config and selected fixture byte identities and modes, and equality of the complete Performance fixture scope, declared cases and recorded publication collection with no missing, extra or duplicate cases. It SHALL decode the same selected committed declaration through the shared decoder before comparing its semantic digest to publication; its raw byte pin is a separate identity. Any join or inherited inspector refusal SHALL emit no JSON observation.
+
+The shared test-levels library SHALL expose the earlier first-match rows without requiring unknown later-row facts. Existing complete classification SHALL reuse those rows unchanged. The diagnostic SHALL classify the complete Performance fixture scope using Manual, Conformance, Architecture and Performance membership, with recorded Playwright membership required by the Performance row. Conformance SHALL precede Architecture, and Architecture SHALL precede Performance. Legitimate overlap SHALL produce a typed wrong-level isolation observation and nonzero CLI exit, preserving actual classified levels. A fully isolated Performance observation SHALL exit zero. Both outcomes SHALL bind both upstream observation digests and their complete own payload digest, with authentication absent and certification false. The diagnostic SHALL grant no coverage or admission and SHALL preserve existing version-1 source-owner outputs.
+
+#### Scenario: [TEST-AXES-087] Complete Performance joins classify only the recorded fixture scope
+
+- **GIVEN** matching real facts and publication inspectors bound to a selected committed declaration whose raw bytes have a different digest from normalized semantics
+- **WHEN** source or packaged Performance level inspection runs
+- **THEN** every declared and recorded fixture is classified Performance, isolation is typed successful and both upstream digests and the complete observation digest are bound without candidate execution or promotion
+
+#### Scenario: [TEST-AXES-088] Performance facts and publication substitutions refuse joins
+
+- **GIVEN** a changed revision, candidate, declaration path or semantic digest, config path or digest, project, source tuple or missing, extra or duplicate declared or recorded case
+- **WHEN** the diagnostic joins the real inspector observations
+- **THEN** it refuses by name without JSON, including coherent substitutions supplied by a broken inspector dependency
+
+#### Scenario: [TEST-AXES-089] Higher precedence membership yields typed Performance isolation failure
+
+- **GIVEN** valid complete Performance fixtures also declared by Conformance or Architecture, including a three-way overlap
+- **WHEN** the shared earlier-row classifier applies first-match precedence
+- **THEN** Conformance precedes Architecture, Architecture precedes Performance, and the CLI emits a typed wrong-level observation with nonzero exit while remaining unauthenticated and noncertifying
+
+#### Scenario: [TEST-AXES-090] Performance level dispatch preserves inherited refusals and bounded inputs
+
+- **GIVEN** unsupported CLI operands or an inherited facts or publication failure
+- **WHEN** source or installed Performance level dispatch runs
+- **THEN** it refuses without success JSON and preserves existing source-owner version-1 behavior
