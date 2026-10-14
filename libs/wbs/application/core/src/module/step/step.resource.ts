@@ -98,6 +98,8 @@ export interface StepInUse {
    * silently would turn done work back into work nobody has started.
    */
   progress: number;
+  /** Direct blockage facts, including facts retained beneath done progress. */
+  blockages: number;
   /**
    * Figures this step holds in the units that are not days — a count of
    * **rows**, so a pair holding a token estimate and an hours fact counts two.
@@ -153,6 +155,7 @@ function inUseFrom(usage: StepUsageRows, stepId: string): StepInUse {
     estimates: usage.estimates,
     actuals: usage.actuals,
     progress: usage.progress,
+    blockages: usage.blockages,
     measures: usage.measures,
     attempts: usage.attempts,
     assignments: usage.assignments.filter((each) => each.stepId === stepId).length,

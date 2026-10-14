@@ -10,6 +10,7 @@ const stamp = { at: 1, by: 'owner' };
 const STORE_BINDINGS = [
   'actuals',
   'attempts',
+  'blockages',
   'calendarMarkers',
   'capacity',
   'dependencies',
@@ -96,6 +97,46 @@ async function seededSource() {
   );
   return source;
 }
+
+it('commits and rolls back project-seeded blockage facts and cascades removed owners', async () => {
+  const source = await seededSource();
+  await source.stores.workItems.insert(
+    workItemRow({ id: 'wi-blocked', projectId: 'p1' }),
+    [],
+    stamp,
+  );
+  const fact = { workItemId: 'wi-blocked', stepId: 'st-1', blockedAt: 123 };
+  await source.uow.run(async (scope) => {
+    expect(await scope.stores.blockages.set(fact, stamp)).toBe('written');
+    expect(await scope.stores.blockages.listByWorkItems('p1', [fact.workItemId])).toEqual([fact]);
+    return { commit: false, value: undefined };
+  });
+  // Proof: committing a refused staged batch made this read contain the fact; watched 2026-10-13.
+  expect(await source.stores.blockages.listByProject('p1')).toEqual([]);
+  await source.uow.run(async (scope) => {
+    expect(await scope.stores.blockages.set(fact, stamp)).toBe('written');
+    expect(await scope.stores.blockages.listByProject('p1')).toEqual([fact]);
+    return { commit: true, value: undefined };
+  });
+  // Proof: omitting MemoryState's blockage-table copy left this read empty; watched 2026-10-13.
+  expect(await source.stores.blockages.listByProject('p1')).toEqual([fact]);
+  await source.uow.run(async (scope) => {
+    await scope.stores.blockages.remove(fact.workItemId, fact.stepId, stamp);
+    return { commit: false, value: undefined };
+  });
+  // Proof: omitting the table copy from MemoryState.replaceWith made the committed
+  // remove below leave the original fact; watched 2026-10-13.
+  expect(await source.stores.blockages.listByProject('p1')).toEqual([fact]);
+  await source.uow.run(async (scope) => {
+    await scope.stores.blockages.remove(fact.workItemId, fact.stepId, stamp);
+    return { commit: true, value: undefined };
+  });
+  expect(await source.stores.blockages.listByProject('p1')).toEqual([]);
+  expect(await source.stores.blockages.set(fact, stamp)).toBe('written');
+  await source.stores.workItems.remove([fact.workItemId], [], stamp);
+  expect(await source.stores.blockages.listByProject('p1')).toEqual([]);
+  await source.close();
+});
 
 function mutateReturned(value: unknown): boolean {
   if (Array.isArray(value)) return value.length > 0 && mutateReturned(value[0]);
@@ -812,4 +853,24 @@ it('refuses an attempt start at a node stated done', async () => {
     ),
   ).toEqual({ ok: false, reason: 'node_done' });
   expect(await stores.attempts.listByProject('p1')).toEqual([]);
+});
+
+it('captures direct blockage detached from later memory writes', async () => {
+  const source = await seededSource();
+  try {
+    await source.stores.workItems.insert(
+      workItemRow({ id: 'wi-blocked', projectId: 'p1' }),
+      [],
+      stamp,
+    );
+    const fact = { workItemId: 'wi-blocked', stepId: 'st-1', blockedAt: -123 };
+    expect(await source.stores.blockages.set(fact, stamp)).toBe('written');
+    const captured = await source.history.savedPlanCapture.readPlanInput('p1');
+    expect(captured?.stepBlockages).toEqual([fact]);
+    await source.stores.blockages.remove(fact.workItemId, fact.stepId, stamp);
+    expect(captured?.stepBlockages).toEqual([fact]);
+    expect((await source.history.savedPlanCapture.readPlanInput('p1'))?.stepBlockages).toEqual([]);
+  } finally {
+    await source.close();
+  }
 });

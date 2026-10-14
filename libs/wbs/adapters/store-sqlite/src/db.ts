@@ -18,7 +18,11 @@ const BUSY_TIMEOUT_MS = 5000;
  * than waiting. Both pragmas are load-bearing for zero-downtime deploys.
  */
 export function openDatabase(dbPath: string): Database {
-  const db = new Database(dbPath, { create: true });
+  return openWritableDatabase(dbPath, true);
+}
+
+function openWritableDatabase(dbPath: string, isCreateAllowed: boolean): Database {
+  const db = new Database(dbPath, { create: isCreateAllowed, readwrite: true });
   // `run` rather than the deprecated `exec`; behavior is identical for these
   // single-statement PRAGMAs.
   db.run(`PRAGMA busy_timeout = ${String(BUSY_TIMEOUT_MS)};`);
@@ -151,6 +155,18 @@ export function openConnection(
   }
   return {
     db: drizzle({ client, logger }),
+    close: () => {
+      client.close();
+    },
+  };
+}
+
+/** Opens a configured recovery connection without inventing an absent database. */
+export function openExistingConnection(dbPath: string): Connection {
+  // Proof: creation enabled here; missing-DB CLI negative observed a newly created file; watched 2026-10-13.
+  const client = openWritableDatabase(dbPath, false);
+  return {
+    db: drizzle({ client }),
     close: () => {
       client.close();
     },

@@ -195,6 +195,8 @@ export interface DirectoryUsage {
  * making assignments optional produces TS2578 for its missing-field fixture.
  */
 export interface StepInUse {
+  /** Absent only when an older server cannot report direct blockage facts. */
+  blockages?: number;
   estimates: number;
   actuals: number;
   progress: number;

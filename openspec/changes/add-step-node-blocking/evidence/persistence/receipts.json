@@ -1,0 +1,528 @@
+[
+  {
+    "fault": "SQL pair uniqueness",
+    "source": "apps/wbs/be-01/drizzle/20261013140000_add_step_node_blockages/migration.sql",
+    "test": "./libs/wbs/adapters/store-sqlite/src/step-blockage-migration.db.test.ts",
+    "pattern": "duplicate pairs",
+    "exit": 1,
+    "failed": [
+      "(fail) 20261013140000_add_step_node_blockages > refuses duplicate pairs, missing references, cross-project steps and parent owners [140.73ms]"
+    ],
+    "output_file": "sql-pair-uniqueness.txt"
+  },
+  {
+    "fault": "SQL work item reference",
+    "source": "apps/wbs/be-01/drizzle/20261013140000_add_step_node_blockages/migration.sql",
+    "test": "./libs/wbs/adapters/store-sqlite/src/step-blockage-migration.db.test.ts",
+    "pattern": "duplicate pairs",
+    "exit": 1,
+    "failed": [
+      "(fail) 20261013140000_add_step_node_blockages > refuses duplicate pairs, missing references, cross-project steps and parent owners [118.83ms]"
+    ],
+    "output_file": "sql-work-item-reference.txt"
+  },
+  {
+    "fault": "SQL step reference",
+    "source": "apps/wbs/be-01/drizzle/20261013140000_add_step_node_blockages/migration.sql",
+    "test": "./libs/wbs/adapters/store-sqlite/src/step-blockage-migration.db.test.ts",
+    "pattern": "duplicate pairs",
+    "exit": 1,
+    "failed": [
+      "(fail) 20261013140000_add_step_node_blockages > refuses duplicate pairs, missing references, cross-project steps and parent owners [134.15ms]"
+    ],
+    "output_file": "sql-step-reference.txt"
+  },
+  {
+    "fault": "SQL audit reference",
+    "source": "apps/wbs/be-01/drizzle/20261013140000_add_step_node_blockages/migration.sql",
+    "test": "./libs/wbs/adapters/store-sqlite/src/step-blockage-migration.db.test.ts",
+    "pattern": "duplicate pairs",
+    "exit": 1,
+    "failed": [
+      "(fail) 20261013140000_add_step_node_blockages > refuses duplicate pairs, missing references, cross-project steps and parent owners [107.12ms]"
+    ],
+    "output_file": "sql-audit-reference.txt"
+  },
+  {
+    "fault": "SQL insert project ownership",
+    "source": "apps/wbs/be-01/drizzle/20261013140000_add_step_node_blockages/migration.sql",
+    "test": "./libs/wbs/adapters/store-sqlite/src/step-blockage-migration.db.test.ts",
+    "pattern": "duplicate pairs",
+    "exit": 1,
+    "failed": [
+      "(fail) 20261013140000_add_step_node_blockages > refuses duplicate pairs, missing references, cross-project steps and parent owners [131.17ms]"
+    ],
+    "output_file": "sql-insert-project-ownership.txt"
+  },
+  {
+    "fault": "SQL insert leaf ownership",
+    "source": "apps/wbs/be-01/drizzle/20261013140000_add_step_node_blockages/migration.sql",
+    "test": "./libs/wbs/adapters/store-sqlite/src/step-blockage-migration.db.test.ts",
+    "pattern": "duplicate pairs",
+    "exit": 1,
+    "failed": [
+      "(fail) 20261013140000_add_step_node_blockages > refuses duplicate pairs, missing references, cross-project steps and parent owners [155.06ms]"
+    ],
+    "output_file": "sql-insert-leaf-ownership.txt"
+  },
+  {
+    "fault": "SQL update project ownership",
+    "source": "apps/wbs/be-01/drizzle/20261013140000_add_step_node_blockages/migration.sql",
+    "test": "./libs/wbs/adapters/store-sqlite/src/step-blockage-migration.db.test.ts",
+    "pattern": "duplicate pairs",
+    "exit": 1,
+    "failed": [
+      "(fail) 20261013140000_add_step_node_blockages > refuses duplicate pairs, missing references, cross-project steps and parent owners [149.46ms]"
+    ],
+    "output_file": "sql-update-project-ownership.txt"
+  },
+  {
+    "fault": "SQL update leaf ownership",
+    "source": "apps/wbs/be-01/drizzle/20261013140000_add_step_node_blockages/migration.sql",
+    "test": "./libs/wbs/adapters/store-sqlite/src/step-blockage-migration.db.test.ts",
+    "pattern": "duplicate pairs",
+    "exit": 1,
+    "failed": [
+      "(fail) 20261013140000_add_step_node_blockages > refuses duplicate pairs, missing references, cross-project steps and parent owners [104.17ms]"
+    ],
+    "output_file": "sql-update-leaf-ownership.txt"
+  },
+  {
+    "fault": "SQL fractional timestamp",
+    "source": "apps/wbs/be-01/drizzle/20261013140000_add_step_node_blockages/migration.sql",
+    "test": "./libs/wbs/adapters/store-sqlite/src/step-blockage-migration.db.test.ts",
+    "pattern": "fractional and unsafe",
+    "exit": 1,
+    "failed": [
+      "(fail) 20261013140000_add_step_node_blockages > refuses fractional and unsafe blocked timestamps [131.25ms]"
+    ],
+    "output_file": "sql-fractional-timestamp.txt"
+  },
+  {
+    "fault": "SQL safe timestamp bound",
+    "source": "apps/wbs/be-01/drizzle/20261013140000_add_step_node_blockages/migration.sql",
+    "test": "./libs/wbs/adapters/store-sqlite/src/step-blockage-migration.db.test.ts",
+    "pattern": "fractional and unsafe",
+    "exit": 1,
+    "failed": [
+      "(fail) 20261013140000_add_step_node_blockages > refuses fractional and unsafe blocked timestamps [149.45ms]"
+    ],
+    "output_file": "sql-safe-timestamp-bound.txt"
+  },
+  {
+    "fault": "rollback table guard",
+    "source": "apps/wbs/be-01/drizzle/20261013140000_add_step_node_blockages/down.sql",
+    "test": "./libs/wbs/adapters/store-sqlite/src/step-blockage-migration.db.test.ts",
+    "pattern": "refuses rollback over a fact",
+    "exit": 1,
+    "failed": [
+      "(fail) 20261013140000_add_step_node_blockages > refuses rollback over a fact, keeping the schema and migration ledger [86.74ms]"
+    ],
+    "output_file": "rollback-table-guard.txt"
+  },
+  {
+    "fault": "repository timestamp",
+    "source": "libs/wbs/adapters/store-sqlite/src/step-blockage.ts",
+    "test": "./libs/wbs/adapters/store-sqlite/src/step-blockage.db.test.ts",
+    "pattern": "fractional writes",
+    "exit": 1,
+    "failed": [
+      "(fail) StepBlockageRepository > refuses fractional writes and malformed stored timestamp reads [204.16ms]"
+    ],
+    "output_file": "repository-timestamp.txt"
+  },
+  {
+    "fault": "repository owner reference",
+    "source": "libs/wbs/adapters/store-sqlite/src/step-blockage.ts",
+    "test": "./libs/wbs/adapters/store-sqlite/src/step-blockage.db.test.ts",
+    "pattern": "missing trusted owner",
+    "exit": 1,
+    "failed": [
+      "(fail) StepBlockageRepository > refuses missing trusted owner and step references on reads [178.45ms]"
+    ],
+    "output_file": "repository-owner-reference.txt"
+  },
+  {
+    "fault": "repository step reference",
+    "source": "libs/wbs/adapters/store-sqlite/src/step-blockage.ts",
+    "test": "./libs/wbs/adapters/store-sqlite/src/step-blockage.db.test.ts",
+    "pattern": "corrupted owner|missing trusted owner",
+    "exit": 1,
+    "failed": [
+      "(fail) StepBlockageRepository > refuses corrupted owner/step membership and parent-owned facts on reads [220.40ms]",
+      "(fail) StepBlockageRepository > refuses missing trusted owner and step references on reads [130.30ms]"
+    ],
+    "output_file": "repository-step-reference.txt"
+  },
+  {
+    "fault": "repository leaf ownership",
+    "source": "libs/wbs/adapters/store-sqlite/src/step-blockage.ts",
+    "test": "./libs/wbs/adapters/store-sqlite/src/step-blockage.db.test.ts",
+    "pattern": "corrupted owner",
+    "exit": 1,
+    "failed": [
+      "(fail) StepBlockageRepository > refuses corrupted owner/step membership and parent-owned facts on reads [139.52ms]"
+    ],
+    "output_file": "repository-leaf-ownership.txt"
+  },
+  {
+    "fault": "repository empty move revisions",
+    "source": "libs/wbs/adapters/store-sqlite/src/step-blockage.ts",
+    "test": "./libs/wbs/adapters/store-sqlite/src/step-blockage.db.test.ts",
+    "pattern": "removes only one pair",
+    "exit": 1,
+    "failed": [
+      "(fail) StepBlockageRepository > removes only one pair and moves all facts with their timestamps [130.35ms]"
+    ],
+    "output_file": "repository-empty-move-revisions.txt"
+  },
+  {
+    "fault": "repository remove owner scope",
+    "source": "libs/wbs/adapters/store-sqlite/src/step-blockage.ts",
+    "test": "./libs/wbs/adapters/store-sqlite/src/step-blockage.db.test.ts",
+    "pattern": "removes only one pair",
+    "exit": 1,
+    "failed": [
+      "(fail) StepBlockageRepository > removes only one pair and moves all facts with their timestamps [141.48ms]"
+    ],
+    "output_file": "repository-remove-owner-scope.txt"
+  },
+  {
+    "fault": "repository remove step scope",
+    "source": "libs/wbs/adapters/store-sqlite/src/step-blockage.ts",
+    "test": "./libs/wbs/adapters/store-sqlite/src/step-blockage.db.test.ts",
+    "pattern": "removes only one pair",
+    "exit": 1,
+    "failed": [
+      "(fail) StepBlockageRepository > removes only one pair and moves all facts with their timestamps [112.79ms]"
+    ],
+    "output_file": "repository-remove-step-scope.txt"
+  },
+  {
+    "fault": "recovery decoder",
+    "source": "libs/wbs/adapters/store-sqlite/src/step-blockage-rollback.ts",
+    "test": "./libs/wbs/adapters/store-sqlite/src/step-blockage-rollback.db.test.ts",
+    "pattern": "malformed envelopes",
+    "exit": 1,
+    "failed": [
+      "(fail) step blockage recovery > refuses malformed envelopes, rows and every timestamp field at the decoder [133.33ms]"
+    ],
+    "output_file": "recovery-decoder.txt"
+  },
+  {
+    "fault": "recovery integer bound",
+    "source": "libs/wbs/adapters/store-sqlite/src/step-blockage-rollback.ts",
+    "test": "./libs/wbs/adapters/store-sqlite/src/step-blockage-rollback.db.test.ts",
+    "pattern": "malformed envelopes",
+    "exit": 1,
+    "failed": [
+      "(fail) step blockage recovery > refuses malformed envelopes, rows and every timestamp field at the decoder [180.25ms]"
+    ],
+    "output_file": "recovery-integer-bound.txt"
+  },
+  {
+    "fault": "recovery duplicate identity",
+    "source": "libs/wbs/adapters/store-sqlite/src/step-blockage-rollback.ts",
+    "test": "./libs/wbs/adapters/store-sqlite/src/step-blockage-rollback.db.test.ts",
+    "pattern": "duplicate saved identities",
+    "exit": 1,
+    "failed": [
+      "(fail) step blockage recovery > rejects duplicate saved identities before writing [154.56ms]"
+    ],
+    "output_file": "recovery-duplicate-identity.txt"
+  },
+  {
+    "fault": "recovery stale save",
+    "source": "libs/wbs/adapters/store-sqlite/src/step-blockage-rollback.ts",
+    "test": "./libs/wbs/adapters/store-sqlite/src/step-blockage-rollback.db.test.ts",
+    "pattern": "stale save",
+    "exit": 1,
+    "failed": [
+      "(fail) step blockage recovery > refuses a stale save without removing any facts [208.18ms]"
+    ],
+    "output_file": "recovery-stale-save.txt"
+  },
+  {
+    "fault": "recovery nonempty destination",
+    "source": "libs/wbs/adapters/store-sqlite/src/step-blockage-rollback.ts",
+    "test": "./libs/wbs/adapters/store-sqlite/src/step-blockage-rollback.db.test.ts",
+    "pattern": "nonempty restore",
+    "exit": 1,
+    "failed": [
+      "(fail) step blockage recovery > refuses a nonempty restore even for disjoint existing facts [199.88ms]"
+    ],
+    "output_file": "recovery-nonempty-destination.txt"
+  },
+  {
+    "fault": "existing DB creation refusal",
+    "source": "libs/wbs/adapters/store-sqlite/src/db.ts",
+    "test": "./libs/wbs/adapters/store-sqlite/src/step-blockage-rollback.db.test.ts",
+    "pattern": "CLI round trip",
+    "exit": 1,
+    "failed": [
+      "(fail) step blockage recovery > runs the CLI round trip and rejects malformed/absent inputs without creating databases [1437.09ms]"
+    ],
+    "output_file": "existing-db-creation-refusal.txt"
+  },
+  {
+    "fault": "CLI DB_PATH",
+    "source": "apps/wbs/be-01/src/step-blockage-rollback-cli.ts",
+    "test": "./libs/wbs/adapters/store-sqlite/src/step-blockage-rollback.db.test.ts",
+    "pattern": "requires DB_PATH",
+    "exit": 1,
+    "failed": [
+      "(fail) step blockage recovery > requires DB_PATH and a valid verb at the CLI boundary [997.94ms]"
+    ],
+    "output_file": "cli-db_path.txt"
+  },
+  {
+    "fault": "CLI verb",
+    "source": "apps/wbs/be-01/src/step-blockage-rollback-cli.ts",
+    "test": "./libs/wbs/adapters/store-sqlite/src/step-blockage-rollback.db.test.ts",
+    "pattern": "requires DB_PATH",
+    "exit": 1,
+    "failed": [
+      "(fail) step blockage recovery > requires DB_PATH and a valid verb at the CLI boundary [373.24ms]"
+    ],
+    "output_file": "cli-verb.txt"
+  },
+  {
+    "fault": "CLI argument count",
+    "source": "apps/wbs/be-01/src/step-blockage-rollback-cli.ts",
+    "test": "./libs/wbs/adapters/store-sqlite/src/step-blockage-rollback.db.test.ts",
+    "pattern": "requires DB_PATH",
+    "exit": 1,
+    "failed": [
+      "(fail) step blockage recovery > requires DB_PATH and a valid verb at the CLI boundary [922.59ms]"
+    ],
+    "output_file": "cli-argument-count.txt"
+  },
+  {
+    "fault": "CLI file argument",
+    "source": "apps/wbs/be-01/src/step-blockage-rollback-cli.ts",
+    "test": "./libs/wbs/adapters/store-sqlite/src/step-blockage-rollback.db.test.ts",
+    "pattern": "requires DB_PATH",
+    "exit": 1,
+    "failed": [
+      "(fail) step blockage recovery > requires DB_PATH and a valid verb at the CLI boundary [566.88ms]"
+    ],
+    "output_file": "cli-file-argument.txt"
+  },
+  {
+    "fault": "swap blockage inventory",
+    "source": "tools/tool-remote-scripts/src/swap.ts",
+    "test": "./tools/tool-remote-scripts/src/swap.test.ts",
+    "pattern": "step blockage",
+    "exit": 1,
+    "failed": [
+      "(fail) execute, stored vocabulary rollback guard > refuses an image without step blockage support before migration [5.39ms]",
+      "(fail) execute, stored vocabulary rollback guard > allows an older image over no step blockage and checks inventory [0.96ms]",
+      "(fail) execute, stored vocabulary rollback guard > refuses a step blockage written after the first check once blue stops [1.42ms]"
+    ],
+    "output_file": "swap-blockage-inventory.txt"
+  },
+  {
+    "fault": "reader directory availability",
+    "source": "tools/tool-remote-scripts/src/lib/docker.ts",
+    "test": "./tools/tool-remote-scripts/src/lib/docker.test.ts",
+    "pattern": "step blockage compatibility",
+    "exit": 1,
+    "failed": [
+      "(fail) step blockage compatibility commands > reads a present release CLI, models an older release, and refuses unavailable source [1.98ms]"
+    ],
+    "output_file": "reader-directory-availability.txt"
+  },
+  {
+    "fault": "reader dangling path",
+    "source": "tools/tool-remote-scripts/src/lib/docker.ts",
+    "test": "./tools/tool-remote-scripts/src/lib/docker.test.ts",
+    "pattern": "step blockage compatibility",
+    "exit": 1,
+    "failed": [
+      "(fail) step blockage compatibility commands > refuses nonregular, dangling and unreadable reader paths [2.79ms]"
+    ],
+    "output_file": "reader-dangling-path.txt"
+  },
+  {
+    "fault": "reader directory readability",
+    "source": "tools/tool-remote-scripts/src/lib/docker.ts",
+    "test": "./tools/tool-remote-scripts/src/lib/docker.test.ts",
+    "pattern": "step blockage compatibility",
+    "exit": 1,
+    "failed": [
+      "(fail) step blockage compatibility commands > reads a present release CLI, models an older release, and refuses unavailable source [3.81ms]"
+    ],
+    "output_file": "reader-directory-readability.txt"
+  },
+  {
+    "fault": "stored fact inventory",
+    "source": "tools/tool-remote-scripts/src/lib/docker.ts",
+    "test": "./tools/tool-remote-scripts/src/lib/docker.test.ts",
+    "pattern": "step blockage compatibility",
+    "exit": 1,
+    "failed": [
+      "(fail) step blockage compatibility commands > counts every stored fact and distinguishes an older schema from an unavailable database [26.83ms]"
+    ],
+    "output_file": "stored-fact-inventory.txt"
+  },
+  {
+    "fault": "stored DB_PATH",
+    "source": "tools/tool-remote-scripts/src/lib/docker.ts",
+    "test": "./tools/tool-remote-scripts/src/lib/docker.test.ts",
+    "pattern": "step blockage compatibility",
+    "exit": 1,
+    "failed": [
+      "(fail) step blockage compatibility commands > counts every stored fact and distinguishes an older schema from an unavailable database [40.73ms]"
+    ],
+    "output_file": "stored-db_path.txt"
+  },
+  {
+    "fault": "memory step project",
+    "source": "libs/wbs/adapters/store-memory/src/step-blockage-fixture.ts",
+    "test": "./libs/wbs/adapters/store-memory/src/step-blockage-fixture.test.ts",
+    "pattern": "cross-project steps",
+    "exit": 1,
+    "failed": [
+      "(fail) refuses cross-project steps, corrupted read facts and invalid transfer destinations [1.44ms]"
+    ],
+    "output_file": "memory-step-project.txt"
+  },
+  {
+    "fault": "memory leaf ownership",
+    "source": "libs/wbs/adapters/store-memory/src/step-blockage-fixture.ts",
+    "test": "./libs/wbs/adapters/store-memory/src/step-blockage-fixture.test.ts",
+    "pattern": "parent owners|parent-owned corruption",
+    "exit": 1,
+    "failed": [
+      "(fail) refuses missing steps, malformed timestamps and parent owners [1.16ms]",
+      "(fail) refuses duplicate transfers atomically and reads parent-owned corruption loudly [1.19ms]"
+    ],
+    "output_file": "memory-leaf-ownership.txt"
+  },
+  {
+    "fault": "memory timestamp",
+    "source": "libs/wbs/adapters/store-memory/src/step-blockage-fixture.ts",
+    "test": "./libs/wbs/adapters/store-memory/src/step-blockage-fixture.test.ts",
+    "pattern": "malformed timestamps",
+    "exit": 1,
+    "failed": ["(fail) refuses missing steps, malformed timestamps and parent owners [1.24ms]"],
+    "output_file": "memory-timestamp.txt"
+  },
+  {
+    "fault": "memory read owner",
+    "source": "libs/wbs/adapters/store-memory/src/step-blockage-fixture.ts",
+    "test": "./libs/wbs/adapters/store-memory/src/step-blockage-fixture.test.ts",
+    "pattern": "missing steps|cross-project steps",
+    "exit": 1,
+    "failed": ["(fail) refuses missing steps, malformed timestamps and parent owners [1.74ms]"],
+    "output_file": "memory-read-owner.txt"
+  },
+  {
+    "fault": "memory read step",
+    "source": "libs/wbs/adapters/store-memory/src/step-blockage-fixture.ts",
+    "test": "./libs/wbs/adapters/store-memory/src/step-blockage-fixture.test.ts",
+    "pattern": "missing steps|cross-project steps",
+    "exit": 1,
+    "failed": [
+      "(fail) refuses cross-project steps, corrupted read facts and invalid transfer destinations [0.65ms]"
+    ],
+    "output_file": "memory-read-step.txt"
+  },
+  {
+    "fault": "memory set owner",
+    "source": "libs/wbs/adapters/store-memory/src/step-blockage-fixture.ts",
+    "test": "./libs/wbs/adapters/store-memory/src/step-blockage-fixture.test.ts",
+    "pattern": "missing steps|cross-project steps",
+    "exit": 1,
+    "failed": [
+      "(fail) refuses cross-project steps, corrupted read facts and invalid transfer destinations [0.35ms]"
+    ],
+    "output_file": "memory-set-owner.txt"
+  },
+  {
+    "fault": "memory set step",
+    "source": "libs/wbs/adapters/store-memory/src/step-blockage-fixture.ts",
+    "test": "./libs/wbs/adapters/store-memory/src/step-blockage-fixture.test.ts",
+    "pattern": "missing steps|cross-project steps",
+    "exit": 1,
+    "failed": ["(fail) refuses missing steps, malformed timestamps and parent owners [2.14ms]"],
+    "output_file": "memory-set-step.txt"
+  },
+  {
+    "fault": "memory transfer owner",
+    "source": "libs/wbs/adapters/store-memory/src/step-blockage-fixture.ts",
+    "test": "./libs/wbs/adapters/store-memory/src/step-blockage-fixture.test.ts",
+    "pattern": "missing steps|cross-project steps",
+    "exit": 1,
+    "failed": [
+      "(fail) refuses cross-project steps, corrupted read facts and invalid transfer destinations [0.63ms]"
+    ],
+    "output_file": "memory-transfer-owner.txt"
+  },
+  {
+    "fault": "memory transfer step",
+    "source": "libs/wbs/adapters/store-memory/src/step-blockage-fixture.ts",
+    "test": "./libs/wbs/adapters/store-memory/src/step-blockage-fixture.test.ts",
+    "pattern": "missing steps|cross-project steps",
+    "exit": 1,
+    "failed": [
+      "(fail) refuses cross-project steps, corrupted read facts and invalid transfer destinations [0.59ms]"
+    ],
+    "output_file": "memory-transfer-step.txt"
+  },
+  {
+    "fault": "memory duplicate transfer",
+    "source": "libs/wbs/adapters/store-memory/src/step-blockage-fixture.ts",
+    "test": "./libs/wbs/adapters/store-memory/src/step-blockage-fixture.test.ts",
+    "pattern": "duplicate transfers",
+    "exit": 1,
+    "failed": [
+      "(fail) refuses duplicate transfers atomically and reads parent-owned corruption loudly [2.22ms]"
+    ],
+    "output_file": "memory-duplicate-transfer.txt"
+  },
+  {
+    "fault": "repository read timestamp call",
+    "source": "libs/wbs/adapters/store-sqlite/src/step-blockage.ts",
+    "test": "./libs/wbs/adapters/store-sqlite/src/step-blockage.db.test.ts",
+    "pattern": "fractional writes",
+    "exit": 1,
+    "failed": [
+      "(fail) StepBlockageRepository > refuses fractional writes and malformed stored timestamp reads [120.09ms]"
+    ],
+    "output_file": "repository-read-timestamp-call.txt"
+  },
+  {
+    "fault": "repository write timestamp call",
+    "source": "libs/wbs/adapters/store-sqlite/src/step-blockage.ts",
+    "test": "./libs/wbs/adapters/store-sqlite/src/step-blockage.db.test.ts",
+    "pattern": "fractional writes",
+    "exit": 1,
+    "failed": [
+      "(fail) StepBlockageRepository > refuses fractional writes and malformed stored timestamp reads [111.67ms]"
+    ],
+    "output_file": "repository-write-timestamp-call.txt"
+  },
+  {
+    "fault": "recovery file exclusive create",
+    "source": "apps/wbs/be-01/src/step-blockage-rollback-cli.ts",
+    "test": "./libs/wbs/adapters/store-sqlite/src/step-blockage-rollback.db.test.ts",
+    "pattern": "refuses overwriting a recovery file",
+    "exit": 1,
+    "failed": [
+      "(fail) step blockage recovery > refuses overwriting a recovery file after removal and restores all original columns [782.69ms]"
+    ],
+    "output_file": "recovery-file-exclusive.txt"
+  },
+  {
+    "fault": "unreadable database fixture made readable",
+    "source": "libs/wbs/adapters/store-sqlite/src/step-blockage-rollback.db.test.ts",
+    "test": "./libs/wbs/adapters/store-sqlite/src/step-blockage-rollback.db.test.ts",
+    "pattern": "runs the CLI round trip",
+    "exit": 1,
+    "failed": [
+      "(fail) step blockage recovery > runs the CLI round trip and rejects malformed/absent inputs without creating databases [1632.65ms]"
+    ],
+    "output_file": "unreadable-database-independent.txt"
+  }
+]

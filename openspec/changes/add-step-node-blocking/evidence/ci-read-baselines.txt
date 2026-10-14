@@ -1,0 +1,29 @@
+PR #408 earliest affected exact head b9321dd967e7f65ddcee0ca77a7927b74025cba4
+PR #411 discovered exact head 580bf5cd9ad87ed205fdda3b1a718006d1d2566b
+Affected test, projection and manifest files are byte-identical across both heads. Original red reproduced on each. Watched faults executed on #411 before moving this test-only repair to #408.
+2026-10-14 historical wire baseline and case inventory repair
+
+Original red:
+Identity suites: 6 pass, 3 fail, 7750 assertions. Full document mismatch contains only new blockage metadata.
+Conformance Nx target: 34 pass, 1 fail; closed family inventory omitted blockages.
+
+Production faults, each restored in finally:
+phantom-fact: exit 1; (fail) every plan schedules identically across the migration > answers exactly what be-01 answered, with the migration’s own seeded numbers [323.92ms]; (fail) a priority ladder moves no date > answers exactly what be-01 answered, with the ladder the migration seeds [295.27ms]; (fail) a priority ladder moves no date > answers exactly what be-01 answered again, with every band renamed and re-cut [1.97ms]; (fail) a priority ladder moves no date > answers the same under both ladders, every field of every plan [1.91ms];  4 fail
+missing-step-causes: exit 1; (fail) every plan schedules identically across the migration > answers exactly what be-01 answered, with the migration’s own seeded numbers [352.99ms]; (fail) a priority ladder moves no date > answers exactly what be-01 answered, with the ladder the migration seeds [318.72ms]; (fail) a priority ladder moves no date > answers exactly what be-01 answered again, with every band renamed and re-cut [2.14ms]; (fail) a priority ladder moves no date > answers the same under both ladders, every field of every plan [1.94ms];  4 fail
+parent-fields: exit 1; (fail) every plan schedules identically across the migration > answers exactly what be-01 answered, with the migration’s own seeded numbers [328.54ms]; (fail) a priority ladder moves no date > answers exactly what be-01 answered, with the ladder the migration seeds [282.03ms]; (fail) a priority ladder moves no date > answers exactly what be-01 answered again, with every band renamed and re-cut [1.99ms]; (fail) a priority ladder moves no date > answers the same under both ladders, every field of every plan [1.94ms];  4 fail
+missing-family: exit 1; (fail) the closed case manifest > rejects a missing family [0.55ms]; (fail) the closed case manifest > rejects a duplicated case [0.27ms]; (fail) the closed case manifest > contains the complete source families and exact history mechanisms [0.14ms];  3 fail
+wrong-case: exit 1; (fail) the closed case manifest > contains the complete source families and exact history mechanisms [0.20ms];  1 fail
+
+Restored green:
+Identity suites: 9 pass, 0 fail, 18724 assertions.
+Conformance Nx target: 35 pass, 0 fail, 67 assertions.
+
+Authority investigation (separate from deterministic repair):
+Both existing authority tests passed unchanged: 2 tests, 126 assertions, 24.78 seconds.
+Temporarily inserted Bun.sleepSync(400) inside initializeDatabase after BEGIN IMMEDIATE, while createAuthority still owns its initialization directory lock.
+The two-bootstrap race failed with AuthorityContentionError: authority database remained busy after 50 attempts; exit 1.
+Defaults are50 attempts and5ms delay; waitForInitializer sleeps49times (245ms) before refusing.
+Both race fixtures exclude this bounded contention outcome from their expected successful schedules.
+Both supplied CI jobs show the bootstrap refusal; #411 also shows the seeded lifecycle model refusal.
+Actual CI lock duration is not measured, so scheduling/load remains an inference. No authority production or test changes retained, and no retry budget changed.
+Logs: /tmp/puni-pr411-{identity-red,identity-final,conformance-red,conformance-green,proof-summary,authority-focused,authority-delay-negative,repair-scoped-checks}.log

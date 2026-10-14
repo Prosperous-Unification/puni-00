@@ -100,6 +100,8 @@ export interface StepUsageRows {
    * and one stated row is `in_use`.
    */
   progress: number;
+  /** Direct blockage facts, including facts retained beneath done progress. */
+  blockages: number;
   /**
    * How many figures in the units that are not days this step holds — a count
    * of **rows**, so one pair holding a token estimate and an hours fact counts
@@ -132,11 +134,13 @@ export interface StepRemoval {
   estimates: number;
   actuals: number;
   progress: number;
+  /** Direct blockage facts, including facts retained beneath done progress. */
+  blockages: number;
   /** Rows, not pairs — {@link StepUsageRows.measures}. */
   measures: number;
   attempts: number;
   assignments: number;
-  /** Every work item that lost an estimate, an actual, a state, a figure or an assignment, and whose revision therefore moved. */
+  /** Every work item that lost an estimate, an actual, a state, a figure, a blockage or an assignment, and whose revision therefore moved. */
   workItemIds: readonly string[];
 }
 
@@ -209,7 +213,8 @@ export interface StepStore {
    * **actuals** are deleted explicitly for exactly the same reason, and counted
    * for a stronger one — see {@link StepUsageRows.actuals}. The **stated
    * progress** goes the same way and is counted the same way, see
-   * {@link StepUsageRows.progress}.
+   * {@link StepUsageRows.progress}. Direct blockage is counted independently
+   * of progress and explicitly removed in this same transaction.
    */
   remove(
     projectId: string,

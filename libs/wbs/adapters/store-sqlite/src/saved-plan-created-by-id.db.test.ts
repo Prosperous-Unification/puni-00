@@ -179,6 +179,7 @@ describe('saved_plan.created_by_id', () => {
     expect(nullable()).toBe(0);
 
     expect(rollbackTo(path, FOLDER, SAVED_PLAN)).toEqual([
+      '20261013140000_add_step_node_blockages',
       '20261012130000_add_step_estimate_unit',
       '20261012120000_add_step_node_attempts',
       '20261012090200_widen_organization_audit',
@@ -294,6 +295,7 @@ describe('saved_plan.created_by_id', () => {
    */
   it('leaves a row written before the column reading null', () => {
     expect(rollbackTo(path, FOLDER, SAVED_PLAN)).toEqual([
+      '20261013140000_add_step_node_blockages',
       '20261012130000_add_step_estimate_unit',
       '20261012120000_add_step_node_attempts',
       '20261012090200_widen_organization_audit',

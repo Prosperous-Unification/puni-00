@@ -128,6 +128,10 @@ it.each([
 ])(
   'refuses direct down over damaged journal preconditions %s without changing stored state',
   (preconditions) => {
+    // Scope the snapshot to this migration: newer downs commit independently before its refusal.
+    // Proof: removing the damaged-journal CASE guard failed all eight cases on a missing throw;
+    // persisting optimistic=241 after rollback failed all eight exact-state comparisons (2026-10-14).
+    rollbackTo(path, FOLDER, '20261012130000_add_step_estimate_unit');
     const sqlite = seed();
     try {
       sqlite.run("INSERT INTO work_item (id,project_id,position,name) VALUES ('w','p',1,'Work')");

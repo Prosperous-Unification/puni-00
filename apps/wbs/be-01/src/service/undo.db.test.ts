@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { CREATOR_ADMISSION } from '@wbs/core';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
 import type { UndoOutcome } from '@wbs/core/module/work-item/work-item.resource';
+import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
@@ -133,6 +134,7 @@ beforeEach(async () => {
     measures: measureStore,
     progress: progressStore,
     attempts: new StepNodeAttemptRepository(db, OPEN),
+    blockages: new StepBlockageRepository(db, OPEN),
     directory: directoryStore,
     capacity: inMemoryCapacity(),
     priorityBands: inMemoryPriorityBands(),
@@ -157,6 +159,138 @@ async function root(name: string, afterId: string | null = null): Promise<string
   if (!outcome.ok) throw new Error(`create refused: ${outcome.reason}`);
   return outcome.value.id;
 }
+
+function installBlockageReplay(workItemId: string, blockedAt: number): void {
+  const external = openDatabase(path);
+  try {
+    const revision = external
+      .query<{ revision: number }, [string]>('SELECT revision FROM work_item WHERE id = ?')
+      .get(workItemId)?.revision;
+    if (revision === undefined) throw new Error('missing blockage replay owner');
+    const forward = {
+      do: 'replace_blockage',
+      workItemId,
+      stepId: dev(),
+      expectedBlockedAt: null,
+      replacementBlockedAt: blockedAt,
+    };
+    const inverse = { ...forward, expectedBlockedAt: blockedAt, replacementBlockedAt: null };
+    external.run(
+      'INSERT INTO command_journal (id,project_id,user_id,seq,kind,payload,inverse,preconditions,created_at) VALUES (?,?,?,?,?,?,?,?,?)',
+      [
+        crypto.randomUUID(),
+        projectId,
+        ownerId,
+        999,
+        'replace_blockage',
+        JSON.stringify({ label: 'block a step', forward }),
+        JSON.stringify(inverse),
+        JSON.stringify({ expected: { [workItemId]: revision }, from: {} }),
+        1,
+      ],
+    );
+  } finally {
+    external.close();
+  }
+}
+
+describe('conditional step blockage replay from another SQLite connection', () => {
+  it.each(['owner', 'step'] as const)(
+    'refuses a replay naming a missing %s before removing the fact',
+    async (missing) => {
+      const workItemId = await root('Referenced leaf');
+      const blockage = new StepBlockageRepository(openDrizzle(path), OPEN);
+      expect(await blockage.set({ workItemId, stepId: dev(), blockedAt: 123 }, wrote())).toBe(
+        'written',
+      );
+      installBlockageReplay(workItemId, 123);
+      const external = openDatabase(path);
+      try {
+        const inverse = {
+          do: 'replace_blockage',
+          workItemId: missing === 'owner' ? 'missing-owner' : workItemId,
+          stepId: missing === 'step' ? 'missing-step' : dev(),
+          expectedBlockedAt: null,
+          replacementBlockedAt: null,
+        };
+        external.run('UPDATE command_journal SET inverse = ? WHERE kind = ?', [
+          JSON.stringify(inverse),
+          'replace_blockage',
+        ]);
+      } finally {
+        external.close();
+      }
+      // Proof: bypassing the named owner or step guard made its case return ok: true.
+      expect(await workItems.undo(projectId, ownerId)).toMatchObject({
+        ok: false,
+        reason: 'stale_undo',
+      });
+      expect(await blockage.listByWorkItems(projectId, [workItemId])).toEqual([
+        { workItemId, stepId: dev(), blockedAt: 123 },
+      ]);
+    },
+  );
+
+  it('clears and restores the original time through undo and redo', async () => {
+    const workItemId = await root('Blocked leaf');
+    const blockage = new StepBlockageRepository(openDrizzle(path), OPEN);
+    expect(await blockage.set({ workItemId, stepId: dev(), blockedAt: 123 }, wrote())).toBe(
+      'written',
+    );
+    installBlockageReplay(workItemId, 123);
+    expect((await workItems.undo(projectId, ownerId)).ok).toBe(true);
+    expect(await blockage.listByWorkItems(projectId, [workItemId])).toEqual([]);
+    expect((await workItems.redo(projectId, ownerId)).ok).toBe(true);
+    expect(await blockage.listByWorkItems(projectId, [workItemId])).toEqual([
+      { workItemId, stepId: dev(), blockedAt: 123 },
+    ]);
+    const external = openDatabase(path);
+    try {
+      const audit = external
+        .query<{ blockedAt: number; createdAt: number; createdBy: string }, [string, string]>(
+          'SELECT blocked_at AS blockedAt, created_at AS createdAt, created_by AS createdBy FROM step_blockage WHERE work_item_id = ? AND step_id = ?',
+        )
+        .get(workItemId, dev());
+      expect(audit?.blockedAt).toBe(123);
+      expect(audit?.createdAt).toBeGreaterThan(123);
+      expect(audit?.createdBy).toBe(ownerId);
+    } finally {
+      external.close();
+    }
+  });
+
+  it('refuses a fact changed by another process even when the owner revision stays expected', async () => {
+    const workItemId = await root('Contested leaf');
+    const blockage = new StepBlockageRepository(openDrizzle(path), OPEN);
+    expect(await blockage.set({ workItemId, stepId: dev(), blockedAt: 123 }, wrote())).toBe(
+      'written',
+    );
+    installBlockageReplay(workItemId, 123);
+    const before = await workItemStore.findById(workItemId);
+    const external = Bun.spawn(
+      [
+        'bun',
+        '-e',
+        `import { Database } from 'bun:sqlite';
+const db = new Database(process.env.DB_PATH, { readwrite: true, create: false });
+try { db.run('UPDATE step_blockage SET blocked_at = 456 WHERE work_item_id = ? AND step_id = ?',
+  [process.env.WORK_ITEM_ID, process.env.STEP_ID]); } finally { db.close(); }`,
+      ],
+      {
+        env: { ...process.env, DB_PATH: path, WORK_ITEM_ID: workItemId, STEP_ID: dev() },
+        stderr: 'pipe',
+      },
+    );
+    expect(await external.exited).toBe(0);
+    expect((await workItemStore.findById(workItemId))?.revision).toBe(before?.revision);
+    const refusal = await workItems.undo(projectId, ownerId);
+    // Proof: bypassing the exact-fact comparison made this return ok: true despite the unchanged revision.
+    expect(refusal).toMatchObject({ ok: false, reason: 'stale_undo' });
+    expect(await blockage.listByWorkItems(projectId, [workItemId])).toEqual([
+      { workItemId, stepId: dev(), blockedAt: 456 },
+    ]);
+  });
+});
 
 /**
  * A top-level row created with **no** priority — the explicit-null create.

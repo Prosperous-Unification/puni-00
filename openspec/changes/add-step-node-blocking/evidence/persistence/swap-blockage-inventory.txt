@@ -1,0 +1,65 @@
+bun test v1.4.2 (744846f84)
+[swap-be] stored-vocabularies
+[swap-be] migrate
+[swap-be] stored-vocabularies
+[swap-be] migrate
+[swap-be] stored-vocabularies
+[swap-be] migrate
+[swap-be] stop-blue
+[swap-be] stored-vocabularies-after-stop
+
+tools/tool-remote-scripts/src/swap.test.ts:
+1065 |       undefined,
+1066 |       undefined,
+1067 |       undefined,
+1068 |       { supported: '[]', stored: () => '[{"kind":"blocked","count":2}]' },
+1069 |     );
+1070 |     expect(attempt.caught).toHaveProperty(
+                                  ^
+error: expect(received).toHaveProperty(path, value)
+
+Expected path: "message"
+
+Expected value: StringMatching /blocked \(2\).*step-blockage-rollback-cli.ts/is
+
+Unable to find property
+
+      at <anonymous> (/tmp/puni-step-blockage-rebuild/tools/tool-remote-scripts/src/swap.test.ts:1070:28)
+(fail) execute, stored vocabulary rollback guard > refuses an image without step blockage support before migration [5.39ms]
+1092 |           return '[]';
+1093 |         },
+1094 |       },
+1095 |     );
+1096 |     expect(attempt.caught).toBeUndefined();
+1097 |     expect(reads).toBe(1);
+                         ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/tmp/puni-step-blockage-rebuild/tools/tool-remote-scripts/src/swap.test.ts:1097:19)
+(fail) execute, stored vocabulary rollback guard > allows an older image over no step blockage and checks inventory [0.96ms]
+1108 |       undefined,
+1109 |       undefined,
+1110 |       { supported: '[]', stored: () => (++reads === 1 ? '[]' : '[{"kind":"blocked","count":1}]') },
+1111 |       true,
+1112 |     );
+1113 |     expect(attempt.caught).toHaveProperty(
+                                  ^
+error: expect(received).toHaveProperty(path, value)
+
+Expected path: "message"
+
+Expected value: StringContaining "step-blockage-rollback-cli.ts"
+
+Unable to find property
+
+      at <anonymous> (/tmp/puni-step-blockage-rebuild/tools/tool-remote-scripts/src/swap.test.ts:1113:28)
+(fail) execute, stored vocabulary rollback guard > refuses a step blockage written after the first check once blue stops [1.42ms]
+
+ 0 pass
+ 98 filtered out
+ 3 fail
+ 4 expect() calls
+Ran 3 tests across 1 file. [46.00ms]

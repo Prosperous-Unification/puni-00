@@ -26,6 +26,7 @@
         "{workspaceRoot}/apps/wbs/be-01/drizzle",
         "{workspaceRoot}/apps/wbs/be-01/src/testing/saved-plan-lock-holder.ts",
         "{workspaceRoot}/apps/wbs/be-01/src/shared-people-rollback-cli.ts",
+        "{workspaceRoot}/apps/wbs/be-01/src/step-blockage-rollback-cli.ts",
         "{workspaceRoot}/openspec/changes/dual-optimized-scheduler/design.md"
       ],
       "options": {
@@ -41,7 +42,8 @@
         "default",
         "^production",
         "{workspaceRoot}/apps/wbs/be-01/drizzle",
-        "{workspaceRoot}/apps/wbs/be-01/src/shared-people-rollback-cli.ts"
+        "{workspaceRoot}/apps/wbs/be-01/src/shared-people-rollback-cli.ts",
+        "{workspaceRoot}/apps/wbs/be-01/src/step-blockage-rollback-cli.ts"
       ],
       "options": {
         "command": "mkdir -p ../../../../tmp/junit && rm -f ../../../../tmp/junit/wbs-store-sqlite.api.xml && files=$(find src -name '*.db.test.ts' ! -name 'source-conformance.db.test.ts') && if [ -z \"$files\" ]; then echo 'no-cases: wbs-store-sqlite:test:api' >&2; exit 1; fi && bun test $files --reporter=junit --reporter-outfile=../../../../tmp/junit/wbs-store-sqlite.api.xml --timeout=30000",

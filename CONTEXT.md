@@ -620,8 +620,14 @@ _Avoid_: viewer's zone, browser zone, local time
 **Node reading**:
 What a step node reads as, derived on every read and never stored: skipped, done, on hold,
 blocked, in progress, blocked by proxy, waiting or unknown — from its participation,
-statement, its row's hold and proxy, its attempts and its predecessor nodes.
+statement, its row's hold, direct step blockage, its attempts and its predecessor nodes.
 _Avoid_: step status, node state, node status
+
+**Step blockage**:
+An explicit, audited statement that one leaf step node is stopped by an external
+impediment. Independent of progress, work-item holds and forecasts; absence means no
+direct blockage.
+_Avoid_: step hold, step status, failed attempt
 
 **Waiting**:
 A node reading: a node with no statement and no running attempt whose every predecessor

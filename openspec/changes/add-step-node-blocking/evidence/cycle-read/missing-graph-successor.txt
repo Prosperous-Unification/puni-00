@@ -1,0 +1,46 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/service/node-readings.test.ts:
+304 |       /gone#0.*no.*node/,
+305 |     );
+306 |   });
+307 |
+308 |   it('refuses an absent successor before projecting any visible node', () => {
+309 |     expect(() => projectNodeReadings(inputs([edge(['a', 0], ['gone', 0], 'legacy')]))).toThrow(
+                                                                                             ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /gone#0.*no.*node/
+
+Received function did not throw
+Received value: {
+  readings: Map(2) {
+    "a": {
+      dev: "done",
+      qa: "waiting",
+    },
+    "b": {
+      dev: "unknown",
+      qa: "unknown",
+    },
+  },
+  causes: Map(2) {
+    "a": {
+      dev: [],
+      qa: [],
+    },
+    "b": {
+      dev: [],
+      qa: [],
+    },
+  },
+}
+
+      at <anonymous> (/tmp/puni-step-blockage-rebuild/libs/wbs/application/core/src/service/node-readings.test.ts:309:88)
+(fail) step blockage projection > refuses an absent successor before projecting any visible node [0.77ms]
+
+ 0 pass
+ 21 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [142.00ms]

@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-memory/src/step-blockage-fixture.test.ts:
+36 | });
+37 | it('refuses missing steps, malformed timestamps and parent owners', async () => {
+38 |   expect(await blockages.set({ workItemId: 'a', stepId: 'gone', blockedAt: 1 }, stamp)).toBe(
+39 |     'unknown_step',
+40 |   );
+41 |   expect(blockages.set({ workItemId: 'a', stepId: 'dev', blockedAt: 1.5 }, stamp)).rejects.toThrow(
+                                                                                                ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-step-blockage-rebuild/libs/wbs/adapters/store-memory/src/step-blockage-fixture.test.ts:41:92)
+(fail) refuses missing steps, malformed timestamps and parent owners [1.24ms]
+
+ 0 pass
+ 3 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [157.00ms]

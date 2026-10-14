@@ -87,6 +87,7 @@ describe('the enterprise SSO migrations', () => {
     );
     const migrated = schema();
     expect(rollbackTo(path, FOLDER, BEFORE)).toEqual([
+      '20261013140000_add_step_node_blockages',
       ESTIMATE_UNIT,
       ATTEMPTS,
       WIDENED,

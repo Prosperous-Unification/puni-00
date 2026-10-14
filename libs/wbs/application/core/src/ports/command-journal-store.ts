@@ -5,9 +5,9 @@ export type { UndoState } from './command-journal-values';
 /**
  * One command an account ran on one project, and what it takes to reverse it.
  *
- * The three JSON fields arrive parsed but **unvalidated beyond their shape** —
- * see `command_journal` in `schema.ts` for what is written into them and
- * `readCommand` in `service/compensating.ts` for the one thing that is checked.
+ * The three JSON fields arrive parsed. `readCommand` checks discriminators
+ * recursively and validates conditional blockage fields; legacy command fields
+ * remain trusted writes from this process.
  */
 export interface JournalEntry {
   id: string;

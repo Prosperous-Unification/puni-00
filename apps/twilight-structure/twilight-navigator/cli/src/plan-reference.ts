@@ -42,7 +42,7 @@ const PlanDocumentHeader = type({
  * step and work-item shapes retain the historical wire contract.
  */
 const HistoricalPlanDocument = planDocument
-  .omit('document', 'steps', 'workItems')
+  .omit('document', 'steps', 'workItems', 'stepBlockages')
   .and({
     document: {
       format: "'wbs-plan'",
@@ -59,7 +59,10 @@ const HistoricalPlanDocument = planDocument
 /** Current wire contract; nested unknown keys remain a refused input. */
 // Proof: ignoring deep unknown keys made both current-export unknown-key tests exit 0.
 // Injecting a workday default before this decode made the missing-unit test exit 0 (2026-10-13).
-const CurrentPlanDocument = planDocument.onDeepUndeclaredKey('reject');
+const CurrentPlanDocument = planDocument
+  .omit('document', 'stepBlockages')
+  .and({ document: { format: "'wbs-plan'", version: '8', exportedAt: 'string' } })
+  .onDeepUndeclaredKey('reject');
 
 interface DecodedPlanExport {
   document: PlanDocument;
@@ -91,14 +94,19 @@ function decodePlanExport(bytes: Uint8Array, path: string): DecodedPlanExport {
   }
   try {
     if (header.document.version === 8) {
-      return { document: parseOrThrow(CurrentPlanDocument, parsed), wireVersion: 8 };
+      const document = parseOrThrow(CurrentPlanDocument, parsed);
+      return {
+        document: { ...document, document: { ...document.document, version: 9 }, stepBlockages: [] },
+        wireVersion: 8,
+      };
     }
     const document = parseOrThrow(HistoricalPlanDocument, parsed);
     return {
       wireVersion: 7,
       document: {
         ...document,
-        document: { ...document.document, version: 8 },
+        document: { ...document.document, version: 9 },
+        stepBlockages: [],
         steps: document.steps.map((step) => ({ ...step, estimateUnit: 'workdays' })),
       },
     };

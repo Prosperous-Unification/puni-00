@@ -3,7 +3,7 @@ import type { CanonicalExternalRef, CanonicalStepValue, PlanInputRows } from './
 import type { PlanInputReads } from './saved-plan-capture-values';
 
 /**
- * Fold one capture's eighteen reads into the twenty collections
+ * Fold one capture's detached reads into the collections
  * `canonicalisePlanInput` folds again into the body.
  *
  * Two steps rather than one, and the seam is deliberate: this one knows the
@@ -111,6 +111,12 @@ export function planInputRowsOf(reads: PlanInputReads): PlanInputRows {
       estimateUnit: row.estimateUnit,
     })),
     stepValues: stepValuesOf(reads, rule),
+    // Proof: fold replaced with empty; saved capture/schedule neutrality regression failed (saved-plan-input.test.ts), 2026-10-14.
+    stepBlockages: reads.stepBlockages.map(({ workItemId, stepId, blockedAt }) => ({
+      workItemId,
+      stepId,
+      blockedAt,
+    })),
     measures: reads.measures.map((row) => ({
       workItemId: row.workItemId,
       stepId: row.stepId,

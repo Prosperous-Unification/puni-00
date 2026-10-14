@@ -9,8 +9,10 @@ import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { StepService } from '@wbs/core/module/step/step.resource';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
 import { AuthService } from '@wbs/core/service/auth.service';
+import { readPreconditions } from '@wbs/core/service/compensating';
 import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
 import type { DependencyEndpoint, RelationshipType } from '@wbs/domain';
+import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
@@ -80,6 +82,8 @@ let dependencies: DependencyRepository;
 let estimates: EstimateRepository;
 let projects: ProjectRepository;
 let steps: StepRepository;
+let journal: CommandJournalRepository;
+let workItems: WorkItemRepository;
 /** How many units of work the app has run, so a test can see a route write go through one. */
 let admittedRuns: number;
 
@@ -88,10 +92,10 @@ beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-typed-graph-'));
   const db = openDrizzle(join(dir, 'test.db'));
   runMigrations(join(dir, 'test.db'), FOLDER);
-  const journal = new CommandJournalRepository(db, OPEN);
+  journal = new CommandJournalRepository(db, OPEN);
   projects = new ProjectRepository(db, OPEN);
   steps = new StepRepository(db, OPEN);
-  const workItems = new WorkItemRepository(db, OPEN);
+  workItems = new WorkItemRepository(db, OPEN);
   estimates = new EstimateRepository(db, OPEN);
   dependencies = new DependencyRepository(db, OPEN);
   typed = new TypedDependencyRepository(db, OPEN);
@@ -136,6 +140,7 @@ beforeEach(() => {
       measures: new StepMeasureRepository(db, OPEN),
       progress: new StepProgressRepository(db, OPEN),
       attempts: new StepNodeAttemptRepository(db, OPEN),
+      blockages: new StepBlockageRepository(db, OPEN),
       dependencies,
       typedDependencies: typed,
       directory,
@@ -373,39 +378,60 @@ describe('route writes that check the graph', () => {
 });
 
 describe('graph-changing writes on a legacy-only project', () => {
-  it('refuses an undo of a move that a legacy link made cyclic', async () => {
-    const at = await plan();
-    const p = await addUnder(at, null, 'P');
-    const q = await addUnder(at, null, 'Q');
-    const x = await addUnder(at, p, 'X');
-    const c = await addUnder(at, x, 'C');
-    const moved = await command(at.projectId, at.token, {
-      kind: 'moveWorkItem',
-      workItemId: x,
-      parentId: q,
-      afterId: null,
-    });
-    expect(moved.status).toBe(200);
-    // Somebody else makes C wait for P, which is fine while C sits under Q.
-    const other = await registerOther();
-    const linked = await command(at.projectId, other, {
-      kind: 'addDependency',
-      workItemId: c,
-      predecessorId: p,
-    });
-    expect(linked.status).toBe(200);
+  for (const refreshRevisions of [false, true]) {
+    it(`refuses an undo of a move with ${refreshRevisions ? 'a legacy cycle after refreshing revision evidence' : 'a stale owner revision'}`, async () => {
+      const at = await plan();
+      const p = await addUnder(at, null, 'P');
+      const q = await addUnder(at, null, 'Q');
+      const x = await addUnder(at, p, 'X');
+      const c = await addUnder(at, x, 'C');
+      const moved = await command(at.projectId, at.token, {
+        kind: 'moveWorkItem',
+        workItemId: x,
+        parentId: q,
+        afterId: null,
+      });
+      expect(moved.status).toBe(200);
+      // Somebody else makes C wait for P, which is fine while C sits under Q.
+      const other = await registerOther();
+      const linked = await command(at.projectId, other, {
+        kind: 'addDependency',
+        workItemId: c,
+        predecessorId: p,
+      });
+      expect(linked.status).toBe(200);
 
-    // Undoing the move puts C back under P: P → C is then an edge onto its
-    // own descendant, a leaf-level cycle nothing else would refuse, because
-    // a replayed move does not pass through `canReparent`.
-    const res = await send(`/api/projects/${at.projectId}/undo`, at.token, { method: 'POST' });
+      // Proof: bypassing replay findCycle refusal made the refreshed-evidence case
+      // receive 200 instead of 409; watched 2026-10-14.
+      if (refreshRevisions) {
+        // Refresh only revision evidence so the independent graph guard is reached.
+        const entry = (await journal.entriesFor(at.projectId, at.userId)).at(-1);
+        if (entry === undefined) throw new Error('move journal entry missing');
+        const preconditions = readPreconditions(entry.preconditions);
+        const rows = await workItems.listByProject(at.projectId);
+        const expected = { ...preconditions.expected };
+        for (const owner of Object.keys(expected)) {
+          const row = rows.find((candidate) => candidate.id === owner);
+          if (row === undefined) throw new Error(`revision owner ${owner} missing`);
+          expected[owner] = row.revision;
+        }
+        await journal.restamp(entry.id, { ...preconditions, expected });
+      }
 
-    expect(res.status).toBe(409);
-    expect(await res.json()).toEqual({
-      error: 'stale_undo',
-      detail: 'that would now close a dependency cycle between steps.',
+      // Undoing the move puts C back under P: P → C is then an edge onto its
+      // own descendant, a leaf-level cycle nothing else would refuse, because
+      // a replayed move does not pass through `canReparent`.
+      const res = await send(`/api/projects/${at.projectId}/undo`, at.token, { method: 'POST' });
+
+      expect(res.status).toBe(409);
+      expect(await res.json()).toEqual({
+        error: 'stale_undo',
+        detail: refreshRevisions
+          ? 'that would now close a dependency cycle between steps.'
+          : '“P” has changed since then.',
+      });
     });
-  });
+  }
 });
 
 describe('graph-changing writes against typed dependencies', () => {

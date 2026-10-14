@@ -8,8 +8,10 @@ import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { StepService } from '@wbs/core/module/step/step.resource';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
 import { AuthService } from '@wbs/core/service/auth.service';
+import { readPreconditions } from '@wbs/core/service/compensating';
 import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
 import type { DependencyEndpoint } from '@wbs/domain';
+import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, expect, it } from 'bun:test';
@@ -64,6 +66,8 @@ const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 let folder: string;
 let app: ReturnType<typeof buildApp>;
 let typed: TypedDependencyRepository;
+let journal: CommandJournalRepository;
+let workItems: WorkItemRepository;
 
 beforeEach(() => {
   folder = mkdtempSync(join(tmpdir(), 'wbs-typed-lifecycle-'));
@@ -71,11 +75,12 @@ beforeEach(() => {
   runMigrations(join(folder, 'test.db'), FOLDER);
   const projects = new ProjectRepository(db, OPEN);
   const steps = new StepRepository(db, OPEN);
-  const workItems = new WorkItemRepository(db, OPEN);
+  workItems = new WorkItemRepository(db, OPEN);
   const estimates = new EstimateRepository(db, OPEN);
   const dependencies = new DependencyRepository(db, OPEN);
   typed = new TypedDependencyRepository(db, OPEN);
   const directory = new DirectoryRepository(db, OPEN);
+  journal = new CommandJournalRepository(db, OPEN);
   const dependencyGraph = new DependencyGraphGuard({
     projects,
     workItems,
@@ -116,13 +121,14 @@ beforeEach(() => {
       measures: new StepMeasureRepository(db, OPEN),
       progress: new StepProgressRepository(db, OPEN),
       attempts: new StepNodeAttemptRepository(db, OPEN),
+      blockages: new StepBlockageRepository(db, OPEN),
       dependencies,
       typedDependencies: typed,
       directory,
       capacity: inMemoryCapacity(),
       priorityBands: inMemoryPriorityBands(),
       subtrees: new SubtreeRepository(db, OPEN),
-      journal: new CommandJournalRepository(db, OPEN),
+      journal,
       broadcast: recordingBroadcaster(),
     }),
   };
@@ -168,6 +174,7 @@ beforeEach(() => {
           measures: scope.stores.measures,
           progress: scope.stores.progress,
           attempts: scope.stores.attempts,
+          blockages: scope.stores.blockages,
           dependencies: scope.stores.dependencies,
           typedDependencies: scope.stores.typedDependencies,
           directory: scope.stores.directory,
@@ -413,46 +420,66 @@ it('deletes a last child when its descendant-step relationship is removed with i
   expect(await typed.listByProject(plan.projectId)).toEqual([]);
 });
 
-it('refuses restore when a newer node relationship pins the deleted child’s parent', async () => {
-  const plan = await setup();
-  const parent = await plan.create('010');
-  const child = await plan.create('010.1', parent);
-  const other = await plan.create('020');
-  expect(
-    (await plan.command({ kind: 'deleteWorkItem', workItemId: child, strategy: 'cascade' })).status,
-  ).toBe(200);
-  const id = 'peer-node-relationship';
-  const registered = await app.handle(
-    new Request('http://localhost/api/auth/register', {
-      method: 'POST',
-      headers: { origin: 'http://localhost', 'content-type': 'application/json' },
-      body: JSON.stringify({ username: 'peer', password: 'correct-horse' }),
-    }),
-  );
-  expect(registered.status).toBe(200);
-  const peer = (await registered.json()) as { user: { id: string } };
-  await typed.add(
-    {
-      id,
-      projectId: plan.projectId,
-      predecessor: node(parent, plan.devId),
-      successor: whole(other),
-      type: 'FS',
-    },
-    testClock.stampFor(peer.user.id),
-  );
-  const undo = await send(`/api/projects/${plan.projectId}/undo`, plan.token, undefined, 'POST');
-  expect(undo.status).toBe(409);
-  const refusal = (await undo.json()) as { error: string; detail: string };
-  expect(refusal.error).toBe('stale_undo');
-  expect(refusal.detail).toContain(id);
-  const tree = await send(`/api/projects/${plan.projectId}/work-items`, plan.token);
-  const body = (await tree.json()) as { workItems: { id: string }[] };
-  expect(body.workItems.some((row) => row.id === child)).toBe(false);
-  expect(await typed.listByProject(plan.projectId)).toMatchObject([
-    { id, predecessor: node(parent, plan.devId), successor: whole(other) },
-  ]);
-});
+for (const refreshRevisions of [false, true]) {
+  it(`refuses restore with ${refreshRevisions ? 'a pinned peer relationship after refreshing revision evidence' : 'a stale surviving parent revision'}`, async () => {
+    const plan = await setup();
+    const parent = await plan.create('010');
+    const child = await plan.create('010.1', parent);
+    const other = await plan.create('020');
+    expect(
+      (await plan.command({ kind: 'deleteWorkItem', workItemId: child, strategy: 'cascade' }))
+        .status,
+    ).toBe(200);
+    const id = 'peer-node-relationship';
+    const registered = await app.handle(
+      new Request('http://localhost/api/auth/register', {
+        method: 'POST',
+        headers: { origin: 'http://localhost', 'content-type': 'application/json' },
+        body: JSON.stringify({ username: 'peer', password: 'correct-horse' }),
+      }),
+    );
+    expect(registered.status).toBe(200);
+    const peer = (await registered.json()) as { user: { id: string } };
+    await typed.add(
+      {
+        id,
+        projectId: plan.projectId,
+        predecessor: node(parent, plan.devId),
+        successor: whole(other),
+        type: 'FS',
+      },
+      testClock.stampFor(peer.user.id),
+    );
+    // Proof: bypassing applyRestore shape validation made the refreshed-evidence
+    // case receive 500 instead of 409; watched 2026-10-14.
+    if (refreshRevisions) {
+      const entry = (await journal.entriesFor(plan.projectId, plan.userId)).at(-1);
+      if (entry === undefined) throw new Error('delete journal entry missing');
+      const preconditions = readPreconditions(entry.preconditions);
+      const rows = await workItems.listByProject(plan.projectId);
+      const expected = { ...preconditions.expected };
+      for (const owner of Object.keys(expected)) {
+        const row = rows.find((candidate) => candidate.id === owner);
+        if (row === undefined) throw new Error(`revision owner ${owner} missing`);
+        expected[owner] = row.revision;
+      }
+      await journal.restamp(entry.id, { ...preconditions, expected });
+    }
+    const undo = await send(`/api/projects/${plan.projectId}/undo`, plan.token, undefined, 'POST');
+    expect(undo.status).toBe(409);
+    const refusal = (await undo.json()) as { error: string; detail: string };
+    expect(refusal.error).toBe('stale_undo');
+    if (refreshRevisions)
+      expect(refusal.detail).toBe(`relationship ${id} no longer fits this tree.`);
+    else expect(refusal.detail).toBe('“010” has changed since then.');
+    const tree = await send(`/api/projects/${plan.projectId}/work-items`, plan.token);
+    const body = (await tree.json()) as { workItems: { id: string }[] };
+    expect(body.workItems.some((row) => row.id === child)).toBe(false);
+    expect(await typed.listByProject(plan.projectId)).toMatchObject([
+      { id, predecessor: node(parent, plan.devId), successor: whole(other) },
+    ]);
+  });
+}
 
 it('refuses redo of a child create when a newer node relationship pins its parent', async () => {
   const plan = await setup();

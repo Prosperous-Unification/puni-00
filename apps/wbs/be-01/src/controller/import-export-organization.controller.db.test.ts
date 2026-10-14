@@ -874,7 +874,7 @@ it('round-trips minute units through the composed import/export and refuses malf
   const exported = await h.call('ada', 'GET', `/api/projects/${projectId}/export?format=json`);
   expect(exported.status).toBe(200);
   expect(exported.body).toMatchObject({
-    document: { version: 8 },
+    document: { version: 9 },
     steps: [{ estimateUnit: 'minutes' }, { estimateUnit: 'minutes' }],
   });
   const stepId = await firstStep('ada', projectId);
@@ -882,4 +882,72 @@ it('round-trips minute units through the composed import/export and refuses malf
     estimateUnit: 'workdays',
   });
   expect(unitRefusal.status).toBe(409);
+});
+
+describe('v9 direct blockage transfer', () => {
+  it('imports remapped facts and captures them in the mounted export', async () => {
+    const document = planDocumentFixture();
+    document.document.version = 9;
+    document.workItems.forEach((row) => Reflect.deleteProperty(row, 'attempts'));
+    document.stepBlockages = [{ workItemId: 'row-1', stepId: 'step-1', blockedAt: -17 }];
+    const imported = await h.call('ada', 'POST', '/api/projects/import', document);
+    expect(imported.status).toBe(201);
+    const projectId = (imported.body as { projectId: string }).projectId;
+    const exported = await h.call('ada', 'GET', `/api/projects/${projectId}/export?format=json`);
+    expect(exported.status).toBe(200);
+    const body = exported.body as {
+      document: { version: number };
+      stepBlockages: { workItemId: string; stepId: string; blockedAt: number }[];
+      workItems: { id: string; name: string; blockages?: unknown; blockageCauses?: unknown }[];
+      steps: { id: string; name: string }[];
+    };
+    expect(body.document.version).toBe(9);
+    const owner = body.workItems.find(({ name }) => name === 'Ship');
+    const step = body.steps.find(({ name }) => name === 'Build');
+    if (owner === undefined || step === undefined)
+      throw new Error('missing imported owner or step');
+    expect(body.stepBlockages).toEqual([
+      {
+        workItemId: owner.id,
+        stepId: step.id,
+        blockedAt: -17,
+      },
+    ]);
+    expect(body.workItems[0]).not.toHaveProperty('blockages');
+    expect(body.workItems[0]).not.toHaveProperty('blockageCauses');
+  });
+
+  it('rolls back the entire scoped import after the first real blockage insert', async () => {
+    const document = planDocumentFixture();
+    document.document.version = 9;
+    document.workItems.forEach((row) => Reflect.deleteProperty(row, 'attempts'));
+    document.stepBlockages = [
+      { workItemId: 'row-1', stepId: 'step-1', blockedAt: -17 },
+      { workItemId: 'row-1', stepId: 'step-2', blockedAt: 31 },
+    ];
+    h.sqlite.run(`CREATE TRIGGER fail_second_import_blockage BEFORE INSERT ON step_blockage
+      WHEN (SELECT COUNT(*) FROM step_blockage) > 0
+      BEGIN SELECT RAISE(ABORT, 'second blockage insert'); END`);
+    const before = sqliteState();
+    const refused = await h.call('ada', 'POST', '/api/projects/import', document);
+    expect(refused.status).toBe(500);
+    expect(sqliteState()).toEqual(before);
+  });
+
+  for (const [owner, step, path] of [
+    ['missing', 'step-1', 'stepBlockages[0].workItemId'],
+    ['row-1', 'missing', 'stepBlockages[0].stepId'],
+  ] as const) {
+    it(`refuses ${path} before scoped writes`, async () => {
+      const document = planDocumentFixture();
+      document.document.version = 9;
+      document.workItems.forEach((row) => Reflect.deleteProperty(row, 'attempts'));
+      document.stepBlockages = [{ workItemId: owner, stepId: step, blockedAt: 1 }];
+      const before = sqliteState();
+      const refused = await h.call('ada', 'POST', '/api/projects/import', document);
+      expect(refused.status).toBe(400);
+      expect(refused.body).toEqual({ error: 'invalid_body', path, detail: null });
+      expect(sqliteState()).toEqual(before);
+    });
+  }
 });

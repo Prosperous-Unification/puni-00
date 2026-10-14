@@ -189,6 +189,7 @@ export * from './module/step/step.resource';
 export * from './module/work-item/work-item.resource';
 export * from './ports/chain-snapshot-store';
 export * from './ports/shared-people-values';
+export * from './ports/step-blockage-store';
 export * from './service/numbered-work-item';
 export * from './service/optimizer-trigger-broadcaster';
 export * from './service/person-load.feature';
