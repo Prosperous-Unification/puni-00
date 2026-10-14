@@ -57,8 +57,10 @@ type ZoneList =
  * looking for Kyiv types `Kyiv`, which a native `<select>`'s prefix type-ahead
  * cannot find under `Europe/`.
  *
- * Saved by `Save timezone`, as the weights are: a zone typed one letter at a
- * time passes through names nobody means.
+ * Applied when the box is left or Enter is pressed, never per keystroke: a
+ * zone typed one letter at a time passes through names nobody means. No Save
+ * button, under the settings modal's one commit model (UI review D7, F-060);
+ * Escape puts the saved zone back.
  */
 export function TimezonePanel({
   timezone,
@@ -115,8 +117,8 @@ export function TimezonePanel({
     );
   }
 
-  function save(): void {
-    if (list.state !== 'ready') return;
+  function apply(): void {
+    if (list.state !== 'ready' || !dirty || section.busy) return;
     const typed = draft.trim();
     // Proof: this check narrowed to an empty box, `refuses a zone that is not
     // on the server’s list without sending it` failed on `Unable to find
@@ -159,7 +161,7 @@ export function TimezonePanel({
           className="flex flex-col gap-2"
           onSubmit={(event) => {
             event.preventDefault();
-            save();
+            apply();
           }}
         >
           <Label htmlFor="project-timezone">Timezone</Label>
@@ -177,14 +179,14 @@ export function TimezonePanel({
                 setDraft(event.currentTarget.value);
                 section.clear();
               }}
+              onBlur={apply}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape' && dirty) {
+                  setDraft(timezone);
+                  section.clear();
+                }
+              }}
             />
-            <Button
-              type="submit"
-              size="sm"
-              disabled={!dirty || list.state !== 'ready' || section.busy}
-            >
-              Save timezone
-            </Button>
           </div>
           {list.state === 'ready' && (
             <datalist id={listId}>
@@ -197,7 +199,7 @@ export function TimezonePanel({
             {list.state === 'loading'
               ? 'Reading the zones this server knows…'
               : dirty
-                ? `Saved as ${timezone}. Save to read the plan in ${draft.trim() === '' ? 'the zone you pick' : draft.trim()}.`
+                ? `Saved as ${timezone}. Press Enter or leave the box to read the plan in ${draft.trim() === '' ? 'the zone you pick' : draft.trim()}.`
                 : `Saved as ${timezone}.`}
           </p>
         </form>

@@ -297,3 +297,35 @@ test('priority bands are readable on a phone, inside the modal, at 44px', async 
     ).toBeGreaterThanOrEqual(44);
   }
 });
+
+test.describe('one commit model (F-060, decision D7)', () => {
+  test('a renamed band applies as the ladder is left and the ✕ closes over it, at 1440 and 375', async ({
+    page,
+  }) => {
+    for (const width of [1440, 375]) {
+      await page.setViewportSize({ width, height: width === 375 ? 812 : 900 });
+      const dialog = await openSettings(page);
+      await dialog.getByRole('tab', { name: 'Priorities' }).click();
+      const band = dialog.getByLabel('Name of band 1');
+      await band.fill(`Blocker ${String(width)}`);
+      // The ✕ is the way out: its press blurs the box, which sends the ladder, and the modal
+      // closes once the write lands — no Save, and no second click.
+      await dialog.getByRole('button', { name: 'Close' }).click();
+      // Proof: on 2026-10-14, against the Cancel / Save ladder, this failed on `expect(locator)
+      // .toBeHidden() failed` — the ✕ was refused over the typed band and nothing was sent.
+      await expect(dialog).toBeHidden();
+
+      // On a phone the sheet the settings were opened from is still open under them.
+      const sheet = page.getByRole('dialog', { name: 'Plan actions' });
+      if (width === 375 && !(await sheet.isVisible())) {
+        await page.getByRole('button', { name: 'Plan actions' }).click();
+      }
+      await page.getByRole('button', { name: 'Project settings' }).click();
+      await dialog.getByRole('tab', { name: 'Priorities' }).click();
+      await expect(dialog.getByLabel('Name of band 1')).toHaveValue(`Blocker ${String(width)}`);
+      await expect(dialog.getByRole('button', { name: 'Save' })).toHaveCount(0);
+      await page.keyboard.press('Escape');
+      await expect(dialog).toBeHidden();
+    }
+  });
+});

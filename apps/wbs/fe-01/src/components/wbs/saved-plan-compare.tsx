@@ -221,7 +221,7 @@ function DiffHalf({
       {groupByCategory(differences).map((group) => (
         <div key={group.category} className="saved-plan-compare__group">
           <h5 className="text-muted-foreground text-xs">{group.category}</h5>
-          <ul>
+          <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
             {group.differences.map((difference) => (
               <Difference key={difference.path} difference={difference} />
             ))}

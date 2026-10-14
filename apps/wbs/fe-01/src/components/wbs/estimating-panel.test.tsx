@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { useState } from 'react';
 import type { Mock } from 'vitest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -56,7 +57,6 @@ function stubbed(
   // `mock.calls.at(-1)?.at(0)` reads as `any` and the assertions below become a
   // lint error rather than a check on what was reported.
   const onDirtyChange = vi.fn((dirty: boolean) => dirty);
-  const onDone = vi.fn(() => true);
   render(
     <EstimatingPanel
       method={over.method ?? 'pert'}
@@ -65,10 +65,9 @@ function stubbed(
       setArithmetic={setArithmetic}
       onChanged={onChanged}
       onDirtyChange={onDirtyChange}
-      onDone={onDone}
     />,
   );
-  return { setArithmetic, onChanged, onDirtyChange, onDone };
+  return { setArithmetic, onChanged, onDirtyChange };
 }
 
 /** Lets the two awaits a write makes — the call, then the reread — settle. */
@@ -77,6 +76,11 @@ async function settle(): Promise<void> {
     await new Promise((resume) => setTimeout(resume, 0));
   });
 }
+
+/** Enter in a weight box, which sends the triple (D7: no Save weights button). */
+const applyWeights = (): void => {
+  fireEvent.keyDown(boxFor('Realistic'), { key: 'Enter' });
+};
 
 const boxFor = (point: string): HTMLInputElement => {
   const box = screen.getByLabelText(point, { exact: false });
@@ -119,20 +123,87 @@ describe('weightsOfDraft', () => {
 
 describe('the estimating panel', () => {
   itDom('sends the three weights as one triple', async () => {
-    const { setArithmetic, onChanged, onDone } = stubbed();
+    const { setArithmetic, onChanged } = stubbed();
 
     fireEvent.change(boxFor('Realistic'), { target: { value: '1' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save weights' }));
+    applyWeights();
     await settle();
 
     expect(setArithmetic).toHaveBeenCalledTimes(1);
     expect(setArithmetic.mock.calls.at(0)?.at(0)).toEqual({
       pertWeights: { optimistic: 1, realistic: 1, pessimistic: 1 },
     });
-    // Nothing is optimistic: the plan is re-read, and only then does the
-    // surface ask to close.
+    // Nothing is optimistic: the plan is re-read.
     expect(onChanged).toHaveBeenCalledTimes(1);
-    expect(onDone).toHaveBeenCalledTimes(1);
+  });
+
+  itDom(
+    'sends the triple when the focus leaves the three boxes, not between them (F-060)',
+    async () => {
+      // D7: no Save weights; leaving the group is the commit, as for the ladder.
+      const { setArithmetic } = stubbed();
+      // Proof: on 2026-10-14, against the panel with its Save weights button, this failed on
+      // `expected <button …(2)></button> to be null`.
+      expect(screen.queryByRole('button', { name: 'Save weights' })).toBeNull();
+
+      fireEvent.change(boxFor('Optimistic'), { target: { value: '2' } });
+      fireEvent.blur(boxFor('Optimistic'), { relatedTarget: boxFor('Realistic') });
+      await settle();
+      expect(setArithmetic).not.toHaveBeenCalled();
+
+      fireEvent.blur(boxFor('Realistic'), { relatedTarget: null });
+      await settle();
+      expect(setArithmetic.mock.calls.at(0)?.at(0)).toEqual({
+        pertWeights: { optimistic: 2, realistic: 4, pessimistic: 1 },
+      });
+    },
+  );
+
+  itDom('Escape puts the three boxes back and sends nothing', async () => {
+    const { setArithmetic } = stubbed();
+
+    fireEvent.change(boxFor('Optimistic'), { target: { value: '2' } });
+    fireEvent.keyDown(boxFor('Optimistic'), { key: 'Escape' });
+    await settle();
+
+    expect(boxFor('Optimistic').value).toBe('1');
+    expect(setArithmetic).not.toHaveBeenCalled();
+  });
+
+  itDom('landed weights offer Undo, which sends the triple they replaced (F-060)', async () => {
+    const sent: Arithmetic[] = [];
+    function Plan() {
+      const [weights, setWeights] = useState<PertWeightsView>(DEFAULT_WEIGHTS);
+      return (
+        <EstimatingPanel
+          method="pert"
+          pertWeights={weights}
+          estimateRounding="ceil"
+          setArithmetic={async (arithmetic) => {
+            sent.push(arithmetic);
+            await Promise.resolve();
+            if (arithmetic.pertWeights !== undefined) setWeights(arithmetic.pertWeights);
+          }}
+          onChanged={async () => {
+            await Promise.resolve();
+          }}
+          onDirtyChange={() => undefined}
+        />
+      );
+    }
+    render(<Plan />);
+
+    fireEvent.change(boxFor('Realistic'), { target: { value: '1' } });
+    applyWeights();
+    await settle();
+    // Proof: on 2026-10-14, against the panel with its Save weights button, this failed on
+    // `Unable to find an accessible element with the role "button" and name "Undo the
+    // weights"`.
+    fireEvent.click(screen.getByRole('button', { name: 'Undo the weights' }));
+    await settle();
+
+    expect(sent.at(-1)).toEqual({ pertWeights: DEFAULT_WEIGHTS });
+    expect(boxFor('Realistic').value).toBe('4');
   });
 
   /**
@@ -146,7 +217,7 @@ describe('the estimating panel', () => {
     const { setArithmetic } = stubbed();
 
     fireEvent.change(boxFor('Optimistic'), { target: { value: '1e999' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save weights' }));
+    applyWeights();
     await settle();
 
     expect(setArithmetic).not.toHaveBeenCalled();
@@ -154,16 +225,13 @@ describe('the estimating panel', () => {
   });
 
   itDom('picks a rounding the moment it is chosen, and re-reads the plan', async () => {
-    const { setArithmetic, onChanged, onDone } = stubbed({ estimateRounding: 'ceil' });
+    const { setArithmetic, onChanged } = stubbed({ estimateRounding: 'ceil' });
 
     fireEvent.click(screen.getByLabelText('Round down', { exact: false }));
     await settle();
 
     expect(setArithmetic.mock.calls.at(0)?.at(0)).toEqual({ estimateRounding: 'floor' });
     expect(onChanged).toHaveBeenCalledTimes(1);
-    // A rounding is one choice and lands on its own; it does not close the
-    // surface out from under somebody who came to change two things.
-    expect(onDone).not.toHaveBeenCalled();
   });
 
   itDom('ticks be-01’s rounding rather than one of its own', () => {
@@ -197,15 +265,14 @@ describe('the estimating panel', () => {
       await Promise.resolve();
       throw new Error('bad_pert_weights');
     });
-    const { onDone } = stubbed({ setArithmetic: refusing });
+    stubbed({ setArithmetic: refusing });
 
     fireEvent.change(boxFor('Realistic'), { target: { value: '0' } });
     fireEvent.change(boxFor('Optimistic'), { target: { value: '0' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save weights' }));
+    applyWeights();
     await settle();
 
     expect(screen.getByRole('alert').textContent).toContain('cannot average');
     expect(boxFor('Realistic').value).toBe('0');
-    expect(onDone).not.toHaveBeenCalled();
   });
 });

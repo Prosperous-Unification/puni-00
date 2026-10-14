@@ -176,7 +176,7 @@ export function SavedPlanList({
     );
   }
   return (
-    <ol className="saved-plan-list flex flex-col" aria-label="Saved plans">
+    <ol className="saved-plan-list m-0 flex list-none flex-col p-0" aria-label="Saved plans">
       {state.rows.map((row) => (
         <SavedPlanRow
           key={row.id}

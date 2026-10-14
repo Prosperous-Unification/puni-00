@@ -2363,13 +2363,14 @@ describe('write failure recovery scopes', () => {
       fireEvent.change(screen.getByLabelText('Name of band 1'), {
         target: { value: 'Critical now' },
       });
-      click('Save');
+      // Enter applies the ladder; there is no Save (D7, F-060).
+      fireEvent.keyDown(screen.getByLabelText('Name of band 1'), { key: 'Enter' });
       return;
     }
     if (name === 'estimate arithmetic') {
       fireEvent.click(screen.getByRole('tab', { name: 'Estimating' }));
       fireEvent.change(screen.getByLabelText('optimistic'), { target: { value: '2' } });
-      click('Save weights');
+      fireEvent.keyDown(screen.getByLabelText('optimistic'), { key: 'Enter' });
       return;
     }
     fireEvent.click(screen.getByRole('tab', { name: 'Optimization' }));
