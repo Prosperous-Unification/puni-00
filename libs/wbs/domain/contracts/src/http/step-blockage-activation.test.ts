@@ -17,7 +17,9 @@ for (const endpoint of [
     const validations = await Promise.all(
       endpoint.refusals
         .filter((refusal) => refusal.status === 409)
-        .map((refusal) => validateSchema(refusal.schema, { error: 'step_blockage_inactive' })),
+        .map((refusal) =>
+          validateSchema<unknown>(refusal.schema, { error: 'step_blockage_inactive' }),
+        ),
     );
     expect(validations.some((validation) => validation.issues === undefined)).toBe(true);
     const document = documentFromShapes([endpoint]);
