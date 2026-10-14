@@ -65,6 +65,8 @@ def workloads(context, node):
         metadata = pod["metadata"]
         labels = metadata.get("labels", {})
         # Proof: treating owner-less pods as managed made the unmanaged-workload case exit 0.
+        # Proof: independently removing forge-worktree and singleton-sqlite labels made the
+        # managed-Pod production-check negatives exit 0 (2026-10-13).
         if (
             not metadata.get("ownerReferences")
             or metadata.get("annotations", {}).get("puni.dev/unmanaged") == "true"
@@ -96,6 +98,7 @@ def local_volumes(context, node):
             for expression in term.get("matchExpressions") or []
         )
         # Proof: disabling this refusal made the pinned-volume case exit 0.
+        # Proof: removing the local predicate made the affinity-free local-PV negative exit 0.
         if "local" in spec or pinned:
             raise Refused(f"{volume['metadata']['name']} is local or pinned to {node}")
 

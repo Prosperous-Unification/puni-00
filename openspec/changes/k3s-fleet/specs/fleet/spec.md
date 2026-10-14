@@ -69,12 +69,23 @@ Retirement SHALL refuse lost required capability, unsafe storage/workload moveme
 - **GIVEN** a planned retirement whose workload cannot be evicted under its disruption budget
 - **WHEN** generic drain runs
 - **THEN** retirement stops without force deletion or a completion receipt
+- **AND** kubectl drain is bounded at 90 seconds inside the 120-second controller deadline so Ansible can report the refusal
+- **AND** controller or transport timeout is an infrastructure failure and never evidence of PDB protection
 
 #### Scenario: Enrolled node disappears
 
 - **GIVEN** an enrolled node that vanishes without a verified provider fence
 - **WHEN** replacement is planned
 - **THEN** the old node remains faulted and storage/writer reassignment is blocked
+
+#### Scenario: Protected workload retirement rehearsal
+
+- **GIVEN** a generated disposable rootless QEMU workers lab with one server and two agents, a pinned kubeconfig, owned fixture namespace, and reviewed target UID
+- **WHEN** production discover, plan, and apply encounter a local-PV PVC, a controller-managed forge-worktree Pod, or a controller-managed labelled singleton SQLite Pod with a persisted marker
+- **THEN** retirement refuses before cordon, produces no completion receipt, and preserves the workload, Pod UID, PV, marker, service, and incomplete journal
+- **AND** a managed stateless Pod with a PDB requiring one available replica reaches eviction after cordon and refuses within the production bounded drain timeout without disabling eviction
+- **AND** recovery explicitly uncordons the target and removes the owned blocker; an ordinary stateless workload then retires successfully, and a second apply preserves the completed journal and receipt
+- **AND** acceptance rejects missing, unreadable, malformed, stale, or identity-mismatched structured evidence and retains diagnostics on failure
 
 #### Scenario: Embedded etcd member retires
 

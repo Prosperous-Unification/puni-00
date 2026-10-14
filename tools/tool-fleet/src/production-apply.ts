@@ -239,6 +239,7 @@ function createProductionCommandRunner(root: string): RunCommand {
     }
     return runBoundedCommand(
       controllerRequest(root, toolchain.controller.image, toolchain.controller.digest, request),
+      commandTimeoutMs + 15_000,
     );
   };
 }
@@ -255,7 +256,10 @@ async function requireCommand(
     throw new Error(`${context} could not start ${request.executable}`, { cause });
   }
   if (response.exitCode !== 0) {
-    throw new Error(`${context} failed with exit ${String(response.exitCode)}: ${response.stderr}`);
+    // Proof: dropping stdout failed the captured-Ansible-stdout retirement negative; PDB diagnostics are emitted there.
+    throw new Error(
+      `${context} failed with exit ${String(response.exitCode)}: ${response.stderr}\n${response.stdout}`,
+    );
   }
   if (request.executable === 'ansible-inventory' && response.stderr.trim().length > 0) {
     // Proof: the exit-zero inventory-warning production negative cannot turn a failed provider
