@@ -208,6 +208,31 @@ export function axisNumberShown(day: { shown: string; heavy: boolean }, dayPx: n
 }
 
 /**
+ * The month a compressed axis names at this cell, or null.
+ *
+ * At {@link AXIS_NUMBER_PX} and wider every cell prints its date and the strip's
+ * caption names the month in view, which is the axis as it was. Below it —
+ * Weeks and Months — only Mondays print, as bare day numbers, and a quarter
+ * of `21 28 05 12` said nothing about where October began (ui-review F-023).
+ * So the first of each month carries its name, on a line of its own above the
+ * numbers, and a boundary down the axis and the chart under it.
+ *
+ * The first cell is **not** named unless it is the first of a month: the
+ * strip's caption already names the month at the left edge as it scrolls, and
+ * a second name there would collide with October's whenever the plan starts
+ * late in September.
+ */
+export function axisMonthWords(day: { date: IsoDate | null }, dayPx: number): string | null {
+  if (dayPx >= AXIS_NUMBER_PX || day.date === null || !isMonthStart(day)) return null;
+  return monthWords(day.date);
+}
+
+/** Whether a dated axis cell is the first day of its month. */
+export function isMonthStart(day: { date: IsoDate | null }): boolean {
+  return day.date?.endsWith('-01') ?? false;
+}
+
+/**
  * How tall one row of the chart is, in CSS pixels.
  *
  * The SVG's y unit is one row, so this is both the height of a label in the
@@ -532,6 +557,17 @@ const BAR_RADIUS_PX = 3;
  * at this paragraph were wrong before it: `h-9` was blamed for a height
  * `py-2` was making, and `box-border` was added for a `box-sizing` that was
  * already `border-box`.
+ *
+ * **On and off since ui-review F-013** (2026-10-13): a toggle switched off
+ * was dashed and struck through, which the review read as a disabled
+ * control. Off is now drawn plain and pressed is drawn filled
+ * ({@link CHART_TOGGLE_PRESSED}). The review also asked for the toolbar's
+ * 32px size; that is left open in the lane record, because the strip's
+ * metrics are pinned by two gates. A 32px strip made `scroll-stability.e2e.ts`
+ * fail on `[data-table-frame] leaves mismatched faces at end` (0.2268 of a
+ * row at 1280×800), and the toolbar's `text-xs` at this height, with no
+ * height change at all, brought `gantt.spec.ts`'s marker-rule body-ink fault
+ * (delta 40, columns 122–124) back in 2 of 10 local runs.
  */
 const chartChip = (extra?: string): string =>
   cn(
@@ -544,11 +580,16 @@ const chartChip = (extra?: string): string =>
     // bar's border is `border-border`.
     'h-4 rounded border-border px-1.5 py-0 text-[10px] leading-none font-semibold tracking-wide normal-case',
     'focus-visible:ring-1 focus-visible:ring-offset-1',
+    CHART_TOGGLE_PRESSED,
     extra,
   );
 
-/** What a chart chip looks like when the thing it names is switched off. */
-const CHART_CHIP_OFF = 'border-dashed text-muted-foreground/60 line-through';
+/**
+ * How a pressed toggle on the strip is drawn: filled in the accent, so on and
+ * off differ by more than a word, and neither looks like a disabled control.
+ */
+const CHART_TOGGLE_PRESSED =
+  'aria-pressed:bg-accent aria-pressed:text-accent-foreground aria-pressed:border-ring/60';
 
 /**
  * How wide the priority cap at a bar's left edge is drawn, in px.
@@ -573,6 +614,17 @@ const PRIORITY_CAP_PX = 3;
 
 /** The done mark's box, in CSS pixels: a tick this tall and this wide at the end of a done bar. */
 const DONE_MARK_PX = 12;
+
+/**
+ * The narrowest a done bar is drawn with its 2px green outline, in CSS pixels.
+ *
+ * At Months a one-workday done bar is 4px, and two pixels of green either side
+ * of it read as a box rather than a bar (ui-review F-026). Narrower than this,
+ * a done bar keeps the done green as a 1px edge — which is what still tells it
+ * from an unassigned grey sliver — and its accessible name and hover card say
+ * done; the tick already needs `DONE_MARK_PX + 6`.
+ */
+const DONE_OUTLINE_MIN_PX = 8;
 
 /**
  * A dependency arrow's approach and its head, in CSS pixels — turned into the
@@ -849,13 +901,21 @@ function arrowRoute(
 const ASSUMED_BAR_CLASSES = '[fill-opacity:0.35] [stroke-dasharray:3_2]';
 
 /**
- * How a **done bar** is painted beyond its own colour: a little translucent, so
- * the row light and the weekend bands read through finished work, with a solid
- * stroke — deliberately **not** the assumed span's dotted signature, which says
+ * How a **done bar** is painted beyond its own colour: a solid stroke —
+ * deliberately **not** the assumed span's dotted signature, which says
  * "guessed" where this says "over". The done mark the panel draws on top is
  * the rest of the saying.
+ *
+ * **Opaque since ui-review F-038.** It was 75% translucent so the row light
+ * read through finished work, and that moved the ground its label sits on with
+ * the theme: white on the blue done bar fell to 3.26:1 over the light page.
+ * {@link inkOn} chooses against the fill, so the fill has to be what is drawn.
+ *
+ * Proof: `[fill-opacity:0.75]` put back, and `every bar label clears 4.5:1 on
+ * its bar, light (F-038)` failed on the done bar's label at
+ * `3.2579494463966228`; watched 2026-10-13.
  */
-const DONE_BAR_CLASSES = '[fill-opacity:0.75] [stroke-width:2]';
+const DONE_BAR_CLASSES = '[stroke-width:2]';
 
 /**
  * The classes a bar carries beyond its two colours, and the two facts they say.
@@ -951,8 +1011,8 @@ function labelPadRightPx(done: boolean, drawnPx: number): number {
  * number or **is** it (Dany: "every title to start from the item number - and
  * it must always be visible"), so nothing about the label can be decided
  * without knowing how much of the box the number will take. `estimated` rides
- * with it for the same reason: an assumed bar leads with `?` in front of the
- * number ({@link leadOf}), and that is room the number's own fit has to count.
+ * with it because an assumed bar writes {@link PLACEHOLDER_WORDS} after the
+ * number instead of a name, and that is a different fit.
  */
 export interface LabelRoom {
   readonly px: number;
@@ -988,24 +1048,60 @@ export function labelRoomFor(
 }
 
 /**
- * What every label on this bar opens with: the row's number, or `? · number`
- * on a bar whose width nobody gave.
+ * What every label opens with: the row's number (Dany, 2026-09-13: "every
+ * title to start from the item number - and it must always be visible").
  *
- * The `?` leads and is not dropped for the name, because this bar's width is
- * {@link ASSUMED_SLICE_WORKDAYS} and not an estimate, and a bar that says
- * `010 · KA` and nothing else is a bar claiming two days of Kat's time. It sat
- * first before the number rule too (Dany, 2026-09-13: "let's just keep it at
- * the beginning like now"). What it **is** dropped for is the number itself
- * ({@link barText}): the dashed translucent outline ({@link ASSUMED_BAR_CLASSES})
- * says "a guess" on its own, and nothing else on the chart says which row.
+ * An assumed bar no longer leads with `? · number` (ui-review F-037,
+ * 2026-10-13): the `?` read as an error. It keeps the number and says what it
+ * is after it — {@link PLACEHOLDER_WORDS}, in {@link barText} — and the dashed
+ * translucent outline ({@link ASSUMED_BAR_CLASSES}) still says "a guess".
  */
 function leadOf(room: LabelRoom): string {
-  return room.estimated ? room.number : `?${LABEL_SEPARATOR}${room.number}`;
+  return room.number;
+}
+
+/**
+ * What a placeholder bar writes after its number: the fact that nobody
+ * estimated it — never a `?`, and not the assignee, whom the fill names.
+ */
+const PLACEHOLDER_WORDS = 'no estimate';
+
+/**
+ * How tall a lane must be before a label is written in it, in CSS pixels.
+ *
+ * A bar shares its row with others only in a cluster that holds an unestimated
+ * placeholder ({@link GanttBar.lane}); each lane is then a slice of the bar's
+ * height. Two lanes are 8.96px, which holds the 9px label's digits and
+ * x-height; three are 6px, which holds nothing legible, so those bars write
+ * nothing and their hover cards still name them.
+ */
+const LABEL_LANE_MIN_PX = 8;
+
+/**
+ * Where a bar's label box stands, in CSS pixels down from the chart's first
+ * row: the bar's **own lane**, never the whole row band.
+ *
+ * Proof: written as the whole bar's band (`rowIndex + BAR_INSET` and
+ * `BAR_HEIGHT`) — what painted two lanes' labels over each other as
+ * `01010.3.0606` (ui-review F-012) — and `paints one label per bar, each
+ * inside its own lane, none over another` failed on `sand-plan label bottom:
+ * expected 50.96 to be less than or equal to 42.01`; watched 2026-10-13.
+ *
+ * @returns null where the lane is too short for a label ({@link LABEL_LANE_MIN_PX}).
+ */
+export function labelLaneOf(bar: {
+  rowIndex: number;
+  lane: number;
+  lanes: number;
+}): { topPx: number; heightPx: number } | null {
+  const heightPx = (BAR_HEIGHT * ROW_PX) / bar.lanes;
+  if (heightPx < LABEL_LANE_MIN_PX) return null;
+  return { topPx: (bar.rowIndex + BAR_INSET) * ROW_PX + bar.lane * heightPx, heightPx };
 }
 
 /**
  * Whether `who` fits after the room's lead with the crop mark's width to
- * spare — so `[? ·] number · who · words` reads whole up to the mark, and the
+ * spare — so `number · who · words` reads whole up to the mark, and the
  * mark falls on the words. The one measurement every candidate for `who` goes
  * through, in {@link barLabelFor}, {@link poolLabelFor} and {@link barText}
  * alike.
@@ -1348,9 +1444,9 @@ export function poolLabelFor(
  * width and crops with an ellipsis, so a narrow bar shows as much of the name
  * as it has pixels for rather than none of it.
  *
- * **The number is measured, and it wins.** Five readings, in order, each tried
- * only where the one before does not fit — `lead` being the number, or
- * `? · number` on an assumed bar ({@link leadOf}):
+ * **The number is measured, and it wins.** Four readings, in order, each tried
+ * only where the one before does not fit — `lead` being the number
+ * ({@link leadOf}):
  *
  * 1. `lead · who · name` where `lead · who` and the crop mark fit
  *    ({@link headFits}) — the mark lands on the name.
@@ -1358,8 +1454,10 @@ export function poolLabelFor(
  *    bar gives up first, and the hover surface still names the person.
  * 3. `lead` alone where only the lead fits — nothing follows, so no mark is
  *    drawn and nothing eats into it.
- * 4. `number` alone where only the number fits — the `?` goes, and the dashed
- *    outline is what still says "a guess".
+ *
+ * An assumed bar reads the same way with {@link PLACEHOLDER_WORDS} in the
+ * name's place: `number · no estimate` where the number and the crop mark fit,
+ * the number alone where only it fits, nothing otherwise (ui-review F-037).
  *
  * And nothing where the number itself does not fit: half a number is the
  * misreading this exists to remove, and a label box over a 5px bar is a stray
@@ -1373,18 +1471,32 @@ export function poolLabelFor(
  * Proof, the number rule: given the rule before it back — a letter of room is
  * enough and the number is never measured — `keeps the number whole before
  * anything else on the bar` failed on `expected '170.1 · KB · Strip' to be
- * '170.1 · Strip'` and `leads an assumed bar with the ?, and gives it up only
- * for the number` on `expected '? · 010 · KB · Strip' to be '? · 010 · Strip'`,
- * `2 failed | 237 passed`. Watched 2026-09-13.
+ * '170.1 · Strip'` and the assumed-bar case of that day on `expected
+ * '? · 010 · KB · Strip' to be '? · 010 · Strip'`, `2 failed | 237 passed`.
+ * Watched 2026-09-13; the assumed bar's `?` lead itself went with F-037.
  */
 export function barText(who: string | null, name: string, room: LabelRoom): string | null {
+  if (!room.estimated) {
+    // Number first, as on every bar, and the phrase yields to it exactly as a
+    // name does below: the box crops the phrase, never the number, and a bar
+    // with room for the number alone says the number.
+    // Proof: the phrase put ahead of the number (round 1 of the #401 review:
+    // `no estimate` alone where the number and the phrase did not both fit
+    // whole), and `names a placeholder for what it is, and writes its number
+    // once per bar` failed on `expected 'no estimate' to be '010 · no
+    // estimate'` at two workdays; watched 2026-10-14.
+    const leadPx = room.number.length * LABEL_CHAR_PX;
+    if (room.px >= leadPx + ELLIPSIS_PX) {
+      return [room.number, PLACEHOLDER_WORDS].join(LABEL_SEPARATOR);
+    }
+    return room.px >= leadPx ? room.number : null;
+  }
   const lead = leadOf(room);
   const words = nameWords(name);
   if (who !== null && headFits(room, who)) return [lead, who, words].join(LABEL_SEPARATOR);
   const leadPx = lead.length * LABEL_CHAR_PX;
   if (room.px >= leadPx + ELLIPSIS_PX) return [lead, words].join(LABEL_SEPARATOR);
-  if (room.px >= leadPx) return lead;
-  return room.px >= room.number.length * LABEL_CHAR_PX ? room.number : null;
+  return room.px >= leadPx ? lead : null;
 }
 
 /**
@@ -2607,10 +2719,21 @@ function buildStandaloneGanttSvg(input: StandaloneGanttSvgInput): SVGSVGElement 
     // The same gate the live axis prints under: a downloaded chart of a
     // compressed plan is a picture somebody looks at, and 91 two-digit numbers
     // in 366px is a grey smear there for exactly the reason it is one on screen.
+    const monthName = axisMonthWords(day, dayPx);
+    if (monthName !== null) {
+      root.appendChild(svgLine(cellX, 0, cellX, ROW_PX, theme.foreground));
+      root.appendChild(
+        svgText(cellX + 2, 10, monthName, {
+          fontSize: 9,
+          fontWeight: '600',
+          fill: theme.foreground,
+        }),
+      );
+    }
     root.appendChild(
       svgText(
         cellX + dayPx / 2,
-        rung.cellsPerWorkday === 1 ? ROW_PX / 2 + 3 : 10,
+        rung.cellsPerWorkday === 1 ? (dayPx < AXIS_NUMBER_PX ? 24 : ROW_PX / 2 + 3) : 10,
         axisNumberShown(day, dayPx),
         {
           fontSize: 9,
@@ -2764,18 +2887,19 @@ function buildStandaloneGanttSvg(input: StandaloneGanttSvgInput): SVGSVGElement 
         ? poolLabelFor(bar.team, bar.width, room)
         : barLabelFor(bar.personName, room);
     const shown = barText(who, bar.workItemName, room);
-    if (shown === null) continue;
+    const lane = labelLaneOf(bar);
+    if (shown === null || lane === null) continue;
     const barLeft = gutterPx + x * dayPx + CHART_PAD_PX;
-    const barTop = ROW_PX + (bar.rowIndex + BAR_INSET) * ROW_PX;
+    const barTop = ROW_PX + lane.topPx;
     const clipId = `gantt-bar-label-clip-${String(index)}`;
     const clip = document.createElementNS(SVG_NS, 'clipPath');
     clip.setAttribute('id', clipId);
     clip.setAttribute('clipPathUnits', 'userSpaceOnUse');
-    clip.appendChild(svgRect(barLeft, barTop, width * dayPx, BAR_HEIGHT * ROW_PX, '#000'));
+    clip.appendChild(svgRect(barLeft, barTop, width * dayPx, lane.heightPx, '#000'));
     labelClips.appendChild(clip);
 
     const left = barLeft + LABEL_PAD_LEFT_PX;
-    const top = ROW_PX + (bar.rowIndex + BAR_INSET) * ROW_PX + (BAR_HEIGHT * ROW_PX) / 2 + 3;
+    const top = barTop + lane.heightPx / 2 + 3;
     const label = svgText(left, top, shown, {
       fontSize: 9,
       fontWeight: '600',
@@ -3999,7 +4123,7 @@ export function GanttRenderer({
    * The bars that are drawn, which since 2026-09-11 is **all of them**.
    *
    * A slice nobody has estimated is drawn across an assumed span of two
-   * workdays, translucent and dashed and carrying a `?`. Those bars were part of
+   * workdays, translucent and dashed and saying `no estimate`. Those bars were part of
    * what the detail switch hid, by Dany's own ask on 2026-08-11 ("remove …
    * unestimated QA bars") and folded into one control on 2026-08-12 ("all
    * decluttering into one button").
@@ -4009,11 +4133,11 @@ export function GanttRenderer({
    * twelve rows of a twenty-eight-bar chart are uncosted, and with the switch
    * off those twelve lanes drew **nothing at all**. A row that is on the chart
    * and draws nothing reads as a row with no work rather than as a row nobody
-   * has costed, which is the opposite of what the `?` is for.
+   * has costed, which is the opposite of what the placeholder is for.
    *
    * So the switch answers about **two** families now — the stored-dependency
    * arrows and the parent rows' summary brackets — and an uncosted slice is
-   * drawn in both of its states. The dashes and the `?` are what say the span
+   * drawn in both of its states. The dashes and the words are what say the span
    * was assumed; they do that whether or not the reader wants elbows.
    *
    * One list, read by the rects, the ticks and the on-bar labels alike, so the
@@ -4201,12 +4325,29 @@ export function GanttRenderer({
         : placed.notBeforeFlags.filter((flag) => drawn.rowIndexes.has(flag.rowIndex)),
     [detailShown, drawn, placed],
   );
+  /**
+   * How many days the chart draws: the schedule's own horizon, or as many as
+   * fill the panel when the schedule is shorter than it is wide.
+   *
+   * At Months a quarter's plan filled under half a 1440px panel and the rest
+   * was blank page (ui-review F-026). The calendar now runs on to the panel's
+   * edge — axis, gridlines and weekends with nothing scheduled on them — the
+   * way a wall planner does not stop where the work does. Floored so the
+   * chart stops short of the edge rather than past it, which would be a
+   * scrollbar for nothing. jsdom measures 0 and keeps the schedule's horizon.
+   */
+  const horizon = Math.max(
+    placed.horizon,
+    Math.floor(
+      (viewportPx - (labelsShown ? LABEL_COLUMN_PX : 0) - 2 * CHART_PAD_PX) / chart.pxPerWorkday,
+    ),
+  );
   const axis = useMemo(
     () =>
       startDate === null
-        ? workdayAxis(placed.horizon)
-        : calendarAxis(startDate, placed.horizon, projection.rangeStart),
-    [placed, startDate, projection.rangeStart],
+        ? workdayAxis(horizon)
+        : calendarAxis(startDate, horizon, projection.rangeStart),
+    [horizon, startDate, projection.rangeStart],
   );
   /**
    * This project's markers grouped by the day they stand on, in the order
@@ -4728,6 +4869,26 @@ export function GanttRenderer({
             />
           )),
         )}
+        {/*
+          The month boundaries down the chart, on the compressed axis that
+          names them ({@link axisMonthWords}): over the day gridlines, in the
+          axis boundary's own ink.
+        */}
+        {dayPx < AXIS_NUMBER_PX &&
+          axis
+            .filter(isMonthStart)
+            .map((day) => (
+              <line
+                key={`month-${String(day.offset)}`}
+                data-gantt-month-boundary={day.date}
+                x1={day.offset}
+                y1={0}
+                x2={day.offset}
+                y2={rowCount}
+                className="stroke-foreground/30"
+                vectorEffect="non-scaling-stroke"
+              />
+            ))}
 
         {/*
                 The leading edge of today, over the gridlines and under every
@@ -4864,7 +5025,7 @@ export function GanttRenderer({
             data-gantt-row-line={label.rowIndex}
             x={-pad}
             y={label.rowIndex}
-            width={placed.horizon + 2 * pad}
+            width={horizon + 2 * pad}
             height={1}
             fill="none"
             // **`fill` and not `all`, and the difference is three rows
@@ -5246,6 +5407,9 @@ export function GanttRenderer({
 
         {drawnBars.map(({ bar, x, width }) => {
           const surface = placeBarSurface(x, width, rung);
+          // The done outline's 2px only where it frames a bar; a sliver keeps
+          // the green at 1px — see {@link DONE_OUTLINE_MIN_PX}.
+          const doneOutlined = bar.done && surface.width * dayPx >= DONE_OUTLINE_MIN_PX;
           const middle = bar.rowIndex + BAR_INSET + ((bar.lane + 0.5) * BAR_HEIGHT) / bar.lanes;
           const hitHeight = Math.max(BAR_HEIGHT / bar.lanes, 18 / ROW_PX);
           const hoverMark = (pointer: ReactPointerEvent<SVGGElement>): void => {
@@ -5450,7 +5614,7 @@ export function GanttRenderer({
                 fill={bar.personColor}
                 // The critical path is the **outline**, because the fill is
                 // already saying who. A ring in the foreground colour rather
-                // than the destructive one: `#d62728` is the fourth person's
+                // than the destructive one: `#d42526` is the fourth person's
                 // colour, and a red ring on a red bar is no ring at all.
                 // A done bar wears the status green as its outline instead
                 // (`status-polish`; Dany: "add smth like a green outline to the
@@ -5467,7 +5631,12 @@ export function GanttRenderer({
                         : bar.personColor
                 }
                 className={cn(
-                  barClasses(bar.critical, bar.estimated, bar.done, bar.stop === 'blocked'),
+                  barClasses(
+                    bar.critical && !bar.done,
+                    bar.estimated,
+                    doneOutlined,
+                    bar.stop === 'blocked',
+                  ),
                   'data-[dependency-lit=true]:stroke-foreground data-[dependency-lit=true]:[stroke-width:2]',
                 )}
                 vectorEffect="non-scaling-stroke"
@@ -5654,6 +5823,7 @@ export function GanttRenderer({
       drawnLinks,
       drawnPoolWaits,
       endTouchPress,
+      horizon,
       markersByDate,
       onPickRow,
       pad,
@@ -5737,8 +5907,8 @@ export function GanttRenderer({
             */}
         {drawnBars.map(({ bar, x, width }) => {
           // The row's number first, then who is on the bar, then its name —
-          // see {@link barText}; an unestimated bar leads with the `?` its
-          // width is a guess about ({@link leadOf}). The room is the **drawn**
+          // see {@link barText}; an unestimated bar says `number · no
+          // estimate` ({@link PLACEHOLDER_WORDS}). The room is the **drawn**
           // width, weekend cells included: a bar stretched over a Saturday has
           // those pixels to write in. The name is cropped by the box, not the
           // string. Nobody named and a team on the row: the bar says whose
@@ -5750,7 +5920,8 @@ export function GanttRenderer({
               ? poolLabelFor(bar.team, bar.width, room)
               : barLabelFor(bar.personName, room);
           const shown = barText(who, bar.workItemName, room);
-          if (shown === null) return null;
+          const lane = labelLaneOf(bar);
+          if (shown === null || lane === null) return null;
           return (
             <span
               key={`${bar.sliceId}-label`}
@@ -5761,8 +5932,11 @@ export function GanttRenderer({
                   ? 'pointer-events-none absolute overflow-hidden text-[9px] font-semibold text-ellipsis whitespace-nowrap'
                   : // The page's own ink on an assumed bar: `inkOn` picks a
                     // colour to be read on a **solid** fill, and this one is
-                    // 35% of that colour over whatever the page is.
-                    'text-foreground pointer-events-none absolute overflow-hidden text-[9px] font-semibold text-ellipsis whitespace-nowrap'
+                    // 35% of that colour over whatever the page is. Regular
+                    // weight: a note about the bar rather than its name, and
+                    // narrow enough that `no estimate` is whole on a two-day
+                    // placeholder at Days.
+                    'text-foreground pointer-events-none absolute overflow-hidden text-[9px] font-normal text-ellipsis whitespace-nowrap'
               }
               style={{
                 // Dark ink on the three light entries of the palette and
@@ -5773,17 +5947,40 @@ export function GanttRenderer({
                 // schedule: the label's pixel is the bar's pixel only with
                 // the same band added. See {@link CHART_PAD_PX}.
                 left: x * dayPx + CHART_PAD_PX,
-                top: (bar.rowIndex + BAR_INSET) * ROW_PX,
+                // The bar's own lane, so two bars sharing a row never write
+                // over each other — see {@link labelLaneOf}.
+                top: lane.topPx,
                 width: width * dayPx,
-                height: BAR_HEIGHT * ROW_PX,
-                lineHeight: `${String(BAR_HEIGHT * ROW_PX)}px`,
+                height: lane.heightPx,
+                lineHeight: `${String(lane.heightPx)}px`,
                 paddingLeft: LABEL_PAD_LEFT_PX,
                 // The pixels {@link labelRoomFor} took off the box: the pad,
                 // and the done tick where one is drawn.
                 paddingRight: labelPadRightPx(bar.done, width * dayPx),
               }}
             >
-              {shown}
+              {bar.stop === 'blocked_by_proxy' ? (
+                // The hatch's red stripes run across the whole bar, and a dark
+                // label crossing them fell to 3.70:1 against a stripe. The
+                // words sit on a patch of the bar's own fill instead, so the
+                // ink is read against the colour `inkOn` chose it for, and
+                // the hatch shows everywhere else on the bar.
+                //
+                // Proof: without this ground, `every bar label clears 4.5:1
+                // on its bar` failed in both schemes on the hatched orange
+                // bar at 3.6966327586007055; watched 2026-10-14.
+                // An assumed bar's words are the page's ink, so their patch
+                // is the page's ground.
+                <span
+                  data-gantt-label-ground
+                  className={cn('rounded-sm px-0.5', bar.estimated ? '' : 'bg-background')}
+                  style={bar.estimated ? { backgroundColor: bar.personColor } : undefined}
+                >
+                  {shown}
+                </span>
+              ) : (
+                shown
+              )}
             </span>
           );
         })}
@@ -6090,6 +6287,7 @@ export function GanttRenderer({
                   // monochrome display gets. `date` and not `true` because the
                   // cell **is** the date — the value HTML defines for it.
                   {...(day.offset === todayAt ? { 'aria-current': 'date' } : {})}
+                  {...(isMonthStart(day) ? { 'data-axis-month-start': 'true' } : {})}
                   // No native `title`: one hint, and it is the card the pointer
                   // opens below — the browser's own tooltip would race it after
                   // a delay nobody chose (`instant-hovers`' rule, and Dany's
@@ -6192,6 +6390,11 @@ export function GanttRenderer({
                   // like the column beneath it.
                   className={[
                     'shrink-0 text-center text-[10px] leading-7',
+                    // The month boundary on a compressed axis — see
+                    // {@link axisMonthWords}.
+                    dayPx < AXIS_NUMBER_PX && isMonthStart(day)
+                      ? 'border-foreground/50 border-l'
+                      : '',
                     // The house focus ring (`button.tsx:34`, `input.tsx:29`),
                     // and it is owed here more than anywhere: §6 gave every
                     // axis cell a tab stop, so a reader walking the calendar
@@ -6222,8 +6425,21 @@ export function GanttRenderer({
                     .join(' ')}
                   style={{ width: dayPx }}
                 >
-                  {rung.cellsPerWorkday === 1 ? (
+                  {rung.cellsPerWorkday === 1 && dayPx >= AXIS_NUMBER_PX ? (
                     axisNumberShown(day, dayPx)
+                  ) : rung.cellsPerWorkday === 1 ? (
+                    // Two lines on a compressed axis: the month's name where
+                    // one begins, running right into the blank cells after it,
+                    // over the Mondays' numbers.
+                    <>
+                      <span
+                        className="text-foreground block h-3 text-left leading-3 font-semibold whitespace-nowrap"
+                        {...(axisMonthWords(day, dayPx) === null ? {} : { 'data-axis-month': '' })}
+                      >
+                        {axisMonthWords(day, dayPx)}
+                      </span>
+                      <span className="block leading-4">{axisNumberShown(day, dayPx)}</span>
+                    </>
                   ) : (
                     <>
                       <span className="block leading-3">{day.shown}</span>
@@ -6396,9 +6612,9 @@ export function GanttRenderer({
                 // The schedule band is the **horizon** the marks were placed
                 // against, so one user unit is exactly {@link DAY_PX} however
                 // fractional the last day is.
-                viewBox={`${String(-pad)} 0 ${String(placed.horizon + 2 * pad)} ${String(rowCount)}`}
+                viewBox={`${String(-pad)} 0 ${String(horizon + 2 * pad)} ${String(rowCount)}`}
                 preserveAspectRatio="none"
-                width={placed.horizon * chart.pxPerWorkday + 2 * CHART_PAD_PX}
+                width={horizon * chart.pxPerWorkday + 2 * CHART_PAD_PX}
                 height={rowCount * ROW_PX}
                 style={{ display: 'block' }}
                 // What ends the chart's pointing: leaving the chart. The row
@@ -7125,7 +7341,7 @@ export function GanttRenderer({
               ? 'Hide the row names and give their 176px to the chart'
               : 'Show the row names beside the chart again'
           }
-          className={labelsShown ? chartChip() : chartChip(CHART_CHIP_OFF)}
+          className={chartChip()}
           onClick={() => {
             onPickLabelsShown(!labelsShown);
           }}
@@ -7156,7 +7372,7 @@ export function GanttRenderer({
               ? 'Hide the arrows and the parent bars'
               : 'Show the arrows and the parent bars'
           }
-          className={detailShown ? chartChip() : chartChip(CHART_CHIP_OFF)}
+          className={chartChip()}
           onClick={() => {
             // The next answer worked out here, beside the write, and the
             // setter given a value rather than a function: a state updater

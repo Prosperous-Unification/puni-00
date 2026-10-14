@@ -2191,14 +2191,46 @@ describe('bar colours are people', () => {
     expect(inkOn('#bcbd22')).toBe('#0f172a');
     expect(inkOn('#17becf')).toBe('#0f172a');
     expect(inkOn('#ff7f0e')).toBe('#0f172a');
-    expect(inkOn('#1f77b4')).toBe('#ffffff');
-    expect(inkOn('#d62728')).toBe('#ffffff');
+    expect(inkOn('#1872af')).toBe('#ffffff');
+    expect(inkOn('#d42526')).toBe('#ffffff');
     expect(inkOn('#8c564b')).toBe('#ffffff');
+    // Green and grey sit in the middle, where dark ink is the stronger of the two.
+    expect(inkOn('#2ca02c')).toBe('#0f172a');
+    expect(inkOn('#898989')).toBe('#0f172a');
     // And every colour in the palette gets one of exactly those two answers.
     const everyBarColor: BarColor[] = [...PERSON_BAR_COLORS, UNASSIGNED_BAR_COLOR];
     expect(new Set(everyBarColor.map((color) => inkOn(color)))).toEqual(
       new Set(['#0f172a', '#ffffff']),
     );
+  });
+
+  /**
+   * ui-review F-038: the blue bar's white label measured 4.44:1 from pixels at
+   * 9px, and five of the ten colours were under 4.5:1 with the ink they got
+   * (green 3.40, purple 4.26, pink 2.73, grey 4.46). Every bar colour now has
+   * an ink at 5:1 or better computed — the margin a 9px antialiased glyph,
+   * which never reaches its full ink, needs to stay over 4.5 in pixels.
+   */
+  it('gives every bar colour an ink at 5:1 or better', () => {
+    const channel = (hex: string, at: number): number => {
+      const part = Number.parseInt(hex.slice(at, at + 2), 16) / 255;
+      return part <= 0.04045 ? part / 12.92 : ((part + 0.055) / 1.055) ** 2.4;
+    };
+    const luminance = (hex: string): number =>
+      0.2126 * channel(hex, 1) + 0.7152 * channel(hex, 3) + 0.0722 * channel(hex, 5);
+    const contrast = (a: string, b: string): number => {
+      const [light, dark] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+      return (light + 0.05) / (dark + 0.05);
+    };
+    const everyBarColor: BarColor[] = [...PERSON_BAR_COLORS, UNASSIGNED_BAR_COLOR];
+    // Proof: the palette put back to `tab10` as it was, and this failed on
+    // `#1f77b4 label: expected 4.8208… to be greater than or equal to 5`;
+    // with the palette kept and `inkOn` given its 0.35 threshold back, on
+    // `#2ca02c label: expected 3.4025… to be greater than or equal to 5`.
+    // Watched 2026-10-13.
+    for (const color of everyBarColor) {
+      expect(contrast(inkOn(color), color), `${color} label`).toBeGreaterThanOrEqual(5);
+    }
   });
 
   it('paints a slice nobody is on grey, and does not spend a colour on it', () => {
@@ -4515,15 +4547,16 @@ describe('forecast mark pointer geometry', () => {
       hitWidth: 18 / rung.pxPerWorkday,
     });
   });
-  it.each(AXIS_RUNGS)('a positive mark under 4 px is floored only at sub-day rung $id', (rung) => {
-    const surface = placeBarSurface(0, 2 / 480, rung);
-    expect(surface.width * rung.pxPerWorkday).toBeCloseTo(
-      rung.cellsPerWorkday > 1 ? 4 : (2 / 480) * rung.pxPerWorkday,
-    );
-    expect(surface.tick).toBe(rung.cellsPerWorkday > 1);
-    expect(surface.hitWidth * rung.pxPerWorkday).toBeCloseTo(18);
-    expect(surface.hitX + surface.hitWidth / 2).toBeCloseTo(surface.x + surface.width / 2);
-  });
+  it.each(AXIS_RUNGS)(
+    'a positive mark under 4 px is floored at rung $id, a tick only sub-day',
+    (rung) => {
+      const surface = placeBarSurface(0, 2 / 480, rung);
+      expect(surface.width * rung.pxPerWorkday).toBeCloseTo(4);
+      expect(surface.tick).toBe(rung.cellsPerWorkday > 1);
+      expect(surface.hitWidth * rung.pxPerWorkday).toBeCloseTo(18);
+      expect(surface.hitX + surface.hitWidth / 2).toBeCloseTo(surface.x + surface.width / 2);
+    },
+  );
   it('leaves an exactly 4 px bar untagged and gives a wide mark its whole pointer surface', () => {
     expect(placeBarSurface(3, 4 / 896, AXIS_RUNGS[5]).tick).toBe(false);
     expect(placeBarSurface(3, 1, AXIS_RUNGS[5]).hitWidth).toBe(1);
