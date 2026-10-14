@@ -838,6 +838,12 @@ are valid. The host entrypoint SHALL NOT start containers or activate runtime ca
 - **THEN** it refuses before opening a writable database connection
 - **AND** no saved mode, rank or organization audit field changes
 
+#### Scenario: an additional stopped container has an absent writable mount source
+
+- **GIVEN** both colours are verified stopped and an additional stopped container names a writable mount source that no longer exists
+- **WHEN** host restore resolves that source's physical identity
+- **THEN** it refuses before the writable opener with modes, ranks and database journal mode unchanged
+
 #### Scenario: a physical mount source is unreadable
 
 - **GIVEN** a required inspected writable mount source exists but the recovery owner cannot read its physical identity

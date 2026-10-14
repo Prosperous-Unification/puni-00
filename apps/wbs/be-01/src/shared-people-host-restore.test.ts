@@ -561,3 +561,41 @@ it('refuses a third running writer through a hardlinked directory with both colo
   await refuses(invoke(), 'writable container is not stopped: /manual-writer');
   expectUnopenedRestore();
 });
+
+it('refuses an absent extra writable mount source before the database writer opener', async () => {
+  prepareAlias();
+  writeInventory([
+    container('be-01-blue'),
+    container('be-01-green'),
+    container('stopped-extra', false, join(directory, 'absent-source')),
+  ]);
+  const failure: unknown = await invoke().then(
+    () => null,
+    (cause: unknown) => cause,
+  );
+  expect(failure).toMatchObject({ code: 'ENOENT' });
+  expectUnopenedRestore();
+});
+it('refuses a permission-denied extra writable mount source before the database writer opener', async () => {
+  prepareAlias();
+  const parent = join(directory, 'inaccessible-parent');
+  const source = join(parent, 'mount');
+  mkdirSync(parent);
+  mkdirSync(source);
+  writeInventory([
+    container('be-01-blue'),
+    container('be-01-green'),
+    container('stopped-extra', false, source),
+  ]);
+  chmodSync(parent, 0o000);
+  try {
+    const failure: unknown = await invoke().then(
+      () => null,
+      (cause: unknown) => cause,
+    );
+    expect(failure).toMatchObject({ code: 'EACCES' });
+    expectUnopenedRestore();
+  } finally {
+    chmodSync(parent, 0o700);
+  }
+});

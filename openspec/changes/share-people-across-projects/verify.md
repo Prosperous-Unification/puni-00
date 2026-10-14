@@ -4920,3 +4920,43 @@ running same-device containers, six unreadable volume sources, physical colour m
 green recorded above. Stopping containers alone does not make unreadable sources inspectable.
 This amendment performed no production action and does not authorize bypassing these blockers.
 Canonical exact-SHA gate, publication and activation remain pending.
+
+## Additional mount-source boundary proofs (10.2b, 2026-10-14)
+
+Astra's review of `88c765283781b45a460ad878553404b77b353e86` required independent production-owner
+proofs for missing and unreadable additional Docker mount sources. The earlier read-only h2puni
+CLI receipt stopped at blue's physical identity mismatch and did not exercise this later boundary.
+
+Two separate mounted preflight tests now keep both verified colours and the extra container
+stopped, then reach the production `realpath(mount.source)` / `stat(source)` boundary:
+
+- An extra writable source that does not exist refuses with `ENOENT`.
+- An existing source beneath an actual mode-000 parent refuses with `EACCES` as the ordinary
+  non-root recovery owner. The parent permission is restored in `finally` for exact cleanup.
+
+Each uses an independent existing database in DELETE journal mode. Its refusal preserves empty
+ranks and DELETE mode, proving the writable opener did not run. Initial GREEN: two pass/eight
+assertions in `/tmp/shared-restore-10.2b-mount-source-green.log`. Substituting the canonical
+database for the mount-source resolver/stat dependency allowed recovery and separately failed
+both tests: `/tmp/shared-restore-10.2b-absent-mount-source-red.log` and
+`/tmp/shared-restore-10.2b-unreadable-mount-source-red.log`. The dependency bypass was restored;
+an adjacent production `Proof:` comment records it. No production behavior was changed.
+
+Fresh checks after those proofs:
+
+- Four-file focused regression command recorded above: **53 pass, 1 explicit real-Docker skip,
+  0 fail**, 317 assertions; `/tmp/shared-restore-10.2b-mount-source-regression.log`.
+- Real-Docker host suite command above: **19 pass, 0 fail**, 176 assertions;
+  `/tmp/shared-restore-10.2b-mount-source-docker.log`. Temporary local Docker IDs were cleaned up.
+- Scoped ESLint and `bunx tsc --build apps/wbs/be-01/tsconfig.json --pretty false`: exit 0,
+  no diagnostics. Formatting and normal commit hooks were repeated.
+- `bunx @fission-ai/openspec@1.12.0 validate share-people-across-projects --strict --json`:
+  one valid change, zero issues; `/tmp/shared-restore-10.2b-mount-source-openspec.json`.
+  The delta spec now explicitly distinguishes an absent extra stopped-container source from its
+  existing unreadable-source scenario. The proposal remains unchanged at 393 words.
+
+WBS 010.4.16 actual h2puni recovery remains blocked by the six additional running same-device
+containers, six unreadable volume sources, physical colour mismatch and running green detailed
+above. These proofs do not claim that stopping containers resolves unreadable source identity.
+No production action, container stop or database write was performed. The exact-SHA canonical
+gate, upstream-stack correction, publication and activation remain pending.

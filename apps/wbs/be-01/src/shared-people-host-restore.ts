@@ -162,6 +162,7 @@ async function fenceContainers(paths: HostRestorePaths): Promise<void> {
     if (container.name === '/be-01-blue' || container.name === '/be-01-green') continue;
     for (const mount of container.mounts) {
       if (!mount.writable) continue;
+      // Proof: substituting the canonical DB for this resolver/stat boundary admitted the separate stopped-extra ENOENT and EACCES mount-source negatives.
       const source = await realpath(mount.source);
       const mounted = await stat(source);
       const covers =
