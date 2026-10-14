@@ -14,7 +14,6 @@ import {
 } from './cutover-replay.fixture';
 import { renderDescriptor, sealDescriptor } from './descriptor';
 import { sha256Of } from './migration-capture';
-import { releaseIdOf } from './release';
 
 const roots: string[] = [];
 afterEach(() => {
@@ -101,7 +100,7 @@ describe('cutover-cli', () => {
     expect(outcome).toContain('row counts');
   });
 
-  it('prints the release record the first F8 release will start from', async () => {
+  it('refuses descriptor-only release records before first-start admission', async () => {
     const root = scratchSync('wbs-cutover-cli-');
     roots.push(root);
     const sourceSha = 'a'.repeat(40);
@@ -139,13 +138,15 @@ describe('cutover-cli', () => {
       },
     );
     writeFileSync(join(root, 'descriptor.json'), renderDescriptor(descriptor));
-    const record = JSON.parse(
-      await main(['release-record', '--descriptor', join(root, 'descriptor.json')]),
-    ) as { metadata: { name: string; namespace: string }; data: Record<string, string> };
-    expect(record.metadata).toEqual({ name: 'wbs-release', namespace: 'wbs-solver' });
-    expect(record.data['releaseId']).toBe(releaseIdOf({ sourceSha, images }));
-    expect(record.data['sourceSha']).toBe(sourceSha);
-    expect(JSON.parse(record.data['images'])).toEqual(images);
+    const refusal = await main([
+      'release-record',
+      '--descriptor',
+      join(root, 'descriptor.json'),
+    ]).then(
+      () => '',
+      (cause: unknown) => String(cause),
+    );
+    expect(refusal).toContain('first-start');
   });
 });
 

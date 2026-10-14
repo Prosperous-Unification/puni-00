@@ -182,3 +182,121 @@ Prepared cutover manifests SHALL hold every Deployment at zero. First-start scal
 - **WHEN** cutover preparation emits manifests
 - **THEN** all Deployment replicas are zero
 - **AND** malformed manifests or an absent/duplicate backend are refused
+
+### Requirement: First-start admission binds the actual restored PVC
+
+The first-start coordinator SHALL use durable state separate from release journal schema 3. Before scaling, it SHALL hold the WBS Lease and closed writer fence, verify Flux suspension and stopped writers, validate matching descriptor-bound export/restore evidence and restore Job identity, and freshly inspect the actual PVC.
+
+#### Scenario: A changed actual volume cannot reuse restore evidence
+
+- **GIVEN** a completed restore Job and matching original reports
+- **WHEN** the mounted database bytes, retained replay inventory or activation authority differs
+- **THEN** no tier scales and the Lease, closed fence and Flux suspension remain held
+
+#### Scenario: Durable evidence precedes the first scale
+
+- **GIVEN** a fresh compatible actual-PVC observation under the Lease and fence
+- **WHEN** first-start proceeds
+- **THEN** admission is persisted and read back before every intended tier starts explicitly at its pinned digest
+- **AND** admission binds original descriptor bytes/pin, export/restore evidence, cluster/context, namespace/PVC UIDs/path, restore Job UID, transaction, all tier images and desired Flux revision
+- **AND** ready rollout and persisted release-record readback precede Flux handoff
+
+#### Scenario: Interrupted scaling repeats the stopped-writer observation
+
+- **GIVEN** a first-start transaction interrupted during scaling
+- **WHEN** its owner resumes the durable request
+- **THEN** every tier stops and a fresh actual-PVC inspection repeats before any restart
+- **AND** foreign, malformed, missing or altered durable admission refuses before mutation
+
+### Requirement: First-start authority stays disabled
+
+The actual image-owned activation authority SHALL exist and validate its migration ledger, singleton marker and exact triggers. Its marker SHALL remain DISABLED. First-start SHALL refuse a nonempty WAL and SHALL never enable authority.
+
+#### Scenario: Activation authority is missing or already enabled
+
+- **GIVEN** a restored database with missing, malformed or unreadable authority, altered triggers, an enabled marker or a nonempty WAL
+- **WHEN** first-start inspects the actual PVC
+- **THEN** admission refuses before scaling
+
+### Requirement: Flux first-start handoff preserves the closed fence
+
+Before resuming Flux, the coordinator SHALL admit the exact desired source tree against its pinned revision and prove that reconciliation preserves the closed writer fence and intended tier/PVC contracts. It SHALL observe matching applied revision and closed fence after reconciliation. An unfenced desired revision SHALL refuse before resume. Traffic opening SHALL remain a separate attended cutover operation.
+
+#### Scenario: A pinned unfenced source cannot open a handoff interval
+
+- **GIVEN** the desired Flux revision pins the intended images but opens writer ingress
+- **WHEN** the coordinator attempts first-start handoff
+- **THEN** it refuses before Flux resumes and preserves the Lease, closed fence and suspension
+
+### Requirement: First-start admits complete immutable source and traffic actors
+
+Before scale or resume, the coordinator SHALL admit actual live referenced GitRepository
+URL/commit bytes, bind source and Kustomization UIDs/config/artifact, conditionally pin
+that commit, and require one regular release.yaml with complete trusted fenced resource
+inventory. It SHALL revalidate immediately before conditional resume. Backend mount,
+volume and label contracts SHALL be exact and startup overrides SHALL refuse. Complete
+Pod/controller and NetworkPolicy inventories SHALL refuse alternate writers/public
+allowances. Writer and public ingress SHALL remain fenced while backend readers remain
+available for gateway readiness. A missing journal with an existing Lease SHALL refuse
+before mutation.
+
+#### Scenario: Desired revision opens public ingress while writer remains fenced
+
+- **GIVEN** a desired commit with matching tier digests and closed writer selector but open public ingress
+- **WHEN** first-start admits the actual referenced source
+- **THEN** it refuses before scaling or resuming Flux
+
+#### Scenario: Hidden PVC or public traffic actor exists
+
+- **GIVEN** an unlabeled or terminating PVC Pod, unknown capable controller, startup override or alternate allow policy
+- **WHEN** first-start observes complete live inventories
+- **THEN** it refuses and retains suspension, fences and its Lease
+
+#### Scenario: Durable journal disappeared while Lease remains parked
+
+- **GIVEN** an existing parked Lease and missing first-start journal
+- **WHEN** a new transaction attempts first-start
+- **THEN** it refuses before any cluster mutation
+
+### Requirement: First-start certifies every effective tier startup template
+
+Before any tier scale, every live tier Deployment and admitted ReplicaSet startup
+template SHALL match the descriptor-digest trusted release render. Actual descendant
+Pods SHALL satisfy the same startup contract during startup/handoff checks. Only
+explicit Kubernetes defaults and Pod scheduling fields SHALL normalize. Added executable
+probes, init containers, commands, lifecycle hooks, mounts or environment entries/references
+SHALL refuse. Live external Secret/ConfigMap value provenance SHALL remain separate
+operational acceptance; the coordinator SHALL bind reference identity without claiming
+external value-byte pinning.
+
+#### Scenario: Backend probe executes a database update
+
+- **GIVEN** the live backend adds an exec startup, readiness or liveness probe
+- **WHEN** first-start checks its startup contract
+- **THEN** it refuses before any scale
+
+#### Scenario: Owned application actor executes unreviewed startup code
+
+- **GIVEN** a live tier Deployment, owned ReplicaSet or descendant Pod adds an init container, command, hook, mount or environment override
+- **WHEN** first-start checks the effective startup template against the trusted release
+- **THEN** it refuses and keeps suspension, both ingress fences and its Lease
+
+### Requirement: First-start refuses mutation after asynchronous Lease loss
+
+The coordinator SHALL recheck Lease loss immediately before every cluster mutation
+and durable phase write after awaited observations. Compound adapter and source
+handoff operations SHALL recheck immediately before each internal mutation. A queued
+renewal SHALL refuse if a preceding heartbeat already lost the Lease. Known loss
+SHALL permit no further tier scale, source pin/resume, record or cleanup mutation.
+
+#### Scenario: Delayed safety observation returns after heartbeat failure
+
+- **GIVEN** the heartbeat loses the Lease while a tier safety observation is awaited
+- **WHEN** the safety observation returns successfully
+- **THEN** no tier scale occurs and the coordinator reports Lease loss
+
+#### Scenario: Source observation returns after Lease loss
+
+- **GIVEN** Lease loss during awaited source pin or final resume observations
+- **WHEN** the source operation reaches its conditional mutation
+- **THEN** it refuses before changing GitRepository or Kustomization

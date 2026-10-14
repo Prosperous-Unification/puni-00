@@ -1,5 +1,5 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 
 import { renderTemplate, siteCaddyTmpl } from '@tools/compose';
 import { parseAllDocuments } from 'yaml';
@@ -20,7 +20,9 @@ import {
   validateCutoverReplay,
 } from './cutover-replay';
 import { parseDescriptor, releaseIdentityOf } from './descriptor';
-import { backendTaskJob, releaseRecord, renderOverlay, run } from './execute';
+import { backendTaskJob, renderOverlay, run } from './execute';
+import { firstStartJournal, parseFirstStartRequest, startCutover } from './first-start';
+import { fenceFirstStartManifests, firstStartEffects } from './first-start-adapter';
 
 const USAGE = [
   'usage: cutover-cli fenced-site --site <host> --backend <container:3100> --frontend <container:80>',
@@ -28,7 +30,8 @@ const USAGE = [
   '       cutover-cli restore-job --image <be digest ref> --export-report <export-report.json>',
   '       cutover-cli verify-restore --export-report <export-report.json> --logs <restore job logs>',
   '       cutover-cli release-manifests --descriptor <descriptor.json> --environment staging|prod [--kubectl <path>]',
-  '       cutover-cli release-record --descriptor <descriptor.json>',
+  '       cutover-cli handoff-manifests --descriptor <descriptor.json> --environment staging|prod [--kubectl <path>]',
+  '       cutover-cli first-start --request <first-start-request.json> --state <first-start-state.json> [--kubectl <path>] [--kubeconfig <path>]',
   'export/restore-job/verify-restore also require --descriptor <file> --descriptor-sha256 <sha>; restore commands require --old-image <digest ref> --image <descriptor backend>',
 ].join('\n');
 
@@ -129,6 +132,37 @@ function readCutoverIdentity(args: readonly string[], exporting: boolean): Cutov
 /** The cutover's operator commands; each prints what the next step consumes. */
 export async function main(args: readonly string[]): Promise<string> {
   const [command] = args;
+  // Proof: restoring the descriptor-only route failed the CLI bypass refusal test.
+  if (command === 'release-record')
+    throw new Error('release-record requires the durable first-start coordinator; use first-start');
+  if (command === 'first-start') {
+    const raw: unknown = JSON.parse(readFileSync(required(args, '--request'), 'utf8'));
+    const request = parseFirstStartRequest(raw);
+    const state = resolve(required(args, '--state'));
+    const completed = await startCutover(
+      request,
+      firstStartJournal(state),
+      firstStartEffects({
+        kubectl: args.includes('--kubectl') ? required(args, '--kubectl') : 'kubectl',
+        kubeconfig: args.includes('--kubeconfig') ? required(args, '--kubeconfig') : null,
+        context: request.cluster.context,
+        namespaces: request.namespaces,
+        stateDir: dirname(state),
+        overlay: resolve(
+          import.meta.dir,
+          '../../../../deploy/k8s/wbs/overlays',
+          request.environment,
+        ),
+        anonymousProjectsStatus: 401,
+        rolloutTimeoutSeconds: 300,
+        jobTimeoutSeconds: 300,
+        drainTimeoutMs: 5000,
+        leaseDurationSeconds: 20,
+        log: console.error,
+      }),
+    );
+    return `first-start ${completed.transaction} ${completed.phase}; writes stay fenced; traffic opening requires the attended cutover`;
+  }
   if (command === 'fenced-site') {
     return renderTemplate(
       siteCaddyTmpl,
@@ -172,26 +206,26 @@ export async function main(args: readonly string[]): Promise<string> {
       2,
     );
   }
-  if (command === 'release-manifests' || command === 'release-record') {
+  if (command === 'release-manifests' || command === 'handoff-manifests') {
     const descriptor = parseDescriptor(
       JSON.parse(readFileSync(required(args, '--descriptor'), 'utf8')) as unknown,
     );
     const identity = releaseIdentityOf(descriptor);
-    if (command === 'release-record') return JSON.stringify(releaseRecord(identity), null, 2);
     const environment = required(args, '--environment');
     if (environment !== 'staging' && environment !== 'prod') {
       throw new Error(`--environment must be staging or prod, got ${environment}`);
     }
     const kubectlIndex = args.indexOf('--kubectl');
-    return prepareCutoverManifests(
-      await renderOverlay(
-        {
-          kubectl: kubectlIndex === -1 ? 'kubectl' : required(args, '--kubectl'),
-          overlay: resolve(import.meta.dir, '../../../../deploy/k8s/wbs/overlays', environment),
-        },
-        identity,
-      ),
+    const rendered = await renderOverlay(
+      {
+        kubectl: kubectlIndex === -1 ? 'kubectl' : required(args, '--kubectl'),
+        overlay: resolve(import.meta.dir, '../../../../deploy/k8s/wbs/overlays', environment),
+      },
+      identity,
     );
+    return command === 'handoff-manifests'
+      ? fenceFirstStartManifests(rendered, identity)
+      : prepareCutoverManifests(rendered);
   }
   if (command === 'verify-restore') {
     const exported = parseSqliteReport(
