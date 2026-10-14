@@ -33,7 +33,11 @@ export interface HistoricalSelection {
 const compareText = (left: string, right: string): number =>
   Buffer.compare(Buffer.from(left, 'utf8'), Buffer.from(right, 'utf8'));
 
-function readDeclaration(candidate: RetainedCandidate, requestedPath: string): Uint8Array {
+/** Reads current selected bytes, resolving retained symlinks without host path access. */
+export function readRetainedCurrent(
+  candidate: RetainedCandidate,
+  requestedPath: string,
+): Uint8Array {
   const seen = new Set<string>();
   const resolved: string[] = [];
   const remaining = requestedPath.split('/');
@@ -41,6 +45,7 @@ function readDeclaration(candidate: RetainedCandidate, requestedPath: string): U
     const component = remaining.shift();
     if (component === undefined || component === '' || component === '.') continue;
     if (component === '..') {
+      // Proof: omitting this pop-boundary check lost the mounted current-symlink escape refusal.
       if (resolved.pop() === undefined)
         throw new Error(`historical declaration escapes candidate: ${requestedPath}`);
       continue;
@@ -48,15 +53,19 @@ function readDeclaration(candidate: RetainedCandidate, requestedPath: string): U
     const path = [...resolved, component].join('/');
     const entry = candidate.snapshot.entries.find((selected) => selected.path === path);
     if (entry?.mode === '120000') {
+      // Proof: omission reached the retained read ceiling instead of the mounted cycle refusal.
       if (seen.has(path)) throw new Error(`historical declaration symlink cycle: ${requestedPath}`);
       seen.add(path);
       const raw = candidate.readBlob(entry.blob, path);
       let target: string;
       try {
+        // Proof: removing fatal UTF-8 lost the malformed-link refusal; stripping BOM lost
+        // SHA-256 current-symlink parity for the exact BOM-prefixed selected target.
         target = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(raw);
       } catch (cause) {
         throw new Error(`historical declaration symlink malformed: ${path}`, { cause });
       }
+      // Proof: independent empty, absolute and NUL predicate omissions lost their mounted refusals.
       if (target.length === 0 || target.startsWith('/') || target.includes('\0'))
         throw new Error(`historical declaration symlink target invalid: ${path}`);
       remaining.unshift(...target.split('/'));
@@ -98,7 +107,7 @@ export function deriveHistoricalSelections(
   const bySelector = new Map<string, HistoricalSelection>();
   let factCount = 0;
   for (const path of paths) {
-    const bytes = readDeclaration(candidate, path);
+    const bytes = readRetainedCurrent(candidate, path);
     if (bytes.length > limits.maximumDeclarationBytes)
       throw new Error(`historical declaration byte ceiling exceeded: ${path}`);
     let parsed: unknown;
