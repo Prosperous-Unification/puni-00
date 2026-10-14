@@ -259,6 +259,14 @@ Secret, runner and egress policy, so it carries the backend's admitted identity 
 backup, the release coordinator moves its image with every backend rollout, and
 `tool-fleet:check` compares those fields.
 
+`bunx nx run tool-deploy:test:backup` rehearses the shipped backup and verification CronJobs
+with the real backend image on disposable k3d. Verification Jobs retain the CronJob's command,
+credentials and admitted identity; isolated object prefixes carry damaged snapshot bytes, a
+changed migration report and an absent backup. The lab requires each failed Job to name its
+specific cause. [The verification evidence](../../openspec/changes/sqlite-verification-cronjob-lab/verify.md)
+records the runner and API proofs, and the current locked-MinIO image-pull blocker that prevents
+complete CronJob execution.
+
 `bunx nx run tool-fleet:health -- --cluster <id> --kubeconfig <k> --kubectl <path>` is
 read-only (any kubectl verb but `get` throws) and exits 1 on a critical finding. Rules: target
 marker, node Ready, etcd voter, newest ready `s3://` etcd snapshot within 7 h (node-local `file://` snapshots do not count), Flux objects Ready (suspended

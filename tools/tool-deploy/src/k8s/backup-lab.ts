@@ -1,13 +1,3 @@
-/**
- * Live proof of the release-shipped SQLite backup (deploy/k8s/wbs/base/backup.yaml) on a
- * disposable k3d cluster with F6's committed admission policy: the CronJob, run once, backs up a
- * real `wbs-data` PVC holding a known row to the local object store with the backend image, and
- * the runner's restore mode rebuilds that row in a fresh volume. It also shows F6 admission
- * refusing the job pod under the old non-backend image, which is why the job moved here.
- *
- * `bunx nx run tool-deploy:test:backup` (`K3D`, `KUBECTL` = locked binaries). Owns only
- * `puni-f11-backup*` objects and deletes them unless `--keep`.
- */
 import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -242,6 +232,119 @@ const s3Env = ['endpoint', 'bucket', 'region', 'access-key-id', 'secret-access-k
   valueFrom: { secretKeyRef: { name: 'sqlite-backup-s3', key } },
 }));
 
+/** Require the scheduled verification's expected outcome and, for faults, its specific cause. */
+export function requireVerification(
+  name: string,
+  outcome: 'succeeded' | 'failed',
+  logs: string,
+  failure?: string,
+): void {
+  // Proof: with this guard absent, backup-lab.test.ts accepted a failed known backup,
+  // an accepted corrupt snapshot and an unrelated connection failure (three failures).
+  const expected = failure === undefined ? 'succeeded' : 'failed';
+  if (outcome !== expected || (failure !== undefined && !logs.includes(failure))) {
+    throw new Error(
+      `Verification ${name} expected ${expected}${failure === undefined ? '' : `: ${failure}`}; observed ${outcome}:\n${logs}`,
+    );
+  }
+}
+
+/** Create a Job from the shipped verification CronJob, preserving its runner and identity. */
+async function runVerification(name: string, prefix?: string, failure?: string): Promise<string> {
+  let job = await k([
+    '-n',
+    'wbs-solver',
+    'create',
+    'job',
+    name,
+    '--from=cronjob/sqlite-backup-verify',
+    '--dry-run=client',
+    '-o',
+    'json',
+  ]);
+  if (prefix !== undefined) {
+    job = await k(
+      ['set', 'env', '--local', '-f', '-', `BACKUP_PREFIX=${prefix}`, '-o', 'json'],
+      job,
+    );
+  }
+  await k(['create', '-f', '-'], job);
+  const outcome = await waitJob(name);
+  const logs = await k(['-n', 'wbs-solver', 'logs', `job/${name}`]);
+  log(`${name}: ${outcome}\n${logs.trim().slice(-1000)}`);
+  requireVerification(name, outcome, logs, failure);
+  return logs;
+}
+
+/** Fault injector used only against the disposable lab's versioned object store. */
+export const VERIFICATION_FAULT_SCRIPT = String.raw`
+    const { S3Client } = require('bun');
+    const { createS3Store } = require('/runner/backup-sqlite.ts');
+    function requireEnv(name) {
+      const value = process.env[name];
+      if (value === undefined || value === '') throw new Error(name + ' must be set');
+      return value;
+    }
+    const store = createS3Store(new S3Client({
+      endpoint: requireEnv('S3_ENDPOINT'), bucket: requireEnv('S3_BUCKET'),
+      region: requireEnv('S3_REGION'), accessKeyId: requireEnv('AWS_ACCESS_KEY_ID'),
+      secretAccessKey: requireEnv('AWS_SECRET_ACCESS_KEY'), virtualHostedStyle: false,
+    }));
+    const report = JSON.parse(requireEnv('PUNI_REPORT'));
+    let snapshot = await store.get(report.objectKey);
+    const originalKey = report.objectKey;
+    report.objectKey = requireEnv('PUNI_PREFIX') + '/wbs/' + originalKey.split('/').at(-1);
+    if (requireEnv('PUNI_FAULT') === 'snapshot') {
+      const changed = new Uint8Array(snapshot.length + 1);
+      changed.set(snapshot);
+      changed[snapshot.length] = 1;
+      snapshot = changed;
+    } else {
+      report.migrations = report.migrations.map((migration, index) =>
+        index === 0 ? { ...migration, hash: 'f10-corrupt-migration-hash' } : migration);
+    }
+    report.objectVersion = await store.put(report.objectKey, snapshot, 'application/vnd.sqlite3');
+    await store.put(report.objectKey + '.report.json',
+      new TextEncoder().encode(JSON.stringify(report) + '\n'), 'application/json');
+    console.log('injected ' + requireEnv('PUNI_FAULT') + ' at ' + report.objectKey);
+  `;
+
+/** Copy a real snapshot under an isolated lab prefix, then damage only the selected boundary. */
+async function writeVerificationFault(
+  image: string,
+  reportLine: string,
+  fault: 'snapshot' | 'report',
+): Promise<string> {
+  const prefix = `f10-${fault}`;
+  const name = `f10-inject-${fault}`;
+
+  await k(
+    ['create', '-f', '-'],
+    JSON.stringify(
+      trustedJob(
+        name,
+        image,
+        ['bun', '-e', VERIFICATION_FAULT_SCRIPT],
+        [
+          { name: 'PUNI_REPORT', value: reportLine },
+          { name: 'PUNI_PREFIX', value: prefix },
+          { name: 'PUNI_FAULT', value: fault },
+          ...s3Env,
+        ],
+        [{ name: 'runner', mountPath: '/runner', readOnly: true }],
+        [{ name: 'runner', configMap: { name: 'sqlite-backup-runner' } }],
+      ),
+    ),
+  );
+  assert((await waitJob(name)) === 'succeeded', `${name} uploaded the isolated fault fixture`);
+  return prefix;
+}
+
+/**
+ * Prove the shipped backup, restore and scheduled verification on disposable k3d with F6
+ * admission and a real backend image. Owns only puni-f11-backup objects; deletes them unless
+ * --keep. K3D and KUBECTL name locked binaries. See docs/infra/recovery.md for proof limits.
+ */
 async function main(): Promise<void> {
   mkdirSync(state, { recursive: true, mode: 0o700 });
   assertMemory();
@@ -398,38 +501,42 @@ async function main(): Promise<void> {
     log(
       'F6 admission of the backup job pod: the old bun image is denied, the backend image is not',
     );
-    const cron = JSON.parse(
-      await k(['-n', 'wbs-solver', 'get', 'cronjob', 'sqlite-backup', '-o', 'json']),
-    ) as {
-      spec: {
-        jobTemplate: {
-          spec: { template: { metadata: object; spec: { containers: { image: string }[] } } };
+    for (const cronName of ['sqlite-backup', 'sqlite-backup-verify']) {
+      const cron = JSON.parse(
+        await k(['-n', 'wbs-solver', 'get', 'cronjob', cronName, '-o', 'json']),
+      ) as {
+        spec: {
+          jobTemplate: {
+            spec: { template: { metadata: object; spec: { containers: { image: string }[] } } };
+          };
         };
       };
-    };
-    const probe = (image: string) => {
-      const template = structuredClone(cron.spec.jobTemplate.spec.template);
-      template.spec.containers[0].image = image;
-      return run(
-        [...kubeArgs(), 'create', '--dry-run=server', '-f', '-'],
-        JSON.stringify({
-          apiVersion: 'v1',
-          kind: 'Pod',
-          metadata: { ...template.metadata, name: 'f11-backup-probe', namespace: 'wbs-solver' },
-          spec: template.spec,
-        }),
-        60_000,
+      const probe = (image: string) => {
+        const template = structuredClone(cron.spec.jobTemplate.spec.template);
+        template.spec.containers[0].image = image;
+        return run(
+          [...kubeArgs(), 'create', '--dry-run=server', '-f', '-'],
+          JSON.stringify({
+            apiVersion: 'v1',
+            kind: 'Pod',
+            metadata: { ...template.metadata, name: 'f11-backup-probe', namespace: 'wbs-solver' },
+            spec: template.spec,
+          }),
+          60_000,
+        );
+      };
+      const denied = await probe(OLD_BACKUP_IMAGE);
+      // Proof: the shipped verification template's old Bun image was denied by the disposable
+      // API with "approved backend image digest"; the actual backend digest was admitted.
+      assert(
+        denied.exitCode !== 0 && denied.stderr.includes('approved backend image digest'),
+        `${cronName}: the old bun-alpine image is denied by F6 admission`,
       );
-    };
-    const denied = await probe(OLD_BACKUP_IMAGE);
-    assert(
-      denied.exitCode !== 0 && denied.stderr.includes('approved backend image digest'),
-      'the old bun-alpine backup image is denied by F6 admission',
-    );
-    assert(
-      (await probe(identity.images.backend)).exitCode === 0,
-      'the backend-image backup pod is admitted',
-    );
+      assert(
+        (await probe(identity.images.backend)).exitCode === 0,
+        `${cronName}: the backend-image pod is admitted`,
+      );
+    }
 
     log('run the CronJob once');
     await k([
@@ -454,7 +561,7 @@ async function main(): Promise<void> {
       objectVersion: string;
       sourceRevision: string;
       sha256: string;
-      migrations: { name: string }[];
+      migrations: { name: string; hash: string }[];
     };
     assert(
       report.sourceRevision === sourceSha,
@@ -538,6 +645,37 @@ async function main(): Promise<void> {
     assert(
       JSON.stringify(restored.migrations) === JSON.stringify(report.migrations.map((m) => m.name)),
       'restored migration set equals the report',
+    );
+    log('run the shipped verification CronJob against the known migrated snapshot');
+    // The admitted backend runs the unchanged production runner; verify prints its validated
+    // BackupReport, the same boundary as the backup Job's report parsed above.
+    const verified = JSON.parse(await runVerification('f10-verify-known')) as typeof report;
+    assert(
+      verified.objectKey === report.objectKey &&
+        verified.sha256 === report.sha256 &&
+        JSON.stringify(verified.migrations) === JSON.stringify(report.migrations),
+      'scheduled verification returns the known snapshot digest and complete migration set',
+    );
+    // Proof: backup-lab.test.ts ran the production CLI against an empty prefix and observed
+    // "No SQLite backup report under f10-absent/wbs/" with a nonzero exit.
+    await runVerification('f10-verify-absent', 'f10-absent', 'No SQLite backup report under');
+    const snapshotPrefix = await writeVerificationFault(
+      identity.images.backend,
+      reportLine,
+      'snapshot',
+    );
+    // Proof: removing the production runner's SHA comparison made the injected-snapshot CLI
+    // test fail with exit 0; restoring it refused the appended byte with the expected cause.
+    await runVerification('f10-verify-snapshot', snapshotPrefix, 'bytes differ from its report');
+    const reportPrefix = await writeVerificationFault(
+      identity.images.backend,
+      reportLine,
+      'report',
+    );
+    await runVerification(
+      'f10-verify-report',
+      reportPrefix,
+      'migration set differs from its report',
     );
     log('all backup lab assertions passed');
   } finally {
