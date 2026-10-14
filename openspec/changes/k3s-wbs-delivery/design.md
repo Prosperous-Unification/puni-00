@@ -190,7 +190,7 @@ Docker/k3d execution is claimed by this slice. Existing-host storage is
 
 ## F11.1d first-start candidate
 
-`first-start.ts` uses a separate version 1 state file and sealed receipt; release
+`first-start.ts` uses a separate version 2 state file and sealed receipt; release
 journal schema 3 retains its existing meaning. The receipt binds original descriptor
 bytes and their operator pin, export and restore evidence, context/cluster UID,
 both namespace UIDs, PVC name/UID/path, restore Job name/UID, transaction, every tier
@@ -210,26 +210,32 @@ sealed transaction; it stops tiers and repeats the actual PVC observation with a
 fresh Job name. Changed restored bytes require reviewed recovery. The CLI and
 rehearsal use this coordinator; descriptor-only `release-record` now refuses.
 
-**Review blocker: source-tree admission.** The current candidate checks the source
-SHA before resume and checks the fence again after Flux reports that SHA applied.
-An operator can still name a valid digest-pinned revision containing the ordinary
-open writer NetworkPolicy. The exact unsafe trace is: coordinator checks closed
-fence → coordinator resumes Flux → Flux applies the open policy → callers can
-reach the backend → coordinator detects the open fence → coordinator suspends Flux,
-closes the fence and parks its Lease. Post-handoff refusal does not erase the
-possible acknowledged writes in that interval. No final safety claim or live
-activation is permitted while this gap remains.
+The source repair admits the live referenced GitRepository URL at the desired commit
+before scaling. Its sealed source receipt binds Kustomization/source UIDs, complete
+allowed build/source specs, current-generation artifact, exact Git tree and full
+flattened resource inventory against the trusted fenced release render and record.
+The source subtree must contain only a regular `release.yaml`; transforms, remote
+bases, symlinks and extra files refuse admission. Conditional UID/resourceVersion/spec
+patches pin `spec.ref.commit`, and admission is repeated immediately before conditional
+Kustomization resume. The immutable source pin survives first-start and attended
+opening; the laboratory explicitly returns to its branch protocol afterward.
 
-Proposed correction for architecture review: before any resume, read the exact
-desired Git tree through a trusted source observation, bind its rendered resource
-bytes/path to the pinned revision, and require the writer NetworkPolicy selector
-to remain fenced plus exact tier digests/PVC and startup contract. Record that
-source admission durably. A production-path negative must pin a real revision
-with matching images and an open writer selector, then prove refusal before
-`resumeFlux`; removing the source check must make the negative fail. Merely
-trusting operator-supplied rendered bytes without proving their commit binding
-cannot close the gap. The laboratory and `handoff-manifests` render a fenced
-revision, but that convention alone is not admission.
+The historical unsafe trace was: check fence → resume Flux → apply open policy →
+possible acknowledged writes → detect open fence → suspend/fence/park. Post-handoff
+refusal could not erase that interval. Real Git revision negatives now refuse both
+writer-open and public-open source before resume. Independent re-review and live
+acceptance remain required; this repair does not authorize activation.
+
+Both writer and public ingress selectors remain fenced. Backend readers retain their
+gateway/smoke TCP allowance for gateway health. Complete namespace policy inventories
+must match the trusted render and platform default deny; selectors cannot select the
+actual tier labels. All tiers stop before restart to drop existing gateway connections.
+All namespace Pods, including unlabeled and terminating claim users, and controllers
+are inventoried; only admitted backend descendants and suspended reviewed backups
+can reference the PVC. Backend volumes/mounts and labels are exact; init containers,
+command/args/lifecycle overrides refuse. Missing durable journal with any existing
+Lease refuses takeover before mutation. Attended traffic opening separately reviews
+and pins a revision opening both policies; SQLite authority remains disabled.
 
 The coordinated StepBlockage deletion slice adds own `deletionState` metadata on
 `delete_subtree`/`restore_subtree`. Independent Kubernetes traversal recognizes

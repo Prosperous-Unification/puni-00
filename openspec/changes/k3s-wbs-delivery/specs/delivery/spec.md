@@ -227,3 +227,33 @@ Before resuming Flux, the coordinator SHALL admit the exact desired source tree 
 - **GIVEN** the desired Flux revision pins the intended images but opens writer ingress
 - **WHEN** the coordinator attempts first-start handoff
 - **THEN** it refuses before Flux resumes and preserves the Lease, closed fence and suspension
+
+### Requirement: First-start admits complete immutable source and traffic actors
+
+Before scale or resume, the coordinator SHALL admit actual live referenced GitRepository
+URL/commit bytes, bind source and Kustomization UIDs/config/artifact, conditionally pin
+that commit, and require one regular release.yaml with complete trusted fenced resource
+inventory. It SHALL revalidate immediately before conditional resume. Backend mount,
+volume and label contracts SHALL be exact and startup overrides SHALL refuse. Complete
+Pod/controller and NetworkPolicy inventories SHALL refuse alternate writers/public
+allowances. Writer and public ingress SHALL remain fenced while backend readers remain
+available for gateway readiness. A missing journal with an existing Lease SHALL refuse
+before mutation.
+
+#### Scenario: Desired revision opens public ingress while writer remains fenced
+
+- **GIVEN** a desired commit with matching tier digests and closed writer selector but open public ingress
+- **WHEN** first-start admits the actual referenced source
+- **THEN** it refuses before scaling or resuming Flux
+
+#### Scenario: Hidden PVC or public traffic actor exists
+
+- **GIVEN** an unlabeled or terminating PVC Pod, unknown capable controller, startup override or alternate allow policy
+- **WHEN** first-start observes complete live inventories
+- **THEN** it refuses and retains suspension, fences and its Lease
+
+#### Scenario: Durable journal disappeared while Lease remains parked
+
+- **GIVEN** an existing parked Lease and missing first-start journal
+- **WHEN** a new transaction attempts first-start
+- **THEN** it refuses before any cluster mutation

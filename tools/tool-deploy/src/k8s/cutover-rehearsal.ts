@@ -44,6 +44,7 @@ import {
 } from './execute';
 import { firstStartJournal, type FirstStartRequest, startCutover } from './first-start';
 import { fenceFirstStartManifests, firstStartEffects } from './first-start-adapter';
+import { buildSourceRefPatch } from './first-start-source';
 import { serveGitHttp } from './git-http';
 import { fileJournal } from './journal';
 import { type ReleaseIdentity, releaseIdOf, type ReleaseRequest } from './release';
@@ -654,7 +655,10 @@ async function commitRelease(
     { kubectl, overlay: join(ROOT, 'deploy/k8s/wbs/overlays/local') },
     identity,
   );
-  writeFileSync(join(clone, MANIFEST), fenced ? fenceFirstStartManifests(rendered) : rendered);
+  writeFileSync(
+    join(clone, MANIFEST),
+    fenced ? fenceFirstStartManifests(rendered, identity) : rendered,
+  );
   git(clone, 'add', MANIFEST);
   git(clone, 'commit', '--quiet', '-m', message);
   git(clone, 'push', '--quiet', 'origin', 'main');
@@ -1075,6 +1079,7 @@ async function main(): Promise<void> {
     const uidOf = async (namespace: string, kind: string, name: string): Promise<string> =>
       (await k(['-n', namespace, 'get', kind, name, '-o', 'jsonpath={.metadata.uid}'])).trim();
     const first: FirstStartRequest = {
+      environment: 'local',
       identity: binding,
       exported,
       restored,
@@ -1120,6 +1125,25 @@ async function main(): Promise<void> {
     log('attended laboratory traffic opening after successful fenced first-start handoff');
     await setSuspended(true);
     c1 = await commitRelease(identity, 'wbs: attended laboratory traffic opening');
+    const pin: unknown = JSON.parse(
+      await k([
+        '-n',
+        FLUX.namespace,
+        'get',
+        `gitrepositories.source.toolkit.fluxcd.io/${FLUX.gitRepository}`,
+        '-o',
+        'json',
+      ]),
+    );
+    await k([
+      '-n',
+      FLUX.namespace,
+      'patch',
+      `gitrepositories.source.toolkit.fluxcd.io/${FLUX.gitRepository}`,
+      '--type=json',
+      '-p',
+      JSON.stringify(buildSourceRefPatch(pin, { commit: c1 })),
+    ]);
     await requestReconcile();
     await until('attended traffic source', 240_000, async () =>
       (await fluxField('gitrepository', '.status.artifact.revision')).endsWith(c1),
@@ -1134,6 +1158,29 @@ async function main(): Promise<void> {
     assert(listed.status === 200, `GET /api/projects with Host: ${SITE} answers 200`);
     for (const name of KNOWN)
       assert(listed.body.includes(name), `known row ${name} is served by k3s`);
+
+    log(
+      'attended laboratory transition from the completed first-start commit pin to the F8 release protocol',
+    );
+    const completedPin: unknown = JSON.parse(
+      await k([
+        '-n',
+        FLUX.namespace,
+        'get',
+        `gitrepositories.source.toolkit.fluxcd.io/${FLUX.gitRepository}`,
+        '-o',
+        'json',
+      ]),
+    );
+    await k([
+      '-n',
+      FLUX.namespace,
+      'patch',
+      `gitrepositories.source.toolkit.fluxcd.io/${FLUX.gitRepository}`,
+      '--type=json',
+      '-p',
+      JSON.stringify(buildSourceRefPatch(completedPin, { branch: 'main' })),
+    ]);
 
     log('F8 deploy:k3s through the WBS Flux unit: publish only while suspended, resume onto it');
     await sh(

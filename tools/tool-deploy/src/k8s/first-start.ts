@@ -15,6 +15,7 @@ import {
 } from './cutover-replay';
 import { parseDescriptor, releaseIdentityOf } from './descriptor';
 import type { ReleaseEffects } from './execute';
+import { parseSourceReceipt, type SourceReceipt } from './first-start-source';
 import { sha256Of } from './migration-capture';
 import {
   type ClusterIdentity,
@@ -27,6 +28,7 @@ import {
 
 /** Original restored bytes and immutable cluster objects admitted by this first installation. */
 export interface FirstStartRequest {
+  environment: 'local' | 'staging' | 'prod';
   identity: CutoverIdentity;
   exported: SqliteReport;
   restored: SqliteReport;
@@ -50,12 +52,13 @@ type Phase = (typeof PHASES)[number];
 
 /** Separate from release journal schema 3; receipt seals the actual stopped-writer observation. */
 export interface FirstStartState {
-  version: 1;
+  version: 2;
   transaction: string;
   requestBytes: string;
   requestSha256: string;
   phase: Phase;
   receipt: { bytes: string; sha256: string } | null;
+  source: SourceReceipt | null;
 }
 
 /** Missing is a new transaction; malformed/unreadable state always throws. */
@@ -82,7 +85,9 @@ export interface FirstStartEffects extends Pick<
 > {
   /** Read-only target identity/template check before the Lease or any cluster mutation. */
   assertTarget(request: FirstStartRequest): Promise<void>;
-  stopTiers(): Promise<void>;
+  admitSource(request: FirstStartRequest, prior: SourceReceipt | null): Promise<SourceReceipt>;
+  resumeSource(request: FirstStartRequest, source: SourceReceipt): Promise<void>;
+  stopTiers(request: FirstStartRequest): Promise<void>;
   /** Checks cluster/namespaces/PVC, closed fence, suspension and optional absence of writer Pods. */
   assertSafety(request: FirstStartRequest, stopped: boolean, handed: boolean): Promise<void>;
   /** Requires the named completed restore Job UID, image, PVC mount and its original report. */
@@ -111,6 +116,11 @@ function verifyReport(report: SqliteReport): void {
 
 /** Refuses foreign descriptors, missing immutable object identities and unverified restore reports. */
 export function assertFirstStartRequest(request: FirstStartRequest): ReleaseIdentity {
+  // Proof: malformed operator namespace negative fails when trusted namespace admission is omitted.
+  if (request.namespaces.app !== 'wbs' || request.namespaces.backend !== 'wbs-solver')
+    throw new Error('first-start namespaces differ from the trusted WBS render');
+  if (!['local', 'staging', 'prod'].includes(request.environment))
+    throw new Error('first-start trusted render environment is invalid');
   createCutoverIdentity(
     request.identity.descriptorBytes,
     request.identity.descriptorSha256,
@@ -178,6 +188,14 @@ export function parseFirstStartRequest(raw: unknown): FirstStartRequest {
   const restore = requireRecord(fields['restore']);
   const flux = requireRecord(fields['flux']);
   const request: FirstStartRequest = {
+    environment:
+      fields['environment'] === 'local' ||
+      fields['environment'] === 'staging' ||
+      fields['environment'] === 'prod'
+        ? fields['environment']
+        : (() => {
+            throw new Error('first-start trusted render environment is invalid');
+          })(),
     identity: createCutoverIdentity(
       text(identity, 'descriptorBytes'),
       text(identity, 'descriptorSha256'),
@@ -240,7 +258,7 @@ export function parseFirstStartState(raw: unknown, request: FirstStartRequest): 
   const fields = requireRecord(raw);
   // Proof: request-binding omission allows a changed PVC UID to resume without evidence.
   if (
-    fields['version'] !== 1 ||
+    fields['version'] !== 2 ||
     typeof fields['transaction'] !== 'string' ||
     !/^first-start-[0-9a-f]{16}$/.test(fields['transaction']) ||
     fields['requestBytes'] !== JSON.stringify(request) ||
@@ -249,6 +267,8 @@ export function parseFirstStartState(raw: unknown, request: FirstStartRequest): 
     !(PHASES as readonly string[]).includes(fields['phase'])
   )
     throw new Error('first-start state belongs to another request or version');
+  if (fields['phase'] !== 'requested' || fields['source'] !== null)
+    parseSourceReceipt(fields['source'], request);
   if (fields['phase'] !== 'requested' || fields['receipt'] !== null) {
     const receipt = requireRecord(fields['receipt']);
     // Proof: receipt null/digest omission admits corrupted durable admission before scaling.
@@ -329,12 +349,13 @@ export async function startCutover(
   let state: FirstStartState =
     raw === null
       ? {
-          version: 1,
+          version: 2,
           transaction: `first-start-${randomBytes(8).toString('hex')}`,
           requestBytes: JSON.stringify(request),
           requestSha256: sha256Of(JSON.stringify(request)),
           phase: 'requested',
           receipt: null,
+          source: null,
         }
       : parseFirstStartState(raw, request);
   if (state.phase === 'complete') return state;
@@ -342,6 +363,11 @@ export async function startCutover(
   await effects.assertTarget(request);
   const holder = `${state.transaction}#${randomBytes(4).toString('hex')}`;
   const observed = await effects.readLease();
+  // Proof: omission accepted a parked transaction after its journal disappeared (parked-Lease negative).
+  if (raw === null && observed !== null)
+    throw new Error(
+      'first-start Lease exists without its durable transaction journal; manual recovery required',
+    );
   const decision = decideLease(
     observed,
     {
@@ -396,8 +422,11 @@ export async function startCutover(
     await effects.suspendFlux(request.flux);
     await effects.closeWrites();
     await renew();
-    await effects.stopTiers();
+    await effects.stopTiers(request);
     await effects.assertSafety(request, true, false);
+    await renew();
+    state = { ...state, source: await effects.admitSource(request, state.source) };
+    persist('requested');
     const restored = await effects.observeRestore(request);
     verifyReport(restored);
     assertRestoredMatches(request.exported, restored);
@@ -410,6 +439,7 @@ export async function startCutover(
     assertObservation(request, actual);
     await renew();
     await effects.assertSafety(request, true, false);
+    state = { ...state, source: await effects.admitSource(request, state.source) };
     const bytes = JSON.stringify({
       transaction: state.transaction,
       requestSha256: state.requestSha256,
@@ -445,7 +475,8 @@ export async function startCutover(
     )
       throw new Error('first-start Flux source differs from pinned revision');
     await effects.assertSafety(request, false, false);
-    await effects.resumeFlux(request.flux, request.flux.desiredRevision);
+    if (state.source === null) throw new Error('first-start source receipt is missing');
+    await effects.resumeSource(request, state.source);
     await renew();
     await effects.assertSafety(request, false, true);
     await effects.verifyTiers(release);

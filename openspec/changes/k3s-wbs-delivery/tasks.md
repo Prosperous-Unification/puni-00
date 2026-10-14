@@ -48,7 +48,7 @@
 - [ ] F11.1d — Implement first-start scale/release-record/Flux admission, then observe live acceptance before cutover activation.
   - [x] TDD separate durable first-start state/receipt, exact descriptor/export/restore/cluster/namespace/PVC identities, fresh actual PVC replay and disabled activation authority, all-tier start and release-record readback.
   - [x] Route CLI and rehearsal through the coordinator; refuse descriptor-only release records and prepare a fenced desired Flux revision.
-  - [ ] Review and close the pre-resume source-tree admission gap: an unfenced pinned revision can briefly open ingress before post-handoff refusal.
+  - [ ] Independently re-review repaired immutable source/complete manifest, Pod/controller and dual-fence admission; observe gateway readiness and authenticated WS/journal lab negatives.
   - [ ] Observe Docker/k3d, staging and attended production acceptance; the first-start implementation candidate does not authorize activation.
 - [ ] F11.1 — Before guarded-history import or first rollout, implement the [Kubernetes replay capability prerequisite](../add-step-node-blocking/design.md#kubernetes-pre-cutover-obligation), including rollback refusal before writer reopening and watched nested-marker omission proofs.
   - [x] `tool-fleet:check`: schema, strict YAML, Ansible syntax and real hcloud inventory

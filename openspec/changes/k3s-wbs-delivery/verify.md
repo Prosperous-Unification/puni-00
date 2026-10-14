@@ -826,3 +826,66 @@ export/import or first rollout, h4 acceptance, staging/GitHub Actions acceptance
 canonical host gate, full workspace gate, production cutover, marker activation,
 push or merge was performed. Independent architecture review must decide the
 source-tree admission repair before this candidate can satisfy F11.1d.
+
+## F11.1d repair candidate after independent high review
+
+The repair adds a version 2 separate coordinator state with sealed actual-source
+receipt; release journal schema 3 remains intact. It fetches the live referenced
+GitRepository URL at the exact desired SHA, requires only a regular release.yaml
+in the named subtree, and compares the complete flattened resource inventory to
+trusted environment render plus descriptor release record. Source/Kustomization
+UIDs, allowed specs and current-generation artifact are bound, commit pinning and
+resume use UID/resourceVersion/spec preconditions, and source admission is repeated
+immediately before resume. The rehearsal keeps the source pinned through its
+attended opening and explicitly returns to the F8 branch lab protocol afterward.
+
+Backend exact mounts/volumes/labels and startup overrides now refuse the reproduced
+shadow mount, initContainer, command, args, lifecycle and fence-selector label.
+Live Pod and capable controller inventory includes unlabeled and terminating PVC
+users and reviewed suspended backup workloads. Complete policy inventories require
+default deny, writer and public ingress fences, with backend reader allowances
+retained for gateway readiness. All tiers stop before restart. Missing durable
+journal with an existing Lease refuses before mutation.
+
+### Watched repair omissions
+
+Twenty-one temporary mutation groups returned exit 1 with named failed
+production-path tests. Source was restored in finally before final verification.
+Local logs: `/tmp/puni-f11-first-start-repair-proofs/<fault>.log`.
+
+| Injected fault groups                                                                                     | Observed failed negative                                                                                            |
+| --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| backend-overrides; backend-shadow-mount/init-container/command/args/lifecycle/fence-label (each isolated) | Production backend template refusal; each reproduced override becomes admitted when exact override guard is removed |
+| source-inventory, source-flat-tree                                                                        | Real Git open writer/public or extra resource revisions; real Git symlink/additional subtree entries                |
+| source-config, source-generation, source-preconditions                                                    | Unsupported postBuild/decryption/images/include; stale-generation artifact; removed UID/version/spec patch tests    |
+| policy-inventory, policy-selector                                                                         | Alternate allow policy; fenced selector selecting actual backend                                                    |
+| pvc-pods, pvc-controllers                                                                                 | Unlabeled/terminating/readonly/pending/init-only PVC user; unknown capable controller                               |
+| app-pods, app-completeness, app-controllers                                                               | Live public traffic Pod; missing intended Deployment; unknown app controller                                        |
+| namespace, parked-journal                                                                                 | Operator namespace outside trusted render; parked Lease with missing durable journal                                |
+
+The real Git fixtures map the observed HTTP fixture URL to a local bare repository
+through the source transport seam; they exercise actual commit/tree/blob parsing.
+They do not claim a live HTTP credential or Flux artifact download proof. Production
+source fetch requires operator Git credentials capable of reading the live URL.
+
+### Fresh scoped evidence
+
+- Focused six-file first-start/source/writers/policies/adapter/CLI Bun suite: exit 0,
+  135 pass, 0 fail, 293 assertions (35.15s); log `/tmp/puni-f11-repair-final-tests.log`.
+- Scoped Nx lint/typecheck with cache skipped: exit 0; log
+  `/tmp/puni-f11-repair-final-static.log`. Initial lint found import order and one
+  void-expression test callback; autofix resolved both and Nx was rerun.
+- `tool-deploy:build`: exit 0, target and seven dependencies; seven dependencies
+  cached, shellcheck target freshly ran. Log `/tmp/puni-f11-repair-final-build.log`.
+- Scoped Nx `format:check --files=<all changed and new paths>` and `git diff --check`: exit 0; format log `/tmp/puni-f11-repair-final-format.log`.
+- Pinned `OPENSPEC_TELEMETRY=0 BUN_TMPDIR=/tmp BUN_INSTALL=/tmp/puni-f11-bun bunx @fission-ai/openspec@1.12.0 validate k3s-wbs-delivery --strict`:
+  exit 0, change valid; log `/tmp/puni-f11-repair-openspec.log`.
+
+F11.1d remains unchecked for independent re-review and live acceptance. No live
+cluster was touched. kubectl and k3d are absent, and Docker socket access is denied
+in this sandbox. Required outstanding laboratory proof: both fences closed permits
+gateway readiness, authenticated external WebSocket forwarding cannot change the
+SQLite journal, and removing public fence makes that negative fail. Staging,
+attended opening, h4 and canonical full host gate remain unverified. The historical
+project socket suite EPERM checks remain unavailable, not passing. No push, merge,
+production cutover or marker activation occurred.

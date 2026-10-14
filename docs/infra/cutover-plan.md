@@ -172,13 +172,15 @@ from a checkout of the authorized commit on h2puni (`/home/puni1/wbs-build`) unl
    verifies their digests/rollout, persists and reads back the release record, then adopts Flux.
    Descriptor-only `release-record` refuses. `handoff-manifests` renders the desired source
    with a closed writer fence; preparation still holds every Deployment at zero.
-   **Do not run this candidate:** the pre-resume source-tree admission gap in
-   [the design](../../openspec/changes/k3s-wbs-delivery/design.md#f111d-first-start-candidate)
-   must be closed and independently reviewed first. A matching revision can open ingress
-   before the current post-handoff check detects it. Source and post-handoff closed-fence
-   admission, Docker/k3d/staging evidence and attended acceptance remain required.
-   Step 9 requires a separately reviewed traffic-opening revision; successful first-start
-   leaves ingress fenced and does not enable the SQLite blockage marker.
+   **Do not run this candidate before independent re-review and live acceptance.**
+   The repaired source receipt pins the actual GitRepository commit and admits its
+   complete flat release inventory before scale/resume. Both writer and public ingress
+   fences remain closed, with backend reader allowances retained for gateway health.
+   Complete policy, Pod and controller inventories and exact backend startup mounts
+   are required. Docker/k3d/staging evidence and attended acceptance remain outstanding.
+   Step 9 pins a separately reviewed revision opening both fences; successful first-start
+   does not enable the SQLite blockage marker. The immutable source commit remains
+   pinned through attended opening.
 
 9. **Smoke with a host override** (`smoke-host-override`) `[operator]`:
    `curl --resolve wbs.bulletpoints.club:443:$NEW_IP https://wbs.bulletpoints.club/` (200) and

@@ -148,7 +148,11 @@ export async function main(args: readonly string[]): Promise<string> {
         context: request.cluster.context,
         namespaces: request.namespaces,
         stateDir: dirname(state),
-        overlay: '',
+        overlay: resolve(
+          import.meta.dir,
+          '../../../../deploy/k8s/wbs/overlays',
+          request.environment,
+        ),
         anonymousProjectsStatus: 401,
         rolloutTimeoutSeconds: 300,
         jobTimeoutSeconds: 300,
@@ -220,7 +224,7 @@ export async function main(args: readonly string[]): Promise<string> {
       identity,
     );
     return command === 'handoff-manifests'
-      ? fenceFirstStartManifests(rendered)
+      ? fenceFirstStartManifests(rendered, identity)
       : prepareCutoverManifests(rendered);
   }
   if (command === 'verify-restore') {

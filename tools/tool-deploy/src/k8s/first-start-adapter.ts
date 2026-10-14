@@ -1,18 +1,37 @@
 import { randomBytes } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 import { parseAllDocuments } from 'yaml';
 
 import { parseSqliteReport, SQLITE_REPORT_SCRIPT } from './cutover';
 import { restoreCommand, restoreEnvironment } from './cutover';
 import { cutoverEnvironment } from './cutover-replay';
+import { parseDescriptor, releaseIdentityOf } from './descriptor';
 import {
   backendTaskJob,
   kubectlEffects,
   type KubectlSettings,
   matchesProjection,
+  releaseRecord,
+  renderOverlay,
   run,
 } from './execute';
 import type { FirstStartEffects, FirstStartRequest } from './first-start';
+import { assertFirstStartPolicies } from './first-start-policies';
+import {
+  admitFirstStartSource,
+  readFirstStartTree,
+  resumeFirstStartSource,
+  type SourcePort,
+} from './first-start-source';
+import { manifestInventory } from './first-start-source';
+import {
+  assertAppActors,
+  assertPvcControllers,
+  assertPvcWriters,
+  mountsPvc,
+} from './first-start-writers';
 import { K8S_TIERS, type K8sTier, type ReleaseIdentity } from './release';
 
 /** Always inspect the actual file. Restore markers and earlier replay receipts cannot substitute. */
@@ -34,24 +53,47 @@ console.log('PUNI_FIRST_START_OBSERVATION '+JSON.stringify({activation,replay:ob
 `;
 
 /** First Flux adoption must preserve the closed fence until attended traffic opening. */
-export function fenceFirstStartManifests(rendered: string): string {
+export function fenceFirstStartManifests(rendered: string, identity?: ReleaseIdentity): string {
   let fences = 0;
-  const objects = parseAllDocuments(rendered).map((document) => {
+  let publicFences = 0;
+  const objects: Record<string, unknown>[] = [];
+  function collect(raw: unknown): void {
+    const resource = requireRecord(raw);
+    if (resource['kind'] === 'List') {
+      if (!Array.isArray(resource['items']))
+        throw new Error('first-start handoff List is malformed');
+      for (const child of resource['items']) collect(child);
+    } else objects.push(resource);
+  }
+  for (const document of parseAllDocuments(rendered)) {
     if (document.errors.length !== 0) throw new Error('first-start handoff manifest is malformed');
-    const object = requireRecord(document.toJS() as unknown);
+    collect(document.toJS() as unknown);
+  }
+  for (const object of objects) {
     if (
       object['kind'] === 'NetworkPolicy' &&
-      requireRecord(object['metadata'])['name'] === 'wbs-backend-writers'
+      ['wbs-backend-writers', 'wbs-public-ingress'].includes(
+        String(requireRecord(object['metadata'])['name']),
+      )
     ) {
       requireRecord(object['spec'])['podSelector'] = {
         matchLabels: { 'puni.dev/writes': 'fenced' },
       };
-      fences++;
+      if (requireRecord(object['metadata'])['name'] === 'wbs-backend-writers') fences++;
+      else publicFences++;
     }
-    return object;
-  });
+    if (
+      object['kind'] === 'CronJob' &&
+      ['sqlite-backup', 'sqlite-backup-verify'].includes(
+        String(requireRecord(object['metadata'])['name']),
+      )
+    )
+      requireRecord(object['spec'])['suspend'] = true;
+  }
   // Proof: omission made missing/duplicate fences pass the first Flux handoff rendering fixture.
-  if (fences !== 1) throw new Error('first-start handoff requires exactly one writer fence');
+  if (fences !== 1 || publicFences !== 1)
+    throw new Error('first-start handoff requires exactly one writer and public ingress fence');
+  if (identity !== undefined) objects.push(releaseRecord(identity));
   return JSON.stringify({ apiVersion: 'v1', kind: 'List', items: objects });
 }
 
@@ -144,6 +186,41 @@ export function assertFirstStartBackend(raw: unknown): void {
   const dataMounts = Array.isArray(mounts)
     ? mounts.filter((raw) => requireRecord(raw)['name'] === 'data')
     : [];
+  const allowedMounts = [
+    { name: 'data', mountPath: '/data' },
+    { name: 'tmp', mountPath: '/tmp' },
+    { name: 'solver-runtime', mountPath: '/run/wbs-solver' },
+  ];
+  const allowedVolumes = [
+    { name: 'data', persistentVolumeClaim: { claimName: 'wbs-data' } },
+    { name: 'tmp', emptyDir: { sizeLimit: '256Mi' } },
+    { name: 'solver-runtime', hostPath: { path: '/run/puni/solver', type: 'Directory' } },
+  ];
+  const labels = requireRecord(requireRecord(template['metadata'])['labels']);
+  const allowedLabels = {
+    'app.kubernetes.io/name': 'wbs-backend',
+    'app.kubernetes.io/part-of': 'wbs',
+    'puni.dev/controller': 'wbs-backend',
+    'puni.dev/writer': 'true',
+  };
+  // Proof: shadow-mount/init/command/args/lifecycle/fence-label omissions admit each reproduced override.
+  if (
+    !Array.isArray(mounts) ||
+    mounts.length !== allowedMounts.length ||
+    allowedMounts.some(
+      (expected) => mounts.filter((raw) => matchesProjection(raw, expected)).length !== 1,
+    ) ||
+    volumes.length !== allowedVolumes.length ||
+    allowedVolumes.some(
+      (expected) => volumes.filter((raw) => matchesProjection(raw, expected)).length !== 1,
+    ) ||
+    Object.hasOwn(pod, 'initContainers') ||
+    Object.hasOwn(pod, 'ephemeralContainers') ||
+    ['command', 'args', 'lifecycle'].some((field) => Object.hasOwn(container, field)) ||
+    Object.keys(labels).length !== Object.keys(allowedLabels).length ||
+    !matchesProjection(labels, allowedLabels)
+  )
+    throw new Error('first-start backend has unadmitted mounts, startup overrides or labels');
   // Proof: template fixture mutations expose foreign DB/path/PVC, migration startup, subPath,
   // rolling-update overlap and absent writer labels through the production template boundary.
   if (
@@ -186,6 +263,143 @@ export function firstStartEffects(settings: KubectlSettings): FirstStartEffects 
     JSON.parse(await k([...args, '-o', 'json'])) as unknown;
   const namespaceOf = (tier: K8sTier): string =>
     tier === 'backend' ? settings.namespaces.backend : settings.namespaces.app;
+  const trustedManifest = async (request: FirstStartRequest): Promise<string> => {
+    const release = releaseIdentityOf(
+      parseDescriptor(JSON.parse(request.identity.descriptorBytes) as unknown),
+    );
+    return fenceFirstStartManifests(
+      await renderOverlay(
+        {
+          kubectl: settings.kubectl,
+          overlay: resolve(
+            import.meta.dir,
+            '../../../../deploy/k8s/wbs/overlays',
+            request.environment,
+          ),
+        },
+        release,
+      ),
+      release,
+    );
+  };
+  function sourcePort(request: FirstStartRequest): SourcePort {
+    const ks = `kustomizations.kustomize.toolkit.fluxcd.io/${request.flux.kustomization}`;
+    const git = `gitrepositories.source.toolkit.fluxcd.io/${request.flux.gitRepository}`;
+    return {
+      readKustomization: () => json(['-n', request.flux.namespace, 'get', ks]),
+      readGitRepository: () => json(['-n', request.flux.namespace, 'get', git]),
+      patchGitRepository: async (patch) => {
+        await k([
+          '-n',
+          request.flux.namespace,
+          'patch',
+          git,
+          '--type=json',
+          '-p',
+          JSON.stringify(patch),
+        ]);
+      },
+      patchKustomization: async (patch) => {
+        await k([
+          '-n',
+          request.flux.namespace,
+          'patch',
+          ks,
+          '--type=json',
+          '-p',
+          JSON.stringify(patch),
+        ]);
+      },
+      readTree: (url, revision, path) => readFirstStartTree(settings.stateDir, url, revision, path),
+      trustedManifest,
+      sleep: () => Bun.sleep(1000),
+      timeoutMs: settings.rolloutTimeoutSeconds * 1000,
+    };
+  }
+  async function observeControllers(
+    request: FirstStartRequest,
+    stopped: boolean,
+  ): Promise<ReadonlySet<string>> {
+    const list = requireRecord(
+      await json([
+        '-n',
+        request.namespaces.backend,
+        'get',
+        'deployments,replicasets,statefulsets,daemonsets,replicationcontrollers,jobs,cronjobs,horizontalpodautoscalers',
+      ]),
+    );
+    const rows = list['items'];
+    if (!Array.isArray(rows)) throw new Error('first-start controller inventory is malformed');
+    const backend = requireRecord(
+      await json(['-n', request.namespaces.backend, 'get', 'deployment', 'wbs-backend']),
+    );
+    const uid = requireRecord(backend['metadata'])['uid'];
+    if (typeof uid !== 'string' || uid === '')
+      throw new Error('first-start backend controller UID is absent');
+    const trusted: unknown = JSON.parse(manifestInventory(await trustedManifest(request)));
+    if (!Array.isArray(trusted))
+      throw new Error('first-start trusted controller inventory is malformed');
+    const backups = new Set<string>();
+    for (const raw of rows) {
+      const controller = requireRecord(raw);
+      if (controller['kind'] !== 'CronJob') continue;
+      const metadata = requireRecord(controller['metadata']);
+      const expected: unknown = trusted.find((raw) => {
+        const resource = requireRecord(raw);
+        return (
+          resource['kind'] === 'CronJob' &&
+          requireRecord(resource['metadata'])['name'] === metadata['name'] &&
+          requireRecord(resource['metadata'])['namespace'] === request.namespaces.backend
+        );
+      });
+      if (expected === undefined) continue;
+      const template = requireRecord(requireRecord(controller['spec'])['jobTemplate']);
+      const pinned = requireRecord(requireRecord(requireRecord(expected)['spec'])['jobTemplate']);
+      const pod = requireRecord(requireRecord(template['spec'])['template']);
+      const ps = requireRecord(pod['spec']);
+      if (
+        !matchesProjection(template, pinned) ||
+        Object.hasOwn(ps, 'initContainers') ||
+        Object.hasOwn(ps, 'ephemeralContainers')
+      )
+        throw new Error('first-start backup controller template differs');
+      const backupUid = metadata['uid'];
+      if (typeof backupUid !== 'string' || backupUid === '')
+        throw new Error('first-start backup controller UID is absent');
+      backups.add(backupUid);
+    }
+    return assertPvcControllers(list, request.pvc.name, stopped, uid, backups);
+  }
+  async function pauseBackups(request: FirstStartRequest): Promise<void> {
+    for (const name of ['sqlite-backup', 'sqlite-backup-verify']) {
+      const raw = requireRecord(
+        await json(['-n', request.namespaces.backend, 'get', 'cronjob', name]),
+      );
+      const metadata = requireRecord(raw['metadata']);
+      const spec = requireRecord(raw['spec']);
+      if (spec['suspend'] === true) continue;
+      const patch = [
+        { op: 'test', path: '/metadata/uid', value: metadata['uid'] },
+        { op: 'test', path: '/metadata/resourceVersion', value: metadata['resourceVersion'] },
+        { op: 'test', path: '/spec', value: spec },
+        {
+          op: Object.hasOwn(spec, 'suspend') ? 'replace' : 'add',
+          path: '/spec/suspend',
+          value: true,
+        },
+      ];
+      await k([
+        '-n',
+        request.namespaces.backend,
+        'patch',
+        'cronjob',
+        name,
+        '--type=json',
+        '-p',
+        JSON.stringify(patch),
+      ]);
+    }
+  }
   async function verifyTiers(identity: ReleaseIdentity): Promise<void> {
     for (const tier of K8S_TIERS) {
       const observed = requireRecord(
@@ -215,6 +429,8 @@ export function firstStartEffects(settings: KubectlSettings): FirstStartEffects 
     }
   }
   return {
+    admitSource: (request, prior) => admitFirstStartSource(request, sourcePort(request), prior),
+    resumeSource: (request, source) => resumeFirstStartSource(request, sourcePort(request), source),
     readLease: real.readLease.bind(real),
     async assertTarget(request) {
       if (
@@ -239,36 +455,56 @@ export function firstStartEffects(settings: KubectlSettings): FirstStartEffects 
     renewLease: real.renewLease.bind(real),
     parkLease: real.parkLease.bind(real),
     releaseLease: real.releaseLease.bind(real),
-    closeWrites: real.closeWrites.bind(real),
+    async closeWrites() {
+      await real.closeWrites();
+      await k([
+        '-n',
+        settings.namespaces.app,
+        'patch',
+        'networkpolicy',
+        'wbs-public-ingress',
+        '--type=json',
+        '-p',
+        JSON.stringify([
+          {
+            op: 'replace',
+            path: '/spec/podSelector',
+            value: { matchLabels: { 'puni.dev/writes': 'fenced' } },
+          },
+        ]),
+      ]);
+    },
     suspendFlux: real.suspendFlux.bind(real),
     persistRelease: real.persistRelease.bind(real),
     currentRelease: real.currentRelease.bind(real),
     fluxSourceRevision: real.fluxSourceRevision.bind(real),
     resumeFlux: real.resumeFlux.bind(real),
-    async stopTiers() {
+    async stopTiers(request) {
+      await pauseBackups(request);
       for (const tier of K8S_TIERS)
         await k(['-n', namespaceOf(tier), 'scale', 'deployment', `wbs-${tier}`, '--replicas=0']);
       await real.stopWriter();
       const deadline = Date.now() + settings.rolloutTimeoutSeconds * 1000;
       for (;;) {
-        const pods = requireRecord(
-          await json([
-            'get',
-            'pods',
-            '-A',
-            '-l',
-            'app.kubernetes.io/part-of=wbs',
-            '--field-selector=status.phase!=Succeeded,status.phase!=Failed',
-          ]),
-        );
+        const pods = requireRecord(await json(['get', 'pods', '-A']));
         const retained = pods['items'];
         if (!Array.isArray(retained)) throw new Error('first-start pod inventory is malformed');
-        const ours = retained.filter((pod) =>
-          [settings.namespaces.app, settings.namespaces.backend].includes(
-            String(requireRecord(requireRecord(pod)['metadata'])['namespace']),
-          ),
-        );
-        if (ours.length === 0) return;
+        const users = retained.filter((raw) => {
+          const pod = requireRecord(raw);
+          const phase = requireRecord(pod['status'])['phase'];
+          const namespace = requireRecord(pod['metadata'])['namespace'];
+          return (
+            phase !== 'Succeeded' &&
+            phase !== 'Failed' &&
+            (namespace === request.namespaces.app ||
+              (namespace === request.namespaces.backend &&
+                mountsPvc(pod['spec'], request.pvc.name)))
+          );
+        });
+        if (users.length === 0) {
+          await observeControllers(request, true);
+          return;
+        }
         if (Date.now() >= deadline) throw new Error('first-start tiers failed to stop');
         await Bun.sleep(1000);
       }
@@ -292,25 +528,112 @@ export function firstStartEffects(settings: KubectlSettings): FirstStartEffects 
           `kustomizations.kustomize.toolkit.fluxcd.io/${request.flux.kustomization}`,
         ]),
         json(['-n', request.namespaces.backend, 'get', 'networkpolicy', 'wbs-backend-writers']),
-        json([
-          '-n',
-          request.namespaces.backend,
-          'get',
-          'pods',
-          '-l',
-          'puni.dev/writer=true',
-          '--field-selector=status.phase!=Succeeded,status.phase!=Failed',
-        ]),
+        json(['-n', request.namespaces.backend, 'get', 'pods']),
       ]);
       assertFirstStartObjects(
         request,
         { cluster, app, backend, pvc, flux, fence, writers },
-        stopped,
+        false,
         handed,
       );
       assertFirstStartBackend(
         await json(['-n', request.namespaces.backend, 'get', 'deployment', 'wbs-backend']),
       );
+      const trusted: unknown = JSON.parse(manifestInventory(await trustedManifest(request)));
+      if (!Array.isArray(trusted))
+        throw new Error('first-start trusted policy inventory is malformed');
+      const expectedPolicies = (namespace: string): readonly unknown[] =>
+        trusted.filter((raw) => {
+          const resource = requireRecord(raw);
+          return (
+            resource['kind'] === 'NetworkPolicy' &&
+            requireRecord(resource['metadata'])['namespace'] === namespace
+          );
+        });
+      const backendDeployment = requireRecord(
+        await json(['-n', request.namespaces.backend, 'get', 'deployment', 'wbs-backend']),
+      );
+      const backendLabels = requireRecord(
+        requireRecord(requireRecord(backendDeployment['spec'])['template'])['metadata'],
+      )['labels'];
+      assertFirstStartPolicies(
+        await json(['-n', request.namespaces.backend, 'get', 'networkpolicies']),
+        expectedPolicies(request.namespaces.backend),
+        requireRecord(backendLabels),
+      );
+      const platformPolicies = parseAllDocuments(
+        readFileSync(
+          resolve(import.meta.dir, '../../../../infra/platform/policy/network-policy.yaml'),
+          'utf8',
+        ),
+      ).map((document) => requireRecord(document.toJS() as unknown));
+      const deny = platformPolicies.find(
+        (resource) =>
+          resource['kind'] === 'NetworkPolicy' &&
+          requireRecord(resource['metadata'])['name'] === 'default-deny' &&
+          requireRecord(resource['metadata'])['namespace'] === request.namespaces.app,
+      );
+      if (deny === undefined) throw new Error('first-start trusted app default deny is absent');
+      const appPolicies = [...expectedPolicies(request.namespaces.app), deny];
+      const liveAppPolicies = await json(['-n', request.namespaces.app, 'get', 'networkpolicies']);
+      const appUids = new Set<string>();
+      for (const tier of ['gateway', 'frontend', 'mcp'] as const) {
+        const deployment = requireRecord(
+          await json(['-n', request.namespaces.app, 'get', 'deployment', `wbs-${tier}`]),
+        );
+        const labels = requireRecord(
+          requireRecord(requireRecord(requireRecord(deployment['spec'])['template'])['metadata'])[
+            'labels'
+          ],
+        );
+        const uid = requireRecord(deployment['metadata'])['uid'];
+        if (typeof uid !== 'string' || uid === '')
+          throw new Error('first-start app Deployment UID is absent');
+        appUids.add(uid);
+        assertFirstStartPolicies(liveAppPolicies, appPolicies, labels, 'wbs-public-ingress');
+      }
+      assertAppActors(
+        await json([
+          '-n',
+          request.namespaces.app,
+          'get',
+          'deployments,replicasets,statefulsets,daemonsets,replicationcontrollers,jobs,cronjobs,horizontalpodautoscalers',
+        ]),
+        await json(['-n', request.namespaces.app, 'get', 'pods']),
+        appUids,
+        stopped,
+      );
+      const replicaSets = await observeControllers(request, stopped);
+      assertPvcWriters(writers, request.pvc.name, stopped, replicaSets);
+      if (!stopped) {
+        const rows = requireRecord(writers)['items'];
+        if (!Array.isArray(rows)) throw new Error('first-start Pod inventory is malformed');
+        for (const raw of rows) {
+          const pod = requireRecord(raw);
+          const phase = requireRecord(pod['status'])['phase'];
+          if (
+            phase === 'Succeeded' ||
+            phase === 'Failed' ||
+            !mountsPvc(pod['spec'], request.pvc.name)
+          )
+            continue;
+          const metadata = requireRecord(pod['metadata']);
+          const labels = { ...requireRecord(metadata['labels']) };
+          delete labels['pod-template-hash'];
+          assertFirstStartBackend({
+            spec: {
+              strategy: { type: 'Recreate' },
+              template: { metadata: { labels }, spec: pod['spec'] },
+            },
+          });
+          const containers = requireRecord(pod['spec'])['containers'];
+          if (
+            !Array.isArray(containers) ||
+            requireRecord(containers[0])['image'] !== request.identity.backendImage
+          )
+            throw new Error('first-start actual backend Pod image differs');
+        }
+      }
     },
     async observeRestore(request) {
       const observed = requireRecord(

@@ -26,7 +26,7 @@ afterEach(() => {
 });
 it('renders the first Flux handoff revision with its writer ingress fence closed', () => {
   const rendered =
-    'kind: NetworkPolicy\nmetadata:\n  name: wbs-backend-writers\nspec:\n  podSelector:\n    matchLabels:\n      app.kubernetes.io/name: wbs-backend\n';
+    'kind: NetworkPolicy\nmetadata:\n  name: wbs-backend-writers\nspec:\n  podSelector:\n    matchLabels:\n      app.kubernetes.io/name: wbs-backend\n---\nkind: NetworkPolicy\nmetadata:\n  name: wbs-public-ingress\nspec:\n  podSelector: {}\n';
   expect(fenceFirstStartManifests(rendered)).toContain('"puni.dev/writes":"fenced"');
   expect(() => fenceFirstStartManifests('kind: ConfigMap')).toThrow();
   expect(() => fenceFirstStartManifests(rendered + '---\n' + rendered)).toThrow();
@@ -157,7 +157,14 @@ it('refuses a backend template that would open another database or migrate on st
     spec: {
       strategy: { type: 'Recreate' },
       template: {
-        metadata: { labels: { 'puni.dev/writer': 'true' } },
+        metadata: {
+          labels: {
+            'app.kubernetes.io/name': 'wbs-backend',
+            'app.kubernetes.io/part-of': 'wbs',
+            'puni.dev/controller': 'wbs-backend',
+            'puni.dev/writer': 'true',
+          },
+        },
         spec: {
           containers: [
             {
@@ -166,10 +173,18 @@ it('refuses a backend template that would open another database or migrate on st
                 { name: 'DB_PATH', value: '/data/wbs.sqlite' },
                 { name: 'MIGRATE_ON_STARTUP', value: 'false' },
               ],
-              volumeMounts: [{ name: 'data', mountPath: '/data' }],
+              volumeMounts: [
+                { name: 'data', mountPath: '/data' },
+                { name: 'tmp', mountPath: '/tmp' },
+                { name: 'solver-runtime', mountPath: '/run/wbs-solver' },
+              ],
             },
           ],
-          volumes: [{ name: 'data', persistentVolumeClaim: { claimName: 'wbs-data' } }],
+          volumes: [
+            { name: 'data', persistentVolumeClaim: { claimName: 'wbs-data' } },
+            { name: 'tmp', emptyDir: { sizeLimit: '256Mi' } },
+            { name: 'solver-runtime', hostPath: { path: '/run/puni/solver', type: 'Directory' } },
+          ],
         },
       },
     },
@@ -185,13 +200,19 @@ it('refuses a backend template that would open another database or migrate on st
     'strategy',
     'writer',
     'duplicate-env',
+    'shadow-mount',
+    'init-container',
+    'command',
+    'args',
+    'lifecycle',
+    'fence-label',
   ] as const) {
     const changed = structuredClone(template);
     if (fault === 'db')
       changed.spec.template.spec.containers[0].env[0].value = '/data/foreign.sqlite';
     if (fault === 'migration') changed.spec.template.spec.containers[0].env[1].value = 'true';
     if (fault === 'claim')
-      changed.spec.template.spec.volumes[0].persistentVolumeClaim.claimName = 'foreign';
+      changed.spec.template.spec.volumes[0].persistentVolumeClaim!.claimName = 'foreign';
     if (fault === 'subpath')
       Object.assign(changed.spec.template.spec.containers[0].volumeMounts[0], {
         subPath: 'foreign',
@@ -203,6 +224,29 @@ it('refuses a backend template that would open another database or migrate on st
         name: 'DB_PATH',
         value: '/data/foreign.sqlite',
       });
+    if (fault === 'shadow-mount')
+      changed.spec.template.spec.containers[0].volumeMounts.push({
+        name: 'shadow',
+        mountPath: '/data/wbs.sqlite',
+      });
+    if (fault === 'init-container')
+      Object.assign(changed.spec.template.spec, {
+        initContainers: [
+          { name: 'rewrite', image: 'foreign', command: ['sh', '-c', 'touch /data/wbs.sqlite'] },
+        ],
+      });
+    if (fault === 'command')
+      Object.assign(changed.spec.template.spec.containers[0], {
+        command: ['sh', '-c', 'touch /data/wbs.sqlite'],
+      });
+    if (fault === 'args')
+      Object.assign(changed.spec.template.spec.containers[0], { args: ['foreign'] });
+    if (fault === 'lifecycle')
+      Object.assign(changed.spec.template.spec.containers[0], {
+        lifecycle: { postStart: { exec: { command: ['touch', '/data/wbs.sqlite'] } } },
+      });
+    if (fault === 'fence-label')
+      Object.assign(changed.spec.template.metadata.labels, { 'puni.dev/writes': 'fenced' });
     expect(() => {
       assertFirstStartBackend(changed);
     }).toThrow();
@@ -223,6 +267,9 @@ for (const fault of [
   'rollout-image',
   'rollout-status',
   'rollout-mount',
+  'unlabeled-pvc',
+  'public-open',
+  'extra-public-policy',
 ] as const) {
   it(`kubectl first-start adapter refuses altered cluster transport: ${fault}`, async () => {
     const root = scratchSync('first-start-kubectl-');
@@ -264,6 +311,12 @@ const fs=require('node:fs'); const path=require('node:path');
 const root=import.meta.dir; const {request,restore,fault}=JSON.parse(fs.readFileSync(path.join(root,'fixture.json'),'utf8')); const args=process.argv.slice(2);
 fs.appendFileSync(path.join(root,'calls'),JSON.stringify(args)+'\\n');
 function output(value){console.log(JSON.stringify(value));}
+const deny=(namespace)=>({apiVersion:'networking.k8s.io/v1',kind:'NetworkPolicy',metadata:{name:'default-deny',namespace},spec:{podSelector:{},policyTypes:['Ingress','Egress']}});
+const fence=(name,namespace)=>({apiVersion:'networking.k8s.io/v1',kind:'NetworkPolicy',metadata:{name,namespace},spec:{podSelector:{matchLabels:{'puni.dev/writes':'fenced'}},policyTypes:['Ingress'],ingress:[{}]}});
+const backendPolicies=[deny('wbs-solver'),fence('wbs-backend-writers','wbs-solver')];const appPolicies=[deny('wbs'),fence('wbs-public-ingress','wbs')];
+if(args.includes('kustomize')){output({apiVersion:'v1',kind:'List',items:[...backendPolicies,appPolicies[1]]});process.exit(0);}
+if(args.includes('networkpolicies')){if(!args.includes('wbs-solver')&&fault==='public-open')appPolicies[1].spec.podSelector={};if(!args.includes('wbs-solver')&&fault==='extra-public-policy')appPolicies.push(fence('extra-allow','wbs'));output({items:args.includes('wbs-solver')?backendPolicies:appPolicies});process.exit(0);}
+if(args.some(arg=>arg.startsWith('deployments,'))){output({items:args.includes('wbs')?['gateway','frontend','mcp'].map(tier=>({kind:'Deployment',metadata:{uid:tier+'-controller'},spec:{replicas:0}})):[]});process.exit(0);}
 if(args.includes('create')){fs.writeFileSync(path.join(root,'created.json'),fs.readFileSync(0,'utf8')); process.exit(0);}
 if(args.includes('wait'))process.exit(0);
 if(args.includes('logs')){if(fault==='bad-log'){console.log('malformed');process.exit(0);}console.log('PUNI_SQLITE_REPORT '+JSON.stringify(request.restored)); if(!args.some(arg=>arg.includes(request.restore.name)))console.log('PUNI_FIRST_START_OBSERVATION '+JSON.stringify({activation:'DISABLED',replay:request.restored.replay}));process.exit(0);}
@@ -271,8 +324,8 @@ if(args.includes('namespace')){const name=args[args.indexOf('namespace')+1];outp
 if(args.includes('pvc')){output({metadata:{uid:'volume'},status:{phase:'Bound'}});process.exit(0);}
 if(args.some(arg=>arg.startsWith('kustomizations.'))){output({spec:{suspend:true}});process.exit(0);}
 if(args.includes('networkpolicy')){output({spec:{podSelector:{matchLabels:{'puni.dev/writes':'fenced'}}}});process.exit(0);}
-if(args.includes('pods')){output({items:[]});process.exit(0);}
-if(args.includes('deployment')){const tier=args[args.indexOf('deployment')+1].replace('wbs-','');const deployment={metadata:{generation:1},spec:{replicas:1,strategy:{type:'Recreate'},template:{metadata:{labels:{'puni.dev/writer':'true'}},spec:{containers:[{name:tier,image:request.identity.backendImage,env:[{name:'DB_PATH',value:'/data/wbs.sqlite'},{name:'MIGRATE_ON_STARTUP',value:'false'}],volumeMounts:[{name:'data',mountPath:'/data'}]}],volumes:[{name:'data',persistentVolumeClaim:{claimName:'wbs-data'}}]}}},status:{observedGeneration:1,updatedReplicas:1,readyReplicas:1,availableReplicas:1,replicas:1}};if(fault==='rollout-image')deployment.spec.template.spec.containers[0].image='foreign';if(fault==='rollout-status')deployment.status.readyReplicas=0;if(fault==='rollout-mount')deployment.spec.template.spec.volumes[0].persistentVolumeClaim.claimName='foreign';output(deployment);process.exit(0);}
+if(args.includes('pods')){output({items:fault==='unlabeled-pvc'?[{metadata:{name:'rogue',namespace:'wbs-solver',labels:{}},spec:{volumes:[{name:'stolen',persistentVolumeClaim:{claimName:'wbs-data'}}],containers:[{name:'rogue',volumeMounts:[{name:'stolen',mountPath:'/database'}]}]},status:{phase:'Running'}}]:[]});process.exit(0);}
+if(args.includes('deployment')){const tier=args[args.indexOf('deployment')+1].replace('wbs-','');const deployment={metadata:{uid:tier+'-controller',generation:1},spec:{replicas:1,strategy:{type:'Recreate'},template:{metadata:{labels:{'app.kubernetes.io/name':'wbs-backend','app.kubernetes.io/part-of':'wbs','puni.dev/controller':'wbs-backend','puni.dev/writer':'true'}},spec:{containers:[{name:tier,image:request.identity.backendImage,env:[{name:'DB_PATH',value:'/data/wbs.sqlite'},{name:'MIGRATE_ON_STARTUP',value:'false'}],volumeMounts:[{name:'data',mountPath:'/data'},{name:'tmp',mountPath:'/tmp'},{name:'solver-runtime',mountPath:'/run/wbs-solver'}]}],volumes:[{name:'data',persistentVolumeClaim:{claimName:'wbs-data'}},{name:'tmp',emptyDir:{sizeLimit:'256Mi'}},{name:'solver-runtime',hostPath:{path:'/run/puni/solver',type:'Directory'}}]}}},status:{observedGeneration:1,updatedReplicas:1,readyReplicas:1,availableReplicas:1,replicas:1}};if(fault==='rollout-image')deployment.spec.template.spec.containers[0].image='foreign';if(fault==='rollout-status')deployment.status.readyReplicas=0;if(fault==='rollout-mount')deployment.spec.template.spec.volumes[0].persistentVolumeClaim.claimName='foreign';output(deployment);process.exit(0);}
 if(args.includes('job')){const isRestore=args[args.indexOf('job')+1]===request.restore.name;const job=isRestore?restore:JSON.parse(fs.readFileSync(path.join(root,'created.json'),'utf8'));job.metadata.uid=isRestore?'restore':'actual';job.status={succeeded:1};const pod=job.spec.template.spec;
 if(isRestore&&fault==='restore-uid')job.metadata.uid='foreign';
 if(isRestore&&fault==='restore-status')job.status.succeeded=0;
@@ -310,6 +363,7 @@ throw new Error('unmodeled kubectl invocation '+args.join(' '));
         images: parseDescriptor(JSON.parse(request.identity.descriptorBytes) as unknown).images,
       });
       await effects.observePvc(request, 'first-start-aaaaaaaaaaaaaaaa');
+      await effects.closeWrites();
       const calls = readFileSync(join(root, 'calls'), 'utf8')
         .split('\n')
         .filter(Boolean)
@@ -320,6 +374,9 @@ throw new Error('unmodeled kubectl invocation '+args.join(' '));
         .filter((arg) => arg.startsWith('job/wbs-first-check-'));
       expect(checks.length).toBe(2);
       expect(checks[0]).not.toBe(checks[1]);
+      expect(
+        calls.some((args) => args.includes('patch') && args.includes('wbs-public-ingress')),
+      ).toBe(true);
     }
   });
 }

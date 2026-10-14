@@ -21,6 +21,7 @@ export function fixtureFirstStartRequest(): FirstStartRequest {
     },
   };
   return {
+    environment: 'local',
     identity,
     exported,
     restored: { ...exported, path: '/data/wbs.sqlite', ownerUid: 10001 },

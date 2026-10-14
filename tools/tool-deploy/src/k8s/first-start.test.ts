@@ -37,6 +37,7 @@ function fixture() {
   };
   const restored = { ...exported, path: '/data/wbs.sqlite', ownerUid: 10001 };
   const request: FirstStartRequest = {
+    environment: 'local',
     identity,
     exported,
     restored,
@@ -63,6 +64,37 @@ function fixture() {
     },
   };
   const effects: FirstStartEffects = {
+    admitSource: (request) => {
+      const bytes = JSON.stringify({
+        version: 1,
+        requestSha256: sha256Of(JSON.stringify(request)),
+        kuid: 'ks',
+        guid: 'git',
+        kSpec: JSON.stringify({
+          interval: '10s',
+          path: './clusters/local/wbs',
+          prune: false,
+          suspend: true,
+          sourceRef: { kind: 'GitRepository', name: request.flux.gitRepository },
+        }),
+        gSpec: JSON.stringify({
+          interval: '10s',
+          url: 'http://fixture.invalid/repo',
+          ref: { commit: request.flux.desiredRevision },
+        }),
+        artifact: JSON.stringify({
+          revision: 'main@sha1:' + request.flux.desiredRevision,
+          digest: 'sha256:' + 'd'.repeat(64),
+          url: 'http://source/artifact',
+          path: 'artifact.tar.gz',
+        }),
+        tree: 'c'.repeat(40),
+        manifestSha256: 'd'.repeat(64),
+        inventorySha256: 'e'.repeat(64),
+      });
+      return Promise.resolve({ bytes, sha256: sha256Of(bytes) });
+    },
+    resumeSource: (request) => effects.resumeFlux(request.flux, request.flux.desiredRevision),
     assertTarget: () => {
       calls.push('target');
       return Promise.resolve();
@@ -300,7 +332,7 @@ for (const fault of [
     await startCutover(f.request, f.journal, f.effects);
     f.calls.length = 0;
     const stored = structuredClone(f.stored()) as FirstStartState;
-    if (fault === 'version') Object.assign(stored, { version: 2 });
+    if (fault === 'version') Object.assign(stored, { version: 3 });
     if (fault === 'phase') Object.assign(stored, { phase: 'unknown' });
     if (fault === 'transaction') stored.transaction = 'first-start-' + 'd'.repeat(16);
     if (fault === 'request-digest') stored.requestSha256 = 'd'.repeat(64);
@@ -347,6 +379,7 @@ it('refuses malformed operator input before creating Kubernetes effects', () => 
     [],
     {},
     { ...f.request, cluster: null },
+    { ...f.request, namespaces: { ...f.request.namespaces, app: 'other' } },
     { ...f.request, pvc: { ...f.request.pvc, uid: '' } },
     { ...f.request, restored: null },
   ]) {
@@ -413,6 +446,21 @@ it('refuses a foreign target before acquiring a Lease or changing Flux, fence or
   f.effects.assertTarget = () => Promise.reject(new Error('foreign cluster UID'));
   await refuse(startCutover(f.request, f.journal, f.effects));
   expect(f.calls).toEqual([]);
+});
+
+it('refuses a parked Lease when its durable transaction journal is missing', async () => {
+  const f = fixture();
+  f.effects.readLease = () =>
+    Promise.resolve({
+      holder: 'first-start-aaaaaaaaaaaaaaaa#old',
+      renewedAtMs: 0,
+      durationSeconds: 20,
+      parked: 'first-start-unresolved',
+      journal: f.journal.path,
+      version: '1',
+    });
+  await refuse(startCutover(f.request, f.journal, f.effects));
+  expect(f.calls).toEqual(['target']);
 });
 
 async function refuse(promise: Promise<unknown>): Promise<void> {
