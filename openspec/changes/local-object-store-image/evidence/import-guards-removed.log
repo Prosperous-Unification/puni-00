@@ -1,0 +1,79 @@
+Removed execution.exitCode !== 0: exit 1
+
+tools/tool-fleet/src/object-store-import.test.ts:
+(pass) local object store digest distribution > refuses missing before accepting distribution [0.98ms]
+(pass) local object store digest distribution > refuses source before accepting distribution [0.14ms]
+(pass) local object store digest distribution > refuses alias before accepting distribution [0.08ms]
+21 | }
+22 | describe('local object store digest distribution', () => {
+23 |   for (const fault of ['missing', 'source', 'alias', 'import'] as const) {
+24 |     it(`refuses ${fault} before accepting distribution`, () => {
+25 |       const { run } = createRunner(fault);
+26 |       expect(() => importObjectStore('/owned/image.oci', lock, 'owned', 'k3d-owned-server-0', 'k3d', run)).toThrow();
+                                                                                                                ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: undefined
+
+      at <anonymous> (/tmp/puni-minio-repack-sol/tools/tool-fleet/src/object-store-import.test.ts:26:108)
+(fail) local object store digest distribution > refuses import before accepting distribution [0.21ms]
+(pass) local object store digest distribution > registers and verifies the digest alias in the node CRI namespace [0.15ms]
+
+ 4 pass
+ 1 fail
+ 5 expect() calls
+Ran 5 tests across 1 file. [327.00ms]
+
+Removed rows.length !== 1 || rows[0]?.[0] !== reference || rows[0]?.[2] !== lock.digest: exit 1
+
+tools/tool-fleet/src/object-store-import.test.ts:
+21 | }
+22 | describe('local object store digest distribution', () => {
+23 |   for (const fault of ['missing', 'source', 'alias', 'import'] as const) {
+24 |     it(`refuses ${fault} before accepting distribution`, () => {
+25 |       const { run } = createRunner(fault);
+26 |       expect(() => importObjectStore('/owned/image.oci', lock, 'owned', 'k3d-owned-server-0', 'k3d', run)).toThrow();
+                                                                                                                ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: undefined
+
+      at <anonymous> (/tmp/puni-minio-repack-sol/tools/tool-fleet/src/object-store-import.test.ts:26:108)
+(fail) local object store digest distribution > refuses missing before accepting distribution [1.52ms]
+21 | }
+22 | describe('local object store digest distribution', () => {
+23 |   for (const fault of ['missing', 'source', 'alias', 'import'] as const) {
+24 |     it(`refuses ${fault} before accepting distribution`, () => {
+25 |       const { run } = createRunner(fault);
+26 |       expect(() => importObjectStore('/owned/image.oci', lock, 'owned', 'k3d-owned-server-0', 'k3d', run)).toThrow();
+                                                                                                                ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: undefined
+
+      at <anonymous> (/tmp/puni-minio-repack-sol/tools/tool-fleet/src/object-store-import.test.ts:26:108)
+(fail) local object store digest distribution > refuses source before accepting distribution [0.16ms]
+21 | }
+22 | describe('local object store digest distribution', () => {
+23 |   for (const fault of ['missing', 'source', 'alias', 'import'] as const) {
+24 |     it(`refuses ${fault} before accepting distribution`, () => {
+25 |       const { run } = createRunner(fault);
+26 |       expect(() => importObjectStore('/owned/image.oci', lock, 'owned', 'k3d-owned-server-0', 'k3d', run)).toThrow();
+                                                                                                                ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: undefined
+
+      at <anonymous> (/tmp/puni-minio-repack-sol/tools/tool-fleet/src/object-store-import.test.ts:26:108)
+(fail) local object store digest distribution > refuses alias before accepting distribution [0.09ms]
+(pass) local object store digest distribution > refuses import before accepting distribution [0.03ms]
+(pass) local object store digest distribution > registers and verifies the digest alias in the node CRI namespace [0.27ms]
+
+ 2 pass
+ 3 fail
+ 5 expect() calls
+Ran 5 tests across 1 file. [333.00ms]

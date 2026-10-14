@@ -121,7 +121,14 @@
       "{projectRoot}/**/*",
       "{workspaceRoot}/deploy/k8s/**/*",
       "{workspaceRoot}/tools/tool-devsync/src/burokrat-consumer.ts",
-      "sharedGlobals"
+      "sharedGlobals",
+      "{workspaceRoot}/tools/tool-fleet/src/object-store*.ts",
+      "{workspaceRoot}/tools/tool-fleet/src/controller.ts",
+      "{workspaceRoot}/tools/tool-fleet/src/contracts.ts",
+      "{workspaceRoot}/infra/local/object-store/**/*",
+      "{workspaceRoot}/infra/versions/object-store.json",
+      "{workspaceRoot}/infra/versions/toolchain.json",
+      "{workspaceRoot}/infra/platform/backup/local/**/*"
     ],
     "production": [
       "default",

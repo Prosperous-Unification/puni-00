@@ -1,0 +1,11 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-fleet/src/object-store-buckets.test.ts:
+(pass) shipped bucket initializer dependency faults > fails the Job when mc refuses versioning [20.86ms]
+(pass) shipped bucket initializer dependency faults > fails the Job when lifecycle readback lacks the retained-version rule [11.68ms]
+(pass) shipped bucket initializer dependency faults > completes when mc accepts the bucket contract [21.35ms]
+
+ 3 pass
+ 0 fail
+ 5 expect() calls
+Ran 3 tests across 1 file. [98.00ms]

@@ -385,6 +385,8 @@ async function main(): Promise<void> {
   const sourceSha = (await sh(['git', '-C', ROOT, 'rev-parse', 'HEAD'])).trim();
   const port = await up();
   try {
+    log('build and register the authenticated local object-store digest');
+    await sh(['bun', join(ROOT, 'tools/tool-fleet/src/object-store-import-cli.ts')]);
     const identity: ReleaseIdentity = {
       sourceSha,
       images: {

@@ -1,0 +1,5 @@
+heavy lock: waited 0s behind 0 tickets
+Actual missing source refused: Object store containerd target differs: docker.io/puni-local/object-store:missing-proof: REF TYPE DIGEST SIZE PLATFORMS LABELS
+
+Verified import 1: docker.io/puni-local/object-store:RELEASE.2025-09-07T16-13-09Z@sha256:6892027e04ff9f75ad83dcff7f459b8cdfa043ac573a9d88a616bd7803890670
+Verified import 2: docker.io/puni-local/object-store:RELEASE.2025-09-07T16-13-09Z@sha256:6892027e04ff9f75ad83dcff7f459b8cdfa043ac573a9d88a616bd7803890670

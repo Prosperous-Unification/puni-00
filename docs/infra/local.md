@@ -50,6 +50,13 @@ served as worktrees; `--solver-runtime <dir>` mounts a solver supervisor's runti
 Memory is `MemAvailable`, disk the free space under Docker's root. A refusal names the next
 smaller profile. Measured on 2026-09-18 (24 cores, 31 GiB, shared with a VM lab):
 
+Before installing Flux, `platform` and `fleet` build the authenticated local
+object-store archive and verify its digest registration in each server and agent's
+containerd image store. This requires minisign (`MINISIGN` may name its executable)
+and the Buildx client locked in `infra/versions/object-store.json`; see
+[image inputs and tool provisioning](../../infra/versions/README.md).
+The `app` profile does not build object storage.
+
 | What                                                                      | Memory                                                          | Disk                                                             | Time                                                                                           |
 | ------------------------------------------------------------------------- | --------------------------------------------------------------- | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
 | `app` lab, idle                                                           | 0.66 GiB (server 621 MiB, load balancer 34 MiB, registry 6 MiB) | 1.6 GB k3s data volume, 0.2 GB registry, 0.43 GB images          | `up` 16.5 s with images cached, plus up to 40 s until the bundled Traefik serves; `down` 1.2 s |
