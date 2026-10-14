@@ -1,0 +1,32 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/saved-plan-capture.db.test.ts:
+234 |       expect(await facts.set(fact, wrote)).toBe('written');
+235 |       const port = new SavedPlanCaptureRepository({ openConnection: () => openConnection(path) }, {
+236 |         async afterFirstRead() { await facts.remove(fact.workItemId, fact.stepId, wrote); },
+237 |       });
+238 |       const captured = await port.readPlanInput('p1');
+239 |       expect(captured?.stepBlockages).toEqual([fact]);
+                                            ^
+error: expect(received).toEqual(expected)
+
+- [
+-   {
+-     "blockedAt": -123,
+-     "stepId": "st-1",
+-     "workItemId": "wi-1",
+-   },
+- ]
++ []
+
+- Expected  - 7
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-step-saved-sol/libs/wbs/adapters/store-sqlite/src/saved-plan-capture.db.test.ts:239:39)
+(fail) capturing a project’s plan input > captures direct blockage on the same SQLite snapshot before a concurrent clear [195.82ms]
+
+ 0 pass
+ 26 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [3.90s]

@@ -1,0 +1,30 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-blockage-migration.db.test.ts:
+76 |
+77 |   it('refuses duplicate pairs, missing references, cross-project steps and parent owners', () => {
+78 |     withDatabase((sqlite) => {
+79 |       insert(sqlite);
+80 |       expect(() => insert(sqlite)).toThrow(/UNIQUE/);
+81 |       expect(() => insert(sqlite, 'gone')).toThrow(/FOREIGN KEY/);
+                                                ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /FOREIGN KEY/
+
+Received function did not throw
+Received value: {
+  changes: 1,
+  lastInsertRowid: 2,
+}
+
+      at <anonymous> (/tmp/puni-step-blockage-rebuild/libs/wbs/adapters/store-sqlite/src/step-blockage-migration.db.test.ts:81:44)
+      at withDatabase (/tmp/puni-step-blockage-rebuild/libs/wbs/adapters/store-sqlite/src/step-blockage-migration.db.test.ts:44:12)
+      at <anonymous> (/tmp/puni-step-blockage-rebuild/libs/wbs/adapters/store-sqlite/src/step-blockage-migration.db.test.ts:78:5)
+(fail) 20261013140000_add_step_node_blockages > refuses duplicate pairs, missing references, cross-project steps and parent owners [118.83ms]
+
+ 0 pass
+ 5 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [148.00ms]

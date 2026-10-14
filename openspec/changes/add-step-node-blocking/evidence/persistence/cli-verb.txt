@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-blockage-rollback.db.test.ts:
+165 |     expect(() => saveStepBlockages(connection.db)).toThrow(/step_blockage/);
+166 |   });
+167 |
+168 |   it('requires DB_PATH and a valid verb at the CLI boundary', async () => {
+169 |     const file = join(directory, 'saved.json');
+170 |     expect((await runCli('erase', file)).stderr).toContain('usage:');
+                                                       ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "usage:"
+Received: "ENOENT: no such file or directory, open '/tmp/wbs-step-blockage-recovery-D7uA2W/saved.json'\n    path: \"/tmp/wbs-step-blockage-recovery-D7uA2W/saved.json\",\n syscall: \"open\",\n   errno: -2,\n    code: \"ENOENT\"\n\n\nBun v1.4.2 (Linux x64)\n"
+
+      at <anonymous> (/tmp/puni-step-blockage-rebuild/libs/wbs/adapters/store-sqlite/src/step-blockage-rollback.db.test.ts:170:50)
+(fail) step blockage recovery > requires DB_PATH and a valid verb at the CLI boundary [373.24ms]
+
+ 0 pass
+ 8 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [556.00ms]

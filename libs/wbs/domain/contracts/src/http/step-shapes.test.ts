@@ -92,6 +92,7 @@ test('declares the full step response and each usage count and assumed-assignee 
           'progress',
         ],
         properties: {
+          blockages: { type: 'number' },
           assumedAssignees: { items: { required: ['assumedAfter', 'assumedNow', 'workItemId'] } },
         },
       },

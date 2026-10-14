@@ -18,6 +18,7 @@ import {
   refusingDomains,
   refusingEnterpriseConnections,
   refusingMemberships,
+  refusingRestoreApprovals,
 } from './organization-access-fixture';
 import { testPriorityBandService } from './priority-band-fixture';
 import { testProjectService } from './project-fixture';
@@ -58,6 +59,7 @@ export function testApp(overrides: Partial<AppOptions> = {}): ReturnType<typeof 
   return buildApp({
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
+    sharedPeopleRestoreApprovals: refusingRestoreApprovals,
     domains: refusingDomains,
     enterpriseConnections: refusingEnterpriseConnections,
     emailVerification: refusingEmailVerification,

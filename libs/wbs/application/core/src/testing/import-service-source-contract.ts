@@ -1008,6 +1008,140 @@ export function importServiceSourceContract(
       }
     });
 
+    it('imports direct blockage facts with both identities remapped and exact time', async () => {
+      const source = await ownedSource();
+      try {
+        const document = planDocumentFixture();
+        Reflect.set(document, 'stepBlockages', [
+          { workItemId: 'row-1', stepId: 'step-1', blockedAt: -17 },
+        ]);
+        const imports = importService(source);
+        const admitted = await imports.import(document, ACTOR, LEGACY_ACCESS);
+        expect(admitted.ok).toBe(true);
+        if (!admitted.ok) return;
+        const rows = await source.stores.workItems.listByProject(admitted.projectId);
+        const steps = await source.stores.projects.stepsOf(admitted.projectId);
+        const owner = rows.find(({ name }) => name === 'Ship');
+        const step = steps.find(({ name }) => name === 'Build');
+        expect(owner).toBeDefined();
+        expect(step).toBeDefined();
+        if (owner === undefined || step === undefined)
+          throw new Error('missing imported owner or step');
+        expect(owner.id).not.toBe('row-1');
+        expect(step.id).not.toBe('step-1');
+        expect(await source.stores.blockages.listByProject(admitted.projectId)).toEqual([
+          { workItemId: owner.id, stepId: step.id, blockedAt: -17 },
+        ]);
+        const exported = await exportDocument(source, admitted.projectId);
+        expect(exported.stepBlockages).toEqual([
+          { workItemId: owner.id, stepId: step.id, blockedAt: -17 },
+        ]);
+        const classified = await classifyPlanDocument(exported);
+        expect(classified.ok).toBe(true);
+        if (!classified.ok) return;
+        const copied = await imports.import(classified.value, ACTOR, LEGACY_ACCESS);
+        expect(copied.ok).toBe(true);
+        if (!copied.ok) return;
+        const copiedFacts = await source.stores.blockages.listByProject(copied.projectId);
+        expect(copiedFacts).toHaveLength(1);
+        expect(copiedFacts[0]?.blockedAt).toBe(-17);
+        expect(copiedFacts[0]?.workItemId).not.toBe(owner.id);
+        expect(copiedFacts[0]?.stepId).not.toBe(step.id);
+        await source.stores.blockages.remove(owner.id, step.id, STAMP);
+        const unblocked = await exportDocument(source, admitted.projectId);
+        expect(unblocked.slices).toEqual(exported.slices);
+        expect(unblocked.scheduleError).toEqual(exported.scheduleError);
+        expect(
+          unblocked.workItems.map(({ schedule, dates, status, progress }) => ({
+            schedule,
+            dates,
+            status,
+            progress,
+          })),
+        ).toEqual(
+          exported.workItems.map(({ schedule, dates, status, progress }) => ({
+            schedule,
+            dates,
+            status,
+            progress,
+          })),
+        );
+      } finally {
+        await source.close();
+      }
+    });
+
+    it('retains an imported direct blockage on a done step without changing progress', async () => {
+      const source = await ownedSource();
+      try {
+        const document = planDocumentFixture();
+        const row = document.workItems.at(0);
+        if (row === undefined) throw new Error('missing fixture row');
+        row.progress = { 'step-1': 'done' };
+        document.stepBlockages = [{ workItemId: row.id, stepId: 'step-1', blockedAt: -17 }];
+        const imported = await importService(source).import(document, ACTOR, LEGACY_ACCESS);
+        if (!imported.ok) throw new Error(`import refused at ${imported.path}`);
+        const exported = await exportDocument(source, imported.projectId);
+        expect(exported.stepBlockages).toHaveLength(1);
+        expect(exported.stepBlockages[0]?.blockedAt).toBe(-17);
+        expect(Object.values(exported.workItems[0]?.progress ?? {})).toContain('done');
+      } finally {
+        await source.close();
+      }
+    });
+
+    for (const mode of ['refused', 'second-write'] as const) {
+      it(`rolls back direct blockage import after ${mode}`, async () => {
+        const source = await ownedSource();
+        try {
+          const document = planDocumentFixture();
+          document.stepBlockages = [
+            { workItemId: 'row-1', stepId: 'step-1', blockedAt: -17 },
+            { workItemId: 'row-1', stepId: 'step-2', blockedAt: 31 },
+          ];
+          const announcements = recordingBroadcaster();
+          let written = 0;
+          const uow: UnitOfWork<TransactionalStores> = {
+            run: (act) =>
+              source.uow.run((scope) =>
+                act({
+                  stores: {
+                    ...scope.stores,
+                    blockages: {
+                      ...scope.stores.blockages,
+                      listByProject: (id) => scope.stores.blockages.listByProject(id),
+                      listByWorkItems: (id, ids) => scope.stores.blockages.listByWorkItems(id, ids),
+                      remove: (owner, step, stamp) =>
+                        scope.stores.blockages.remove(owner, step, stamp),
+                      moveAll: (from, to, stamp) => scope.stores.blockages.moveAll(from, to, stamp),
+                      set: async (fact, stamp) => {
+                        written++;
+                        if (mode === 'refused') return 'unknown_step';
+                        if (written === 2) throw new Error('injected second blockage write');
+                        return scope.stores.blockages.set(fact, stamp);
+                      },
+                    },
+                  },
+                }),
+              ),
+          };
+          const thrown: unknown = await importService(source, { uow, announcements })
+            .import(document, ACTOR, LEGACY_ACCESS)
+            .catch((cause: unknown) => cause);
+          expect(thrown).toBeInstanceOf(Error);
+          expect(String(thrown)).toMatch(
+            mode === 'refused' ? /refused its blockage/ : /second blockage write/,
+          );
+          expect(written).toBe(mode === 'refused' ? 1 : 2);
+          expect(await source.stores.projects.list()).toEqual([]);
+          expect(await source.stores.directory.listTeams()).toEqual([]);
+          expect(announcements.published).toEqual([]);
+        } finally {
+          await source.close();
+        }
+      });
+    }
+
     for (const fault of [
       { kind: 'refused' } as const,
       { kind: 'thrown', cause: new Error('injected later source failure') } as const,
@@ -1238,7 +1372,7 @@ export function importServiceSourceContract(
           if (!imported.ok) throw new Error(`import refused at ${imported.path}`);
           const exported = await exportDocument(source, imported.projectId);
 
-          expect(exported.document.version).toBe(8);
+          expect(exported.document.version).toBe(9);
           expect(exported.typedDependencies).toEqual([]);
           expect(exported.steps.map(({ name, code }) => [name, code])).toEqual([
             ['Discover', codes[0]],
@@ -1294,7 +1428,7 @@ export function importServiceSourceContract(
           verifyStep === undefined
         )
           throw new Error('round-trip relationship references disappeared');
-        expect(exported.document.version).toBe(8);
+        expect(exported.document.version).toBe(9);
         expect(
           exported.typedDependencies.map(({ predecessor, successor, type }) => ({
             predecessor,

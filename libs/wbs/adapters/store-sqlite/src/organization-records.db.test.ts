@@ -749,6 +749,9 @@ describe('20260927120000_add_organization_records', () => {
     connection.close();
 
     expect(rollbackTo(path, FOLDER, WORK_ITEM_FACTS)).toEqual([
+      '20261014130000_add_shared_people_restore_receipts',
+      '20261014120000_add_shared_people_restore_approvals',
+      '20261013140000_add_step_node_blockages',
       '20261012130000_add_step_estimate_unit',
       '20261012120000_add_step_node_attempts',
       '20261012090200_widen_organization_audit',
@@ -782,6 +785,11 @@ describe('20260927120000_add_organization_records', () => {
           name !== 'browser_auth_association' &&
           name !== 'browser_auth_lifecycle' &&
           name !== 'shared_people_audit' &&
+          name !== 'step_blockage' &&
+          name !== 'shared_people_restore_operation' &&
+          name !== 'shared_people_restore_receipt' &&
+          name !== 'shared_people_restore_consumption' &&
+          name !== 'shared_people_restore_approval' &&
           name !== 'step_node_attempt' &&
           name !== 'step_node_attempt_issued' &&
           name !== 'browser_credential_revocations' &&

@@ -23,6 +23,7 @@ import type { PlanInputReads } from './saved-plan-capture';
 import { SavedPlanCaptureRepository } from './saved-plan-capture';
 import { person, project, step, tag, workItem, workItemTag } from './schema';
 import { StepRepository } from './step';
+import { StepBlockageRepository } from './step-blockage';
 import { nodeDigest } from './testing/node-digest';
 import { TypedDependencyRepository } from './typed-dependency';
 import { UserRepository } from './user';
@@ -224,6 +225,29 @@ describe('capturing a project’s plan input', () => {
       seen.close();
     }
   };
+
+  it('captures direct blockage on the same SQLite snapshot before a concurrent clear', async () => {
+    const writing = openConnection(path);
+    try {
+      const facts = new StepBlockageRepository(writing.db, OPEN);
+      const fact = { workItemId: 'wi-1', stepId: 'st-1', blockedAt: -123 };
+      expect(await facts.set(fact, wrote)).toBe('written');
+      const port = new SavedPlanCaptureRepository(
+        { openConnection: () => openConnection(path) },
+        {
+          async afterFirstRead() {
+            await facts.remove(fact.workItemId, fact.stepId, wrote);
+          },
+        },
+      );
+      const captured = await port.readPlanInput('p1');
+      expect(captured?.stepBlockages).toEqual([fact]);
+      expect((await capture().readPlanInput('p1'))?.stepBlockages).toEqual([]);
+      expect(captured?.stepBlockages).toEqual([fact]);
+    } finally {
+      writing.close();
+    }
+  });
 
   it('keeps captured node endpoints after step reorder and live relationship removal', async () => {
     const writing = openConnection(path);

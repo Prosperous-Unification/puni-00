@@ -766,6 +766,7 @@ const openers: ExistingStoreOpeners = {
   measures: (caseId) => openSqliteCase('measures', caseId),
   progress: (caseId) => openSqliteCase('progress', caseId),
   attempts: (caseId) => openSqliteCase('attempts', caseId),
+  blockages: (caseId) => openSqliteCase('blockages', caseId),
   dependencies: (caseId) => openSqliteCase('dependencies', caseId),
   typedDependencies: (caseId) => openSqliteCase('typedDependencies', caseId),
   directory: (caseId) => openSqliteCase('directory', caseId),
@@ -814,6 +815,7 @@ const declaration: SourceDeclaration = {
     measures: { kind: 'offered', gaps: [], open: openers.measures },
     progress: { kind: 'offered', gaps: [], open: openers.progress },
     attempts: { kind: 'offered', gaps: [], open: openers.attempts },
+    blockages: { kind: 'offered', gaps: [], open: openers.blockages },
     dependencies: { kind: 'offered', gaps: [], open: openers.dependencies },
     typedDependencies: { kind: 'offered', gaps: [], open: openers.typedDependencies },
     directory: { kind: 'offered', gaps: [], open: openers.directory },
@@ -900,6 +902,7 @@ function emptyMissingCapture(): PlanInputReads {
     estimates: [],
     actuals: [],
     progress: [],
+    stepBlockages: [],
     measures: [],
     dependencies: [],
     typedDependencies: [],
@@ -4703,6 +4706,7 @@ async function proveFault(
         measures: (caseId) => takeFixture('measures', caseId),
         progress: (caseId) => takeFixture('progress', caseId),
         attempts: (caseId) => takeFixture('attempts', caseId),
+        blockages: (caseId) => takeFixture('blockages', caseId),
         dependencies: (caseId) => takeFixture('dependencies', caseId),
         typedDependencies: (caseId) => takeFixture('typedDependencies', caseId),
         directory: (caseId) => takeFixture('directory', caseId),
@@ -6170,6 +6174,13 @@ describe('SQLite existing source conformance', () => {
       'cleanup failed: injected cleanup failure after actual steps.add',
     );
     expect(existsSync(directory)).toBe(false);
+  });
+
+  it('certifies the persisted blockage port', async () => {
+    const report = await runCases(existingStoreRegistrations(openers), {
+      focus: ['blockages.set:read-remove'],
+    });
+    expect(report.cases.map(({ status }) => status)).toEqual(['passed']);
   });
 
   it('SQLite terminal certification runs every exact offered case without gaps', async () => {

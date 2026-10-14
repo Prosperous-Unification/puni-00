@@ -694,6 +694,8 @@ export interface AssumedAssigneeFlipView {
 
 /** What removing a step would take with it, as be-01's refusal reports it. */
 export interface StepUsage {
+  /** Absent only when an older server cannot report direct blockage facts. */
+  blockages?: number;
   estimates: number;
   actuals: number;
   progress: number;

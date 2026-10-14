@@ -118,6 +118,7 @@ import type {
   LivePlanRead,
   PlanDocumentReads,
 } from '../../ports/shared-people-values';
+import type { StepBlockageStore, StoredStepBlockage } from '../../ports/step-blockage-store';
 import type {
   RunningStoredAttempt,
   StepNodeAttemptStore,
@@ -141,7 +142,11 @@ import {
   boundEstimateUnits,
   type CompensatingCommand,
   type CompensatingReferences,
+  type DeletionState,
   estimateStepsOf,
+  expectedProgressOwnersOf,
+  type Preconditions,
+  progressKeysOf,
   quoteName,
   readCommand,
   readPayload,
@@ -154,7 +159,7 @@ import {
   touchedBy,
 } from '../../service/compensating';
 import { DependencyGraphGuard, resolveDependencyGraph } from '../../service/dependency-graph';
-import { nodeReadingsOf } from '../../service/node-readings';
+import { projectNodeReadings } from '../../service/node-readings';
 import type { NumberedWorkItem } from '../../service/numbered-work-item';
 import { workItemStatusesOf } from '../../service/work-item-statuses';
 
@@ -1078,6 +1083,8 @@ export interface WorkItemServiceOptions {
    * parent at the hand-down, invisible to every reader.
    */
   attempts: StepNodeAttemptStore;
+  /** Direct node blockage facts used only by the live tree projection. */
+  blockages: StepBlockageStore;
   directory: DirectoryStore;
   /**
    * How many of each team this project may have at work at once — C1's `slotsOf`
@@ -1237,6 +1244,25 @@ function statusSentence(status: SettableStatus, name: string): string {
 
 /** The pair a statement is keyed by, as one map key. */
 const progressKey = (workItemId: string, stepId: string): string => `${workItemId}\u0000${stepId}`;
+
+/** Compares complete sparse progress sets without treating order as part of identity. */
+function matchesProgress(
+  current: readonly StoredProgress[],
+  expected: readonly StoredProgress[],
+): boolean {
+  return (
+    current.length === expected.length &&
+    expected.every((before) =>
+      current.some(
+        (now) =>
+          now.workItemId === before.workItemId &&
+          now.stepId === before.stepId &&
+          now.state === before.state &&
+          now.statedAt === before.statedAt,
+      ),
+    )
+  );
+}
 
 /** `rootId` and everything beneath it. */
 function subtreeOf(rows: readonly WorkItem[], rootId: string): string[] {
@@ -1629,6 +1655,12 @@ interface BatchCollector {
   dirty: boolean;
 }
 
+interface ReplayNeighbor {
+  entry: JournalEntry;
+  preconditions: Preconditions;
+  progress: { owner: string; expected: StoredProgress[]; before: StoredProgress[] }[];
+}
+
 export interface Recording {
   /** What a redo re-applies. */
   forward: CompensatingCommand;
@@ -1652,6 +1684,8 @@ export interface Recording {
    * a command that writes no step.
    */
   stepsBefore?: Revisions;
+  /** Cleared move destinations whose complete progress needs a pre-batch replay guard. */
+  moveProgressOwners?: string[];
 }
 
 export class WorkItemService {
@@ -1966,6 +2000,7 @@ export class WorkItemService {
       if (row !== null && row.projectId !== projectId) return true;
     }
     const steps = new Set((await this.opts.projects.stepsOf(projectId)).map((step) => step.id));
+    // Proof: bypassing missing-step references changed removed-step first-child undo/redo from 404 to 409 (step-node-attempt.controller.db.test.ts, 2026-10-14).
     if (references.steps.some((id) => !steps.has(id))) return true;
     const catalogs: [DirectoryCatalog, readonly string[]][] = [
       ['people', references.people],
@@ -2302,6 +2337,8 @@ export class WorkItemService {
     const priorityBands = await this.opts.priorityBands.listFor(projectId);
     const canonical = canonicalScheduleParts(
       project,
+      // Proof: removing owners with a direct blockage from this Fast input made
+      // `keeps the actual Fast request... (isolated)` fail; watched 2026-10-13.
       rows,
       stored,
       edges,
@@ -2341,6 +2378,9 @@ export class WorkItemService {
         assignedPeople,
         // Read for the payload alone, like the actuals above: no engine sees it.
         attempts: await this.opts.attempts.listByProject(projectId),
+        // Proof: replacing this read with [] failed `reads a direct timestamp
+        // and the exact downstream root (isolated)`; watched 2026-10-13.
+        blockages: await this.opts.blockages.listByProject(projectId),
         seq,
         steps,
         slotsOf,
@@ -2355,6 +2395,8 @@ export class WorkItemService {
   /**
    * Creates a work item. When a leaf gains its first child, moves its step facts
    * and assignments to that child and returns the node mapping in project step order.
+   * Blockage keeps its original time through create, undo and redo; conditional
+   * replacements refuse newer facts inside the structural command transaction.
    * The mapping is internal to the application; command responses still return
    * the created work item ID alone.
    */
@@ -2462,7 +2504,60 @@ export class WorkItemService {
       const handed = await this.apply(projectId, statementsHandedDown.forward, stamp);
       if (!handed.ok) throw new Error(`cannot hand statements down: ${handed.detail}`);
     }
+    const blockedHandedDown =
+      firstChildOf === undefined
+        ? []
+        : await this.opts.blockages.listByWorkItems(projectId, [firstChildOf.id]);
+    const clearParentBlockages: CompensatingCommand[] = blockedHandedDown.map(
+      ({ workItemId, stepId, blockedAt }) => ({
+        do: 'replace_blockage',
+        workItemId,
+        stepId,
+        expectedBlockedAt: blockedAt,
+        replacementBlockedAt: null,
+      }),
+    );
+    const restoreParentBlockages: CompensatingCommand[] = blockedHandedDown.map(
+      ({ workItemId, stepId, blockedAt }) => ({
+        do: 'replace_blockage',
+        workItemId,
+        stepId,
+        expectedBlockedAt: null,
+        replacementBlockedAt: blockedAt,
+      }),
+    );
+    const setChildBlockages: CompensatingCommand[] = blockedHandedDown.map(
+      ({ stepId, blockedAt }) => ({
+        do: 'replace_blockage',
+        workItemId: workItem.id,
+        stepId,
+        expectedBlockedAt: null,
+        replacementBlockedAt: blockedAt,
+      }),
+    );
+    const clearChildBlockages: CompensatingCommand[] = blockedHandedDown.map(
+      ({ stepId, blockedAt }) => ({
+        do: 'replace_blockage',
+        workItemId: workItem.id,
+        stepId,
+        expectedBlockedAt: blockedAt,
+        replacementBlockedAt: null,
+      }),
+    );
+    // The repository validates leaf ownership even while clearing; capture and clear
+    // before insertion, then restore only after undo has removed the child.
+    for (const command of clearParentBlockages) {
+      const cleared = await this.apply(projectId, command, stamp);
+      // Proof: removing this guard failed the refused parent-clear test on its expected error; watched 2026-10-14.
+      if (!cleared.ok) throw new Error(`cannot clear first-child blockage: ${cleared.detail}`);
+    }
     await this.opts.workItems.insert(workItem, placed.renumbered, stamp);
+    // Proof: skipping these writes failed exact blockage preservation in memory and mounted SQLite; watched 2026-10-14.
+    for (const command of setChildBlockages) {
+      const written = await this.apply(projectId, command, stamp);
+      // Proof: removing this guard let the refused child write resolve; watched 2026-10-14.
+      if (!written.ok) throw new Error(`cannot hand blockage to first child: ${written.detail}`);
+    }
     // A work item that had an estimate and now has a child no longer holds one:
     // the estimate described the work, and the work is the child now. Moving it
     // down keeps the total identical, which is what makes this safe to do
@@ -2686,7 +2781,10 @@ export class WorkItemService {
         dependency: original,
       })),
       ...(statementsHandedDown === undefined ? [] : [statementsHandedDown.forward]),
+      ...clearParentBlockages,
       forward,
+      // Proof: omitting these replay writes failed both exact blockage redo tests; watched 2026-10-14.
+      ...setChildBlockages,
       ...assignedHandedDown.map(({ workItemId, stepId }) => ({
         do: 'assign' as const,
         workItemId,
@@ -2703,7 +2801,10 @@ export class WorkItemService {
         do: 'remove_typed_dependency' as const,
         dependency: remapped,
       })),
+      ...clearChildBlockages,
       inverse,
+      // Proof: omitting these replay writes failed both exact blockage undo tests; watched 2026-10-14.
+      ...restoreParentBlockages,
       ...(statementsHandedDown === undefined ? [] : [statementsHandedDown.inverse]),
       ...assignedHandedDown.map(({ workItemId, stepId, personId }) => ({
         do: 'assign' as const,
@@ -2895,6 +2996,16 @@ export class WorkItemService {
     return { ok: true, value: null };
   }
 
+  /**
+   * Reparents the subtree, clearing unrelated destination leaf statements before
+   * the store move. Incoming facts stay with their owners. A last-child departure
+   * hands up direct blockage only when every former leaf has that step fact,
+   * using the latest blocked time even when negative or retained beneath done.
+   * Progress is never handed up. Exact preexisting old-parent progress remains
+   * in place across replay; changed or missing snapshot facts refuse undo.
+   * Undo restores destination progress through
+   * the existing statement replay and restores blockage timestamps exactly.
+   */
   async move(id: string, actorId: string, input: MoveWorkItem): Promise<WorkItemOutcome<null>> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
@@ -2984,6 +3095,7 @@ export class WorkItemService {
     // is other work, so the statements are cleared rather than handed to it.
     const becomesParent =
       input.parentId !== null &&
+      workItem.parentId !== input.parentId &&
       !rows.some((row) => row.parentId === input.parentId && row.id !== id)
         ? rows.find((row) => row.id === input.parentId)
         : undefined;
@@ -3035,6 +3147,61 @@ export class WorkItemService {
             },
           }
         : undefined;
+    // Proof: omitting the captured allowance refused immediate mounted historical undo; watched 2026-10-14.
+    const leftProgress =
+      leftParentId === null
+        ? undefined
+        : await this.opts.progress.listByWorkItems(workItem.projectId, [leftParentId]);
+    const destinationProgress =
+      becomesParent === undefined
+        ? []
+        : await this.opts.progress.listByWorkItems(workItem.projectId, [becomesParent.id]);
+    const destinationBlockages =
+      becomesParent === undefined
+        ? []
+        : await this.opts.blockages.listByWorkItems(workItem.projectId, [becomesParent.id]);
+    const movedBlockages =
+      leftParentId === null
+        ? []
+        : await this.opts.blockages.listByWorkItems(
+            workItem.projectId,
+            movedLeaves.map(({ id }) => id),
+          );
+    const handedBlockages: StoredStepBlockage[] = [];
+    if (leftParentId !== null) {
+      for (const step of await this.opts.projects.stepsOf(workItem.projectId)) {
+        const facts = movedBlockages.filter(({ stepId }) => stepId === step.id);
+        // Proof: accepting any direct fact failed the missing-former-leaf regression; watched 2026-10-14.
+        if (movedLeaves.every((leaf) => facts.some(({ workItemId }) => workItemId === leaf.id))) {
+          handedBlockages.push({
+            workItemId: leftParentId,
+            stepId: step.id,
+            blockedAt: Math.max(...facts.map(({ blockedAt }) => blockedAt)),
+          });
+        }
+      }
+    }
+    const clearDestinationProgress: CompensatingCommand[] = destinationProgress.map(
+      ({ workItemId, stepId }) => ({ do: 'clear_progress', workItemId, stepId }),
+    );
+    const restoreDestinationProgress: CompensatingCommand[] = destinationProgress.map(
+      ({ workItemId, stepId, state }) => ({ do: 'set_progress', workItemId, stepId, state }),
+    );
+    const planBlockageReplacements = (
+      facts: readonly StoredStepBlockage[],
+      isClear: boolean,
+    ): CompensatingCommand[] =>
+      facts.map(({ workItemId, stepId, blockedAt }) => ({
+        do: 'replace_blockage',
+        workItemId,
+        stepId,
+        expectedBlockedAt: isClear ? blockedAt : null,
+        replacementBlockedAt: isClear ? null : blockedAt,
+      }));
+    const clearDestinationBlockages = planBlockageReplacements(destinationBlockages, true);
+    const restoreDestinationBlockages = planBlockageReplacements(destinationBlockages, false);
+    const setHandedBlockages = planBlockageReplacements(handedBlockages, false);
+    const clearHandedBlockages = planBlockageReplacements(handedBlockages, true);
     // Cleared **before** the move, so no read between the two writes sees a
     // parent holding a statement (Fable review, I1). Moved after the move,
     // `no read sees a parent holding a statement while a row moves under a
@@ -3046,6 +3213,12 @@ export class WorkItemService {
       const cleared = await this.apply(workItem.projectId, statementsCleared.forward, stamp);
       if (!cleared.ok) throw new Error(`cannot clear the new parent: ${cleared.detail}`);
     }
+    // Proof: skipping clears failed the pre-store-move destination ownership assertions; watched 2026-10-14.
+    for (const command of [...clearDestinationProgress, ...clearDestinationBlockages]) {
+      const cleared = await this.apply(workItem.projectId, command, stamp);
+      // Proof: removing this refusal failed `reports a refused move destination clear before reparenting`; watched 2026-10-14.
+      if (!cleared.ok) throw new Error(`cannot clear move destination: ${cleared.detail}`);
+    }
     await this.opts.workItems.move(id, input.parentId, placed.position, placed.renumbered, stamp);
     if (statementsHandedUp !== undefined) {
       // Proof: this write skipped made `gives the parent a moved last child
@@ -3054,48 +3227,49 @@ export class WorkItemService {
       const handed = await this.apply(workItem.projectId, statementsHandedUp.forward, stamp);
       if (!handed.ok) throw new Error(`cannot hand statements up: ${handed.detail}`);
     }
+    // Proof: skipping these writes failed unanimous hand-up, including negative timestamps and done facts; watched 2026-10-14.
+    for (const command of setHandedBlockages) {
+      const handed = await this.apply(workItem.projectId, command, stamp);
+      // Proof: removing this refusal made `reports a refused move blockage hand-up` resolve; watched 2026-10-14.
+      if (!handed.ok) throw new Error(`cannot hand move blockage up: ${handed.detail}`);
+    }
+    const forwardSteps: CompensatingCommand[] = [
+      ...(statementsCleared === undefined ? [] : [statementsCleared.forward]),
+      ...clearDestinationProgress,
+      // Proof: omitting replay clears failed mounted exact move redo; watched 2026-10-14.
+      ...clearDestinationBlockages,
+      { do: 'move', workItemId: id, parentId: input.parentId, afterId: input.afterId },
+      ...(statementsHandedUp === undefined ? [] : [statementsHandedUp.forward]),
+      ...setHandedBlockages,
+    ];
+    // Proof: restoring destination statements before moving back refused undo;
+    // clearing old-parent statements after moving back exposed a parent statement
+    // in the intermediate read. Both ordering regressions were watched 2026-09-29.
+    const inverseSteps: CompensatingCommand[] = [
+      ...clearHandedBlockages,
+      ...(statementsHandedUp === undefined ? [] : [statementsHandedUp.inverse]),
+      {
+        do: 'move',
+        workItemId: id,
+        parentId: workItem.parentId,
+        afterId: wasAfter?.id ?? null,
+        ...(leftProgress === undefined ? {} : { expectedProgress: leftProgress }),
+      },
+      ...restoreDestinationProgress,
+      // Proof: omitting restoration failed mounted exact move undo; watched 2026-10-14.
+      ...restoreDestinationBlockages,
+      ...(statementsCleared === undefined ? [] : [statementsCleared.inverse]),
+    ];
     await this.announceTree(workItem.projectId);
     await this.record(workItem.projectId, stamp, 'move', `move ${quoteName(workItem.name)}`, {
-      forward: withPatchStep(
-        withPatchStep(
-          { do: 'move', workItemId: id, parentId: input.parentId, afterId: input.afterId },
-          statementsHandedUp?.forward,
-          'after',
-        ),
-        statementsCleared?.forward,
-        'before',
-      ),
-      // The parent it left cleared first, then back where it was, then the
-      // statements of the row it had moved under: each patch lands while its
-      // row is a leaf, so no read between the writes sees a parent holding a
-      // statement, and the write never refuses a statement on a parent.
-      // Proof: the new parent's restore ordered before the move-back made
-      // `clears the readiness and hold of a leaf another row moves under, and
-      // one undo restores them` fail on `Expected: true, Received: false` — the
-      // undo was refused; watched 2026-09-29. The left parent's clear ordered
-      // after the move-back made `no read sees a parent holding a statement
-      // while a move that emptied it is undone` fail on the read taken after
-      // the move-back (`parent … holds a readiness or a hold`); watched
-      // 2026-09-29 (Fable review, round 4).
-      inverse: withPatchStep(
-        withPatchStep(
-          {
-            do: 'move',
-            workItemId: id,
-            parentId: workItem.parentId,
-            afterId: wasAfter?.id ?? null,
-          },
-          statementsCleared?.inverse,
-          'after',
-        ),
-        statementsHandedUp?.inverse,
-        'before',
-      ),
+      forward: { do: 'batch', steps: forwardSteps },
+      inverse: { do: 'batch', steps: inverseSteps },
       touched: [
         id,
-        ...(statementsCleared === undefined ? [] : [statementsCleared.forward.workItemId]),
-        ...(statementsHandedUp === undefined ? [] : [statementsHandedUp.forward.workItemId]),
+        ...(becomesParent === undefined ? [] : [becomesParent.id]),
+        ...(leftParentId === null ? [] : [leftParentId]),
       ],
+      moveProgressOwners: [...new Set(destinationProgress.map(({ workItemId }) => workItemId))],
       before: rows,
     });
     return { ok: true, value: null };
@@ -3123,6 +3297,10 @@ export class WorkItemService {
    *   end outside the subtree are left behind. Internal typed relationships
    *   receive new IDs and address the copied work items; their scopes, steps
    *   and type stay the same.
+   *
+   * Direct step blockage belongs to the original work and is omitted from copies.
+   * Proof: injecting copied facts failed the blocked leaf/descendant regression;
+   * watched 2026-10-14.
    *
    * Refuses `too_large` past {@link MAX_DUPLICATED_ROWS}, having written
    * nothing.
@@ -3392,6 +3570,8 @@ export class WorkItemService {
     // left to read and the restore would put the branch back reading as work
     // nobody had started.
     const storedProgress = await this.opts.progress.listByProject(workItem.projectId);
+    // Proof: omitting deletion capture left an orphaned fact and failed root-leaf delete/undo; watched 2026-10-14.
+    const storedBlockages = await this.opts.blockages.listByProject(workItem.projectId);
     // Read before anything is deleted, for the same cascade the two above name,
     // and in every metric at once: one read feeds three folds, which is what
     // `listByProject` takes no metric for.
@@ -3405,6 +3585,15 @@ export class WorkItemService {
     const survivor = workItem.parentId;
     const doomed = children.length === 0 || strategy === 'cascade' ? subtreeOf(rows, id) : [id];
     const inside = new Set(doomed);
+    const deletedBlockages = storedBlockages.filter((fact) => inside.has(fact.workItemId));
+    const previousParentProgress = storedProgress.filter((fact) => fact.workItemId === survivor);
+    const previousParentBlockages = storedBlockages.filter((fact) => fact.workItemId === survivor);
+    const deletionState: DeletionState = {
+      blockages: deletedBlockages,
+      parentId: survivor,
+      parentBlockages: previousParentBlockages,
+      restoredParentProgress: previousParentProgress,
+    };
     // Read before anything is deleted, for the attempts' cascade: the marks go
     // with their work items, and an undo that wrote back only the attempts
     // would let a number removed while it was a node's highest be issued again.
@@ -3474,6 +3663,10 @@ export class WorkItemService {
       // the parent's reading is now the whole branch's, and the day it was last
       // spoken about is the honest answer to "when was this said".
       const statedHandedUp: StoredProgress[] = [];
+      const blockedHandedUp: StoredStepBlockage[] = [];
+      const formerLeaves = doomed
+        .map((owner) => rowOf(rows, owner))
+        .filter((row) => !rows.some((child) => child.parentId === row.id));
       // And the figures that are not days, folded per metric — the same argument
       // the actuals make, three times, because `rollUpMeasures` takes one metric
       // at a time so that a token and an hour can never be added together. A
@@ -3482,6 +3675,18 @@ export class WorkItemService {
       // that rule stops holding.
       const measuredHandedUp: StoredMeasure[] = [];
       if (parentId !== null && rows.filter((row) => row.parentId === parentId).length === 1) {
+        for (const step of await this.opts.projects.stepsOf(workItem.projectId)) {
+          const facts = deletedBlockages.filter((fact) => fact.stepId === step.id);
+          // Proof: changing every to some handed up partial QA agreement; mounted deletion fold failed, watched 2026-10-14.
+          if (formerLeaves.every((leaf) => facts.some((fact) => fact.workItemId === leaf.id))) {
+            blockedHandedUp.push({
+              workItemId: parentId,
+              stepId: step.id,
+              // Proof: seeding with zero changed -10 to 0 in mounted deletion hand-up; watched 2026-10-14.
+              blockedAt: Math.max(...facts.map((fact) => fact.blockedAt)),
+            });
+          }
+        }
         const totals = rollUp(rows, storedEstimates);
         for (const [stepId, days] of totals.get(id) ?? []) {
           handedUp.push({ workItemId: parentId, stepId, ...days });
@@ -3552,12 +3757,11 @@ export class WorkItemService {
       // journal record; mounted node-and-whole delete restored 0 instead of 2
       // relationships on undo, watched 2026-09-27.
       const removedTyped = await this.opts.typedDependencies.removeAllFor(doomed, stamp);
+      await this.replaceDeletionBlockages(workItem.projectId, deletedBlockages, true, stamp);
       await this.opts.workItems.remove(doomed, [], stamp);
+      await this.replaceDeletionBlockages(workItem.projectId, blockedHandedUp, false, stamp);
       // The parent becoming a leaf again takes a readiness or hold only where
       // every former leaf agreed on it (`add-work-item-statuses`).
-      const formerLeaves = doomed
-        .map((each) => rowOf(rows, each))
-        .filter((row) => !rows.some((child) => child.parentId === row.id));
       const statementsHandedUp =
         parentId !== null && rows.filter((row) => row.parentId === parentId).length === 1
           ? {
@@ -3595,6 +3799,7 @@ export class WorkItemService {
           withRemovedTyped(
             {
               do: 'delete_subtree',
+              deletionState: { ...deletionState, handedBlockages: blockedHandedUp },
               rootId: id,
               expectedSubtree: doomed,
               remove: doomed,
@@ -3614,6 +3819,7 @@ export class WorkItemService {
           withRemovedTyped(
             {
               do: 'restore_subtree',
+              deletionState: { ...deletionState, parentBlockages: blockedHandedUp },
               rows: doomed.map((each) => rowOf(rows, each)),
               rootPosition: workItem.position,
               reparented: [],
@@ -3684,9 +3890,11 @@ export class WorkItemService {
         touched: [
           ...new Set([
             ...handedUp.map((each) => each.workItemId),
+            ...(survivor === null ? [] : [survivor]),
             ...(handUpStep === undefined ? [] : [handUpStep.forward.workItemId]),
           ]),
         ],
+        moveProgressOwners: survivor === null ? [] : [survivor],
         before: rows,
       });
       return { ok: true, value: null };
@@ -3716,6 +3924,7 @@ export class WorkItemService {
       forward: withRemovedTyped(
         {
           do: 'delete_subtree',
+          deletionState,
           rootId: id,
           expectedSubtree: subtreeOf(rows, id),
           remove: [id],
@@ -3733,6 +3942,7 @@ export class WorkItemService {
       inverse: withRemovedTyped(
         {
           do: 'restore_subtree',
+          deletionState,
           rows: [workItem],
           rootPosition: workItem.position,
           // Everyone the promotion rewrote, back where they were: the children
@@ -3778,7 +3988,8 @@ export class WorkItemService {
       // The promoted rows are preconditions because putting them back under the
       // restored parent is part of the undo. The ends of the edges that left
       // are not, for the reason given in the cascade branch above.
-      touched: promoted.map((each) => each.id),
+      touched: [...promoted.map((each) => each.id), ...(survivor === null ? [] : [survivor])],
+      moveProgressOwners: survivor === null ? [] : [survivor],
       before: rows,
     });
     return { ok: true, value: null };
@@ -5396,6 +5607,22 @@ export class WorkItemService {
       readCommand(entry.inverse),
     ]);
 
+    // Proof: removing required metadata validation accepted a deletion whose progress snapshot was removed (200 vs 500); watched 2026-10-14.
+    for (const owner of deletionParentsOf([payload.forward, readCommand(entry.inverse)])) {
+      if (
+        preconditions.moveProgress === undefined ||
+        !Object.hasOwn(preconditions.moveProgress, owner)
+      )
+        throw new Error(`journal deletion state has no complete progress snapshot for ${owner}`);
+    }
+
+    const replayReferences = referencesOf(command);
+    for (const [owner, facts] of Object.entries(preconditions.moveProgress ?? {})) {
+      // Proof: omitting owners with empty snapshots admitted foreign-project metadata; watched 2026-10-14.
+      replayReferences.workItems.push(owner);
+      // Proof: omitting snapshot step references changed scoped metadata refusal from 404 to 409; watched 2026-10-14.
+      replayReferences.steps.push(...facts.map(({ stepId }) => stepId));
+    }
     // Proof: disabling this check made `command-organization.controller.db.test.ts`
     // answer 200 instead of 404 for `refuses an undo whose entry names another
     // project's row`, for the nested foreign label and for the restored row of
@@ -5403,7 +5630,7 @@ export class WorkItemService {
     // of another project; watched 2026-09-27.
     if (
       access.kind === 'scoped' &&
-      (await this.namesOutside(projectId, access.scope.organizationId, referencesOf(command)))
+      (await this.namesOutside(projectId, access.scope.organizationId, replayReferences))
     ) {
       return { ok: false, reason: 'not_found', detail: null };
     }
@@ -5430,6 +5657,25 @@ export class WorkItemService {
       return { ok: false, reason: 'stale_undo', detail: moved, entryId: entry.id };
     }
 
+    for (const [owner, expected] of Object.entries(preconditions.moveProgress ?? {})) {
+      const current = await this.opts.progress.listByWorkItems(projectId, [owner]);
+      // Proof: bypassing this pre-batch comparison deleted changed recorded destination facts during mounted/memory redo; watched 2026-10-14.
+      // Proof: bypassing this comparison lost peer deletion-parent progress (200 vs 409); watched 2026-10-14.
+      if (!matchesProgress(current, expected)) {
+        await this.opts.journal.discard(entry.id);
+        return {
+          ok: false,
+          reason: 'stale_undo',
+          detail: 'progress on a guarded work item changed since this command.',
+          entryId: entry.id,
+        };
+      }
+    }
+    const neighbors = await this.captureReplayNeighbors(stack, entry, direction, projectId);
+    // Proof: broadening these pairs to all owner facts accepted stale mounted/memory replay; watched 2026-10-14.
+    const written = new Set(
+      progressKeysOf(command).map(({ workItemId, stepId }) => progressKey(workItemId, stepId)),
+    );
     // The act is the application, past every refusal above it: a stale entry is
     // discarded and never stamped. Nothing is appended to the journal here — an
     // undo is not itself journalled — so this stamp is spent only on the rows
@@ -5463,16 +5709,58 @@ export class WorkItemService {
     // this application left and remembers the ones it started from. Nothing is
     // appended: an undo that was itself journalled would be undoable, and the
     // key would toggle one change forever instead of walking back through two.
-    const now = await this.revisionsOf(projectId, touchedBy(command));
+    const now = await this.revisionsOf(projectId, [
+      ...touchedBy(command),
+      // Proof: omitting both direction owners let the second undo ignore a changed parent revision; watched 2026-10-14.
+      ...expectedProgressOwnersOf(payload.forward),
+      ...expectedProgressOwnersOf(readCommand(entry.inverse)),
+    ]);
     await this.opts.journal.flip(entry.id, direction === 'undo', {
       expected: now,
       from: preconditions.expected,
+      // Proof: dropping flip snapshots made changed known-step redo succeed; watched 2026-10-14.
+      ...(preconditions.moveProgress === undefined
+        ? {}
+        : {
+            moveProgress: await this.captureMoveProgress(
+              projectId,
+              Object.keys(preconditions.moveProgress),
+            ),
+          }),
       // Proof: dropping this binding made chained minute redo refuse 409 instead of 200 (mounted unit replay, 2026-10-12).
       estimateUnits: bindings,
     });
-    await this.rebase(stack, entry, direction, preconditions.from, now);
+    await this.rebase(neighbors, entry, preconditions.from, now, written);
     await this.announceTree(projectId);
     return { ok: true, value: { done: payload.label, detail: applied.detail } };
+  }
+
+  /** Captures guarded neighbor facts before this replay can change any progress. */
+  private async captureReplayNeighbors(
+    stack: readonly JournalEntry[],
+    selected: JournalEntry,
+    direction: 'undo' | 'redo',
+    projectId: string,
+  ): Promise<ReplayNeighbor[]> {
+    const neighbors: ReplayNeighbor[] = [];
+    for (const entry of stack) {
+      if (entry.id === selected.id) continue;
+      const ahead = direction === 'undo' ? entry.seq < selected.seq : entry.seq > selected.seq;
+      if (!ahead) continue;
+      const preconditions = readPreconditions(entry.preconditions);
+      neighbors.push({
+        entry,
+        preconditions,
+        progress: await Promise.all(
+          Object.entries(preconditions.moveProgress ?? {}).map(async ([owner, expected]) => ({
+            owner,
+            expected,
+            before: await this.opts.progress.listByWorkItems(projectId, [owner]),
+          })),
+        ),
+      });
+    }
+    return neighbors;
   }
 
   /**
@@ -5492,23 +5780,26 @@ export class WorkItemService {
    * numbers do not match, nothing is re-stamped, and that entry refuses when
    * it is reached — which is the entire point of the feature.
    *
+   * Guarded progress changes only for exact pairs this replay writes. Every
+   * other fact and absence captured before replay must match the neighbor's
+   * snapshot; a mismatch preserves the stale snapshot. Unwritten pairs retain
+   * their recorded values rather than absorbing the owner's current whole set.
+   *
    * Only the side being walked toward is touched: undoing carries the live
    * entries below, redoing carries the undone ones above.
    */
   private async rebase(
-    stack: readonly JournalEntry[],
+    neighbors: readonly ReplayNeighbor[],
     applied: JournalEntry,
-    direction: 'undo' | 'redo',
     startedFrom: Revisions,
     now: Revisions,
+    written: ReadonlySet<string>,
   ): Promise<void> {
-    for (const other of stack) {
-      if (other.id === applied.id) continue;
-      const ahead = direction === 'undo' ? other.seq < applied.seq : other.seq > applied.seq;
-      if (!ahead) continue;
-      const their = readPreconditions(other.preconditions);
+    for (const neighbor of neighbors) {
+      const { entry: other, preconditions: their } = neighbor;
       let changed = false;
       const expected: Revisions = { ...their.expected };
+      const moveProgress = their.moveProgress === undefined ? undefined : { ...their.moveProgress };
       for (const [id, reached] of Object.entries(now)) {
         // Only where this neighbour has an opinion about the entity at all,
         // and where that opinion is exactly the revision the applied command
@@ -5516,12 +5807,54 @@ export class WorkItemService {
         // from being invented for a row the neighbour never touched, and the
         // second is what somebody else's write in between fails.
         if (!Object.hasOwn(their.expected, id)) continue;
+        // Proof: bypassing this equality refreshed a stale move destination snapshot in the neighboring-replay case; watched 2026-10-14.
         if (their.expected[id] !== startedFrom[id]) continue;
         expected[id] = reached;
+        if (moveProgress !== undefined) {
+          for (const captured of neighbor.progress) {
+            if (captured.owner !== id) continue;
+            const unchanged = captured.expected.filter(
+              (fact) => !written.has(progressKey(fact.workItemId, fact.stepId)),
+            );
+            const before = captured.before.filter(
+              (fact) => !written.has(progressKey(fact.workItemId, fact.stepId)),
+            );
+            // Proof: bypassing outside-pair equality changed stale QA snapshots through Dev replay; watched 2026-10-14.
+            if (matchesProgress(before, unchanged)) {
+              const after = await this.opts.progress.listByWorkItems(applied.projectId, [id]);
+              // Proof: omitting refresh refused valid neighboring progress undo/redo after restamping; watched 2026-10-14.
+              moveProgress[id] = [
+                ...unchanged,
+                // Proof: including unwritten post-replay rows duplicated QA and refused the valid Dev/QA chain; watched 2026-10-14.
+                ...after.filter((fact) => written.has(progressKey(fact.workItemId, fact.stepId))),
+              ];
+            }
+          }
+        }
         changed = true;
       }
-      if (changed) await this.opts.journal.restamp(other.id, { ...their, expected });
+      if (changed)
+        await this.opts.journal.restamp(other.id, {
+          ...their,
+          expected,
+          ...(moveProgress === undefined ? {} : { moveProgress }),
+        });
     }
+  }
+
+  /** Captures the current complete set for each destination, including empty sets after clearing. */
+  private async captureMoveProgress(
+    projectId: string,
+    owners: readonly string[],
+  ): Promise<Record<string, StoredProgress[]>> {
+    return Object.fromEntries(
+      await Promise.all(
+        owners.map(async (owner): Promise<[string, StoredProgress[]]> => [
+          owner,
+          await this.opts.progress.listByWorkItems(projectId, [owner]),
+        ]),
+      ),
+    );
   }
 
   /**
@@ -5782,6 +6115,41 @@ export class WorkItemService {
       case 'clear_progress':
         await this.opts.progress.remove(command.workItemId, command.stepId, stamp);
         return { ok: true, detail: null };
+      case 'replace_blockage': {
+        const rows = await this.opts.workItems.listByProject(projectId);
+        if (
+          !rows.some(({ id }) => id === command.workItemId) ||
+          rows.some(({ parentId }) => parentId === command.workItemId)
+        ) {
+          return { ok: false, detail: 'that work item is no longer a leaf in this project.' };
+        }
+        if (!(await this.holdsStep(projectId, command.stepId))) {
+          return { ok: false, detail: 'that step is no longer in this project.' };
+        }
+        const current =
+          (await this.opts.blockages.listByWorkItems(projectId, [command.workItemId])).find(
+            ({ workItemId, stepId }) =>
+              workItemId === command.workItemId && stepId === command.stepId,
+          )?.blockedAt ?? null;
+        if (current !== command.expectedBlockedAt) {
+          return { ok: false, detail: 'that step blockage changed since this command.' };
+        }
+        if (command.replacementBlockedAt === null) {
+          await this.opts.blockages.remove(command.workItemId, command.stepId, stamp);
+          return { ok: true, detail: null };
+        }
+        const written = await this.opts.blockages.set(
+          {
+            workItemId: command.workItemId,
+            stepId: command.stepId,
+            blockedAt: command.replacementBlockedAt,
+          },
+          stamp,
+        );
+        return written === 'written'
+          ? { ok: true, detail: null }
+          : { ok: false, detail: 'that step is no longer in this project.' };
+      }
       case 'assign':
         if (command.personId !== null && !(await this.holdsStep(projectId, command.stepId))) {
           return { ok: false, detail: 'that step is no longer in this project.' };
@@ -5891,6 +6259,7 @@ export class WorkItemService {
           command.parentId,
           command.afterId,
           stamp,
+          command.expectedProgress,
         );
       case 'set_positions':
         return this.applySetPositions(projectId, command.placements, command.moved, stamp);
@@ -5946,6 +6315,7 @@ export class WorkItemService {
     parentId: string | null,
     afterId: string | null,
     stamp: WriteStamp,
+    expectedProgress: readonly StoredProgress[] = [],
   ): Promise<ApplyOutcome> {
     const rows = await this.opts.workItems.listByProject(projectId);
     const moving = rows.find((row) => row.id === id);
@@ -5961,6 +6331,17 @@ export class WorkItemService {
       return { ok: false, detail: 'the work item it sat after has been deleted since then.' };
     }
     if (moving.parentId !== parentId) {
+      if (parentId !== null && !rows.some((row) => row.parentId === parentId)) {
+        // Proof: bypassing snapshot equality accepted changed state/time, extra and missing facts in mounted and memory runner cases; watched 2026-10-14.
+        const currentProgress = await this.opts.progress.listByWorkItems(projectId, [parentId]);
+        if (!matchesProgress(currentProgress, expectedProgress)) {
+          return { ok: false, detail: 'the destination leaf progress changed since this move.' };
+        }
+        // Proof: bypassing this guard returned 500 in mounted other-step blockage undo/redo; watched 2026-10-14.
+        if ((await this.opts.blockages.listByWorkItems(projectId, [parentId])).length > 0) {
+          return { ok: false, detail: 'the destination leaf has blockage stated since this move.' };
+        }
+      }
       const authored = await this.opts.typedDependencies.listByProject(projectId);
       const invalid = findInvalidTypedShape(
         rows.map((row) => (row.id === id ? { ...row, parentId } : row)),
@@ -6009,6 +6390,46 @@ export class WorkItemService {
     return { ok: true, detail: null };
   }
 
+  /** Replaces captured facts conditionally while each owner is a leaf; throws on store refusal. */
+  private async replaceDeletionBlockages(
+    projectId: string,
+    facts: readonly StoredStepBlockage[],
+    isClear: boolean,
+    stamp: WriteStamp,
+  ): Promise<void> {
+    for (const fact of facts) {
+      const replaced = await this.apply(
+        projectId,
+        {
+          do: 'replace_blockage',
+          ...fact,
+          expectedBlockedAt: isClear ? fact.blockedAt : null,
+          replacementBlockedAt: isClear ? null : fact.blockedAt,
+        },
+        stamp,
+      );
+      // Proof: removing this refusal resolved the refused deletion hand-up test; watched 2026-10-14.
+      if (!replaced.ok) throw new Error(`cannot replace deletion blockage: ${replaced.detail}`);
+    }
+  }
+
+  /** Refuses complete parent blockage drift before restore can clear facts or create children. */
+  private async deletionRefusal(
+    projectId: string,
+    state: DeletionState,
+  ): Promise<ApplyOutcome | null> {
+    if (state.parentId === null) return null;
+    // Proof: bypassing equality exposed an unrecorded parent fact during insertion (500 vs 409); watched 2026-10-14.
+    if (
+      !matchesBlockages(
+        await this.opts.blockages.listByWorkItems(projectId, [state.parentId]),
+        state.parentBlockages,
+      )
+    )
+      return { ok: false, detail: 'the deletion parent blockage changed since this command.' };
+    return null;
+  }
+
   private async applyDelete(
     projectId: string,
     command: Extract<CompensatingCommand, { do: 'delete_subtree' }>,
@@ -6027,8 +6448,23 @@ export class WorkItemService {
     if (now.size !== then.size || [...then].some((id) => !now.has(id))) {
       return { ok: false, detail: 'work has been added or removed under that row since then.' };
     }
+    if (command.deletionState !== undefined) {
+      const refused = await this.deletionRefusal(projectId, command.deletionState);
+      if (refused !== null) return refused;
+      // Proof: bypassing complete-set equality deleted an added subtree fact on redo (200 vs 409); watched 2026-10-14.
+      if (
+        !matchesBlockages(
+          await this.opts.blockages.listByWorkItems(projectId, command.remove),
+          command.deletionState.blockages,
+        )
+      )
+        return { ok: false, detail: 'the deleted subtree blockage changed since this command.' };
+    }
     const root = rows.find((row) => row.id === command.rootId);
     if (root === undefined) throw new Error('delete root disappeared after its existence check');
+    // Proof: removing this binding accepted persisted metadata naming a different removal parent (200 vs 500); watched 2026-10-14.
+    if (command.deletionState !== undefined && command.deletionState.parentId !== root.parentId)
+      throw new Error('journal deletion state names the wrong removal parent');
     const removed = new Set(command.remove);
     const reparented = new Map(command.reparented.map((row) => [row.id, row]));
     const projected = rows
@@ -6052,6 +6488,8 @@ export class WorkItemService {
     if (attemptsRefused !== null) return attemptsRefused;
     await this.opts.dependencies.removeAllFor(command.remove, stamp);
     await this.opts.typedDependencies.removeAllFor(command.remove, stamp);
+    if (command.deletionState !== undefined)
+      await this.replaceDeletionBlockages(projectId, command.deletionState.blockages, true, stamp);
     await this.opts.workItems.remove(command.remove, command.reparented, stamp);
     for (const each of command.setEstimates) await this.opts.estimates.set(each, stamp);
     // The hand-up again, actuals with estimates. A re-applied delete that put
@@ -6062,6 +6500,13 @@ export class WorkItemService {
     // that put back the figures and not the reading would leave the surviving
     // parent reporting a finished branch's work as work nobody has started.
     for (const each of command.setProgress) await this.opts.progress.set(each, stamp);
+    if (command.deletionState !== undefined)
+      await this.replaceDeletionBlockages(
+        projectId,
+        command.deletionState.handedBlockages ?? [],
+        false,
+        stamp,
+      );
     // And the figures that are not days, per metric as they were folded. A
     // re-applied delete that handed up the days and not the tokens would leave
     // the surviving parent reporting a fortnight of work that cost nothing.
@@ -6178,6 +6623,16 @@ export class WorkItemService {
     const attemptsRefused = await this.attemptsRefusal(projectId, command.attempts ?? []);
     if (attemptsRefused !== null) return attemptsRefused;
 
+    if (command.deletionState !== undefined) {
+      const refused = await this.deletionRefusal(projectId, command.deletionState);
+      if (refused !== null) return refused;
+      await this.replaceDeletionBlockages(
+        projectId,
+        command.deletionState.parentBlockages,
+        true,
+        stamp,
+      );
+    }
     await this.opts.subtrees.insertSubtree(
       {
         rows: command.rows.map((row) => ({
@@ -6205,6 +6660,17 @@ export class WorkItemService {
       },
       stamp,
     );
+    if (command.deletionState !== undefined) {
+      // Proof: skipping these writes lost historical parent state/time in mounted deletion undo; watched 2026-10-14.
+      for (const fact of command.deletionState.restoredParentProgress) {
+        const written = await this.opts.progress.set(fact, stamp);
+        // Proof: ignoring store refusal resolved the refused historical progress restoration test; watched 2026-10-14.
+        if (written !== 'written')
+          throw new Error(`cannot restore historical parent progress: ${written}`);
+      }
+      // Proof: skipping this restore lost the exact done-leaf blockage on mounted undo; watched 2026-10-14.
+      await this.replaceDeletionBlockages(projectId, command.deletionState.blockages, false, stamp);
+    }
     // The attempts after the rows they hang off: off the surviving parent
     // first (the redo of a first-child create), then onto the restored rows,
     // verbatim with their numbers.
@@ -6346,6 +6812,11 @@ export class WorkItemService {
         steps: recordings.map((each) => each.recording.inverse).reverse(),
       },
       touched: [...new Set(recordings.flatMap((each) => each.recording.touched))],
+      // Proof: omitting collected owners let a collected move redo delete changed progress; watched 2026-10-14.
+      moveProgressOwners: [
+        // Proof: omitting collection owners made mounted collected deletion undo refuse damaged metadata (500 vs 200); watched 2026-10-14.
+        ...new Set(recordings.flatMap((each) => each.recording.moveProgressOwners ?? [])),
+      ],
       before: only.recording.before,
       // The first step to write each step is the one whose before-state the
       // batch started from, so later steps never overwrite it.
@@ -6406,6 +6877,14 @@ export class WorkItemService {
         inverse: recording.inverse,
         preconditions: {
           estimateUnits,
+          ...((recording.moveProgressOwners?.length ?? 0) === 0
+            ? {}
+            : {
+                moveProgress: await this.captureMoveProgress(
+                  projectId,
+                  recording.moveProgressOwners ?? [],
+                ),
+              }),
           expected: await this.revisionsOf(projectId, recording.touched),
           // The same entities as they were before the mutation, read off the row
           // list the mutation's own guard produced. Nothing is checked against
@@ -6667,6 +7146,7 @@ interface TreeReads {
   assignedPeople: { id: string; name: string }[];
   /** Every attempt in the project, read beside the statements and handed to no engine. */
   attempts: readonly StoredAttempt[];
+  blockages: readonly StoredStepBlockage[];
   seq: number;
   steps: Step[];
   slotsOf: ReadonlyMap<string, number>;
@@ -6714,6 +7194,9 @@ function projectSharedTree(
       // node and leaf (shared)` read no attempts (`received value must be a
       // non-null object`) while the isolated case passed; watched 2026-10-12.
       attempts: captured.attempts,
+      // Proof: forwarding [] failed `reads a direct timestamp and the exact
+      // downstream root (shared)`; watched 2026-10-13.
+      blockages: captured.blockages,
       slotsOf: reads.capacity,
       priorityBands: [...reads.priorityBands],
       elsewhereHolders: chain.kind === 'scheduled' ? chain.holders : [],
@@ -6739,6 +7222,7 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
     assigned,
     assignedPeople,
     attempts,
+    blockages,
     seq,
     steps,
     slotsOf,
@@ -6775,26 +7259,23 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
   // The row's own reading, folded over its **children** rather than over its
   // rolled-up steps — see `rollUpWorkItemStatuses` for why the two differ and which
   // one is true.
-  // A legacy edge naming a work item from another project is stored state
-  // the schema does not prevent and the read already hides (`dependsOn`
-  // below); it cannot hold a leaf of this plan back, so the status fold is
-  // handed only edges between rows it holds. Typed dependencies are checked
-  // against the project when written, so a stray one there throws.
+  // Preserve the row proxy fold's leaf-level endpoint filter. The complete
+  // node graph below separately refuses missing legacy endpoints as malformed
+  // trusted state; its precise node projection never supplies this row status.
   const rowIds = new Set(rows.map((row) => row.id));
   const itemStatuses = workItemStatusesOf(rows, rollUpWorkItemStatuses(rows, statedTotals), {
     edges: edges.filter((edge) => rowIds.has(edge.predecessorId) && rowIds.has(edge.successorId)),
     typed: authored,
   });
-  // Every leaf node's reading over the resolved step-node graph, its
-  // predecessors the workflow and authored edges into it; legacy joins are
-  // left out of the resolution because the reading never reads them
-  // (`step-node-readings` D1, D3).
-  const readingsOf = nodeReadingsOf({
+  // Canonical readings use complete topology for blockage propagation and
+  // workflow/authored predecessors for waiting (ADR 0053). Row proxy remains
+  // independent; it cannot turn a sibling endpoint into a node predecessor.
+  const nodeProjection = projectNodeReadings({
     graph: resolveDependencyGraph({
       rows,
       steps,
       estimates: stored,
-      legacy: [],
+      legacy: edges,
       typed: authored,
       reach: project.depReach,
     }),
@@ -6802,6 +7283,7 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
     statusOf: itemStatuses,
     stated,
     running,
+    blocked: blockages,
   });
   // The write path refuses an edge that would close a cycle, but two clients
   // drawing conflicting edges at the same instant are each checked against the
@@ -6975,6 +7457,8 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
       // `undefined`; the hand-off a person link is drawn from would have been
       // absent from the payload with nothing to say it ever existed; watched
       // 2026-08-09.
+      // Proof: dropping every displayed slice only while a direct blockage exists
+      // failed the mounted Fast byte comparison in both modes; watched 2026-10-13.
       scheduledSlices = [...planned.slices].map(([id, placed]) => ({ id, ...placed }));
     }
   } catch (err) {
@@ -7059,7 +7543,19 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
       ...assignmentFieldsOf(assigneesOf.get(row.id) ?? {}),
       ...attemptFieldsOf(attemptsOf.get(row.id) ?? [], steps),
       // A leaf's node readings by step id; a parent has no nodes and no key.
-      ...readingFieldsOf(readingsOf.get(row.id)),
+      ...readingFieldsOf(nodeProjection.readings.get(row.id)),
+      ...(nodeProjection.readings.has(row.id)
+        ? {
+            blockages: Object.fromEntries(
+              blockages
+                .filter((fact) => fact.workItemId === row.id)
+                .map((fact) => [fact.stepId, { blockedAt: fact.blockedAt }]),
+            ),
+            // Proof: forwarding {} failed the exact downstream root assertion
+            // in the isolated mounted read; watched 2026-10-13.
+            blockageCauses: nodeProjection.causes.get(row.id) ?? {},
+          }
+        : {}),
       // A row the hold reduction took out has no schedule and no dates: it
       // takes no part in the plan, and a placeholder span would draw it.
       // Proof: the placeholder kept here made `lets a successor start at day
@@ -7126,4 +7622,34 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
     projectRevision: project.revision,
     ...(optimization === undefined ? {} : { optimization }),
   };
+}
+
+/** Compares whole sparse blockage sets independently of repository order. */
+function matchesBlockages(
+  current: readonly StoredStepBlockage[],
+  expected: readonly StoredStepBlockage[],
+): boolean {
+  return (
+    current.length === expected.length &&
+    expected.every((fact) =>
+      current.some(
+        (held) =>
+          held.workItemId === fact.workItemId &&
+          held.stepId === fact.stepId &&
+          held.blockedAt === fact.blockedAt,
+      ),
+    )
+  );
+}
+
+/** Parents whose deletion snapshots require complete pre-batch progress guards. */
+function deletionParentsOf(commands: readonly CompensatingCommand[]): string[] {
+  return commands.flatMap((command) =>
+    command.do === 'batch'
+      ? deletionParentsOf(command.steps)
+      : (command.do === 'delete_subtree' || command.do === 'restore_subtree') &&
+          command.deletionState?.parentId != null
+        ? [command.deletionState.parentId]
+        : [],
+  );
 }

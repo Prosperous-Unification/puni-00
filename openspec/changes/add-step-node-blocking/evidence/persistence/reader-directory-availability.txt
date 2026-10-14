@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-remote-scripts/src/lib/docker.test.ts:
+1670 |   it('reads a present release CLI, models an older release, and refuses unavailable source', async () => {
+1671 |     const directory = scratchSync('wbs-blockage-reader-');
+1672 |     try {
+1673 |       const command = stepBlockageKindsCommand('be-01-green').slice(2);
+1674 |       const absent = Bun.spawn(command, { cwd: directory });
+1675 |       expect(await absent.exited).toBe(74);
+                                         ^
+error: expect(received).toBe(expected)
+
+Expected: 74
+Received: 0
+
+      at <anonymous> (/tmp/puni-step-blockage-rebuild/tools/tool-remote-scripts/src/lib/docker.test.ts:1675:35)
+(fail) step blockage compatibility commands > reads a present release CLI, models an older release, and refuses unavailable source [1.98ms]
+(pass) step blockage compatibility commands > refuses nonregular, dangling and unreadable reader paths [10.78ms]
+(pass) step blockage compatibility commands > counts every stored fact and distinguishes an older schema from an unavailable database [54.58ms]
+
+ 2 pass
+ 112 filtered out
+ 1 fail
+ 10 expect() calls
+Ran 3 tests across 1 file. [89.00ms]

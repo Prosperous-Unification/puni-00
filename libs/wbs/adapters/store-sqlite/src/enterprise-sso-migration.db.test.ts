@@ -87,6 +87,9 @@ describe('the enterprise SSO migrations', () => {
     );
     const migrated = schema();
     expect(rollbackTo(path, FOLDER, BEFORE)).toEqual([
+      '20261014130000_add_shared_people_restore_receipts',
+      '20261014120000_add_shared_people_restore_approvals',
+      '20261013140000_add_step_node_blockages',
       ESTIMATE_UNIT,
       ATTEMPTS,
       WIDENED,

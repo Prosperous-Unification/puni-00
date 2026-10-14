@@ -28,7 +28,13 @@ import {
   type SqliteReport,
 } from './cutover';
 import { restoreJob } from './cutover-cli';
+import {
+  createCutoverIdentity,
+  type CutoverIdentity,
+  validateCutoverReplay,
+} from './cutover-replay';
 import { prepareDesiredRevision } from './deploy-repo';
+import { type ReleaseDescriptor, renderDescriptor } from './descriptor';
 import {
   backendTaskJob,
   executeRelease,
@@ -417,8 +423,9 @@ async function runRestoreJob(
   exported: SqliteReport,
   exportFile: string,
   name: string,
+  binding: CutoverIdentity,
 ): Promise<{ completed: boolean; logs: string }> {
-  await k(['create', '-f', '-'], JSON.stringify(restoreJob(image, exported, name)));
+  await k(['create', '-f', '-'], JSON.stringify(restoreJob(image, exported, name, binding)));
   const selector = `job-name=${name}`;
   // The pod appears after the Job, and a refused restore exits before it is ever Ready.
   let pod = '';
@@ -809,6 +816,29 @@ async function main(): Promise<void> {
       sourceSha,
       images: { backend: be.cluster, gateway: gw.cluster, frontend: fe.cluster, mcp: mcp.cluster },
     };
+    // Laboratory descriptor binds actual published bytes; its synthetic admission is never staging proof.
+    const descriptor: ReleaseDescriptor = {
+      schemaVersion: 1,
+      ...identity,
+      evidence: { gate: { runId: 1, job: 'gate' }, browser: { runId: 1, job: 'pixels' } },
+      admission: {
+        package: {
+          name: 'twilight-burokrat',
+          version: '0.1.0',
+          integrity: `sha512-${'c'.repeat(86)}==`,
+          toolkitIdentity: 'd'.repeat(64),
+        },
+        activation: { version: 'e'.repeat(40), manifestIdentity: 'f'.repeat(64) },
+      },
+    };
+    const descriptorBytes = renderDescriptor(descriptor);
+    const binding = createCutoverIdentity(
+      descriptorBytes,
+      createHash('sha256').update(descriptorBytes).digest('hex'),
+      be.host,
+      be.cluster,
+    );
+    writeFileSync(join(state, 'cutover-descriptor.json'), descriptorBytes);
     log(`old digests = new digests: ${JSON.stringify(identity.images)}`);
     assertMemory();
 
@@ -867,7 +897,9 @@ async function main(): Promise<void> {
     phase('export-sqlite');
     mkdirSync(join(state, 'export'), { recursive: true });
     const exported = parseSqliteReport(
-      await sh(exportArgv(be.host, join(old, 'data'), 'wbs.db', join(state, 'export'), KNOWN)),
+      await sh(
+        exportArgv(be.host, join(old, 'data'), 'wbs.db', join(state, 'export'), KNOWN, binding),
+      ),
     );
     writeFileSync(join(state, 'export-report.json'), JSON.stringify(exported, null, 2));
     log(
@@ -908,6 +940,7 @@ async function main(): Promise<void> {
       exported,
       exportFile,
       'wbs-cutover-restore-raced',
+      binding,
     );
     assert(
       !raced.completed && raced.logs.includes('already exists; refusing to overwrite it'),
@@ -982,16 +1015,42 @@ async function main(): Promise<void> {
       exported,
       tampered,
       'wbs-cutover-restore-tampered',
+      binding,
     );
     assert(
       !refused.completed && refused.logs.includes(`not ${exported.sha256}`),
       'a tampered export is refused by the restore Job before it reaches /data/wbs.sqlite',
     );
+    log(
+      'reviewed lab retry: retain host export/failed logs, remove refused PVC arrival bytes and marker',
+    );
+    writeFileSync(join(state, 'refused-restore.log'), refused.logs);
+    const clearArrival = backendTaskJob(
+      { namespaces: NAMESPACES },
+      'wbs-cutover-clear-arrival',
+      identity.images.backend,
+      {},
+      [
+        'bun',
+        '-e',
+        "for(const name of ['cutover-incoming.sqlite','cutover-incoming.done']) require('node:fs').rmSync('/data/'+name)",
+      ],
+    );
+    await k(['create', '-f', '-'], JSON.stringify(clearArrival));
+    await k([
+      '-n',
+      'wbs-solver',
+      'wait',
+      '--for=condition=complete',
+      'job/wbs-cutover-clear-arrival',
+      '--timeout=60s',
+    ]);
     const restoredRun = await runRestoreJob(
       identity.images.backend,
       exported,
       exportFile,
       'wbs-cutover-restore',
+      binding,
     );
     assert(restoredRun.completed, 'the restore Job completed with the real export');
     await Bun.sleep(25_000);
@@ -1003,6 +1062,7 @@ async function main(): Promise<void> {
     assert((await lastApplied()).endsWith(c0), 'the suspended unit applied nothing new');
     const restored = parseSqliteReport(restoredRun.logs);
     writeFileSync(join(state, 'restore-report.json'), JSON.stringify(restored, null, 2));
+    validateCutoverReplay(restored.replay, binding, exported.sha256);
     assertRestoredMatches(exported, restored);
     log(
       `restored ${restored.path}: same sha256, migrations and counts; owner uid ${String(restored.ownerUid)}`,

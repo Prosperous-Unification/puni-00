@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-blockage.db.test.ts:
+126 |     connection.db.run('PRAGMA foreign_keys = OFF');
+127 |     connection.db.run("UPDATE step_blockage SET step_id='gone'");
+128 |     expect(blockages.listByProject('p')).rejects.toThrow(/invalid step reference/);
+129 |     connection.db.run("UPDATE step_blockage SET step_id='dev'");
+130 |     connection.db.run("DELETE FROM work_item WHERE id='a'");
+131 |     expect(blockages.listByProject('p')).rejects.toThrow(/invalid work-item reference/);
+                                                       ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-step-blockage-rebuild/libs/wbs/adapters/store-sqlite/src/step-blockage.db.test.ts:131:50)
+(fail) StepBlockageRepository > refuses missing trusted owner and step references on reads [178.45ms]
+
+ 0 pass
+ 6 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [491.00ms]

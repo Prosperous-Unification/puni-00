@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-blockage-rollback.db.test.ts:
+ 96 |     const saved = saveStepBlockages(connection.db);
+ 97 |     removeSavedStepBlockages(connection.db, saved);
+ 98 |     connection.db.run(
+ 99 |       "INSERT INTO step_blockage (work_item_id,step_id,blocked_at) VALUES ('b','qa',200)",
+100 |     );
+101 |     expect(() => restoreStepBlockages(connection.db, saved)).toThrow(/not empty/);
+                                                                   ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /not empty/
+
+Received function did not throw
+Received value: 1
+
+      at <anonymous> (/tmp/puni-step-blockage-rebuild/libs/wbs/adapters/store-sqlite/src/step-blockage-rollback.db.test.ts:101:62)
+(fail) step blockage recovery > refuses a nonempty restore even for disjoint existing facts [199.88ms]
+
+ 0 pass
+ 8 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [617.00ms]

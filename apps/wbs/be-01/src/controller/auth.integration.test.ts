@@ -24,6 +24,7 @@ import {
   refusingDomains,
   refusingEnterpriseConnections,
   refusingMemberships,
+  refusingRestoreApprovals,
 } from '../testing/organization-access-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
 import { testProjectService } from '../testing/project-fixture';
@@ -42,6 +43,7 @@ function app(auth = testAuthService(), maxConcurrentLogins?: number) {
   return buildApp({
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
+    sharedPeopleRestoreApprovals: refusingRestoreApprovals,
     domains: refusingDomains,
     enterpriseConnections: refusingEnterpriseConnections,
     emailVerification: refusingEmailVerification,
@@ -167,6 +169,7 @@ describe('GET /api/auth/me', () => {
     const res = await buildApp({
       organizations: legacyOrganizationAccess,
       memberships: refusingMemberships,
+      sharedPeopleRestoreApprovals: refusingRestoreApprovals,
       domains: refusingDomains,
       enterpriseConnections: refusingEnterpriseConnections,
       emailVerification: refusingEmailVerification,

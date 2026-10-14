@@ -34,9 +34,11 @@ const count = (howMany: number, thing: string): string =>
   `${String(howMany)} ${thing}${howMany === 1 ? '' : 's'}`;
 
 /**
- * What removing a step would take, as one sentence.
+ * What removing a step would take, as confirmation text.
  *
- * The two counts always, even when one is zero: "1 estimate and 0 assignments"
+ * Estimate, assignment and reported direct blockage counts include zero.
+ * An absent older-server blockage count is stated as unknown.
+ * The first two counts always, even when one is zero: "1 estimate and 0 assignments"
  * is a complete answer, and a sentence that dropped the zero would leave the
  * reader wondering whether it had been asked.
  *
@@ -47,10 +49,15 @@ const count = (howMany: number, thing: string): string =>
  * it out loud, since it is what somebody agrees to before a removal.
  */
 export function usageSentence(stepName: string, inUse: StepUsage): string {
+  // Proof: bypassing the unknown branch failed the older-server confirmation assertion (steps-panel.test.tsx, 2026-10-14).
+  const blockageSentence =
+    inUse.blockages === undefined
+      ? 'The server did not report step blockages.'
+      : `It would also delete ${count(inUse.blockages, 'step blockage')}.`;
   return `Removing the step ${stepName} would delete ${count(
     inUse.estimates,
     'estimate',
-  )} and ${count(inUse.assignments, 'assignment')}.`;
+  )} and ${count(inUse.assignments, 'assignment')}. ${blockageSentence}`;
 }
 
 /**

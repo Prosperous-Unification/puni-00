@@ -620,8 +620,14 @@ _Avoid_: viewer's zone, browser zone, local time
 **Node reading**:
 What a step node reads as, derived on every read and never stored: skipped, done, on hold,
 blocked, in progress, blocked by proxy, waiting or unknown — from its participation,
-statement, its row's hold and proxy, its attempts and its predecessor nodes.
+statement, its row's hold, direct step blockage, its attempts and its predecessor nodes.
 _Avoid_: step status, node state, node status
+
+**Step blockage**:
+An explicit, audited statement that one leaf step node is stopped by an external
+impediment. Independent of progress, work-item holds and forecasts; absence means no
+direct blockage.
+_Avoid_: step hold, step status, failed attempt
 
 **Waiting**:
 A node reading: a node with no statement and no running attempt whose every predecessor
@@ -1874,3 +1880,25 @@ The name a run gives itself in that queue, from `HEAVY_LOCK_LABEL` — `gate:<sh
 gate, `unlabeled` for a run that names none. It identifies the run to a human reading `status`,
 never to the lock itself.
 _Avoid_: job name, tag, owner
+
+### Shared people recovery
+
+**Restore operation**:
+One intended recovery of saved organization modes and project ranks, identified independently of
+its retries and bound to one canonical backup digest.
+_Avoid_: restore session, operator session
+
+**Restore approval**:
+One organization's personal super-admin authorization for a specific restore operation and
+canonical backup digest.
+_Avoid_: operator assertion, delegated approval
+
+**Restore receipt**:
+The durable completion record for one restore operation, with its original canonical backup
+binding, stable recovery counts and exact consumed approval set.
+_Avoid_: restore log, retry token
+
+**Restore consumption**:
+The durable link between a completed restore operation and one personally issued organization
+approval used by that recovery.
+_Avoid_: operator attestation, approval deletion

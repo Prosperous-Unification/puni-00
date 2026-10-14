@@ -164,6 +164,8 @@ export const removeStep = defineEndpointShape({
             estimates: 'number',
             actuals: 'number',
             progress: 'number',
+            // Optional at the older-server wire boundary; absence is unknown.
+            'blockages?': 'number',
             measures: 'number',
             // Optional: an outgoing be-01 mid-swap counts no attempts.
             'attempts?': 'number',

@@ -39,6 +39,18 @@ import {
   type StepKind,
   type StepOutcome,
 } from './release';
+import {
+  buildReplayInventoryCommand,
+  observeReplayCapabilities,
+  type ReplayCapabilities,
+} from './replay-capability';
+import {
+  assertReplayInventory,
+  assertReplayProgress,
+  assertReplayReceipt,
+  type ReplayCount,
+  sealReplayReceipt,
+} from './replay-receipt';
 
 /**
  * Every Kubernetes effect the transaction performs. Each call is bounded and either completes
@@ -76,6 +88,10 @@ export interface ReleaseEffects {
   drainGateway(): Promise<void>;
   /** Scales the backend to zero and proves no writer Pod of any kind remains. */
   stopWriter(): Promise<void>;
+  /** Independent read-only inventory, called only under the fence after every writer stops. */
+  observeReplayInventory(attempt: string, image: string): Promise<readonly ReplayCount[]>;
+  /** Execute the exact digest image own capability CLI. */
+  observeReplayCapabilities(attempt: string, image: string): Promise<ReplayCapabilities>;
   capture(
     identity: MigrationSetIdentity,
     backendImage: string,
@@ -141,6 +157,8 @@ export function reportOf(state: ReleaseState, journalPath: string): string {
             .map((m) => m.name)
             .join(', ')}]; pending [${state.capture.pending.map((m) => m.name).join(', ')}]`
     }`,
+    `replay forward: ${state.replayForward === null ? '(not checked)' : state.replayForward.sha256}`,
+    `replay rollback: ${state.replayRollback === null ? '(not checked)' : state.replayRollback.sha256}`,
     `snapshot: ${state.snapshot === null ? '(none)' : `${state.snapshot.path} sha256 ${state.snapshot.sha256}`}`,
   ];
   if (state.phase === 'rollback-failed') {
@@ -212,7 +230,41 @@ async function perform(
     case 'rollback-stop-writer':
       await effects.stopWriter();
       return {};
+    case 'check-replay':
+    case 'rollback-check-replay': {
+      const direction = step.kind === 'check-replay' ? 'forward' : 'rollback';
+      const inventory = await effects.observeReplayInventory(
+        `${state.transactionId}-${direction}`,
+        request.release.images.backend,
+      );
+      const candidate = await effects.observeReplayCapabilities(
+        `${state.transactionId}-${direction}-candidate`,
+        request.release.images.backend,
+      );
+      const previous = await effects.observeReplayCapabilities(
+        `${state.transactionId}-${direction}-previous`,
+        state.previous.images.backend,
+      );
+      // Proof: removing comparison restores tiers over changed fenced inventory in the abort fixture.
+      if (
+        direction === 'rollback' &&
+        state.replayForward !== null &&
+        JSON.stringify(inventory) !== JSON.stringify(state.replayForward.inventory)
+      )
+        throw new Error('replay inventory changed while writes were fenced');
+      const receipt = sealReplayReceipt(
+        request,
+        state.transactionId,
+        direction,
+        inventory,
+        candidate,
+        previous,
+      );
+      return direction === 'forward' ? { replayForward: receipt } : { replayRollback: receipt };
+    }
     case 'capture-state': {
+      // Proof: removing this refusal admits in-process receipt loss at replay-checked before capture.
+      assertReplayReceipt(state.replayForward, request, state.transactionId, 'forward');
       const identity = migrationIdentityOf(request, state.transactionId);
       // Proof: replacing a rejected capability Job with a fabricated capture made the
       // coordinator test record state-captured and launch forward migration instead of refusing.
@@ -245,6 +297,13 @@ async function perform(
       return {};
     case 'reopen-writes':
     case 'rollback-reopen-writes':
+      // Proof: removing reopen validation admits in-process receipt loss at release-persisted or rollback-verified.
+      assertReplayReceipt(
+        step.kind === 'reopen-writes' ? state.replayForward : state.replayRollback,
+        request,
+        state.transactionId,
+        step.kind === 'reopen-writes' ? 'forward' : 'rollback',
+      );
       await effects.reopenWrites();
       return {};
     case 'reconcile-desired':
@@ -292,6 +351,8 @@ async function perform(
       return {};
     }
     case 'rollback-tiers':
+      // Proof: removing restore validation admits in-process receipt loss at rollback-replay-checked before rolloutTiers.
+      assertReplayReceipt(state.replayRollback, request, state.transactionId, 'rollback');
       await effects.rolloutTiers(state.previous);
       return {};
     case 'rollback-verify':
@@ -346,6 +407,8 @@ function startingState(request: ReleaseRequest, journal: ReleaseJournal): Releas
       migrationIdentityOf(request, existing.state.transactionId),
     );
   }
+  // Proof: removing resume validation mutates the cluster with missing or altered durable replay progress.
+  assertReplayProgress(existing.state, existing.request);
   const requestedId = releaseIdOf(request.release);
   if (existing.state.phase === 'recovery-required' || isTerminal(existing.state)) {
     // Proof: without this check `stops at recovery-required ... recovers with a fresh capture` started a fresh
@@ -466,7 +529,7 @@ export async function executeRelease(
   const history: { phase: string; at: string }[] = [...(existing?.history ?? [])];
   const record = (next: ReleaseState): void => {
     history.push({ phase: next.phase, at: new Date(clock()).toISOString() });
-    const entry: JournalRecord = { schemaVersion: 2, request, state: next, history };
+    const entry: JournalRecord = { schemaVersion: 3, request, state: next, history };
     journal.write(entry);
   };
   // Proof: recording before claiming let `refuses to resume a transaction whose live
@@ -883,6 +946,7 @@ export function backendTaskJob(
   name: string,
   image: string,
   env: Record<string, string>,
+  command: readonly string[] = ['bun', '-e', BACKEND_TASK_SCRIPT],
 ): Record<string, unknown> {
   const labels = {
     'app.kubernetes.io/part-of': 'wbs',
@@ -915,7 +979,7 @@ export function backendTaskJob(
             {
               name: 'task',
               image,
-              command: ['bun', '-e', BACKEND_TASK_SCRIPT],
+              command,
               env: [
                 { name: 'DB_PATH', value: '/data/wbs.sqlite' },
                 { name: 'HOME', value: '/tmp' },
@@ -1036,6 +1100,45 @@ export function jobName(purpose: string, releaseId: string): string {
   return `wbs-${purpose}-${releaseId}`.slice(0, 63).replace(/-+$/, '');
 }
 
+/**
+ * Compare pinned Job fields and effective mount options. Omitted mount options still constrain
+ * the database location and access; API defaults may only preserve those pinned semantics.
+ * @see https://kubernetes.io/docs/reference/kubernetes-api/core/pod-v1/#VolumeMount
+ */
+function matchesProjection(observed: unknown, expected: unknown): boolean {
+  if (Array.isArray(expected))
+    return (
+      Array.isArray(observed) &&
+      observed.length === expected.length &&
+      expected.every((value: unknown, index) => matchesProjection(observed[index], value))
+    );
+  if (typeof expected === 'object' && expected !== null) {
+    if (typeof observed !== 'object' || observed === null || Array.isArray(observed)) return false;
+    // Boundary: both non-null object shapes were checked; every accessed field stays unknown.
+    const fields = observed as Record<string, unknown>;
+    // Boundary: expected is also a non-null, non-array object checked above.
+    const pinned = expected as Record<string, unknown>;
+    if (Object.hasOwn(pinned, 'mountPath') && Object.hasOwn(pinned, 'name')) {
+      // Proof: added subPath/subPathExpr, access or propagation options admitted a foreign
+      // database mount in the reused replay Job tests; explicit Kubernetes defaults still pass.
+      const defaults = {
+        subPath: '',
+        subPathExpr: '',
+        readOnly: false,
+        mountPropagation: 'None',
+        recursiveReadOnly: 'Disabled',
+      };
+      for (const [field, baseline] of Object.entries(defaults)) {
+        const required = Object.hasOwn(pinned, field) ? pinned[field] : baseline;
+        const mounted = Object.hasOwn(fields, field) ? fields[field] : baseline;
+        if (mounted !== required) return false;
+      }
+    }
+    return Object.entries(expected).every(([key, value]) => matchesProjection(fields[key], value));
+  }
+  return observed === expected;
+}
+
 /** Parses `kubectl get lease -o json`; a Lease without holder or renew time is malformed state. */
 export function parseLease(json: string): ObservedLease & { version: string } {
   const lease = JSON.parse(json) as {
@@ -1133,6 +1236,7 @@ export function kubectlEffects(settings: KubectlSettings): ReleaseEffects & Clus
     name: string,
     namespace: string,
     manifest: Record<string, unknown>,
+    verifiesReplay = false,
   ): Promise<string> {
     writeFileSync(
       join(settings.stateDir, `${name}.json`),
@@ -1159,7 +1263,12 @@ export function kubectlEffects(settings: KubectlSettings): ReleaseEffects & Clus
     }
     const observed: { outcome: 'complete' | 'failed' | null } = { outcome: null };
     await pollUntil(`job ${name} completion`, settings.jobTimeoutSeconds * 1000, async () => {
-      const status = (await jsonOf(['-n', namespace, 'get', 'job', name])) as {
+      const observedJob = await jsonOf(['-n', namespace, 'get', 'job', name]);
+      // Proof: mismatched image/command in a reused Job returned valid [] until this manifest comparison refused it.
+      if (verifiesReplay && !matchesProjection(observedJob, manifest))
+        throw new Error(`replay Job ${name} differs from its pinned manifest`);
+      // Boundary: existing Job status protocol; replay Jobs additionally validate every pinned manifest field.
+      const status = observedJob as {
         status?: { succeeded?: number; failed?: number };
       };
       if ((status.status?.succeeded ?? 0) > 0) observed.outcome = 'complete';
@@ -1614,6 +1723,30 @@ export function kubectlEffects(settings: KubectlSettings): ReleaseEffects & Clus
         settings.rolloutTimeoutSeconds * 1000,
         async () => (await writerPods()).length === 0,
       );
+    },
+    async observeReplayInventory(attempt, image) {
+      const name = jobName('replay-inventory', attempt);
+      const logs = await runJob(
+        name,
+        backend,
+        backendTaskJob(settings, name, image, {}, buildReplayInventoryCommand()),
+        true,
+      );
+      const inventory: unknown = JSON.parse(logs);
+      assertReplayInventory(inventory);
+      return inventory;
+    },
+    async observeReplayCapabilities(attempt, image) {
+      return observeReplayCapabilities(image, async (pinned, command) => {
+        const name = jobName('replay-kinds', attempt);
+        const stdout = await runJob(
+          name,
+          backend,
+          backendTaskJob(settings, name, pinned, {}, command),
+          true,
+        );
+        return { code: 0, stdout, stderr: '' };
+      });
     },
     async capture(identity, image) {
       assertSchemaCaller(identity.attempt, image, identity);

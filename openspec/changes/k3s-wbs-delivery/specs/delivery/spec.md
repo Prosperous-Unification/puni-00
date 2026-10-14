@@ -59,3 +59,126 @@ The Compose-to-k3s cutover SHALL record old/new digests, database integrity, app
 - **GIVEN** a staged release without the concrete production operation plan or authorization
 - **WHEN** production delivery is requested
 - **THEN** implementation artifacts remain ready and no production mutation occurs
+
+### Requirement: Replay compatibility observations are independent and immutable
+
+The infrastructure replay inventory SHALL inspect both journal directions recursively through batches, independently of image application code and live blockage facts. It SHALL refuse missing, unreadable or malformed trusted state and unknown command kinds. Image capability observations SHALL execute image-owned code and bind validated output to the exact image digest.
+
+#### Scenario: Empty live facts with nested guarded history
+
+- **GIVEN** no live blockage facts and nested inverse moves or precondition metadata containing empty snapshot markers
+- **WHEN** the infrastructure inventory executes against the database
+- **THEN** it reports `move_progress_v1` once per affected journal row for own move `expectedProgress` or own precondition `moveProgress` properties, including empty arrays/maps
+- **AND** it counts every nested `replace_blockage` command in both directions
+
+#### Scenario: Each immutable image owns its vocabulary
+
+- **GIVEN** an exact SHA-256 backend image reference
+- **WHEN** capability observation runs
+- **THEN** it executes that image's own `src/step-blockage-replay-kinds-cli.ts` and binds the validated string vocabulary to the same image reference
+- **AND** only a genuinely absent CLI under a readable/searchable source directory yields the prior empty vocabulary
+- **AND** missing/unreadable source directories, dangling/nonregular CLI paths, unreadable CLI files, failed execution, malformed output or mutable image references refuse observation
+
+### Requirement: Kubernetes replay admission is durable under the writer fence
+
+The release coordinator SHALL inventory retained history under its Lease and writer fence after writers stop and before capture. It SHALL persist receipts binding target, transaction, direction, inventory and exact candidate/previous image capabilities. Forward admission SHALL require both images. Rollback SHALL record fresh previous-image admission before restoring tiers or reopening writes and SHALL refuse changed fenced inventory.
+
+#### Scenario: Guarded history precedes forward capture
+
+- **GIVEN** retained nested inverse or precondition-only guarded moves with empty snapshots
+- **WHEN** either exact backend image lacks `move_progress_v1`
+- **THEN** capture and migration do not start
+- **AND** a previous image lacking the capability prevents automatic tier restoration or reopening
+
+#### Scenario: Rollback refuses changed or unsupported inventory
+
+- **GIVEN** a failed forward transaction with writes closed
+- **WHEN** fresh rollback inventory differs from the durable forward summary, observation fails, or the previous image cannot replay it
+- **THEN** bounded abort records `rollback-failed`, retains the fence and Lease, and reports the failed replay step and manual recovery command
+
+### Requirement: Replay progress and reused Jobs retain their pinned inputs
+
+Resume SHALL refuse missing, malformed, changed or foreign receipt progress before any journal or cluster mutation. Reused replay Jobs SHALL preserve requested fields and effective mount options, including absent subpath, access and propagation settings, before their output is accepted. Refused rollback SHALL retain the fence and parked Lease with explicit failure evidence and a manual completion command.
+
+#### Scenario: Interrupted evidence is absent or changed
+
+- **GIVEN** a recorded forward or rollback replay phase
+- **WHEN** resume reads missing, malformed, altered or foreign evidence
+- **THEN** the journal is preserved and no Lease claim or cluster mutation occurs
+
+#### Scenario: A reused observation Job belongs to different inputs
+
+- **GIVEN** an existing observation Job for the transaction
+- **WHEN** its observed manifest differs from any pinned field, including image, command or database mount
+- **THEN** its output is refused even if it reports successful completion
+
+#### Scenario: Recovery loses the prior forward receipt
+
+- **GIVEN** a post-reopen failure parked at `recovery-required`
+- **WHEN** a recovery request reads a missing or null prior forward receipt
+- **THEN** disk parsing refuses before Lease takeover, cluster work or journal replacement
+
+#### Scenario: A reused Job changes omitted mount options
+
+- **GIVEN** a replay Job pinning the database PVC root with default mount options
+- **WHEN** the observed Job adds a subpath expression or changes effective access or propagation
+- **THEN** inventory and capability output are refused even when completion and output are valid
+- **AND** equivalent explicit Kubernetes defaults remain accepted
+
+### Requirement: Cutover replay evidence binds original inputs
+
+Cutover export and restore SHALL require original descriptor bytes and their separate SHA-256 pin. Incoming backend identity SHALL match the descriptor, and old/incoming immutable backend digests SHALL be equal. Export SHALL inventory retained history independently and execute the old image's own capability CLI before checkpoint or VACUUM, refusing unsupported history without a snapshot. Versioned replay evidence SHALL bind these inputs to the export SHA-256.
+
+#### Scenario: Guarded retained history meets an incompatible image
+
+- **GIVEN** nested forward/inverse or precondition-only move markers, including empty snapshots, or retained replacement commands
+- **WHEN** the old image has empty or insufficient replay capabilities
+- **THEN** export refuses before checkpoint and snapshot creation, preserving the stopped source database
+
+#### Scenario: Descriptor bytes or backend identity change
+
+- **GIVEN** an independently pinned descriptor and equal immutable backend digests under different host/cluster references
+- **WHEN** original bytes, their pin, the incoming descriptor image or old digest differ
+- **THEN** export/restore preparation refuses
+- **AND** matching digest aliases remain valid
+
+#### Scenario: Optional deletion snapshots require their own capability
+
+- **GIVEN** own `deletionState` properties on nested forward/inverse `delete_subtree` or `restore_subtree`, including empty collections
+- **WHEN** independent inventory runs
+- **THEN** it reports `delete_state_v1` once per marked row, resetting between rows
+- **AND** any own `moveProgress` precondition independently reports `move_progress_v1`
+- **AND** export/coordinator admission refuses images lacking the required capability while legacy markerless rows remain valid
+
+### Requirement: Restore replay admission precedes database rename
+
+The restore Job SHALL verify incoming bytes, independently inventory the incoming database and run its own image capability CLI. It SHALL require matching descriptor, image, inventory, capabilities and export identity before database rename. Refusal SHALL preserve the source export and failed arrival artifacts with the target absent. Verification SHALL require matching versioned replay evidence and explicitly refuse legacy reports. Stale arrival markers SHALL never authorize retry.
+
+#### Scenario: Restore cannot replay imported history
+
+- **GIVEN** matching exported bytes and versioned replay evidence
+- **WHEN** incoming history or image observation is missing, unreadable, malformed, changed or unsupported
+- **THEN** the target remains absent and source export remains intact
+
+#### Scenario: Retry encounters a stale arrival marker
+
+- **GIVEN** arrival artifacts retained after a refused restore
+- **WHEN** another restore starts using the same marker, even after capabilities become compatible
+- **THEN** it refuses before rename and requires explicit reviewed cleanup
+
+#### Scenario: Exact matching control
+
+- **GIVEN** matching original descriptor bytes, immutable image digests and replay evidence
+- **WHEN** restore independently validates matching incoming bytes and replay observations
+- **THEN** the restored database is byte-for-byte equal to the export and reports the same versioned evidence
+
+### Requirement: Cutover preparation does not start tiers
+
+Prepared cutover manifests SHALL hold every Deployment at zero. First-start scale admission, release-record persistence and Flux handoff SHALL remain pending a separate guard.
+
+#### Scenario: Preparation renders a running backend
+
+- **GIVEN** rendered release manifests with nonzero replicas
+- **WHEN** cutover preparation emits manifests
+- **THEN** all Deployment replicas are zero
+- **AND** malformed manifests or an absent/duplicate backend are refused

@@ -44,12 +44,16 @@ import {
   SHARED_ENV_PATH,
   SOLVER_SUPERVISOR_CONTAINER_DIRECTORY,
   SOLVER_SUPERVISOR_HOST_DIRECTORY,
+  stepBlockageKindsCommand,
+  stepBlockageReplayKindsCommand,
   storedAttemptOutcomesCommand,
   storedCapacityModesCommand,
   storedEstimateUnitsCommand,
   storedHoldsCommand,
   storedReadinessesCommand,
   storedRelationshipTypesCommand,
+  storedStepBlockageReplayKindsCommand,
+  storedStepBlockagesCommand,
   tierComposeContext,
   tierComposeFile,
   tierEnvFiles,
@@ -182,6 +186,291 @@ describe('relationship type commands', () => {
       stderr: 'pipe',
     });
     expect(await probe.exited).not.toBe(0);
+  });
+});
+
+describe('step blockage replay compatibility probes', () => {
+  it('advertises guarded move semantics through the candidate CLI', async () => {
+    const candidate = Bun.spawn(
+      [
+        'bun',
+        'run',
+        join(import.meta.dir, '../../../../apps/wbs/be-01/src/step-blockage-replay-kinds-cli.ts'),
+      ],
+      { stdout: 'pipe', stderr: 'pipe' },
+    );
+    expect(await candidate.exited).toBe(0);
+    expect(JSON.parse(await new Response(candidate.stdout).text())).toEqual([
+      'replace_blockage',
+      'move_progress_v1',
+      'delete_state_v1',
+    ]);
+  });
+
+  it('reads the candidate CLI and treats only a genuinely absent older CLI as empty', async () => {
+    const directory = scratchSync('wbs-replay-reader-');
+    try {
+      mkdirSync(join(directory, 'src'));
+      const command = stepBlockageReplayKindsCommand('green').slice(2);
+      const older = Bun.spawn(command, { cwd: directory, stdout: 'pipe' });
+      expect(await older.exited).toBe(0);
+      expect(await new Response(older.stdout).text()).toBe('[]\n');
+      writeFileSync(
+        join(directory, 'src/step-blockage-replay-kinds-cli.ts'),
+        'console.log(JSON.stringify(["replace_blockage"]));',
+      );
+      const candidate = Bun.spawn(command, { cwd: directory, stdout: 'pipe' });
+      expect(await candidate.exited).toBe(0);
+      expect(JSON.parse(await new Response(candidate.stdout).text())).toEqual(['replace_blockage']);
+      const cli = join(directory, 'src/step-blockage-replay-kinds-cli.ts');
+      rmSync(cli);
+      mkdirSync(cli);
+      // Proof: bypassing the nonregular-path guard made this return 0 as an older image.
+      expect(await Bun.spawn(command, { cwd: directory }).exited).toBe(73);
+      rmSync(cli, { recursive: true });
+      symlinkSync('missing.ts', cli);
+      expect(await Bun.spawn(command, { cwd: directory }).exited).toBe(73);
+      rmSync(cli);
+      rmSync(join(directory, 'src'), { recursive: true });
+      expect(await Bun.spawn(command, { cwd: directory }).exited).toBe(74);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses unreadable replay source and CLI in a nonprivileged process', async () => {
+    if (process.getuid?.() === 0)
+      throw new Error('unreadability proof needs a nonprivileged runner');
+    const directory = scratchSync('wbs-replay-permissions-');
+    const source = join(directory, 'src');
+    const cli = join(source, 'step-blockage-replay-kinds-cli.ts');
+    const command = stepBlockageReplayKindsCommand('green').slice(2);
+    try {
+      mkdirSync(source);
+      chmodSync(source, 0o000);
+      // Proof: removing source readability/search checks made this exit 0 instead of 74.
+      expect(await Bun.spawn(command, { cwd: directory }).exited).toBe(74);
+      chmodSync(source, 0o700);
+      writeFileSync(cli, 'console.log([])');
+      chmodSync(cli, 0o000);
+      const child = Bun.spawn(command, { cwd: directory, stderr: 'pipe' });
+      // Proof: replacing CLI execution with an empty answer made this exit 0.
+      expect(await child.exited).not.toBe(0);
+    } finally {
+      chmodSync(source, 0o700);
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses an unreadable replay database and a missing command journal', async () => {
+    if (process.getuid?.() === 0)
+      throw new Error('unreadability proof needs a nonprivileged runner');
+    const directory = scratchSync('wbs-replay-database-');
+    const path = join(directory, 'plan.db');
+    const db = new Database(path);
+    const command = storedStepBlockageReplayKindsCommand('green').slice(2);
+    const read = async () => {
+      const child = Bun.spawn(command, {
+        env: { ...process.env, DB_PATH: path },
+        stdout: 'pipe',
+        stderr: 'pipe',
+      });
+      return { exitCode: await child.exited, stderr: await new Response(child.stderr).text() };
+    };
+    try {
+      const missing = await read();
+      // Proof: treating a missing command_journal as empty made this exit 0.
+      expect(missing.exitCode).not.toBe(0);
+      expect(missing.stderr).toContain('command journal table is missing');
+      db.run(
+        "CREATE TABLE command_journal (payload text NOT NULL,inverse text NOT NULL,preconditions text NOT NULL DEFAULT '{}')",
+      );
+      expect((await read()).exitCode).toBe(0);
+      chmodSync(path, 0o000);
+      // Proof: overriding denied database permissions in the probe made this exit 0.
+      expect((await read()).exitCode).not.toBe(0);
+    } finally {
+      chmodSync(path, 0o600);
+      db.close();
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it.each(['forward', 'inverse', 'preconditions', 'empty-map'] as const)(
+    'inventories guarded move capability from %s with no blockage commands',
+    async (side) => {
+      const directory = scratchSync('wbs-move-replay-history-');
+      const path = join(directory, 'plan.db');
+      const db = new Database(path);
+      try {
+        db.run(
+          'CREATE TABLE command_journal (payload text NOT NULL,inverse text NOT NULL,preconditions text NOT NULL)',
+        );
+        const plain = { do: 'move', workItemId: 'child', parentId: 'parent', afterId: null };
+        const nested = {
+          do: 'batch',
+          steps: [{ do: 'batch', steps: [{ ...plain, expectedProgress: [] }] }],
+        };
+        db.run('INSERT INTO command_journal VALUES (?,?,?)', [
+          JSON.stringify({ forward: side === 'forward' ? nested : plain }),
+          JSON.stringify(side === 'inverse' ? nested : plain),
+          JSON.stringify(
+            side === 'preconditions'
+              ? { moveProgress: { parent: [] } }
+              : side === 'empty-map'
+                ? { moveProgress: {} }
+                : {},
+          ),
+        ]);
+        const probe = Bun.spawn(storedStepBlockageReplayKindsCommand('green').slice(2), {
+          env: { ...process.env, DB_PATH: path },
+          stdout: 'pipe',
+          stderr: 'pipe',
+        });
+        expect(await probe.exited).toBe(0);
+        expect(JSON.parse(await new Response(probe.stdout).text())).toEqual([
+          { kind: 'move_progress_v1', count: 1 },
+        ]);
+      } finally {
+        db.close();
+        rmSync(directory, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it.each(['forward', 'inverse', 'both'] as const)(
+    'inventories nested empty deletion state in %s',
+    async (side) => {
+      const directory = scratchSync('wbs-delete-replay-history-');
+      const path = join(directory, 'plan.db');
+      const db = new Database(path);
+      try {
+        db.run(
+          'CREATE TABLE command_journal (payload text NOT NULL,inverse text NOT NULL,preconditions text NOT NULL)',
+        );
+        const plain = { do: 'patch' };
+        const nested = {
+          do: 'batch',
+          steps: [{ do: 'batch', steps: [{ do: 'restore_subtree', deletionState: {} }] }],
+        };
+        db.run('INSERT INTO command_journal VALUES (?,?,?)', [
+          JSON.stringify({ forward: side === 'inverse' ? plain : nested }),
+          JSON.stringify(side === 'forward' ? plain : nested),
+          '{}',
+        ]);
+        db.run('INSERT INTO command_journal VALUES (?,?,?)', [
+          JSON.stringify({ forward: plain }),
+          JSON.stringify(plain),
+          '{}',
+        ]);
+        const probe = Bun.spawn(storedStepBlockageReplayKindsCommand('green').slice(2), {
+          env: { ...process.env, DB_PATH: path },
+          stdout: 'pipe',
+          stderr: 'pipe',
+        });
+        expect(await probe.exited).toBe(0);
+        expect(JSON.parse(await new Response(probe.stdout).text())).toEqual([
+          { kind: 'delete_state_v1', count: 1 },
+        ]);
+      } finally {
+        db.close();
+        rmSync(directory, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it('counts guarded move semantics once per journal row and refuses malformed preconditions', async () => {
+    const directory = scratchSync('wbs-move-replay-count-');
+    const path = join(directory, 'plan.db');
+    const db = new Database(path);
+    try {
+      db.run(
+        'CREATE TABLE command_journal (payload text NOT NULL,inverse text NOT NULL,preconditions text NOT NULL)',
+      );
+      const guarded = { do: 'move', expectedProgress: [] };
+      db.run('INSERT INTO command_journal VALUES (?,?,?)', [
+        JSON.stringify({ forward: guarded }),
+        JSON.stringify({ do: 'batch', steps: [guarded] }),
+        JSON.stringify({ moveProgress: { parent: [] } }),
+      ]);
+      const read = async () => {
+        const probe = Bun.spawn(storedStepBlockageReplayKindsCommand('green').slice(2), {
+          env: { ...process.env, DB_PATH: path },
+          stdout: 'pipe',
+          stderr: 'pipe',
+        });
+        return {
+          code: await probe.exited,
+          output: await new Response(probe.stdout).text(),
+          error: await new Response(probe.stderr).text(),
+        };
+      };
+      expect(await read()).toEqual({
+        code: 0,
+        output: '[{"kind":"move_progress_v1","count":1}]\n',
+        error: '',
+      });
+      for (const preconditions of ['null', '[]', '"bad"']) {
+        db.run('UPDATE command_journal SET preconditions = ?', [preconditions]);
+        const refused = await read();
+        expect(refused.code).not.toBe(0);
+        expect(refused.error).toContain('journal preconditions are malformed');
+      }
+    } finally {
+      db.close();
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('counts nested forward and inverse replay with no live facts, refusing malformed history', async () => {
+    const directory = scratchSync('wbs-replay-history-');
+    const path = join(directory, 'plan.db');
+    const db = new Database(path);
+    try {
+      db.run(
+        "CREATE TABLE command_journal (payload text NOT NULL,inverse text NOT NULL,preconditions text NOT NULL DEFAULT '{}')",
+      );
+      const replace = {
+        do: 'replace_blockage',
+        workItemId: 'leaf',
+        stepId: 'dev',
+        expectedBlockedAt: null,
+        replacementBlockedAt: 123,
+      };
+      db.run('INSERT INTO command_journal (payload,inverse) VALUES (?,?)', [
+        JSON.stringify({
+          label: 'nested',
+          forward: { do: 'batch', steps: [{ do: 'batch', steps: [replace] }] },
+        }),
+        JSON.stringify({
+          do: 'batch',
+          steps: [{ ...replace, expectedBlockedAt: 123, replacementBlockedAt: null }],
+        }),
+      ]);
+      const command = storedStepBlockageReplayKindsCommand('green').slice(2);
+      const read = async (dbPath = path) => {
+        const child = Bun.spawn(command, {
+          env: { ...process.env, DB_PATH: dbPath },
+          stdout: 'pipe',
+          stderr: 'pipe',
+        });
+        return { exitCode: await child.exited, output: await new Response(child.stdout).text() };
+      };
+      // Proof: scanning only the fact table or only top-level/forward commands returned [].
+      expect(await read()).toEqual({
+        exitCode: 0,
+        output: '[{"kind":"replace_blockage","count":2}]\n',
+      });
+      db.run('UPDATE command_journal SET inverse = ?', ['{"do":"batch","steps":{}}']);
+      expect((await read()).exitCode).not.toBe(0);
+      db.run('UPDATE command_journal SET inverse = ?', ['{"do":"future_command"}']);
+      // Proof: skipping unknown-kind validation let this malformed history probe exit zero.
+      expect((await read()).exitCode).not.toBe(0);
+      expect((await read(join(directory, 'absent.db'))).exitCode).not.toBe(0);
+    } finally {
+      db.close();
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 });
 
@@ -1659,6 +1948,102 @@ describe('estimate unit commands', () => {
       });
       expect(await unset.exited).not.toBe(0);
     } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('step blockage compatibility commands', () => {
+  it('reads a present release CLI, models an older release, and refuses unavailable source', async () => {
+    const directory = scratchSync('wbs-blockage-reader-');
+    try {
+      const command = stepBlockageKindsCommand('be-01-green').slice(2);
+      const absent = Bun.spawn(command, { cwd: directory });
+      expect(await absent.exited).toBe(74);
+      mkdirSync(join(directory, 'src'));
+      chmodSync(join(directory, 'src'), 0);
+      try {
+        expect(await Bun.spawn(command, { cwd: directory }).exited).toBe(74);
+      } finally {
+        chmodSync(join(directory, 'src'), 0o700);
+      }
+      const legacy = Bun.spawn(command, { cwd: directory, stdout: 'pipe' });
+      expect(await legacy.exited).toBe(0);
+      expect(await new Response(legacy.stdout).text()).toBe('[]\n');
+      writeFileSync(
+        join(directory, 'src/step-blockage-kinds-cli.ts'),
+        'console.log(JSON.stringify(["blocked"]));',
+      );
+      const present = Bun.spawn(command, { cwd: directory, stdout: 'pipe' });
+      expect(await present.exited).toBe(0);
+      expect(JSON.parse(await new Response(present.stdout).text())).toEqual(['blocked']);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses nonregular, dangling and unreadable reader paths', async () => {
+    const directory = scratchSync('wbs-blockage-reader-path-');
+    const path = join(directory, 'src/step-blockage-kinds-cli.ts');
+    try {
+      mkdirSync(path, { recursive: true });
+      expect(
+        await Bun.spawn(stepBlockageKindsCommand('green').slice(2), { cwd: directory }).exited,
+      ).toBe(73);
+      rmSync(path, { recursive: true });
+      symlinkSync('missing.ts', path);
+      expect(
+        await Bun.spawn(stepBlockageKindsCommand('green').slice(2), { cwd: directory }).exited,
+      ).toBe(73);
+      rmSync(path);
+      writeFileSync(path, 'console.log([])');
+      chmodSync(path, 0);
+      expect(
+        await Bun.spawn(stepBlockageKindsCommand('green').slice(2), {
+          cwd: directory,
+          stderr: 'pipe',
+        }).exited,
+      ).not.toBe(0);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('counts every stored fact and distinguishes an older schema from an unavailable database', async () => {
+    const directory = scratchSync('wbs-blockage-inventory-');
+    const path = join(directory, 'plan.db');
+    const db = new Database(path);
+    try {
+      const command = storedStepBlockagesCommand('green').slice(2);
+      const read = async (dbPath = path) => {
+        const child = Bun.spawn(command, {
+          env: { ...process.env, DB_PATH: dbPath },
+          stdout: 'pipe',
+          stderr: 'pipe',
+        });
+        const [exitCode, stdout] = await Promise.all([
+          child.exited,
+          new Response(child.stdout).text(),
+        ]);
+        return { exitCode, stdout };
+      };
+      expect(await read()).toEqual({ exitCode: 0, stdout: '[]\n' });
+      db.run('CREATE TABLE step_blockage (work_item_id text,step_id text)');
+      db.run("INSERT INTO step_blockage VALUES ('a','dev'),('b','qa')");
+      expect(await read()).toEqual({ exitCode: 0, stdout: '[{"kind":"blocked","count":2}]\n' });
+      expect((await read(join(directory, 'absent.db'))).exitCode).not.toBe(0);
+      const { DB_PATH: _path, ...environment } = process.env;
+      const unset = Bun.spawn(command, { env: environment, stdout: 'pipe', stderr: 'pipe' });
+      expect(await unset.exited).not.toBe(0);
+      expect(await new Response(unset.stderr).text()).toContain('DB_PATH must be set');
+      chmodSync(path, 0);
+      try {
+        expect((await read()).exitCode).not.toBe(0);
+      } finally {
+        chmodSync(path, 0o600);
+      }
+    } finally {
+      db.close();
       rmSync(directory, { recursive: true, force: true });
     }
   });

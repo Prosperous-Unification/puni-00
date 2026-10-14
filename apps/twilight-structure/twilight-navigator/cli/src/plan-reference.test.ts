@@ -211,6 +211,21 @@ describe('twin plan-reference', () => {
     );
   });
 
+  test('refuses a version-9 document with blockage facts before writing', async () => {
+    const path = writeExport((document) => {
+      document['document'] = {
+        format: 'wbs-plan',
+        version: 9,
+        exportedAt: '2026-10-11T09:00:00.000Z',
+      };
+      document['stepBlockages'] = [];
+    });
+    expectRefusal(
+      await planReference({ '--export': path }),
+      /has version 9; twin reads versions 7 and 8 only/,
+    );
+  });
+
   test('refuses a missing output directory and names it', async () => {
     const absent = join(scratch.path, 'absent-dir');
     const run = await planReference({ '--output': absent });

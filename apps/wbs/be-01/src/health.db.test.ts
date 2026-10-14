@@ -27,6 +27,7 @@ import {
   refusingDomains,
   refusingEnterpriseConnections,
   refusingMemberships,
+  refusingRestoreApprovals,
 } from './testing/organization-access-fixture';
 import { testPriorityBandService } from './testing/priority-band-fixture';
 import { testProjectService } from './testing/project-fixture';
@@ -45,6 +46,7 @@ describe('GET /health', () => {
     const app = buildApp({
       organizations: legacyOrganizationAccess,
       memberships: refusingMemberships,
+      sharedPeopleRestoreApprovals: refusingRestoreApprovals,
       domains: refusingDomains,
       enterpriseConnections: refusingEnterpriseConnections,
       emailVerification: refusingEmailVerification,
@@ -83,6 +85,7 @@ describe('GET /health', () => {
     const app = buildApp({
       organizations: legacyOrganizationAccess,
       memberships: refusingMemberships,
+      sharedPeopleRestoreApprovals: refusingRestoreApprovals,
       domains: refusingDomains,
       enterpriseConnections: refusingEnterpriseConnections,
       emailVerification: refusingEmailVerification,
@@ -132,6 +135,7 @@ describe('/health tells the truth about the database', () => {
       const app = buildApp({
         organizations: legacyOrganizationAccess,
         memberships: refusingMemberships,
+        sharedPeopleRestoreApprovals: refusingRestoreApprovals,
         domains: refusingDomains,
         enterpriseConnections: refusingEnterpriseConnections,
         emailVerification: refusingEmailVerification,
@@ -184,6 +188,7 @@ describe('/health tells the truth about the database', () => {
       const app = buildApp({
         organizations: legacyOrganizationAccess,
         memberships: refusingMemberships,
+        sharedPeopleRestoreApprovals: refusingRestoreApprovals,
         domains: refusingDomains,
         enterpriseConnections: refusingEnterpriseConnections,
         emailVerification: refusingEmailVerification,
@@ -226,6 +231,7 @@ describe('/health tells the truth about the database', () => {
     const app = buildApp({
       organizations: legacyOrganizationAccess,
       memberships: refusingMemberships,
+      sharedPeopleRestoreApprovals: refusingRestoreApprovals,
       domains: refusingDomains,
       enterpriseConnections: refusingEnterpriseConnections,
       emailVerification: refusingEmailVerification,

@@ -1161,3 +1161,108 @@ try {
 } finally { db.close(); }`,
   ];
 }
+
+/**
+ * Direct blockage kinds supported by an image. Only an absent CLI under a
+ * readable source directory identifies an older release; malformed/unreadable
+ * paths refuse instead of advertising an empty vocabulary (ADR 0053).
+ */
+export function stepBlockageKindsCommand(container: string): string[] {
+  // Proof: directory availability/readability and dangling-path checks removed
+  // independently; reader-path negatives failed; watched 2026-10-13.
+  const cli = 'src/step-blockage-kinds-cli.ts';
+  return [
+    'exec',
+    container,
+    'sh',
+    '-c',
+    `if test -f ${cli}; then bun run ${cli}; elif test -e ${cli} || test -L ${cli}; then exit 73; elif test -d src && test -r src && test -x src; then printf '[]\\n'; else exit 74; fi`,
+  ];
+}
+
+/** Counts sparse blockage without importing image code; table absence models the older schema. */
+export function storedStepBlockagesCommand(container: string): string[] {
+  // Proof: inventory replaced with [], or DB_PATH guard removed; stored-fact
+  // inventory negative failed in each case; watched 2026-10-13.
+  return [
+    'exec',
+    container,
+    'bun',
+    '-e',
+    `import { Database } from 'bun:sqlite';
+const path=process.env.DB_PATH;
+if (!path) throw new Error('DB_PATH must be set');
+const db=new Database(path,{readonly:true,create:false});
+try {
+  const exists=db.query("SELECT name FROM sqlite_master WHERE type='table' AND name='step_blockage'").get();
+  const rows=exists===null?[]:db.query("SELECT 'blocked' AS kind,count(*) AS count FROM step_blockage HAVING count(*)>0").all();
+  console.log(JSON.stringify(rows));
+} finally {db.close();}`,
+  ];
+}
+
+/** New blockage journal variants readable by an incoming image; absent CLI means the prior vocabulary. */
+export function stepBlockageReplayKindsCommand(container: string): string[] {
+  const cli = 'src/step-blockage-replay-kinds-cli.ts';
+  return [
+    'exec',
+    container,
+    'sh',
+    '-c',
+    `if test -f ${cli}; then bun run ${cli}; elif test -e ${cli} || test -L ${cli}; then exit 73; elif test -d src && test -r src && test -x src; then printf '[]\n'; else exit 74; fi`,
+  ];
+}
+
+/** Inventories replay semantics in both directions and preconditions, independent of image code. */
+export function storedStepBlockageReplayKindsCommand(container: string): string[] {
+  return [
+    'exec',
+    container,
+    'bun',
+    '-e',
+    `import { Database } from 'bun:sqlite';
+const path=process.env.DB_PATH;
+if (!path) throw new Error('DB_PATH must be set');
+const db=new Database(path,{readonly:true,create:false});
+try {
+  const exists=db.query("SELECT name FROM sqlite_master WHERE type='table' AND name='command_journal'").get();
+  if (exists===null) throw new Error('command journal table is missing');
+  let count=0;
+  let moves=0;
+  let deletions=0;
+  let hasDeletionState=false;
+  let hasGuardedMove=false;
+  const legacy=new Set('patch set_estimate clear_estimate set_actual clear_actual set_measure clear_measure set_progress clear_progress assign restore_attempt remove_attempt add_dependency remove_dependency add_typed_dependency remove_typed_dependency update_typed_dependency move set_frozen set_step_allowance set_positions delete_subtree restore_subtree'.split(' '));
+  function visit(command) {
+    if (typeof command!=='object'||command===null||Array.isArray(command)||typeof command.do!=='string') throw new Error('journal command is malformed');
+    if (command.do==='replace_blockage') { count++; return; }
+    // Proof: omitting this marker lost nested forward/inverse snapshot history; watched 2026-10-14.
+    if (command.do==='move'&&Object.hasOwn(command,'expectedProgress')) hasGuardedMove=true;
+    // Proof: omitting this own-property marker lost both nested empty deletion directions; watched 2026-10-14.
+    if ((command.do==='delete_subtree'||command.do==='restore_subtree')&&Object.hasOwn(command,'deletionState')) hasDeletionState=true;
+    if (command.do==='batch') {
+      if (!Array.isArray(command.steps)) throw new Error('journal batch is malformed');
+      for (const step of command.steps) visit(step);
+      return;
+    }
+    if (!legacy.has(command.do)) throw new Error('journal command kind is unknown');
+  }
+  for (const row of db.query('SELECT payload,inverse,preconditions FROM command_journal').all()) {
+    const payload=JSON.parse(row.payload);
+    if (typeof payload!=='object'||payload===null||Array.isArray(payload)||!Object.hasOwn(payload,'forward')) throw new Error('journal payload is malformed');
+    const preconditions=JSON.parse(row.preconditions);
+    // Proof: bypassing this boundary admitted arrays/strings and replaced null's named failure; watched 2026-10-14.
+    if (typeof preconditions!=='object'||preconditions===null||Array.isArray(preconditions)) throw new Error('journal preconditions are malformed');
+    // Proof: omitting this marker lost precondition-only and empty-map history; watched 2026-10-14.
+    hasGuardedMove=Object.hasOwn(preconditions,'moveProgress');
+    // Proof: omitting this reset counted the following markerless row; both-direction empty deletion inventory failed, watched 2026-10-14.
+    hasDeletionState=false;
+    visit(payload.forward);
+    visit(JSON.parse(row.inverse));
+    if (hasGuardedMove) moves++;
+    if (hasDeletionState) deletions++;
+  }
+  console.log(JSON.stringify([...(count===0?[]:[{kind:'replace_blockage',count}]),...(moves===0?[]:[{kind:'move_progress_v1',count:moves}]),...(deletions===0?[]:[{kind:'delete_state_v1',count:deletions}])]));
+} finally {db.close();}`,
+  ];
+}

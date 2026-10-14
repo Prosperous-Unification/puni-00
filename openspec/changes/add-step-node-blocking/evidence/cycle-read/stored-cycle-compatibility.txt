@@ -1,0 +1,20 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/work-item/work-item.resource.test.ts:
+73 |   statusOf,
+74 |   stated,
+75 |   running,
+76 |   blocked,
+77 | }: NodeReadingInputs): NodeReadingProjection {
+78 |   if (findStepNodeCycle(graph) !== null) throw new Error("cycle");
+                                                        ^
+error: cycle
+      at projectNodeReadings (/tmp/puni-step-blockage-rebuild/libs/wbs/application/core/src/service/node-readings.ts:78:52)
+      at nodeReadingsOf (/tmp/puni-step-blockage-rebuild/libs/wbs/application/core/src/service/node-readings.ts:50:10)
+      at projectTree (/tmp/puni-step-blockage-rebuild/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:6789:22)
+(fail) dependencies > still reads a project whose dependencies contain a cycle [13.22ms]
+
+ 0 pass
+ 106 filtered out
+ 1 fail
+Ran 1 test across 1 file. [1.89s]

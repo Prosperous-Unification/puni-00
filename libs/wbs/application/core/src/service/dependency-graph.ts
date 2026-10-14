@@ -33,7 +33,7 @@ export interface DependencyGraphState {
   /** The project's steps in step order; an estimate on any other step throws in `slicesOf`. */
   readonly steps: readonly StepPolicy[];
   readonly estimates: readonly Pick<StoredEstimate, 'workItemId' | 'stepId'>[];
-  readonly legacy: readonly StoredDependency[];
+  readonly legacy: readonly Pick<StoredDependency, 'predecessorId' | 'successorId'>[];
   readonly typed: readonly TypedDependency[];
   readonly reach: DependencyReach;
 }
@@ -69,6 +69,18 @@ export function findDependencyGraphCycle(state: DependencyGraphState): StepNodeC
  */
 export function resolveDependencyGraph(state: DependencyGraphState): StepNodeGraph {
   const index = indexTree(state.rows);
+  const rowIds = new Set(state.rows.map((row) => row.id));
+  // Proof: this endpoint validation absent and `refuses legacy endpoints absent
+  // from the full tree before expanding to leaves` returned a graph rather than
+  // throwing for both missing predecessor and successor. Removing it also
+  // made the main live-tree caller resolve instead of refusing its absent
+  // predecessor; both watched 2026-10-13.
+  for (const dependency of state.legacy) {
+    for (const endpoint of [dependency.predecessorId, dependency.successorId]) {
+      if (!rowIds.has(endpoint))
+        throw new Error(`legacy dependency names absent work item ${endpoint}`);
+    }
+  }
   const hasChildren = new Set(
     state.rows.flatMap((row) => (row.parentId === null ? [] : [row.parentId])),
   );
@@ -108,6 +120,9 @@ export function resolveDependencyGraph(state: DependencyGraphState): StepNodeGra
       dependencies: state.typed,
       leavesUnder: (workItemId) => {
         const found = index.leavesUnder.get(workItemId);
+        // Proof: returning an empty leaf set for absent typed owner made the
+        // graph negative fail: it received a later "not a leaf" error instead
+        // of this missing-work-item refusal; watched 2026-10-13.
         if (found === undefined) throw new Error(`no work item ${workItemId} in this project`);
         return found;
       },

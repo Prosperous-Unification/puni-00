@@ -15,6 +15,8 @@ import {
   SQLITE_REPORT_SCRIPT,
   type SqliteReport,
 } from './cutover';
+import { cutoverEnvironment } from './cutover-replay';
+import { fixtureCutoverIdentity } from './cutover-replay.fixture';
 import { BACKEND_TASK_SCRIPT } from './execute';
 
 const BACKEND = resolve(import.meta.dir, '../../../../apps/wbs/be-01');
@@ -62,6 +64,7 @@ describe('SQLITE_REPORT_SCRIPT against the real be-01 migrations', () => {
     );
     const exported = parseSqliteReport(
       bunScript(SQLITE_REPORT_SCRIPT, {
+        ...cutoverEnvironment(fixtureCutoverIdentity()),
         PUNI_DB: db,
         PUNI_EXPORT: join(root, 'export.sqlite'),
         PUNI_KNOWN: JSON.stringify(['f11-known', 'f11-absent']),

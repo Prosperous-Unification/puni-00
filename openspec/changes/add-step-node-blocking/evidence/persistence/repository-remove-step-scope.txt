@@ -1,0 +1,36 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-blockage.db.test.ts:
+72 |   it('removes only one pair and moves all facts with their timestamps', async () => {
+73 |     await set('a', 'dev', 1);
+74 |     await set('a', 'qa', 2);
+75 |     await set('b', 'dev', 3);
+76 |     await blockages.remove('a', 'dev', stamp);
+77 |     expect(await blockages.listByProject('p')).toEqual([
+                                                    ^
+error: expect(received).toEqual(expected)
+
+  [
+    {
+-     "blockedAt": 2,
+-     "stepId": "qa",
+-     "workItemId": "a",
+-   },
+-   {
+      "blockedAt": 3,
+      "stepId": "dev",
+      "workItemId": "b",
+    },
+  ]
+
+- Expected  - 5
++ Received  + 0
+
+      at <anonymous> (/tmp/puni-step-blockage-rebuild/libs/wbs/adapters/store-sqlite/src/step-blockage.db.test.ts:77:48)
+(fail) StepBlockageRepository > removes only one pair and moves all facts with their timestamps [112.79ms]
+
+ 0 pass
+ 6 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [305.00ms]
