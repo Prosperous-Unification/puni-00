@@ -10,7 +10,11 @@ import { ApplicationServicesProvider } from '@/runtime/application-services-cont
 import { credentialOf } from '@/runtime/credential';
 import { createLifetimeSlot } from '@/runtime/lifetime-slot';
 import type { OrganizationRoutes } from '@/runtime/organization-owner';
-import { createSessionOwner, installSessionRuntime } from '@/runtime/session-runtime';
+import {
+  createSessionOwner,
+  installSessionRuntime,
+  type SessionRuntime,
+} from '@/runtime/session-runtime';
 import { fakeProjectApi } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 import { SILENT_STREAM } from '@/testing/silent-stream';
@@ -95,7 +99,11 @@ it.each(['selection', 'switcher'] as const)(
     expect(screen.queryByText('Alpha resources') !== null).toBe(entry === 'switcher');
   },
 );
-function mount(routes: OrganizationRoutes, mode: 'legacy' | 'activated' = 'activated') {
+function mount(
+  routes: OrganizationRoutes,
+  mode: 'legacy' | 'activated' = 'activated',
+  onRuntime: (runtime: SessionRuntime) => void = () => undefined,
+) {
   vi.stubGlobal(
     'fetch',
     vi.fn(() =>
@@ -128,6 +136,14 @@ function mount(routes: OrganizationRoutes, mode: 'legacy' | 'activated' = 'activ
         renderRuntime={(runtime, switcher) => (
           <>
             {switcher}
+            <button
+              type="button"
+              onClick={() => {
+                onRuntime(runtime);
+              }}
+            >
+              Use runtime
+            </button>
             <p>
               Resources{' '}
               {runtime.organization.kind === 'active'
@@ -154,7 +170,32 @@ it('starts the inactive deployment runtime without reading membership choices', 
   );
   const requests = vi.mocked(fetch);
   await screen.findByText('Resources legacy');
+  // Proof: removing the gate's startup guard failed this case with
+  // `expected "vi.fn()" to not be called at all, but actually been called 1 times`.
   expect(requests).not.toHaveBeenCalled();
+});
+it('shows the lost state and Sign out when a legacy runtime is refused with organizations off', async () => {
+  mount(
+    {
+      discover: () => {
+        throw new Error('inactive discovery');
+      },
+      select: () => {
+        throw new Error('inactive selection');
+      },
+    },
+    'legacy',
+    (runtime) => {
+      runtime.resourceScope.refuse({ error: 'unauthenticated' });
+    },
+  );
+  fireEvent.click(await screen.findByRole('button', { name: 'Use runtime' }));
+  // Proof (2026-10-14): the guard without `state.kind === 'loading'` failed this
+  // case with `Unable to find role="button" and name "Sign out"`: the body
+  // stayed at "Loading organization…".
+  expect(await screen.findByRole('button', { name: 'Sign out' })).toBeTruthy();
+  expect(screen.getByText(/Your organization context is no longer available/)).toBeTruthy();
+  expect(screen.queryByText('Resources legacy')).toBeNull();
 });
 it('requires an explicit choice even for a sole membership', async () => {
   const select = vi.fn(() =>

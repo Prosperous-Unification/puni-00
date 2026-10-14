@@ -136,7 +136,13 @@ export function OrganizationGate({
   // pages on GET /api/organization/memberships 403 before legacy startup settled.
   // Removing it also failed `starts the inactive deployment runtime without reading
   // membership choices`: the request spy observed one membership read.
-  if (mode === 'legacy' && !reachable) return <main className="p-8">Loading organization…</main>;
+  // Only the startup window: a legacy runtime that later loses its context
+  // must still say so and offer Sign out.
+  // Proof: guarding every non-legacy state failed `shows the lost state and Sign
+  // out when a legacy runtime is refused with organizations off` (no Sign out;
+  // the body stayed at "Loading organization…").
+  if (mode === 'legacy' && !reachable && state.kind === 'loading')
+    return <main className="p-8">Loading organization…</main>;
   const choose = (organizationId: string) => {
     observe(owner.choose(organizationId));
   };

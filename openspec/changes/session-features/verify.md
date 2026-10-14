@@ -144,3 +144,56 @@ bypassed. Activated organization, quiet-load, Gantt/browser geometry and other
 browser suites remain unverified on this aggregate. Full repository suites,
 build, backend/dependency-wide lint/typechecks, hosted CI and the exact-SHA
 `bin/h2puni-gate.sh` remain required integration checks for the root owner.
+
+## Review fixes (Fable review of #442 at `92c1808dd`, MERGE AFTER FIXES)
+
+On top of `92c1808dd`, add-only commits.
+
+1. The organization gate's startup guard now holds only while the legacy runtime is `loading`.
+   New case `shows the lost state and Sign out when a legacy runtime is refused with
+organizations off` (`organization-gate.test.tsx`, the reviewer's probe through
+   `runtime.resourceScope.refuse({ error: 'unauthenticated' })`). Watched: with the guard on every
+   state it fails `Unable to find role="button" and name "Sign out"` (body "Loading
+   organization…"); with the guard removed `starts the inactive deployment runtime without
+reading membership choices` fails `expected "vi.fn()" to not be called at all, but actually
+been called 1 times`. Fixed: 9 pass. Spec sentence narrowed to the startup window, with a
+   scenario.
+2. Adjacent `Proof:` lines on `readSessionFeatures` (`app.ts`) and `OnboardingRepository.isActive`
+   naming the faults recorded in `session-features.db.test.ts`.
+3. `readFeatures()` moved below the invalid-token 401. New case `refuses an invalid bearer 401
+even when the activation marker is broken`: with the read restored above the refusal,
+   `Expected: 401, Received: 500` (5 pass, 1 fail); fixed 6 pass. Spec scenario added.
+
+## Release candidate restack — 2026-10-14
+
+Merged pinned main `abb051cb5b52af4f61609cc89f86dc315ed94bff` into candidate
+`9b2f93ba5d9c61dce0f79681f03800e4d44a00b3` in isolated clone
+`/tmp/puni-release-candidate-integration-sol`. Only the Gantt and session
+verification histories conflicted; retained both additive histories.
+
+Composition checks:
+
+- Four focused DOM suites (organization gate, Gantt bar labels, panel fill,
+  panel): **314 passed across four files**, 20.02 s.
+- Backend `session-features.db.test.ts`: **6 passed**, 18 assertions, 3.03 s.
+- ESLint over the five changed production files: exit **0**.
+- Initial frontend module typecheck exposed missing `step_blockage_inactive`
+  arms in `plan-refusal.ts` for commands, undo/redo and step deletion. The
+  contract imports source directly; this was a real cumulative contract
+  mismatch. Four added plan writer cases exercised the production reporting
+  path and failed with `Unexpected response variant: object` before the three
+  arms were restored (**4 failed, 7 passed**). Adjacent `Proof:` comments name
+  the observed fault. The existing refusal sentence is preserved.
+
+Local browser command through `bin/with-heavy-lock.sh` exited **70** before
+Playwright because `/home/puni1/.cache` is absent. No lock bypass. An initial
+Nx target attempt stopped with exit 130; `nx exec` also refused the existing
+`wbs-runtime-portable → wbs-core → wbs-store-memory → wbs-core` cycle. Focused
+Bun-backed suites above ran to completion. Local `openspec` is absent. Full
+repository suites, canonical exact-SHA host gate, CI, and browser settlement
+red/green proof remain the root integration owner's checks before merge.
+
+After restoring those arms, the plan writer suite passed **11/11**, 3.08 s.
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false CLAUDECODE=0 AGENT=0 bunx nx run
+wbs-fe-01:typecheck --outputStyle=static` passed **two uncached tasks**,
+14.2 s. Focused ESLint and Prettier checks are recorded with the commit handoff.
