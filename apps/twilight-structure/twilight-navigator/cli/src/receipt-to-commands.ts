@@ -47,7 +47,8 @@ async function readDecoded<Decoded>(
  * The WBS commands that record a receipt: per entry in receipt order, one `setProgress` with
  * the entry's status, then one `setMeasure` per present measure in {@link MEASURE_ORDER}.
  * `setProgress`, not `setStatus`, because an entry names one step and `setStatus` acts on the
- * whole work item.
+ * whole work item. Task schemas 1 and 2 retain their original values through decoding;
+ * the digest check precedes reading their shared task and step identifiers.
  *
  * @throws when the receipt is for another plan reference, the task export is not the one the
  * plan reference binds, or an entry names a task or step code the export does not hold.
@@ -65,6 +66,8 @@ export function commandsForReceipt(
   // Proof: skipping this comparison failed `refuses a task export the plan reference does not
   // bind` and the tampered task export case of `refuses a tampered receipt, plan reference or
   // task export` (2026-10-11).
+  // Proof: removing this check also emitted batches for tampered schema-2 native units
+  // and values (receipt-to-commands.test.ts, 2026-10-13).
   if (digestOf(tasks) !== reference.tasksDigest) {
     throw new Error('task export does not match the plan reference tasksDigest');
   }

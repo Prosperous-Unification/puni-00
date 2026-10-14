@@ -122,6 +122,59 @@ Dockerfile.
 The solver supervisor's runtime directory is mounted read-only at `/run/wbs-solver`, never the
 `supervisor.sock` inode, so an atomically replaced socket reaches the running Pod.
 
+### Forge namespace admission prerequisite
+
+Admission reserves `puni-forge` and `puni-forge-<slug>`. The suffix uses the existing
+`dev-env` slug grammar: 1–20 characters, starting with a lowercase letter, ending with a
+lowercase letter or digit, and containing lowercase letters, digits or hyphens. Each reserved
+namespace requires `puni.dev/trusted-hostpath: source` on creation and update. The policy
+rejects malformed reserved suffixes, missing/changed/removed labels, unknown trusted-label
+values and trusted labels on other identities. `wbs-solver` retains its `solver` identity.
+All forge identities use the same exact-root parameters, image, service-account,
+controller, node and container-security rules. `dev-env` currently uses `puni-forge`;
+workload namespace ownership and lifecycle migration are a later WBS 070.14 slice.
+
+Run this admission-only rehearsal against a new disposable cluster. It installs no Flux graph
+and proves API admission, including the ephemeral-container subresource. The test Pods
+remain unscheduled because the rehearsal has no forge node selector; it proves no host mount or
+application runtime behavior. Use the locked `k3d` and `kubectl` from the Tools section.
+
+```sh
+export KUBECTL="$HOME/.local/puni-bin/kubectl"
+export KUBECONFIG="/tmp/puni-forge-admission.kubeconfig"
+export KUBE_CONTEXT=k3d-puni-forge-admission
+"$K3D" cluster create puni-forge-admission \
+  --image docker.io/rancher/k3s:v1.36.4-k3s1@sha256:edad48e12bf81c3a09ac1c05c0c0ffaaa22145980b989d6fae84543a76b83657 \
+  --servers 1 --agents 0 --no-lb \
+  --kubeconfig-update-default=false --kubeconfig-switch-context=false \
+  --k3s-arg '--disable=traefik,servicelb,metrics-server@server:*' --wait --timeout 180s
+"$K3D" kubeconfig get puni-forge-admission > "$KUBECONFIG"
+bun infra/platform/conformance/admission/forge-namespace-upgrade-check.mjs --prepare
+"$KUBECTL" --kubeconfig "$KUBECONFIG" --context "$KUBE_CONTEXT" apply \
+  -f infra/platform/conformance/admission/forge-namespaces.yaml \
+  -f infra/platform/policy/trusted-images.yaml \
+  -f infra/platform/policy/trusted-workloads.yaml
+bun infra/platform/conformance/admission/forge-namespace-check.mjs
+bun infra/platform/conformance/admission/forge-namespace-upgrade-check.mjs
+"$K3D" cluster delete puni-forge-admission
+rm "$KUBECONFIG"
+```
+
+The upgrade preparation creates unlabelled valid and malformed reserved namespaces and approved
+and unsafe Pods before any admission policy exists. A separate parameter-free Pod identity
+policy covers Pod CREATE/UPDATE and `pods/ephemeralcontainers` regardless of namespace labels,
+so installing the platform closes that pre-existing namespace bypass. Upgrade probes deny all
+12 requests with and without trusted parameters, then restore the parameter ConfigMap. These
+probes require the new identity policy's specific denial message, never a Kubernetes schema
+rejection. Policy bindings propagate asynchronously; accept only a complete successful check
+after the API has observed installation.
+
+The check requires explicit cluster variables, tests the original forge plus `alpha` and `beta`,
+and checks that deleting the shared parameter ConfigMap denies all trusted Pods while ordinary
+Restricted Pods still pass. It restores that ConfigMap in `finally`. `PROBE_FILTER` selects one
+named assertion when deliberately removing a guard in this disposable cluster; the verification
+record contains the observed failures. Delete the cluster after any interrupted rehearsal.
+
 ### What reaches a running environment
 
 | Change                                                                                                                                                        | What carries it                                                                                                                                                                                                                                                                                     |

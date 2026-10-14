@@ -120,12 +120,53 @@ describe('twin plan-reference', () => {
       },
     ]);
     expect(tasks.tasks[2].dependsOn).toEqual(['00000000-0000-4000-8000-000000000010']);
+    if (tasks.schemaVersion !== 1) throw new Error('v7 must retain task schema 1');
     expect(tasks.tasks[0].estimateDays).toEqual([
       { stepCode: 'dev', optimistic: 1, realistic: 2, pessimistic: 4 },
       { stepCode: 'qa', optimistic: 1, realistic: 2, pessimistic: 4 },
     ]);
     expect(readFileSync(FIXTURE)).toEqual(FIXTURE_BYTES);
   });
+
+  // Fixture exported through PlanDocumentService.exportCaptured with the historical tree,
+  // explicit workday/dev and minute/qa steps and a fixed clock (2026-10-13).
+  test('writes native minute and workday estimates from the current exporter', async () => {
+    const path = join(import.meta.dir, 'fixtures', 'plan-export.v8.json');
+    const run = await planReference({ '--export': path });
+    expect(run.exitCode).toBe(0);
+    expect(run.stderr).toBe('');
+    const record = PlanReferenceRecord.assert(readJson(join(output, 'plan-reference.json')));
+    expect(decodeRecord('plan-reference', record)).toEqual(record);
+    expect(record.planDocumentVersion).toBe(8);
+    expect(record.exportDigest).toBe(createHash('sha256').update(readFileSync(path)).digest('hex'));
+    const tasks = PlanTasks.assert(readJson(join(output, 'tasks.json')));
+    expect(tasks.schemaVersion).toBe(2);
+    expect(tasks.tasks[0]).toMatchObject({
+      estimates: [
+        { stepCode: 'dev', unit: 'workdays', optimistic: 1, realistic: 2, pessimistic: 4 },
+        { stepCode: 'qa', unit: 'minutes', optimistic: 30, realistic: 60, pessimistic: 120 },
+      ],
+    });
+    expect(tasks.tasks[0]).not.toHaveProperty('estimateDays');
+    expect(record.tasksDigest).toBe(digestOf(tasks));
+  });
+
+  test.each(['missing unit', 'unknown unit', 'unknown root key', 'unknown step key'])(
+    'refuses a current export with %s',
+    async (fault) => {
+      const document = JSON.parse(
+        readFileSync(join(import.meta.dir, 'fixtures', 'plan-export.v8.json'), 'utf8'),
+      ) as Record<string, unknown>;
+      const steps = document['steps'] as Record<string, unknown>[];
+      if (fault === 'missing unit') delete steps[1]['estimateUnit'];
+      if (fault === 'unknown unit') steps[1]['estimateUnit'] = 'hours';
+      if (fault === 'unknown root key') document['extra'] = 1;
+      if (fault === 'unknown step key') steps[1]['extra'] = 1;
+      const path = join(scratch.path, 'current.json');
+      writeFileSync(path, JSON.stringify(document));
+      expectRefusal(await planReference({ '--export': path }), /plan export is malformed/);
+    },
+  );
 
   test('the same inputs produce the same bytes and digest', async () => {
     const first = await planReference();
@@ -152,21 +193,21 @@ describe('twin plan-reference', () => {
     });
     expectRefusal(
       await planReference({ '--export': path }),
-      /has version 6; twin reads version 7 only/,
+      /has version 6; twin reads versions 7 and 8 only/,
     );
   });
 
-  test('refuses a version-8 document before writing', async () => {
+  test('refuses a version-9 document before writing', async () => {
     const path = writeExport((document) => {
       document['document'] = {
         format: 'wbs-plan',
-        version: 8,
+        version: 9,
         exportedAt: '2026-10-11T09:00:00.000Z',
       };
     });
     expectRefusal(
       await planReference({ '--export': path }),
-      /has version 8; twin reads version 7 only/,
+      /has version 9; twin reads versions 7 and 8 only/,
     );
   });
 

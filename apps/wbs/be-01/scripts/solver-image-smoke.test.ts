@@ -61,6 +61,7 @@ case "$1" in
     ;;
   run)
     if [ "\${WBS_FAKE_FAULT:-}" = solver-run ] && [[ "$*" == *'--entrypoint wbs-solver'* ]]; then exit 86; fi
+    if [ "\${WBS_FAKE_FAULT:-}" = shared-client-run ] && [[ "$*" == *'shared-person'* ]]; then exit 87; fi
     ;;
   container) [ "\${WBS_FAKE_FAULT:-}" = container-rm-fails ] ;;
   rm) [ "\${WBS_FAKE_FAULT:-}" != container-rm-fails ] ;;
@@ -78,6 +79,7 @@ esac
 /** One injected Docker failure, named for the step that goes wrong. */
 type SmokeFault =
   | 'solver-run'
+  | 'shared-client-run'
   | 'rm-ignored'
   | 'delete-fails-after-untag'
   | 'inspect-broken'
@@ -151,6 +153,11 @@ describe('solver-image-smoke image lifecycle', () => {
 
     expect(smoke.stderr).toBe('');
     expect(smoke.exitCode).toBe(0);
+    const clients = smoke.dockerCalls.filter((call) =>
+      call.includes('solver-supervisor-image-client.ts'),
+    );
+    expect(clients).toHaveLength(2);
+    expect(clients[1]).toContain(' shared-person ');
     const removed = smoke.dockerCalls.filter((call) => call.startsWith('image rm '));
     expect(removed).toHaveLength(3);
     expect(removed[0]).toMatch(
@@ -171,6 +178,12 @@ describe('solver-image-smoke image lifecycle', () => {
     expect(smoke.exitCode).toBe(86);
     // Proof: with cleanup removing images only after a passing smoke, this failing smoke left
     // `wbs-be-01:solver-smoke-<uuid>` here.
+    expect(smoke.survivingTags).toEqual([]);
+  });
+
+  it('fails and cleans up when the shared-person client fails', () => {
+    const smoke = runSmoke('shared-client-run');
+    expect(smoke.exitCode).toBe(87);
     expect(smoke.survivingTags).toEqual([]);
   });
 

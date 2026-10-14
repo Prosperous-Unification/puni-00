@@ -125,3 +125,32 @@ Synthetic worker Jobs SHALL be bounded, SHALL start at most once per run identit
 - **GIVEN** a dispatched run whose worker cluster is deleted and recreated
 - **WHEN** the authority reconciles the run
 - **THEN** it starts the run once more and records its completion, or fails it after the attempt limit
+
+### Requirement: Forge namespace identities preserve trusted admission
+
+The platform SHALL reserve `puni-forge` and the `puni-forge-` family. A family suffix SHALL match the existing dev-environment slug grammar `[a-z](?:[a-z0-9-]{0,18}[a-z0-9])?`. Reserved namespaces SHALL carry `puni.dev/trusted-hostpath: source` on creation and every update. Only `wbs-solver` SHALL carry `solver`; only valid forge identities SHALL carry `source`. Other trusted-label values SHALL be denied. Label removal or changes SHALL be denied.
+
+#### Scenario: Several forge identities request approved Pods
+
+- **GIVEN** `puni-forge`, `puni-forge-alpha` and `puni-forge-beta` with source labels
+- **WHEN** approved source Pods are admitted in each
+- **THEN** all receive the same exact directory-root, digest image, service-account, controller, node and security checks, including init and ephemeral containers
+
+#### Scenario: A reserved namespace attempts to escape admission
+
+- **GIVEN** a reserved forge name, a malformed forge suffix or an unknown trusted-label value
+- **WHEN** a Namespace is created or updated without its correct identity and label
+- **THEN** admission denies it, including removal or replacement of an existing label
+
+#### Scenario: Trusted parameters disappear
+
+- **GIVEN** the trusted parameter ConfigMap is missing
+- **WHEN** Pods are requested in original and per-environment forge namespaces and the solver namespace
+- **THEN** trusted Pods are denied while ordinary Restricted workloads retain their existing behavior
+
+#### Scenario: Policies are installed after an unlabelled reserved namespace exists
+
+- **GIVEN** valid and malformed reserved forge namespaces without trusted labels and Pods that existed before policy installation
+- **WHEN** an otherwise approved or unsafe Pod is created or updated, or an ephemeral container is added
+- **THEN** a parameter-free Pod identity policy denies each request independently of the trusted label selector, including when the parameter ConfigMap is missing
+- **AND** ordinary and system namespaces retain their existing admission behavior

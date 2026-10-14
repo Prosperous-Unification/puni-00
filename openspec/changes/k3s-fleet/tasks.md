@@ -1,5 +1,10 @@
 # Tasks
 
+- [x] F5.1 — Test the generated lab identity, owned fixtures, and strict fresh evidence boundary; watch injected missing, unreadable, malformed, stale, and mismatched evidence fail.
+- [ ] F5.2 — Implement the rootless QEMU workers rehearsal through production discover/plan/apply, with protected managed fixtures, persisted SQLite marker, bounded PDB drain, explicit recovery, stateless success, and unchanged second apply.
+- [x] F5.3 — Watch production-path negatives for local PV, forge, SQLite, disabled eviction, failure propagation and receipt guards; preserve diagnostics and record focused validation.
+- [ ] F5.4 — Run the disposable real VM matrix on a KVM-capable host and record structured evidence. WBS070.13 stays in progress until this acceptance and review.
+
 - [x] F0 — Freeze fleet contracts, tool versions, and required inputs per [F0](../../../docs/superpowers/plans/2026-09-17-k3s-fleet.md#f0--freeze-contracts-inputs-and-tool-versions).
 - [x] F1 — Define desired fleet, operation requests, and stable identities per [F1](../../../docs/superpowers/plans/2026-09-17-k3s-fleet.md#f1--define-desired-fleet-and-stable-identities).
 - [x] F2 — Implement complete, fresh provider/Kubernetes observation per [F2](../../../docs/superpowers/plans/2026-09-17-k3s-fleet.md#f2--discover-the-fleet-without-turning-errors-into-absence).
