@@ -157,8 +157,6 @@ function historyCode(refusal: RefusalOf<'postApiProjectsByIdUndo'>): string {
       // cases throw `Unexpected response variant: object` instead of reporting
       // the refusal; watched in plan-writer.test.ts, 2026-10-14.
       return refusal.error;
-    case 'step_blockage_inactive':
-      return refusal.error;
     default:
       return unreachable(refusal);
   }
@@ -296,8 +294,6 @@ function stepRemoveCode(refusal: RefusalOf<'deleteApiProjectsByIdStepsByStepId'>
       // Proof: omitting this arm made the plan writer's disabled-admission
       // cases throw `Unexpected response variant: object` instead of reporting
       // the refusal; watched in plan-writer.test.ts, 2026-10-14.
-      return refusal.error;
-    case 'step_blockage_inactive':
       return refusal.error;
     default:
       return unreachable(refusal);
@@ -462,7 +458,6 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'note_must_be_text':
     case 'executorPersonId_must_be_an_id':
     case 'attemptNumber_must_be_a_whole_number_from_1':
-    case 'step_blockage_inactive':
     case 'node_done':
     case 'attempt_running':
     case 'attempt_in_future':

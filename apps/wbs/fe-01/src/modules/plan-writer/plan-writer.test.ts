@@ -229,6 +229,6 @@ it.each([
   expect(requests).toBe(1);
   expect(recorded.rereads).toEqual([]);
   expect(recorded.refusals).toEqual([
-    { sentence: 'That change could not be completed (step_blockage_inactive).' },
+    { sentence: 'Step blockage changes are not enabled on this server.' },
   ]);
 });
