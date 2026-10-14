@@ -10,6 +10,7 @@ import {
   ContentManifestRequest,
   RelationshipRequest,
 } from './contracts/records';
+import { validatePlanTasks } from './contracts/validate-plan-tasks';
 import {
   buildContentManifest,
   compareContentIdentity,
@@ -309,6 +310,20 @@ function validatorEntryPaths(): string[] | { artifactManifest: string } {
 
 export function runCli(argv: readonly string[]): Promise<void> | void {
   const args = [...argv];
+  if (args[0] === 'validate-plan-tasks') {
+    // Proof: removing operand validation lost the named usage refusal in all five invalid
+    // operand CLI cases (plan-tasks.test.ts, 2026-10-13).
+    if (
+      args.length !== 3 ||
+      args.slice(1).some((path) => path.length === 0 || path.startsWith('-'))
+    ) {
+      throw new Error('usage: twib validate-plan-tasks <plan-reference.json> <tasks.json>');
+    }
+    const reference = readJsonDocument(args[1]);
+    const tasks = readJsonDocument(args[2]);
+    process.stdout.write(`${JSON.stringify(validatePlanTasks(reference.input, tasks.input))}\n`);
+    return;
+  }
   if (args.length === 3 && (args[0] === 'validate' || args[0] === 'validate-record')) {
     validateRecord(args);
     return;
@@ -392,6 +407,29 @@ export function runCli(argv: readonly string[]): Promise<void> | void {
       process.stdout.write(`${JSON.stringify(inspectSpecSources(args[1], args[2]))}\n`);
     });
   }
+  if (args[0] === 'inspect-performance-levels') {
+    // Proof: removing arity refusal accepted [TEST-AXES-090]'s extra CLI operand.
+    if (args.length !== 5)
+      throw new Error(
+        'usage: twilight-burokrat inspect-performance-levels <repository> <committed-sha> <external-facts-authority> <external-rule-policy>',
+      );
+    return import('./evidence/performance-levels').then(({ inspectPerformanceLevels }) => {
+      const observation = inspectPerformanceLevels(args[1], args[2], args[3], args[4]);
+      process.stdout.write(`${JSON.stringify(observation)}\n`);
+      // Proof: removing this status mapping made [TEST-AXES-089] exit zero for wrong-level JSON.
+      if (observation.isolation.kind === 'wrong-level') process.exitCode = 1;
+    });
+  }
+  if (args[0] === 'inspect-level-facts') {
+    // Proof: [TEST-AXES-078] supplies an extra operand and requires this named usage refusal.
+    if (args.length !== 4)
+      throw new Error(
+        'usage: twilight-burokrat inspect-level-facts <repository> <committed-sha> <external-authority>',
+      );
+    return import('./evidence/level-facts').then(({ inspectLevelFacts }) => {
+      process.stdout.write(`${JSON.stringify(inspectLevelFacts(args[1], args[2], args[3]))}\n`);
+    });
+  }
   if (args[0] === 'inspect-manual') {
     // Proof: disabling this arity refusal made the production CLI usage assertion fail.
     if (!(args.length === 5 || (args.length === 7 && args[5] === '--now')))
@@ -408,6 +446,30 @@ export function runCli(argv: readonly string[]): Promise<void> | void {
       // Proof: disabling this exit mapping made stale, failed and overdue production CLI
       // cases return exit 0 despite their structured nonpassing verdicts.
       if (observation.state !== 'current') process.exitCode = 1;
+    });
+  }
+  if (args[0] === 'inspect-manual-observation') {
+    // Proof: removing this refusal made the production CLI extra-operand assertion fail.
+    if (args.length !== 7 || args[5] !== '--now')
+      throw new Error(
+        'usage: twilight-burokrat inspect-manual-observation <repository> <committed-sha> <external-rule-policy> <report-path> --now <UTC instant>',
+      );
+    return import('./evidence/manual').then(({ readEvaluationInstant }) => {
+      // Proof: the exact deadline instants and malformed UTC production calls fail if the
+      // supplied instant is replaced with a sampled clock or accepted without decoding.
+      const evaluatedAt = readEvaluationInstant(args[6]);
+      return import('./evidence/manual-observation').then(({ inspectManualObservation }) => {
+        const observation = inspectManualObservation(
+          args[1],
+          args[2],
+          args[3],
+          args[4],
+          evaluatedAt,
+        );
+        process.stdout.write(`${JSON.stringify(observation)}\n`);
+        // Proof: disabling this exit mapping made evaluated stale, failed and overdue CLI cases exit zero.
+        if (observation.manual.state !== 'current') process.exitCode = 1;
+      });
     });
   }
   if (args[0] === 'inspect-performance') {
@@ -498,7 +560,7 @@ export function runCli(argv: readonly string[]): Promise<void> | void {
   // re-adding its route above failed `submit-admission is an unknown command` (cli.test.ts) and
   // `the validator bundle carries no authority store` (packaging/bundle.test.ts) (2026-10-11).
   throw new Error(
-    `unknown command: ${args[0] ?? '<missing>'}\nusage: twilight-burokrat <validate-record|read-candidate|candidate-identity|inspect-performance|inspect-performance-sources|inspect-browser|inspect-test-reports|inspect-test-sources|inspect-spec-sources|inspect-manual|classify-candidate|content-manifest|validate-artifacts|extract-relationships|check-indexes|check-root-migration|validate-review-provenance|freeze-exhaustive|verify-exhaustive|evaluate-exhaustive-coverage|lint-local|lint-ci|check|explain|scenario|template|validate-policy-activation> ...`,
+    `unknown command: ${args[0] ?? '<missing>'}\nusage: twilight-burokrat <validate-plan-tasks|validate-record|read-candidate|candidate-identity|inspect-performance|inspect-performance-sources|inspect-performance-levels|inspect-browser|inspect-test-reports|inspect-test-sources|inspect-spec-sources|inspect-manual|inspect-manual-observation|classify-candidate|content-manifest|validate-artifacts|extract-relationships|check-indexes|check-root-migration|validate-review-provenance|freeze-exhaustive|verify-exhaustive|evaluate-exhaustive-coverage|lint-local|lint-ci|check|explain|scenario|template|validate-policy-activation> ...`,
   );
 }
 

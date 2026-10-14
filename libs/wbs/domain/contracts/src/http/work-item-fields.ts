@@ -44,6 +44,8 @@ export const WORK_ITEM_FIELD_GROUPS = {
     'spans',
     'span',
     'nodeReadings',
+    'blockages',
+    'blockageCauses',
   ],
   constraints: [
     'position',

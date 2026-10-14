@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'bun:test';
 
-import { classifyTestFile, type TestLevel, type TestLevelFacts } from './index';
+import {
+  classifyDeclaredTest,
+  classifyTestFile,
+  type TestLevel,
+  type TestLevelFacts,
+} from './index';
 
 const facts: TestLevelFacts = {
   frontendSourceRoot: 'apps/wbs/fe-01/src',
@@ -71,4 +76,30 @@ describe('ordered test level table', () => {
     ).toBe('view');
     expect(classifyTestFile('apps/example/src/board.test.ts', facts)).toBe('unit');
   });
+});
+
+it('earlier rows require no later evidence and preserve first-match overlap', () => {
+  const path = 'apps/example/case.test.ts';
+  const declared = {
+    manualProcedures: new Set<string>(),
+    conformanceFiles: new Set([path]),
+    architectureFixtures: new Set([path]),
+    performanceFiles: new Set([path]),
+    browserFiles: new Set([path]),
+  };
+  expect(classifyDeclaredTest(path, declared)).toBe('conformance');
+  expect(classifyDeclaredTest(path, { ...declared, conformanceFiles: new Set() })).toBe(
+    'architecture',
+  );
+  expect(
+    classifyDeclaredTest(path, {
+      ...declared,
+      conformanceFiles: new Set(),
+      architectureFixtures: new Set(),
+    }),
+  ).toBe('performance');
+  expect(classifyDeclaredTest(path, { ...declared, manualProcedures: new Set([path]) })).toBe(
+    'manual',
+  );
+  expect(classifyDeclaredTest('other.test.ts', declared)).toBeUndefined();
 });

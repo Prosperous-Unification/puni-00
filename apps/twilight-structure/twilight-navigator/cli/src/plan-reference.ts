@@ -2,11 +2,16 @@ import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 
 import { parseOrThrow, type } from '@shared/validation';
-import { digestOf, type PlanRef, PlanReferenceRecord } from '@twilight-burokrat/contracts';
+import {
+  digestOf,
+  type PlanRef,
+  PlanReferenceRecord,
+  type PlanTask,
+  PlanTasks,
+} from '@twilight-burokrat/contracts';
 import { type PlanDocument, planDocument } from '@wbs/contracts';
 
 import type { FlagValues } from './cli';
-import { type PlanTask, PlanTasks } from './plan-tasks';
 import {
   createExclusiveFiles,
   decodeRequiredText,
@@ -41,8 +46,10 @@ const PlanDocumentHeader = type({
  * WBS's current document schema supplies the unchanged fields; the versioned header and
  * step and work-item shapes retain the historical wire contract.
  */
+// Proof: retaining the v9 stepBlockages requirement broke valid v7 and v8 exports
+// in plan-reference.test.ts (injected schema dependency fault, 2026-10-14).
 const HistoricalPlanDocument = planDocument
-  .omit('document', 'steps', 'workItems')
+  .omit('document', 'steps', 'workItems', 'stepBlockages')
   .and({
     document: {
       format: "'wbs-plan'",
@@ -59,7 +66,10 @@ const HistoricalPlanDocument = planDocument
 /** Current wire contract; nested unknown keys remain a refused input. */
 // Proof: ignoring deep unknown keys made both current-export unknown-key tests exit 0.
 // Injecting a workday default before this decode made the missing-unit test exit 0 (2026-10-13).
-const CurrentPlanDocument = planDocument.onDeepUndeclaredKey('reject');
+const CurrentPlanDocument = planDocument
+  .omit('document', 'stepBlockages')
+  .and({ document: { format: "'wbs-plan'", version: '8', exportedAt: 'string' } })
+  .onDeepUndeclaredKey('reject');
 
 interface DecodedPlanExport {
   document: PlanDocument;
@@ -91,14 +101,23 @@ function decodePlanExport(bytes: Uint8Array, path: string): DecodedPlanExport {
   }
   try {
     if (header.document.version === 8) {
-      return { document: parseOrThrow(CurrentPlanDocument, parsed), wireVersion: 8 };
+      const document = parseOrThrow(CurrentPlanDocument, parsed);
+      return {
+        document: {
+          ...document,
+          document: { ...document.document, version: 9 },
+          stepBlockages: [],
+        },
+        wireVersion: 8,
+      };
     }
     const document = parseOrThrow(HistoricalPlanDocument, parsed);
     return {
       wireVersion: 7,
       document: {
         ...document,
-        document: { ...document.document, version: 8 },
+        document: { ...document.document, version: 9 },
+        stepBlockages: [],
         steps: document.steps.map((step) => ({ ...step, estimateUnit: 'workdays' })),
       },
     };

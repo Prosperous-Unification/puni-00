@@ -65,9 +65,13 @@ sessions and their claims)`.
   checks session and overlap, then advances `nextGeneration`); `submit` (immediate transaction; an
   exact repeat of a committed submission writes nothing).
 - **Invariants.** I1 one creator per lifetime: while absent exactly one bootstrap reports
-  `bootstrapped`, every other reports `exists`. I2 absence is refused and leaves no directory.
+  `bootstrapped`; peers report `exists` within their configured busy budget or typed contention
+  when it expires. After every original worker exits, each contended peer gets one fresh attempt
+  that must report `exists`. I2 absence is refused and leaves no directory.
   I3 inspection never changes the database bytes. I4 generations are consecutive and never reset.
-  I5 overlapping acquisitions linearize: at most one holds an overlapping path. I6 every outcome
+  I5 overlapping acquisitions linearize: at most one holds an overlapping path. Typed contention
+  is a refused attempt that consumes no generation or claim; successful acquisitions still receive
+  consecutive generations. I6 every outcome
   is typed; `corrupt` or an untyped failure is a defect.
 
 `authority-lifecycle.model.test.ts` checks I1–I6 with `fc.asyncModelRun` against a reference

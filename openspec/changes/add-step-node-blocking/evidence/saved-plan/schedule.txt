@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/service/saved-plan-input.test.ts:
+454 | it('captures direct blockage while canonical schedule input and full Fast schedule stay identical', () => {
+455 |   const plain = { ...reads, dependencies: [], typedDependencies: [], workItems: reads.workItems.map((row) => ({ ...row, deadline: null, readiness: null, hold: null })), stepBlockages: [] } as unknown as PlanInputReads;
+456 |   const blocked = { ...plain, stepBlockages: [{ workItemId: 'w1', stepId: 's1', blockedAt: -123 }] };
+457 |   expect(canonicalisePlanInput(planInputRowsOf(blocked)).stepBlockages).toEqual(blocked.stepBlockages);
+458 |   expect(JSON.stringify(canonicalisePlanInput(planInputRowsOf(blocked)))).not.toBe(JSON.stringify(canonicalisePlanInput(planInputRowsOf(plain))));
+459 |   expect(JSON.stringify(scheduleInputOfCaptured(blocked))).toBe(JSON.stringify(scheduleInputOfCaptured(plain)));
+                                                                 ^
+error: expect(received).toBe(expected)
+
+Expected: "{"rows":[{"id":"w1","projectId":"p1","parentId":null,"position":10,"name":"Electrics","notes":"","frozenNumber":null,"startNoEarlierThan":null,"startNoEarlierThanReason":null,"priority":10,"serviceTeamId":null,"serviceId":null,"maxParallel":1,"revision":3,"teamIds":["team-1"],"tagIds":["tag-a"],"serviceIds":["svc-1"],"typeIds":["t-task","t-spike"],"externalRefs":[{"id":"x1","systemId":"jira","url":"https://jira/SHED-2"},{"id":"x2","systemId":"github","url":"https://gh/shed/9"}],"deadline":null,"readiness":null,"hold":null,"factStart":null,"factEnd":null}],"edges":[],"slices":[{"workItemId":"w1","stepId":"s1","days":3,"personId":"per-1","width":1,"poolIds":[]},{"workItemId":"w1","stepId":"s2","days":null,"personId":"per-1","width":1,"poolIds":[]}],"notBefore":{},"poolSizes":{},"reach":"whole-item","deadlines":{},"typed":[]}"
+Received: "{"rows":[],"edges":[],"slices":[],"notBefore":{},"poolSizes":{},"reach":"whole-item","deadlines":{},"typed":[]}"
+
+      at <anonymous> (/tmp/puni-step-saved-sol/libs/wbs/application/core/src/service/saved-plan-input.test.ts:459:60)
+(fail) captures direct blockage while canonical schedule input and full Fast schedule stay identical [2.08ms]
+
+ 0 pass
+ 15 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [256.00ms]

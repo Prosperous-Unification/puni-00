@@ -305,6 +305,26 @@ describe('after activation', () => {
     });
   });
 
+  it('refuses delegated restore approval even for a super-admin', async () => {
+    h.sqlite.run(
+      "UPDATE organization_membership SET role = 'super_admin' WHERE organization_id = 'org-a' AND user_id = ?",
+      [h.userId('ada')],
+    );
+    expect(
+      await h.callWith(
+        await delegation(),
+        'POST',
+        '/api/organization/shared-people/restore-approvals',
+        {
+          operationId: 'restore-1',
+          backupDigest: 'a'.repeat(64),
+        },
+      ),
+    ).toEqual({ status: 403, body: { error: 'insufficient_scope' } });
+    expect(h.sqlite.query('SELECT * FROM shared_people_restore_operation').all()).toEqual([]);
+    expect(h.sqlite.query('SELECT * FROM shared_people_restore_approval').all()).toEqual([]);
+  });
+
   it('lists only the delegated organization’s projects', async () => {
     const answer = await h.callWith(await delegation(), 'GET', '/api/projects');
 

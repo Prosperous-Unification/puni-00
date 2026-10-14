@@ -24,7 +24,8 @@
         ],
         "parallel": false
       },
-      "outputs": ["{workspaceRoot}/dist/apps/wbs/be-01"]
+      "outputs": ["{workspaceRoot}/dist/apps/wbs/be-01"],
+      "dependsOn": ["^build", "build-host-restore"]
     },
     "solver-image-smoke": {
       "executor": "nx:run-commands",
@@ -94,6 +95,22 @@
       "executor": "nx:run-commands",
       "options": {
         "command": "bun tools/tool-devsync/src/typecheck-modules.ts apps/wbs/be-01/src/module"
+      }
+    },
+    "build-host-restore": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun build apps/wbs/be-01/src/shared-people-host-restore-cli.ts --target=bun --outfile=dist/apps/wbs/be-01-host/shared-people-host-restore.js"
+      },
+      "outputs": ["{workspaceRoot}/dist/apps/wbs/be-01-host"]
+    },
+    "test:host-restore": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "dependsOn": ["build-host-restore"],
+      "options": {
+        "command": "bun test ./apps/wbs/be-01/scripts/shared-people-host-artifact.smoke.ts ./apps/wbs/be-01/scripts/shared-people-host-restore.rehearsal.ts --timeout=60000",
+        "env": { "CLAUDECODE": "0", "AGENT": "0" }
       }
     }
   }

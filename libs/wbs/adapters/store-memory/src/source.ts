@@ -71,6 +71,11 @@ import {
   type MemoryEventLogTables,
   memoryEventLogTables,
 } from './replay-fixture';
+import {
+  inMemoryStepBlockages,
+  type MemoryStepBlockageTable,
+  memoryStepBlockageTable,
+} from './step-blockage-fixture';
 import { inMemorySteps, type MemoryStepTable, memoryStepTable } from './step-fixture';
 import { inMemorySubtrees } from './subtree-fixture';
 import {
@@ -92,6 +97,7 @@ interface MemoryTables {
   readonly measures: MemoryMeasureTable;
   readonly progress: MemoryProgressTable;
   readonly attempts: MemoryAttemptTable;
+  readonly blockages: MemoryStepBlockageTable;
   readonly capacity: MemoryCapacityTable;
   readonly priorityBands: MemoryPriorityBandTable;
   readonly calendarMarkers: MemoryCalendarMarkerTable;
@@ -113,6 +119,7 @@ function emptyTables(): MemoryTables {
     measures: memoryMeasureTable(),
     progress: memoryProgressTable(),
     attempts: memoryAttemptTable(),
+    blockages: memoryStepBlockageTable(),
     capacity: memoryCapacityTable(),
     priorityBands: memoryPriorityBandTable(),
     calendarMarkers: memoryCalendarMarkerTable(),
@@ -209,6 +216,9 @@ export class MemoryState {
     replaceArray(this.tables.measures.rows, next.tables.measures.rows);
     replaceArray(this.tables.progress.rows, next.tables.progress.rows);
     replaceArray(this.tables.attempts.rows, next.tables.attempts.rows);
+    // Proof: removing this copy failed the project-seeded fact transaction test
+    // after commit left the old fact in place; watched 2026-10-13.
+    replaceArray(this.tables.blockages.rows, next.tables.blockages.rows);
     replaceArray(this.tables.attempts.issued, next.tables.attempts.issued);
     replaceMap(this.tables.capacity.held, next.tables.capacity.held);
     replaceMap(this.tables.priorityBands.held, next.tables.priorityBands.held);
@@ -251,11 +261,29 @@ function bindStores(
   const dependencies = inMemoryDependencies([], state.tables.dependencies, workItems);
   const typedDependencies = inMemoryTypedDependencies([], state.tables.typedDependencies);
   const steps = inMemorySteps([], state.tables.steps, state.tables.estimates);
+  const projects = inMemoryProjects(users, state.tables.projects);
   const estimates = inMemoryEstimates(workItems, state.tables.estimates, steps);
   const actuals = inMemoryActuals(workItems, state.tables.actuals, steps);
   const measures = inMemoryMeasures(workItems, state.tables.measures, steps);
   const progress = inMemoryProgress(workItems, state.tables.progress, steps);
   const attempts = inMemoryAttempts(workItems, state.tables.attempts, steps, progress);
+  const blockages = inMemoryStepBlockages(
+    workItems,
+    {
+      async findById(stepId) {
+        const step = await steps.findById(stepId);
+        if (step !== null) return step;
+        for (const project of await projects.list()) {
+          const seeded = (await projects.stepsOf(project.id)).find(
+            (candidate) => candidate.id === stepId,
+          );
+          if (seeded !== undefined) return seeded;
+        }
+        return null;
+      },
+    },
+    state.tables.blockages,
+  );
   const rowsOnlyWorkItems = workItems;
   workItems = {
     ...rowsOnlyWorkItems,
@@ -276,12 +304,15 @@ function bindStores(
       removeSatelliteRows(state.tables.progress.rows);
       removeSatelliteRows(state.tables.measures.rows);
       removeSatelliteRows(state.tables.attempts.rows);
+      // Proof: removing this cascade failed the same test when a deleted owner
+      // left an unreadable blockage fact; watched 2026-10-13.
+      removeSatelliteRows(state.tables.blockages.rows);
       removeSatelliteRows(state.tables.attempts.issued);
     },
   };
   const stores: TransactionalStores = {
     users,
-    projects: inMemoryProjects(users, state.tables.projects),
+    projects,
     directory,
     steps,
     workItems,
@@ -290,6 +321,7 @@ function bindStores(
     measures,
     progress,
     attempts,
+    blockages,
     dependencies,
     typedDependencies,
     capacity: inMemoryCapacity({}, state.tables.capacity),
@@ -415,6 +447,7 @@ function coordinatedStores(
       ['start', 'end', 'remove', 'restore', 'raiseIssued', 'moveAll'],
       coordinator,
     ),
+    blockages: coordinatedStore(stores.blockages, ['set', 'remove', 'moveAll'], coordinator),
     dependencies: coordinatedStore(
       stores.dependencies,
       ['add', 'remove', 'removeAllFor'],
@@ -919,6 +952,7 @@ async function capturePlanInput(
     estimates,
     actuals,
     progress,
+    stepBlockages,
     measures,
     dependencies,
     typedDependencies,
@@ -937,6 +971,8 @@ async function capturePlanInput(
     stores.estimates.listByProject(projectId),
     stores.actuals.listByProject(projectId),
     stores.progress.listByProject(projectId),
+    // Proof: capture read replaced with empty; detached blockage capture test failed (memory-source.test.ts), 2026-10-14.
+    stores.blockages.listByProject(projectId),
     stores.measures.listByProject(projectId),
     stores.dependencies.listByProject(projectId),
     stores.typedDependencies.listByProject(projectId),
@@ -957,6 +993,7 @@ async function capturePlanInput(
     estimates,
     actuals,
     progress,
+    stepBlockages,
     measures,
     dependencies,
     typedDependencies: typedDependencies.map(({ id, predecessor, successor, type }) => ({

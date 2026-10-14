@@ -55,6 +55,7 @@ function recordingRoutes(): {
       removeTypedDependency: (...args) => answer('removeTypedDependency', args),
       patchWorkItem: (...args) => answer('patchWorkItem', args),
       setStatus: (...args) => answer('setStatus', args),
+      setStepBlocked: (...args) => answer('setStepBlocked', args),
       startAttempt: (...args) => answer('startAttempt', args),
       endAttempt: (...args) => answer('endAttempt', args),
       removeAttempt: (...args) => answer('removeAttempt', args),
@@ -169,6 +170,7 @@ describe('the plan commands of one project', () => {
     const sent = [
       commands.patchWorkItem('w1', { name: 'Paint the fence' }),
       commands.setStatus('w1', 'done', '2026-09-24'),
+      commands.setStepBlocked('w1', 'step-1', true),
       commands.startAttempt('w1', 'step-1'),
       commands.endAttempt('w1', 'step-1', 'failed', 'PR #12'),
       commands.removeAttempt('w1', 'step-1', 2),
@@ -192,6 +194,7 @@ describe('the plan commands of one project', () => {
     expect(calls).toStrictEqual([
       ['patchWorkItem', 'w1', { name: 'Paint the fence' }],
       ['setStatus', 'w1', 'done', '2026-09-24'],
+      ['setStepBlocked', 'w1', 'step-1', true],
       ['startAttempt', 'w1', 'step-1'],
       ['endAttempt', 'w1', 'step-1', 'failed', 'PR #12'],
       ['removeAttempt', 'w1', 'step-1', 2],

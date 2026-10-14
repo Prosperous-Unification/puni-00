@@ -1,3 +1,4 @@
+import * as crypto from 'node:crypto';
 import * as filesystem from 'node:fs';
 import {
   chmodSync,
@@ -32,7 +33,11 @@ import { afterEach, expect, spyOn, test } from 'bun:test';
 import { monotonicClock } from '../clock';
 import { validateGitHubRepositoryBinding } from './github-source';
 import { createActivationRequest } from './request';
-import { deriveHistoricalSelections } from './review-selection-history';
+import {
+  deriveHistoricalSelections,
+  hashGitObject,
+  type RetainedHistoryManifest,
+} from './review-selection-history';
 import { installLocalReviewSource } from './review-selection-objects';
 import * as reviewPreparation from './review-selection-preparation';
 
@@ -172,15 +177,43 @@ test('retained declaration selects a third exact historical commit without readi
     headSha: git(input.sourceRepository, 'rev-parse', 'HEAD'),
   }).request;
   const { request: _request, ...configuration } = input;
-  const owner = installLocalReviewSource(configuration);
-  const prepared = owner.prepare(request);
-  rmSync(input.sourceRepository, { recursive: true });
-  const candidate = owner.open(request, prepared.snapshotIdentity);
   const relationshipRequest = parseOrThrow(RelationshipRequest, {
     schemaVersion: 1,
     declarationPaths: ['history-link.json'],
     typescript: { configPaths: ['tsconfig.json'], publicEntrypoints: ['src.ts'] },
   });
+  const owner = installLocalReviewSource({
+    ...configuration,
+    maximumCandidateBytes: 8192,
+    history: {
+      request: relationshipRequest,
+      policyIdentity: 'c'.repeat(64),
+      maximumDeclarationPaths: 1,
+      maximumDeclarationBytes: 4096,
+      maximumDeclarationFacts: 1,
+      maximumHistoricalSelections: 1,
+      maximumHistoricalRevisions: 1,
+      maximumHistoricalTreeDepth: 8,
+      maximumHistoricalProofEdges: 8,
+      maximumRetainedObjects: 100,
+      maximumObjectBytes: 8192,
+      maximumRetainedBytes: 16384,
+      maximumHistoricalManifestBytes: 8192,
+      assertOwner: () => undefined,
+    },
+  });
+  const prepared = owner.prepare(request);
+  rmSync(input.sourceRepository, { recursive: true });
+  const candidate = owner.open(request, prepared.snapshotIdentity, prepared.historyIdentity);
+  expect(candidate.readHistorical(historical, 'src.ts')).toEqual(
+    Buffer.from('export const exact = 1;\n'),
+  );
+  const bytes = candidate.readHistorical(historical, 'src.ts');
+  bytes.fill(0);
+  expect(candidate.readHistorical(historical, 'src.ts')).toEqual(
+    Buffer.from('export const exact = 1;\n'),
+  );
+  expect(Object.isFrozen(candidate.history)).toBe(true);
   const historyIdentity = prepared.manifest.entries.find(
     ({ path }) => path === 'history.json',
   )?.rawIdentity;
@@ -1408,3 +1441,770 @@ test('retained reread refuses aggregate bytes exceeding the installed bound', ()
   const installed = installLocalReviewSource({ ...configuration, maximumCandidateBytes: 30 });
   expect(() => installed.read(prepared.snapshotIdentity)).toThrow('byte ceiling exceeded');
 });
+
+function historyFixture(
+  format: 'sha1' | 'sha256' = 'sha1',
+  selectorPath = 'nested/source.ts',
+  revision?: string,
+) {
+  const input = fixture(format);
+  mkdirSync(join(input.sourceRepository, 'nested'));
+  writeFileSync(join(input.sourceRepository, 'nested/source.ts'), 'third historical bytes\n');
+  writeFileSync(join(input.sourceRepository, 'README.md'), '# historical third\n');
+  symlinkSync('../outside-host', join(input.sourceRepository, 'raw-link.txt'));
+  git(input.sourceRepository, 'add', '--all');
+  git(input.sourceRepository, 'commit', '--quiet', '-m', 'third commit');
+  const historical = revision ?? git(input.sourceRepository, 'rev-parse', 'HEAD');
+  writeFileSync(join(input.sourceRepository, 'nested/source.ts'), 'current head bytes\n');
+  writeFileSync(join(input.sourceRepository, 'README.md'), '# current head\n');
+  unlinkSync(join(input.sourceRepository, 'raw-link.txt'));
+  writeFileSync(join(input.sourceRepository, 'raw-link.txt'), 'current ordinary file');
+  writeFileSync(
+    join(input.sourceRepository, 'declared.json'),
+    JSON.stringify({
+      schemaVersion: 1,
+      declarationId: 'historical',
+      selectorVersion: 1,
+      coverage: 'selected-facts-only',
+      facts: [
+        {
+          factId: 'old',
+          family: 'generated',
+          kind: 'generated-blob',
+          at: { kind: 'historical', revision: historical },
+          path: selectorPath,
+          expectedBlob: '1'.repeat(format === 'sha1' ? 40 : 64),
+        },
+      ],
+      edges: [],
+    }),
+  );
+  git(input.sourceRepository, 'add', '--all');
+  git(input.sourceRepository, 'commit', '--quiet', '-m', 'declaration');
+  const { requestIdentity: _identity, schemaVersion: _schema, ...fields } = input.request;
+  const request = createActivationRequest({
+    ...fields,
+    headSha: git(input.sourceRepository, 'rev-parse', 'HEAD'),
+  }).request;
+  const { request: _request, ...configuration } = input;
+  const history = {
+    request: parseOrThrow(RelationshipRequest, {
+      schemaVersion: 1,
+      declarationPaths: ['declared.json'],
+      typescript: { configPaths: ['tsconfig.json'], publicEntrypoints: ['src.ts'] },
+    }),
+    policyIdentity: 'c'.repeat(64),
+    maximumDeclarationPaths: 2,
+    maximumDeclarationBytes: 4096,
+    maximumDeclarationFacts: 2,
+    maximumHistoricalSelections: 2,
+    maximumHistoricalRevisions: 2,
+    maximumHistoricalTreeDepth: 8,
+    maximumHistoricalProofEdges: 8,
+    maximumRetainedObjects: 100,
+    maximumObjectBytes: 8192,
+    maximumRetainedBytes: 32768,
+    maximumHistoricalManifestBytes: 8192,
+    assertOwner: () => undefined,
+  };
+  return {
+    ...input,
+    request,
+    historical,
+    configuration: { ...configuration, maximumCandidateBytes: 8192, history },
+  };
+}
+
+function rewriteHistory(
+  prepared: ReturnType<ReturnType<typeof installLocalReviewSource>['prepare']>,
+  change: (manifest: RetainedHistoryManifest) => void,
+): string {
+  const path = join(prepared.readyDirectory, 'history.json');
+  const manifest = JSON.parse(readFileSync(path, 'utf8')) as RetainedHistoryManifest;
+  change(manifest);
+  const bytes = serializeCanonical(manifest);
+  writeFileSync(path, bytes);
+  return hashBytes(bytes);
+}
+
+test.each(['sha1', 'sha256'] as const)(
+  'historical %s proofs survive all source objects removal and replay exact owned bytes',
+  (format) => {
+    const input = historyFixture(format);
+    const owner = installLocalReviewSource(input.configuration);
+    const prepared = owner.prepare(input.request);
+    expect(owner.prepare(input.request).historyIdentity).toBe(prepared.historyIdentity);
+    expect(readdirSync(prepared.readyDirectory)).not.toContain('git');
+    rmSync(input.sourceRepository, { recursive: true });
+    const retained = owner.open(input.request, prepared.snapshotIdentity, prepared.historyIdentity);
+    expect(retained.readHistorical(input.historical, 'nested/source.ts')).toEqual(
+      Buffer.from('third historical bytes\n'),
+    );
+    expect(retained.history?.proofs[0]?.trees).toHaveLength(2);
+    expect(() => retained.readHistorical(input.request.headSha, 'nested/source.ts')).toThrow(
+      'selector is not retained',
+    );
+    expect(() => owner.open(input.request, prepared.snapshotIdentity)).toThrow('identity absent');
+  },
+);
+
+test('historical symlink read returns exact raw target without host resolution', () => {
+  const input = historyFixture('sha1', 'raw-link.txt');
+  // Current classification requires an in-candidate target. History keeps raw semantics.
+
+  const { requestIdentity: _identity, schemaVersion: _schema, ...fields } = input.request;
+  const request = createActivationRequest({
+    ...fields,
+    headSha: git(input.sourceRepository, 'rev-parse', 'HEAD'),
+  }).request;
+  const owner = installLocalReviewSource(input.configuration);
+  const prepared = owner.prepare(request);
+  rmSync(input.sourceRepository, { recursive: true });
+  expect(
+    owner
+      .open(request, prepared.snapshotIdentity, prepared.historyIdentity)
+      .readHistorical(input.historical, 'raw-link.txt'),
+  ).toEqual(Buffer.from('../outside-host'));
+});
+
+test.each([
+  ['missing commit', 'nested/source.ts', '0'.repeat(40), 'historical commit unavailable'],
+  ['absent path', 'missing.ts', undefined, 'historical path absent'],
+] as const)(
+  'historical acquisition distinguishes %s without publishing references',
+  (_label, path, revision, message) => {
+    const input = historyFixture('sha1', path, revision);
+    const owner = installLocalReviewSource(input.configuration);
+    expect(() => owner.prepare(input.request)).toThrow(message);
+    expect(readdirSync(input.storeBase)).toEqual([]);
+  },
+);
+
+test.each([
+  [
+    'request',
+    (manifest: RetainedHistoryManifest) => {
+      manifest.requestIdentity = 'd'.repeat(64);
+    },
+    'binding differs',
+  ],
+  [
+    'snapshot',
+    (manifest: RetainedHistoryManifest) => {
+      manifest.snapshotIdentity = 'd'.repeat(64);
+    },
+    'binding differs',
+  ],
+  [
+    'policy',
+    (manifest: RetainedHistoryManifest) => {
+      manifest.retainedContentPolicyIdentity = 'd'.repeat(64);
+    },
+    'binding differs',
+  ],
+  [
+    'selectors',
+    (manifest: RetainedHistoryManifest) => {
+      manifest.selections = [];
+      manifest.proofs = [];
+      manifest.historicalSelectionsIdentity = hashBytes(serializeCanonical([]));
+    },
+    'completeness differs',
+  ],
+  [
+    'provenance',
+    (manifest: RetainedHistoryManifest) => {
+      manifest.selections[0].uses = [];
+      manifest.historicalSelectionsIdentity = hashBytes(serializeCanonical(manifest.selections));
+    },
+    'completeness differs',
+  ],
+  [
+    'selector digest',
+    (manifest: RetainedHistoryManifest) => {
+      manifest.historicalSelectionsIdentity = 'd'.repeat(64);
+    },
+    'completeness differs',
+  ],
+  [
+    'missing proof',
+    (manifest: RetainedHistoryManifest) => {
+      manifest.proofs = [];
+    },
+    'completeness differs',
+  ],
+  [
+    'extra proof',
+    (manifest: RetainedHistoryManifest) => {
+      manifest.proofs.push(manifest.proofs[0]);
+    },
+    'completeness differs',
+  ],
+  [
+    'proof revision',
+    (manifest: RetainedHistoryManifest) => {
+      manifest.proofs[0].revision = 'd'.repeat(40);
+      manifest.proofs[0].commit.gitObjectId = 'd'.repeat(40);
+    },
+    'proof selector differs',
+  ],
+  [
+    'proof path',
+    (manifest: RetainedHistoryManifest) => {
+      manifest.proofs[0].path = 'src.ts';
+    },
+    'proof selector differs',
+  ],
+  [
+    'commit',
+    (manifest: RetainedHistoryManifest) => {
+      manifest.proofs[0].commit.gitObjectId = 'd'.repeat(40);
+    },
+    'proof selector differs',
+  ],
+  [
+    'tree count',
+    (manifest: RetainedHistoryManifest) => {
+      manifest.proofs[0].trees.pop();
+    },
+    'tree count differs',
+  ],
+  [
+    'foreign root tree',
+    (manifest: RetainedHistoryManifest) => {
+      manifest.proofs[0].trees[0] = manifest.proofs[0].trees[1];
+    },
+    'parent tree differs',
+  ],
+  [
+    'wrong parent tree',
+    (manifest: RetainedHistoryManifest) => {
+      manifest.proofs[0].trees[1] = manifest.proofs[0].trees[0];
+    },
+    'parent tree differs',
+  ],
+  [
+    'terminal mode',
+    (manifest: RetainedHistoryManifest) => {
+      manifest.proofs[0].terminal.mode = '120000';
+    },
+    'terminal edge differs',
+  ],
+  [
+    'terminal object',
+    (manifest: RetainedHistoryManifest) => {
+      manifest.proofs[0].terminal.gitObjectId = 'd'.repeat(40);
+    },
+    'terminal edge differs',
+  ],
+] as const)('historical reopen refuses independently changed %s', (_label, change, message) => {
+  const input = historyFixture();
+  const owner = installLocalReviewSource(input.configuration);
+  const prepared = owner.prepare(input.request);
+  const identity = rewriteHistory(prepared, change);
+  rmSync(input.sourceRepository, { recursive: true });
+  expect(() => owner.open(input.request, prepared.snapshotIdentity, identity)).toThrow(message);
+});
+
+for (const limit of [
+  'maximumHistoricalTreeDepth',
+  'maximumHistoricalProofEdges',
+  'maximumRetainedObjects',
+  'maximumObjectBytes',
+  'maximumRetainedBytes',
+  'maximumHistoricalManifestBytes',
+] as const) {
+  test(`historical preparation enforces ${limit} before selecting references`, () => {
+    const input = historyFixture();
+    const owner = installLocalReviewSource({
+      ...input.configuration,
+      history: { ...input.configuration.history, [limit]: 1 },
+    });
+    expect(() => owner.prepare(input.request)).toThrow(/ceiling|bounds/);
+    expect(readdirSync(input.storeBase)).toEqual([]);
+  });
+}
+
+test('historical held owner change fences ready publication', () => {
+  const input = historyFixture();
+  let calls = 0;
+  const owner = installLocalReviewSource({
+    ...input.configuration,
+    history: {
+      ...input.configuration.history,
+      assertOwner: () => {
+        calls += 1;
+        if (calls >= 4) throw new Error('held owner changed');
+      },
+    },
+  });
+  expect(() => owner.prepare(input.request)).toThrow('held owner changed');
+  expect(readdirSync(input.storeBase)).toEqual([]);
+});
+
+function extendDeclarations(input: ReturnType<typeof historyFixture>) {
+  const path = join(input.sourceRepository, 'declared.json');
+  const declaration = JSON.parse(readFileSync(path, 'utf8')) as {
+    facts: { factId: string; path: string; at: { kind: string; revision: string } }[];
+  };
+  declaration.facts.push({
+    ...declaration.facts[0],
+    factId: 'base',
+    path: 'README.md',
+    at: { kind: 'historical', revision: input.request.baseSha },
+  });
+  writeFileSync(path, JSON.stringify(declaration));
+  cpSync(path, join(input.sourceRepository, 'second.json'));
+  git(input.sourceRepository, 'add', '--all');
+  git(input.sourceRepository, 'commit', '--quiet', '-m', 'two declarations');
+  const { requestIdentity: _identity, schemaVersion: _schema, ...fields } = input.request;
+  return createActivationRequest({
+    ...fields,
+    headSha: git(input.sourceRepository, 'rev-parse', 'HEAD'),
+  }).request;
+}
+
+test.each([
+  'maximumDeclarationPaths',
+  'maximumDeclarationBytes',
+  'maximumDeclarationFacts',
+  'maximumHistoricalSelections',
+  'maximumHistoricalRevisions',
+] as const)('historical preparation independently enforces %s', (limit) => {
+  const input = historyFixture();
+  const request = extendDeclarations(input);
+  const history = {
+    ...input.configuration.history,
+    maximumDeclarationFacts: 10,
+    [limit]: 1,
+    request: {
+      ...input.configuration.history.request,
+      declarationPaths: ['declared.json', 'second.json'],
+    },
+  };
+  const owner = installLocalReviewSource({ ...input.configuration, history });
+  expect(() => owner.prepare(request)).toThrow(/ceiling|bounds/);
+  expect(readdirSync(input.storeBase)).toEqual([]);
+});
+
+test('historical complete census retains every duplicate use with sorted unique provenance', () => {
+  const input = historyFixture();
+  const request = extendDeclarations(input);
+  const history = {
+    ...input.configuration.history,
+    maximumDeclarationFacts: 10,
+    request: {
+      ...input.configuration.history.request,
+      declarationPaths: ['second.json', 'declared.json'],
+    },
+  };
+  const owner = installLocalReviewSource({ ...input.configuration, history });
+  const prepared = owner.prepare(request);
+  const candidate = owner.open(request, prepared.snapshotIdentity, prepared.historyIdentity);
+  expect(candidate.history?.selections).toHaveLength(2);
+  for (const selection of candidate.history?.selections ?? []) {
+    expect(selection.uses.map(({ declarationPath }) => declarationPath)).toEqual([
+      'declared.json',
+      'second.json',
+    ]);
+  }
+});
+
+test.each(['commit', 'tree', 'blob'] as const)(
+  'historical reopen independently verifies %s Git body identity',
+  (kind) => {
+    const input = historyFixture();
+    const owner = installLocalReviewSource(input.configuration);
+    const prepared = owner.prepare(input.request);
+    const identity = rewriteHistory(prepared, (manifest) => {
+      const proof = manifest.proofs[0];
+      const reference =
+        kind === 'commit' ? proof.commit : kind === 'tree' ? proof.trees[0] : proof.terminal;
+      const bytes = Buffer.concat([
+        readFileSync(join(prepared.readyDirectory, 'sha256', reference.rawIdentity)),
+        Buffer.from('\n'),
+      ]);
+      reference.rawIdentity = hashBytes(bytes);
+      writeFileSync(join(prepared.readyDirectory, 'sha256', reference.rawIdentity), bytes, {
+        mode: 0o600,
+      });
+    });
+    expect(() => owner.open(input.request, prepared.snapshotIdentity, identity)).toThrow(
+      `${kind} object identity differs`,
+    );
+  },
+);
+
+test.each(['absent', 'unreadable'] as const)(
+  'historical reopen refuses %s retained proof body',
+  (kind) => {
+    const input = historyFixture();
+    const owner = installLocalReviewSource(input.configuration);
+    const prepared = owner.prepare(input.request);
+    const manifest = JSON.parse(
+      readFileSync(join(prepared.readyDirectory, 'history.json'), 'utf8'),
+    ) as RetainedHistoryManifest;
+    const path = join(prepared.readyDirectory, 'sha256', manifest.proofs[0].commit.rawIdentity);
+    if (kind === 'absent') unlinkSync(path);
+    else chmodSync(path, 0);
+    expect(() =>
+      owner.open(input.request, prepared.snapshotIdentity, prepared.historyIdentity),
+    ).toThrow();
+  },
+);
+
+test('historical capture refuses partial object retention and selects no ready references', () => {
+  const input = historyFixture();
+  const owner = installLocalReviewSource(input.configuration);
+  const original = filesystem.writeSync;
+  const write = spyOn(filesystem, 'writeSync').mockImplementation(
+    (descriptor: number, ...args: unknown[]) => {
+      const path = readlinkSync(`/proc/self/fd/${String(descriptor)}`);
+      if (path.includes('/sha256/')) throw new Error('injected historical storage failure');
+      const written: unknown = Reflect.apply(original, filesystem, [descriptor, ...args]);
+      if (typeof written !== 'number') throw new Error('write fixture returned a non-number');
+      return written;
+    },
+  );
+  try {
+    expect(() => owner.prepare(input.request)).toThrow('injected historical storage failure');
+  } finally {
+    write.mockRestore();
+  }
+  expect(readdirSync(input.storeBase)).toEqual([]);
+});
+
+test('historical head base and third commit keep three distinct bytes at the same path', () => {
+  const input = historyFixture('sha1', 'README.md');
+  const request = extendDeclarations(input);
+  const owner = installLocalReviewSource(input.configuration);
+  const prepared = owner.prepare(request);
+  rmSync(input.sourceRepository, { recursive: true });
+  const candidate = owner.open(request, prepared.snapshotIdentity, prepared.historyIdentity);
+  const current = candidate.snapshot.entries.find(({ path }) => path === 'README.md');
+  if (current === undefined) throw new Error('current README missing');
+  expect(candidate.readBlob(current.blob, current.path)).toEqual(Buffer.from('# current head\n'));
+  expect(candidate.readHistorical(input.historical, 'README.md')).toEqual(
+    Buffer.from('# historical third\n'),
+  );
+  expect(candidate.readHistorical(request.baseSha, 'README.md')).toEqual(
+    Buffer.from('# exact base\n'),
+  );
+});
+
+test('historical empty history is complete only for an installed empty declaration census', () => {
+  const input = fixture();
+  const template = historyFixture().configuration.history;
+  const { request, ...configuration } = input;
+  const owner = installLocalReviewSource({
+    ...configuration,
+    history: { ...template, request: { ...template.request, declarationPaths: [] } },
+  });
+  const prepared = owner.prepare(request);
+  rmSync(input.sourceRepository, { recursive: true });
+  const candidate = owner.open(request, prepared.snapshotIdentity, prepared.historyIdentity);
+  expect(candidate.history?.selections).toEqual([]);
+  expect(candidate.history?.proofs).toEqual([]);
+});
+
+test('historical installed declaration paths remain owned after caller mutation', () => {
+  const input = historyFixture();
+  const owner = installLocalReviewSource(input.configuration);
+  input.configuration.history.request.declarationPaths?.splice(0);
+  const prepared = owner.prepare(input.request);
+  expect(
+    owner.open(input.request, prepared.snapshotIdentity, prepared.historyIdentity).history
+      ?.selections,
+  ).toHaveLength(1);
+});
+
+test('historical parser read count and bytes share the current read budget', () => {
+  const input = historyFixture();
+  const owner = installLocalReviewSource({ ...input.configuration, maximumParserReads: 1 });
+  const prepared = owner.prepare(input.request);
+  const candidate = owner.open(input.request, prepared.snapshotIdentity, prepared.historyIdentity);
+  candidate.readHistorical(input.historical, 'nested/source.ts');
+  expect(() => candidate.readHistorical(input.historical, 'nested/source.ts')).toThrow(
+    'read count exceeded',
+  );
+  const byteOwner = installLocalReviewSource({ ...input.configuration, maximumParserReadBytes: 1 });
+  const limited = byteOwner.open(
+    input.request,
+    prepared.snapshotIdentity,
+    prepared.historyIdentity,
+  );
+  expect(() => limited.readHistorical(input.historical, 'nested/source.ts')).toThrow(
+    'read byte ceiling exceeded',
+  );
+});
+
+test('historical capture deadline covers object reads and leaves no references on expiry', () => {
+  const input = historyFixture();
+  let now = 0;
+  const owner = installLocalReviewSource({ ...input.configuration, monotonic: { now: () => now } });
+  const original = Bun.spawnSync;
+  const invoke = spyOn(Bun, 'spawnSync').mockImplementation(((
+    command: string[],
+    options: object,
+  ) => {
+    const invocation = original(command, options);
+    if (command.includes('cat-file') && command.includes('commit')) now = 10_001;
+    return invocation;
+  }) as typeof Bun.spawnSync);
+  try {
+    expect(() => owner.prepare(input.request)).toThrow();
+  } finally {
+    invoke.mockRestore();
+  }
+  expect(readdirSync(input.storeBase)).toEqual([]);
+});
+
+test.each([
+  [
+    'invalid tree name',
+    'tree',
+    (bytes: Buffer) => Buffer.from(bytes.toString('binary').replace('README.md', '..'), 'binary'),
+    'tree entry malformed',
+  ],
+  [
+    'duplicate tree name',
+    'tree',
+    (bytes: Buffer) => Buffer.concat([bytes, bytes]),
+    'tree entry malformed',
+  ],
+
+  [
+    'commit header',
+    'commit',
+    (bytes: Buffer) => Buffer.from(bytes.toString().replace(/^tree /, 'oops ')),
+    'commit tree header malformed',
+  ],
+  [
+    'truncated tree',
+    'tree',
+    (bytes: Buffer) => bytes.subarray(0, bytes.length - 1),
+    'tree body malformed',
+  ],
+  [
+    'invalid tree mode',
+    'tree',
+    (bytes: Buffer) => Buffer.from(bytes.toString('binary').replace(/^100644/, '999999'), 'binary'),
+    'tree entry malformed',
+  ],
+  [
+    'missing child edge',
+    'tree',
+    (bytes: Buffer) => Buffer.from(bytes.toString('binary').replace('nested', 'absent'), 'binary'),
+    'path absent',
+  ],
+  [
+    'wrong parent mode',
+    'tree',
+    (bytes: Buffer) =>
+      Buffer.from(bytes.toString('binary').replace('40000 nested', '100644 nested'), 'binary'),
+    'parent mode differs',
+  ],
+] as const)(
+  'historical proof decoder refuses %s with broken Git hash dependency',
+  (_label, kind, change, message) => {
+    const input = historyFixture();
+    const owner = installLocalReviewSource(input.configuration);
+    const prepared = owner.prepare(input.request);
+    let alteredGitId = '';
+    let originalGitId = '';
+    const identity = rewriteHistory(prepared, (manifest) => {
+      const reference = kind === 'commit' ? manifest.proofs[0].commit : manifest.proofs[0].trees[0];
+      const bytes = change(
+        readFileSync(join(prepared.readyDirectory, 'sha256', reference.rawIdentity)),
+      );
+      originalGitId = reference.gitObjectId;
+      alteredGitId = hashGitObject(kind, bytes, 'sha1');
+      reference.rawIdentity = hashBytes(bytes);
+      writeFileSync(join(prepared.readyDirectory, 'sha256', reference.rawIdentity), bytes, {
+        mode: 0o600,
+      });
+    });
+    const create = crypto.createHash;
+    const hash = spyOn(crypto, 'createHash').mockImplementation((algorithm, options) => {
+      const digest = create(algorithm, options);
+      const originalDigest = digest.digest.bind(digest);
+      spyOn(digest, 'digest').mockImplementation(((encoding: 'hex') => {
+        const actual = digest.copy().digest('hex');
+        if (algorithm === 'sha1' && actual === alteredGitId) return originalGitId;
+        return originalDigest(encoding);
+      }) as typeof digest.digest);
+      return digest;
+    });
+    try {
+      expect(() => owner.open(input.request, prepared.snapshotIdentity, identity)).toThrow(message);
+    } finally {
+      hash.mockRestore();
+    }
+  },
+);
+
+test('historical capture refuses directory terminals before selecting complete history', () => {
+  const input = historyFixture('sha1', 'nested');
+  expect(() => installLocalReviewSource(input.configuration).prepare(input.request)).toThrow(
+    'terminal is not a supported blob',
+  );
+  expect(readdirSync(input.storeBase)).toEqual([]);
+});
+
+test('historical installation refuses repeated declaration paths at its schema boundary', () => {
+  const input = historyFixture();
+  expect(() =>
+    installLocalReviewSource({
+      ...input.configuration,
+      history: {
+        ...input.configuration.history,
+        request: {
+          ...input.configuration.history.request,
+          declarationPaths: ['declared.json', 'declared.json'],
+        },
+      },
+    }),
+  ).toThrow('unique relationship declaration paths');
+});
+
+test('historical final held owner check consumes preparation deadline before returning references', () => {
+  const input = historyFixture();
+  let calls = 0;
+  let now = 0;
+  const owner = installLocalReviewSource({
+    ...input.configuration,
+    monotonic: { now: () => now },
+    history: {
+      ...input.configuration.history,
+      assertOwner: () => {
+        calls += 1;
+        if (calls === 6) now = 10_001;
+      },
+    },
+  });
+  expect(() => owner.prepare(input.request)).toThrow('deadline exceeded');
+});
+
+test.each([
+  'maximumDeclarationPaths',
+  'maximumDeclarationBytes',
+  'maximumDeclarationFacts',
+  'maximumHistoricalSelections',
+  'maximumHistoricalRevisions',
+  'maximumHistoricalTreeDepth',
+  'maximumHistoricalProofEdges',
+  'maximumRetainedObjects',
+  'maximumObjectBytes',
+  'maximumRetainedBytes',
+  'maximumHistoricalManifestBytes',
+] as const)('historical installation refuses missing or unrepresentable %s', (limit) => {
+  const input = historyFixture();
+  for (const invalid of [undefined, NaN, Infinity, 0, 2_147_483_648]) {
+    const history = {
+      ...input.configuration.history,
+      [limit]: invalid,
+    };
+    expect(() => installLocalReviewSource({ ...input.configuration, history })).toThrow(
+      'must be positive and bounded',
+    );
+  }
+});
+
+test('historical reopen refuses noncanonical manifest even under matching whole digest', () => {
+  const input = historyFixture();
+  const owner = installLocalReviewSource(input.configuration);
+  const prepared = owner.prepare(input.request);
+  const path = join(prepared.readyDirectory, 'history.json');
+  const bytes = readFileSync(path, 'utf8') + '\n';
+  writeFileSync(path, bytes);
+  expect(() => owner.open(input.request, prepared.snapshotIdentity, hashBytes(bytes))).toThrow(
+    'manifest is not canonical',
+  );
+});
+
+test.each(['bytes', 'objects'] as const)(
+  'historical aggregate %s includes both retained manifests',
+  (bound) => {
+    const input = historyFixture();
+    const prepared = installLocalReviewSource(input.configuration).prepare(input.request);
+    const identities = readdirSync(join(prepared.readyDirectory, 'sha256'));
+    const rawBytes = identities.reduce(
+      (sum, identity) =>
+        sum + readFileSync(join(prepared.readyDirectory, 'sha256', identity)).length,
+      0,
+    );
+    const owner = installLocalReviewSource({
+      ...input.configuration,
+      history: {
+        ...input.configuration.history,
+        ...(bound === 'bytes'
+          ? { maximumRetainedBytes: rawBytes + 1 }
+          : { maximumRetainedObjects: identities.length + 1 }),
+      },
+    });
+    expect(() => owner.prepare(input.request)).toThrow('retained storage ceiling exceeded');
+    expect(() =>
+      owner.open(input.request, prepared.snapshotIdentity, prepared.historyIdentity),
+    ).toThrow('retained storage ceiling exceeded');
+  },
+);
+
+test.each(['sha1', 'sha256'] as const)(
+  'historical %s tree filenames preserve BOM and refuse absent unprefixed selectors',
+  (format) => {
+    const input = historyFixture(format);
+    const repository = input.sourceRepository;
+    const historicalPath = 'nested/\uFEFFsource.ts';
+    renameSync(join(repository, 'nested/source.ts'), join(repository, historicalPath));
+    writeFileSync(join(repository, historicalPath), 'exact BOM filename body\n');
+    git(repository, 'add', '--all');
+    git(repository, 'commit', '--quiet', '-m', 'BOM historical filename');
+    const revision = git(repository, 'rev-parse', 'HEAD');
+    const absent = Bun.spawnSync([
+      '/usr/bin/git',
+      '-C',
+      repository,
+      'show',
+      `${revision}:nested/source.ts`,
+    ]);
+    expect(absent.exitCode).toBe(128);
+    expect(git(repository, 'show', `${revision}:${historicalPath}`)).toBe(
+      'exact BOM filename body',
+    );
+    renameSync(join(repository, historicalPath), join(repository, 'nested/source.ts'));
+    const declarationPath = join(repository, 'declared.json');
+    const declaration = JSON.parse(readFileSync(declarationPath, 'utf8')) as {
+      facts: { at: { revision: string }; path: string }[];
+    };
+    declaration.facts[0].at.revision = revision;
+    writeFileSync(declarationPath, JSON.stringify(declaration));
+    git(repository, 'add', '--all');
+    git(repository, 'commit', '--quiet', '-m', 'head selecting absent plain filename');
+    const { requestIdentity: _identity, schemaVersion: _schema, ...fields } = input.request;
+    const request = createActivationRequest({
+      ...fields,
+      headSha: git(repository, 'rev-parse', 'HEAD'),
+    }).request;
+    const owner = installLocalReviewSource(input.configuration);
+    expect(() => owner.prepare(request)).toThrow('historical path absent: source.ts');
+    expect(readdirSync(input.storeBase)).toEqual([]);
+
+    declaration.facts[0].path = historicalPath;
+    writeFileSync(declarationPath, JSON.stringify(declaration));
+    git(repository, 'add', '--all');
+    git(repository, 'commit', '--quiet', '-m', 'head selecting exact BOM filename');
+    const exactRequest = createActivationRequest({
+      ...fields,
+      headSha: git(repository, 'rev-parse', 'HEAD'),
+    }).request;
+    const prepared = owner.prepare(exactRequest);
+    rmSync(repository, { recursive: true });
+    const candidate = owner.open(exactRequest, prepared.snapshotIdentity, prepared.historyIdentity);
+    expect(candidate.readHistorical(revision, historicalPath)).toEqual(
+      Buffer.from('exact BOM filename body\n'),
+    );
+    expect(() => candidate.readHistorical(revision, 'nested/source.ts')).toThrow(
+      'selector is not retained',
+    );
+  },
+);

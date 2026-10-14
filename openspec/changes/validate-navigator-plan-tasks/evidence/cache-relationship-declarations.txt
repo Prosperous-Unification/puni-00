@@ -1,0 +1,22 @@
+PR #415 exact head e8b5d785d5d1860df2b1c655ca3c405a015a7ab3
+2026-10-14 watched declaration omission and correction
+
+Fault present in original head:
+Both check.wiki-cli.test expectedConfiguration.inputs arrays omitted
+{workspaceRoot}/apps/twilight-structure/twilight-navigator/cli/src/**/*
+while the real twilight-burokrat:test target declared it.
+
+Static production-extractor oracle:
+bun test apps/twilight-structure/twilight-burokrat/cli/src/relationships/committed-target-facts.test.ts --timeout=60000
+Before: 0 pass, 2 fail, 19 assertions. Both facts differ on the one missing input.
+After: 2 pass, 0 fail, 24 assertions.
+
+Production CLI pilot oracle:
+TOOL_WIKI_TRUSTED_NODE_MODULES=/tmp/pr415-cache-inputs/node_modules bun test apps/twilight-structure/twilight-burokrat/cli/src/policy/pilot-policy.test.ts -t "pins exact pre-index tuples" --timeout=60000
+Before: 0 pass, 1 fail, 59 assertions.
+Observed: fact check.wiki-cli.test authority-selector mismatch.
+Every frozen pre-index tuple assertion passed before the final production lint refusal.
+After: 1 pass, 0 fail, 60 assertions; observes accepted:true, mode:observe, certified:false.
+
+Only declaration expectations gain the existing source glob; real project.json inputs, frozen pilot policy/baseline tuples, validator behavior and cache-oracle logic are unchanged.
+Raw local logs: /tmp/puni-pr415-target-facts-{red,green}.log and /tmp/puni-pr415-pilot-{red,green}.log.

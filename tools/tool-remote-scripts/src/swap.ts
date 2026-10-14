@@ -54,12 +54,16 @@ import {
   revokeAliasCommands,
   ROOT,
   SHARED_ENV_PATH,
+  stepBlockageKindsCommand,
+  stepBlockageReplayKindsCommand,
   storedAttemptOutcomesCommand,
   storedCapacityModesCommand,
   storedEstimateUnitsCommand,
   storedHoldsCommand,
   storedReadinessesCommand,
   storedRelationshipTypesCommand,
+  storedStepBlockageReplayKindsCommand,
+  storedStepBlockagesCommand,
   tierComposeContext,
   tierComposeFile,
   tierEnvFiles,
@@ -587,7 +591,7 @@ interface StoredVocabulary {
   key: 'type' | 'kind' | 'mode' | 'outcome' | 'unit';
   supportedCommand: (container: string) => string[];
   storedCommand: (container: string) => string[];
-  recoveryCli: string;
+  recoveryCli?: string;
   runbookAnchor: string;
 }
 
@@ -655,6 +659,25 @@ const ATTEMPT_OUTCOMES_VOCABULARY: StoredVocabulary = {
   runbookAnchor: 'step-node-attempt-rollback',
 };
 
+/** Direct sparse blockage is unreadable to older images even when progress is unchanged. */
+const STEP_BLOCKAGE_VOCABULARY: StoredVocabulary = {
+  name: 'step blockage kinds',
+  key: 'kind',
+  supportedCommand: stepBlockageKindsCommand,
+  storedCommand: storedStepBlockagesCommand,
+  recoveryCli: 'step-blockage-rollback-cli.ts',
+  runbookAnchor: 'step-blockage-rollback',
+};
+
+/** A table with no current facts can still hold undo/redo commands an older image cannot apply. */
+const STEP_BLOCKAGE_REPLAY_VOCABULARY: StoredVocabulary = {
+  name: 'step blockage replay commands',
+  key: 'kind',
+  supportedCommand: stepBlockageReplayKindsCommand,
+  storedCommand: storedStepBlockageReplayKindsCommand,
+  runbookAnchor: 'step-blockage-rollback',
+};
+
 /** A prior image would interpret stored minutes as days; refuse before either migration boundary (ADR 0042). */
 const ESTIMATE_UNITS_VOCABULARY: StoredVocabulary = {
   name: 'estimate units',
@@ -684,6 +707,9 @@ const STORED_VOCABULARIES: readonly StoredVocabulary[] = [
   // blue stops` went on to migrate and commit, and `passes an image without the
   // outcomes CLI over no attempts` never read the stored outcomes; watched 2026-10-12.
   ATTEMPT_OUTCOMES_VOCABULARY,
+  // Proof: entry omitted; before-migration, empty-inventory and post-stop blockage cases failed; watched 2026-10-13.
+  STEP_BLOCKAGE_VOCABULARY,
+  STEP_BLOCKAGE_REPLAY_VOCABULARY,
   // Proof: omitting this entry failed all three minute swap cases; watched 2026-10-12.
   ESTIMATE_UNITS_VOCABULARY,
 ];
@@ -746,11 +772,19 @@ async function assertSupported(
   // Proof: replacing this comparison with `stored.filter(() => false)` made
   // `refuses FS-only code with stored FF before migration and stops green`
   // fail on `Expected value: StringContaining "FF (2)"; Unable to find property`.
+  // Proof: bypassing move_progress_v1 membership before migration or after stop failed the older/prior-image refusal cases; watched 2026-10-14.
+  // Proof: bypassing membership admitted delete_state_v1 before/after writer stop; both deletion admission negatives failed, watched 2026-10-14.
   const unsupported = stored.filter((row) => !supported.includes(row.value));
   if (unsupported.length === 0) return;
 
   const values = unsupported.map((row) => `${row.value} (${String(row.count)})`).join(', ');
   const runbook = `docs/runbook-prod-deploy.md#${vocabulary.runbookAnchor}`;
+  if (vocabulary.recoveryCli === undefined) {
+    throw new Error(
+      `stored ${vocabulary.name} unsupported by ${container}${afterStop ? ' after the outgoing colour stopped' : ''}: ${values}. ` +
+        `This journal history cannot be removed by the fact rollback CLI; use a compatible image or drain it through normal journal retention. See ${runbook}`,
+    );
+  }
   if (afterStop) {
     throw new Error(
       `stored ${vocabulary.name} unsupported by ${container} after the outgoing colour stopped: ${values}. ` +

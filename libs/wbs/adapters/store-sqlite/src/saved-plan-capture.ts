@@ -11,6 +11,7 @@ import { EstimateRepository } from './estimate';
 import { OPEN } from './gate';
 import { PriorityBandRepository } from './priority-band';
 import { ProjectRepository } from './project';
+import { StepBlockageRepository } from './step-blockage';
 import { StepMeasureRepository } from './step-measure';
 import { StepProgressRepository } from './step-progress';
 import { TypedDependencyRepository } from './typed-dependency';
@@ -75,7 +76,7 @@ export interface SavedPlanCaptureOptions {
  * `listTags`, `listWorkItemTypes` and `listExternalSystems`. They retain the
  * complete directory that memberships, junctions and capacity rows name.
  *
- * All eighteen reads run inside one transaction, on a connection of this
+ * All capture reads run inside one transaction, on a connection of this
  * class's own. Project-scoped assignment reads do not narrow the separate
  * directory capture.
  *
@@ -177,6 +178,8 @@ export async function readPlanInputIn(
   const estimates = await new EstimateRepository(db, OPEN).listByProject(projectId);
   const actuals = await new ActualRepository(db, OPEN).listByProject(projectId);
   const progress = await new StepProgressRepository(db, OPEN).listByProject(projectId);
+  // Proof: snapshot read replaced with empty; concurrent-clear capture regression failed (saved-plan-capture.db.test.ts), 2026-10-14.
+  const stepBlockages = await new StepBlockageRepository(db, OPEN).listByProject(projectId);
   const measures = await new StepMeasureRepository(db, OPEN).listByProject(projectId);
   const dependencies = await new DependencyRepository(db, OPEN).listByProject(projectId);
   const typedDependencies = (
@@ -220,6 +223,7 @@ export async function readPlanInputIn(
     estimates,
     actuals,
     progress,
+    stepBlockages,
     measures,
     dependencies,
     // Proof: omitting this snapshot read made `keeps captured node endpoints after step reorder and live relationship removal` receive undefined (2026-09-27).

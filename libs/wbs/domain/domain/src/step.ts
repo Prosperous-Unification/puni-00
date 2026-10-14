@@ -11,6 +11,8 @@ export interface StepHoldings {
   estimates: number;
   actuals: number;
   progress: number;
+  /** Direct blockage facts, including facts retained beneath done progress. */
+  blockages: number;
   measures: number;
   /** Attempts run at this step's nodes: history, never pruned (ADR 0045). */
   attempts: number;
@@ -42,6 +44,8 @@ export function stepIsInUse(held: StepHoldings): boolean {
     held.estimates > 0 ||
     held.actuals > 0 ||
     held.progress > 0 ||
+    // Proof: omitting blockage made blockage-only fast refusal delete the step (step.service.db.test.ts, 2026-10-14).
+    held.blockages > 0 ||
     held.measures > 0 ||
     held.attempts > 0 ||
     held.assignments > 0

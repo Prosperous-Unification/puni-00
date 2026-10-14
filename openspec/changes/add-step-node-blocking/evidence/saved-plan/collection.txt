@@ -1,0 +1,37 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/saved-plan/step-blockages.test.ts:
+41 |     ['fractional time', [{ ...fact, blockedAt: 1.5 }]], ['unsafe time', [{ ...fact, blockedAt: Number.MAX_SAFE_INTEGER + 1 }]],
+42 |     ['missing time', [{ workItemId: 'w2', stepId: 's1' }]],
+43 |   ] as const) {
+44 |     it(`refuses ${name} current facts on capture and stored read`, () => {
+45 |       const body = { ...planFixtureRows, stepBlockages: facts };
+46 |       expect(() => canonicalisePlanInput(body as never)).toThrow('step blockage');
+                                                              ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "step blockage"
+Received message: "undefined is not an object (evaluating 'fact of facts')"
+
+      at <anonymous> (/tmp/puni-step-saved-sol/libs/wbs/domain/domain/src/saved-plan/step-blockages.test.ts:46:58)
+(fail) saved direct step blockage > refuses missing current facts on capture and stored read [0.96ms]
+45 |       const body = { ...planFixtureRows, stepBlockages: facts };
+46 |       expect(() => canonicalisePlanInput(body as never)).toThrow('step blockage');
+47 |     });
+48 |     it(`refuses ${name} current facts on stored read`, () => {
+49 |       const body = { ...planFixtureRows, stepBlockages: facts, schemaVersion: 7 };
+50 |       expect(() => normalisePlanInputForward(body, 7)).toThrow('step blockage');
+                                                            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "step blockage"
+Received message: "undefined is not an object (evaluating 'fact of facts')"
+
+      at <anonymous> (/tmp/puni-step-saved-sol/libs/wbs/domain/domain/src/saved-plan/step-blockages.test.ts:50:56)
+(fail) saved direct step blockage > refuses missing current facts on stored read [0.46ms]
+
+ 0 pass
+ 25 filtered out
+ 2 fail
+ 2 expect() calls
+Ran 2 tests across 1 file. [36.00ms]

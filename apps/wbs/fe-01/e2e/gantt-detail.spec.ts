@@ -40,6 +40,15 @@ async function oneCostedAndOneNot(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Gantt', exact: true }).click();
   await expect(page.locator('[data-gantt-chart]')).toBeVisible();
   await expect(page.locator('[data-gantt-bar]').first()).toBeVisible();
+  // The save and schedule refresh can finish after the chart opens. In CI
+  // run 38522362798 the baseline still had four critical, unestimated bars;
+  // the saved 2/3/4 estimate then gave 020 float and reduced its stroke while
+  // Detail was clicked. Wait for the rendered three-day estimate before
+  // measuring the switch's effect. The exact box comparison stays below.
+  await expect(page.locator('[data-gantt-bar][aria-label^="010 - "]').first()).toHaveAttribute(
+    'data-finish',
+    '3',
+  );
 }
 
 test.describe('what the chart’s detail switch hides, in a browser', () => {

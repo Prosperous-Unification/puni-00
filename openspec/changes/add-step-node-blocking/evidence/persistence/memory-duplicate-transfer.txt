@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-memory/src/step-blockage-fixture.test.ts:
+66 | });
+67 | it('refuses duplicate transfers atomically and reads parent-owned corruption loudly', async () => {
+68 |   await blockages.set({ workItemId: 'a', stepId: 'dev', blockedAt: 1 }, stamp);
+69 |   await blockages.set({ workItemId: 'b', stepId: 'dev', blockedAt: 2 }, stamp);
+70 |   const before = await blockages.listByProject('p');
+71 |   expect(blockages.moveAll('a', 'b', stamp)).rejects.toThrow(/duplicate step blockage/);
+                                                          ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-step-blockage-rebuild/libs/wbs/adapters/store-memory/src/step-blockage-fixture.test.ts:71:54)
+(fail) refuses duplicate transfers atomically and reads parent-owned corruption loudly [2.22ms]
+
+ 0 pass
+ 3 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [187.00ms]

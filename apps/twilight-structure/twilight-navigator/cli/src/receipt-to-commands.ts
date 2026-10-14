@@ -1,14 +1,15 @@
 import { parseOrThrow } from '@shared/validation';
 import {
   canonicalJson,
+  checkPlanTaskConsistency,
   digestOf,
   PlanReferenceRecord,
+  PlanTasks,
   ProgressReceiptRecord,
 } from '@twilight-burokrat/contracts';
 import type { PlanCommandWire } from '@wbs/contracts';
 
 import type { FlagValues } from './cli';
-import { PlanTasks } from './plan-tasks';
 import { createExclusiveFiles, parseRequiredJson, readRequiredBytes } from './required-file';
 
 /** The flags of `twin receipt-to-commands`, each required once. */
@@ -48,10 +49,11 @@ async function readDecoded<Decoded>(
  * the entry's status, then one `setMeasure` per present measure in {@link MEASURE_ORDER}.
  * `setProgress`, not `setStatus`, because an entry names one step and `setStatus` acts on the
  * whole work item. Task schemas 1 and 2 retain their original values through decoding;
- * the digest check precedes reading their shared task and step identifiers.
+ * Burokrat consistency check precedes reading their shared task and step identifiers.
  *
  * @throws when the receipt is for another plan reference, the task export is not the one the
- * plan reference binds, or an entry names a task or step code the export does not hold.
+ * plan reference binds, the plan and tasks are inconsistent, or an entry names a task or
+ * step code the export does not hold.
  */
 export function commandsForReceipt(
   receipt: ProgressReceiptRecord,
@@ -63,14 +65,9 @@ export function commandsForReceipt(
   if (canonicalJson(receipt.planRef) !== canonicalJson(reference.planRef)) {
     throw new Error('progress receipt names another plan reference');
   }
-  // Proof: skipping this comparison failed `refuses a task export the plan reference does not
-  // bind` and the tampered task export case of `refuses a tampered receipt, plan reference or
-  // task export` (2026-10-11).
-  // Proof: removing this check also emitted batches for tampered schema-2 native units
-  // and values (receipt-to-commands.test.ts, 2026-10-13).
-  if (digestOf(tasks) !== reference.tasksDigest) {
-    throw new Error('task export does not match the plan reference tasksDigest');
-  }
+  // Proof: removing this call emitted batches for all eight re-digested semantic faults
+  // in receipt-to-commands.test.ts, including the subprocess plan mismatch (2026-10-14).
+  checkPlanTaskConsistency(reference, tasks);
   const stepIdByCode = new Map(tasks.steps.map((step) => [step.code, step.id]));
   const taskIds = new Set(tasks.tasks.map((task) => task.id));
   const commands = receipt.entries.flatMap((entry, index): PlanCommandWire[] => {

@@ -4,7 +4,7 @@
 
 The Gantt panel SHALL draw a bar for every placed slice, including one nobody has estimated,
 in both states of the `Detail` switch. An unestimated slice's bar SHALL keep the marks that
-say its span is a guess — the dashed stroke, the reduced fill and the `?` on its label — in
+say its span is a guess — the dashed stroke, the reduced fill and `no estimate` on its label when space permits — in
 both states. The switch SHALL go on hiding the stored-dependency arrows and the parent rows'
 summary brackets.
 
@@ -13,7 +13,7 @@ summary brackets.
 - **GIVEN** a plan with one estimated slice and one nobody has estimated
 - **AND** the `Detail` switch is off
 - **THEN** the uncosted slice is drawn as a bar carrying the assumed mark
-- **AND** its label contains `?`
+- **AND** its label contains `no estimate` when space permits
 
 #### Scenario: the switch changes nothing about an uncosted slice
 

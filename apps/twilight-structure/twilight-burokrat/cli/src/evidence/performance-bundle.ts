@@ -217,6 +217,14 @@ export function inspectPerformanceBundle(
     throw new Error('Performance inspection requires a full committed SHA');
   const root = resolveCandidateRoot(repository);
   const selected = readCandidate(root, { kind: 'committed', revision });
+  // Proof: a faulted staged reader reached a later manifest mismatch; disabling this guard
+  // makes its named production CLI selection-refusal assertion fail.
+  if (selected.selection.kind !== 'committed')
+    throw new Error('Performance inspection selection is not committed');
+  // Proof: disabling exact equality lets a real annotated tag-object SHA reach the later
+  // manifest comparison instead of the named production CLI exact-requested-SHA refusal.
+  if (selected.selection.revision !== revision)
+    throw new Error('Performance inspection selected revision differs from requested SHA');
   const candidate = hashCanonical({
     selection: selected.selection,
     entries: selected.entries,

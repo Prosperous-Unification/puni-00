@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-memory/src/step-blockage-fixture.test.ts:
+(pass) refuses missing steps, malformed timestamps and parent owners [1.51ms]
+52 | it('refuses cross-project steps, corrupted read facts and invalid transfer destinations', async () => {
+53 |   steps.rows.push(stepRow({ id: 'foreign', projectId: 'foreign' }));
+54 |   expect(
+55 |     blockages.set({ workItemId: 'a', stepId: 'foreign', blockedAt: 1 }, stamp),
+56 |   ).rejects.toThrow(/invalid step reference/);
+57 |   expect(blockages.set({ workItemId: 'gone', stepId: 'dev', blockedAt: 1 }, stamp)).rejects.toThrow(
+                                                                                                 ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /invalid work-item reference/
+Received message: "null is not an object (evaluating 'owner.projectId')"
+
+      at <anonymous> (/tmp/puni-step-blockage-rebuild/libs/wbs/adapters/store-memory/src/step-blockage-fixture.test.ts:57:93)
+(fail) refuses cross-project steps, corrupted read facts and invalid transfer destinations [0.35ms]
+
+ 1 pass
+ 2 filtered out
+ 1 fail
+ 6 expect() calls
+Ran 2 tests across 1 file. [178.00ms]

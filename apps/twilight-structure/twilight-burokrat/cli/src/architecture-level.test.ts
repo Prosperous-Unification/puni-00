@@ -54,6 +54,47 @@ test('runs only the mapped rule fixture and writes fresh JUnit', () => {
   expect(xml).not.toContain('stale');
 });
 
+for (const count of [1, 2]) {
+  test(`[TEST-AXES-091] executes ${String(count)} exact mapped files without nested matching decoys`, () => {
+    const { root, report, architectureFile } = fixture();
+    const fixtures = [{ ruleId: 'MOD-INDEX', file: architectureFile }];
+    if (count === 2) {
+      const file = 'src/architecture/f7.architecture.test.ts';
+      fixtures.unshift({ ruleId: 'F7', file });
+      writeFileSync(
+        join(root, file),
+        "import { test } from 'bun:test'; test('F7 negative', () => {});\n",
+      );
+    }
+    writeFileSync(
+      join(root, 'src/architecture-fixtures.json'),
+      JSON.stringify({ schemaVersion: 1, fixtures }),
+    );
+    const markers = fixtures.map(({ file, ruleId }) => {
+      const marker = join(root, `${ruleId}-decoy-ran`);
+      const decoy = join(root, 'nested', file);
+      mkdirSync(dirname(decoy), { recursive: true });
+      writeFileSync(
+        decoy,
+        `import { writeFileSync } from 'node:fs'; import { test } from 'bun:test'; test('unselected ${ruleId} decoy', () => { writeFileSync(${JSON.stringify(marker)}, 'ran'); throw new Error('nested decoy executed'); });\n`,
+      );
+      return marker;
+    });
+    writeFileSync(report, '<testsuites><testcase name="stale"/></testsuites>');
+    const invocation = run(root, report);
+    for (const marker of markers) expect(() => readFileSync(marker)).toThrow();
+    expect(invocation.exitCode, stderrOf(invocation)).toBe(0);
+    const xml = readFileSync(report, 'utf8');
+    expect(xml).not.toContain('stale');
+    expect(xml).not.toContain('decoy');
+    expect(xml.match(/<testcase /g)).toHaveLength(count);
+    for (const { file, ruleId } of fixtures) {
+      expect(xml).toContain(`${ruleId} negative`);
+      expect(xml).toContain(`file="${file}"`);
+    }
+  });
+}
+
 test('refuses an unmapped architecture fixture after clearing stale JUnit', () => {
   const { root, report } = fixture();
   writeFileSync(
@@ -223,4 +264,53 @@ test('refuses an unknown rule, duplicate rule and symlinked fixture', () => {
     /^error: mapped architecture fixture is not a regular file:/m,
   );
   expect(() => readFileSync(report)).toThrow();
+});
+
+test('[TEST-AXES-086] runner validates each mapping before its IO while retaining stale-report precedence', () => {
+  const { root, report } = fixture();
+  writeFileSync(report, 'stale');
+  writeFileSync(
+    join(root, 'src/architecture-fixtures.json'),
+    JSON.stringify({
+      schemaVersion: 1,
+      fixtures: [
+        { ruleId: 'F7', file: 'src/architecture/f7.architecture.test.ts' },
+        { ruleId: 'UNKNOWN', file: 'src/architecture/unknown.architecture.test.ts' },
+      ],
+    }),
+  );
+  const invocation = run(root, report);
+  expect(invocation.exitCode).toBe(1);
+  expect(stderrOf(invocation)).toContain(
+    'mapped architecture fixture is missing: src/architecture/f7.architecture.test.ts',
+  );
+  expect(() => readFileSync(report)).toThrow();
+});
+
+test('[TEST-AXES-086] malformed policy precedes directory discovery and report directory creation precedes policy IO', () => {
+  const { root, report } = fixture();
+  rmSync(join(root, 'src/architecture'), { recursive: true });
+  writeFileSync(join(root, 'src/architecture-fixtures.json'), '{"schemaVersion":2,"fixtures":[]}');
+  writeFileSync(report, 'stale');
+  const malformed = run(root, report);
+  expect(malformed.exitCode).toBe(1);
+  expect(stderrOf(malformed)).toContain('schemaVersion');
+  expect(() => readFileSync(report)).toThrow();
+  const blocked = join(root, 'blocked');
+  writeFileSync(blocked, 'file');
+  const directory = run(root, join(blocked, 'report.xml'));
+  expect(directory.exitCode).toBe(1);
+  expect(stderrOf(directory)).toContain('EEXIST');
+  expect(stderrOf(directory)).not.toContain('schemaVersion');
+});
+
+test('[TEST-AXES-086] report directory error precedes missing policy', () => {
+  const { root } = fixture();
+  rmSync(join(root, 'src/architecture-fixtures.json'));
+  const blocked = join(root, 'blocked');
+  writeFileSync(blocked, 'file');
+  const invocation = run(root, join(blocked, 'report.xml'));
+  expect(invocation.exitCode).toBe(1);
+  expect(stderrOf(invocation)).toContain('EEXIST');
+  expect(stderrOf(invocation)).not.toContain('ENOENT');
 });

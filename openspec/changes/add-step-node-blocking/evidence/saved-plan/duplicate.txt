@@ -1,0 +1,637 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/saved-plan/step-blockages.test.ts:
+41 |     ['fractional time', [{ ...fact, blockedAt: 1.5 }]], ['unsafe time', [{ ...fact, blockedAt: Number.MAX_SAFE_INTEGER + 1 }]],
+42 |     ['missing time', [{ workItemId: 'w2', stepId: 's1' }]],
+43 |   ] as const) {
+44 |     it(`refuses ${name} current facts on capture and stored read`, () => {
+45 |       const body = { ...planFixtureRows, stepBlockages: facts };
+46 |       expect(() => canonicalisePlanInput(body as never)).toThrow('step blockage');
+                                                              ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "step blockage"
+
+Received function did not throw
+Received value: {
+  schemaVersion: 7,
+  project: {
+    id: "p1",
+    name: "Rewire the shed",
+    restricted: false,
+    ownerId: "u1",
+    solutionSlug: "shed",
+    solutionUrl: null,
+    estimateMethod: "pert",
+    depReach: "whole-item",
+    estimateRounding: "ceil",
+    startDate: "2026-09-07",
+    pertWeightOptimistic: 1,
+    pertWeightRealistic: 4,
+    pertWeightPessimistic: 1,
+    timezone: "UTC",
+  },
+  workItems: [
+    {
+      id: "w1",
+      parentId: null,
+      position: 10,
+      name: "Electrics",
+      notes: "consented",
+      typeIds: [],
+      tagIds: [ "tag-a" ],
+      externalRefs: [],
+      priority: 10,
+      maxParallel: 2,
+      frozenNumber: "1",
+      serviceTeamId: null,
+      serviceId: "svc-1",
+      startNoEarlierThan: "2026-09-14",
+      startNoEarlierThanReason: "inspection booked",
+      readiness: "ready",
+      hold: "blocked",
+    }, {
+      id: "w2",
+      parentId: "w1",
+      position: 20,
+      name: "Pull cable",
+      notes: "",
+      typeIds: [ "t-spike", "t-task" ],
+      tagIds: [ "tag-a", "tag-b" ],
+      externalRefs: [
+        {
+          externalSystemId: "gh",
+          url: "https://gh/17",
+          position: 10,
+        }, {
+          externalSystemId: "jira",
+          url: "https://jira/SHED-2",
+          position: 20,
+        }
+      ],
+      priority: 30,
+      maxParallel: 1,
+      frozenNumber: null,
+      serviceTeamId: "team-1",
+      serviceId: null,
+      startNoEarlierThan: null,
+      startNoEarlierThanReason: null,
+      readiness: null,
+      hold: null,
+    }
+  ],
+  steps: [
+    {
+      id: "s1",
+      code: "build",
+      name: "Build",
+      position: 10,
+      allowancePercent: 0,
+      estimateUnit: "workdays",
+    }, {
+      id: "s2",
+      code: null,
+      name: "Test",
+      position: 20,
+      allowancePercent: 0,
+      estimateUnit: "workdays",
+    }
+  ],
+  stepValues: [
+    {
+      workItemId: "w1",
+      stepId: "s2",
+      optimistic: null,
+      realistic: null,
+      pessimistic: null,
+      derived: null,
+      actual: 3,
+      progress: "done",
+    }, {
+      workItemId: "w2",
+      stepId: "s1",
+      optimistic: 1,
+      realistic: 2,
+      pessimistic: 5,
+      derived: 2.5,
+      actual: null,
+      progress: "in_progress",
+    }
+  ],
+  stepBlockages: [
+    {
+      workItemId: "w2",
+      stepId: "s1",
+      blockedAt: -3,
+    }, {
+      workItemId: "w2",
+      stepId: "s1",
+      blockedAt: -3,
+    }
+  ],
+  measures: [
+    {
+      workItemId: "w2",
+      stepId: "s1",
+      metric: "hours",
+      value: 8,
+    }, {
+      workItemId: "w2",
+      stepId: "s1",
+      metric: "tokens",
+      value: 1200,
+    }, {
+      workItemId: "w2",
+      stepId: "s2",
+      metric: "tokens",
+      value: 300,
+    }
+  ],
+  dependencies: [
+    {
+      predecessorId: "w1",
+      successorId: "w2",
+    }, {
+      predecessorId: "w2",
+      successorId: "w1",
+    }
+  ],
+  typedDependencies: [
+    {
+      id: "typed-1",
+      predecessor: {
+        scope: "node",
+        workItemId: "w2",
+        stepId: "s1",
+      },
+      successor: {
+        scope: "whole",
+        workItemId: "w1",
+      },
+      type: "FS",
+    }, {
+      id: "typed-2",
+      predecessor: {
+        scope: "whole",
+        workItemId: "w2",
+      },
+      successor: {
+        scope: "node",
+        workItemId: "w2",
+        stepId: "s2",
+      },
+      type: "FS",
+    }
+  ],
+  assignments: [
+    {
+      workItemId: "w1",
+      stepId: "s1",
+      personId: "per-1",
+    }, {
+      workItemId: "w2",
+      stepId: "s1",
+      personId: "per-2",
+    }, {
+      workItemId: "w2",
+      stepId: "s2",
+      personId: "per-1",
+    }
+  ],
+  people: [
+    {
+      id: "per-1",
+      name: "Ada",
+    }, {
+      id: "per-2",
+      name: "Bo",
+    }
+  ],
+  teams: [
+    {
+      id: "team-1",
+      name: "First fix",
+    }, {
+      id: "team-2",
+      name: "Second fix",
+    }
+  ],
+  services: [
+    {
+      id: "svc-1",
+      name: "Wiring",
+    }, {
+      id: "svc-2",
+      name: "Testing",
+    }
+  ],
+  personTeams: [
+    {
+      personId: "per-1",
+      teamId: "team-1",
+    }, {
+      personId: "per-2",
+      teamId: "team-2",
+    }
+  ],
+  teamServices: [
+    {
+      teamId: "team-1",
+      serviceId: "svc-1",
+    }, {
+      teamId: "team-2",
+      serviceId: "svc-2",
+    }
+  ],
+  workItemTeams: [
+    {
+      workItemId: "w1",
+      teamId: "team-1",
+    }, {
+      workItemId: "w2",
+      teamId: "team-2",
+    }
+  ],
+  workItemServices: [
+    {
+      workItemId: "w1",
+      serviceId: "svc-1",
+    }, {
+      workItemId: "w2",
+      serviceId: "svc-2",
+    }
+  ],
+  priorityBands: [
+    {
+      startsAt: 1,
+      label: "Critical",
+      defaultValue: 10,
+    }, {
+      startsAt: 21,
+      label: "High",
+      defaultValue: 30,
+    }
+  ],
+  capacity: [
+    {
+      teamId: "team-1",
+      people: 3,
+    }, {
+      teamId: "team-2",
+      people: 1,
+    }
+  ],
+  tags: [
+    {
+      id: "tag-a",
+      name: "agreed",
+    }, {
+      id: "tag-b",
+      name: "risky",
+    }
+  ],
+  workItemTypes: [
+    {
+      id: "t-epic",
+      name: "Epic",
+    }, {
+      id: "t-spike",
+      name: "Spike",
+    }, {
+      id: "t-task",
+      name: "Task",
+    }
+  ],
+  externalSystems: [
+    {
+      id: "gh",
+      name: "GitHub",
+    }, {
+      id: "jira",
+      name: "Jira",
+    }
+  ],
+}
+
+      at <anonymous> (/tmp/puni-step-saved-sol/libs/wbs/domain/domain/src/saved-plan/step-blockages.test.ts:46:58)
+(fail) saved direct step blockage > refuses duplicate current facts on capture and stored read [13.31ms]
+45 |       const body = { ...planFixtureRows, stepBlockages: facts };
+46 |       expect(() => canonicalisePlanInput(body as never)).toThrow('step blockage');
+47 |     });
+48 |     it(`refuses ${name} current facts on stored read`, () => {
+49 |       const body = { ...planFixtureRows, stepBlockages: facts, schemaVersion: 7 };
+50 |       expect(() => normalisePlanInputForward(body, 7)).toThrow('step blockage');
+                                                            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "step blockage"
+
+Received function did not throw
+Received value: {
+  project: {
+    id: "p1",
+    name: "Rewire the shed",
+    restricted: false,
+    ownerId: "u1",
+    solutionSlug: "shed",
+    solutionUrl: null,
+    estimateMethod: "pert",
+    depReach: "whole-item",
+    estimateRounding: "ceil",
+    startDate: "2026-09-07",
+    pertWeightOptimistic: 1,
+    pertWeightRealistic: 4,
+    pertWeightPessimistic: 1,
+    timezone: "UTC",
+  },
+  workItems: [
+    {
+      id: "w2",
+      parentId: "w1",
+      position: 20,
+      name: "Pull cable",
+      notes: "",
+      typeIds: [ "t-spike", "t-task" ],
+      tagIds: [ "tag-b", "tag-a" ],
+      externalRefs: [
+        {
+          externalSystemId: "jira",
+          url: "https://jira/SHED-2",
+          position: 20,
+        }, {
+          externalSystemId: "gh",
+          url: "https://gh/17",
+          position: 10,
+        }
+      ],
+      priority: 30,
+      maxParallel: 1,
+      frozenNumber: null,
+      serviceTeamId: "team-1",
+      serviceId: null,
+      startNoEarlierThan: null,
+      startNoEarlierThanReason: null,
+      readiness: null,
+      hold: null,
+    }, {
+      id: "w1",
+      parentId: null,
+      position: 10,
+      name: "Electrics",
+      notes: "consented",
+      typeIds: [],
+      tagIds: [ "tag-a" ],
+      externalRefs: [],
+      priority: 10,
+      maxParallel: 2,
+      frozenNumber: "1",
+      serviceTeamId: null,
+      serviceId: "svc-1",
+      startNoEarlierThan: "2026-09-14",
+      startNoEarlierThanReason: "inspection booked",
+      readiness: "ready",
+      hold: "blocked",
+    }
+  ],
+  steps: [
+    {
+      id: "s2",
+      code: null,
+      name: "Test",
+      position: 20,
+      estimateUnit: "workdays",
+      allowancePercent: 0,
+    }, {
+      id: "s1",
+      code: "build",
+      name: "Build",
+      position: 10,
+      estimateUnit: "workdays",
+      allowancePercent: 0,
+    }
+  ],
+  stepBlockages: [
+    {
+      workItemId: "w2",
+      stepId: "s1",
+      blockedAt: -3,
+    }, {
+      workItemId: "w2",
+      stepId: "s1",
+      blockedAt: -3,
+    }
+  ],
+  stepValues: [
+    {
+      workItemId: "w2",
+      stepId: "s1",
+      optimistic: 1,
+      realistic: 2,
+      pessimistic: 5,
+      derived: 2.5,
+      actual: null,
+      progress: "in_progress",
+    }, {
+      workItemId: "w1",
+      stepId: "s2",
+      optimistic: null,
+      realistic: null,
+      pessimistic: null,
+      derived: null,
+      actual: 3,
+      progress: "done",
+    }
+  ],
+  measures: [
+    {
+      workItemId: "w2",
+      stepId: "s2",
+      metric: "tokens",
+      value: 300,
+    }, {
+      workItemId: "w2",
+      stepId: "s1",
+      metric: "tokens",
+      value: 1200,
+    }, {
+      workItemId: "w2",
+      stepId: "s1",
+      metric: "hours",
+      value: 8,
+    }
+  ],
+  dependencies: [
+    {
+      predecessorId: "w2",
+      successorId: "w1",
+    }, {
+      predecessorId: "w1",
+      successorId: "w2",
+    }
+  ],
+  typedDependencies: [
+    {
+      id: "typed-2",
+      predecessor: {
+        scope: "whole",
+        workItemId: "w2",
+      },
+      successor: {
+        scope: "node",
+        workItemId: "w2",
+        stepId: "s2",
+      },
+      type: "FS",
+    }, {
+      id: "typed-1",
+      predecessor: {
+        scope: "node",
+        workItemId: "w2",
+        stepId: "s1",
+      },
+      successor: {
+        scope: "whole",
+        workItemId: "w1",
+      },
+      type: "FS",
+    }
+  ],
+  assignments: [
+    {
+      workItemId: "w2",
+      stepId: "s2",
+      personId: "per-1",
+    }, {
+      workItemId: "w2",
+      stepId: "s1",
+      personId: "per-2",
+    }, {
+      workItemId: "w1",
+      stepId: "s1",
+      personId: "per-1",
+    }
+  ],
+  people: [
+    {
+      id: "per-2",
+      name: "Bo",
+    }, {
+      id: "per-1",
+      name: "Ada",
+    }
+  ],
+  teams: [
+    {
+      id: "team-2",
+      name: "Second fix",
+    }, {
+      id: "team-1",
+      name: "First fix",
+    }
+  ],
+  services: [
+    {
+      id: "svc-2",
+      name: "Testing",
+    }, {
+      id: "svc-1",
+      name: "Wiring",
+    }
+  ],
+  personTeams: [
+    {
+      personId: "per-2",
+      teamId: "team-2",
+    }, {
+      personId: "per-1",
+      teamId: "team-1",
+    }
+  ],
+  teamServices: [
+    {
+      teamId: "team-2",
+      serviceId: "svc-2",
+    }, {
+      teamId: "team-1",
+      serviceId: "svc-1",
+    }
+  ],
+  workItemTeams: [
+    {
+      workItemId: "w2",
+      teamId: "team-2",
+    }, {
+      workItemId: "w1",
+      teamId: "team-1",
+    }
+  ],
+  workItemServices: [
+    {
+      workItemId: "w2",
+      serviceId: "svc-2",
+    }, {
+      workItemId: "w1",
+      serviceId: "svc-1",
+    }
+  ],
+  priorityBands: [
+    {
+      startsAt: 21,
+      label: "High",
+      defaultValue: 30,
+    }, {
+      startsAt: 1,
+      label: "Critical",
+      defaultValue: 10,
+    }
+  ],
+  capacity: [
+    {
+      teamId: "team-2",
+      people: 1,
+    }, {
+      teamId: "team-1",
+      people: 3,
+    }
+  ],
+  tags: [
+    {
+      id: "tag-b",
+      name: "risky",
+    }, {
+      id: "tag-a",
+      name: "agreed",
+    }
+  ],
+  workItemTypes: [
+    {
+      id: "t-epic",
+      name: "Epic",
+    }, {
+      id: "t-task",
+      name: "Task",
+    }, {
+      id: "t-spike",
+      name: "Spike",
+    }
+  ],
+  externalSystems: [
+    {
+      id: "jira",
+      name: "Jira",
+    }, {
+      id: "gh",
+      name: "GitHub",
+    }
+  ],
+  schemaVersion: 7,
+}
+
+      at <anonymous> (/tmp/puni-step-saved-sol/libs/wbs/domain/domain/src/saved-plan/step-blockages.test.ts:50:56)
+(fail) saved direct step blockage > refuses duplicate current facts on stored read [7.81ms]
+
+ 0 pass
+ 25 filtered out
+ 2 fail
+ 2 expect() calls
+Ran 2 tests across 1 file. [144.00ms]

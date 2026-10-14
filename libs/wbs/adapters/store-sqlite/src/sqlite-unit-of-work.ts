@@ -5,6 +5,7 @@ import { sql } from 'drizzle-orm';
 
 import type { Drizzle } from './db';
 import type { Gate } from './gate';
+import { translateStepBlockageFailure } from './step-blockage-activation';
 
 /**
  * The SQLite source's {@link UnitOfWork}: one turn, one `BEGIN IMMEDIATE`, and
@@ -41,6 +42,7 @@ export function sqliteUnitOfWork(
           db.run(sql.raw(decision.commit ? 'COMMIT' : 'ROLLBACK'));
         } catch (cause) {
           try {
+            // Proof: rollback omitted; inactive raw owner cascade retained an earlier project name/revision write (2026-10-14).
             db.run(sql.raw('ROLLBACK'));
           } catch (rollbackCause) {
             // Both, and not the second one alone: the rollback failing is the
@@ -53,7 +55,8 @@ export function sqliteUnitOfWork(
               cause: rollbackCause,
             });
           }
-          throw cause;
+          // Proof: translation omitted; real inactive owner cascade rejected as DrizzleQueryError instead of StepBlockageInactive (2026-10-14).
+          throw translateStepBlockageFailure(cause);
         }
         // **Outside the transaction's own catch**, deliberately (D28): the
         // repair below is a separate surviving act on a closed transaction, so

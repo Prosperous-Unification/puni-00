@@ -31,6 +31,7 @@ import {
   assignment,
   estimate,
   step,
+  stepBlockage,
   stepMeasure,
   stepNodeAttempt,
   stepProgress,
@@ -82,8 +83,8 @@ function assignmentsIn(reader: Pick<SQLiteBunDatabase, 'select'>, projectId: str
  * A project's steps, and the writes that change them.
  *
  * Its own repository rather than more methods on `ProjectRepository`: removing
- * a step spans six tables — estimates, recorded days, stated progress, the
- * figures that are not days, assignments and the step itself — plus the
+ * a step spans its estimates, recorded days, stated progress, measures,
+ * attempts, blockage, assignments and the step itself — plus the
  * revisions of everything that lost a row, and that transaction has nothing to
  * do with a project's own columns.
  *
@@ -302,6 +303,10 @@ export class StepRepository implements StepStore {
       .select({ workItemId: stepNodeAttempt.workItemId })
       .from(stepNodeAttempt)
       .where(eq(stepNodeAttempt.stepId, stepId));
+    const blocked = await this.db
+      .select({ workItemId: stepBlockage.workItemId })
+      .from(stepBlockage)
+      .where(eq(stepBlockage.stepId, stepId));
     const ids = await this.db
       .select({ id: workItem.id })
       .from(workItem)
@@ -313,6 +318,7 @@ export class StepRepository implements StepStore {
         estimates: held.length,
         actuals: recorded.length,
         progress: spoken.length,
+        blockages: blocked.length,
         measures: measured.length,
         attempts: attempted.length,
         assignments: [],
@@ -334,6 +340,7 @@ export class StepRepository implements StepStore {
       estimates: held.length,
       actuals: recorded.length,
       progress: spoken.length,
+      blockages: blocked.length,
       measures: measured.length,
       attempts: attempted.length,
       assignments,
@@ -438,6 +445,12 @@ export class StepRepository implements StepStore {
           .from(stepNodeAttempt)
           .where(inArray(stepNodeAttempt.stepId, stepInProject))
           .all();
+        // Proof: zeroing this fresh count made late-arriving blockage delete succeed (step.service.db.test.ts, 2026-10-14).
+        const blocked = tx
+          .select({ workItemId: stepBlockage.workItemId })
+          .from(stepBlockage)
+          .where(inArray(stepBlockage.stepId, stepInProject))
+          .all();
         const assigned = tx
           .select({ workItemId: assignment.workItemId })
           .from(assignment)
@@ -447,6 +460,7 @@ export class StepRepository implements StepStore {
           estimates: estimated.length,
           actuals: recorded.length,
           progress: spoken.length,
+          blockages: blocked.length,
           measures: measured.length,
           attempts: attempted.length,
           assignments: assigned.length,
@@ -479,6 +493,8 @@ export class StepRepository implements StepStore {
         // Explicit once more: `step_node_attempt.step_id` carries no cascade
         // either, so the step delete below would hit its foreign key.
         tx.delete(stepNodeAttempt).where(inArray(stepNodeAttempt.stepId, stepInProject)).run();
+        // Proof: omitting this delete failed confirmed cascade with a restrictive foreign-key error (step.service.db.test.ts, 2026-10-14).
+        tx.delete(stepBlockage).where(inArray(stepBlockage.stepId, stepInProject)).run();
         tx.delete(assignment).where(inArray(assignment.stepId, stepInProject)).run();
         const removed = tx
           .delete(step)
@@ -490,11 +506,18 @@ export class StepRepository implements StepStore {
         // project. Either way this request changed nothing and must move no
         // revision — the two deletes above touched nothing for the same reason.
         if (removed.length === 0) return { ok: false, reason: 'not_found' };
+        // Proof: omitting blockage owners lost the blockage-only revision bump (step.service.db.test.ts, 2026-10-14).
         const workItemIds = [
           ...new Set(
-            [...estimated, ...recorded, ...spoken, ...measured, ...attempted, ...assigned].map(
-              (row) => row.workItemId,
-            ),
+            [
+              ...estimated,
+              ...recorded,
+              ...spoken,
+              ...measured,
+              ...attempted,
+              ...blocked,
+              ...assigned,
+            ].map((row) => row.workItemId),
           ),
         ];
         bumpWorkItems(tx, workItemIds, stamp);
@@ -505,6 +528,7 @@ export class StepRepository implements StepStore {
             estimates: estimated.length,
             actuals: recorded.length,
             progress: spoken.length,
+            blockages: blocked.length,
             measures: measured.length,
             attempts: attempted.length,
             assignments: assigned.length,
