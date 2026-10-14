@@ -803,3 +803,43 @@ exit 0. Normal installed lefthook pre-commit/commit-message hooks run successful
 its tool-wiki hook visibly reports inactive, uncertified because this isolated
 clone has no external activation root. That optional activation is not inferred
 as certification.
+
+### Public setter module-index CI repair — 2026-10-14
+
+Exact base: PR #450 head `c622d20fd26d276f618779fbb085e3cb1aeb79b4`;
+isolated clone `/tmp/puni-setter-module-index-ci-sol`. Hosted run `38518467695`
+reported the plan-commands index omitted the new `step-blockage.test.ts`.
+The repair adds its exact path membership between `run-command-batch.ts` and
+`tsconfig.json`; existing membership order and production policy stay unchanged.
+
+Proof: the following production-CLI pilot test first exited 1 with **0 pass,
+1 fail, 53 assertions** and the exact `unindexed candidate path` for that test.
+Adding the membership exited 0 with **1 pass, 0 fail, 60 assertions**. Removing
+only the added membership reproduced exit 1 and the same refusal; the membership
+was restored before subsequent checks. The omission output is retained in
+[setter-module-index-omission.txt](evidence/setter-module-index-omission.txt).
+No production safety check was added or changed.
+
+```sh
+BUN_TMPDIR=/tmp TMPDIR=/tmp TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/node_modules bun test --preload ./tools/test/scratch/preload.ts apps/twilight-structure/twilight-burokrat/cli/src/policy/pilot-policy.test.ts -t 'pins exact pre-index tuples' --timeout=60000
+```
+
+Fresh local evidence:
+
+- Frozen Bun installation exits 0, **1573 installs checked**. The initial install
+  failed with EROFS despite writable temporary paths; repeating with
+  `BUN_INSTALL=/tmp/puni-setter-module-index-bun` and
+  `BUN_INSTALL_CACHE_DIR=/tmp/puni-setter-module-index-bun-cache` succeeded.
+- `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`:
+  exit 0, **39 indexes, empty review debt**.
+- Full `pilot-policy.test.ts` and `indexes.test.ts` with the same scratch preload,
+  trusted dependency root and 60000 ms timeout: exit 0, **81 pass, 0 fail,
+  880 assertions, 2 files**. Log `/tmp/puni-setter-module-index-tests.log`.
+- Touched Markdown Prettier check and `git diff --check`: exit 0.
+- Pinned OpenSpec 1.12.0 `validate add-step-node-blocking --strict --json`:
+  exit 0, **1 passed, 0 failed, no issues**. Normal `validate --all --json`:
+  exit 0, **196 passed, 0 failed**.
+
+Full h2puni heavy gate/build, hosted CI rerun and browser checks remain coordinator
+work and are unverified by this documentation repair. No push, merge, deploy or
+activation was performed.
