@@ -50,3 +50,17 @@ it('fails the session read when the activation marker is broken', async () => {
   // and reporting `onboarding: false` made this answer `Received: 200`.
   expect(response.status).toBe(500);
 });
+
+it('refuses an invalid bearer 401 even when the activation marker is broken', async () => {
+  const be = await BootedBrowserProcess.open('enabled');
+  opened.push(be);
+  be.sqlite.run('DELETE FROM organization_activation');
+
+  const response = await be.app.handle(
+    new Request(`${BOOTED_ORIGIN}/api/auth/me`, { headers: { authorization: 'Bearer invalid' } }),
+  );
+
+  // Proof (2026-10-14): reading the features before the invalid-token refusal
+  // made this case receive 500.
+  expect(response.status).toBe(401);
+});

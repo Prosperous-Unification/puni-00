@@ -135,23 +135,31 @@ describe('the words on the bars (ui-review F-012, F-037)', () => {
   itDom('names a placeholder for what it is, and writes its number once per bar', () => {
     // The number leads, as it does on every bar (Dany, 2026-09-13: "every
     // title to start from the item number - and it must always be visible");
-    // the `?` is gone (ui-review F-037). Number and words where both fit,
-    // the words alone where only they do, nothing below that.
+    // the `?` is gone (ui-review F-037). The phrase yields to the number
+    // exactly as a name does on an estimated bar: number and phrase (cropped
+    // by the box) where the number and the crop mark fit, the number alone
+    // where only it fits, nothing below that — the dashed outline is what
+    // still says "a guess".
     //
     // Proof: on main this failed on `expected '? · 010 · KB · Strip' to be
-    // '010 · no estimate'`; with the number dropped (the first F-037 cut), on
-    // `expected 'no estimate' to be '010 · no estimate'`. Watched 2026-10-14.
+    // '010 · no estimate'`; with the phrase ahead of the number (round 1 of
+    // the review), on `expected 'no estimate' to be '010 · no estimate'` at
+    // two workdays — a two-day placeholder at Days carried no number at all.
+    // Watched 2026-10-14.
     const assumed = (span: number) =>
       labelRoomFor('010', span, DAY_PX, { done: false, estimated: false });
     expect(barText('KB', 'Strip', assumed(4))).toBe('010 · no estimate');
     expect(barText(null, 'Strip', assumed(3))).toBe('010 · no estimate');
-    expect(barText(null, 'Strip', assumed(2))).toBe('no estimate');
-    // Too narrow for the words: nothing, and the dashed outline still says so.
-    expect(barText('KB', 'Strip', assumed(1))).toBeNull();
+    expect(barText(null, 'Strip', assumed(2))).toBe('010 · no estimate');
+    expect(barText('KB', 'Strip', assumed(1))).toBe('010');
+    // A number the bar cannot hold whole is not written by half.
+    expect(
+      barText('KB', 'Strip', labelRoomFor('170.1', 1, DAY_PX, { done: false, estimated: false })),
+    ).toBeNull();
 
     drawPlan(lanedRow());
     const placeholder = document.querySelector('[data-gantt-bar-label="sand-qa"]');
-    expect(placeholder?.textContent).toMatch(/^(sand · )?no estimate$/);
+    expect(placeholder?.textContent).toMatch(/^sand( · no estimate)?$/);
     expect(document.body.textContent).not.toContain('? ·');
   });
 });

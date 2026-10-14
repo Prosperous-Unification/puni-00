@@ -152,6 +152,10 @@ function historyCode(refusal: RefusalOf<'postApiProjectsByIdUndo'>): string {
     case 'not_a_member':
     case 'sso_required':
     case 'reauthentication_required':
+    case 'step_blockage_inactive':
+      // Proof: omitting this arm made the plan writer's disabled-admission
+      // cases throw `Unexpected response variant: object` instead of reporting
+      // the refusal; watched in plan-writer.test.ts, 2026-10-14.
       return refusal.error;
     default:
       return unreachable(refusal);
@@ -286,6 +290,10 @@ function stepRemoveCode(refusal: RefusalOf<'deleteApiProjectsByIdStepsByStepId'>
     case 'in_use':
     case 'referenced_by_dependency':
     case 'dependency_cycle':
+    case 'step_blockage_inactive':
+      // Proof: omitting this arm made the plan writer's disabled-admission
+      // cases throw `Unexpected response variant: object` instead of reporting
+      // the refusal; watched in plan-writer.test.ts, 2026-10-14.
       return refusal.error;
     default:
       return unreachable(refusal);
@@ -458,6 +466,10 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'minutes_not_integer':
     case 'minutes_above_max':
     case 'unknown_attempt':
+    case 'step_blockage_inactive':
+      // Proof: omitting this arm made the plan writer's disabled-admission
+      // cases throw `Unexpected response variant: object` instead of reporting
+      // the refusal; watched in plan-writer.test.ts, 2026-10-14.
       return refusal.error;
     default:
       return unreachable(refusal);
