@@ -3,7 +3,6 @@
   "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "apps/twilight-structure/twilight-burokrat/cli/src",
   "projectType": "application",
-  "implicitDependencies": ["wbs-contracts"],
   "tags": ["scope:app", "type:app", "runtime:bun", "ring:adapter", "product:twilight-burokrat"],
   "targets": {
     "test": {
@@ -16,6 +15,8 @@
         "{workspaceRoot}/.github/workflows/twilight-burokrat-release.yml",
         "{workspaceRoot}/apps/twilight-structure/twilight-burokrat/consumer/**/*",
         "{workspaceRoot}/apps/twilight-structure/twilight-navigator/cli/src/**/*",
+        "{workspaceRoot}/libs/wbs/domain/contracts/**/*",
+        "{workspaceRoot}/libs/wbs/domain/validation/**/*",
         "{workspaceRoot}/docs/code-organization/rule-policy.json",
         "{projectRoot}/package.json",
         "{projectRoot}/NOTICE",

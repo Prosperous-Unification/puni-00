@@ -187,3 +187,42 @@ Exact head `e8b5d785d5d1860df2b1c655ca3c405a015a7ab3` reproduced both committed-
 - A broader directory invocation omitted `TOOL_WIKI_TRUSTED_NODE_MODULES` and used a Bun substring selector that also collected compiled `dist` copies: **47 passed, 22 failed, 3 import errors**. The corrected command selects the three explicit `./apps/.../src/relationships/*.test.ts` files and configures the required external runtime modules; the rerun passed **66 tests, 0 failures, 1113 assertions** across the three source files (98.16s). No production workaround was added.
 - Changed-file Prettier, diff whitespace checks and pre-commit lint, format, plaintext-secrets and private-nesting passed. The Tool Wiki hook reported inactive without an external activation root. Migration hooks and doc-caps skipped because their file globs did not match. `git diff --exit-code HEAD` over the real Burokrat project, frozen policy and module mappings passed.
 - Full host gate, complete product suite, package build and GitHub CI remain with the coordinator after independent review. No push is performed from this repair checkout.
+
+## Product graph CI repair (2026-10-14)
+
+Hosted run `38479959068` at exact head `f179a1c680c71d86e124813e5559ff4f7cd07c6f`
+failed the production product graph oracle on `twilight-burokrat -> wbs-contracts`.
+The implicit dependency had represented subprocess cache reads as a forbidden product edge.
+Burokrat now declares the WBS contracts and WBS validation directories as explicit test
+workspace inputs. The Navigator source glob remains; shared validation is still reached
+through Burokrat's direct shared dependency and `^production`. Both committed relationship
+authorities declare the same test inputs.
+
+- Fresh isolated checkout: `BUN_TMPDIR=/tmp BUN_INSTALL=/tmp/puni-ci415-bun bun install
+--frozen-lockfile` exited 0. `BUN_TMPDIR` alone failed with EROFS before this adjustment.
+- Red: `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bun test
+./tools/tool-devsync/src/workspace-projects.test.ts -t 'is satisfiable by every internal
+dependency' --timeout=30000` failed on exactly the hosted forbidden edge.
+- Removing the edge before adding inputs made the real task-hasher test fail on both WBS
+  source entrypoints. With explicit inputs, the combined workspace-projects/workspace-targets
+  suites passed: 40 tests, 0 failures, 104 assertions. The hasher test also asserts the direct
+  shared-validation edge and absence of both WBS product edges.
+- R5: independently removing the contracts glob omitted
+  `libs/wbs/domain/contracts/src/http/plan-document-shapes.ts`; removing the validation glob
+  omitted `libs/wbs/domain/validation/src/index.ts`; removing `^production` omitted
+  `libs/shared/domain/validation/src/index.ts`. Each focused real-hasher run had 0 passes,
+  1 failure, 4 assertions. All mutations were restored; the assertion carries the observed proof.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx show projects --affected
+--files=<path> --json` exited 0 and selected `twilight-burokrat` independently for each
+  of those three representative paths. This exercises Nx affected selection with the repaired
+  graph rather than inferring selection from the declared globs.
+- Navigator source and Burokrat plan-task tests with the scratch preload: 85 passed,
+  0 failed, 396 assertions. Canonical package-build tests: 2 passed, 0 failed, 62 assertions.
+- Scoped Navigator lint/typecheck, tool-devsync typecheck and Burokrat lint:source/typecheck
+  passed with caching disabled. The first tool-devsync lint found an unnecessary undefined
+  guard against Nx's precise dependency type; it was removed before rerunning lint.
+- Pinned OpenSpec `validate --all --json` exited 0: 172 changes and 18 specs passed.
+
+Full host gate, full repository tests and full repository build remain with the coordinator.
+The separate hosted browser-auth-lifecycle readiness failure is outside this graph repair.
+No remote push or merge was performed.

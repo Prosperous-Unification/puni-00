@@ -780,6 +780,10 @@ describe('every cached target declares what it reads', () => {
       if (inheritedDaemon === undefined) delete process.env['NX_DAEMON'];
       else process.env['NX_DAEMON'] = inheritedDaemon;
     }
+    const dependencies = projectGraph.dependencies['twilight-burokrat'];
+    expect(dependencies.some(({ target }) => target === 'shared-validation')).toBe(true);
+    expect(dependencies.some(({ target }) => target === 'wbs-contracts')).toBe(false);
+    expect(dependencies.some(({ target }) => target === 'wbs-validation')).toBe(false);
     const { rustReferences } = getFileMap();
     if (rustReferences === null) throw new Error('Nx did not hydrate its workspace file map');
     const task = {
@@ -804,9 +808,9 @@ describe('every cached target declares what it reads', () => {
       'libs/shared/domain/validation/src/index.ts',
     ];
     const files = hash.inputs.files;
-    // Proof: removing wbs-contracts from implicitDependencies omitted plan-document-shapes.ts;
-    // removing ^production omitted it and both validation entrypoints in this real Nx hash
-    // input oracle (2026-10-14).
+    // Proof: removing the contracts or validation workspace input independently omitted
+    // its required entrypoint from this real Nx hash oracle; removing ^production omitted
+    // shared-validation's entrypoint (2026-10-14).
     expect(required.filter((path) => !files.includes(path))).toEqual([]);
   });
 
