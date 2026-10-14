@@ -104,7 +104,7 @@ async function fixture(fault = 'none') {
   };
   const exec: DockerExec = async (args, nonce, consume, signal) => {
     commands.push(args);
-    const program = args.at(10);
+    const program = args.at(11);
     if (program === undefined) throw new Error('missing fixed scanner');
     const cleanup = program === GROUP_PROGRAM;
     if ((fault === 'stalled-start' && !cleanup) || (fault === 'stalled-cleanup' && cleanup)) {
@@ -147,7 +147,7 @@ async function fixture(fault = 'none') {
       emitted = emitted.replace('100000', '1');
     if (fault === 'depth-limit' && program === CENSUS_PROGRAM)
       emitted = emitted.replace('"$depth" -lt 64', '"$depth" -lt 0');
-    const argumentsForProgram = args.slice(11).map((argument) =>
+    const argumentsForProgram = args.slice(12).map((argument) =>
       argument
         .split(' ')
         .map((path) => (path.startsWith('/') ? namespace + path : path))

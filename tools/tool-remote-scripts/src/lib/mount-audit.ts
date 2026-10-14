@@ -423,7 +423,9 @@ export async function verifyContainerNamespace(
               '--user',
               '0:0',
               subject.identity,
-              '/bin/sh',
+              // Proof: restoring Debian /bin/sh failed the actual backend image rehearsal.
+              '/bin/busybox',
+              'sh',
               '-c',
               SUPERVISOR_PROGRAM,
               '--',

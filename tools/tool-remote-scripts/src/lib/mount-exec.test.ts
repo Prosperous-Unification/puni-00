@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 
 import { verifyContainerNamespace } from './mount-audit';
+import { SUPERVISOR_PROGRAM } from './mount-exec-program';
 
 test('actual namespace admission refuses missing Docker init before invoking exec or stopping a writer', async () => {
   const calls: string[][] = [];
@@ -27,4 +28,8 @@ test('actual namespace admission refuses missing Docker init before invoking exe
   }
   expect(String(failure)).toContain('init');
   expect(calls).toEqual([]);
+});
+
+test('namespace supervisor launches scanner through explicit BusyBox shell', () => {
+  expect(SUPERVISOR_PROGRAM).toContain('/bin/busybox sh -c "$program"');
 });

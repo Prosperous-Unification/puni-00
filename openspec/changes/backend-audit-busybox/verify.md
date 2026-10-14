@@ -1,0 +1,12 @@
+- `bun test tools/tool-remote-scripts/src/lib/mount-exec.test.ts` before implementation: 1 pass / 1 fail; explicit BusyBox scanner launch absent.
+- Focused mount-exec and mount-audit suite after implementation: 49 pass / 0 fail, 103 assertions.
+- Official `docker pull busybox:1.37.0-musl` returned digest `sha256:5cec3fc171c87218698e85a52af7087de727372aae264a787b8112901a5b0092`.
+- Extracted amd64 ELF: static PIE; binary SHA-256 `2c92c1289f3ab36f8b43fb68d3b56b0ec32290f2d6f6bf4ef44df6bd7edc02ad`.
+- Actual cached `wbs-be-01:f8-v1` (`1859b545e83b`) reports Debian 13.4, `/bin/sh -> dash`, absent `/bin/busybox`.
+- Elevated `bun tools/tool-remote-scripts/src/lib/mount-exec-image.rehearsal.ts`: normal admission succeeded; absent binary and restored Debian-shell command each refused creation/cleanup proof; real 15-second stalled scanner/descendant deadline refused incomplete receipts and production cleanup converged, with no BusyBox descendants left. Every target used a fresh UUID, init, private network, and read-only binary bind; no live containers changed.
+- Full h2 gate, backend image build, and rollout are not run by this subtask; parent integrates and gates the combined commit.
+- `bunx @fission-ai/openspec@1.12.0 validate backend-audit-busybox --strict`: valid. An earlier unscoped `bunx openspec` failed to resolve; the repository-pinned official package was then used.
+- Focused ESLint passed after fixing rehearsal import ordering/type formatting; it reported unavailable cached Nx graph and skipped `@nx/enforce-module-boundaries`. Combined parent gate must cover that rule.
+- `bunx tsc --build --force tools/tool-remote-scripts/tsconfig.json`: passed.
+- Prettier cannot infer a parser for Dockerfile; TypeScript and Markdown checks are run separately. Dockerfile formatting is unverified by Prettier.
+- Dockerfile build-input and toolchain-pin regressions: 67 pass / 0 fail, 159 assertions. TypeScript/Markdown Prettier check passed. `git diff --check` passed.

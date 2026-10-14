@@ -602,7 +602,7 @@ Every Compose `be` swap has an attended outage window. Before stopping a writer,
 
 The candidate database is resolved through its writable directory bind and canonical host directory plus filename. The main DB, `-wal`, `-shm` and `-journal` must share that mapping; main-file binds, sidecar shadows, renamed main-file symlinks and redirected/dangling sidecar links refuse before any writer stops. Outgoing and idle `Config.Env.DB_PATH` values are independently resolved through their Docker `Mounts.Destination` mappings and must identify that same file. A `/data` source mounted only at `/unused-backups` is not database proof. Missing/ambiguous environment, missing destinations, filename mismatch, unrelated live mounts and unreadable paths refuse before stop intent. Unmanaged writable mounts overlapping the database/data root or sharing a main/WAL/SHM/journal file device and inode refuse without receiving stop commands. Distinct writable regular files can be proved unrelated. Every unmanaged container with mounts requires a stable actual private PID/mount namespace audit, including nested writable mounts hidden beneath a Docker-inspected read-only mount and writable mounts on a SQLite-family device. A fresh bind of Docker `Mounts.Source` is insufficient: a running container can retain a replaced source or a private submount. A stopped unmanaged container with mounts refuses with its exact ID and requires operator review/removal; containers with no mounts remain irrelevant.
 
-The actual namespace audit runs fixed metadata-only code through exact-ID `docker exec`, using the target's installed `/bin/sh` and BusyBox. It adds no capabilities. Audited running targets must have Docker `init: true`, a private PID namespace, `Privileged=false` and no added capabilities; missing tools or unsupported target configuration refuse before writer stop. A fresh Source rebind and the earlier DAC_READ_SEARCH-only proc-root helper are insufficient: default-cap Caddy/registry deny that helper's proc-root access. See [ADR 0054](adr/0054-compose-audits-run-in-initialized-containers.md).
+The actual namespace audit runs fixed metadata-only code through exact-ID `docker exec`, using explicit `/bin/busybox sh` for both supervisor and scanner. It adds no capabilities. Audited running targets must have Docker `init: true`, a private PID namespace, `Privileged=false` and no added capabilities; missing tools or unsupported target configuration refuse before writer stop. A fresh Source rebind and the earlier DAC_READ_SEARCH-only proc-root helper are insufficient: default-cap Caddy/registry deny that helper's proc-root access. See [ADR 0054](adr/0054-compose-audits-run-in-initialized-containers.md).
 
 **Attended prerequisite:** updating `deploy/compose/base.yml` to `init: true` recreates Caddy and registry, causing ingress/registry interruption. Backend tier rendering also requires init; an already-running older backend without it must be prepared during maintenance. Review immutable images, retained data/volumes, networks and routes, and apply the resolved Compose configuration during that window. The swap never performs this maintenance automatically. Keep blockage activation disabled until the prerequisite and release review are complete. If backend interruption evidence already exists, follow the pinned recovery procedure below; applying init does not authorize an older writer restart or schema reversal.
 
@@ -644,3 +644,29 @@ Step blockage facts and nested move/deletion replay capabilities are cumulative 
 The disposable Docker regression is `bunx nx run tool-remote-scripts:test:backend-recreation`. It requires the pinned Alpine image named in the proof script already installed, uses a unique project/network and scratch bind only, and verifies complete cleanup. It reproduces dynamic idle aliases and proves forced recreation, no dependency starts, and literal environment preservation.
 
 `/internal/forward` remains a pure acknowledgment endpoint; setter, import and activation-shaped frames confer no write or deploy authority. SQLite StepBlockage activation remains a separate durable application boundary. This Compose barrier does not activate it.
+
+The Debian backend runtime copies `/bin/busybox` from Docker Official Image
+`busybox:1.37.0-musl@sha256:5cec3fc171c87218698e85a52af7087de727372aae264a787b8112901a5b0092`.
+The [publisher's image documentation](https://github.com/docker-library/docs/tree/master/busybox)
+identifies musl as statically compiled; the extracted amd64 binary is static PIE,
+SHA-256 `2c92c1289f3ab36f8b43fb68d3b56b0ec32290f2d6f6bf4ef44df6bd7edc02ad`.
+Debian `/bin/sh` is dash and lacks the supervisor's `read -t` behavior.
+
+For an outgoing backend that predates this image dependency, prepare its attended
+`init: true` recreation before deployment: record and retain its exact current
+application image ID/digest and full effective environment/mount configuration.
+Extract `/bin/busybox` from the pinned official image into an operator-owned path,
+verify the SHA-256 above and executable mode, and bind that file read-only at
+`/bin/busybox` in the recreation configuration. Keep the exact old application
+image for this preparation. Review the resolved configuration and outage/recovery
+commands before stopping it; recreate it only in the attended window, then prove
+health and actual namespace admission. This preparation changes container init
+and supplies an audit executable; it is a separate prerequisite to candidate
+activation. Do not copy tools into or alter a running outgoing container.
+
+`bun tools/tool-remote-scripts/src/lib/mount-exec-image.rehearsal.ts` exercises
+production admission against disposable `wbs-be-01:f8-v1` containers, with the
+verified binary extracted to `/tmp/puni-audit-busybox`. It requires Docker access
+and that exact cached fixture image; missing dependencies fail. It checks normal
+admission, absent binary, restored Debian shell, and the 15-second supervisor
+deadline with a stalled scanner/descendant, then removes only its created IDs.
