@@ -663,3 +663,93 @@ regression. Logs are `/tmp/k8s-astrafix-proof-<fault>-{red,green}.log`.
 No live Kubernetes/container execution, h4 rollout, restore/cutover import,
 staging/GitHub Actions acceptance, canonical host gate or full workspace gate ran.
 Cutover admission remains a separate open prerequisite. No push was performed.
+
+## F11.1c cutover export/restore replay admission — 2026-10-14
+
+Based on exact #429 head `8b64d8203c9a90d4b035affee1620fd17c14cfc6`,
+in isolated branch `feat/k8s-cutover-replay-sol`. The release journal remains
+schema 3. Cutover reports carry separately versioned replay evidence version 1.
+Original descriptor file bytes and their independent SHA-256 pin, old/incoming
+backend references with equal immutable digests, independent inventory, own-image
+capabilities and export SHA-256 are bound together. The raw file pin includes its
+newline; it is not substituted with the canonical promotion descriptor identity.
+
+Export refuses unsupported history before checkpoint/VACUUM. Restore validates
+expected evidence, incoming bytes and independent replay observations before
+rename, rechecks the byte pin after image CLI execution, and retains failed
+arrival artifacts for reviewed recovery. Verification explicitly refuses legacy
+reports. Prepared manifests keep every Deployment at zero; first-start scale,
+release-record and Flux admission remain F11.1d, separately open.
+
+The deletion worker confirmed own `deletionState` properties on nested
+`delete_subtree`/`restore_subtree`. Kubernetes inventory and coordinator/cutover
+allowlists now recognize once-per-row `delete_state_v1`, reset between rows, and
+independently retain `move_progress_v1` for own precondition markers. Old images
+still refuse unless their own CLI advertises the required kind. Application
+command behavior and advertisement belong to the separate deletion slice.
+
+Fresh verification:
+
+- Initial TDD RED: the new cutover helper module was absent
+  (`/tmp/k8s-cutover-initial-red.log`). Preparation RED failed on its missing helper
+  (`/tmp/k8s-cutover-prepare-red.log`). Deletion marker controls produced eight
+  failures before inventory integration, and coordinator controls produced two
+  failures before its allowlist update (`/tmp/k8s-cutover-delete{,-coordinator}-red.log`).
+- Pre-rename fault RED: an image CLI mutating incoming bytes caused verification
+  to fail only after the target existed. The final byte check now refuses before
+  rename (`/tmp/k8s-cutover-pre-rename-{red,green}.log`).
+- Trusted report shape RED: nine malformed SQLite reports, including `counts: null`,
+  escaped verification before tightening the report boundary; all nine now refuse
+  (`/tmp/k8s-cutover-report-shape-{red,green}.log`).
+- Focused Bun over cutover-replay, cutover, cutover-cli, replay-capability and
+  replay-coordinator: **140 pass, 0 fail, 635 assertions** across five files
+  (`/tmp/k8s-cutover-final-focused.log`). Fixtures execute generated commands on
+  real SQLite and image-root CLI files; the manifest CLI uses a controlled
+  kubectl output fixture, not a real cluster render.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run tool-deploy:test --skip-nx-cache`:
+  **476 pass, 0 fail, 1596 assertions** across 24 files
+  (`/tmp/k8s-cutover-final-test.log`). Registry/Git fixtures use authorized local
+  listener permissions. Required dependency versions are reused from the frozen
+  #429 worktree; no dependency or lockfile change is introduced.
+- Scoped uncached Nx `tool-deploy:lint`, `tool-deploy:typecheck` and
+  `tool-deploy:build`: passed; build also ran its seven dependencies
+  (`/tmp/k8s-cutover-final-{lint,typecheck,build}.log`).
+- Scoped Nx `format:check --files=<all changed paths>`, strict OpenSpec
+  `validate k3s-wbs-delivery --strict`, and `git diff --check`: passed.
+
+Thirty-four watched production-path faults each produced RED followed by
+restored GREEN. Logs are `/tmp/k8s-cutover-proof-<fault>-{red,green}.log`.
+Adjacent `Proof:` comments identify the corresponding checks and fixtures.
+
+| Fault                                                                                    | Observed RED                                                                                                                           |
+| ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `identity-object`, `descriptor-pin`, `image-digest`, `descriptor-backend`                | Legacy inputs, changed original bytes/pin, unequal old digest or foreign descriptor backend escaped the required export/render refusal |
+| `descriptor-shape`                                                                       | A resealed array descriptor lost its named malformed-descriptor diagnostic                                                             |
+| `legacy-report`, `evidence-identity`, `verify-replay`                                    | Legacy/foreign/changed replay evidence escaped its required verification or restore refusal                                            |
+| `observation-shape`, `row-shape`, `row-identities`                                       | Malformed capabilities or malformed/unknown/zero/duplicate inventory escaped boundary validation                                       |
+| `support`, `cli-exit`, `before-export`                                                   | Unsupported retained history or a failing own CLI permitted snapshot creation                                                          |
+| `restore-byte-hash`, `restore-observation`, `restore-inventory`                          | Changed bytes, incompatible own image or divergent inventory reached target rename                                                     |
+| `report-shape`                                                                           | Malformed trusted SQLite reports escaped verify-restore refusal                                                                        |
+| `pre-rename-hash`                                                                        | CLI-mutated bytes were detected only after target rename                                                                               |
+| `stale-marker`                                                                           | A stale marker authorized restore/retry instead of refusing                                                                            |
+| `export-image`, `restore-image`                                                          | Rendered commands accepted a caller image outside their recorded binding                                                               |
+| `yaml-shape`, `manifest-object`, `deployment-shape`, `zero-replicas`, `backend-presence` | Malformed/absent Deployment inputs escaped refusal or prepared tiers started at nonzero replicas                                       |
+| `nested-forward`, `nested-inverse`, `precondition`                                       | Removing generated traversal markers omitted guarded move history and permitted export                                                 |
+| `delete-marker`, `delete-row-reset`                                                      | Unsupported deletion history was omitted or a following markerless row was counted                                                     |
+| `coordinator-delete-allowlist`, `cutover-delete-allowlist`                               | Supported own-image deletion capability controls were incorrectly refused                                                              |
+
+Fixtures cover empty/move-only capabilities, nested independent markers, legacy
+rows, missing/unreadable DB or CLI sources, a missing journal table, malformed
+history/output/evidence, foreign identities, stale arrival retry, changed export,
+exact byte controls and equal-digest host/cluster aliases. A matching restore
+preserves exact bytes and evidence. Refused restore keeps the source export intact
+and the target absent.
+
+The local rehearsal carries actual built image digest bindings in a serialized
+laboratory descriptor; its synthetic admission fields are explicitly not staging
+proof. Its negative retry retains host export and failure logs and explicitly
+clears only failed PVC arrival files before the matching control. Docker/k3d
+execution of this updated rehearsal remains unverified. No live export/import,
+h4 rollout, first-start activation, staging/GitHub Actions acceptance, canonical
+host gate or full workspace gate ran. Existing-host storage documentation now says
+`puni-retain`. No push or production mutation was performed.

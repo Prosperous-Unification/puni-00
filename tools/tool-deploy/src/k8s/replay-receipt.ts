@@ -35,8 +35,11 @@ export function assertReplayInventory(value: unknown): asserts value is readonly
   for (const raw of value) {
     const row = requireRecord(raw);
     // Proof: count/kind/uniqueness omissions admit zero, fractional, unknown or repeated inventory transport.
+    // Removing delete_state_v1 admission refused its supported coordinator control.
     if (
-      (row['kind'] !== 'replace_blockage' && row['kind'] !== 'move_progress_v1') ||
+      (row['kind'] !== 'replace_blockage' &&
+        row['kind'] !== 'move_progress_v1' &&
+        row['kind'] !== 'delete_state_v1') ||
       typeof row['count'] !== 'number' ||
       !Number.isSafeInteger(row['count']) ||
       row['count'] <= 0 ||
