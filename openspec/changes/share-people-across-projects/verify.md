@@ -4510,6 +4510,33 @@ the observed fault. The tests exercise actual Elysia admission, source gate and 
 | Widen digest request regex                     | `rejects malformed digests and asserted authority at the request boundary`: storage error 500 instead of boundary 400                |
 | Delete undeclared request fields               | Same boundary case: asserted actorId accepted instead of 400                                                                         |
 
+## Approval checkpoint restack onto merged main (2026-10-14)
+
+The corrected #425 series was replayed from #403 ancestor `2fac0c9c8579c627c05e9e55a19ee66b4ea35fd6`
+onto exact merged main `cdd7bd5887bb8b47665b1be38be50fb8ee3a15d9`. The removal-evidence fix and
+frozen migration-order correction retain identical patches. The approval-contract commit had
+one explicit conflict in `app.routes.test.ts`: main had extracted request bodies/queries into
+`testing/route-requests.ts`. Main's centralized fixtures were retained, and the approval body
+was moved there; no duplicate request maps were restored.
+
+Main also introduced exhaustive organization route/context coverage. The new approval endpoint
+was added to that inventory and given the existing organization-resource mutation policy and
+modeled context refusal. Before that integration, the mounted `covers every mounted organization
+mutation` test issued an approval in org-b for stale org-a browser intent (200 instead of 409):
+`/tmp/shared-restore-restack-context-red.log`. Applying main's existing policy passed the mounted
+context and approval suites: 18 pass / 376 assertions in
+`/tmp/shared-restore-restack-context-green.log`. An adjacent shape `Proof:` comment records this
+observed integration negative. Personal actor/membership and immutable backup binding semantics
+are preserved; no host recovery or runtime capability changes were made by the restack.
+
+The first six-file focused run had 75 pass / one sandbox-only failure because Bun's framed-HTTP
+route test could not listen on localhost (`EPERM`): `/tmp/shared-restore-restack-425-tests.log`.
+That command was rerun with the required localhost permission and passed all 76 tests across
+six files; `/tmp/shared-restore-restack-425-tests-approved.log`. App TypeScript and scoped ESLint
+passed, and strict OpenSpec validation returned zero issues. Normal hooks and formatting were
+repeated before recording the clean review candidate. No remote branch was pushed; canonical
+exact-SHA host gate and fresh remote CI remain pending.
+
 ## Approval migration frozen-order CI correction (2026-10-14)
 
 PR #425 at exact `3ff5b58accd27d6f5f0e59f7da770f87216ca570` failed its workspace job because
