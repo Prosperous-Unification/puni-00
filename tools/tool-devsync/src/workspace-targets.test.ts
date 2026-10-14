@@ -6,7 +6,12 @@ import {
   type NxJsonConfiguration,
   type ProjectGraph,
 } from 'nx/src/devkit-exports';
-import { filterUsingGlobPatterns, getTargetInputs } from 'nx/src/hasher/task-hasher';
+import {
+  filterUsingGlobPatterns,
+  getTargetInputs,
+  InProcessTaskHasher,
+} from 'nx/src/hasher/task-hasher';
+import { getFileMap } from 'nx/src/project-graph/build-project-graph';
 import ts from 'typescript';
 
 import { readProjects } from '../workspace-projects.mjs';
@@ -104,8 +109,11 @@ function selectsTestFile(command: string, file: string, root: string, target: st
   if (target.endsWith(':level') || command.includes('bun test $files')) {
     return collectedFiles(root, parseLevelCommand(command).selector).includes(file);
   }
-  const selector = /\bbun test (src(?:\/[^\s]+)?)(?:\s|$)/.exec(command)?.[1];
-  if (selector !== undefined) return selector === file || file.startsWith(`${selector}/`);
+  const selector = /\bbun test ((?:\.\/)?src(?:\/[^\s]+)?)(?:\s|$)/.exec(command)?.[1];
+  if (selector !== undefined) {
+    const canonical = selector.startsWith('./') ? selector.slice(2) : selector;
+    return canonical === file || file.startsWith(`${canonical}/`);
+  }
   if (/\bbun test --coverage\b/.test(command)) return true;
   throw new Error(`unrecognized Bun test file selector: ${command}`);
 }
@@ -204,7 +212,7 @@ describe('source conformance target discovery', () => {
         Object.entries(expected).map(([name, contract]) => [
           name,
           {
-            command: [`bun test ${contract.file} --timeout=${String(contract.timeout)}`],
+            command: [`bun test ./${contract.file} --timeout=${String(contract.timeout)}`],
             cwd: contract.root,
             cache: false,
             inputs: [...contract.inputs],
@@ -762,6 +770,53 @@ describe('every Vitest command states its own time budgets', () => {
 });
 
 describe('every cached target declares what it reads', () => {
+  it('hashes Navigator subprocess contract dependencies in Burokrat tests', async () => {
+    const nxJson = JSON.parse(
+      await readFile(new URL('nx.json', WORKSPACE), 'utf8'),
+    ) as NxJsonConfiguration;
+    const inheritedDaemon = process.env['NX_DAEMON'];
+    process.env['NX_DAEMON'] = 'false';
+    let projectGraph: ProjectGraph;
+    try {
+      projectGraph = await createProjectGraphAsync({ exitOnError: true });
+    } finally {
+      if (inheritedDaemon === undefined) delete process.env['NX_DAEMON'];
+      else process.env['NX_DAEMON'] = inheritedDaemon;
+    }
+    const dependencies = projectGraph.dependencies['twilight-burokrat'];
+    expect(dependencies.some(({ target }) => target === 'shared-validation')).toBe(true);
+    expect(dependencies.some(({ target }) => target === 'wbs-contracts')).toBe(false);
+    expect(dependencies.some(({ target }) => target === 'wbs-validation')).toBe(false);
+    const { rustReferences } = getFileMap();
+    if (rustReferences === null) throw new Error('Nx did not hydrate its workspace file map');
+    const task = {
+      id: 'twilight-burokrat:test',
+      target: { project: 'twilight-burokrat', target: 'test' },
+      overrides: {},
+      outputs: [],
+      cache: true,
+    };
+    const taskGraph = {
+      roots: [task.id],
+      tasks: { [task.id]: task },
+      dependencies: { [task.id]: [] },
+      continuousDependencies: {},
+    };
+    const hasher = new InProcessTaskHasher(projectGraph, nxJson, rustReferences, {});
+    const hash = await hasher.hashTask(task, taskGraph, process.env, WORKSPACE.pathname, true);
+    if (hash.inputs === undefined) throw new Error('Nx did not collect task hash inputs');
+    const required = [
+      'libs/wbs/domain/contracts/src/http/plan-document-shapes.ts',
+      'libs/wbs/domain/validation/src/index.ts',
+      'libs/shared/domain/validation/src/index.ts',
+    ];
+    const files = hash.inputs.files;
+    // Proof: removing the contracts or validation workspace input independently omitted
+    // its required entrypoint from this real Nx hash oracle; removing ^production omitted
+    // shared-validation's entrypoint (2026-10-14).
+    expect(required.filter((path) => !files.includes(path))).toEqual([]);
+  });
+
   it('names every file a suite reads from outside its own project', async () => {
     const nxJson = JSON.parse(
       await readFile(new URL('nx.json', WORKSPACE), 'utf8'),
@@ -811,6 +866,8 @@ describe('every cached target declares what it reads', () => {
     // edit; declaring it made both hashes change, without changing project edges (2026-10-14).
     // Proof: omitting the replay-capability CLI input failed this scan naming tool-remote-scripts;
     // the real Nx task hash ignored a CLI edit with the input omitted and changed with it declared (2026-10-14).
+    // Proof: omitting Burokrat's Navigator source input failed this production oracle on
+    // entrypoint.ts, the fixtures directory and plan-export.v8.json (2026-10-14).
     expect(undeclared).toBeEmpty();
   });
 });

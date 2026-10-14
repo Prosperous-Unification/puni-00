@@ -45,12 +45,22 @@ const libc =
       })
     : undefined;
 
+/**
+ * Reads the process identity, returning undefined only for ENOENT or ESRCH disappearance.
+ * @throws For other stat read failures or malformed identity fields.
+ */
 function readIdentity(pid: number): ProcessIdentity | undefined {
   let source: string;
   try {
     source = readFileSync(`/proc/${String(pid)}/stat`, 'utf8');
   } catch (error) {
-    if (typeof error === 'object' && error !== null && Reflect.get(error, 'code') === 'ENOENT')
+    // Proof: the stat-esrch preload injected one read failure for an exited
+    // wrapper in /proc enumeration; removing ESRCH made its cleanup test refuse.
+    if (
+      typeof error === 'object' &&
+      error !== null &&
+      (Reflect.get(error, 'code') === 'ENOENT' || Reflect.get(error, 'code') === 'ESRCH')
+    )
       return undefined;
     throw new Error(`Performance cannot read /proc identity for ${String(pid)}`, { cause: error });
   }
