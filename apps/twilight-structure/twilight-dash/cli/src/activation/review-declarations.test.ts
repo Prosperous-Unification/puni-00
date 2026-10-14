@@ -9,7 +9,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 
 import { parseOrThrow } from '@shared/validation';
 import {
@@ -204,7 +204,10 @@ function declarationFixture(
   );
   symlinkSync('relationships.json', join(input.sourceRepository, 'declaration-spare.json'));
   if (declarationPath !== 'relationships.json')
-    symlinkSync('relationships.json', join(input.sourceRepository, declarationPath));
+    symlinkSync(
+      relative(dirname(declarationPath), 'relationships.json'),
+      join(input.sourceRepository, declarationPath),
+    );
   git(input.sourceRepository, 'add', '--all');
   git(input.sourceRepository, 'commit', '--quiet', '-m', 'declared head');
   const { requestIdentity: _identity, schemaVersion: _version, ...fields } = input.request;
@@ -844,3 +847,156 @@ for (const limit of Object.keys(limits) as (keyof typeof limits)[]) {
     ).toThrow('positive safe integer');
   });
 }
+
+test.each(['sha1', 'sha256'] as const)(
+  'retained %s refuses traversal through a regular file before parent normalization',
+  (format) => {
+    const fixture = declarationFixture(format, (repository) => {
+      rmSync(join(repository, 'env-link'));
+      symlinkSync('.env.example/../.env.example', join(repository, 'env-link'));
+    });
+    expect(() =>
+      extractDeclaredRelationships(
+        fixture.input.sourceRepository,
+        fixture.input.sourceRepository,
+        fixture.candidate.snapshot,
+        fixture.selected,
+        nx,
+      ),
+    ).toThrow('authority absent: env-link');
+    rmSync(fixture.input.sourceRepository, { recursive: true });
+    const restoreReads = refuseAmbientReads();
+    try {
+      expect(() => extractRetainedDeclarations(fixture.extraction)).toThrow(
+        'not a directory: .env.example',
+      );
+    } finally {
+      restoreReads();
+    }
+  },
+);
+
+test.each(['sha1', 'sha256'] as const)(
+  'retained %s refuses traversal through a missing directory before parent normalization',
+  (format) => {
+    const fixture = declarationFixture(format, (repository) => {
+      rmSync(join(repository, 'env-link'));
+      symlinkSync('missing/../.env.example', join(repository, 'env-link'));
+    });
+    expect(() =>
+      extractDeclaredRelationships(
+        fixture.input.sourceRepository,
+        fixture.input.sourceRepository,
+        fixture.candidate.snapshot,
+        fixture.selected,
+        nx,
+      ),
+    ).toThrow('authority absent: env-link');
+    rmSync(fixture.input.sourceRepository, { recursive: true });
+    const restoreReads = refuseAmbientReads();
+    try {
+      expect(() => extractRetainedDeclarations(fixture.extraction)).toThrow(
+        'declaration absent: env-link',
+      );
+    } finally {
+      restoreReads();
+    }
+  },
+);
+
+test.each(['sha1', 'sha256'] as const)(
+  'retained %s refuses an unselected original fact path through a selected directory symlink',
+  (format) => {
+    const fixture = declarationFixture(format, (repository, facts) => {
+      mkdirSync(join(repository, 'nested'));
+      writeFileSync(join(repository, 'nested/.env.example'), 'PORT=3100\n');
+      symlinkSync('nested', join(repository, 'alias'));
+      for (const fact of facts) {
+        if (fact['factId'] === 'port' || fact['factId'] === 'blob')
+          fact['path'] = 'alias/.env.example';
+      }
+    });
+    expect(() =>
+      extractDeclaredRelationships(
+        fixture.input.sourceRepository,
+        fixture.input.sourceRepository,
+        fixture.candidate.snapshot,
+        fixture.selected,
+        nx,
+      ),
+    ).toThrow('authority outside selected candidate: alias/.env.example');
+    rmSync(fixture.input.sourceRepository, { recursive: true });
+    const restoreReads = refuseAmbientReads();
+    try {
+      expect(() => extractRetainedDeclarations(fixture.extraction)).toThrow(
+        'fact port authority outside selected candidate: alias/.env.example',
+      );
+    } finally {
+      restoreReads();
+    }
+  },
+);
+
+test('retained declarations refuse a Gitlink at the original fact membership boundary', () => {
+  const fixture = declarationFixture();
+  const candidate = {
+    ...fixture.candidate,
+    snapshot: {
+      ...fixture.candidate.snapshot,
+      entries: fixture.candidate.snapshot.entries.map((entry) =>
+        entry.path === 'env-link' ? { ...entry, mode: '160000' as const } : entry,
+      ),
+    },
+  };
+  expect(() =>
+    extractDeclaredRelationships(
+      fixture.input.sourceRepository,
+      fixture.input.sourceRepository,
+      candidate.snapshot,
+      fixture.selected,
+      nx,
+    ),
+  ).toThrow('fact port authority outside selected candidate: env-link');
+  rmSync(fixture.input.sourceRepository, { recursive: true });
+  const restoreReads = refuseAmbientReads();
+  try {
+    expect(() => extractRetainedDeclarations({ ...fixture.extraction, candidate })).toThrow(
+      'fact port authority outside selected candidate: env-link',
+    );
+  } finally {
+    restoreReads();
+  }
+});
+
+test.each(['sha1', 'sha256'] as const)(
+  'retained %s preserves declaration discovery through a directory alias',
+  (format) => {
+    const fixture = declarationFixture(
+      format,
+      (repository) => {
+        mkdirSync(join(repository, 'nested'));
+        symlinkSync('nested', join(repository, 'alias'));
+      },
+      'alias/declaration-link.json',
+    );
+    expect(
+      fixture.candidate.snapshot.entries.some(
+        (entry) => entry.path === 'alias/declaration-link.json',
+      ),
+    ).toBe(false);
+    const legacy = extractDeclaredRelationships(
+      fixture.input.sourceRepository,
+      fixture.input.sourceRepository,
+      fixture.candidate.snapshot,
+      fixture.selected,
+      nx,
+    );
+    rmSync(fixture.input.sourceRepository, { recursive: true });
+    const restoreReads = refuseAmbientReads();
+    try {
+      expect(extractRetainedDeclarations(fixture.extraction)).toEqual(legacy);
+    } finally {
+      restoreReads();
+    }
+  },
+);

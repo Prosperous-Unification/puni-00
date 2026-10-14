@@ -114,7 +114,15 @@ export function extractRetainedDeclarations(
   )
     throw new Error('retained declaration history census differs');
   const source: DeclarationSource = {
-    currentBytes: (_factId, path) => readRetainedCurrent(bounded, path),
+    currentBytes: (factId, path) => {
+      const entry = candidate.snapshot.entries.find((selected) => selected.path === path);
+      // Proof: omitting original-path membership admitted alias/.env.example through
+      // a selected directory symlink in both Git-format production parity tests; separately
+      // omitting Gitlink mode lost its named original-fact membership refusal.
+      if (entry === undefined || entry.mode === '160000')
+        throw new Error(`fact ${factId} authority outside selected candidate: ${path}`);
+      return readRetainedCurrent(bounded, path);
+    },
     historicalBytes: (_factId, revision, path) => bounded.readHistorical(revision, path),
     // Git symlink IDs identify link text; current selectors identify the resolved selected bytes.
     // Proof: substituting the selected symlink Git ID failed both SHA-1/SHA-256 source-removal parity tests.

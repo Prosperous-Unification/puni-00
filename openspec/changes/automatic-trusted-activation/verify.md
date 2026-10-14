@@ -4143,3 +4143,66 @@ external provider acceptance and deployed authority were not run by this bounded
 The parent integration owner retains the exact-SHA review and canonical gate. Only
 2.1d.1.3a is checked; 2.1d.1.3 and all encompassing tasks remain open. Trusted-wiki CI remains
 disabled and no publication, push, merge, activation, external authority or WBS completion is claimed.
+
+### Astra correction: preserve current fact membership and intermediate directories
+
+Review of `eba7f669112eab3851376e4069ff3df7f51f4bd9` found two retained/legacy
+refusal differences. A tracked symlink `env-link -> .env.example/../.env.example`
+traversed a regular file before normalization, and a fact naming the unselected
+`alias/.env.example` traversed a tracked directory symlink to selected `nested/.env.example`.
+The legacy adapter refuses both. Its actual first diagnostic is `authority absent: env-link`
+(`existsSync` maps the underlying ENOTDIR to false), and its second is
+`authority outside selected candidate: alias/.env.example`; the tests record these observed
+outputs without asserting an unreadable diagnostic the CLI did not produce.
+
+The current fact port now checks original selected-path membership and Gitlink exclusion
+before resolution. The shared current resolver rejects intermediate regular/Gitlink entries
+before processing `..`, and requires implicit directory prefixes to exist in the retained
+entry namespace. The latter also prevents `missing/../.env.example` from acquiring selected
+bytes through a nonexistent parent. Declaration discovery retains its existing directory-alias
+semantics; original fact membership applies specifically to executable fact selectors.
+
+Six production regressions (three faults under both real Git formats) were RED before the
+fix with twelve assertions, then GREEN. A separate original-fact Gitlink boundary test and
+two positive declaration-directory-alias parity controls were added. All retained extractions
+run after source deletion with the filesystem/Git execution sentinels mounted.
+
+Observed R5 proofs: independently omit each exact source condition below, run
+`bun test apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.test.ts --test-name-pattern '<named test fragment>'`,
+then restore the source in `finally`. All four trials exited 1 at the named assertions.
+Adjacent production `Proof:` comments identify these faults.
+
+| Omitted check                                                                                                                                                      | Observed assertion failure                                                                                                                                                          |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `entry !== undefined && remaining.length > 0` → `false`                                                                                                            | both `retained %s refuses traversal through a regular file before parent normalization` tests stop throwing and incorrectly extract the selected PORT                               |
+| remove the `!candidate.snapshot.entries.some((selected) => selected.path.startsWith(path + '/'))` intermediate prefix condition, retaining terminal absence checks | both `retained %s refuses traversal through a missing directory before parent normalization` tests stop throwing and incorrectly extract the selected PORT                          |
+| `entry === undefined` from the original fact guard, retaining `entry?.mode === '160000'`                                                                           | both `retained %s refuses an unselected original fact path through a selected directory symlink` tests stop throwing and extract through the alias                                  |
+| `entry.mode === '160000'` from the original fact guard, retaining `entry === undefined`                                                                            | `retained declarations refuse a Gitlink at the original fact membership boundary` loses its named fact-membership refusal and reaches the later generic unsupported-mode diagnostic |
+
+Restored focused GREEN: seven negative tests passed with fourteen assertions; both positive
+alias controls passed with four assertions. Local trial copies are
+`/tmp/declarations-parity-red.log`, `/tmp/declarations-parity-green.log`,
+`/tmp/declarations-parity-fault-1.log` through `-4.log`,
+`/tmp/declarations-parity-mutations.json` and `/tmp/declarations-parity-restored.log`.
+
+Fresh successor verification:
+
+- Repeated the exact five-file Bun command in the preceding entry with the trusted-runtime
+  environment, scratch preload and 60000 ms timeout: **258 passed, zero failures, 958 assertions**,
+  49.77 seconds. This includes the updated retained extractor, retained capture/reopen, legacy
+  production CLI selectors and judge facade. Raw output: `/tmp/declarations-parity-final-tests.log`.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run twilight-dash:lint --outputStyle=stream`
+  — passed, uncached; 14.3 seconds.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run twilight-dash:typecheck --outputStyle=stream`
+  — passed, uncached; 1.3 seconds.
+- `bunx --package @fission-ai/openspec@1.12.0 openspec validate automatic-trusted-activation --strict --json`
+  — one change passed with zero issues.
+- `bunx prettier --check apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.ts apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.test.ts apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-history.ts openspec/changes/automatic-trusted-activation/verify.md`
+  — all four matched files use Prettier style; `git diff --check` reported no whitespace errors.
+
+This restores the precise current-selection contract within checked bounded component
+2.1d.1.3a; parent 2.1d.1.3 remains open. Burokrat source was unchanged in this correction;
+its selectors/facade tests are included above and its source lint/typecheck were not repeated.
+Full canonical gate, monorepo build, CI-only checks, independent successor review and external
+authority remain unrun by this worker. Trusted-wiki workflow, root/#451 branch, publication,
+merge, activation and WBS state were not changed; no push was performed.

@@ -33,7 +33,12 @@ export interface HistoricalSelection {
 const compareText = (left: string, right: string): number =>
   Buffer.compare(Buffer.from(left, 'utf8'), Buffer.from(right, 'utf8'));
 
-/** Reads current selected bytes, resolving retained symlinks without host path access. */
+/**
+ * Reads current selected bytes, resolving retained symlinks without host path access.
+ * Intermediate components require an implicit directory established by retained path prefixes;
+ * files cannot be traversed before parent normalization. Fact callers additionally require
+ * the original selector path to be selected; declaration discovery may use directory aliases.
+ */
 export function readRetainedCurrent(
   candidate: RetainedCandidate,
   requestedPath: string,
@@ -71,7 +76,17 @@ export function readRetainedCurrent(
       remaining.unshift(...target.split('/'));
       continue;
     }
-    if (entry === undefined && remaining.length === 0)
+    // Proof: omitting this intermediate-node guard made both Git-format regular-file
+    // traversal tests extract PORT=3100 despite the legacy path refusal.
+    if (entry !== undefined && remaining.length > 0)
+      throw new Error(`historical declaration path is not a directory: ${path}`);
+    // Proof: omitting prefix membership made both missing-directory traversal tests
+    // normalize missing/../.env.example into a selected readable authority.
+    if (
+      entry === undefined &&
+      (remaining.length === 0 ||
+        !candidate.snapshot.entries.some((selected) => selected.path.startsWith(`${path}/`)))
+    )
       throw new Error(`historical declaration absent: ${requestedPath}`);
     resolved.push(component);
   }
