@@ -665,3 +665,33 @@ describe('what opens the sheet', () => {
     expect(opensCheatSheet({ ...question, key: 'a' }, null)).toBe(false);
   });
 });
+
+// F-036 (UI review 2026-10-13): the plan draws seven status glyphs, two more
+// step readings and an outside-the-team triangle, and nothing on screen said
+// what any of them meant. The sheet `?` opens is where the keys already are.
+// Proof: the legend section removed, both cases failed on `Unable to find role
+// "region" and name "Marks in the plan"`. Watched 2026-10-13.
+describe('the marks legend', () => {
+  itDom.each<PlanRenderer>(['table', 'cards'])('names every mark the %s draws', (renderer) => {
+    render(<KeyboardCheatSheet onClose={() => undefined} renderer={renderer} altStyle="pc" />);
+    const legend = screen.getByRole('region', { name: 'Marks in the plan' });
+    for (const word of [
+      'Unknown',
+      'Draft',
+      'Ready',
+      'In progress',
+      'Blocked by proxy',
+      'On hold',
+      'Blocked',
+      'Done',
+      'Skipped',
+      'Waiting',
+      'Assigned outside the team',
+    ]) {
+      expect(legend.textContent).toContain(word);
+    }
+    for (const glyph of ['○', '◌', '◎', '◐', '⊖', '‖', '⊘', '✓', '∅', '◇', '△']) {
+      expect(legend.textContent).toContain(glyph);
+    }
+  });
+});

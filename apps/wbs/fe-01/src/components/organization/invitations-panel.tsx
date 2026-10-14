@@ -8,7 +8,8 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { browserClient, failureMessage, unreachable } from '@/lib/http';
+import { failureMessage, unreachable } from '@/lib/http';
+import { useResourceClient } from '@/runtime/organization-resources';
 
 import {
   type AccessLoss,
@@ -31,7 +32,7 @@ import {
   STATUS_CLASS,
 } from './organization-section';
 
-const invitations = browserClient([listInvitations, createInvitation, revokeInvitation]);
+const INVITATIONS_SHAPES = [listInvitations, createInvitation, revokeInvitation] as const;
 
 type Invitation = Extract<
   ClientReply<typeof listInvitations>,
@@ -54,6 +55,7 @@ export function InvitationsPanel({
 }: {
   onAccessLost: (loss: AccessLoss) => void;
 }): React.JSX.Element {
+  const invitations = useResourceClient(INVITATIONS_SHAPES);
   const [view, setView] = useState<View>({ kind: 'loading' });
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<Role>('member');
@@ -86,7 +88,7 @@ export function InvitationsPanel({
       default:
         return unreachable(reply);
     }
-  }, [settle]);
+  }, [invitations, settle]);
 
   useEffect(() => {
     void refresh().catch((cause: unknown) => {

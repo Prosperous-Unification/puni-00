@@ -1,5 +1,12 @@
 import { DiBag } from 'di-bag';
 
+import {
+  LEGACY_ORGANIZATION,
+  type OrganizationContext,
+  type OrganizationRefusal,
+  type ResourceScope,
+  sameOrganization,
+} from '@/lib/organization-context';
 import type { ProjectStreamDeps } from '@/lib/project-stream';
 import {
   type DirectoryApi,
@@ -9,7 +16,7 @@ import {
 } from '@/lib/wbs-api';
 import type { DirectoryManagement } from '@/modules/directory-management/contract';
 import { directoryManagementModule } from '@/modules/directory-management/module';
-import { projectSourceOver } from '@/modules/project/composition';
+import { browserSavedPlanRoutes, projectSourceOver } from '@/modules/project/composition';
 import type {
   ProjectCatalog,
   ProjectCatalogRoutes,
@@ -47,6 +54,8 @@ import {
 export interface SessionIdentity {
   readonly userId: string;
   readonly credential: Credential;
+  readonly organization?: OrganizationContext;
+  readonly onRefusal?: (refusal: OrganizationRefusal) => void;
 }
 
 /**
@@ -75,6 +84,8 @@ export interface SessionProjects extends Store<LifetimeState<ProjectRuntime>> {
  * this session owns answer from it.
  */
 export interface SessionRuntime {
+  readonly organization: OrganizationContext;
+  readonly resourceScope: ResourceScope;
   readonly userId: string;
   /** Whether this runtime is still the one its owner publishes. */
   readonly isCurrent: () => boolean;
@@ -92,7 +103,7 @@ export interface SessionRuntime {
 
 /**
  * The runtime a region drawn for `userId` may use: the published one, when it is
- * that user's, and nothing otherwise.
+ * that account's confirmed organization, and nothing otherwise.
  *
  * Between the render that hands a region a new identity and the effect that asks
  * the owner for it, the owner still publishes the previous user's runtime. A
@@ -104,14 +115,21 @@ export interface SessionRuntime {
 export function sessionFor(
   state: LifetimeState<SessionRuntime>,
   userId: string,
+  organization: OrganizationContext = LEGACY_ORGANIZATION,
 ): SessionRuntime | null {
   // Proof: on 2026-09-24, dropping the user comparison (g1) failed `hands a region drawn for one
   // user nothing of another user’s session`: expected { userId: 'u1', …(3) } to be null for u2.
-  return state.status === 'live' && state.services.userId === userId ? state.services : null;
+  return state.status === 'live' &&
+    state.services.userId === userId &&
+    sameOrganization(state.services.organization, organization)
+    ? state.services
+    : null;
 }
 
 /** What one session runtime is installed from. */
 export interface SessionRuntimeDependencies {
+  readonly organization?: OrganizationContext;
+  readonly resourceScope?: ResourceScope;
   readonly userId: string;
   /** The client cut from the identity's credential; the directory's only way out. */
   readonly directoryApi: DirectoryApi;
@@ -226,6 +244,8 @@ function sessionProjects({
  */
 export function installSessionRuntime({
   userId,
+  organization = LEGACY_ORGANIZATION,
+  resourceScope,
   directoryApi,
   catalogRoutes,
   projectSourceFor,
@@ -285,6 +305,8 @@ export function installSessionRuntime({
   // equal [ 'directory', 'isCurrent', …(2) ].
   return acquireTransactionally(bag, () => ({
     userId,
+    organization,
+    resourceScope: resourceScope ?? { organization, isCurrent, refuse: () => undefined },
     isCurrent,
     directory: bag.resolve('directoryManagement'),
     catalog: bag.resolve('catalog'),
@@ -353,12 +375,12 @@ export interface SessionOwnerDependencies {
   /** How one runtime is installed. Defaults to {@link installSessionRuntime}. */
   readonly install?: (dependencies: SessionRuntimeDependencies) => RetirableRuntime<SessionRuntime>;
   /** How the directory's client is cut from a credential. Defaults to the real one. */
-  readonly clientFor?: (credential: Credential) => DirectoryApi;
+  readonly clientFor?: (credential: Credential, scope?: ResourceScope) => DirectoryApi;
   /**
    * How the session's one project client — the catalog's routes and every
    * project's plan services — is cut from a credential. Defaults to the real one.
    */
-  readonly projectClientFor?: (credential: Credential) => ProjectApi;
+  readonly projectClientFor?: (credential: Credential, scope?: ResourceScope) => ProjectApi;
   /** The project stream's socket wiring. Left out in production: the browser's own. */
   readonly streamDeps?: ProjectStreamDeps;
   /** How a project runtime is installed. Defaults to the real one. */
@@ -479,7 +501,15 @@ export function createSessionOwner({
       // ''),signInBroken(u1)`: s1 was still current after u1's unbuildable sign-in. Keying on the
       // credential as well (m2) failed it at run 10, `signIn(u1, ''),signInBroken(u1),read(0)`: the
       // last user asked for was not the one live, the owner was left `fatal`.
-      if (identity.userId === wanted?.userId) return latest;
+      // Proof: restoring user-only keying failed `replaces services when the same account switches organizations` (c2-fault-key).
+      if (
+        identity.userId === wanted?.userId &&
+        sameOrganization(
+          identity.organization ?? LEGACY_ORGANIZATION,
+          wanted.organization ?? LEGACY_ORGANIZATION,
+        )
+      )
+        return latest;
       wanted = identity;
       latest = settle(
         slot.replace(() => {
@@ -491,17 +521,29 @@ export function createSessionOwner({
             // ''),reenter(u1)`: s1 and s2 both said they were current.
             return state.status === 'live' && state.services === built;
           };
-          const projectClient = projectClientFor(identity.credential);
+          const organization = identity.organization ?? LEGACY_ORGANIZATION;
+          const resourceScope: ResourceScope = {
+            organization,
+            isCurrent,
+            refuse: identity.onRefusal ?? (() => undefined),
+          };
+          const projectClient = projectClientFor(identity.credential, resourceScope);
           // One source per session: a new client or stream per project would make
           // every project a composition of its own for no difference in behaviour.
           // Proof: on 2026-09-27, the source over a second client (`httpProjectApi(identity.credential)`,
           // n1) failed `lists the catalog and reads each project through the one client cut from the
           // credential` on `expected [] to deeply equal [ 'p1' ]`; cutting that second client through
           // `projectClientFor` failed it on `expected [ 'tok', 'tok' ] to deeply equal [ 'tok' ]`.
-          const projectSource = projectSourceOver(projectClient, streamDeps);
+          const projectSource = projectSourceOver(
+            projectClient,
+            streamDeps,
+            browserSavedPlanRoutes(streamDeps, resourceScope),
+          );
           const runtime = installRecorded({
             userId: identity.userId,
-            directoryApi: clientFor(identity.credential),
+            organization,
+            resourceScope,
+            directoryApi: clientFor(identity.credential, resourceScope),
             catalogRoutes: projectClient,
             projectSourceFor: () => projectSource,
             isCurrent,

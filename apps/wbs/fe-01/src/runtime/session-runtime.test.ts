@@ -79,7 +79,9 @@ describe('the session runtime', () => {
       'catalog',
       'directory',
       'isCurrent',
+      'organization',
       'projects',
+      'resourceScope',
       'userId',
     ]);
     await runtime.close({ timeoutMs: 1_000 });

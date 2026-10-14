@@ -1508,7 +1508,11 @@ describe('the header bar', () => {
     const bar = screen.getByRole('banner');
     expect(bar.contains(picker())).toBe(true);
     expect(bar.contains(screen.getByRole('button', { name: 'Rename project' }))).toBe(true);
-    expect(bar.contains(screen.getByRole('button', { name: 'Create new project' }))).toBe(true);
+    expect(
+      bar.contains(
+        within(screen.getByRole('banner')).getByRole('button', { name: 'Create new project' }),
+      ),
+    ).toBe(true);
   });
 
   itDom('gives the header the slots the app fills, in the bar itself', async () => {
@@ -1522,6 +1526,9 @@ describe('the header bar', () => {
     await waitFor(() => {
       expect(screen.getByLabelText('Project')).toBeDefined();
     });
+    // No roster off a project (F-018): the slot is filled once one is chosen.
+    expect(screen.queryByText('who is here')).toBeNull();
+    await selectProject('p2');
 
     const bar = screen.getByRole('banner');
     expect(bar.contains(screen.getByText('who is here'))).toBe(true);
@@ -1583,14 +1590,17 @@ describe('the header bar', () => {
     await waitFor(() => {
       expect(screen.getByLabelText('Project')).toBeDefined();
     });
+    // Off a project the slot is not asked at all (UI review F-018): there is no roster to
+    // be in, and the panel's Offline would describe a connection that never existed.
+    // Proof: on 2026-10-13, with the slot filled whatever the selection, this failed on
+    // `expected [ …(3) ] to deeply equal []`.
+    expect(asked).toEqual([]);
+
+    await selectProject('p2');
 
     // Nothing has subscribed yet, and the honest roster for that is empty and
     // disconnected rather than a stale list under a new project's name.
     expect(asked[0]).toEqual({ users: [], connected: false });
-    expect(screen.getByText('who is here: nobody')).toBeDefined();
-
-    await selectProject('p2');
-
     expect(asked.at(-1)?.users).toEqual([]);
   });
 
@@ -1825,7 +1835,9 @@ itDom('starts a created project without the previous project’s row anchors', a
     'Departed project row',
   );
 
-  fireEvent.click(screen.getByRole('button', { name: 'Create new project' }));
+  fireEvent.click(
+    within(screen.getByRole('banner')).getByRole('button', { name: 'Create new project' }),
+  );
   const field = await screen.findByLabelText('Project name');
   fireEvent.keyDown(field, { key: 'Escape' });
   await waitFor(() => {
@@ -1938,7 +1950,7 @@ describe('the saved-plan shelf is on the project page', () => {
     /*
       The regression this exists for, and it shipped once.
 
-      `useClosedByPointerOutside` reads its ref **once**, in a `useEffect` with
+      `useClosedOnDismiss` reads its ref **once**, in a `useEffect` with
       an empty dependency list, so the hook has to mount in the same commit as
       the `<details>` it is handed. Held on `ProjectPage` — which renders first
       with no project selected and so no shelf — `panel.current` was `null` when
@@ -2047,7 +2059,9 @@ describe('the saved-plan shelf is on the project page', () => {
       // The project's own controls are still there — this is the shelf leaving
       // the row, not the row leaving the header.
       expect(
-        screen.getByRole('button', { name: 'Create new project' }).closest('header'),
+        within(screen.getByRole('banner'))
+          .getByRole('button', { name: 'Create new project' })
+          .closest('header'),
       ).not.toBeNull();
       expect(document.querySelectorAll('header [data-saved-plans]')).toHaveLength(0);
       expect(document.querySelectorAll('[data-saved-plans]')).toHaveLength(0);
@@ -2082,6 +2096,50 @@ describe('a project link, /?project=<id>', () => {
     expect(window.location.search).toBe('');
     await selectProject('p2');
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+});
+
+describe('the page with no project open', () => {
+  itDom(
+    'offers the account’s projects, Create and Import, and opens the one chosen (F-019, F-027)',
+    async () => {
+      pageWith(fakeProjects(TWO));
+
+      // Proof: on 2026-10-13, before the empty state existed, this failed on `Unable to find role
+      // "region" and name "No project open"` — the page under the header was blank.
+      const home = await screen.findByRole('region', { name: 'No project open' });
+      const offered = within(within(home).getByRole('list', { name: 'Your projects' }))
+        .getAllByRole('button')
+        .map((button) => button.textContent);
+      expect(offered).toEqual(['Rewire the shedNever opened', 'Paint the fenceNever opened']);
+      expect(within(home).getByRole('button', { name: 'Create new project' })).toBeDefined();
+      expect(within(home).getByLabelText('Import JSON')).toBeDefined();
+
+      fireEvent.click(within(home).getByRole('button', { name: /^Paint the fence/ }));
+
+      await waitFor(() => {
+        expect(picker().value).toBe('Paint the fence');
+      });
+      expect(screen.queryByRole('region', { name: 'No project open' })).toBeNull();
+      expect(localStorage.getItem('wbs.project')).toBe('p2');
+    },
+  );
+
+  itDom('says what to do with no projects at all', async () => {
+    pageWith(fakeProjects([]));
+
+    const home = await screen.findByRole('region', { name: 'No project open' });
+    expect(within(home).queryByRole('list')).toBeNull();
+    expect(home.textContent).toContain('Start a new project, or import a plan exported as JSON.');
+  });
+
+  itDom('is not drawn while a project is open', async () => {
+    pageWith(fakeProjects(TWO.slice(0, 1)));
+
+    await waitFor(() => {
+      expect(picker().value).toBe('Rewire the shed');
+    });
+    expect(screen.queryByRole('region', { name: 'No project open' })).toBeNull();
   });
 });
 
@@ -2513,7 +2571,9 @@ describe('creating a project', () => {
       expect(screen.getByLabelText('Project')).toBeDefined();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Create new project' }));
+    fireEvent.click(
+      within(screen.getByRole('banner')).getByRole('button', { name: 'Create new project' }),
+    );
 
     // The name field stands in place of the picker while the rename a create
     // arms is open; leaving it is what shows the picker the selection.
@@ -3123,7 +3183,9 @@ describe('a new project opens with its name ready to be typed', () => {
       expect(screen.getByLabelText('Project')).toBeDefined();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Create new project' }));
+    fireEvent.click(
+      within(screen.getByRole('banner')).getByRole('button', { name: 'Create new project' }),
+    );
 
     const name = await screen.findByLabelText<HTMLInputElement>('Project name');
     expect(name.value).toBe('New project');
@@ -3140,7 +3202,9 @@ describe('a new project opens with its name ready to be typed', () => {
     await waitFor(() => {
       expect(screen.getByLabelText('Project')).toBeDefined();
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Create new project' }));
+    fireEvent.click(
+      within(screen.getByRole('banner')).getByRole('button', { name: 'Create new project' }),
+    );
     const name = await screen.findByLabelText<HTMLInputElement>('Project name');
 
     fireEvent.change(name, { target: { value: 'A' } });
@@ -3157,7 +3221,9 @@ describe('a new project opens with its name ready to be typed', () => {
       expect(screen.getByLabelText('Project')).toBeDefined();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Create new project' }));
+    fireEvent.click(
+      within(screen.getByRole('banner')).getByRole('button', { name: 'Create new project' }),
+    );
 
     const name = await screen.findByLabelText<HTMLInputElement>('Project name');
     // Selected rather than emptied: `commitOrCancelRename` reads an empty
@@ -3191,7 +3257,9 @@ describe('a new project opens with its name ready to be typed', () => {
       expect(screen.getByLabelText('Project')).toBeDefined();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Create new project' }));
+    fireEvent.click(
+      within(screen.getByRole('banner')).getByRole('button', { name: 'Create new project' }),
+    );
 
     await waitFor(() => {
       expect(listCalls).toBe(2);
@@ -3220,7 +3288,9 @@ describe('a new project opens with its name ready to be typed', () => {
       target: { value: 'Meant for p2' },
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Create new project' }));
+    fireEvent.click(
+      within(screen.getByRole('banner')).getByRole('button', { name: 'Create new project' }),
+    );
 
     // Asserted in the window the fault lives in: with the create held, a draft
     // that was not cancelled is still on screen and still aimed at p2. Once
@@ -3251,7 +3321,9 @@ describe('a new project opens with its name ready to be typed', () => {
     await waitFor(() => {
       expect(screen.getByLabelText('Project')).toBeDefined();
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Create new project' }));
+    fireEvent.click(
+      within(screen.getByRole('banner')).getByRole('button', { name: 'Create new project' }),
+    );
     const name = await screen.findByLabelText<HTMLInputElement>('Project name');
 
     fireEvent.keyDown(name, { key: 'Escape' });

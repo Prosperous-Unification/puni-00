@@ -11,14 +11,11 @@ export function createStatusColumn({ live }: { live: PlanLive }) {
     // leaf beneath it (`WorkItemService.setStatus`), which is the one row-level
     // write in this table that a parent takes.
     meta: { isEditable: () => true },
-    // One glyph for a 28px column — the word would not fit — with the word as
-    // the heading's accessible name, so the Columns control, the hint and a
-    // screen reader all still say `Status`.
-    header: () => (
-      <span role="img" aria-label="Status" title="Status">
-        ○
-      </span>
-    ),
+    // The word, since the UI review of 2026-10-13 (F-043): a `○` heading over
+    // a column of glyphs taught nothing, and in the sentence-case header row
+    // `Status` needs 31px — the column is 40 to hold it. The cells stay glyphs,
+    // each with its word as the box's description and on its fact card.
+    header: () => <span>Status</span>,
     cell: ({ row }) => (
       <StatusCell
         cellKey={cellKey(row.original.id, 'status')}

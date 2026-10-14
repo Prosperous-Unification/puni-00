@@ -1,3 +1,4 @@
+import type { SessionFeatures } from '@wbs/contracts';
 import type {
   Broadcaster,
   CapacityModeSwitch,
@@ -343,6 +344,28 @@ interface InfrastructureRuntime {
   scrapeMetrics: () => Promise<MetricsScrape>;
 }
 
+/**
+ * The deployment features the session read reports (`openspec/changes/session-features`).
+ *
+ * `onboarding` is the onboarding port's own answer, the one its routes refuse
+ * `onboarding_inactive` by. `organizations` also needs a selection composition:
+ * without one, `REFUSE_ORGANIZATION_SELECTION` answers every organization read
+ * `onboarding_inactive` even after activation.
+ *
+ * @throws When the onboarding port cannot read its trusted state.
+ */
+async function readSessionFeatures(
+  opts: Pick<AppOptions, 'onboarding' | 'organizationSelection'>,
+): Promise<SessionFeatures> {
+  // Proof: answering `onboarding: true` whatever the port said failed both
+  // pre-activation rows of session-features.db.test.ts; catching the port's
+  // refusal and answering false made its broken-marker case receive 200, not 500.
+  const onboarding = await opts.onboarding.isActive();
+  // Proof: answering `organizations` from `onboarding` alone failed the
+  // activated `disabled` row (no selection composition) of the same test.
+  return { onboarding, organizations: onboarding && opts.organizationSelection !== undefined };
+}
+
 /** Typed bindings mounted by the production app. */
 export function mountedEndpoints(
   opts: AppOptions,
@@ -413,6 +436,7 @@ export function mountedEndpoints(
       opts.auth,
       opts.oidc,
       passwordThrottle,
+      () => readSessionFeatures(opts),
       opts.browserSession,
       opts.appOrigin,
     ),

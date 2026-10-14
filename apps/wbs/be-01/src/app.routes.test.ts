@@ -58,6 +58,7 @@ function options(): AppOptions {
     projectRanks: refusingProjectRanks,
     emailDelivery: refusingTestEmailDelivery,
     onboarding: {
+      isActive: () => Promise.resolve(false),
       discover: () => Promise.resolve({ ok: false, refusal: 'onboarding_inactive' }),
       createOrganization: () => Promise.resolve({ ok: false, refusal: 'onboarding_inactive' }),
       submitJoinRequest: () => Promise.resolve({ ok: false, refusal: 'onboarding_inactive' }),

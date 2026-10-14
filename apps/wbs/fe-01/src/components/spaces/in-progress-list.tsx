@@ -3,11 +3,10 @@ import { type ClientReply, readSpaceInProgress } from '@wbs/contracts';
 import { credentialRefusalHeadline } from '@/components/organization/credential-refusal-state';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { browserClient, failureMessage, unreachable } from '@/lib/http';
+import type { ResourceScope } from '@/lib/organization-context';
 
 import { spaceRefusal } from './space-access';
 import { ALERT_CLASS, LIST_CLASS, NOTE_CLASS, STATUS_CLASS } from './space-chrome';
-
-const client = browserClient([readSpaceInProgress]);
 
 type InProgress = Extract<ClientReply<typeof readSpaceInProgress>, { kind: 'success' }>['body'];
 
@@ -21,7 +20,11 @@ export type InProgressState =
  * Reads a space's "In progress now" as the list shows it. A refusal or a
  * failure is a rendered state; only an unexpected throw escapes.
  */
-export async function readInProgress(spaceId: string): Promise<InProgressState> {
+export async function readInProgress(
+  spaceId: string,
+  scope?: ResourceScope,
+): Promise<InProgressState> {
+  const client = browserClient([readSpaceInProgress], scope);
   const reply = await client['getApiSpacesByIdIn-progress']({
     params: { id: spaceId },
     query: {},

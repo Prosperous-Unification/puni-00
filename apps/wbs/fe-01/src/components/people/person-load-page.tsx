@@ -3,12 +3,13 @@ import { type ReactNode, useEffect, useState } from 'react';
 
 import { AppHeader } from '@/components/chrome/app-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { browserClient, failureMessage, unreachable } from '@/lib/http';
+import { failureMessage, unreachable } from '@/lib/http';
+import { useResourceClient } from '@/runtime/organization-resources';
 
 import { loadRefusalWords } from './load-refusal';
 import { type LoadWindow, placeInWindow } from './load-window';
 
-const people = browserClient([readPersonLoad]);
+const PEOPLE_SHAPES = [readPersonLoad] as const;
 
 type PersonLoad = Extract<ClientReply<typeof readPersonLoad>, { kind: 'success' }>['body'];
 type ProjectLoad = PersonLoad['projects'][number];
@@ -65,6 +66,7 @@ export function PersonLoadPage({
   nav,
   account,
 }: PersonLoadPageProps): React.JSX.Element {
+  const people = useResourceClient(PEOPLE_SHAPES);
   const [view, setView] = useState<View>({ kind: 'loading' });
   const [fault, setFault] = useState<Error | null>(null);
 
@@ -102,7 +104,7 @@ export function PersonLoadPage({
     return () => {
       current = false;
     };
-  }, [personId, window.from, window.to]);
+  }, [people, personId, window.from, window.to]);
 
   if (fault !== null) throw fault;
 

@@ -1,6 +1,6 @@
-import { cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { cleanup, render, screen, within } from '@/testing/organization-render';
 import { answerJson as answer, stubServer } from '@/testing/stub-server';
 
 import { loadWindowFrom } from './load-window';

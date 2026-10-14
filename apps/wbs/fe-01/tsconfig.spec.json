@@ -53,6 +53,7 @@
     "playwright.ordinary-servers.ts",
     "ordinary-servers-cli.ts",
     "playwright.config.ts",
+    "playwright.organization.config.ts",
     "playwright-config.test.ts",
     "vitest-budget.test.ts"
   ]

@@ -394,7 +394,12 @@ export function DirectoryPage({ directory: management, nav, account, loadOf }: D
     <>
       <AppHeader nav={nav} account={account} />
       <main className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-3">
-        <h2 className="sr-only">Directory</h2>
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl font-semibold">Directory</h1>
+          <p className="text-muted-foreground text-sm">
+            The people, teams, tags, work item types and services every plan here shares.
+          </p>
+        </div>
         {problem !== null && (
           <p role="alert" className="text-destructive text-sm">
             {directoryRefusalSentence(problem)}
@@ -404,9 +409,15 @@ export function DirectoryPage({ directory: management, nav, account, loadOf }: D
           One column below 768px and two at and above it. `md` is Tailwind's 768
           — the same number `app-header.tsx` stops wrapping at and
           `plan-renderer.ts` swaps the renderer at, deliberately the same one.
+
+          Five cards never fill a grid of two or three alone, so two of them
+          span: Services takes both columns of the third row at `md`, and from
+          `xl` (1280) People, the card with the most to show per row, takes two
+          of three beside Teams. F-015 (UI review 2026-10-13): Services sat
+          alone bottom-left with an empty cell beside it.
         */}
-        <div className="grid gap-3 md:grid-cols-2">
-          <Card>
+        <div data-directory-grid className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <Card className="xl:col-span-2">
             <CardHeader>
               <CardTitle>People</CardTitle>
             </CardHeader>
@@ -416,12 +427,24 @@ export function DirectoryPage({ directory: management, nav, account, loadOf }: D
                   Nobody is in the directory yet. Add the first person below.
                 </p>
               ) : (
-                <ul className="flex flex-col gap-4">
+                <ul className="m-0 flex list-none flex-col gap-4 p-0">
                   {people.map((person) => (
                     <li key={person.id} className="flex flex-col gap-2">
-                      <div className="flex items-center gap-2">
+                      {/*
+                        The name on a line of its own below `md`, the kind and
+                        the ✕ under it: beside them a 375px phone left the name
+                        ~108px, and `Margaret Hamilton` read `Margaret Han`
+                        (F-046 of the 2026-10-13 phone review). From `md` up the
+                        three share one line again.
+
+                        Proof: on the one-line row this replaced, `gives a
+                        person's name the width to be read on the Directory
+                        (F-046)` in `e2e/mobile.spec.ts` failed on `the name is
+                        clipped … Expected: <= 108 / Received: 174`.
+                      */}
+                      <div className="flex flex-wrap items-center gap-2 md:flex-nowrap">
                         <Input
-                          className={`${TAP} min-w-0 flex-1`}
+                          className={`${TAP} min-w-0 basis-full md:flex-1 md:basis-0`}
                           aria-label={`Name of ${person.name}`}
                           value={nameShown(person)}
                           disabled={busy}
@@ -574,7 +597,7 @@ export function DirectoryPage({ directory: management, nav, account, loadOf }: D
                   No teams yet. Add the first one below.
                 </p>
               ) : (
-                <ul className="flex flex-col gap-3">
+                <ul className="m-0 flex list-none flex-col gap-3 p-0">
                   {teams.map((team) => (
                     <li key={team.id} className="flex flex-col gap-2">
                       <div className="flex items-center gap-2">
@@ -751,7 +774,7 @@ export function DirectoryPage({ directory: management, nav, account, loadOf }: D
                   one exists.
                 </p>
               ) : (
-                <ul className="flex flex-col gap-3">
+                <ul className="m-0 flex list-none flex-col gap-3 p-0">
                   {tags.map((tag) => (
                     <li key={tag.id} className="flex items-center gap-2">
                       <Input
@@ -832,7 +855,7 @@ export function DirectoryPage({ directory: management, nav, account, loadOf }: D
                   column on from <strong>Columns</strong> to see it.
                 </p>
               ) : (
-                <ul className="flex flex-col gap-3">
+                <ul className="m-0 flex list-none flex-col gap-3 p-0">
                   {workItemTypes.map((workItemType) => (
                     <li key={workItemType.id} className="flex items-center gap-2">
                       <Input
@@ -907,7 +930,7 @@ export function DirectoryPage({ directory: management, nav, account, loadOf }: D
             half), not here: an ownership map drawn on this card would read as a
             property of the service.
           */}
-          <Card>
+          <Card className="md:col-span-2 xl:col-span-1">
             <CardHeader>
               <CardTitle>Services</CardTitle>
             </CardHeader>
@@ -918,7 +941,7 @@ export function DirectoryPage({ directory: management, nav, account, loadOf }: D
                   appears once one exists.
                 </p>
               ) : (
-                <ul className="flex flex-col gap-3">
+                <ul className="m-0 flex list-none flex-col gap-3 p-0">
                   {services.map((service) => (
                     <li key={service.id} className="flex items-center gap-2">
                       <Input

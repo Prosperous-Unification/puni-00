@@ -7,7 +7,8 @@ import {
 import { useCallback, useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
-import { browserClient, failureMessage, unreachable } from '@/lib/http';
+import { failureMessage, unreachable } from '@/lib/http';
+import { useResourceClient } from '@/runtime/organization-resources';
 
 import {
   type AccessLoss,
@@ -28,7 +29,7 @@ import {
   STATUS_CLASS,
 } from './organization-section';
 
-const joinRequests = browserClient([listJoinRequests, approveJoinRequest, denyJoinRequest]);
+const JOIN_REQUESTS_SHAPES = [listJoinRequests, approveJoinRequest, denyJoinRequest] as const;
 
 type JoinRequest = Extract<
   ClientReply<typeof listJoinRequests>,
@@ -50,6 +51,7 @@ export function JoinRequestsPanel({
 }: {
   onAccessLost: (loss: AccessLoss) => void;
 }): React.JSX.Element {
+  const joinRequests = useResourceClient(JOIN_REQUESTS_SHAPES);
   const [view, setView] = useState<View>({ kind: 'loading' });
   const [roles, setRoles] = useState<Readonly<Record<string, ApprovalRole>>>({});
   const [sending, setSending] = useState(false);
@@ -74,7 +76,7 @@ export function JoinRequestsPanel({
       default:
         return unreachable(reply);
     }
-  }, [onAccessLost]);
+  }, [joinRequests, onAccessLost]);
 
   useEffect(() => {
     void refresh().catch((cause: unknown) => {

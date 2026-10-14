@@ -9,28 +9,18 @@ import {
 } from '../external-ref-marks';
 import { ExternalRefsCard } from '../external-refs-card';
 import type { PlanLive } from '../plan-live';
-import { LinkIcon } from '../toolbar-icons';
 import { column } from './column';
 
 /** Builds the refs column family against the stable live cell contract. */
 export function createRefsColumn({ live }: { live: PlanLive }) {
   return column.display({
     id: 'refs',
-    // **A drawn link, not the word.** `Prio`'s bargain — five characters
-    // at the header's 10px all-caps inside a 32px envelope — does not
-    // survive here: `LINKS` ran under the `NAME` heading beside it, which
-    // Dany photographed on 2026-08-31. A shape has no such width.
-    //
-    // The `sr-only` word is not decoration. {@link LinkIcon} is
-    // `aria-hidden` like every icon in that file, so without it this
-    // column heading announces nothing at all — and a heading is what a
-    // screen reader names every cell under it by.
-    header: () => (
-      <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-        <LinkIcon />
-        <span className="sr-only">Links</span>
-      </span>
-    ),
+    // **The word again, since the UI review of 2026-10-13 (F-043).** A drawn
+    // link replaced `LINKS` on 2026-08-31 because the all-caps word ran under
+    // the `NAME` heading beside it; a bare 🔗 then read as a control rather
+    // than a heading. The header row is sentence case with no tracking now,
+    // where `Links` needs 26px, and the column is 36px to hold it.
+    header: () => <span>Links</span>,
     cell: ({ row }) => {
       // A subscription and not a reading off `live`: this cell is a component,
       // so it can be told about its own card without the table rendering.

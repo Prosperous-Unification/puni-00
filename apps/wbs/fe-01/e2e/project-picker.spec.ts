@@ -60,7 +60,11 @@ async function signIn(page: Page): Promise<void> {
  * at all. `header.spec.ts` learned this; it is the same bar.
  */
 async function openPicker(page: Page): Promise<void> {
-  await page.getByRole('heading', { name: 'WBS tool v2' }).click();
+  // Blurred directly rather than by clicking the brand: below 1024 the brand is visually
+  // hidden (`AppHeader`), and a click aimed at it lands on the header instead.
+  await picker(page).evaluate((node) => {
+    if (node instanceof HTMLElement) node.blur();
+  });
   await picker(page).click();
   await expect(page.getByRole('listbox', { name: 'Projects' })).toBeVisible();
 }
@@ -198,7 +202,7 @@ test.describe('the project picker, driven by a browser', () => {
   test('creating a project puts the caret in its name, whole', async ({ page }) => {
     await signIn(page);
 
-    await page.getByRole('button', { name: 'Create new project' }).click();
+    await page.getByRole('banner').getByRole('button', { name: 'Create new project' }).click();
 
     const field = page.getByLabel('Project name');
     await expect(field).toBeFocused();
@@ -222,7 +226,7 @@ test.describe('the project picker, driven by a browser', () => {
   test('abandoning the new project’s rename keeps the project', async ({ page }) => {
     await signIn(page);
 
-    await page.getByRole('button', { name: 'Create new project' }).click();
+    await page.getByRole('banner').getByRole('button', { name: 'Create new project' }).click();
     await page.getByLabel('Project name').press('Escape');
 
     // The project was created before the rename was ever offered; Escape is

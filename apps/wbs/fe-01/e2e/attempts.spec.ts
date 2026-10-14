@@ -214,11 +214,10 @@ test.describe('attempts on the step card, in a browser (step-node-attempts D7)',
     await page.setViewportSize({ width: 375, height: 812 });
     for (const scheme of ['light', 'dark'] as const) {
       await page.emulateMedia({ colorScheme: scheme });
-      const details = page
-        .getByLabel('QA estimate for 010')
-        .locator(
-          'xpath=ancestor::*[@data-step][1]/following-sibling::details[@data-step-attempts][1]',
-        );
+      const details = page.getByLabel('QA estimate for 010').locator(
+        // The step's two disclosures share one line since F-042 (2026-10-13).
+        'xpath=ancestor::*[@data-step][1]/following-sibling::*[@data-step-disclosures][1]/details[@data-step-attempts]',
+      );
       await expect(details.locator('summary')).toHaveText(/Attempts \(4\)/);
       if ((await details.getAttribute('open')) === null) await details.locator('summary').click();
       await expect(details.getByRole('button', { name: /^End attempt 4…/ })).toBeVisible();

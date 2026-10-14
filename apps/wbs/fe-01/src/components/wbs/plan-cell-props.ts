@@ -4,6 +4,7 @@ import { type CellCards } from './cell-card-store';
 import { type DepLights } from './dep-light-store';
 import type { DependsEntry } from './depends-card';
 import { cellKey } from './editable-grid';
+import { undatedDayWords } from './plan-columns/undated-day';
 import { REFERENCE_SET_EDGE_FADE } from './reference-set-field';
 import type { PrintedDay } from './short-date';
 import { type TreeRow } from './wbs-rows';
@@ -234,7 +235,10 @@ export function readStartSentence(
   spanOf: (row: TreeRow) => { start: PrintedDay; finish: PrintedDay },
   startFloor: ReadonlyMap<string, string>,
 ): string | null {
-  const said = [spanOf(row).start.iso, startFloor.get(row.id)]
+  const start = spanOf(row).start;
+  // Undated, the sentence also says which day of the plan this is and how to
+  // get a date (review of PR #409, F-032).
+  const said = [start.iso, startFloor.get(row.id), undatedDayWords(start)]
     .filter((part) => part !== null && part !== undefined)
     .join(' — ');
   return said === '' ? null : said;

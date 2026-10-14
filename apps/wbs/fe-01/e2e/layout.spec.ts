@@ -993,9 +993,10 @@ test.describe('the table, measured by a browser', () => {
     const shown = await measuredLefts(page, PINNED_IDS);
     expect(shown['refs'] - shown['number']).toBe(widthFor('number', SEEDED_PLAN));
     expect(shown['name'] - shown['refs']).toBe(widthFor('refs', SEEDED_PLAN));
-    // 16 + 68 + 32: the Number column reads its shallow width on this plan
-    // since 2026-09-13 (16 + 105 + 40 before that day's compaction).
-    expect(shown['name']).toBe(116);
+    // 16 + 68 + 36: the Number column reads its shallow width on this plan
+    // since 2026-09-13 (16 + 105 + 40 before that day's compaction), and Links
+    // is 36 since 2026-10-13 (F-043, its heading is the word again).
+    expect(shown['name']).toBe(120);
 
     await page.evaluate(() => {
       const projectId = localStorage.getItem('wbs.project');
@@ -2965,8 +2966,9 @@ test.describe('the table, measured by a browser', () => {
     // a fourth pinned column between
     // `#` and Name. `number` is unchanged: the column's 40px is paid by
     // `depends`, which sits behind Name and moves no offset in front of it.
-    // 16 + 68 + 32 since 2026-09-13's compaction and the shallow Number width.
-    expect(declaredLeft('name')).toBe(116);
+    // 16 + 68 + 32 since 2026-09-13's compaction and the shallow Number width;
+    // Links 36 since 2026-10-13 (F-043).
+    expect(declaredLeft('name')).toBe(120);
   });
 
   test('keeps the page from scrolling sideways at 125% zoom', async ({ page }) => {
@@ -3091,11 +3093,11 @@ test.describe('the table, measured by a browser', () => {
     // first assertion here failed on `expected 84 to be 56`. Watched,
     // 2026-08-09.
     const undated = await measure(page);
-    expect(undated.columns.find((column) => column.id === 'not-before')?.width).toBe(56);
+    expect(undated.columns.find((column) => column.id === 'not-before')?.width).toBe(60);
     // The cell really is that column: a `<colgroup>` that declared one width
     // while the browser laid out another is the whole fault this file exists
     // for.
-    expect(Math.round(undated.earliestStart.cell)).toBe(56);
+    expect(Math.round(undated.earliestStart.cell)).toBe(60);
 
     await openEarliestStart(page);
     await page.locator('tbody tr:first-child input[type="date"]').fill('2026-06-10');

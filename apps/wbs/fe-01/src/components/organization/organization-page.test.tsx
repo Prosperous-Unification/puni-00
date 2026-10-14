@@ -1,6 +1,6 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@/testing/organization-render';
 import { answerEmpty, answerJson as answer, stubServer } from '@/testing/stub-server';
 
 import { OrganizationPage } from './organization-page';
@@ -275,7 +275,7 @@ describe('organization invitations', () => {
 
   it.each([
     ['not_a_member', 'You no longer have access to this organization.'],
-    ['no_active_organization', 'No organization is selected for this session.'],
+    ['no_active_organization', 'This session has no organization.'],
     ['onboarding_inactive', 'Organization administration is not active yet.'],
   ])('renders the %s list refusal as the page state', async (error, copy) => {
     stubPage({ 'GET /api/organization/invitations': [() => answer(403, { error })] });

@@ -28,14 +28,26 @@ const itDom = hasDom ? it : it.skip;
 describe('the presence panel', () => {
   afterEach(cleanup);
 
-  itDom('names itself with a heading that carries the connection', () => {
+  itDom('names itself Online or Offline, never by the channel’s state (F-018)', () => {
     const view = render(<PresencePanel me="kat" users={[]} connected={false} />);
 
-    expect(screen.getByRole('heading', { name: 'Online (closed)' })).toBeDefined();
+    // Proof: on 2026-10-13, against the old `Online (open)` / `Online (closed)` heading this
+    // failed on `Unable to find an accessible element with the role "heading" and name
+    // "Offline"`.
+    expect(screen.getByRole('heading', { name: 'Offline' })).toBeDefined();
 
     view.rerender(<PresencePanel me="kat" users={[]} connected />);
 
-    expect(screen.getByRole('heading', { name: 'Online (open)' })).toBeDefined();
+    expect(screen.getByRole('heading', { name: 'Online' })).toBeDefined();
+    expect(screen.queryByText(/\(open\)|\(closed\)/)).toBeNull();
+  });
+
+  itDom('carries the whole roster in its fact card, for the collapsed dot and count', () => {
+    render(<PresencePanel me="kat" users={['kat', 'sam']} connected />);
+
+    const panel = screen.getByRole('region', { name: 'Online' });
+    expect(panel.getAttribute('data-fact')).toBe('Online: kat (you), sam');
+    expect(panel.querySelector('[data-presence-count]')?.textContent).toBe('2');
   });
 
   itDom('says so while nobody has arrived', () => {
@@ -63,7 +75,7 @@ describe('the presence panel', () => {
     // and `asks who is there again on a reconnect` are the stream's.
     render(<PresencePanel me="kat" users={['kat', 'sam']} connected={false} />);
 
-    expect(screen.getByRole('heading', { name: 'Online (closed)' })).toBeDefined();
+    expect(screen.getByRole('heading', { name: 'Offline' })).toBeDefined();
     expect(screen.getAllByRole('listitem')).toHaveLength(2);
   });
 });

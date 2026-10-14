@@ -1,7 +1,7 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AppFaultBoundary } from '@/components/chrome/app-fault';
+import { cleanup, fireEvent, render, screen, within } from '@/testing/organization-render';
 import { answerJson as answer, stubServer } from '@/testing/stub-server';
 
 import { CredentialRefusalState } from './credential-refusal-state';
@@ -183,6 +183,6 @@ it('withdraws organization panels on context refusal', async () => {
     'GET /api/organization': [() => answer(409, { error: 'organization_context_changed' })],
   });
   renderPage();
-  expect(await screen.findByText('No organization is selected for this session.')).toBeDefined();
+  expect(await screen.findByText('This session has no organization.')).toBeDefined();
   expect(screen.queryByRole('heading', { name: 'Members' })).toBeNull();
 });

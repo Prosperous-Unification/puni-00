@@ -30,7 +30,7 @@ export type SpaceRefusal = { error: SpaceRefusalCode } | CredentialRefusal;
  * credential's sign-in state — or say a sentence in place and keep what it shows.
  */
 export type SpaceRefusalOutcome =
-  | { kind: 'page'; text: string }
+  | { kind: 'page'; text: string; detail: string }
   | { kind: 'credential'; refusal: CredentialRefusal }
   | { kind: 'message'; text: string };
 
@@ -38,18 +38,32 @@ export type SpaceRefusalOutcome =
 export function spaceRefusal(refusal: SpaceRefusal): SpaceRefusalOutcome {
   switch (refusal.error) {
     case 'unauthenticated':
-      return { kind: 'page', text: 'Your session ended. Sign in again.' };
+      return {
+        kind: 'page',
+        text: 'Your session ended. Sign in again.',
+        detail: 'Opening the plan asks you to sign in.',
+      };
     // Proof: removing this arm failed the rendered spaces withdrawal test
     // in spaces-page.test.tsx; watched 2026-10-13.
     case 'organization_context_changed':
       return {
         kind: 'page',
         text: 'Your organization changed. Reload before making another change.',
+        detail: 'Reload to see the spaces in your selected organization.',
       };
     case 'no_active_organization':
-      return { kind: 'page', text: 'No organization is selected for this session.' };
+      return {
+        kind: 'page',
+        text: 'This session has no organization.',
+        detail:
+          'Spaces group an organization’s projects. This workspace has no organization, so every project is in All projects.',
+      };
     case 'not_a_member':
-      return { kind: 'page', text: 'You no longer have access to this organization.' };
+      return {
+        kind: 'page',
+        text: 'You no longer have access to this organization.',
+        detail: 'An administrator of the organization can invite you again.',
+      };
     // Proof: 2026-10-12, answering the headline as page text failed `gives the
     // page up to the company sign-in when enforced SSO refuses it` and `gives
     // the space up to a fresh sign-in when the session policy refuses it`.
@@ -59,7 +73,11 @@ export function spaceRefusal(refusal: SpaceRefusal): SpaceRefusalOutcome {
     case 'organization_required':
       return {
         kind: 'page',
-        text: 'Spaces need an organization. Until this deployment has one, only All projects is available.',
+        text: 'Spaces need an organization.',
+        // F-014 (UI review 2026-10-13): this said "Until this deployment has
+        // one", which is an operator's word for what a reader sees as the app.
+        detail:
+          'Spaces group an organization’s projects. This workspace has no organization, so every project is in All projects.',
       };
     case 'not_found':
       return { kind: 'message', text: 'That space or project no longer exists.' };
@@ -94,7 +112,7 @@ export function spaceRefusal(refusal: SpaceRefusal): SpaceRefusalOutcome {
 
 /** What a page shows once a refusal ends or interrupts its read. */
 export type RefusedView =
-  | { kind: 'refused'; message: string }
+  | { kind: 'refused'; message: string; detail: string }
   | { kind: 'credential'; refusal: CredentialRefusal }
   | { kind: 'failure'; message: string };
 
@@ -102,7 +120,7 @@ export type RefusedView =
 export function refusedView(outcome: SpaceRefusalOutcome): RefusedView {
   switch (outcome.kind) {
     case 'page':
-      return { kind: 'refused', message: outcome.text };
+      return { kind: 'refused', message: outcome.text, detail: outcome.detail };
     case 'credential':
       return { kind: 'credential', refusal: outcome.refusal };
     case 'message':
