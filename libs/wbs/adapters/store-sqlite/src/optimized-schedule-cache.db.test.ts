@@ -346,6 +346,7 @@ describe('the optimizer migration', () => {
       // Newest first, so the settings columns come off before the tables they
       // steer — this migration is no longer the only thing above LOOKUP_INDEXES.
       expect(rollbackTo(db.path, FOLDER, LOOKUP_INDEXES)).toEqual([
+        '20261014130000_add_shared_people_restore_receipts',
         '20261014120000_add_shared_people_restore_approvals',
         '20261012130000_add_step_estimate_unit',
         '20261012120000_add_step_node_attempts',
@@ -398,6 +399,8 @@ describe('the optimizer migration', () => {
             name !== 'browser_auth_lifecycle' &&
             name !== 'shared_people_audit' &&
             name !== 'shared_people_restore_operation' &&
+            name !== 'shared_people_restore_receipt' &&
+            name !== 'shared_people_restore_consumption' &&
             name !== 'shared_people_restore_approval' &&
             name !== 'step_node_attempt' &&
             name !== 'step_node_attempt_issued' &&

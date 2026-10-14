@@ -11,6 +11,7 @@ import {
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 
+import { SUPPORTED_CAPACITY_MODES } from '@wbs/domain';
 import { openDatabase, openReadOnlyDatabase } from '@wbs/store-sqlite/db';
 import { digestSharedPeople } from '@wbs/store-sqlite/shared-people-backup';
 import { openSpaceDatabase } from '@wbs/store-sqlite/testing/space-database';
@@ -598,4 +599,103 @@ it('refuses a permission-denied extra writable mount source before the database 
   } finally {
     chmodSync(parent, 0o700);
   }
+});
+
+function approveHost(savedBackup: unknown) {
+  const sqlite = openDatabase(database);
+  try {
+    sqlite.run("UPDATE organization_activation SET state='activated', activated_at=1");
+    sqlite.run(
+      "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'ada', 'super_admin', 1)",
+    );
+    sqlite.run('INSERT INTO shared_people_restore_operation VALUES (?, ?, 1)', [
+      'restore-1',
+      digestSharedPeople(savedBackup),
+    ]);
+    sqlite.run(
+      "INSERT INTO shared_people_restore_approval VALUES ('approval-a', 'restore-1', 'org-a', 'ada', 1)",
+    );
+  } finally {
+    sqlite.close();
+  }
+}
+it('dispatches approved isolated rank recovery to the installed receipt owner and returns cold retry evidence', async () => {
+  approveHost(saved);
+  const receipt = await invoke('restore-1', ['approval-a']);
+  expect(receipt).toMatchObject({
+    operationId: 'restore-1',
+    organizations: 1,
+    ranks: 1,
+    modeChanges: 0,
+    events: 0,
+    approvalIds: ['approval-a'],
+  });
+  const sqlite = openDatabase(database);
+  try {
+    sqlite.run('UPDATE project_rank SET position=999');
+  } finally {
+    sqlite.close();
+  }
+  expect(await invoke('restore-1', ['approval-a'])).toEqual(receipt);
+  const reread = openReadOnlyDatabase(database);
+  try {
+    expect(reread.query('SELECT position FROM project_rank').all()).toEqual([{ position: 999 }]);
+  } finally {
+    reread.close();
+  }
+});
+it('uses the installed atomic shared owner only in a test-supported release while keeping legacy dispatch closed', async () => {
+  const shared = { ...saved, organizations: [{ organizationId: 'org-a', mode: 'shared' }] };
+  writeFileSync(backup, JSON.stringify(shared));
+  approveHost(shared);
+  const modes = SUPPORTED_CAPACITY_MODES as string[];
+  modes.push('shared');
+  try {
+    expect(await invoke('restore-1', ['approval-a'])).toMatchObject({
+      operationId: 'restore-1',
+      modeChanges: 1,
+      events: 4,
+      approvalIds: ['approval-a'],
+    });
+    const sqlite = openReadOnlyDatabase(database);
+    try {
+      expect(
+        sqlite.query('SELECT approval_id FROM shared_people_restore_consumption').all(),
+      ).toEqual([{ approval_id: 'approval-a' }]);
+    } finally {
+      sqlite.close();
+    }
+  } finally {
+    modes.pop();
+  }
+});
+it('refuses supported shared recovery without operation evidence before the writer opener', async () => {
+  prepareAlias();
+  writeInventory();
+  writeFileSync(
+    backup,
+    JSON.stringify({ ...saved, organizations: [{ organizationId: 'org-a', mode: 'shared' }] }),
+  );
+  const modes = SUPPORTED_CAPACITY_MODES as string[];
+  modes.push('shared');
+  try {
+    await refuses(invoke(), 'operation and approval');
+    expectUnopenedRestore();
+  } finally {
+    modes.pop();
+  }
+});
+
+it('retains one backup read while dispatching to the installed audited owner', async () => {
+  approveHost(saved);
+  writeFileSync(
+    docker,
+    `#!/bin/sh\ncase "$1" in\nps) cat '${inventoryIds}';;\ninspect) printf '{' > '${backup}'; cat '${inventory}';;\nesac\n`,
+  );
+  expect(await invoke('restore-1', ['approval-a'])).toMatchObject({
+    operationId: 'restore-1',
+    ranks: 1,
+    approvalIds: ['approval-a'],
+  });
+  expect(readFileSync(backup, 'utf8')).toBe('{');
 });

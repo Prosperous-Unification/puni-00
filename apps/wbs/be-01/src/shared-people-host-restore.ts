@@ -2,8 +2,10 @@ import { closeSync, constants, openSync } from 'node:fs';
 import { readFile, realpath, stat } from 'node:fs/promises';
 import { isAbsolute, relative, resolve } from 'node:path';
 
+import { SUPPORTED_CAPACITY_MODES } from '@wbs/domain';
 import { openConnection } from '@wbs/store-sqlite/db';
 import { readSharedPeopleBackup } from '@wbs/store-sqlite/shared-people-backup';
+import { restoreApprovedSharedPeople } from '@wbs/store-sqlite/shared-people-restore';
 import { diagnoseSharedPeopleRestore } from '@wbs/store-sqlite/shared-people-restore-diagnostics';
 import { restoreSharedPeople } from '@wbs/store-sqlite/shared-people-rollback';
 import { dlopen } from 'bun:ffi';
@@ -195,13 +197,25 @@ export async function restoreSharedPeopleOnHost(
     // Proof: rereading at the writer failed when the inspection subprocess replaced this pathname with malformed JSON.
     const saved = readSharedPeopleBackup(backup);
     await fenceContainers(paths);
-    diagnoseSharedPeopleRestore(paths.database, request, saved);
+    const shared = saved.organizations.some((organization) => organization.mode === 'shared');
     // Proof: bypassing this pre-opener refusal changed DELETE to WAL in the valid-consent shared negative.
-    if (saved.organizations.some((organization) => organization.mode === 'shared'))
+    if (shared && !SUPPORTED_CAPACITY_MODES.includes('shared')) {
+      diagnoseSharedPeopleRestore(paths.database, request, saved);
       throw new Error('unsupported capacity mode shared; restore requires a compatible release');
+    }
+    if (request.operationId === undefined && (shared || request.approvalIds.length > 0))
+      diagnoseSharedPeopleRestore(paths.database, request, saved);
     const connection = openConnection(paths.database);
     try {
-      return restoreSharedPeople(connection.db, saved, Date.now());
+      // Proof: substituting legacy dispatch lost the durable receipt; rereading the replaced backup failed retained-read recovery.
+      return request.operationId === undefined
+        ? restoreSharedPeople(connection.db, saved, Date.now())
+        : restoreApprovedSharedPeople(
+            connection.db,
+            saved,
+            { operationId: request.operationId, approvalIds: request.approvalIds },
+            Date.now(),
+          );
     } finally {
       connection.close();
     }

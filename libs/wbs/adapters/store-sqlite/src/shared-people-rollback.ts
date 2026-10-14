@@ -111,8 +111,8 @@ export function removeSharedPeople(db: Drizzle, backup: unknown, at: number) {
 
 /**
  * Restores into isolated, unranked existing saved organizations; extra isolated organizations
- * stay untouched. Release capability is checked before any mutation; SQLite encoding alone
- * never grants shared runtime support.
+ * stay untouched. Shared input always refuses here, regardless of release capability: only
+ * the audited restore owner can consume personal approvals. Capability is checked before mutation.
  * Partial organization updates are stamped at the supplied instant; rank audit fields stay historical.
  * Rank ownership/authors are checked by the existing rank recovery within this immediate transaction.
  */
@@ -120,7 +120,11 @@ export function restoreSharedPeople(db: Drizzle, backup: unknown, at: number) {
   const saved = readSharedPeopleBackup(backup);
   for (const each of saved.organizations) {
     const mode = each.mode;
-    // Proof: bypassing capability validation reaches the injected first-write trap for shared restoration.
+    // Proof: bypassing this guard restored shared mode with test-supported capability through the legacy path.
+    if (mode === 'shared')
+      throw new Error(
+        'unsupported capacity mode shared; legacy restore cannot consume personal approvals',
+      );
     if (!SUPPORTED_CAPACITY_MODES.includes(mode))
       throw new Error(`unsupported capacity mode ${mode}; restore requires a compatible release`);
   }

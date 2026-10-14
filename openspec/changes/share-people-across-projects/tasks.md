@@ -500,6 +500,10 @@ sequence`, `push failure retains durable event`, `expired replay requires snapsh
       database identity, mounts and every writable container stopped, retain one parsed backup read,
       optional operation/approval IDs for read-only binding diagnostics. Prove lock lifetime,
       process-death rollback, inspection failures and no writes on refusal. No authority assertions.
+- [x] 10.3a Installed immediate restore owner and additive receipt/consumption schema; cold retry,
+      personal membership recheck, atomic mode/rank/audit/event writes, completion issuance guard,
+      host dispatch and unconditional legacy shared refusal. Keep physical shared capability disabled.
+- [ ] 10.3b Remaining shared physical acceptance/exclusion proofs before activation.
 - [ ] 10.3 One immediate restore transaction rechecks and consumes every changed organization's
       personal approval/membership, restores modes/ranks, records per-org audits, all-project durable
       elsewhere_changed events, receipt and consumption. Fail atomically and retry by receipt.
@@ -516,3 +520,15 @@ sequence`, `push failure retains durable event`, `expired replay requires snapsh
       that owner rolls back SQLite and releases the canonical inode; a replacement caller succeeds.
 - [x] Watch production check removals fail those negatives; record proof comments and exact
       focused checks in verify.md. Commit the isolated checkpoint for review without publishing.
+
+### 10.3a ordered TDD slices
+
+- [x] SQLite owner tests: exact binding/approval set, current roles and eligibility, complete audit/event
+      fan-out including unranked projects, historical ranks, rank-only recovery and cold receipt retry.
+- [x] Add receipt/consumption migration and schema; implement one immediate synchronous owner using
+      borrowed rank restoration and event writes. Preserve frozen migration ordering expectations.
+- [x] Completion issuance and legacy shared-refusal negatives; retain identical approval retries.
+- [x] Host dispatch tests with test-supported shared release and actual capability refusal; retain
+      one connection/backup plus all existing flock/process-death/mount-source proofs.
+- [x] Watch binding/role/eligibility/atomicity/receipt/retry/event/legacy faults fail; record adjacent
+      Proof comments, focused checks, strict OpenSpec and scoped Docker evidence before review commit.

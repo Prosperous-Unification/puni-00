@@ -8,6 +8,7 @@ import {
   organizationMembership,
   sharedPeopleRestoreApproval,
   sharedPeopleRestoreOperation,
+  sharedPeopleRestoreReceipt,
 } from './schema';
 
 /** Durable consent on the shared source writer; an immediate transaction closes admission races. */
@@ -71,6 +72,15 @@ export class SharedPeopleRestoreApprovalRepository implements SharedPeopleRestor
               return { ok: false, refusal: 'restore_approval_conflict' };
             return { ok: true, approval: { ...approval, backupDigest } };
           }
+          // Proof: removing completion refusal issued a new organization approval after durable completion.
+          if (
+            tx
+              .select({ id: sharedPeopleRestoreReceipt.operationId })
+              .from(sharedPeopleRestoreReceipt)
+              .where(eq(sharedPeopleRestoreReceipt.operationId, operationId))
+              .get() !== undefined
+          )
+            return { ok: false, refusal: 'restore_approval_conflict' };
           if (operation === undefined)
             tx.insert(sharedPeopleRestoreOperation)
               .values({ id: operationId, backupDigest, createdAt: stamp.at })

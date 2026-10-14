@@ -131,6 +131,7 @@ it.each([
     // This refusal concerns the unit migration's transaction; newer migrations
     // may reverse successfully before it, so begin at its historical boundary.
     expect(rollbackTo(path, FOLDER, '20261012130000_add_step_estimate_unit')).toEqual([
+      '20261014130000_add_shared_people_restore_receipts',
       '20261014120000_add_shared_people_restore_approvals',
     ]);
     const sqlite = seed();
