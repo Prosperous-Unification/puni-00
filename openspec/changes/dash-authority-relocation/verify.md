@@ -268,3 +268,55 @@ src/packaging src/check-runs/run-activation-checks.test.ts --timeout=60000` pass
 
 The host gate, standalone build, secrets scan, and migration lint were not run by this implementer;
 the PM owns the canonical gate and integration. No push or merge was performed.
+
+### Overlap startup readiness recovery (2026-10-14 follow-up)
+
+Review found a second hosted failure in the #431 job log at the overlap readiness
+wait (`claims.db.test.ts` old line 297): a worker can exhaust its opening contention
+budget before emitting readiness. Reporting that typed outcome alone leaves the parent
+waiting for a marker that will never appear. The overlap and conflict-group fixtures now
+prepare both workers asynchronously, observing ordinary exits and signal termination.
+Only typed opening contention restarts a worker, within one 20-second startup deadline;
+other failures retain their original diagnostic. Deadline failure kills and awaits the
+active child. The parent writes the shared acquisition marker only after both workers
+have opened and signaled readiness, retaining simultaneous overlap acquisition and the
+single-winner assertion. Final state requires exactly three generations, the original
+overlap winner unchanged, and both literal disjoint claims.
+
+The target passes `--timeout=60000`; `tools/test/scratch/preload.ts` contains no default
+timeout override. The parent startup deadline remains 20 seconds. A ready child now
+waits at most 40 seconds for acquisition release, so it can await a peer using its full
+startup allowance while remaining below the runner's 60-second per-test ceiling.
+No target or production timeout was increased.
+
+Observed proofs:
+
+- RED: with the old marker-only wait, a worker forced through a real `BEGIN EXCLUSIVE`
+  opening fault exited with typed contention, then the readiness regression failed on
+  `worker readiness absent` after 21.33 seconds. Log: `/tmp/puni-claims-startup-red.log`.
+- GREEN: startup recovery opens a replacement, proves zero generations before acquisition
+  release, then acquires generation 1. Corrupt opening refuses with its original message;
+  an expired startup deadline refuses and reaps its child.
+- Recovery mutation: replacing restart with an injected error failed the real exclusive-lock
+  regression before acquisition release. Log: `/tmp/puni-claims-startup-retry-mutant.log`.
+- Deadline mutation: removing the deadline let the expired-deadline test receive a ready
+  worker instead of refusal. Log: `/tmp/puni-claims-startup-deadline-mutant.log`.
+- Type guard mutation: restarting corrupt openers failed the original-error assertion;
+  observed readiness timeout after repeated restarts. Log:
+  `/tmp/puni-claims-startup-type-mutant.log`. All faults were removed and adjacent `Proof:`
+  comments record them.
+- Final focused claims run with the target's preload and timeout: 24 pass, 0 fail,
+  78 assertions, 31.56 seconds under concurrent lint/typecheck load. Log:
+  `/tmp/puni-claims-startup-focused.log`.
+- Typecheck passed. Nx project lint initially failed because Bun promise matcher declarations
+  return void; the regressions now explicitly await/capture failures. Final
+  `NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_TUI=false bunx nx run twilight-dash:lint
+--outputStyle=stream` passed. The output style exposes diagnostics in this sandbox.
+
+- Complete authority suite using the target's preload, trusted-dependency environment, and
+  `--timeout=60000`: 158 pass, 0 fail across 11 files, 751 assertions (167.47 seconds
+  under shared-host load). Log: `/tmp/puni-claims-startup-authority.log`.
+- Final Prettier check and pinned OpenSpec 1.12.0 validation passed.
+
+Production files remain unchanged. The previous whole-project candidate-check output
+failure remains outside this repair. No push, merge, or host gate was performed.
