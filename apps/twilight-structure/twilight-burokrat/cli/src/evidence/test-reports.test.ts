@@ -552,6 +552,17 @@ test('[TEST-AXES-047] symbolic revision is refused before Browser inspection', a
   expect(call.stderr).toContain('requires a full committed SHA');
 });
 
+test('[TEST-AXES-074] test report diagnostic refuses an annotated tag-object SHA before Browser inspection', async () => {
+  const setup = fixture();
+  git(setup.root, ['tag', '-a', 'test-report-tag', '-m', 'annotated tag', setup.revision]);
+  const tagObject = git(setup.root, ['rev-parse', 'test-report-tag^{tag}']);
+  expect(tagObject).not.toBe(setup.revision);
+  const call = await inspect({ ...setup, revision: tagObject });
+  expect(call.exitCode).toBe(1);
+  expect(call.stderr).toContain('test report selected revision differs from requested SHA');
+  expect(call.stdout).toBe('');
+});
+
 test('[TEST-AXES-047] CLI refuses omitted and unsupported Browser modes at its own boundary', async () => {
   const setup = fixture();
   for (const arguments_ of [

@@ -252,6 +252,75 @@ The version-1 observation SHALL bind revision, candidate, publication observatio
 - **THEN** it SHALL keep authentication absent, certification false and level unresolved
 - **AND** it SHALL make no test-level, tested-module, service-kind, coverage or admission claim
 
+### Requirement: Manual observation preserves the inspected verdict without certification
+
+`inspect-manual-observation <repository> <full-committed-sha> <external-policy> <report-path> --now <UTC instant>` SHALL call the real Manual inspector for one exact committed candidate and caller-supplied instant. Its version-1 envelope SHALL contain the selected revision and candidate identity, canonical `evaluatedAt`, the complete nested Manual inspector result, `authentication:{kind:'absent'}`, `certifies:false`, and an observation digest over the complete envelope before the digest field. It SHALL preserve the Manual `current`, `stale`, `failed` and `overdue` judgments and emit JSON for each evaluated result, exiting zero only for `current`. Missing, unreadable, malformed or untrusted inputs and unresolved B3 selection SHALL refuse with a named error and no success JSON. It SHALL NOT grant a Manual level, coverage, admission or trusted human identity.
+
+#### Scenario: [TEST-AXES-067] A current Manual report is wrapped intact
+
+- **GIVEN** a valid committed candidate and exact external approval chain
+- **WHEN** the command inspects the supplied UTC instant
+- **THEN** it SHALL bind the complete Manual result, candidate, time and noncertifying markers in one digest
+
+#### Scenario: [TEST-AXES-068] Noncurrent Manual judgments remain noncurrent
+
+- **GIVEN** a valid stale, failed or overdue Manual result
+- **WHEN** the adapter emits its observation
+- **THEN** it SHALL retain the exact nested judgment and exit nonzero with JSON
+
+#### Scenario: [TEST-AXES-069] The Manual review deadline uses the caller instant
+
+- **GIVEN** a review deadline date and canonical UTC evaluation instants at its end and next day's start
+- **WHEN** the command inspects each instant
+- **THEN** it SHALL return current through the deadline and overdue immediately after it
+
+#### Scenario: [TEST-AXES-070] Manual observation refuses invalid selection and evidence
+
+- **GIVEN** a symbolic SHA, annotated tag-object SHA, staged reader fault, mismatched inspector revision or missing external report
+- **WHEN** the command attempts observation
+- **THEN** it SHALL refuse with a named error and no JSON
+
+#### Scenario: [TEST-AXES-071] Manual observation retains B3 and immutable selection
+
+- **GIVEN** staged source repair or unresolved effective scenario selection
+- **WHEN** the adapter invokes the Manual inspector on the committed candidate
+- **THEN** staging SHALL NOT change the observation and B3 refusal SHALL remain a refusal
+
+#### Scenario: [TEST-AXES-072] Manual observation identity and installed dispatch are complete
+
+- **GIVEN** a valid observation and installed package executable
+- **WHEN** an envelope or nested field changes or the packaged command is invoked
+- **THEN** every changed field SHALL change the digest and the installed command SHALL reach the validator
+- **AND** authentication SHALL remain absent and certification false
+
+### Requirement: Diagnostic committed SHA is the requested commit object
+
+The `inspect-spec-sources`, `inspect-test-reports`, `inspect-test-sources` and `inspect-performance` commands SHALL require the selected committed revision to equal the caller's full SHA before downstream source, publication or policy inspection. A full-hex annotated tag-object SHA that Git peels to a different commit SHALL refuse with a named error and no JSON. The Performance inspector SHALL also refuse a noncommitted selection returned by a faulty reader. The generic candidate reader's revision-peeling behavior for other callers SHALL remain unchanged.
+
+#### Scenario: [TEST-AXES-073] Specification sources reject a tag object
+
+- **GIVEN** a valid committed specification fixture and an annotated tag object pointing to it
+- **WHEN** the source diagnostic receives the tag object's full SHA
+- **THEN** it SHALL refuse before inventory with no JSON
+
+#### Scenario: [TEST-AXES-074] Browser test reports reject a tag object
+
+- **GIVEN** a valid Browser report publication and an annotated tag object pointing to its candidate
+- **WHEN** the report diagnostic receives the tag object's full SHA
+- **THEN** it SHALL refuse before Browser publication inspection with no JSON
+
+#### Scenario: [TEST-AXES-075] Browser test sources reject a tag object
+
+- **GIVEN** a valid indexed Browser source publication and an annotated tag object pointing to its candidate
+- **WHEN** the source diagnostic receives the tag object's full SHA
+- **THEN** it SHALL refuse before report publication inspection with no JSON
+
+#### Scenario: [TEST-AXES-076] Performance inspection requires the exact committed object
+
+- **GIVEN** a valid Performance publication with either an annotated tag-object SHA or a faulted noncommitted reader selection
+- **WHEN** the inspector captures its candidate
+- **THEN** it SHALL refuse with the responsible named selection error and no JSON
+
 ### Requirement: Tests live inside their modules
 
 A test SHALL live inside the module it tests, resolved from the module index.
@@ -523,3 +592,155 @@ The read-only `inspect-performance` command SHALL bind a current-success publica
 - **GIVEN** a publication that changes its current pointer after bundle capture
 - **WHEN** inspection rereads that pointer
 - **THEN** it refuses the changed publication
+
+### Requirement: Candidate-bound level facts have explicit authority
+
+For one complete committed Performance declaration, a facts-only diagnostic SHALL require a
+strict version-1 external authority pinning the exact committed revision, candidate identity,
+project root and manifest, declaration, config, Playwright project and every fixture. It SHALL
+read candidate bytes only from selected regular Git blobs and distinguish an explicit
+reviewed-empty Manual, Conformance or Architecture membership from missing or unknown evidence.
+It SHALL preserve legitimate overlap between precedence rows. Its digest SHALL bind the complete
+noncertifying observation; it SHALL NOT classify tests, inspect a publication, issue coverage,
+authenticate a reviewer or change the version-1 source-owner outputs.
+
+#### Scenario: [TEST-AXES-077] Explicit reviewed absence is bound to one Performance scope
+
+- **GIVEN** a complete pinned declaration and explicit reviewed-empty membership for all three earlier rows
+- **WHEN** the facts diagnostic reads the exact committed candidate despite staged replacements
+- **THEN** it emits the selected source tuples, explicit scope and membership states, absent authentication and false certification in a complete-payload digest
+
+#### Scenario: [TEST-AXES-078] Missing or contradictory authority refuses facts
+
+- **GIVEN** a missing Manual state, unsupported Manual form, absent source pin, duplicate fixture, altered pin, scope gap or contradictory membership assertion
+- **WHEN** the facts diagnostic validates external authority
+- **THEN** it refuses by name with no JSON observation
+
+#### Scenario: [TEST-AXES-079] Committed Performance scope resists working repair
+
+- **GIVEN** a selected source that is missing, unreadable, malformed, symlinked or nonregular, even if the working tree has a valid replacement
+- **WHEN** the facts diagnostic reads the scope
+- **THEN** it refuses before producing facts or executing candidate code
+
+#### Scenario: [TEST-AXES-080] Exact committed selection and fact identity resist substitution
+
+- **GIVEN** a symbolic revision, annotated tag object, changed candidate, reordered fixture enumeration or changed authority bytes, source or certification identity
+- **WHEN** the facts diagnostic evaluates the request
+- **THEN** unsupported selections refuse and normalized fixture order retains one facts ordering, while any changed bound byte or fact changes the observation digest
+
+### Requirement: Committed Conformance facts select a bounded target
+
+A committed Conformance authority SHALL pin the same path and digest as the scope project manifest.
+The diagnostic SHALL select only `test:conformance`, requiring exactly executor `nx:run-commands`
+and options `command`, `cwd` equal to the project root and `forwardAllArgs:false`. Only optional
+`cache:false` and `inputs:["default","^production"]` SHALL be accepted, plus the exact
+`["default","^production","{workspaceRoot}/apps/wbs/be-01/drizzle"]` tuple only for project
+root and cwd `libs/wbs/adapters/store-sqlite`. These inputs are dependency metadata and SHALL
+NOT select test sources. Task dependencies and other target/options keys SHALL be refused. The command SHALL be
+`bun test ./<path>... --timeout=<positive decimal>` with single ASCII spaces and unique safe
+project-relative `.test.ts` paths, each prefixed by exactly one literal `./`, without flags,
+shell syntax, globs or traversal. Bare Bun filter operands SHALL be refused even if an exact
+file exists. Only the required leading `./` SHALL be stripped when binding selected Git paths.
+The Memory and SQLite `test:conformance` commands SHALL use explicit `./` file operands.
+Every selected
+path SHALL be a regular selected Git blob, including paths outside the Performance fixture set.
+The observation SHALL bind every selected source tuple and emit committed Conformance path,
+digest and sorted workspace-relative files intersecting the Performance fixtures. Legitimate
+Performance overlap and an empty intersection SHALL remain valid, noncertifying observations.
+Manual remains reviewed-empty; Architecture follows the committed policy requirement below.
+
+#### Scenario: [TEST-AXES-081] Complete committed Conformance membership preserves overlap
+
+- **GIVEN** a pinned supported target selecting committed tests both inside and outside the Performance fixture set
+- **WHEN** the facts command inspects the exact candidate despite working replacements
+- **THEN** it binds all selected source tuples and emits the sorted intersection, with absent authentication and false certification
+- **AND** selecting only tests outside the fixture set emits an explicit empty committed membership
+- **AND** an explicit file operand selects only that literal committed path despite a nested matching decoy
+
+#### Scenario: [TEST-AXES-082] Unsupported committed Conformance authority and target refuse
+
+- **GIVEN** a mismatched authority pin, missing target, extra target or option key, foreign executor, wrong cwd, forwarded arguments or unsupported cache or inputs
+- **WHEN** the facts command validates committed Conformance
+- **THEN** it refuses by name without JSON
+
+#### Scenario: [TEST-AXES-083] Unsafe or incomplete Conformance selection refuses
+
+- **GIVEN** a command with bare filters (including one with an exact file and a nested matching decoy), flags, shell syntax, globs, traversal, duplicates, whitespace variants, invalid timeout, or a selected file that is missing, nonregular or unreadable even outside the fixture intersection
+- **WHEN** the facts command validates the complete committed selection
+- **THEN** it refuses by name despite a working-tree repair
+
+### Requirement: Committed Architecture facts bind declared rule fixtures
+
+Committed Architecture authority SHALL pin `<projectRoot>/src/architecture-fixtures.json` and its selected blob digest. The shared runner policy SHALL require closed version 1, a nonempty fixture list, known unique rule IDs and each exact `src/architecture/<lowercase-rule-id>.architecture.test.ts` relation. Every mapped fixture SHALL be a regular readable selected Git blob before intersection, including disjoint fixtures. Immediate children ending `.architecture.test.ts` SHALL be mapped, including directory names with selected descendants; ordinary nested fixtures SHALL be ignored. Reviewed-empty Architecture SHALL refuse a present fixed policy or `test:architecture:level` target. Sources SHALL include the policy and every mapping once in canonical order; Architecture files SHALL be the sorted intersection with the complete Performance declaration. Membership describes policy declarations, not Bun execution collection, authentication, classification or certification. The runner SHALL preserve report creation, stale report clearing and validation error order.
+
+#### Scenario: [TEST-AXES-084] Architecture declared membership preserves overlap and disjoint sources
+
+- **GIVEN** pinned committed Architecture mappings and a complete Performance fixture scope
+- **WHEN** source or packaged facts inspection runs
+- **THEN** it binds every selected source, emits a sorted unique intersection and stays unauthenticated and noncertifying without executing candidate code
+
+#### Scenario: [TEST-AXES-085] Architecture authority and complete selected mappings refuse substitution
+
+- **GIVEN** a wrong policy path or digest, malformed policy, unknown or duplicate rule, wrong rule-file relation, or missing, unreadable, symlinked or nonregular mapping outside the intersection
+- **WHEN** the facts command inspects committed Architecture
+- **THEN** it refuses with no observation despite working-tree repairs
+
+#### Scenario: [TEST-AXES-086] Architecture immediate children and reviewed empty contradictions refuse
+
+- **GIVEN** an unmapped immediate suffix child including a directory with descendants, or reviewed-empty authority with a policy or Architecture target
+- **WHEN** the facts command inspects the selected candidate
+- **THEN** it refuses, while nested ordinary fixtures remain outside declared membership and the runner retains stale-report and error precedence behavior
+
+### Requirement: Performance level observations join complete facts and publication
+
+`inspect-performance-levels <repository> <committed-sha> <external-facts-authority> <external-rule-policy>` SHALL call the real level-facts and Performance publication inspectors. It SHALL require exact requested revision and matching candidate identity, matching declaration/config paths and Playwright project, matching config and selected fixture byte identities and modes, and equality of the complete Performance fixture scope, declared cases and recorded publication collection with no missing, extra or duplicate cases. It SHALL decode the same selected committed declaration through the shared decoder before comparing its semantic digest to publication; its raw byte pin is a separate identity. Any join or inherited inspector refusal SHALL emit no JSON observation.
+
+The shared test-levels library SHALL expose the earlier first-match rows without requiring unknown later-row facts. Existing complete classification SHALL reuse those rows unchanged. The diagnostic SHALL classify the complete Performance fixture scope using Manual, Conformance, Architecture and Performance membership, with recorded Playwright membership required by the Performance row. Conformance SHALL precede Architecture, and Architecture SHALL precede Performance. Legitimate overlap SHALL produce a typed wrong-level isolation observation and nonzero CLI exit, preserving actual classified levels. A fully isolated Performance observation SHALL exit zero. Both outcomes SHALL bind both upstream observation digests and their complete own payload digest, with authentication absent and certification false. The diagnostic SHALL grant no coverage or admission and SHALL preserve existing version-1 source-owner outputs.
+
+#### Scenario: [TEST-AXES-087] Complete Performance joins classify only the recorded fixture scope
+
+- **GIVEN** matching real facts and publication inspectors bound to a selected committed declaration whose raw bytes have a different digest from normalized semantics
+- **WHEN** source or packaged Performance level inspection runs
+- **THEN** every declared and recorded fixture is classified Performance, isolation is typed successful and both upstream digests and the complete observation digest are bound without candidate execution or promotion
+
+#### Scenario: [TEST-AXES-088] Performance facts and publication substitutions refuse joins
+
+- **GIVEN** a changed revision, candidate, declaration path or semantic digest, config path or digest, project, source tuple or missing, extra or duplicate declared or recorded case
+- **WHEN** the diagnostic joins the real inspector observations
+- **THEN** it refuses by name without JSON, including coherent substitutions supplied by a broken inspector dependency
+
+#### Scenario: [TEST-AXES-089] Higher precedence membership yields typed Performance isolation failure
+
+- **GIVEN** valid complete Performance fixtures also declared by Conformance or Architecture, including a three-way overlap
+- **WHEN** the shared earlier-row classifier applies first-match precedence
+- **THEN** Conformance precedes Architecture, Architecture precedes Performance, and the CLI emits a typed wrong-level observation with nonzero exit while remaining unauthenticated and noncertifying
+
+#### Scenario: [TEST-AXES-090] Performance level dispatch preserves inherited refusals and bounded inputs
+
+- **GIVEN** unsupported CLI operands or an inherited facts or publication failure
+- **WHEN** source or installed Performance level dispatch runs
+- **THEN** it refuses without success JSON and preserves existing source-owner version-1 behavior
+
+### Requirement: Architecture runner executes exact mapped files
+
+The Architecture runner SHALL derive execution only from its validated `src/architecture-fixtures.json` policy, sort its selected canonical paths and pass every Bun test operand with exactly one literal `./` prefix. Policy and JUnit file identities SHALL remain canonical bare paths. Existing report clearing, validation order and refusal behavior SHALL be preserved.
+
+#### Scenario: [TEST-AXES-091] Architecture execution excludes nested matching decoys
+
+- **GIVEN** a valid mapped Architecture fixture and an unselected nested file whose path contains the same canonical fixture path, writes a marker and fails
+- **AND** a stale JUnit report
+- **WHEN** the real Architecture runner executes
+- **THEN** the runner succeeds, the decoy marker is absent and fresh JUnit contains only the mapped canonical testcase
+- **AND** with two mapped fixtures every operand excludes its matching nested decoy
+
+### Requirement: Find-based Bun level targets execute literal selected files
+
+The six existing find-based Memory Unit/Conformance, SQLite API/Unit/Conformance and core Unit commands SHALL emit `./src` or `./src/testing` operands and pass them unchanged to Bun. Memory Unit SHALL exclude `./src/testing/source-conformance.test.ts`. Collection identities SHALL remove exactly one leading `./` for canonical project-relative comparison. Existing selector scopes, report clearing, empty-selection and selector-error refusals SHALL remain intact. This contract covers existing shell-compatible paths and establishes no whitespace or glob safety.
+
+#### Scenario: [TEST-AXES-092] Find-based level execution excludes nested matching decoys
+
+- **GIVEN** each declared find-based level command, selected shell-compatible fixture paths, stale JUnit and nested matching marker/throw decoys outside the selector root
+- **WHEN** the real manifest command executes through `sh -c`
+- **THEN** it succeeds without executing a decoy and writes fresh JUnit containing exactly the selected canonical passing identities
+- **AND** Unit and API select two files, Conformance selects its source filename, and Memory Unit excludes its Conformance fixture
+- **AND** removing exactly one leading `./` preserves canonical collection identities without stripping a second prefix
