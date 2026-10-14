@@ -153,6 +153,8 @@ function historyCode(refusal: RefusalOf<'postApiProjectsByIdUndo'>): string {
     case 'sso_required':
     case 'reauthentication_required':
       return refusal.error;
+    case 'step_blockage_inactive':
+      return refusal.error;
     default:
       return unreachable(refusal);
   }
@@ -286,6 +288,8 @@ function stepRemoveCode(refusal: RefusalOf<'deleteApiProjectsByIdStepsByStepId'>
     case 'in_use':
     case 'referenced_by_dependency':
     case 'dependency_cycle':
+      return refusal.error;
+    case 'step_blockage_inactive':
       return refusal.error;
     default:
       return unreachable(refusal);
@@ -450,6 +454,7 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'note_must_be_text':
     case 'executorPersonId_must_be_an_id':
     case 'attemptNumber_must_be_a_whole_number_from_1':
+    case 'step_blockage_inactive':
     case 'node_done':
     case 'attempt_running':
     case 'attempt_in_future':
@@ -694,8 +699,9 @@ export const PLAN_REFUSALS: RefusalWords = {
     // Proof: all six struck, `words each attempt refusal` failed on the first,
     // `node_done`, reading `That change could not be completed (node_done).`;
     // watched 2026-10-12.
+    step_blockage_inactive: 'Step blockage changes are not enabled on this server.',
     node_done:
-      'This step is done — reopen it before starting another attempt. Nothing was changed.',
+      'This step is done — reopen it before starting an attempt or blocking it. Nothing was changed.',
     attempt_running:
       'An attempt at this step is already running — end it before starting another. Nothing was changed.',
     no_running_attempt:

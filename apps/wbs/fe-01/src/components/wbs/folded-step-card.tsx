@@ -14,6 +14,7 @@ import { HoverCard } from './hover-card';
 import type { CardAssignee } from './plan-cards';
 import { NODE_READING_GLYPH, NODE_READING_LABEL } from './status-cell';
 import { NODE_READING_TOKEN } from './status-palette';
+import { StepBlockageSection } from './step-blockage';
 import { attemptsLine, lastAttemptLine, type StepNodeReadings } from './step-reading';
 import type { Toast } from './toasts';
 
@@ -86,6 +87,9 @@ export interface FoldedStepCardProps {
    * `null` where the card offers none — a parent, an uncoded older read.
    */
   attemptActions: AttemptActions | null;
+  setBlocked?: (isBlocked: boolean) => void;
+  /** Distinguishes an older leaf read from a parent with no step nodes. */
+  isLeaf?: boolean;
   /**
    * Whether the cell's box is being typed in. The typing help
    * ({@link SHORTHAND_HELP}) rides the card only then, or beside a complaint:
@@ -139,6 +143,8 @@ export function FoldedStepCard({
   problem,
   node,
   attemptActions,
+  setBlocked,
+  isLeaf = false,
   typing = false,
 }: FoldedStepCardProps) {
   const unitWords = estimateUnit === 'minutes' ? 'min' : 'days';
@@ -182,8 +188,11 @@ export function FoldedStepCard({
     const walked = event.currentTarget.hasAttribute('data-card-action');
     const parent = walked ? document.getElementById(id) : event.currentTarget.parentElement;
     if (parent === null) throw new Error('Step card action has no action group');
+    // Proof: including disabled actions left Copy link focused in `walks past a disabled new blockage action on a done step` (2026-10-14).
     const actions = [
-      ...parent.querySelectorAll<HTMLButtonElement>(walked ? 'button[data-card-action]' : 'button'),
+      ...parent.querySelectorAll<HTMLButtonElement>(
+        walked ? 'button[data-card-action]:not(:disabled)' : 'button:not(:disabled)',
+      ),
     ];
     const current = actions.indexOf(event.currentTarget);
     const next = current + (event.shiftKey ? -1 : 1);
@@ -253,6 +262,14 @@ export function FoldedStepCard({
               Copy link
             </button>
           </div>
+        )}
+        {(isLeaf || stepNode !== null) && (
+          <StepBlockageSection
+            blockage={node?.blockage ?? null}
+            label={reference ?? `${stepName} for ${number}`}
+            setBlocked={setBlocked}
+            onActionKeyDown={onActionKeyDown}
+          />
         )}
         {onAddDependency !== undefined && (
           <button type="button" onKeyDown={onActionKeyDown} onClick={onAddDependency}>

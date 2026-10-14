@@ -43,9 +43,9 @@
 
 ## 5. Step-scoped user interface
 
-- [ ] 5.1 Red: test the step cell and card action for direct block/clear, direct versus proxy wording, retained progress, blocker cause, keyboard access and accessible name/description. Add a browser test on the production preview path.
-- [ ] 5.2 Implement the accessible step-scoped action and reading. Keep the row Status control unchanged and do not rely on color alone.
-- [ ] 5.3 Watch removal of direct/proxy distinction and cause text fail the browser assertions; record the observed output in `verify.md`.
+- [x] 5.1 Red: test the step cell and card action for direct block/clear, direct versus proxy wording, retained progress, blocker cause, keyboard access and accessible name/description. Add a browser test on the production preview path.
+- [x] 5.2 Implement the accessible step-scoped action and reading. Keep the row Status control unchanged and do not rely on color alone.
+- [x] 5.3 Watch removal of direct/proxy distinction and cause text fail the browser assertions; record the observed output in `verify.md`.
 
 ## 6. Full verification and release evidence
 

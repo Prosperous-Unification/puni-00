@@ -59,6 +59,7 @@ import { PlanToolbarSheet } from './plan-toolbar-sheet';
 import { createPointedRows, type PointedRows } from './pointed-row-store';
 import { rememberGanttDayPx, rememberGanttLabels } from './remembered-layout';
 import { statusOffersOf, type StatusRow } from './status-offers';
+import { blockageLabelsOf } from './step-blockage';
 import { stepNodeReadingsOf } from './step-reading';
 import {
   CELL,
@@ -1464,6 +1465,7 @@ export function WbsTable({
       nodesByRow === null
         ? null
         : new Map([...nodesByRow].map(([rowId, nodes]) => [rowId, [...nodes.keys()]]));
+    const causeLabels = blockageLabelsOf(workItems, steps, stepNodes);
     const rows = attachRowReadings(workItems, (row) => {
       if (nodesByRow !== null && !row.rolledUp) {
         for (const step of steps) {
@@ -1482,7 +1484,7 @@ export function WbsTable({
         if (hiddenColumnIds.includes(step.id)) continue;
         const doing = assigneeOn(row, step.id);
         const anyAssignee = anyAssigneeOn(step.id);
-        const node = stepNodeReadingsOf(row, step.id, peopleById, chartRead.timezone);
+        const node = stepNodeReadingsOf(row, step.id, peopleById, chartRead.timezone, causeLabels);
         if (unfoldedSteps.includes(step.id)) {
           estimateReadings.set(step.id, {
             layout: 'unfolded',
@@ -2586,8 +2588,19 @@ export function WbsTable({
               mentionOptions={mentionOptions}
               assigneeOn={assigneeOn}
               attemptsOn={(row, stepId) =>
-                stepNodeReadingsOf(row, stepId, peopleById, chartRead.timezone)
+                stepNodeReadingsOf(
+                  row,
+                  stepId,
+                  peopleById,
+                  chartRead.timezone,
+                  blockageLabelsOf(flat, steps, stepNodes),
+                )
               }
+              setStepBlocked={(row, stepId, isBlocked) => {
+                void run((write) =>
+                  write.perform(['tree'], () => commands.setStepBlocked(row.id, stepId, isBlocked)),
+                );
+              }}
               attemptActionsOn={(row, stepId) => ({
                 label: attemptNodeLabel(row, stepId, steps, stepNodes),
                 actions: {

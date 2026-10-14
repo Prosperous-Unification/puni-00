@@ -2,6 +2,7 @@ import type { AttemptView, NodeReadingView, PersonView } from '@/lib/wbs-api';
 
 import { NODE_READING_GLYPH, readingWords } from './status-cell';
 import { NODE_READING_TOKEN } from './status-palette';
+import { stepBlockageOf, type StepBlockageReading } from './step-blockage';
 import type { TreeRow } from './wbs-rows';
 
 /**
@@ -11,6 +12,7 @@ import type { TreeRow } from './wbs-rows';
  */
 export interface StepNodeReadings {
   reading: NodeReadingView;
+  blockage?: StepBlockageReading | null;
   /** Ascending attempt number, as the read sends them; empty when nobody has attempted the node. */
   attempts: readonly AttemptView[];
   /**
@@ -58,6 +60,7 @@ export function stepNodeReadingsOf(
   stepId: string,
   peopleById: ReadonlyMap<string, PersonView>,
   timezone: string | null,
+  causeLabels: ReadonlyMap<string, string> = new Map(),
 ): StepNodeReadings | null {
   const reading = nodeReadingOf(row, stepId);
   if (reading === null) return null;
@@ -66,6 +69,7 @@ export function stepNodeReadingsOf(
     executor === null ? null : (peopleById.get(executor)?.name ?? '(unknown)');
   return {
     reading,
+    blockage: stepBlockageOf(row, stepId, causeLabels),
     attempts,
     executorName: nameOf(attempts.at(-1)?.executorPersonId ?? null),
     executorNames: new Map(
@@ -144,6 +148,7 @@ function ReadingMark({
 }: {
   id?: string;
   reading: NodeReadingView;
+  blockage?: StepBlockageReading | null;
   relative?: boolean;
 }) {
   const size = READING_GLYPH_PX[reading];

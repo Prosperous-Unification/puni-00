@@ -79,7 +79,10 @@ const isCi = process.env['CI'] !== undefined;
  */
 const portShift = parseOrdinaryPortShift(process.env['E2E_PORT_SHIFT']);
 const fePort = 4200 + portShift;
-const runDatabase = join(repoRoot, 'tmp', `e2e-${String(Date.now())}.db`);
+const runDatabase =
+  process.env['E2E_TEST_DATABASE'] ?? join(repoRoot, 'tmp', `e2e-${String(Date.now())}.db`);
+// Workers re-read this config; retain the runner's fresh test database identity.
+process.env['E2E_TEST_DATABASE'] = runDatabase;
 mkdirSync(join(repoRoot, 'tmp'), { recursive: true });
 const servers = ordinaryServerDescriptors(repoRoot, portShift, isCi, runDatabase);
 
