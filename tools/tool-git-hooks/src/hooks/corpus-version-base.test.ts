@@ -63,68 +63,6 @@ afterEach(() => {
 });
 
 describe('the corpus comparison boundary used by CI', () => {
-  it('uses the pull request event SHA when the named base ref has moved', () => {
-    // Proof: replaced the SHA path with `origin/$PR_BASE_REF`. This case read
-    // the first commit instead of `base`, and the missing-SHA case also went
-    // green through that fallback; 2 passed / 2 failed, watched 2026-09-08.
-    const { root, first, base, head } = history();
-
-    const invocation = chooseBase(root, {
-      EVENT_NAME: 'pull_request',
-      PR_BASE_REF: 'main',
-      PR_BASE_SHA: base,
-    });
-
-    expect(invocation.exitCode).toBe(0);
-    expect(stdoutOf(invocation)).toBe(base);
-    expect(stdoutOf(invocation)).not.toBe(first);
-    expect(head).not.toBe(base);
-  });
-
-  it('refuses a pull request event without its immutable base SHA', () => {
-    const { root } = history();
-
-    const invocation = chooseBase(root, {
-      EVENT_NAME: 'pull_request',
-      PR_BASE_REF: 'main',
-    });
-
-    expect(invocation.exitCode).not.toBe(0);
-    expect(stderrOf(invocation)).toContain('PR_BASE_SHA');
-  });
-
-  it('refuses a malformed pull request base SHA before asking Git to read it', () => {
-    // Proof: removed the full-SHA validation from the production selector.
-    // `main` then resolved successfully and this failed on `Expected: not 0`;
-    // 6 passed / 1 failed, watched 2026-09-08.
-    const { root } = history();
-
-    const invocation = chooseBase(root, {
-      EVENT_NAME: 'pull_request',
-      PR_BASE_SHA: 'main',
-    });
-
-    expect(invocation.exitCode).not.toBe(0);
-    expect(stderrOf(invocation)).toContain('not a full lowercase Git SHA');
-  });
-
-  it('refuses a full event SHA that the checked-out history does not contain', () => {
-    // The gate checkout has full history. An event SHA absent from that history
-    // is malformed trusted state and Git must name the revision it refused.
-    // Proof: returned the validated SHA without asking production `mergeBase`
-    // to read it. This failed on `Expected: not 0`; 6 passed / 1 failed,
-    // watched 2026-09-08.
-    const { root } = history();
-
-    const invocation = chooseBase(root, {
-      EVENT_NAME: 'pull_request',
-      PR_BASE_SHA: '0123456789abcdef0123456789abcdef01234567',
-    });
-
-    expect(invocation.exitCode).not.toBe(0);
-    expect(stderrOf(invocation)).toContain('0123456789abcdef0123456789abcdef01234567');
-  });
-
   it('returns the immutable before SHA for a push', () => {
     // Proof: returned `HEAD` from the production push branch. This failed with
     // `Received: "HEAD"` instead of the before SHA; 6 passed / 1 failed,

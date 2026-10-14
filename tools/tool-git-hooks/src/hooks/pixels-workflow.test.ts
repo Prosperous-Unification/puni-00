@@ -179,7 +179,8 @@ describe('the CI pixels scope', () => {
 
     expect(step.env).toEqual({
       EVENT_NAME: '${{ github.event_name }}',
-      PR_BASE_SHA: '${{ github.event.pull_request.base.sha }}',
+      PR_HEAD_SHA: '${{ github.event.pull_request.head.sha }}',
+      PR_NUMBER: '${{ github.event.pull_request.number }}',
     });
     // Through `commandsOf`, like its tool-devsync twins. No comment beside this step quotes
     // these literals today; the point is that none ever can. A `Proof:` note naturally
@@ -187,7 +188,7 @@ describe('the CI pixels scope', () => {
     // the pin it explains.
     const commands = commandsOf(step.run ?? '');
     expect(commands).toContain(
-      'bunx nx show projects --affected --base="$PR_BASE_SHA" --head=HEAD --json',
+      'bunx nx show projects --affected --base="$base" --head=HEAD --json',
     );
     // One expression naming all three, so narrowing the set moves this assertion. `grep`
     // cannot be used here: `nx show projects` prints a one-line JSON array on a non-TTY.

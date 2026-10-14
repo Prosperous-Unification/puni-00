@@ -3,7 +3,7 @@
 ### Requirement: The gate scope is chosen from the event, never inferred
 
 The CI gate SHALL select its scope from `github.event_name` alone. `pull_request` SHALL run
-`nx affected` against the base SHA carried in the event payload; `push`, `merge_group` and
+`nx affected` against the validated first parent of the checked-out PR synthetic merge; `push`, `merge_group` and
 `workflow_dispatch` SHALL run the full `nx run-many`. An event with no mapping SHALL fail the
 job naming that event, and the mapped set SHALL equal the events this workflow subscribes to.
 
@@ -11,7 +11,7 @@ job naming that event, and the mapped set SHALL equal the events this workflow s
 
 - **WHEN** the workflow runs on `pull_request`
 - **THEN** the Nx gate runs `nx affected -t test lint typecheck build` with `--base` set to the
-  payload base SHA and `--head=HEAD`
+  validated synthetic merge first parent and `--head=HEAD`
 - **AND** the targets it reports are a subset of the targets a full run reports for the same tree
 
 #### Scenario: The merge queue and main keep the full gate
@@ -26,10 +26,10 @@ job naming that event, and the mapped set SHALL equal the events this workflow s
 - **THEN** the step exits non-zero naming the event, and no Nx target runs
 - **AND** removing that refusal arm from the workflow makes the pin suite fail
 
-#### Scenario: A pull-request payload carries no base SHA
+#### Scenario: The PR synthetic merge cannot be validated
 
-- **WHEN** the event is `pull_request` and the payload base SHA is empty
-- **THEN** the step fails naming the missing value instead of widening or narrowing the scope
+- **WHEN** the run SHA, payload head, PR number, merge ref, checkout, parent topology or readable parent objects cannot establish the PR synthetic merge
+- **THEN** the step fails without a usable base instead of widening or narrowing the scope
 
 ### Requirement: Tool Wiki stays in the pull-request gate when it is affected
 
