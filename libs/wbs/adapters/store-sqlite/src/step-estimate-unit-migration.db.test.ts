@@ -128,6 +128,11 @@ it.each([
 ])(
   'refuses direct down over damaged journal preconditions %s without changing stored state',
   (preconditions) => {
+    // This refusal concerns the unit migration's transaction; newer migrations
+    // may reverse successfully before it, so begin at its historical boundary.
+    expect(rollbackTo(path, FOLDER, '20261012130000_add_step_estimate_unit')).toEqual([
+      '20261014120000_add_shared_people_restore_approvals',
+    ]);
     const sqlite = seed();
     try {
       sqlite.run("INSERT INTO work_item (id,project_id,position,name) VALUES ('w','p',1,'Work')");
@@ -146,6 +151,8 @@ it.each([
         migrations: sqlite.query('SELECT * FROM __drizzle_migrations').all(),
       });
       const before = read();
+      // Proof: removing the SQL root-object guard made the null-preconditions
+      // case stop throwing at this pinned unit boundary (2026-10-14).
       expect(() => rollbackTo(path, FOLDER, '20261012120000_add_step_node_attempts')).toThrow();
       expect(read()).toEqual(before);
     } finally {

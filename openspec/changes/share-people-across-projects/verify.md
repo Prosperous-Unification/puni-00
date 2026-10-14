@@ -1,5 +1,43 @@
 # verify — share-people-across-projects
 
+## Stacked hosted CI repair: approval migration fixtures (2026-10-14)
+
+The earliest affected head is PR #425 `46b712a183790b701c1cd9c6302c5e361cdb9257`.
+The new approval migration must be named in every literal full-chain rollback answer,
+and both new tables must be excluded from historical schema comparisons after rollback.
+The older-candidate CLI fixture's current baseline now ends at the approval migration.
+The damaged step-unit journal fixture first reverses newer migrations, asserting their
+literal names, so its unchanged-ledger negative covers the unit migration's own transaction.
+The audit source check exempts the two restore tables because neither declares general audit
+columns; the existing exemption guard still validates that boundary. No production behavior
+or SQL changed.
+
+Observed checks in the isolated repair clone:
+
+- Before repair, the migration CLI and email-challenge suites: 51 pass, 2 fail
+  (`/tmp/puni-425-red.log`), naming the missing approval migration.
+- After repair, those same suites: 53 pass, 0 fail
+  (`/tmp/puni-425-focused-green.log`).
+- Calendar, organization-records, and step-unit fixtures: 50 pass, 0 fail
+  (`/tmp/puni-425-boundary-green.log`).
+- Scoped ESLint after generating the Nx graph: exit 0, no diagnostics
+  (`/tmp/puni-425-eslint-green.log`).
+- Both store and backend TypeScript builds: exit 0, no diagnostics
+  (`/tmp/puni-425-typecheck.log`).
+- Pinned `bunx @fission-ai/openspec@1.12.0 validate --all --json`: exit 0,
+  no failed validations (`/tmp/puni-425-openspec.log`).
+
+- Optimizer schema fixture: 18 pass, 0 fail (`/tmp/puni-425-optimizer-green.log`).
+- R5 proof: injected `auditColumns()` into both exempt restore schema declarations;
+  the existing exemption guard failed naming both (`/tmp/puni-425-audit-proof-red.log`).
+- R5 proof: removed the SQL root-object guard; the pinned unit fixture
+  stopped throwing for null journal preconditions (`/tmp/puni-425-unit-proof-red.log`).
+  Both mutations were restored; adjacent `Proof:` comments record the observations.
+
+The initial full store discovery inside the sandbox encountered `EPERM` writing subprocess
+stdin; an unrestricted repeat is required for that concurrency suite. The full host gate
+and fresh hosted checks remain required after the reviewed stack is pushed.
+
 ## Slice 0 — spec
 
 Written on `batch-9/010-4-16-capacity-spec` from main `4bb71e5f`. The change name, the four
