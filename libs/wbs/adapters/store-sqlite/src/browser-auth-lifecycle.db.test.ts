@@ -142,6 +142,15 @@ test('two Bun processes capturing one generation publish exactly one successor',
       children.map(async (child) => {
         const reader = child.stdout.getReader();
         const ready = await reader.read();
+        if (ready.done) {
+          const [exitCode, stderr] = await Promise.all([
+            child.exited,
+            new Response(child.stderr).text(),
+          ]);
+          throw new Error(
+            `browser lifecycle racer exited before ready: ${JSON.stringify({ exitCode, stderr })}`,
+          );
+        }
         expect(new TextDecoder().decode(ready.value)).toBe('ready\n');
         return reader;
       }),
@@ -178,6 +187,7 @@ test('two Bun processes capturing one generation publish exactly one successor',
     }
   } finally {
     for (const child of children) child.kill();
+    await Promise.all(children.map((child) => child.exited));
   }
 }, 30_000);
 

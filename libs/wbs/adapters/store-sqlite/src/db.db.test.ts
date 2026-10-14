@@ -118,6 +118,43 @@ describe('switchToWal', () => {
     }
   });
 
+  it('waits out WAL recovery reported as an extended busy error', () => {
+    const { path, rival } = rivalHoldingTheWriteLock();
+    const db = opening(path);
+    const run = db.run.bind(db);
+    // Inject the native extended code observed when two processes recover the WAL.
+    // Keep the actual SQLite lock refusal and all successful pragma side effects.
+    db.run = (...arguments_) => {
+      try {
+        return run(...arguments_);
+      } catch (cause) {
+        if (cause instanceof SQLiteError && cause.code === 'SQLITE_BUSY') {
+          const recovery = Object.create(cause) as SQLiteError;
+          Object.defineProperties(recovery, {
+            code: { value: 'SQLITE_BUSY_RECOVERY' },
+            errno: { value: 261 },
+          });
+          throw recovery;
+        }
+        throw cause;
+      }
+    };
+    try {
+      const pauses: number[] = [];
+      // Proof: the base-only classifier threw the injected recovery refusal before this pause.
+      switchToWal(db, (ms) => {
+        pauses.push(ms);
+        rival.run('COMMIT');
+      });
+      expect(pauses).toEqual([50]);
+      expect(db.query('PRAGMA journal_mode;').get()).toEqual({ journal_mode: 'wal' });
+      expect(db.query('PRAGMA busy_timeout;').get()).toEqual({ timeout: 5000 });
+    } finally {
+      db.close();
+      rival.close();
+    }
+  });
+
   it('gives up with the lock error after 100 refused attempts', () => {
     const { path, rival } = rivalHoldingTheWriteLock();
     const db = opening(path);
