@@ -631,6 +631,8 @@ describe('every test-running target answers the same from an agent shell', () =>
     }
     // Proof: omitting the new e2e-organization target's agent-output env made
     // this inventory name `wbs-fe-01:e2e-organization` as exposed.
+    // Proof: omitting the host-restore target env named wbs-be-01:test:host-restore
+    // in the cumulative release candidate inventory (2026-10-14).
     expect(exposed.sort()).toEqual([]);
   }, 30_000);
 });

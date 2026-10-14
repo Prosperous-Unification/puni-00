@@ -49,3 +49,15 @@ pointed-row-offscreen live-caret mobile` — first run 159 passed, 3 failed (str
   (`review-selection-objects.test.ts:868`, leftover `.pending-*`), not twilight-burokrat and not
   a timeout. Rerun requested; superseded by the CI run on the new head.
 - `nx run wbs-fe-01:test` 925 + 3877 + 5 passed; `typecheck` and `lint:fast` successful.
+
+## Cumulative specification reconciliation — 2026-10-14
+
+The copied Leaves requirement in this delta still claimed that Detail off hid
+assumed leaf bars. That contradicted the September 11 directive recorded in
+`detail-keeps-unestimated/specs/wbs-domain/spec.md`, the renderer's `drawnBars =
+placed.bars`, and gantt-panel.test.tsx's detail-switch assertions: assumed bar
+count stays one across both states, while parent carets disappear with brackets.
+Updated the copied requirement, half-estimated leaf scenario and caret paragraph
+to the existing renderer behavior. Updated the earlier detail delta's obsolete
+`?` label wording to this change's `no estimate` wording. Renderer behavior was
+not changed during integration.

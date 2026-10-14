@@ -620,3 +620,35 @@ Fresh `NX_TUI=false NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many
 
 Full canonical host gate, build, browser checks, CI secrets and migration lint
 remain the parent integration scope. No push, merge or deployment was performed.
+
+## Cumulative release integration — 2026-10-14
+
+Integrated stabilization `8446c9c51e20c34695986f3095c58adbcb535685`, persistence
+`40eaa8c4e5c9ed6b2723aca3e29d34a0819f538e`, tooling
+`db192173d0908e61a30dd9c9da2ac87f25516574`, and frontend
+`b81363638532ea4fc3212bbe76cc28ea68850c34` with merge commits, preserving ancestry.
+Only text conflict: adjacent independent Proof comments in workspace-targets.test.ts;
+all retained. Navigator source merged to external v7/v8 decoding into internal v9
+with empty direct facts; external v9 remains refused. Updated this change's spec and
+design to the reviewed tooling contract.
+
+Fresh cumulative checks on pop-os, isolated clone
+`/tmp/puni-release-candidate-integration-sol`; complete logs are in
+`/tmp/puni-release-candidate-evidence/`:
+
+- Frozen Bun install: exit0 with BUN_TMPDIR=/tmp.
+- Navigator plan-reference plus workspace-targets: 48 pass, 0 fail.
+- Replay capability, cutover replay/CLI and fleet CLI/apply: 96 pass, 0 fail.
+- All forward migration.sql files through migration-lint.ts: exit0.
+- OpenSpec 1.12.0 validate --all --json: 196 passed, 0 failed.
+- Changed-file Prettier check and git diff --check: exit0.
+
+R5 production-path negative: the combined workspace graph oracle failed naming
+`wbs-be-01:test:host-restore` when its CLAUDECODE/AGENT environment was absent
+(47 pass, 1 fail). Explicit zero values restored 48/48; adjacent Proof comment
+records the observed fault. No new safety guard was added.
+
+The initial sandboxed FE unit run had 924 pass and 5 fail, including subprocess
+EPERM; it is not accepted as release validation. Broad tests/type/lint and focused
+Gantt/organization checks are recorded separately once complete. The h2puni gate,
+full browser suite, deployment and host rehearsal have not been run by this worker.

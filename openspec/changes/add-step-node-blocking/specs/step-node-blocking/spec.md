@@ -475,8 +475,8 @@ identities, and preserve exact timestamps within the import transaction.
 - **WHEN** importing valid direct facts fails after one fact has been written
 - **THEN** the project, directory, facts, events and journal remain exactly as before import
 
-#### Scenario: Navigator reads its pinned document version
+#### Scenario: Navigator reads its supported document versions
 
-- **WHEN** Navigator receives external v7
+- **WHEN** Navigator receives external v7 or v8
 - **THEN** it adapts to internal v9 with empty direct facts
-- **AND** external v8 and v9 remain refused before output files are written
+- **AND** external v9 remains refused before output files are written

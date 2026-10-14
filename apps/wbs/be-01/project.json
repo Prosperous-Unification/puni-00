@@ -109,7 +109,8 @@
       "cache": false,
       "dependsOn": ["build-host-restore"],
       "options": {
-        "command": "bun test ./apps/wbs/be-01/scripts/shared-people-host-artifact.smoke.ts ./apps/wbs/be-01/scripts/shared-people-host-restore.rehearsal.ts --timeout=60000"
+        "command": "bun test ./apps/wbs/be-01/scripts/shared-people-host-artifact.smoke.ts ./apps/wbs/be-01/scripts/shared-people-host-restore.rehearsal.ts --timeout=60000",
+        "env": { "CLAUDECODE": "0", "AGENT": "0" }
       }
     }
   }

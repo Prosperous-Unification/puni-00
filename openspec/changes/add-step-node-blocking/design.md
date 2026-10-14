@@ -199,6 +199,7 @@ after subtree insertion in the existing unit of work, before announcements.
 A refused store write throws; any later failure rolls the entire import back.
 Import is a blockage writer, so enabling it has the same incompatible-writer drain
 obligation as command writes during blue/green overlap.
-Navigator still accepts external v7 only: its strict wire shape excludes the new
-root field, while its internal adapter supplies v9 and empty facts. External v8/v9
-remain refused. Schedule calculations and progress are independent of these facts.
+Navigator accepts external v7 and v8: both strict wire shapes exclude the new
+root field, while their internal adapters supply v9 and empty facts. External v9
+remains refused. Version 7 retains task schema1 with workday estimates; version 8
+retains task schema2 with native estimate units. Schedule calculations and progress are independent of these facts.
