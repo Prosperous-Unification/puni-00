@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { login, type Session } from '@/lib/api';
 import { failureMessage, unreachable } from '@/lib/http';
+import { cn } from '@/lib/utils';
 
 import { type AuthMethodsState, useAuthMethods } from './auth-methods';
 
@@ -207,7 +208,7 @@ export function AuthForm({ methods, onSignedIn }: AuthFormProps) {
   };
 
   return (
-    <Card className="w-full max-w-sm">
+    <Card data-sign-in-card className="w-full max-w-sm">
       <CardHeader>
         <CardTitle>Sign in</CardTitle>
       </CardHeader>
@@ -265,18 +266,42 @@ export function AuthForm({ methods, onSignedIn }: AuthFormProps) {
               {passwordShown ? 'Hide' : 'Show'}
             </button>
           </div>
-          <p className="text-destructive min-h-5 text-sm" role="status" aria-live="polite">
-            {error}
-          </p>
-          <Button className="h-11 w-full" type="submit" disabled={busy}>
-            Sign in with password
-          </Button>
+          {/*
+           * The refusal's line opens only when there is something to say (UI
+           * review F-052): it was a reserved `min-h-5` row between two form gaps,
+           * so an ordinary visit had 52px of nothing between Password and its
+           * button. The row animates from `0fr` to `1fr` rather than appearing,
+           * so the button slides down instead of jumping; the live region itself
+           * is always in the document, which is what makes a screen reader
+           * announce text put into it. It shares a box with the button so the
+           * form's gap is spent once when the line is shut.
+           */}
+          <div className="grid">
+            <div
+              data-refusal-row
+              className={cn(
+                'grid transition-[grid-template-rows] duration-150 ease-out motion-reduce:transition-none',
+                error === '' ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]',
+              )}
+            >
+              <p
+                className="text-destructive min-h-0 overflow-hidden text-sm not-empty:pb-3"
+                role="status"
+                aria-live="polite"
+              >
+                {error}
+              </p>
+            </div>
+            <Button className="h-11 w-full" type="submit" disabled={busy}>
+              Sign in with password
+            </Button>
+          </div>
         </form>
         <div className="grid gap-3">
           <div className="text-muted-foreground text-center text-sm">or</div>
           {/*
-           * Conditional, not height-reserved. The password slot above carries
-           * `min-h-5` so its form does not jump as an error comes and goes; this
+           * Conditional, not height-reserved. The password slot above opens its
+           * row with a transition so its form does not jump as an error comes; this
            * one is shown once on arrival and never changes, so reserving a line
            * for it would leave a permanently empty message slot under the SSO
            * button on every ordinary visit.

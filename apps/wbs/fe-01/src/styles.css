@@ -160,6 +160,17 @@
      hover; seen on PR #355, 2026-10-12. */
   --reading-waiting: oklch(0.45 0.11 215);
   --reading-skipped: oklch(0.49 0.09 257);
+  /*
+   * Quiet text that must still be read where it rests in the table: the
+   * hidden-chip count (`+N`) and the grid's placeholders (`search`). The muted
+   * slate one step darker, because `--muted-foreground` measures 4.48:1 on a
+   * banded row (rgb(98,116,142) on rgb(247,248,248)) and the placeholders drew
+   * it at 0.7 opacity, near 2.5:1 (UI review F-071). Its own token rather than a
+   * darker `--muted-foreground`: that one is every secondary line in the app,
+   * and several measured claims (`slack-cell.spec.ts`' tag share) are made
+   * against it. `plan-table-review.spec.ts` measures both on the band.
+   */
+  --quiet-ink: oklch(0.5 0.046 257.417);
 }
 
 .dark {
@@ -195,6 +206,9 @@
   --status-blocked-by-proxy: oklch(0.6 0.09 22);
   --reading-waiting: oklch(0.8 0.11 215);
   --reading-skipped: oklch(0.6 0.09 257);
+  /* The dark palette's muted ink already clears the dark band; only the placeholders'
+     0.7 opacity took it under (4.16:1). */
+  --quiet-ink: oklch(0.704 0.04 256.788);
 
   /*
    * **Nothing re-points a `--grid-*` token here, and that is a rule rather than
@@ -359,6 +373,7 @@
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
+  --color-quiet-ink: var(--quiet-ink);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
@@ -1154,9 +1169,11 @@
     background: var(--background);
   }
 
+  /* Full `--quiet-ink`, no opacity: a placeholder is the only word an empty
+     cell says, and it has to clear 4.5:1 on a banded row (UI review F-071). */
   [data-grid] ::placeholder {
-    color: var(--muted-foreground);
-    opacity: 0.7;
+    color: var(--quiet-ink);
+    opacity: 1;
   }
 
   /* The estimate shorthand's `o/r/p` is a reminder of a syntax, not a prompt to

@@ -2,6 +2,7 @@ import { expect, type Page, test } from '@playwright/test';
 
 import type { PlanOptimizationView, PlanRead } from '../src/lib/wbs-api';
 import { createProject } from './create-project';
+import { countToolbarControls } from './toolbar-controls';
 
 /**
  * The toolbar's width with one `Project settings` control where three dialogs'
@@ -71,6 +72,13 @@ const LAID_OUT_BEFORE_AT_1280 = 1445.33;
 const LAID_OUT_NOW_AT_1280 = 1332.5;
 const ROWS_BEFORE_AT_1280 = 2;
 
+/**
+ * The controls a fresh project's toolbar offers at 1280, counted by role
+ * (`countToolbarControls`), measured 2026-10-14: ten buttons, the `Plan with`
+ * combobox, two textboxes (Find, the start date) and four popover groups.
+ */
+const CONTROLS_AT_1280 = 17;
+
 /** Registers a throwaway account and opens an empty project. */
 async function freshProject(page: Page): Promise<void> {
   await page.goto('/');
@@ -83,7 +91,7 @@ async function freshProject(page: Page): Promise<void> {
  * The toolbar's laid-out shape: every control's width plus the gaps between them
  * (what the bar has to fit, whatever it wrapped to) and how many rows it took.
  */
-function measureToolbar(page: Page): Promise<{ laidOut: number; rows: number; controls: number }> {
+function measureToolbar(page: Page): Promise<{ laidOut: number; rows: number }> {
   return page.evaluate(() => {
     const toolbar = document.querySelector('[data-toolbar]');
     if (toolbar === null) throw new Error('the plan has no toolbar');
@@ -94,7 +102,6 @@ function measureToolbar(page: Page): Promise<{ laidOut: number; rows: number; co
     return {
       laidOut: boxes.reduce((total, box) => total + box.width, 0) + gap * (boxes.length - 1),
       rows: new Set(boxes.map((box) => Math.round(box.top))).size,
-      controls: boxes.length,
     };
   });
 }
@@ -167,9 +174,16 @@ test.describe('the project settings control, in a browser', () => {
     const measured = await measureToolbar(page);
     // Non-vacuity: a bar with fewer controls than three-into-one leaves is a bar
     // that lost something else, and the width below would be flattering it.
-    expect(measured.controls, 'the toolbar lost controls beyond the three').toBeGreaterThanOrEqual(
-      16,
-    );
+    // Counted by role since the bar's end became one flex item (F-056): its
+    // children say how it wraps, not what it holds.
+    // Proof, watched 2026-10-14: Redo taken off the bar failed on `the toolbar
+    // lost controls beyond the three · Expected: >= 17 · Received: 16`, while the
+    // width below passed (a narrower bar). The old `children >= 16` premise could
+    // not stay: the grouped bar has 12 children.
+    expect(
+      await countToolbarControls(page),
+      'the toolbar lost controls beyond the three',
+    ).toBeGreaterThanOrEqual(CONTROLS_AT_1280);
     // The claim D5 states, kept as the record of what folding three controls
     // into one bought: 180px, and the bar is no wider than it was.
     expect(
