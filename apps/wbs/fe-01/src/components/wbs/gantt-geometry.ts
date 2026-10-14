@@ -77,24 +77,31 @@ export type BindingFloor =
 /**
  * The ten colours a person's bars are drawn in, handed out in this order.
  *
- * Matplotlib's `tab10`, taken whole rather than sampled from the app's own
+ * Matplotlib's `tab10` hues, taken whole rather than sampled from the app's own
  * tokens: the app's palette is one hue in five lightnesses — built to keep
  * chrome quiet — and ten people need ten hues a reader can tell apart at 28px
  * wide. These are the qualitative set that has been squinted at longest.
+ *
+ * **Four lightnesses moved** so every bar's 9px label clears 5:1 with the ink
+ * {@link inkOn} gives it (ui-review F-038, 2026-10-13): blue `#1f77b4`, red
+ * `#d62728`, purple `#9467bd` and grey `#7f7f7f` sat within a few hundredths
+ * of 4.5:1 or under it with either ink, and a 9px antialiased glyph never
+ * reaches its full ink, so the blue measured 4.44:1 in pixels. Each moved
+ * along OKLab lightness only, as little as clears 5:1; the hue is `tab10`'s.
  *
  * An eleventh person wraps onto the first colour. Two people sharing a colour
  * is a legible chart with an ambiguity in it; a generated eleventh hue next to
  * these ten is an illegible one.
  */
 export const PERSON_BAR_COLORS = [
-  '#1f77b4',
+  '#1872af',
   '#ff7f0e',
   '#2ca02c',
-  '#d62728',
-  '#9467bd',
+  '#d42526',
+  '#865aae',
   '#8c564b',
   '#e377c2',
-  '#7f7f7f',
+  '#898989',
   '#bcbd22',
   '#17becf',
 ] as const;
@@ -163,38 +170,41 @@ export type BarColor = (typeof PERSON_BAR_COLORS)[number] | typeof UNASSIGNED_BA
 const BAR_LABEL_LIGHT = '#ffffff';
 const BAR_LABEL_DARK = '#0f172a';
 
-/**
- * How light a bar has to be before its label is written in dark ink.
- *
- * 0.35 of WCAG relative luminance, chosen against the palette rather than out
- * of the standard: it puts `#bcbd22`, `#17becf` and `#ff7f0e` — the three
- * `tab10` entries white is nearly invisible on — over the line, and leaves the
- * other seven under it.
- */
-const BAR_LABEL_DARK_ABOVE = 0.35;
+/** WCAG relative luminance of a six-digit hex. */
+function luminanceOf(hex: string): number {
+  const linear = [1, 3, 5]
+    .map((at) => Number.parseInt(hex.slice(at, at + 2), 16) / 255)
+    .map((channel) => (channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+}
+
+/** The WCAG contrast ratio of two six-digit hexes. */
+function contrastOf(first: string, second: string): number {
+  const [light, dark] = [luminanceOf(first), luminanceOf(second)].sort((a, b) => b - a);
+  return (light + 0.05) / (dark + 0.05);
+}
 
 /**
- * The ink a bar's label is written in, so it can be read on that bar.
+ * The ink a bar's label is written in, so it can be read on that bar: of the
+ * two inks, the one with the higher WCAG contrast on the fill.
  *
- * WCAG relative luminance of the fill, and the darker of two inks above
- * {@link BAR_LABEL_DARK_ABOVE}. One white for all ten colours is what a
- * qualitative palette cannot have: `#bcbd22` is a highlighter, and white on it
- * is a label nobody reads.
+ * One white for all ten colours is what a qualitative palette cannot have:
+ * `#bcbd22` is a highlighter, and white on it is a label nobody reads. It was a
+ * hand-set luminance threshold (0.35) until ui-review F-038, which put green
+ * `#2ca02c` under white at 3.40:1 where dark ink gives it 5.25:1; the better
+ * of the two is the threshold that cannot be set wrong.
  *
  * No malformed-input branch, and that is the type's doing rather than an
- * omission: {@link BarColor} is eleven six-digit hexes, so the parse below
- * cannot come back `NaN`.
+ * omission: {@link BarColor} is eleven six-digit hexes, so the parse cannot
+ * come back `NaN`.
  */
 export function inkOn(barColor: BarColor): string {
-  const linear = [1, 3, 5]
-    .map((at) => Number.parseInt(barColor.slice(at, at + 2), 16) / 255)
-    .map((channel) => (channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4));
-  const luminance = 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
-  // Proof: the threshold raised to 99, which no luminance reaches — one white
-  // for every bar, which is what this function exists not to do. `writes the
-  // label in ink the bar can be read through` alone failed, on `expected
-  // '#ffffff' to be '#0f172a'`; watched 2026-08-09.
-  return luminance > BAR_LABEL_DARK_ABOVE ? BAR_LABEL_DARK : BAR_LABEL_LIGHT;
+  // Proof: the comparison inverted to pick the weaker ink, and `writes the
+  // label in ink the bar can be read through` failed on `expected '#ffffff'
+  // to be '#0f172a'`; watched 2026-10-13.
+  return contrastOf(BAR_LABEL_DARK, barColor) > contrastOf(BAR_LABEL_LIGHT, barColor)
+    ? BAR_LABEL_DARK
+    : BAR_LABEL_LIGHT;
 }
 
 /**
@@ -3536,6 +3546,9 @@ export function projectAttemptMarks(
   };
 }
 
+/** The narrowest a positive bar is painted, in CSS pixels; its scheduled span is unchanged. */
+export const MIN_MARK_PX = 4;
+
 /** Paint and pointer bounds in chart units; scheduled endpoints remain in {@link PlacedBar}. */
 export function placeBarSurface(
   x: number,
@@ -3548,10 +3561,17 @@ export function placeBarSurface(
   hitX: number;
   hitWidth: number;
 } {
-  const tick = rung.cellsPerWorkday > 1 && width > 0 && width * rung.pxPerWorkday < 4;
+  // Every positive mark is painted at least {@link MIN_MARK_PX} wide, at every
+  // rung: at Months a quarter-day slice was a 1px sliver under its own 2px
+  // outline (ui-review F-026). Only the sub-day rungs call it a tick, which is
+  // what their clock axis draws differently.
+  const floored = width > 0 && width * rung.pxPerWorkday < MIN_MARK_PX;
+  const tick = rung.cellsPerWorkday > 1 && floored;
   // Proof: replacing this floor by width failed the production panel's two-minute
-  // tick case at 3.733px instead of 4px (subday2-proof-floor, 2026-10-12).
-  const paintedWidth = tick ? 4 / rung.pxPerWorkday : width;
+  // tick case at 3.733px instead of 4px (subday2-proof-floor, 2026-10-12); scoped
+  // back to the sub-day rungs, `paints a quarter-day bar no narrower than 4px`
+  // failed on `expected 1 to be greater than or equal to 4` (2026-10-13).
+  const paintedWidth = floored ? MIN_MARK_PX / rung.pxPerWorkday : width;
   // Proof: removing the 18px floor failed the same panel case at 4px instead
   // of 18px (subday2-proof-hit, 2026-10-12).
   const hitWidth = Math.max(paintedWidth, 18 / rung.pxPerWorkday);
