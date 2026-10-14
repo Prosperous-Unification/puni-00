@@ -226,3 +226,34 @@ dependency' --timeout=30000` failed on exactly the hosted forbidden edge.
 Full host gate, full repository tests and full repository build remain with the coordinator.
 The separate hosted browser-auth-lifecycle readiness failure is outside this graph repair.
 No remote push or merge was performed.
+
+## Composition with public main 8f324607 (2026-10-14)
+
+Rebased the seven PR-only commits, including the product graph repair, onto exact public main
+`8f324607e6c73c249faa79733c4cb7a7dddc605b`. The only conflict was Burokrat's unknown-command
+usage string: main added `inspect-performance-sources` and this PR added `validate-plan-tasks`.
+The resolution keeps both. Range-diff preserved the other patches, including the graph repair;
+the launcher patch differs only in context. No feature scope changed.
+
+- Frozen dependency installation exited 0. The composed workspace-projects/workspace-targets
+  suites passed: 40 tests, 0 failures, 104 assertions.
+- Repeated all three independent real-hasher mutations and all three Nx affected selections
+  recorded above on the composed branch: each mutation failed on its intended missing path,
+  and each affected command selected Burokrat. All mutations were restored.
+- Navigator, plan-task, Burokrat CLI and main's Performance source production tests passed:
+  118 tests, 0 failures, 669 assertions across six source files.
+- Canonical package build passed: 2 tests, 0 failures, 62 assertions, including real Navigator
+  output through the built executable outside the repository and tampering refusal.
+- Committed relationship declarations and focused pilot/bootstrap production tests passed:
+  9 tests, 0 failures, 119 assertions. The separately focused committed pilot passed before
+  restacking as well: 1 test, 0 failures, 60 assertions.
+- Scoped Navigator/tool-devsync lint/typecheck and Burokrat lint:source/typecheck all passed
+  with caching disabled on the composed branch.
+
+An exploratory full Burokrat target began before the repair commit. Its pilot fixture cloned
+committed HEAD's old project.json while overlaying the edited relationship declarations and
+reported authority-selector mismatch. The committed focused rerun passed. The broad run was
+then interrupted with controlled exit 130 before restacking to avoid changing its checkout
+under live tests; its complete suite is unverified. Its abandoned named contract-test scratch
+directory was removed. Full host gate and full repository checks remain delegated. The separate
+hosted browser-auth-lifecycle readiness failure was not exercised by these scoped checks.
