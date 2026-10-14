@@ -2,7 +2,7 @@ bun test v1.4.2 (744846f84)
 
 libs/wbs/domain/domain/src/saved-plan/step-blockages.test.ts:
 621 | }
-622 | 
+622 |
 623 | /** Validates direct blockage at capture and stored-body boundaries without repairing trusted state. */
 624 | export function assertStepBlockages(body: unknown): void {
 625 |   if (typeof body !== 'object' || body === null || !('stepBlockages' in body) || !Array.isArray(body.stepBlockages))

@@ -2,7 +2,7 @@ bun test v1.4.2 (744846f84)
 
 libs/wbs/application/core/src/service/saved-plan-input.test.ts:
 452 | });
-453 | 
+453 |
 454 | it('captures direct blockage while canonical schedule input and full Fast schedule stay identical', () => {
 455 |   const plain = { ...reads, dependencies: [], typedDependencies: [], workItems: reads.workItems.map((row) => ({ ...row, deadline: null, readiness: null, hold: null })), stepBlockages: [] } as unknown as PlanInputReads;
 456 |   const blocked = { ...plain, stepBlockages: [{ workItemId: 'w1', stepId: 's1', blockedAt: -123 }] };

@@ -483,4 +483,10 @@ Raw observed output lives in `evidence/saved-plan/`; `receipts.json` records eac
 
 - Final five-project scoped lint repeated after test/docs cleanup: passed, 0 cache hits, 4.2s.
 - Pinned OpenSpec 1.12.0 `validate --all --json`: 169 changes and 18 specs passed, zero failed.
-- Final TypeScript repeat passed with no diagnostics after retained-done regression and fixture cleanup. Prettier check over every changed source/spec and the receipts JSON passed; `git diff --check` passed.
+- Final TypeScript repeat passed with no diagnostics after retained-done regression and fixture cleanup. Prettier check over every changed source/spec and the receipts JSON passed. The precommit worktree `git diff --check` passed but excluded then-untracked evidence logs; review of `560096ac56c2d325a0f094c35fe094aac7c7d7d3` with `git diff --check HEAD^ HEAD` found trailing whitespace in `fold.txt` and `upgrade.txt`.
+
+### Publication correction after Astra review
+
+Removed the two trailing spaces from diagnostic source excerpts in `evidence/saved-plan/fold.txt` and `upgrade.txt`; all fault output and exit receipts are retained. The specification and design now name stored-body normalization for comparison as the validation boundary. `SavedPlanService.read`/`readOfStored` deliberately return opaque exact bytes: raw reads verify body hashes and the schedule-input hash link but do not parse the input. Malformed direct facts are refused when capture validates them or comparison parses and normalizes the stored body.
+
+Correction checks passed: focused `step-blockages.test.ts` (28 passed, 0 failed, 36 expectations), changed Markdown Prettier, pinned OpenSpec 1.12.0 strict validation (valid, zero issues), staged `git diff --check --cached`, and complete slice whitespace check from `f069af34082983003b0714ca59fd8532a396d605`. Final committed checks use `git diff --check HEAD^ HEAD` and `git diff --check f069af34082983003b0714ca59fd8532a396d605 HEAD`; the parent receives their observed exit status with the correction SHA. No production behavior changed; wider tests/type/lint and host gate were not repeated for this documentation/evidence correction.

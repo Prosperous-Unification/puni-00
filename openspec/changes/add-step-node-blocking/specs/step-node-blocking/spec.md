@@ -429,7 +429,7 @@ Project-step deletion SHALL count direct blockage facts separately from progress
 
 ### Requirement: Saved plans retain direct step blockage independently of the schedule
 
-Saved-plan input schema7 SHALL require direct `stepBlockages` rows sorted by work-item and step identity. Capture SHALL detach facts from one snapshot, including retained facts on done nodes. Older schemas SHALL upgrade to empty without rewriting stored bytes. Capture and stored readers SHALL refuse malformed facts. Comparison SHALL address owner/step pairs under progress. Facts SHALL change saved bytes and hashes while leaving schedule input and full Fast output identical.
+Saved-plan input schema7 SHALL require direct `stepBlockages` rows sorted by work-item and step identity. Capture SHALL detach facts from one snapshot, including retained facts on done nodes. Older schemas SHALL upgrade to empty without rewriting stored bytes. Capture and stored-body normalization for comparison SHALL refuse malformed facts. Comparison SHALL address owner/step pairs under progress. Facts SHALL change saved bytes and hashes while leaving schedule input and full Fast output identical.
 
 #### Scenario: Direct blockage survives later edits to the live plan
 
@@ -447,8 +447,8 @@ Saved-plan input schema7 SHALL require direct `stepBlockages` rows sorted by wor
 #### Scenario: Current saved input refuses a corrupt direct fact
 
 - **GIVEN** current saved input with a duplicate pair, unknown owner or step, parent owner, missing or fractional blocked time, or absent collection
-- **WHEN** it is captured or read
-- **THEN** it throws before returning a usable saved input
+- **WHEN** it is captured or its stored body is normalized for comparison
+- **THEN** it throws before returning a usable comparison input
 
 #### Scenario: Comparison names the exact changed step blockage
 
