@@ -15,6 +15,7 @@ import { afterAll, expect, test } from 'bun:test';
 import fc from 'fast-check';
 
 import {
+  type AuthorityClaim,
   AuthorityContentionError,
   AuthorityOpenError,
   bootstrapAuthority,
@@ -53,7 +54,14 @@ interface Real {
 type Outcome =
   | { readonly kind: 'bootstrapped' }
   | { readonly kind: 'contended' }
-  | { readonly kind: 'opened'; readonly nextGeneration: number; readonly sessions: number }
+  | {
+      readonly kind: 'opened';
+      readonly nextGeneration: number;
+      readonly sessions: readonly {
+        readonly sessionId: string;
+        readonly claims: readonly AuthorityClaim[];
+      }[];
+    }
   | { readonly kind: 'acquired'; readonly generation: number }
   | { readonly kind: 'refused'; readonly failure: string };
 
@@ -122,7 +130,9 @@ function runInspect(root: string): Outcome {
       return {
         kind: 'opened',
         nextGeneration: state.nextGeneration,
-        sessions: state.generations.length,
+        sessions: state.generations
+          .map(({ claims, sessionId }) => ({ claims, sessionId }))
+          .sort((left, right) => left.sessionId.localeCompare(right.sessionId)),
       };
     } finally {
       store.close();
@@ -148,6 +158,20 @@ function runAcquire(root: string, session: string, path: string): Outcome {
   } catch (error) {
     return classify(error);
   }
+}
+
+function inspectModel(model: Model): Outcome {
+  if (!model.present) return { failure: 'absent', kind: 'refused' };
+  return {
+    kind: 'opened',
+    nextGeneration: model.nextGeneration,
+    sessions: [...model.sessions]
+      .map(([sessionId, identity]) => ({
+        claims: [{ access: 'write', identity, kind: 'path' } as const],
+        sessionId,
+      }))
+      .sort((left, right) => left.sessionId.localeCompare(right.sessionId)),
+  };
 }
 
 function assertAbsentLeavesNothing(model: Model, real: Real): void {
@@ -186,11 +210,7 @@ class Inspect implements fc.AsyncCommand<Model, Real> {
   async run(model: Model, real: Real): Promise<void> {
     const before = databaseDigest(real.root);
     const outcome = runInspect(real.root);
-    expect(outcome, 'I2/I4 inspect').toEqual(
-      model.present
-        ? { kind: 'opened', nextGeneration: model.nextGeneration, sessions: model.sessions.size }
-        : { failure: 'absent', kind: 'refused' },
-    );
+    expect(outcome, 'I2/I4 inspect').toEqual(inspectModel(model));
     expect(databaseDigest(real.root), 'I3 inspect changed the database').toBe(before);
     assertAbsentLeavesNothing(model, real);
     await Promise.resolve();
@@ -395,10 +415,11 @@ class ConcurrentAcquires implements fc.AsyncCommand<Model, Real> {
       expected[index] = modelAcquire(model, request.session, request.path);
     }
     expect(outcomes, 'I4/I5/I6 concurrent acquisitions linearize').toEqual(expected);
+    // Proof: appending `/injected` to each path in production's insertClaim.run made
+    // `concurrent acquisitions preserve exact persisted sessions and claims` fail here on
+    // changed identities while nextGeneration and session counts still matched (2026-10-14).
     expect(runInspect(real.root), 'I4 contention consumes no generation or claim').toEqual(
-      model.present
-        ? { kind: 'opened', nextGeneration: model.nextGeneration, sessions: model.sessions.size }
-        : { failure: 'absent', kind: 'refused' },
+      inspectModel(model),
     );
   }
 
@@ -457,6 +478,21 @@ test('the lifecycle classifier accepts only typed contention', async () => {
     failure: 'untyped: authority database remained busy after 1 attempts',
     kind: 'refused',
   });
+});
+
+test('concurrent acquisitions preserve exact persisted sessions and claims', async () => {
+  await fc.assert(
+    fc.asyncProperty(fc.scheduler(), async (scheduler) => {
+      const model: Model = { nextGeneration: 1, present: false, sessions: new Map() };
+      const real: Real = { root: repository() };
+      await new Bootstrap().run(model, real);
+      await new ConcurrentAcquires(scheduler, [
+        { path: 'src', session: 'session-a' },
+        { path: 'docs', session: 'session-b' },
+      ]).run(model, real);
+    }),
+    { numRuns: 1, seed: 20261014 },
+  );
 });
 
 test('authority lifecycle matches its model across concurrent processes', async () => {

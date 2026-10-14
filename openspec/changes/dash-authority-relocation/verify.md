@@ -208,7 +208,8 @@ PR #408 head `3d1e3b9b158a598293f80bafc3403ee51dd37f6e`, Twilight CI run
 Production's finite retry budget remains unchanged. Both oracles now allow only typed
 contention, still require exactly one original creator, await every original worker and require
 one fresh bootstrap per contended peer to refuse `exists`. Concurrent acquisitions treat typed
-contention as no state transition and inspect the settled generation and session counts.
+contention as no state transition and inspect the settled generation, session identities and
+full claim lists against the reference model.
 Claim-race fixtures bootstrap before spawning workers. The spec and JSDoc qualify convergence
 by the configured budget.
 
@@ -232,3 +233,22 @@ bootstrap worker. They verify no database is created and the peer's marker survi
 
 The focused suite passed after fault restoration. Full host gate, build, CI secrets and migration
 lint are not claimed by these scoped checks; the publishing workflow must gate its exact SHA.
+
+### Review correction: compare exact persisted claims
+
+The settled snapshot originally compared only `nextGeneration` and the session count, which
+could miss a changed path or substituted session. `runInspect` now returns session identities
+and full claim lists, sorted by session identity. Both inspection and the concurrent-acquisition
+assertion compare that snapshot to `model.sessions`. A deterministic disjoint two-session
+acquisition case exercises the same concurrent assertion.
+
+Injected production fault: append `/injected` to each path passed to `insertClaim.run`.
+`concurrent acquisitions preserve exact persisted sessions and claims` failed at
+`I4 contention consumes no generation or claim`: `nextGeneration` remained 3 and both sessions
+remained present, but `src` became `src/injected/injected` and `docs` became `docs/injected`.
+The fault was restored and an adjacent `Proof:` records this observation.
+
+Fresh main-based checks after restoration: the same three-file focused command above passed
+29 tests with 251 assertions in 34.13 s. Uncached `twilight-dash:lint` and
+`twilight-dash:typecheck` exited 0; OpenSpec validation passed 189/189; Prettier and
+`git diff --check` passed. The full host gate remains for the publishing workflow's exact SHA.
