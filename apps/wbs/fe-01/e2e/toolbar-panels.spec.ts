@@ -160,6 +160,68 @@ test.describe('the toolbar popovers', () => {
     expect(read.attachment).toContain('local');
   });
 
+  test('Saved plans has the anatomy and the panel style of Views (F-061)', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openPlan(page);
+    /** What a reader sees of a panel, its name field and its empty line. */
+    const look = async (panel: string, field: string, empty: string) => {
+      const box = page.locator(panel);
+      await expect(box).toBeVisible();
+      const read = (node: Element) => {
+        const style = getComputedStyle(node);
+        return {
+          background: style.backgroundColor,
+          border: `${style.borderTopWidth} ${style.borderTopColor}`,
+          radius: style.borderTopLeftRadius,
+          padding: style.paddingTop,
+          shadow: style.boxShadow,
+          font: style.fontSize,
+        };
+      };
+      const fieldBox = box.getByRole('textbox', { name: field });
+      await expect(fieldBox, `${panel} has no name field`).toBeVisible();
+      return {
+        panel: await box.evaluate(read),
+        field: await fieldBox.evaluate((node) => {
+          const style = getComputedStyle(node);
+          return `${style.height} ${style.borderTopColor} ${style.fontSize}`;
+        }),
+        empty: await box
+          .getByText(empty)
+          .evaluate((node) => `${getComputedStyle(node).color} ${getComputedStyle(node).fontSize}`),
+      };
+    };
+    await summaryOf(page, 'Views').click();
+    const views = await look('[data-saved-views-panel]', 'Name this view', 'No saved views yet.');
+    await summaryOf(page, 'Views').click();
+    await summaryOf(page, 'Saved plans').click();
+    // Proof: on 2026-10-14, against the unstyled shelf, this failed on `[data-saved-plans-panel]
+    // has no name field` — a heading, a native `Save plan` button and a bare sentence.
+    const plans = await look('[data-saved-plans-panel]', 'Name this plan', 'No plans saved yet.');
+    expect(plans).toEqual(views);
+
+    // The primary Save is the toolbar's primary button, Add work item.
+    const primary = await page
+      .getByRole('button', { name: 'Add work item' })
+      .evaluate((node) => getComputedStyle(node).backgroundColor);
+    const save = page.locator('[data-saved-plans-panel]').getByRole('button', { name: 'Save' });
+    expect(await save.evaluate((node) => getComputedStyle(node).backgroundColor)).toBe(primary);
+
+    // A named save lands as a row that offers compare and delete.
+    await page.getByRole('textbox', { name: 'Name this plan' }).fill('Before the re-plan');
+    await save.click();
+    const row = page.locator('[data-saved-plans-panel] li', { hasText: 'Before the re-plan' });
+    await expect(row).toBeVisible();
+    await expect(
+      row.getByRole('button', { name: 'Compare Before the re-plan with the current plan' }),
+    ).toBeVisible();
+    await row.getByRole('button', { name: 'Delete saved plan Before the re-plan' }).click();
+    await row.getByRole('button', { name: 'Delete', exact: true }).click();
+    await expect(
+      page.locator('[data-saved-plans-panel]').getByText('No plans saved yet.'),
+    ).toBeVisible();
+  });
+
   test('Export / Import is one line and lists plain menu items (F-004, F-031)', async ({
     page,
   }) => {
