@@ -976,3 +976,33 @@ in a test-supported shared release. Shared physical acceptance and activation re
 - **WHEN** the physical host CLI is invoked
 - **THEN** it refuses before opening a writable database connection despite the installed transaction owner
 - **AND** the legacy container-local restore also refuses shared input even when a test release supports shared
+
+### Requirement: process-level shared recovery rehearsal before activation
+
+Before advertising shared recovery, a test-only release rehearsal SHALL issue personal approvals
+through the authenticated mounted application for distinct actors in two organizations, close
+application connections, and invoke the real host owner in a separate process on the same SQLite
+file. It SHALL restore shared mode including unranked-project null-cause events, isolated rank-only
+state, historical rank fields, exact actors, canonical digest and durable receipt/consumption.
+This rehearsal SHALL add no production environment or CLI capability override.
+
+#### Scenario: shared transaction process death
+
+- **GIVEN** personally approved shared recovery has spilled uncommitted WAL pages while holding its host flock
+- **WHEN** the owner is killed before receipt commit
+- **THEN** every mode, rank, audit, event, sequence and evidence write rolls back
+- **AND** a rival is excluded before death and a successor acquires the same flock afterward
+
+#### Scenario: committed output is lost
+
+- **GIVEN** a separate shared recovery process commits and exits without returning its receipt
+- **WHEN** ranks and memberships later change and a cold process retries the exact original references
+- **THEN** it returns the original durable receipt with no changed table or sequence
+
+#### Scenario: real physical writers exclude shared recovery
+
+- **GIVEN** real Docker blue/green and an extra writable alias-mounted container use the rehearsal database
+- **WHEN** either colour or the extra writer runs, a colour maps a foreign database inode, or a writable source is absent or unreadable
+- **THEN** shared recovery refuses before writable open
+- **AND** with valid identical database mappings and every test-owned writer stopped, shared recovery commits
+- **AND** the unchanged production CLI still refuses shared recovery while production supports only isolated mode

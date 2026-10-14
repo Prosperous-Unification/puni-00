@@ -503,7 +503,8 @@ sequence`, `push failure retains durable event`, `expired replay requires snapsh
 - [x] 10.3a Installed immediate restore owner and additive receipt/consumption schema; cold retry,
       personal membership recheck, atomic mode/rank/audit/event writes, completion issuance guard,
       host dispatch and unconditional legacy shared refusal. Keep physical shared capability disabled.
-- [ ] 10.3b Remaining shared physical acceptance/exclusion proofs before activation.
+- [x] 10.3b Local process-level shared physical acceptance/exclusion rehearsal; production
+      activation and attended live-host acceptance remain 10.4.
 - [ ] 10.3 One immediate restore transaction rechecks and consumes every changed organization's
       personal approval/membership, restores modes/ranks, records per-org audits, all-project durable
       elsewhere_changed events, receipt and consumption. Fail atomically and retry by receipt.
@@ -532,3 +533,17 @@ sequence`, `push failure retains durable event`, `expired replay requires snapsh
       one connection/backup plus all existing flock/process-death/mount-source proofs.
 - [x] Watch binding/role/eligibility/atomicity/receipt/retry/event/legacy faults fail; record adjacent
       Proof comments, focused checks, strict OpenSpec and scoped Docker evidence before review commit.
+
+### 10.3b ordered TDD slices
+
+- [x] RED authenticated mounted two-organization approvals, then stop the app and transfer its exact
+      SQLite file to a separate test-supported host-owner process. Assert independent canonical
+      bytes, personal actors/current roles, isolated rank-only history, shared unranked events,
+      sequences, durable receipt and exact consumption.
+- [x] Shared WAL precommit SIGKILL rolls back the complete table set and releases the same flock;
+      committed lost-output cold retry returns the original receipt without writes after later edits.
+- [x] Shared physical pre-opener negatives and real labelled Docker blue/green/extra alias writer
+      exclusions, foreign inode, absent/unreadable sources; stop test-owned writers and prove shared
+      success. Preserve unchanged production CLI shared refusal and retained backup pathname.
+- [x] Watch each architect fault independently; record scoped Bun/Nx, OpenSpec, Docker, formatting
+      and mutation receipts in verify.md. Commit review candidate; independent review precedes push.
