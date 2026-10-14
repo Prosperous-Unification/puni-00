@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -37,7 +37,14 @@ async function fixture(
     | 'idle'
     | 'race'
     | 'unmanaged'
-    | 'mount-missing' = 'none',
+    | 'mount-missing'
+    | 'database-file'
+    | 'database-live'
+    | 'database-alias'
+    | 'database-destination'
+    | 'database-env-missing'
+    | 'idle-database'
+    | 'preboot-replay' = 'none',
 ) {
   const root = await mkdtemp(join(tmpdir(), 'compose-writer-'));
   roots.push(root);
@@ -49,27 +56,48 @@ async function fixture(
   const io: SwapExecutionIo = {
     barrierStateDir: root,
     captureStateDir: root,
-    prepareGreen: () => {
+    resolveMount: (path) =>
+      Promise.resolve(
+        fault === 'database-alias' && path === '/aliased-data/production.db'
+          ? `${ROOT}/data/wbs.db`
+          : path,
+      ),
+    prepareBackend: () => {
       events.push('preflight');
       if (fault === 'preflight') return Promise.reject(new Error('invalid env'));
-      return Promise.resolve(() => {
-        events.push('start');
-        if (blueRunning || !stoppedInspected)
-          throw new Error('candidate started alongside old writer');
-        greenRunning = true;
-        if (fault === 'start') return Promise.reject(new Error('candidate startup failed'));
-        return Promise.resolve();
+      return Promise.resolve({
+        databasePath: '/data/wbs.db',
+        databaseHostPath: `${ROOT}/data/wbs.db`,
+        start: async () => {
+          expect(await readFile(join(root, 'be-writer-exposure.json'), 'utf8')).toContain(image);
+          events.push('start');
+          if (blueRunning || !stoppedInspected)
+            throw new Error('candidate started alongside old writer');
+          greenRunning = true;
+          if (fault === 'start') return Promise.reject(new Error('candidate startup failed'));
+          return Promise.resolve();
+        },
       });
     },
     readPhase: () => Promise.resolve('committed'),
     writePhase: () => Promise.resolve(),
     writeAtomic: () => Promise.resolve(),
     sh: async (args) => {
+      if (args[0] === 'run') {
+        expect(args).toContain('none');
+        expect(args).toContain(`type=bind,source=${ROOT}/data,target=/data,readonly`);
+        if (
+          fault === 'preboot-replay' &&
+          args.some((argument) => argument.includes('move_progress_v1'))
+        )
+          return '[{"kind":"move_progress_v1","count":1}]';
+        return '[]';
+      }
       if (args[0] === 'inspect' && args[2] === '{{.Id}}') return incomingId;
       if (args[0] === 'ps') {
         inventoryReads += 1;
         if (fault === 'race' && inventoryReads > 1) return incomingId;
-        return fault === 'idle' || fault === 'unmanaged'
+        return fault === 'idle' || fault === 'idle-database' || fault === 'unmanaged'
           ? `${outgoingId}\n${incomingId}`
           : outgoingId;
       }
@@ -77,6 +105,19 @@ async function fixture(
         return JSON.stringify(
           args.slice(1).map((identity) => ({
             Id: identity,
+            Config: {
+              Env:
+                fault === 'database-env-missing'
+                  ? []
+                  : [
+                      fault === 'database-file' ||
+                      (fault === 'idle-database' && identity === incomingId)
+                        ? 'DB_PATH=/data/other.db'
+                        : fault === 'database-live' || fault === 'database-alias'
+                          ? 'DB_PATH=/live/production.db'
+                          : 'DB_PATH=/data/wbs.db',
+                    ],
+            },
             Name:
               identity === outgoingId || fault === 'race'
                 ? '/be-01-blue'
@@ -85,7 +126,34 @@ async function fixture(
                   : '/be-01-green',
             ...(fault === 'mount-missing'
               ? {}
-              : { Mounts: [{ Type: 'bind', Source: `${ROOT}/data`, RW: true }] }),
+              : {
+                  Mounts:
+                    fault === 'database-live' || fault === 'database-alias'
+                      ? [
+                          {
+                            Type: 'bind',
+                            Source: `${ROOT}/data`,
+                            Destination: '/unused-backups',
+                            RW: true,
+                          },
+                          {
+                            Type: 'bind',
+                            Source:
+                              fault === 'database-alias' ? '/aliased-data' : '/actual-production',
+                            Destination: '/live',
+                            RW: true,
+                          },
+                        ]
+                      : [
+                          {
+                            Type: 'bind',
+                            Source: `${ROOT}/data`,
+                            Destination:
+                              fault === 'database-destination' ? '/unused-backups' : '/data',
+                            RW: true,
+                          },
+                        ],
+                }),
           })),
         );
       if (args[0] === 'stop') {
@@ -155,10 +223,22 @@ test('preflight refusal leaves the outgoing writer serving and creates no stop i
 test('candidate starts only after exact outgoing ID was stopped and inspected', async () => {
   const attempt = await fixture();
   await execute(attempt.plan, image, 'deadbeef', attempt.io);
-  expect(attempt.events).toEqual(['preflight', 'stop-blue', 'inspect-blue', 'start']);
+  expect(attempt.events).toEqual([
+    'preflight',
+    'stop-blue',
+    'inspect-blue',
+    'inspect-blue',
+    'start',
+  ]);
   expect(attempt.isBlueRunning()).toBe(false);
   await refuses(execute(attempt.plan, image, 'deadbeef', attempt.io), 'explicit recovery');
-  expect(attempt.events).toEqual(['preflight', 'stop-blue', 'inspect-blue', 'start']);
+  expect(attempt.events).toEqual([
+    'preflight',
+    'stop-blue',
+    'inspect-blue',
+    'inspect-blue',
+    'start',
+  ]);
 });
 
 for (const fault of ['running', 'wrong-id', 'missing'] as const) {
@@ -170,19 +250,18 @@ for (const fault of ['running', 'wrong-id', 'missing'] as const) {
   });
 }
 
-test('startup failure stops and verifies candidate while retaining old writer stop intent', async () => {
+test('startup failure retains boot exposure and never authorizes schema recovery', async () => {
   const attempt = await fixture('start');
   await refuses(execute(attempt.plan, image, 'deadbeef', attempt.io), 'explicit recovery');
   expect(attempt.events).toEqual([
     'preflight',
     'stop-blue',
     'inspect-blue',
+    'inspect-blue',
     'start',
-    'stop-green',
-    'inspect-green',
   ]);
   expect(attempt.isBlueRunning()).toBe(false);
-  expect(attempt.isGreenRunning()).toBe(false);
+  expect(attempt.isGreenRunning()).toBe(true);
   await refuses(assertNoWriterBarrier(attempt.root), 'explicit recovery');
 });
 
@@ -190,7 +269,7 @@ test('possible alias exposure is persisted before an alias operation can partly 
   const attempt = await fixture('alias');
   const plan = {
     ...attempt.plan,
-    steps: [...attempt.plan.steps, 'record-writer-exposure' as const, 'grant-alias' as const],
+    steps: [...attempt.plan.steps, 'grant-alias' as const],
   };
   await refuses(execute(plan, image, 'deadbeef', attempt.io), 'explicit recovery');
   expect(attempt.events).toContain('alias');
@@ -215,13 +294,13 @@ for (const state of [
 }
 
 for (const mounts of [
-  [{ Type: 'bind', Source: `${ROOT}/data`, RW: true }],
-  [{ Type: 'bind', Source: ROOT, RW: true }],
-  [{ Type: 'bind', Source: `${ROOT}/data/wbs.db`, RW: true }],
+  [{ Type: 'bind', Source: `${ROOT}/data`, Destination: '/data', RW: true }],
+  [{ Type: 'bind', Source: ROOT, Destination: '/data', RW: true }],
+  [{ Type: 'bind', Source: `${ROOT}/data/wbs.db`, Destination: '/data', RW: true }],
 ]) {
   test(`an unmanaged container with writable database overlap refuses admission ${JSON.stringify(mounts)}`, async () => {
     await refuses(
-      inspectBackendWriters((args) =>
+      inspectWriters((args) =>
         Promise.resolve(
           args[0] === 'ps'
             ? incomingId
@@ -235,7 +314,7 @@ for (const mounts of [
 
 test('an incomplete Docker inspect inventory cannot establish exclusive writers', async () => {
   await refuses(
-    inspectBackendWriters((args) =>
+    inspectWriters((args) =>
       Promise.resolve(args[0] === 'ps' ? `${outgoingId}\n${incomingId}` : '[]'),
     ),
     'incomplete',
@@ -255,7 +334,7 @@ async function refuses(operation: Promise<unknown>, text?: string): Promise<void
 
 test('read-only unmanaged data mounts are permitted without stopping unrelated containers', async () => {
   const commands: string[][] = [];
-  const writers = await inspectBackendWriters((args) => {
+  const writers = await inspectWriters((args) => {
     commands.push(args);
     return Promise.resolve(
       args[0] === 'ps'
@@ -264,7 +343,7 @@ test('read-only unmanaged data mounts are permitted without stopping unrelated c
             {
               Id: incomingId,
               Name: '/backup-reader',
-              Mounts: [{ Type: 'bind', Source: `${ROOT}/data`, RW: false }],
+              Mounts: [{ Type: 'bind', Source: `${ROOT}/data`, Destination: '/data', RW: false }],
             },
           ]),
     );
@@ -313,8 +392,8 @@ test('backend preparation validates frozen Compose input before returning its no
     '/fixture/be.phase',
     backendPreparation(root, events),
   );
-  expect(events).toEqual(['read', 'read', 'read', 'write', 'write', 'config']);
-  await start();
+  expect(events).toEqual(['read', 'read', 'read', 'write', 'write', 'config', 'write']);
+  await start.start();
   expect(events.slice(-2)).toEqual(['phase', 'start:never']);
   expect(events.filter((event) => event === 'read')).toHaveLength(3);
 });
@@ -418,7 +497,7 @@ test('complete backend plan commits only after health, vocabulary recheck, and p
 
 test('a symlink alias to shared data is an unmanaged writer after realpath resolution', async () => {
   await refuses(
-    inspectBackendWriters(
+    inspectWriters(
       (args) =>
         Promise.resolve(
           args[0] === 'ps'
@@ -427,7 +506,7 @@ test('a symlink alias to shared data is an unmanaged writer after realpath resol
                 {
                   Id: incomingId,
                   Name: '/aliased-writer',
-                  Mounts: [{ Type: 'bind', Source: '/aliased-db', RW: true }],
+                  Mounts: [{ Type: 'bind', Source: '/aliased-db', Destination: '/data', RW: true }],
                 },
               ]),
         ),
@@ -444,6 +523,8 @@ test('a pre-existing idle backend is stopped and inspected before the new candid
     'preflight',
     'stop-blue',
     'stop-green',
+    'inspect-blue',
+    'inspect-green',
     'inspect-blue',
     'inspect-green',
     'start',
@@ -473,14 +554,26 @@ for (const inspected of [
   { Id: outgoingId, Name: '/be-01-blue' },
   { Id: outgoingId, Name: '/be-01-blue', Mounts: [null] },
   { Id: outgoingId, Name: '/be-01-blue', Mounts: [{ Type: 'bind', Source: `${ROOT}/data` }] },
-  { Id: outgoingId, Name: '/be-01-blue', Mounts: [{ Type: 'bind', RW: true }] },
-  { Id: outgoingId, Name: '/be-01-blue', Mounts: [{ Source: `${ROOT}/data`, RW: true }] },
-  { Id: outgoingId, Name: '/be-01-blue', Mounts: [{ Type: 'bind', Source: 'relative', RW: true }] },
+  {
+    Id: outgoingId,
+    Name: '/be-01-blue',
+    Mounts: [{ Type: 'bind', Destination: '/data', RW: true }],
+  },
+  {
+    Id: outgoingId,
+    Name: '/be-01-blue',
+    Mounts: [{ Source: `${ROOT}/data`, Destination: '/data', RW: true }],
+  },
+  {
+    Id: outgoingId,
+    Name: '/be-01-blue',
+    Mounts: [{ Type: 'bind', Source: 'relative', Destination: '/data', RW: true }],
+  },
   { Id: incomingId, Name: '/be-01-blue', Mounts: [] },
 ]) {
   test(`missing or malformed writer metadata refuses ${JSON.stringify(inspected)}`, async () => {
     await refuses(
-      inspectBackendWriters((args) =>
+      inspectWriters((args) =>
         Promise.resolve(args[0] === 'ps' ? outgoingId : JSON.stringify([inspected])),
       ),
       JSON.stringify(inspected).includes('relative') ? 'absolute host source' : 'malformed',
@@ -495,6 +588,7 @@ function backendPreparation(
   const oidcPath = '/fixture/oidc.env';
   return {
     databaseHostRoot: root,
+    resolveMount: (path) => realpath(path.replace(ROOT, root)),
     oidcEnvPath: oidcPath,
     readText: (path) => {
       events.push('read');
@@ -524,7 +618,22 @@ function backendPreparation(
           ? 'config'
           : `start:${args[args.indexOf('--pull') + 1] ?? 'unknown'}`,
       );
-      return Promise.resolve('');
+      return Promise.resolve(
+        args.includes('config')
+          ? JSON.stringify({
+              name: 'wbs',
+              services: {
+                'be-01-green': {
+                  container_name: 'be-01-green',
+                  image,
+                  environment: { DB_PATH: '/data/wbs.db' },
+                  networks: { 'wbs-net': { aliases: ['be-01-green'] } },
+                  volumes: [{ type: 'bind', source: `${ROOT}/data`, target: '/data' }],
+                },
+              },
+            })
+          : '',
+      );
     },
   };
 }
@@ -561,4 +670,177 @@ test('backend preflight refuses a DB_PATH outside its mounted data directory', a
     'outside the mounted data directory',
   );
   expect(events).toEqual(['read', 'read', 'read']);
+});
+
+function inspectWriters(
+  runDocker: SwapExecutionIo['sh'],
+  resolveMount: (path: string) => Promise<string> = (path) => Promise.resolve(path),
+) {
+  return inspectBackendWriters(runDocker, `${ROOT}/data/wbs.db`, resolveMount);
+}
+
+for (const fault of [
+  'database-file',
+  'database-live',
+  'database-destination',
+  'database-env-missing',
+] as const) {
+  test(`effective outgoing ${fault} refuses before stop intent`, async () => {
+    const attempt = await fixture(fault);
+    await refuses(
+      execute(attempt.plan, image, 'deadbeef', attempt.io),
+      fault === 'database-env-missing' ? 'DB_PATH' : 'database',
+    );
+    expect(attempt.events).toEqual(['preflight']);
+    expect(attempt.isBlueRunning()).toBe(true);
+    await assertNoWriterBarrier(attempt.root);
+  });
+}
+
+test('outgoing container path aliases are admitted only when the host database identity matches', async () => {
+  const attempt = await fixture('database-alias');
+  await execute(attempt.plan, image, 'deadbeef', attempt.io);
+  expect(attempt.events).toEqual([
+    'preflight',
+    'stop-blue',
+    'inspect-blue',
+    'inspect-blue',
+    'start',
+  ]);
+});
+
+for (const fault of ['alias', 'ports', 'dependency'] as const) {
+  test(`effective merged ${fault} refuses before candidate start or phase`, async () => {
+    const root = await mkdtemp(join(tmpdir(), 'merged-backend-refusal-'));
+    roots.push(root);
+    await mkdir(join(root, 'data'));
+    const sqlite = new Database(join(root, 'data/wbs.db'));
+    sqlite.run(
+      'CREATE TABLE __drizzle_migrations (name text); INSERT INTO __drizzle_migrations VALUES ("baseline");',
+    );
+    sqlite.close();
+    const events: string[] = [];
+    const prepared = backendPreparation(root, events);
+    await refuses(
+      prepareBackend('be', 'green', image, '/fixture/be.phase', {
+        ...prepared,
+        runDocker: async (args) => {
+          const output = await prepared.runDocker(args);
+          const config = JSON.parse(output) as {
+            services: { 'be-01-green': Record<string, unknown> };
+          };
+          if (fault === 'alias')
+            config.services['be-01-green']['networks'] = {
+              'wbs-net': { aliases: ['be-01-green', 'be-01.internal'] },
+            };
+          if (fault === 'ports')
+            config.services['be-01-green']['ports'] = [{ target: 3100, published: '3100' }];
+          if (fault === 'dependency')
+            config.services['be-01-green']['depends_on'] = {
+              'be-01-blue': { condition: 'service_started' },
+            };
+          return JSON.stringify(config);
+        },
+      }),
+      'unsafe candidate',
+    );
+    expect(events).toEqual(['read', 'read', 'read', 'write', 'write', 'config']);
+  });
+}
+
+test('backend startup force-recreates a private resolved snapshot and preserves literal environment dollars', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'snapshot-backend-'));
+  roots.push(root);
+  await mkdir(join(root, 'data'));
+  const sqlite = new Database(join(root, 'data/wbs.db'));
+  sqlite.run(
+    'CREATE TABLE __drizzle_migrations (name text); INSERT INTO __drizzle_migrations VALUES ("baseline");',
+  );
+  sqlite.close();
+  const events: string[] = [];
+  const prepared = backendPreparation(root, events);
+  const snapshots = new Map<string, string>();
+  const started: string[][] = [];
+  const candidate = await prepareBackend('be', 'green', image, '/fixture/be.phase', {
+    ...prepared,
+    writeAtomicFile: (path, contents, mode) => {
+      if (path.endsWith('.compose.json')) {
+        expect(mode).toBe(0o600);
+        snapshots.set(path, contents);
+      }
+      return prepared.writeAtomicFile(path, contents, mode);
+    },
+    runDocker: async (args) => {
+      if (!args.includes('config')) {
+        started.push(args);
+        return '';
+      }
+      const output = await prepared.runDocker(args);
+      const config = JSON.parse(output) as {
+        services: { 'be-01-green': { environment: Record<string, string> } };
+      };
+      config.services['be-01-green'].environment['TEST_SECRET'] = 'literal$TOKEN';
+      return JSON.stringify(config);
+    },
+  });
+  expect(started).toEqual([]);
+  await candidate.start();
+  const command = started.at(0);
+  if (command === undefined) throw new Error('startup command was absent');
+  expect(command).toContain('--force-recreate');
+  expect(command).toContain('--no-deps');
+  expect(command[command.indexOf('--pull') + 1]).toBe('never');
+  const snapshot = command.at(command.indexOf('-f') + 1);
+  if (snapshot === undefined) throw new Error('startup snapshot was absent');
+  expect(snapshots.get(snapshot)).toContain('literal$$TOKEN');
+  expect(command.filter((argument) => argument === '-f')).toHaveLength(1);
+});
+
+test('an idle backend opening a different filename refuses before either writer stops', async () => {
+  const attempt = await fixture('idle-database');
+  await refuses(execute(attempt.plan, image, 'deadbeef', attempt.io), 'database identity differs');
+  expect(attempt.events).toEqual(['preflight']);
+  await assertNoWriterBarrier(attempt.root);
+});
+
+test('a candidate file-bind override cannot switch databases after app environment validation', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'candidate-database-identity-'));
+  roots.push(root);
+  await mkdir(join(root, 'data'));
+  for (const name of ['wbs.db', 'other.db']) {
+    const sqlite = new Database(join(root, 'data', name));
+    sqlite.run(
+      'CREATE TABLE __drizzle_migrations (name text); INSERT INTO __drizzle_migrations VALUES ("baseline");',
+    );
+    sqlite.close();
+  }
+  const events: string[] = [];
+  const prepared = backendPreparation(root, events);
+  await refuses(
+    prepareBackend('be', 'green', image, '/fixture/be.phase', {
+      ...prepared,
+      runDocker: async (args) => {
+        const config = JSON.parse(await prepared.runDocker(args)) as {
+          services: { 'be-01-green': { volumes: unknown[] } };
+        };
+        config.services['be-01-green'].volumes.push({
+          type: 'bind',
+          source: `${ROOT}/data/other.db`,
+          target: '/data/wbs.db',
+        });
+        return JSON.stringify(config);
+      },
+    }),
+    'candidate effective database differs',
+  );
+  expect(events).toEqual(['read', 'read', 'read', 'write', 'write', 'config']);
+});
+
+test('unsupported replay history refuses the incoming digest before boot exposure or candidate startup', async () => {
+  const attempt = await fixture('preboot-replay');
+  await refuses(execute(attempt.plan, image, 'deadbeef', attempt.io), 'move_progress_v1');
+  expect(attempt.events).not.toContain('start');
+  expect(await Bun.file(join(attempt.root, 'be-writer-exposure.json')).exists()).toBe(false);
+  expect(await Bun.file(join(attempt.root, 'be-writer-stop.json')).exists()).toBe(true);
+  expect(attempt.isBlueRunning()).toBe(false);
 });

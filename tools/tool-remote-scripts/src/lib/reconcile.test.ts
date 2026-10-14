@@ -56,9 +56,16 @@ describe('planSwap', () => {
     expect(steps.indexOf('record-writer-stop')).toBeLessThan(steps.indexOf('stop-blue'));
     expect(steps.indexOf('stop-blue')).toBeLessThan(steps.indexOf('verify-blue-stopped'));
     expect(steps.indexOf('verify-blue-stopped')).toBeLessThan(steps.indexOf('start-green'));
-    expect(steps.indexOf('stored-vocabularies-after-stop')).toBeLessThan(
+    expect(steps.indexOf('verify-blue-stopped')).toBeLessThan(
       steps.indexOf('record-writer-exposure'),
     );
+    expect(steps.indexOf('stored-vocabularies-before-start')).toBeGreaterThan(
+      steps.indexOf('verify-blue-stopped'),
+    );
+    expect(steps.indexOf('stored-vocabularies-before-start')).toBeLessThan(
+      steps.indexOf('record-writer-exposure'),
+    );
+    expect(steps.indexOf('record-writer-exposure')).toBeLessThan(steps.indexOf('start-green'));
     expect(steps.indexOf('record-writer-exposure')).toBeLessThan(steps.indexOf('grant-alias'));
   });
 
@@ -130,9 +137,7 @@ describe('planSwap', () => {
   it('backfills step codes for be once the old colour has stopped, before committing', () => {
     const steps = planSwap('be', base).steps;
     expect(steps.indexOf('stop-blue')).toBeLessThan(steps.indexOf('backfill-step-codes'));
-    expect(steps.indexOf('backfill-step-codes')).toBeLessThan(
-      steps.indexOf('record-writer-exposure'),
-    );
+    expect(steps.indexOf('backfill-step-codes')).toBeLessThan(steps.indexOf('grant-alias'));
   });
 
   it('backfills step codes for be on a first-ever deploy too — the file may predate it', () => {
@@ -143,9 +148,7 @@ describe('planSwap', () => {
       phase: null,
     }).steps;
     expect(steps).toContain('stored-vocabularies-after-stop');
-    expect(steps.indexOf('backfill-step-codes')).toBeLessThan(
-      steps.indexOf('record-writer-exposure'),
-    );
+    expect(steps.indexOf('backfill-step-codes')).toBeLessThan(steps.indexOf('grant-alias'));
   });
 
   it('never backfills step codes for gw or fe', () => {

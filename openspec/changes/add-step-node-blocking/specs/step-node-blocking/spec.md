@@ -483,7 +483,7 @@ identities, and preserve exact timestamps within the import transaction.
 
 ### Requirement: Compose backend transitions stop every prior database writer before candidate startup
 
-Every Compose backend swap SHALL complete registry, local image pull, environment, Compose, Caddy, exposure-state and writable database mount inventory preflight before any writer outage. Unmanaged writable mounts, including canonical path aliases and overlapping ancestor/file binds, and malformed or unreadable inventory SHALL refuse without stopping unrelated containers. Read-only mounts MAY remain. The executor SHALL durably publish stop intent before stopping outgoing and pre-existing idle container exact identities. It SHALL inspect each identity stopped, unpaused and not restarting and revalidate the complete identity set before starting the candidate. Candidate migration, health, fact/replay compatibility and backfill SHALL precede any alias or routing exposure.
+Every Compose backend swap SHALL complete registry, local image pull, environment, Compose, Caddy, exposure-state and writable database mount inventory preflight before any writer outage. Unmanaged writable mounts, including canonical path aliases and overlapping ancestor/file binds, and malformed or unreadable inventory SHALL refuse without stopping unrelated containers. Read-only mounts MAY remain. The executor SHALL durably publish stop intent before stopping outgoing and pre-existing idle container exact identities. It SHALL inspect each identity stopped, unpaused and not restarting and revalidate the complete identity set. Independent digest-pinned, network-none, read-only candidate fact/replay admission SHALL pass before any candidate boot; post-boot admission SHALL remain a readback. Candidate migration, health, fact/replay compatibility and backfill SHALL precede the gateway shared alias and Caddy routing. The effective candidate configuration SHALL reject exposing aliases, published ports and dependencies, and startup SHALL force a new container from a private resolved configuration without dependency starts or image pulls.
 
 #### Scenario: Old structural writers cannot overlap new blockage writers
 
@@ -501,18 +501,18 @@ Every Compose backend swap SHALL complete registry, local image pull, environmen
 
 ### Requirement: Interrupted backend transitions retain explicit recovery authority boundaries
 
-Stop, migration-capture identity and possible-exposure intent SHALL be exclusively published and synced before their corresponding actions. Ordinary retries SHALL refuse retained markers, malformed/unreadable markers and missing trusted state directories. Phase writes SHALL NOT erase those markers. Possible-exposure intent SHALL precede the first alias-grant attempt. Only recorded candidate commit SHALL remove markers. Failure SHALL retain captures and never automatically reverse schema, restore a snapshot or restart the older writer. A pre-exposure candidate cleanup SHALL stop and inspect its exact identity; uncertain cleanup SHALL report failure loudly. After possible exposure the candidate MAY remain available while the older writer remains stopped.
+Stop, migration-capture identity and possible-exposure intent SHALL be exclusively published and synced before their corresponding actions. Possible writer exposure SHALL be durable before candidate startup, because boot can write or listen without a shared alias. Ordinary retries SHALL refuse retained markers, malformed/unreadable markers and missing trusted state directories. Phase writes SHALL NOT erase those markers. Possible-exposure intent SHALL precede the first alias-grant attempt. Only recorded candidate commit SHALL remove markers. Failure SHALL retain captures and never automatically reverse schema, restore a snapshot or restart the older writer. Before boot exposure, any managed cleanup SHALL prove exact stopped identities. After candidate startup, failure SHALL retain boot exposure and SHALL NOT authorize down recovery or old snapshot restore; the candidate MAY remain available while the older writer remains stopped.
 
 #### Scenario: Alias grant partly applies before throwing
 
 - **WHEN** a backend alias operation partly applies and then fails
 - **THEN** exposure intent already exists, ordinary retry refuses, and no older writer restarts or schema/snapshot rollback runs
 
-#### Scenario: A pre-exposure candidate fails after migration
+#### Scenario: A booted candidate fails after migration
 
-- **WHEN** the candidate fails health before alias exposure
-- **THEN** it is stopped and inspected, the outgoing writer remains stopped, and the migrated database and original capture remain
-- **AND** the failure names digest-pinned network-none exact-set manual recovery with the recorded capture digest and identity
+- **WHEN** the candidate starts and later fails health before shared-alias admission
+- **THEN** boot exposure was already durable, the outgoing writer remains stopped, and the migrated database and original capture remain
+- **AND** no down recovery or old snapshot restore is authorized merely because health or alias admission has not completed
 
 #### Scenario: Attended old-image recovery encounters retained replay history
 
@@ -525,3 +525,23 @@ Stop, migration-capture identity and possible-exposure intent SHALL be exclusive
 
 - **WHEN** an authenticated internal forward contains setter, import or activation-shaped frames
 - **THEN** it only acknowledges and creates no command event or write authority
+
+#### Scenario: An unchanged idle container retained the shared backend alias
+
+- **GIVEN** a stopped idle container retains `be-01.internal` from its previous deployment
+- **WHEN** the candidate starts from the checked private Compose snapshot
+- **THEN** forced recreation produces a new container identity without that alias and no dependency starts
+- **AND** possible boot exposure was durable before any startup callback
+
+#### Scenario: Incidental database mounts conceal another live database
+
+- **GIVEN** an outgoing backend opens `/live/production.db` through `/actual-production:/live` and also mounts the configured data root at `/unused-backups`
+- **WHEN** preflight compares it with the candidate's effective database file
+- **THEN** mismatch refuses before stop intent, including different filenames and more-specific file-bind overrides
+- **AND** canonical path aliases are accepted only when they identify the same actual host database
+
+#### Scenario: Incoming code cannot read guarded history
+
+- **GIVEN** stopped previous writers and stored move/deletion replay metadata or direct blockage unsupported by the incoming digest
+- **WHEN** pre-boot candidate admission runs in read-only one-offs
+- **THEN** it refuses before candidate boot or possible-exposure publication, retains stop intent and starts no writer

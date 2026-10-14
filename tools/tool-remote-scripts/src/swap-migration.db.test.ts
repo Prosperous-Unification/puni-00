@@ -205,16 +205,22 @@ function prepareComposeFixture(
 }
 
 describe('Compose migration command adapter', () => {
-  it('retains the migrated database and a runnable pinned one-off recovery after stopped-writer failure', async () => {
+  it('boot exposure and health failure retain migrated database without authorizing down recovery', async () => {
     const attempt = prepareComposeFixture();
     const identity = 'a'.repeat(64);
     const image = `registry/wbs-be-01@sha256:${'b'.repeat(64)}`;
     const io: SwapExecutionIo = {
       ...attempt.io,
       barrierStateDir: attempt.root,
-      prepareGreen: () => Promise.resolve(() => Promise.resolve()),
+      prepareBackend: () =>
+        Promise.resolve({
+          databasePath: '/data/plan.db',
+          databaseHostPath: `${ROOT}/data/plan.db`,
+          start: () => Promise.resolve(),
+        }),
       healthGate: () => Promise.reject(new Error('candidate health failure')),
       sh: async (args) => {
+        if (args[0] === 'run') return '[]';
         if (args[0] === 'inspect' && args[2] === '{{.Id}}') return identity;
         if (args[0] === 'ps') return identity;
         if (args[0] === 'inspect' && args[1] === identity)
@@ -222,7 +228,8 @@ describe('Compose migration command adapter', () => {
             {
               Id: identity,
               Name: '/be-01-blue',
-              Mounts: [{ Type: 'bind', Source: `${ROOT}/data`, RW: true }],
+              Config: { Env: ['DB_PATH=/data/plan.db'] },
+              Mounts: [{ Type: 'bind', Source: `${ROOT}/data`, Destination: '/data', RW: true }],
             },
           ]);
         if (args[0] === 'inspect')
@@ -244,6 +251,8 @@ describe('Compose migration command adapter', () => {
             'record-writer-stop',
             'stop-blue',
             'verify-blue-stopped',
+            'stored-vocabularies-before-start',
+            'record-writer-exposure',
             'start-green',
             'migrate',
             'health-gate',
@@ -255,7 +264,7 @@ describe('Compose migration command adapter', () => {
       ),
     );
     expect(failure).toContain('explicit recovery');
-    expect(failure).toContain("'--network' 'none'");
+    expect(failure).not.toContain('src/migrate-down-cli.ts');
     expect(failure).toContain(image);
     expect(tablesAt(attempt.dbPath)).toContain('older_candidate_probe');
     expect(attempt.commands.some((args) => args.includes('src/migrate-down-cli.ts'))).toBe(false);
@@ -263,24 +272,7 @@ describe('Compose migration command adapter', () => {
       name.startsWith('migration-be-01-green-'),
     );
     if (captureName === undefined) throw new Error('retained capture is absent');
-    const capturePath = join(attempt.root, captureName);
-    const recovery = Bun.spawnSync(
-      [
-        process.execPath,
-        'run',
-        join(BACKEND, 'migrate-down-cli.ts'),
-        ...printedRecoveryArguments(failure, capturePath),
-      ],
-      {
-        cwd: attempt.root,
-        env: { ...process.env, DB_PATH: attempt.dbPath },
-        stdout: 'pipe',
-        stderr: 'pipe',
-      },
-    );
-    expect(recovery.exitCode).toBe(0);
-    expect(ledgerAt(attempt.dbPath)).toEqual(attempt.baselineLedger);
-    expect(tablesAt(attempt.dbPath)).toEqual(attempt.baselineTables);
+    expect(readdirSync(attempt.root)).toContain('be-writer-exposure.json');
     expect(readdirSync(attempt.root)).toContain('be-writer-stop.json');
   }, 60_000);
 

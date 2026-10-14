@@ -680,6 +680,11 @@ exited1; it is not a green final gate. Focused final checks are recorded in
 
 ## Compose stopped-writer barrier — 2026-10-14
 
+Historical evidence for `83e0506`: Astra blocked this revision because an idle
+container could retain its shared alias, mount-source overlap did not prove the
+effective DB_PATH identity, and application boot preceded durable exposure. The
+correction evidence below supersedes its safety conclusion.
+
 Isolated clone `/tmp/puni-compose-barrier`, exact parent
 `4bb78ec2674869c2bfd18114ef4f39e05d403863`, branch
 `fix/compose-writer-barrier`. No root checkout, candidate branch, live database,
@@ -766,3 +771,70 @@ matched files formatted (`/tmp/compose-barrier-format-final.log`); strict OpenSp
 rerun reported zero issues (`/tmp/compose-barrier-openspec-final.log`).
 `git diff --check` exited0. Astra review remains pending; these scoped checks are
 not the canonical exact-SHA host gate.
+
+## Compose boot barrier review corrections — 2026-10-14
+
+Astra's three production-path counterexamples are corrected. Candidate preflight
+validates the effective merged Compose config and exact canonical DB file before
+stop intent. Outgoing and idle container Env DB_PATH resolves through the most
+specific writable bind Destination; an incidental backup mount cannot establish
+identity. A private resolved snapshot preserves literal environment dollars.
+Startup forces recreation and suppresses dependencies, so a stopped idle
+container cannot carry a previously granted alias into candidate boot.
+
+After exact stopped-writer proof, independent digest-pinned, network-disabled,
+read-only fact/replay one-offs admit the incoming image before boot. Possible
+write exposure is persisted before invoking startup. Any startup or later failure
+retains that boundary and offers no automatic restart, down migration or snapshot
+restoration. The read-only recovery command grants no authority to restart or
+reverse the schema. The runbook now states these limits explicitly.
+
+Fresh scoped tests:
+
+```sh
+bun test tools/tool-remote-scripts/src/swap.test.ts tools/tool-remote-scripts/src/swap-migration.db.test.ts tools/tool-remote-scripts/src/swap-writer-barrier.test.ts tools/tool-remote-scripts/src/lib/reconcile.test.ts tools/tool-remote-scripts/src/lib/writer-barrier.test.ts tools/tool-remote-scripts/src/lib/backend-config.test.ts tools/tool-remote-scripts/src/lib/step-code-backfill.test.ts apps/wbs/be-01/src/controller/internal.integration.test.ts --timeout=10000
+```
+
+Observed **220 pass, 0 fail, 903 expectations** across eight files; log
+`/tmp/compose-boot-final-tests.log`.
+
+Watched production mutations were restored after each observed failure:
+
+| Removed protection                    | Observed failure / log                                                                                                        |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Durable exposure before boot          | Six protected startup paths observed missing marker inside startup; `/tmp/omit-durable-boot-exposure.log`                     |
+| Outgoing/idle exact database equality | Filename, alternate live mount and idle filename negatives failed; `/tmp/omit-outgoing-database-equality.log`                 |
+| Candidate exact database equality     | Effective file bind override negative failed; `/tmp/omit-candidate-database-equality.log`                                     |
+| Effective alias refusal               | Two shared-alias config negatives failed; `/tmp/omit-effective-alias-refusal.log`                                             |
+| Effective ports/dependencies refusal  | Four exposed/dependent config negatives failed; `/tmp/omit-effective-port-dependency-refusal.log`                             |
+| Most-specific bind resolution         | Two shadowed mount identity negatives failed; `/tmp/omit-most-specific-bind-order.log`                                        |
+| Literal dollar preservation           | Snapshot environment negative failed; `/tmp/omit-literal-dollar-escape.log`                                                   |
+| Pre-boot fact/replay admission        | Incoming unsupported replay history was admitted to startup; five tests failed; `/tmp/omit-preboot-fact-replay-admission.log` |
+| Force recreation                      | Disposable Docker reused the exact stopped idle ID; `/tmp/backend-recreation-docker-red.log`                                  |
+| No dependencies                       | Disposable Docker started an unrelated dependency; `/tmp/backend-no-deps-docker-red.log`                                      |
+
+Adjacent `Proof:` comments identify these observations. The new explicit target
+`tool-remote-scripts:test:backend-recreation` uses an immutable cached Alpine image,
+a unique disposable Compose project/network and scratch bind. Docker socket
+access required approved escalation; no approval was denied. Restored production
+startup printed PASS for exact-ID recreation, shared alias absence, literal
+environment and dependency absence (`/tmp/backend-recreation-docker-green.log`,
+project `writer-proof-fe218e80`). Every green/red Docker run printed CLEAN and
+verified no project containers or network remained. No production resource was
+used. This Docker target is explicit and is not silently added to ordinary tests.
+
+Final scoped checks and strict validation are recorded below. Independent Astra
+review, SQLite activation integration and the canonical exact-SHA host gate remain
+pending; this worker did not run full monorepo/build, CI secret or migration gates,
+browser suites or a live production deployment.
+
+Final uncached scoped `nx run-many -t lint,typecheck -p tool-remote-scripts,wbs-be-01
+--parallel=1 --output-style=stream --skip-nx-cache` passed both projects and their
+one dependent task (`/tmp/compose-boot-final-checks.log`). Changed-file Prettier
+completed successfully (`/tmp/compose-boot-final-format.log`). Pinned OpenSpec
+1.12.0 strict validation returned one valid change and zero issues
+(`/tmp/compose-boot-final-openspec.log`). `git diff --check` exited0.
+
+Fresh explicit Nx Docker target rerun also passed, with PASS and CLEAN for
+`writer-proof-65092cf9`; log `/tmp/compose-boot-final-docker.log`. The target ran
+uncached and verified zero remaining project containers or network.

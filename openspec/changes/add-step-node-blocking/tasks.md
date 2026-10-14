@@ -60,3 +60,6 @@
 - [x] 6.4.3 Add full planned execution, partial alias failure, preflight/no-unrelated-stop, identity replacement, read-only/canonical alias, and real SQLite printed recovery proofs; watch production guard omissions fail and add adjacent Proof comments.
 - [x] 6.4.4 Run scoped test/lint/typecheck/format and strict OpenSpec validation; record outputs and retained limitations.
 - [ ] 6.4.5 Obtain Astra review before integration and combine the separate SQLite activation boundary. No live deployment belongs to this slice.
+
+- [x] 6.4.6 Repair Astra's stopped-idle alias, actual database identity and boot-exposure blockers: decode effective merged configuration, private snapshot with forced recreation/no dependencies/no pull, most-specific DB bind resolution for candidate/outgoing/idle before stop, durable possible exposure before boot, and independent read-only fact/replay admission before that exposure. Watch all reported omissions fail, including disposable Docker mutations with verified cleanup.
+- [ ] 6.4.7 Rerun scoped checks and strict validation on the corrected transition; obtain independent Astra review before integrating the separate SQLite activation boundary or deploying.

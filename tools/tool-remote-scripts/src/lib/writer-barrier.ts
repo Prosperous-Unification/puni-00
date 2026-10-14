@@ -10,6 +10,7 @@ export interface WriterIntent {
   from: Color | null;
   to: Color;
   outgoingId: string | null;
+  databaseHostPath?: string;
   idleId?: string | null;
   capture?: { path: string; sha256: string; databasePath: string; target: string; attempt: string };
 }
