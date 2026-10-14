@@ -130,6 +130,61 @@ test.describe('step blockage on the production preview path', () => {
     await page.screenshot({ path: testInfo.outputPath('proxy-phone.png') });
   });
 
+  test('the whole blocked step card stays inside its frame and exposes attempt actions and estimates', async ({
+    page,
+  }) => {
+    await seedBlockages(page);
+    const card = await openCard(page, 'Dev estimate for 040');
+    const frame = await page.locator('[data-table-frame]').boundingBox();
+    const box = await card.boundingBox();
+    if (frame === null || box === null)
+      throw new Error('Missing step card or clipping frame geometry');
+    expect(box.y).toBeGreaterThanOrEqual(frame.y);
+    expect(box.y + box.height).toBeLessThanOrEqual(frame.y + frame.height);
+    await card.hover();
+    const start = card.getByRole('button', { name: 'Start attempt', exact: true });
+    await start.scrollIntoViewIfNeeded();
+    await expect(start).toBeVisible();
+    expect(
+      await start.evaluate((button) => {
+        const bounds = button.getBoundingClientRect();
+        const hit = document.elementFromPoint(
+          bounds.x + bounds.width / 2,
+          bounds.y + bounds.height / 2,
+        );
+        return hit !== null && button.contains(hit);
+      }),
+    ).toBe(true);
+    await start.click();
+    await expect(card.getByRole('button', { name: 'End attempt 1…' })).toBeVisible();
+    const footer = card.getByText('Final 7 days', { exact: true });
+    await footer.scrollIntoViewIfNeeded();
+    await expect(footer).toBeVisible();
+    expect(
+      await footer.evaluate((line) => {
+        const bounds = line.getBoundingClientRect();
+        const hit = document.elementFromPoint(
+          bounds.x + bounds.width / 2,
+          bounds.y + bounds.height / 2,
+        );
+        return hit !== null && line.contains(hit);
+      }),
+    ).toBe(true);
+    const cell = page.getByLabel('Dev estimate for 040');
+    await cell.focus();
+    await cell.press('F2');
+    await expect(card.getByRole('button', { name: 'Copy reference' })).toBeFocused();
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Tab');
+    await expect(
+      card.getByRole('button', { name: 'Remove attempt 1 of 040.s1-dev' }),
+    ).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(card.getByRole('button', { name: 'End attempt 1…' })).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(cell).toBeFocused();
+  });
   test('nested blocked leaf and its downstream node retain named causes in both layouts', async ({
     page,
   }) => {

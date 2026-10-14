@@ -100,7 +100,8 @@ export interface FoldedStepCardProps {
 }
 
 /**
- * What one folded step column cell folds away, in full.
+ * What one folded step column cell folds away, in full. The whole card scrolls
+ * within the measured table-frame ceiling so actions and estimate details remain reachable.
  *
  * The cell at rest is `4.8 · Ka…` in 96px: one computed figure, and a person's
  * name cut to about four characters. The trio behind the figure is only on
@@ -203,7 +204,13 @@ export function FoldedStepCard({
   return (
     // Placed diagonally — past this cell and past this row — like every other
     // card a plan cell opens. {@link sidewaysPlacement} picks the side.
-    <HoverCard id={id} takesPointer={stepNode !== null} onPointerArrives={onPointerArrives}>
+    <HoverCard
+      id={id}
+      // Proof: omitting scrolling made the preview `whole blocked step card` geometry assertion receive bottom 527.25px past its 459.75px frame ceiling (2026-10-14).
+      scrolls
+      takesPointer={stepNode !== null}
+      onPointerArrives={onPointerArrives}
+    >
       {/* `data-step-card` gives every action below one size and rhythm in
           `styles.css` — three platform buttons of three sizes stacked on three
           lines was the other half of F-044. */}

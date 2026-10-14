@@ -972,3 +972,43 @@ Combined-tree verification after resolving the evidence conflict:
 - Read-only alternate-index three-way application of both shared card patches against #417 `abd06e9ad`: both **applied cleanly**. The branch was not restacked onto #417.
 
 The full exact-SHA host gate, hosted CI and unrelated Gantt pixel fixture diagnosis remain coordinator-owned. Parent repairs are retained verbatim; this worker adds only the two UI review repairs and their regressions/evidence.
+
+## 2026-10-14 — Whole folded-card accessibility after clipping review
+
+Astra reviewed `8ddf6beba908c22fa4df08cc253df47cc5499116` and identified
+that the additional blockage explanation pushed attempt controls and estimate
+details beyond the table frame. The entire folded card now uses HoverCard's
+scrolling mode. Its measured height ceiling also accounts for the whole row's
+diagonal clearance, rather than the cell wrapper's earlier edge. Existing
+non-scrolling placements and phone disclosures retain their behavior.
+
+The new production-preview case `the whole blocked step card stays inside its
+frame and exposes attempt actions and estimates` first failed containment:
+card bottom **527.25px**, clipping frame bottom **459.75px**. Enabling scrolling
+alone still failed: card bottom **484.9375px**, because the wrapper-relative
+height limit included space occupied by the cleared row. Correcting that limit
+passes containment. Adjacent Proof comments identify both observed faults.
+
+The passing case scrolls to Start attempt, proves the button is the element at
+its hit-test coordinates and clicks it through the real backend. It then reaches
+the Final estimate footer and proves that line is hit-testable. F2 enters Copy
+reference; Tab follows the existing Copy link, Clear blockage, Remove attempt,
+End attempt order while focus scrolls the card; Escape returns to the step cell.
+An intermediate test expected End one Tab too early; its expectation was corrected
+to the existing Remove-before-End action order, with no production reorder.
+
+Fresh scoped verification:
+
+- Ordinary production-preview browser run over step-blockage, hover-cards and card-lanes, filtered to all blockage cases plus the existing notes scrolling/below-room/above-row and informative-card placement cases: **13 passed** (9 blockage cases, 4 existing card cases).
+- FoldedStepCard, HoverCard and plan-estimate component suites: **3 files, 117 passed**.
+- Application tsc build: exit **0**.
+- ESLint over FoldedStepCard, HoverCard and the browser suite: exit **0**.
+- `git diff --check`: exit **0**.
+
+Review captures at `/tmp/step-blockage-preview/direct-desktop.png` and
+`proxy-phone.png` were refreshed from the passing run. The card contents now
+scroll within the visible frame; the browser geometry and hit-target assertions,
+not an unbounded screenshot box, prove access to the footer and attempt action.
+The repaired authoring parent `4cae32f5e3ba2984ef94e63b0183685143367871`
+remains an ancestor. Full exact-SHA host/CI gates and unrelated release fixture
+triage remain coordinator-owned. No push, PR merge, deployment or live write.
