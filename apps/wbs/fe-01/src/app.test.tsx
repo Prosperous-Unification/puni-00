@@ -1,5 +1,6 @@
 import type * as Router from '@tanstack/react-router';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import type { ClientFailure } from '@wbs/contracts';
 import { DiBag } from 'di-bag';
 import { StrictMode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -182,16 +183,111 @@ describe('the app root', () => {
     expect(logged).not.toHaveBeenCalled();
   });
 
-  itDom('offers sign-in when the session check fails', async () => {
-    me.mockRejectedValue(new Error('network down'));
+  itDom(
+    'says the session could not be checked when the read throws, with no sign-in form',
+    async () => {
+      me.mockRejectedValue(new Error('network down'));
+
+      renderApp();
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Try again' })).toBeDefined();
+      });
+      expect(document.querySelector('[data-app-fault]')).toBeNull();
+      expect(screen.getByRole('alert').textContent).toContain('Could not check your session');
+      expect(screen.queryByRole('link', { name: 'Continue with SSO' })).toBeNull();
+    },
+  );
+});
+
+/**
+ * The session read's failure modes (UI review F-079). Only an answer that says
+ * "no session" — 200 with no user, or a refusal — draws the sign-in form; a
+ * server that did not answer draws the server-unavailable state, whose Try
+ * again reads the session again.
+ */
+describe('the session gate when the session read fails', () => {
+  const failed = (failure: ClientFailure) => ({
+    kind: 'failure' as const,
+    failure,
+  });
+
+  itDom.each([
+    [
+      'a 502 from the proxy',
+      failed({ code: 'unexpected_status', status: 502, headers: new Headers() }),
+      'The server is not available right now.',
+    ],
+    [
+      'a 503 page that is not JSON',
+      failed({ code: 'invalid_response', reason: 'json', status: 503, headers: new Headers() }),
+      'The server is not available right now.',
+    ],
+    [
+      'no connection at all',
+      failed({ code: 'transport', cause: new TypeError('Failed to fetch') }),
+      'Could not reach the server.',
+    ],
+  ])(
+    'draws the server-unavailable state for %s, with no credential boxes',
+    async (_, reply, sentence) => {
+      me.mockResolvedValue(reply);
+
+      renderApp();
+
+      // Proof: on 5b65fd5ae (sign-in form under the sentence) this failed on
+      // `Unable to find role="button" and name "Try again"`.
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Try again' })).toBeDefined();
+      });
+      expect(screen.getByRole('alert').textContent).toBe(sentence);
+      expect(screen.getByRole('heading', { name: 'Server unavailable' })).toBeDefined();
+      expect(screen.queryByRole('textbox', { name: 'Username' })).toBeNull();
+      expect(screen.queryByRole('link', { name: 'Continue with SSO' })).toBeNull();
+    },
+  );
+
+  itDom('reads the session again on Try again, and signs in once the server answers', async () => {
+    me.mockResolvedValueOnce(
+      failed({ code: 'unexpected_status', status: 502, headers: new Headers() }),
+    );
+
+    renderApp();
+
+    const retry = await screen.findByRole('button', { name: 'Try again' });
+    expect(me).toHaveBeenCalledTimes(1);
+    // beforeEach's default: a 401 refusal, which is "no session" and the form.
+    fireEvent.click(retry);
+
+    // Proof: with the attempt left out of the session effect's dependencies this
+    // failed on `Unable to find role="link" and name "Continue with SSO"`
+    // (the click changed nothing and `me` stayed at one call).
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: 'Continue with SSO' })).toBeDefined();
+    });
+    expect(me).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  itDom('keeps the sign-in form for a gateway that refuses the read', async () => {
+    me.mockResolvedValue(
+      failed({
+        code: 'unexpected_status',
+        status: 401,
+        headers: new Headers({ 'www-authenticate': 'Basic' }),
+      }),
+    );
 
     renderApp();
 
     await waitFor(() => {
       expect(screen.getByRole('link', { name: 'Continue with SSO' })).toBeDefined();
     });
-    expect(document.querySelector('[data-app-fault]')).toBeNull();
-    expect(screen.getByRole('alert').textContent).toContain('Could not check your session');
+    expect(screen.getByRole('alert').textContent).toContain(
+      'The site gateway rejected the request',
+    );
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
   });
 });
 

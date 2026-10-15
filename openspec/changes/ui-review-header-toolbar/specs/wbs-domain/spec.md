@@ -11,8 +11,9 @@ the roster SHALL be cut mid-word without an ellipsis; a name that does not fit
 the line SHALL drop whole: below 1440px the roster SHALL collapse to
 a connection dot and a count whose hover card names everyone present. On a phone the
 picker, Rename project and Create new project SHALL be at least 44px tall. The
-roster's heading SHALL read `Online` while connected and `Offline` while not,
-and SHALL NOT be shown while no project is chosen.
+roster's heading SHALL read `Live` while connected and `Reconnecting` while not
+(decision D9, change `ui-review-shell-faults`), and SHALL NOT be shown while no
+project is chosen.
 
 #### Scenario: a laptop width
 

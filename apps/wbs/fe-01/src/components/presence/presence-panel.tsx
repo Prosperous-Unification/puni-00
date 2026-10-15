@@ -20,6 +20,9 @@ export interface Roster {
   connected: boolean;
 }
 
+/** What the panel says while the link is down, when nobody's presence can be known. */
+const UNKNOWN = 'Who else is here is not known until the link is back.';
+
 export interface PresencePanelProps extends Roster {
   me: string;
 }
@@ -56,19 +59,36 @@ export interface PresencePanelProps extends Roster {
  * tree (`sr-only`), and the section's fact card (`data-fact`, the app's own
  * card rather than a native `title`) carries the whole roster for a pointer.
  *
- * **Online or Offline, not the channel's state** (F-018). The heading read
- * `Online (open)`: `open` is the socket's word, and to a reader it meant
- * nothing. Offline is what a dropped stream is to them, and the roster shown
- * beside it is the last one heard.
+ * **Live or Reconnecting: the pill is the live link, not the server** (UI review
+ * decision D9, F-078). It reports the plan's stream through gw-01 — whether other
+ * people's edits and who is here arrive as they happen — and nothing about whether
+ * be-01 will take a change; a refused or failed write is the table's own sentence
+ * and Retry. It read `Online (open)` until F-018 and `Online` / `Offline` after,
+ * and `Online` beside "The server could not complete that change" read as a
+ * contradiction. `Reconnecting` is the stream's real behaviour and the table's
+ * line says the same word.
+ *
+ * **While reconnecting, presence is unknown** (F-077): no names, no count and no
+ * "Nobody yet." — neither the last roster heard nor an empty one is known to be
+ * true. The panel says so to a screen reader and in its fact card. Below 1440px
+ * that leaves the grey dot alone, as the collapsed roster leaves a dot and a
+ * count: a visible `Reconnecting` there wrapped the phone's first header row
+ * into two, and the plan's own line under the toolbar already says it in words.
  */
 export function PresencePanel({ me, users, connected }: PresencePanelProps) {
   const headingId = useId();
-  const state = connected ? 'Online' : 'Offline';
+  const state = connected ? 'Live' : 'Reconnecting';
   const roster = users.map((user) => (user === me ? `${user} (you)` : user)).join(', ');
   return (
     <section
       aria-labelledby={headingId}
-      data-fact={users.length === 0 ? `${state}: nobody yet` : `${state}: ${roster}`}
+      data-fact={
+        !connected
+          ? `${state}: ${UNKNOWN.toLowerCase()}`
+          : users.length === 0
+            ? `${state}: nobody yet`
+            : `${state}: ${roster}`
+      }
       className="flex min-w-0 items-center gap-1.5 text-xs"
     >
       <span
@@ -84,7 +104,9 @@ export function PresencePanel({ me, users, connected }: PresencePanelProps) {
       >
         {state}
       </h2>
-      {users.length === 0 ? (
+      {!connected ? (
+        <p className="sr-only">{UNKNOWN}</p>
+      ) : users.length === 0 ? (
         <p className="text-muted-foreground max-[1440px]:sr-only">Nobody yet.</p>
       ) : (
         <ul className="m-0 flex h-4 max-w-48 list-none flex-wrap gap-x-2 overflow-hidden p-0 whitespace-nowrap max-[1440px]:sr-only">
@@ -96,13 +118,15 @@ export function PresencePanel({ me, users, connected }: PresencePanelProps) {
           ))}
         </ul>
       )}
-      <span
-        aria-hidden="true"
-        data-presence-count
-        className="text-muted-foreground min-[1440px]:hidden"
-      >
-        {users.length}
-      </span>
+      {connected && (
+        <span
+          aria-hidden="true"
+          data-presence-count
+          className="text-muted-foreground min-[1440px]:hidden"
+        >
+          {users.length}
+        </span>
+      )}
     </section>
   );
 }

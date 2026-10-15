@@ -1380,9 +1380,10 @@ export function ProjectPage({
       nav={nav}
       project={projectControls}
       // Only once a project is chosen: off one there is no roster to be in, and
-      // the panel's Offline would read as a dropped connection that never
-      // existed (UI review F-018). From the choice on it is handed the honest
-      // roster — empty and disconnected until the project's stream speaks.
+      // the panel's Reconnecting (Offline before D9) would read as a dropped
+      // connection that never existed (UI review F-018). From the choice on it
+      // is handed the honest roster — empty and disconnected until the
+      // project's stream speaks.
       presence={selected === null ? undefined : presence?.(roster)}
       account={account}
     />
