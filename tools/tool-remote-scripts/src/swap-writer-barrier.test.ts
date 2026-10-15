@@ -24,11 +24,13 @@ afterEach(async () => {
 const outgoingId = 'a'.repeat(64);
 const incomingId = 'b'.repeat(64);
 const maintenanceId = 'd'.repeat(64);
+const previousImage = `registry/wbs-be-01@sha256:${'e'.repeat(64)}`;
 const image = 'registry/wbs-be-01@sha256:' + 'c'.repeat(64);
 
 async function fixture(
   fault:
     | 'none'
+    | 'first-install'
     | 'preflight'
     | 'running'
     | 'wrong-id'
@@ -55,10 +57,10 @@ async function fixture(
   const root = await mkdtemp(join(tmpdir(), 'compose-writer-'));
   roots.push(root);
   const events: string[] = [];
-  let blueRunning = true;
+  let blueRunning = fault !== 'first-install';
   let greenRunning = fault === 'idle';
   let inventoryReads = 0;
-  let stoppedInspected = false;
+  let stoppedInspected = fault === 'first-install';
   const io: SwapExecutionIo = {
     namespaceProof: () => Promise.resolve(),
     barrierStateDir: root,
@@ -129,6 +131,10 @@ async function fixture(
         if (fault === 'migration-failure') throw new Error('migration interrupted');
         return 'migrated';
       }
+      if (args[0] === 'image' && args[3] === '{{json .}}')
+        return JSON.stringify({
+          Id: `sha256:${(args.at(-1) === previousImage ? 'e' : 'c').repeat(64)}`,
+        });
       if (args[0] === 'image') return image;
       if (args[0] === 'run') {
         expect(args).toContain('none');
@@ -144,6 +150,7 @@ async function fixture(
       }
       if (args[0] === 'inspect' && args[2] === '{{.Id}}') return incomingId;
       if (args[0] === 'ps') {
+        if (fault === 'first-install') return '';
         inventoryReads += 1;
         if (fault === 'race' && inventoryReads > 1) return incomingId;
         return fault === 'idle' || fault === 'idle-database' || fault === 'unmanaged'
@@ -152,9 +159,11 @@ async function fixture(
       }
       if (args[0] === 'inspect' && args[1] !== '--format')
         return JSON.stringify(
-          args.slice(1).map((identity) => ({
+          (args[1] === '--type' ? args.slice(3) : args.slice(1)).map((identity) => ({
             Id: identity,
+            Image: `sha256:${'e'.repeat(64)}`,
             Config: {
+              Image: previousImage,
               Env:
                 fault === 'database-env-missing'
                   ? []
@@ -263,9 +272,9 @@ async function fixture(
     },
   };
   const planned = planSwap('be', {
-    routedColor: 'blue',
-    recordedColor: 'blue',
-    runningColors: ['blue'],
+    routedColor: fault === 'first-install' ? null : 'blue',
+    recordedColor: fault === 'first-install' ? null : 'blue',
+    runningColors: fault === 'first-install' ? [] : ['blue'],
     phase: 'committed',
   });
   // Drive the real planned prefix; vocabulary/migration tests exercise their own real boundaries.
@@ -1256,4 +1265,319 @@ for (const fault of ['image-absent', 'image-malformed', 'working-directory-absen
     expect(events).not.toContain('phase');
     expect(events).not.toContain('start:never');
   });
+}
+
+for (const incompatible of ['candidate', 'rollback'] as const) {
+  test(`preserve-only recovery refuses enabled-empty ${incompatible} image incompatibility`, async () => {
+    const previous = `registry/wbs-be-01@sha256:${'e'.repeat(64)}`;
+    const commands: string[][] = [];
+    await refuses(
+      checkBackendRecovery(previous, image, '/data/wbs.db', (args) => {
+        commands.push(args);
+        if (args[0] === 'ps') return Promise.resolve('');
+        if (args.some((argument) => argument.includes('SELECT payload,inverse,preconditions')))
+          return Promise.resolve('[{"kind":"step_blockage_activation_v1","count":1}]');
+        if (args.some((argument) => argument.includes('src/step-blockage-replay-kinds-cli.ts'))) {
+          return Promise.resolve(
+            args.includes(incompatible === 'candidate' ? image : previous)
+              ? '[]'
+              : '["step_blockage_activation_v1"]',
+          );
+        }
+        return Promise.resolve('[]');
+      }),
+      'step_blockage_activation_v1',
+    );
+    expect(commands.some((args) => ['start', 'stop'].includes(args[0]))).toBe(false);
+    expect(commands.some((args) => args.includes('src/migrate-cli.ts'))).toBe(false);
+  });
+}
+
+async function activationSwap(
+  fault:
+    | 'none'
+    | 'incapable-outgoing'
+    | 'mutable-ref'
+    | 'bad-image-id'
+    | 'wrong-image-container'
+    | 'malformed-image-container'
+    | 'malformed-image-output'
+    | 'missing-image-container'
+    | 'missing-ref'
+    | 'missing-image-id'
+    | 'wrong-pinned-id'
+    | 'changed-ref'
+    | 'changed-image-id'
+    | 'false-first-install-same-color'
+    | 'false-first-install'
+    | 'first-install'
+    | 'first-incapable'
+    | 'first-late-writer'
+    | 'first-enabled',
+) {
+  const isFirstInstall = [
+    'first-install',
+    'first-incapable',
+    'first-enabled',
+    'first-late-writer',
+  ].includes(fault);
+  const attempt = await fixture(isFirstInstall ? 'first-install' : 'none');
+  const docker = attempt.io.sh;
+  const commands: string[][] = [];
+  let writerReads = 0;
+  attempt.io.sh = async (args) => {
+    commands.push(args);
+    if (args[0] === 'ps' && fault === 'first-late-writer' && ++writerReads > 2) return outgoingId;
+    if (
+      args[0] === 'run' &&
+      args.some((argument) => argument.includes('SELECT payload,inverse,preconditions'))
+    )
+      return isFirstInstall && fault !== 'first-enabled'
+        ? '[]'
+        : '[{"kind":"step_blockage_activation_v1","count":1}]';
+    if (
+      args[0] === 'run' &&
+      args.some((argument) => argument.includes('src/step-blockage-replay-kinds-cli.ts'))
+    )
+      return fault === 'first-incapable' ||
+        (fault === 'incapable-outgoing' && args.includes(previousImage))
+        ? '[]'
+        : '["step_blockage_activation_v1"]';
+    const observed = await docker(args);
+    if (
+      args[0] === 'image' &&
+      args[3] === '{{json .}}' &&
+      fault === 'changed-image-id' &&
+      !attempt.isBlueRunning()
+    )
+      return JSON.stringify({ Id: `sha256:${'f'.repeat(64)}` });
+    if (args[0] === 'image' && args[3] === '{{json .}}' && fault === 'mutable-ref')
+      return JSON.stringify({ Id: `sha256:${'e'.repeat(64)}` });
+    if (args[0] === 'image' && args[3] === '{{json .}}' && fault === 'bad-image-id')
+      return JSON.stringify({ Id: 'broken' });
+    if (args[0] === 'image' && args[3] === '{{json .}}' && fault === 'wrong-pinned-id')
+      return JSON.stringify({ Id: `sha256:${'f'.repeat(64)}` });
+    if (args[0] === 'inspect' && args[1] === '--type' && args[3] === outgoingId) {
+      const containers = JSON.parse(observed) as { Image?: string; Config: { Image?: string } }[];
+      const container = containers.at(0);
+      if (container === undefined) throw new Error('fixture container is missing');
+      if (fault === 'mutable-ref') container.Config.Image = 'registry/wbs-be-01:latest';
+      if (fault === 'bad-image-id') container.Image = 'broken';
+      if (fault === 'wrong-image-container')
+        return JSON.stringify([{ ...container, Id: incomingId }]);
+      if (fault === 'malformed-image-container') return '[null]';
+      if (fault === 'malformed-image-output') return JSON.stringify({ 0: container, length: 1 });
+      if (fault === 'missing-image-container') return '[]';
+      if (fault === 'missing-ref') delete container.Config.Image;
+      if (fault === 'missing-image-id') delete container.Image;
+      if (!attempt.isBlueRunning() && fault === 'changed-ref') {
+        container.Config.Image = image;
+        container.Image = `sha256:${'c'.repeat(64)}`;
+      }
+      if (!attempt.isBlueRunning() && fault === 'changed-image-id')
+        container.Image = `sha256:${'f'.repeat(64)}`;
+      return JSON.stringify(containers);
+    }
+    return observed;
+  };
+  if (fault === 'false-first-install' || fault === 'false-first-install-same-color')
+    attempt.plan.from = null;
+  if (fault === 'false-first-install-same-color') attempt.plan.to = 'blue';
+  return { ...attempt, commands };
+}
+
+for (const fault of [
+  'incapable-outgoing',
+  'mutable-ref',
+  'bad-image-id',
+  'wrong-image-container',
+  'malformed-image-container',
+  'malformed-image-output',
+  'missing-image-container',
+  'missing-ref',
+  'missing-image-id',
+  'wrong-pinned-id',
+  'changed-ref',
+  'changed-image-id',
+  'false-first-install',
+  'false-first-install-same-color',
+  'first-incapable',
+  'first-enabled',
+  'first-late-writer',
+] as const) {
+  test(`ordinary activation admission refuses ${fault} before maintenance`, async () => {
+    const attempt = await activationSwap(fault);
+    const diagnostic =
+      fault === 'incapable-outgoing'
+        ? 'recovery image cannot read'
+        : fault.startsWith('false-first-install')
+          ? 'unowned backend writer'
+          : fault === 'first-late-writer'
+            ? 'no existing backend writer'
+            : fault === 'first-incapable'
+              ? 'first backend install requires'
+              : fault === 'first-enabled'
+                ? 'requires a rollback image'
+                : 'outgoing backend image';
+    await refuses(execute(attempt.plan, image, 'deadbeef', attempt.io), diagnostic);
+    expect(attempt.events).not.toContain('maintenance');
+    expect(attempt.events).not.toContain('start');
+    expect(attempt.commands.some((args) => args.includes('src/migrate-cli.ts'))).toBe(false);
+    if (
+      [
+        'missing-ref',
+        'missing-image-id',
+        'mutable-ref',
+        'bad-image-id',
+        'wrong-image-container',
+        'malformed-image-container',
+        'malformed-image-output',
+        'missing-image-container',
+        'wrong-pinned-id',
+        'false-first-install',
+        'false-first-install-same-color',
+      ].includes(fault)
+    ) {
+      expect(attempt.isBlueRunning()).toBe(true);
+      await assertNoWriterBarrier(attempt.root);
+    }
+    if (['incapable-outgoing', 'changed-ref', 'changed-image-id'].includes(fault)) {
+      expect(attempt.isBlueRunning()).toBe(false);
+      const retained: unknown = JSON.parse(
+        await readFile(join(attempt.root, 'be-writer-stop.json'), 'utf8'),
+      );
+      expect(retained).toMatchObject({
+        rollback: {
+          containerId: outgoingId,
+          image: previousImage,
+          imageId: `sha256:${'e'.repeat(64)}`,
+        },
+      });
+    }
+  });
+}
+
+test('ordinary activation admission retains outgoing association and observes its exact digest', async () => {
+  const attempt = await activationSwap('none');
+  await execute(attempt.plan, image, 'deadbeef', attempt.io);
+  const intent: unknown = JSON.parse(
+    await readFile(join(attempt.root, 'be-writer-stop.json'), 'utf8'),
+  );
+  expect(intent).toMatchObject({
+    outgoingId,
+    rollback: {
+      containerId: outgoingId,
+      image: previousImage,
+      imageId: `sha256:${'e'.repeat(64)}`,
+    },
+  });
+  const observed = attempt.commands.filter(
+    (args) =>
+      args[0] === 'run' &&
+      args.some((argument) => argument.includes('src/step-blockage-replay-kinds-cli.ts')),
+  );
+  expect(observed.some((args) => args.includes(previousImage))).toBe(true);
+  expect(observed.some((args) => args.includes(image))).toBe(true);
+});
+
+test('ordinary first install proves capable candidate and retains explicit absent predecessor', async () => {
+  const attempt = await activationSwap('first-install');
+  await execute(attempt.plan, image, 'deadbeef', attempt.io);
+  const intent: unknown = JSON.parse(
+    await readFile(join(attempt.root, 'be-writer-stop.json'), 'utf8'),
+  );
+  expect(intent).toMatchObject({ from: null, outgoingId: null, rollback: null });
+  expect(attempt.events).toContain('start');
+});
+
+const storedVocabularies = [
+  {
+    kind: 'FF',
+    key: 'type',
+    cli: 'relationship-types',
+    inventory: 'FROM typed_dependency GROUP BY type',
+  },
+  { kind: 'on_hold', key: 'kind', cli: 'hold-kinds', inventory: 'SELECT hold AS kind' },
+  { kind: 'ready', key: 'kind', cli: 'readiness-kinds', inventory: 'SELECT readiness AS kind' },
+  {
+    kind: 'shared',
+    key: 'mode',
+    cli: 'capacity-modes',
+    inventory: 'SELECT shared_people AS encoding',
+  },
+  {
+    kind: 'succeeded',
+    key: 'outcome',
+    cli: 'attempt-outcomes',
+    inventory: 'SELECT outcome, count(*) AS count',
+  },
+  {
+    kind: 'blocked',
+    key: 'kind',
+    cli: 'step-blockage-kinds',
+    inventory: "SELECT 'blocked' AS kind",
+  },
+  ...['replace_blockage', 'move_progress_v1', 'delete_state_v1', 'step_blockage_activation_v1'].map(
+    (kind) => ({
+      kind,
+      key: 'kind',
+      cli: 'step-blockage-replay-kinds',
+      inventory: 'SELECT payload,inverse,preconditions FROM command_journal',
+    }),
+  ),
+  {
+    kind: 'minutes',
+    key: 'unit',
+    cli: 'estimate-units',
+    inventory: 'SELECT estimate_unit AS unit',
+  },
+];
+
+for (const vocabulary of storedVocabularies) {
+  for (const incompatible of ['candidate', 'rollback', null] as const) {
+    test(`ordinary complete vocabulary ${vocabulary.kind} with ${incompatible ?? 'both capable'} images`, async () => {
+      const attempt = await fixture();
+      const docker = attempt.io.sh;
+      const commands: string[][] = [];
+      attempt.io.sh = async (args) => {
+        commands.push(args);
+        if (args[0] === 'run' && args.some((argument) => argument.includes(vocabulary.inventory)))
+          return JSON.stringify([{ [vocabulary.key]: vocabulary.kind, count: 1 }]);
+        if (
+          args[0] === 'run' &&
+          args.some((argument) => argument.includes(`src/${vocabulary.cli}-cli.ts`))
+        )
+          return JSON.stringify(
+            incompatible !== null &&
+              args.includes(incompatible === 'candidate' ? image : previousImage)
+              ? []
+              : [vocabulary.kind],
+          );
+        return docker(args);
+      };
+      if (incompatible === null) {
+        await execute(attempt.plan, image, 'deadbeef', attempt.io);
+        expect(attempt.events).toContain('start');
+        const observations = commands.filter(
+          (args) =>
+            args[0] === 'run' &&
+            args.some((argument) => argument.includes(`src/${vocabulary.cli}-cli.ts`)),
+        );
+        expect(observations.some((args) => args.includes(image))).toBe(true);
+        expect(observations.some((args) => args.includes(previousImage))).toBe(true);
+      } else {
+        const failure = await execute(attempt.plan, image, 'deadbeef', attempt.io).then(
+          () => '',
+          (cause: unknown) => (cause instanceof Error ? cause.message : String(cause)),
+        );
+        expect(failure).toContain(
+          `${incompatible === 'candidate' ? 'candidate' : 'recovery'} image cannot read`,
+        );
+        expect(failure).toContain(`${vocabulary.kind} (1)`);
+        expect(attempt.events).not.toContain('maintenance');
+        expect(attempt.events).not.toContain('start');
+        expect(commands.some((args) => args.includes('src/migrate-cli.ts'))).toBe(false);
+      }
+    });
+  }
 }

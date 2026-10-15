@@ -136,6 +136,26 @@ Dockerfile.
 The solver supervisor's runtime directory is mounted read-only at `/run/wbs-solver`, never the
 `supervisor.sock` inode, so an atomically replaced socket reaches the running Pod.
 
+### Container restart recovery (2026-10-15)
+
+Forge sets `NX_DAEMON=false` and
+`NX_WORKSPACE_DATA_DIRECTORY=/tmp/puni-forge-nx/workspace-data`. Installed Nx 23.2.1
+uses its workspace database for continuous-task ownership even with the daemon disabled.
+Keeping that database in the container's writable layer gives each replacement container
+fresh ownership state. Do not mount a volume, including `emptyDir`, over this path: volumes
+survive container restarts within the same Pod. The mounted worktree's `.nx` ownership
+is left untouched; no broad `nx reset` is needed.
+
+The 2026-10-15 disposable F9 baseline first terminated `OOMKilled` at the committed 2Gi
+limit, then its automatic restart stalled on four serve ownership rows under `/src/.nx`.
+After removing those exact stale rows, recovered browser/HMR/checker acceptance passed
+at the same 2Gi limit. That recovery does not resolve the first cold-start OOM. This
+focused change isolates ownership on future restarts; it changes neither startup
+concurrency nor resource limits. Its installed-Nx regression and removed-setting proof
+are recorded in
+[`forge-restart-state/verify.md`](../../openspec/changes/forge-restart-state/verify.md).
+Cold-start reliability remains an open F9 acceptance gap.
+
 ### Forge namespace admission prerequisite
 
 Admission reserves `puni-forge` and `puni-forge-<slug>`. The suffix uses the existing

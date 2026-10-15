@@ -76,6 +76,29 @@ raw authority digest and full-envelope digest. These facts neither discover memb
 classify a test, establish isolation or grant T1/T2, coverage or admission credit. Authentication
 is absent and `certifies:false`; failed and skipped cases remain observations.
 
+`inspect-browser-conformance <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <external-authority>`
+binds the real report to a complete committed Conformance selection in one externally declared
+project root. The closed version-1 authority pins `revision`, `candidate`, `mode`,
+`reportObservationDigest`, `projectRoot` and `projectManifest:{path,digest}`. Every Browser file
+must lie inside that root; the manifest must be its `project.json`. Only the existing bounded
+literal Bun Conformance command is supported. Every selected source is validated before the
+intersection, including disjoint files. Output retains the full report, complete selection,
+sorted intersection and source union. Manual, Architecture and Performance remain unknown.
+Authentication is absent and `certifies:false`; no classification, isolation, execution,
+coverage or admission claim follows. Failed and skipped Browser outcomes remain observations.
+
+`inspect-browser-architecture <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <external-authority>`
+binds the complete report to one project's explicit reviewed-empty assertion or complete committed
+Architecture selection. Its closed version-1 authority pins `revision`, `candidate`, `mode`,
+`reportObservationDigest`, `projectRoot`, `projectManifest:{path,digest}` and
+`architecture:{kind:'reviewed-empty'}` or `{kind:'committed',path,digest}`. The manifest is the
+root's `project.json`; the policy is its `src/architecture-fixtures.json`. All mapped selected
+regular blobs are checked before intersection through the existing rule and immediate-child
+discovery validators. Reviewed-empty refuses a fixed policy, any policy descendant or a declared
+`test:architecture:level`. Output includes the complete report, authority and raw-byte digest,
+sorted collection, complete selection, intersection and deduplicated source union. Manual,
+Conformance and Performance remain unknown, authentication absent and `certifies:false`.
+
 `inspect-test-sources <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable>`
 joins those observed Browser case files to their exact validated module indexes in the same
 selected commit. It reports the source owner, source and index identities, index review debt, and
@@ -188,3 +211,5 @@ This report grants no approval, admission, certification, requirements validatio
 dependency closure.
 
 `twilight-burokrat inspect-performance-scenarios <repository> <committed-sha> <external-rule-policy> <external-level-authority> <capability>` joins the validated isolated Performance publication to the entire selected B3 active tree under the external policy's pinned predecessor. Each adopted requested scenario lists passing selected case IDs or `unobserved-in-selection`. Only terminal test-title `[CAPABILITY-001] ` prefixes cite scenarios. Missing/malformed prefixes and unknown/retired identities produce separate citation findings and exit 1; source, policy, isolation or B3 refusals emit no JSON. The full observation preserves unrelated B3 debt and binds all upstream identities. It remains unauthenticated and noncertifying; an unobserved row says nothing about tests outside this selection.
+
+`twilight-burokrat inspect-scenario-ledger <repository> <committed-sha> <external-rule-policy> <external-level-authority> <capability> <external-ledger-authority> --now <UTC instant>` enumerates every adopted effective scenario in the selected capability and joins a closed external obligation authority. It preserves the complete Performance/B3 observation, citation findings and unidentified debt. Missing obligations are named `unassigned`; unsupported automated lowest levels remain debt; inapplicability requires a reason; Manual obligations retain the existing inspector's exact current/stale/failed/overdue observation. Valid debt emits JSON and exits 1. Authority/evidence/join refusals emit no partial JSON. The canonical full-payload digest binds normalized obligations, upstream observations and evaluation instant. Authentication is absent and certification is false; this diagnostic does not grant coverage or admission.
