@@ -1,7 +1,9 @@
 import type { BuiltSolverRequest } from '@wbs/contracts/solver/build-request';
 import type { OptimizationOutcome } from '@wbs/contracts/solver/solver-exit-outcome';
-import type { OptimizationVariantState, ProjectEvent, RecordedEvent } from '@wbs/core';
-import type { CommittedProjectEvent } from '@wbs/core/service/committed-fanout';
+import type { CommittedProjectEvent } from '@wbs/core/ports/committed-fanout';
+import type { ProjectEvent } from '@wbs/core/ports/project-event';
+import type { RecordedEvent } from '@wbs/core/ports/recorded-event';
+import type { OptimizationVariantState } from '@wbs/core/ports/scheduler';
 import type { SolverObjectiveName } from '@wbs/domain';
 import type { Schedule } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
