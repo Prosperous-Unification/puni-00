@@ -749,6 +749,7 @@ describe('20260927120000_add_organization_records', () => {
     connection.close();
 
     expect(rollbackTo(path, FOLDER, WORK_ITEM_FACTS)).toEqual([
+      '20261015100000_add_step_blockage_activation_receipt',
       '20261014140000_add_step_blockage_activation',
       '20261014130000_add_shared_people_restore_receipts',
       '20261014120000_add_shared_people_restore_approvals',
@@ -788,6 +789,7 @@ describe('20260927120000_add_organization_records', () => {
           name !== 'shared_people_audit' &&
           name !== 'step_blockage' &&
           name !== 'step_blockage_activation' &&
+          name !== 'step_blockage_activation_receipt' &&
           name !== 'shared_people_restore_operation' &&
           name !== 'shared_people_restore_receipt' &&
           name !== 'shared_people_restore_consumption' &&

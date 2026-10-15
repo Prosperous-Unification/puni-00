@@ -102,6 +102,9 @@ function invokeWithoutWorkspace(executable: string, argv: readonly string[], cwd
       '/dev',
       '--proc',
       '/proc',
+      '--bind',
+      cwd,
+      cwd,
       '--tmpfs',
       workspace,
       '--chdir',
@@ -111,6 +114,7 @@ function invokeWithoutWorkspace(executable: string, argv: readonly string[], cwd
       ...argv,
     ],
     cwd,
+    { ...sanitizedEnvironment(cwd), TMPDIR: cwd },
   );
 }
 
@@ -221,7 +225,14 @@ describe('packed Twilight Burokrat installation', () => {
     expect(installedFiles).toContain('dist/toolkit/prepare-relocation-activation.mjs');
     expect(installedFiles.some((path) => path.startsWith('apps/wbs/'))).toBe(false);
     expect(installedFiles.some((path) => path.includes('docs/wiki-policy'))).toBe(false);
-    expect(installedFiles.some((path) => /secret/i.test(path))).toBe(false);
+    // Vendor packages include public secrets API documentation and key generation modules.
+    // Repository-owned assets must still exclude secret-named paths outside that pinned closure.
+    // Proof: repacking with dist/secrets-fixture.txt made this installed-file assertion fail.
+    expect(
+      installedFiles
+        .filter((path) => !path.startsWith('dist/toolkit/trusted-node-modules/'))
+        .some((path) => /secret/i.test(path)),
+    ).toBe(false);
     const version = invoke(executable, ['--version'], consumer);
     expect(version.exitCode, version.stderr.toString()).toBe(0);
     expect(version.stdout.toString()).toBe('0.1.0\n');
@@ -265,6 +276,100 @@ describe('packed Twilight Burokrat installation', () => {
     const refused = invoke(executable, ['validate-record', 'benchmark-corpus', fixture], consumer);
     expect(refused.exitCode).not.toBe(0);
     expect(refused.stderr.toString()).toContain('toolkit role is unreadable: validator.mjs');
+  }, 120_000);
+
+  test('extracts supported vendor relationships and public declarations outside the checkout', () => {
+    const { consumer, executable } = installTarball(packedTarball);
+    const repository = join(consumer, 'candidate');
+    mkdirSync(repository);
+    git(repository, ['init', '--initial-branch=main']);
+    git(repository, ['config', 'user.email', 'declarations@example.test']);
+    git(repository, ['config', 'user.name', 'Declaration Fixture']);
+    write(join(repository, 'package.json'), '{"name":"declaration-consumer","private":true}\n');
+    write(join(repository, 'nx.json'), '{"plugins":[],"useInferencePlugins":false}\n');
+    write(
+      join(repository, 'tsconfig.json'),
+      JSON.stringify({
+        compilerOptions: {
+          declaration: true,
+          strict: true,
+          skipLibCheck: true,
+          module: 'ESNext',
+          moduleResolution: 'Bundler',
+          target: 'ES2022',
+          types: ['bun-types'],
+        },
+        include: ['src/**/*.ts'],
+      }),
+    );
+    write(
+      join(repository, 'src/index.ts'),
+      "import { type } from 'arktype';\n" +
+        "import type { Elysia } from 'elysia';\n" +
+        "import type { AnySQLiteColumn } from 'drizzle-orm/sqlite-core';\n" +
+        'export interface PublicModel { schema: ReturnType<typeof type>; app: Elysia; column: AnySQLiteColumn; file: Bun.BunFile }\n',
+    );
+    git(repository, ['add', '--all']);
+    git(repository, ['commit', '--message', 'consumer declaration imports']);
+    const revision = git(repository, ['rev-parse', 'HEAD']);
+    const request = join(consumer, 'relationships.json');
+    write(
+      request,
+      JSON.stringify({
+        schemaVersion: 1,
+        typescript: {
+          configPaths: ['tsconfig.json'],
+          publicEntrypoints: ['src/index.ts'],
+        },
+      }),
+    );
+    const extracted = invokeWithoutWorkspace(
+      executable,
+      ['extract-relationships', 'committed', repository, revision, request],
+      consumer,
+    );
+    expect(extracted.exitCode, extracted.stderr.toString()).toBe(0);
+    const report = JSON.parse(extracted.stdout.toString()) as {
+      typescript: {
+        imports: { specifier: string }[];
+        publicDeclarations: {
+          entrypoint: string;
+          declarations: { text: string }[];
+        }[];
+      };
+    };
+    const specifiers = report.typescript.imports.map((edge) => edge.specifier);
+    for (const specifier of ['arktype', 'elysia', 'drizzle-orm/sqlite-core']) {
+      expect(specifiers).toContain(specifier);
+    }
+    expect(report.typescript.publicDeclarations).toHaveLength(1);
+    expect(report.typescript.publicDeclarations[0].entrypoint).toBe('src/index.ts');
+    expect(
+      report.typescript.publicDeclarations[0].declarations
+        .map((declaration) => declaration.text)
+        .join('\n'),
+    ).toContain('interface PublicModel');
+    const closure = join(
+      consumer,
+      'node_modules/twilight-burokrat/dist/toolkit/trusted-node-modules',
+    );
+    expect(existsSync(join(closure, 'nx/package.json'))).toBe(false);
+    expect(existsSync(join(closure, 'arktype/node_modules/@ark/schema/package.json'))).toBe(true);
+    const declaration = join(closure, 'arktype/out/index.d.ts');
+    const original = readFileSync(declaration);
+    writeFileSync(
+      declaration,
+      Buffer.concat([original, Buffer.from('\n// altered vendor declaration\n')]),
+    );
+    const corrupted = invokeWithoutWorkspace(
+      executable,
+      ['extract-relationships', 'committed', repository, revision, request],
+      consumer,
+    );
+    expect(corrupted.exitCode).toBe(1);
+    expect(corrupted.stderr.toString()).toContain(
+      'toolkit runtime closure differs from toolkit.json',
+    );
   }, 120_000);
 
   test('prepares certified admission and the old activation refuses a newer commit', () => {

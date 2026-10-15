@@ -60,7 +60,9 @@ export function checkPlanTaskConsistency(
   // Proof: removing version pairing made all three unsupported pair tests exit 0 (plan-tasks.test.ts, 2026-10-13).
   // Proof: bypassing version pairing failed Navigator `re-digested v6/schema2, v7/schema2 and v8/schema1` refusal tests
   // in receipt-to-commands.test.ts (2026-10-14).
-  if (tasks.schemaVersion !== (reference.planDocumentVersion === 8 ? 2 : 1)) {
+  // Proof: bypassing this guard accepted re-digested v9/schema1 through production
+  // receipt conversion in receipt-to-commands.test.ts (2026-10-15).
+  if (tasks.schemaVersion !== (reference.planDocumentVersion >= 8 ? 2 : 1)) {
     throw new Error('plan document and task schema pairing is unsupported');
   }
   // Proof: removing task uniqueness made the duplicate task IDs test exit 0 (plan-tasks.test.ts, 2026-10-13).

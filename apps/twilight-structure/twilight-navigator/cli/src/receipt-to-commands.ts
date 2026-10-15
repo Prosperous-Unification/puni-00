@@ -1,7 +1,6 @@
 import { parseOrThrow } from '@shared/validation';
 import {
-  canonicalJson,
-  checkPlanTaskConsistency,
+  checkProgressReceiptConsistency,
   digestOf,
   PlanReferenceRecord,
   PlanTasks,
@@ -49,7 +48,7 @@ async function readDecoded<Decoded>(
  * the entry's status, then one `setMeasure` per present measure in {@link MEASURE_ORDER}.
  * `setProgress`, not `setStatus`, because an entry names one step and `setStatus` acts on the
  * whole work item. Task schemas 1 and 2 retain their original values through decoding;
- * Burokrat consistency check precedes reading their shared task and step identifiers.
+ * Burokrat receipt consistency check precedes reading their shared task and step identifiers.
  *
  * @throws when the receipt is for another plan reference, the task export is not the one the
  * plan reference binds, the plan and tasks are inconsistent, or an entry names a task or
@@ -60,27 +59,14 @@ export function commandsForReceipt(
   reference: PlanReferenceRecord,
   tasks: PlanTasks,
 ): CommandBatchDocument {
-  // Proof: skipping this comparison failed `refuses a receipt for another plan reference`: the
-  // receipt for another change produced a batch (2026-10-11).
-  if (canonicalJson(receipt.planRef) !== canonicalJson(reference.planRef)) {
-    throw new Error('progress receipt names another plan reference');
-  }
-  // Proof: removing this call emitted batches for all eight re-digested semantic faults
-  // in receipt-to-commands.test.ts, including the subprocess plan mismatch (2026-10-14).
-  checkPlanTaskConsistency(reference, tasks);
+  // Proof: skipping this call failed 14 semantic/digest/membership refusals in
+  // receipt-to-commands.test.ts, including the real subprocess (2026-10-15).
+  checkProgressReceiptConsistency(receipt, reference, tasks);
   const stepIdByCode = new Map(tasks.steps.map((step) => [step.code, step.id]));
-  const taskIds = new Set(tasks.tasks.map((task) => task.id));
   const commands = receipt.entries.flatMap((entry, index): PlanCommandWire[] => {
     const stepId = stepIdByCode.get(entry.stepCode);
-    // Proof: skipping this lookup failed `refuses an unknown task or step before writing` at its
-    // absent-task case (2026-10-11).
-    if (!taskIds.has(entry.taskId)) {
-      throw new Error(
-        `receipt entry ${String(index)} names task ${entry.taskId}, absent from the plan`,
-      );
-    }
-    // Proof: skipping this lookup failed `refuses an unknown task or step before writing` at its
-    // absent-step case (2026-10-11).
+    // Proof: replacing the step lookup map with an empty map failed the real entrypoint
+    // `emits commands per entry` test (2026-10-15).
     if (stepId === undefined) {
       throw new Error(
         `receipt entry ${String(index)} names step ${entry.stepCode}, absent from the plan`,

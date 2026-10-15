@@ -167,7 +167,18 @@ and any declared Gitlink that is still inaccessible is retained in the coverage 
 acceptance. These commands validate a proposed sweep record. They do not run reviews, activate
 policy, or certify the still-pending operational sweep.
 
-## Plan task consistency
+## Plan and progress receipt consistency
+
+`twib validate-progress-receipt <receipt.json> <plan-reference.json> <tasks.json>` strictly
+checks three supplied documents with [`validateProgressReceipt`](src/contracts/validate-progress-receipt.ts).
+Its deterministic `progress-receipt-consistency` JSON names their digests, plan and entry count.
+It checks existing plan/task consistency, the complete plan reference and each receipt entry's
+leaf task ID and step code membership. Navigator reuses `checkProgressReceiptConsistency` before
+constructing commands. The report grants no certification, authorship, freshness, evidence
+authority, approval, admission or authority over current WBS state. Historical v6/v7/v8 references
+remain supported; v9 requires task schema 2 and v10 is refused. Receipt binding uses the six-field
+PlanRef, without asserting direct blockage freshness. Missing, unreadable, malformed and inconsistent inputs fail
+with no success stdout. This command reads files only.
 
 `twib validate-plan-tasks <plan-reference.json> <tasks.json>` strictly checks the two supplied
 documents using [`validatePlanTasks`](src/contracts/validate-plan-tasks.ts). Its deterministic
@@ -175,3 +186,5 @@ documents using [`validatePlanTasks`](src/contracts/validate-plan-tasks.ts). Its
 count. It checks historical/current schema pairing and unique task IDs and step IDs/codes.
 This report grants no approval, admission, certification, requirements validation or composite
 dependency closure.
+
+`twilight-burokrat inspect-performance-scenarios <repository> <committed-sha> <external-rule-policy> <external-level-authority> <capability>` joins the validated isolated Performance publication to the entire selected B3 active tree under the external policy's pinned predecessor. Each adopted requested scenario lists passing selected case IDs or `unobserved-in-selection`. Only terminal test-title `[CAPABILITY-001] ` prefixes cite scenarios. Missing/malformed prefixes and unknown/retired identities produce separate citation findings and exit 1; source, policy, isolation or B3 refusals emit no JSON. The full observation preserves unrelated B3 debt and binds all upstream identities. It remains unauthenticated and noncertifying; an unobserved row says nothing about tests outside this selection.

@@ -11,6 +11,7 @@ import {
   RelationshipRequest,
 } from './contracts/records';
 import { validatePlanTasks } from './contracts/validate-plan-tasks';
+import { validateProgressReceipt } from './contracts/validate-progress-receipt';
 import {
   buildContentManifest,
   compareContentIdentity,
@@ -310,6 +311,25 @@ function validatorEntryPaths(): string[] | { artifactManifest: string } {
 
 export function runCli(argv: readonly string[]): Promise<void> | void {
   const args = [...argv];
+  if (args[0] === 'validate-progress-receipt') {
+    // Proof: removing this refusal failed seven operand/process CLI cases in
+    // progress-receipt.test.ts, replacing usage diagnostics with reads (2026-10-15).
+    if (
+      args.length !== 4 ||
+      args.slice(1).some((path) => path.length === 0 || path.startsWith('-'))
+    ) {
+      throw new Error(
+        'usage: twib validate-progress-receipt <receipt.json> <plan-reference.json> <tasks.json>',
+      );
+    }
+    const receipt = readJsonDocument(args[1]);
+    const reference = readJsonDocument(args[2]);
+    const tasks = readJsonDocument(args[3]);
+    process.stdout.write(
+      `${JSON.stringify(validateProgressReceipt(receipt.input, reference.input, tasks.input))}\n`,
+    );
+    return;
+  }
   if (args[0] === 'validate-plan-tasks') {
     // Proof: removing operand validation lost the named usage refusal in all five invalid
     // operand CLI cases (plan-tasks.test.ts, 2026-10-13).
@@ -418,6 +438,19 @@ export function runCli(argv: readonly string[]): Promise<void> | void {
       process.stdout.write(
         `${JSON.stringify(inspectBrowserMemberships(args[1], args[2], args[3], mode, args[5]))}\n`,
       );
+    });
+  }
+  if (args[0] === 'inspect-performance-scenarios') {
+    // Proof: removing arity validation accepted TEST-AXES-099's extra operand.
+    if (args.length !== 6)
+      throw new Error(
+        'usage: twilight-burokrat inspect-performance-scenarios <repository> <committed-sha> <external-rule-policy> <external-level-authority> <capability>',
+      );
+    return import('./evidence/performance-scenarios').then(({ inspectPerformanceScenarios }) => {
+      const observation = inspectPerformanceScenarios(args[1], args[2], args[3], args[4], args[5]);
+      process.stdout.write(`${JSON.stringify(observation)}\n`);
+      // Proof: removing this mapping made TEST-AXES-097's invalid citations exit zero.
+      if (observation.citationFindings.length !== 0) process.exitCode = 1;
     });
   }
   if (args[0] === 'inspect-performance-levels') {
@@ -573,7 +606,7 @@ export function runCli(argv: readonly string[]): Promise<void> | void {
   // re-adding its route above failed `submit-admission is an unknown command` (cli.test.ts) and
   // `the validator bundle carries no authority store` (packaging/bundle.test.ts) (2026-10-11).
   throw new Error(
-    `unknown command: ${args[0] ?? '<missing>'}\nusage: twilight-burokrat <validate-plan-tasks|validate-record|read-candidate|candidate-identity|inspect-performance|inspect-performance-sources|inspect-performance-levels|inspect-browser-memberships|inspect-browser|inspect-test-reports|inspect-test-sources|inspect-spec-sources|inspect-manual|inspect-manual-observation|classify-candidate|content-manifest|validate-artifacts|extract-relationships|check-indexes|check-root-migration|validate-review-provenance|freeze-exhaustive|verify-exhaustive|evaluate-exhaustive-coverage|lint-local|lint-ci|check|explain|scenario|template|validate-policy-activation> ...`,
+    `unknown command: ${args[0] ?? '<missing>'}\nusage: twilight-burokrat <validate-progress-receipt|validate-plan-tasks|validate-record|read-candidate|candidate-identity|inspect-performance|inspect-performance-sources|inspect-performance-levels|inspect-performance-scenarios|inspect-browser-memberships|inspect-browser|inspect-test-reports|inspect-test-sources|inspect-spec-sources|inspect-manual|inspect-manual-observation|classify-candidate|content-manifest|validate-artifacts|extract-relationships|check-indexes|check-root-migration|validate-review-provenance|freeze-exhaustive|verify-exhaustive|evaluate-exhaustive-coverage|lint-local|lint-ci|check|explain|scenario|template|validate-policy-activation> ...`,
   );
 }
 

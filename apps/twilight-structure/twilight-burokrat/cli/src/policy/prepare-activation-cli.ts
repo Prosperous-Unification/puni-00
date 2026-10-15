@@ -222,6 +222,8 @@ export function readToolkit(directory: string): Toolkit {
   // toolkit into the consumer's archive as the validator's runtime; `SHA256SUMS` lists no file
   // below `trusted-node-modules`, so nothing else in the chain would have noticed. The negative
   // expected this message and received a prepared, self-certified activation at exit 0.
+  // Proof: disabling this comparison admitted altered arktype/out/index.d.ts bytes through
+  // the installed external extraction command; the vendor-corruption negative observed exit 0.
   if (closureIdentity !== descriptor.trustedNodeModulesIdentity) {
     throw new RelocationRefusal(
       'R19',

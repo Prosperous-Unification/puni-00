@@ -8,6 +8,8 @@ import { prepareRelocationActivation } from './policy/prepare-relocation-activat
 const validatorCommands = new Set([
   'validate',
   'validate-record',
+  // Proof: omitting this route failed the installed receipt report in packaging/build.test.ts (2026-10-15).
+  'validate-progress-receipt',
   // Proof: removing this route made built executable plan validation exit 1 with unknown
   // command instead of a consistency report (packaging/build.test.ts, 2026-10-13).
   'validate-plan-tasks',
@@ -43,6 +45,8 @@ const validatorCommands = new Set([
   'inspect-level-facts',
   // Proof: removing this registration failed [TEST-AXES-090]'s packaged executable success.
   'inspect-performance-levels',
+  // Proof: removing this route failed TEST-AXES-099's real installed scenario dispatch.
+  'inspect-performance-scenarios',
   // Proof: removing this registration failed TEST-AXES-095's real installed executable success.
   'inspect-browser-memberships',
   'template',
@@ -53,6 +57,7 @@ const help = `usage: twilight-burokrat <command> ...
 
 commands:
   twilight-burokrat validate-record <kind> <json>
+  twilight-burokrat validate-progress-receipt <receipt.json> <plan-reference.json> <tasks.json>
   twilight-burokrat validate-plan-tasks <plan-reference.json> <tasks.json>
   twilight-burokrat check <committed|staged|working> <repository> <revision-or-base> <rule-policy-json> [--rule <rule-id>] [--performance-evidence <json>]
   twilight-burokrat inspect-performance <repository> <committed-sha> <external-rule-policy>
@@ -60,6 +65,7 @@ commands:
   twilight-burokrat inspect-spec-sources <repository> <committed-sha>
   twilight-burokrat inspect-browser-memberships <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <external-authority>
   twilight-burokrat inspect-performance-levels <repository> <committed-sha> <external-facts-authority> <external-rule-policy>
+  twilight-burokrat inspect-performance-scenarios <repository> <committed-sha> <external-rule-policy> <external-level-authority> <capability>
   twilight-burokrat inspect-level-facts <repository> <committed-sha> <external-authority>
   twilight-burokrat inspect-manual <repository> <committed-sha> <external-rule-policy> <report-path> --now <UTC instant>
   twilight-burokrat inspect-manual-observation <repository> <committed-sha> <external-rule-policy> <report-path> --now <UTC instant>

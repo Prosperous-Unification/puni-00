@@ -4,6 +4,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  rmSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
@@ -31,6 +32,7 @@ import {
   buildValidatorBundle,
   copyTrustedModules,
   hashTrustedModules,
+  trustedDeclarationRoots,
   trustedModuleNames,
   writeBytes,
 } from './trusted-modules';
@@ -119,6 +121,9 @@ function releaseCheckout(): { repository: string; destinationParent: string } {
     join(repository, 'package.json'),
     `${JSON.stringify({ name: 'release-fixture', private: true, devDependencies: { typescript: 'npm:@typescript/typescript6@6.0.2' } })}\n`,
   );
+  for (const name of trustedDeclarationRoots) {
+    write(join(repository, 'node_modules', name, 'package.json'), JSON.stringify({ name }));
+  }
   write(
     join(repository, 'node_modules/typescript/package.json'),
     '{"name":"@typescript/typescript6","version":"6.0.2"}\n',
@@ -218,7 +223,7 @@ describe('wiki-cli release target', () => {
       tag: 'wiki-v0.0.1',
       sourceRevision: head,
       bunVersion: Bun.version,
-      trustedNodeModules: ['typescript'],
+      trustedNodeModules: [...trustedDeclarationRoots],
     });
     // Proof: `SHA256SUMS` lists no file below `trusted-node-modules`, so before this identity the
     // 24 MB the validator loads was authenticated by nothing the consumer could check.
@@ -1016,4 +1021,47 @@ describe('consumer activation from a toolkit', () => {
       ]),
     ).toThrow('toolkit role differs from toolkit.json: launcher.sh');
   });
+});
+
+test('release refuses a missing reviewed declaration root despite an ancestor decoy', async () => {
+  const { repository, destinationParent } = releaseCheckout();
+  git(repository, ['tag', '--annotate', 'wiki-v0.0.1', '--message', 'toolkit']);
+  rmSync(join(repository, 'node_modules/arktype'), { recursive: true });
+  write(join(repository, '../node_modules/arktype/package.json'), '{"name":"arktype"}');
+  expect(
+    await refusalMessage(
+      releaseToolkit([
+        '--tag',
+        'wiki-v0.0.1',
+        '--destination',
+        join(destinationParent, 'toolkit'),
+        '--repository',
+        repository,
+      ]),
+    ),
+  ).toContain('trusted node module is absent or a symlink');
+});
+
+test('release refuses an intermediate dependency symlink into an ambient consumer installation', async () => {
+  const { repository, destinationParent } = releaseCheckout();
+  git(repository, ['tag', '--annotate', 'wiki-v0.0.1', '--message', 'toolkit']);
+  write(
+    join(repository, 'node_modules/arktype/package.json'),
+    '{"name":"arktype","dependencies":{"ambient-compatible":"1"}}',
+  );
+  const ambient = join(repository, '../node_modules');
+  write(join(ambient, 'ambient-compatible/package.json'), '{"name":"ambient-compatible"}');
+  symlinkSync(ambient, join(repository, 'node_modules/arktype/node_modules'));
+  expect(
+    await refusalMessage(
+      releaseToolkit([
+        '--tag',
+        'wiki-v0.0.1',
+        '--destination',
+        join(destinationParent, 'toolkit'),
+        '--repository',
+        repository,
+      ]),
+    ),
+  ).toContain('arktype/node_modules');
 });

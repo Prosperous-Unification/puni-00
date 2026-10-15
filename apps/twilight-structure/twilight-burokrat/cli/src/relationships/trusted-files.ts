@@ -4,17 +4,19 @@ import {
   mkdirSync,
   mkdtempSync,
   readdirSync,
+  readFileSync,
   realpathSync,
   renameSync,
   rmSync,
   statSync,
 } from 'node:fs';
-import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 
 import ts from 'typescript';
 
 export interface TrustedSystem extends ts.System {
   realpath(path: string): string;
+  readonly compilerLibraryDirectory: string;
 }
 
 function contains(root: string, path: string): boolean {
@@ -67,25 +69,22 @@ function copyPackage(root: string, source: string, destination: string, ancestor
 /**
  * Gives every compiler filesystem consumer the same isolated view. Packages are copied once per
  * extraction, on demand, with their complete file topology. Missing probes stay absent; unreadable
- * trusted packages and escaping symlinks throw. Only the compiler's own lib*.d.ts files may be read
- * outside the candidate and its physical copied node_modules directory.
+ * trusted packages and escaping symlinks throw. Standard libraries come from the authenticated
+ * compiler package in that same physical copy; no source-installation exception is admitted.
  */
 export function createTrustedSystem(workspace: string, trustedModules: string): TrustedSystem {
   const modules = join(workspace, 'node_modules');
-  const libraryDirectory = realpathSync(dirname(ts.getDefaultLibFilePath({})));
+  const libraryDirectory = join(modules, '@typescript/old/lib');
   const copied = new Set<string>();
   // Proof: restoring the direct directory symlink made A bind an ancestor B and the augmentation
   // fixture fail; missing trusted B with a compatible ancestor incorrectly exited 0.
   mkdirSync(modules);
 
-  const isLibrary = (path: string): boolean =>
-    dirname(path) === libraryDirectory && /^lib(?:\.[\w.-]+)?\.d\.ts$/.test(basename(path));
-
   const preparePath = (path: string): boolean => {
     const absolute = resolve(path);
     // Proof: allowing outside probes read the absolute-import fixture before the realpath
     // recheck; `refuses absolute compiler inputs` lost its unresolved-input refusal and failed.
-    if (!contains(workspace, absolute)) return isLibrary(absolute);
+    if (!contains(workspace, absolute)) return false;
     if (!contains(modules, absolute)) {
       if (inspectPath(absolute) === undefined) return true;
       if (!contains(workspace, realpathSync(absolute))) {
@@ -122,8 +121,25 @@ export function createTrustedSystem(workspace: string, trustedModules: string): 
     return true;
   };
 
+  preparePath(libraryDirectory);
+  const compilerManifest: unknown = JSON.parse(
+    readFileSync(join(modules, '@typescript/old/package.json'), 'utf8'),
+  );
+  // Proof: disabling this version comparison let mismatched 0.0.0 libraries extract
+  // successfully; the trusted compiler standard libraries version CLI negative failed.
+  if (
+    typeof compilerManifest !== 'object' ||
+    compilerManifest === null ||
+    !('version' in compilerManifest) ||
+    compilerManifest.version !== ts.version
+  ) {
+    throw new Error(
+      `trusted compiler library version differs from bundled TypeScript ${ts.version}`,
+    );
+  }
   return {
     ...ts.sys,
+    compilerLibraryDirectory: realpathSync(libraryDirectory),
     getCurrentDirectory: () => workspace,
     fileExists: (path) => preparePath(path) && ts.sys.fileExists(path),
     directoryExists: (path) => preparePath(path) && ts.sys.directoryExists(path),
@@ -131,7 +147,7 @@ export function createTrustedSystem(workspace: string, trustedModules: string): 
     realpath: (path) => {
       if (!preparePath(path)) throw new Error(`compiler path outside trusted closure: ${path}`);
       const canonical = realpathSync(path);
-      if (!contains(workspace, canonical) && !isLibrary(canonical)) {
+      if (!contains(workspace, canonical)) {
         throw new Error(`compiler realpath outside trusted closure: ${path}`);
       }
       return canonical;

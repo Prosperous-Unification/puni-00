@@ -71,3 +71,35 @@ The release workflow SHALL publish the exact tarball that passed package accepta
 - **GIVEN** a tested tarball and no verified publishing authority
 - **WHEN** release preparation completes
 - **THEN** the tarball remains ready and publication is recorded as pending without selecting a different package name
+
+### Requirement: Packaged relationship declaration closure
+
+The release SHALL own a finite reviewed set of declaration package roots. Package builds,
+toolkit releases and relocation preparation SHALL derive the same transitive installed
+`dependencies` closure, preserving nested package instances and their resolution topology.
+The descriptor and closure digest SHALL authenticate the complete selected closure.
+Candidate imports and ambient installations SHALL NOT extend that closure.
+
+#### Scenario: Installed extraction uses reviewed vendor declarations
+
+- **GIVEN** an installed tarball outside the source checkout and a consumer with nonempty TypeScript selectors and public entrypoints importing supported declaration roots
+- **WHEN** the installed command extracts relationships
+- **THEN** it resolves vendor imports and emits public declarations using only its authenticated packaged closure
+
+#### Scenario: Nested dependency differs from the hoisted package
+
+- **GIVEN** a selected package with a nested dependency whose manifest names another dependency absent from the hoisted instance
+- **WHEN** any closure producer builds its trusted modules
+- **THEN** both nested instances are included at their installed relative paths and unrelated packages are excluded
+
+#### Scenario: Required declaration dependency is unavailable
+
+- **GIVEN** an absent or unreadable required dependency or manifest, with an unrelated ancestor or candidate installation containing a decoy
+- **WHEN** closure production or installed relationship extraction runs
+- **THEN** it refuses rather than using the decoy or widening the trusted roots
+
+#### Scenario: Packaged vendor declaration is corrupted
+
+- **GIVEN** changed bytes in a packaged declaration dependency
+- **WHEN** the installed command verifies its toolkit
+- **THEN** it refuses the closure digest mismatch before relationship extraction

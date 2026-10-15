@@ -62,3 +62,253 @@ artifact and the next command. Not claimed: any GitHub Actions run of the releas
 | Workflow tag availability  | Omitted the explicit event-tag fetch from a SHA-only checkout                     | Release planner in a clone made with `--no-tags`                                       | Planner refused `release tag is unknown`; fetching only the event tag restored preparation while HEAD remained at the event SHA                                                                                                                                               |
 | Installed manifest states  | Disabled the read, parse and schema boundaries in turn                            | Packed `validate-record` with missing, directory, malformed and empty-object manifests | Each installed-command negative advanced to a later outer-identity failure or lost its required state label; restored boundaries refuse every invalid state before toolkit execution                                                                                          |
 | Registry response state    | Disabled malformed-success, unknown-failure and retry-exhaustion refusals in turn | Post-publication verifier with malformed JSON, timeout and twelve 404 responses        | Each watched negative failed by accepting undefined integrity, misclassifying the timeout, or returning after bounded retries; restored guards keep all three states release-blocking                                                                                         |
+
+## Declaration closure repair (2026-10-15)
+
+The repair starts from exact candidate/tool base `7e160ba6911504d8bf46bb8674774d1006fb51d5`.
+All work is in an isolated clone; the existing raw packaged-survey evidence bundle is not part
+of this change. The release-owned roots were reviewed against the same 21-config policy scope.
+No candidate-import expansion, optional-peer expansion, or ambient dependency fallback was added.
+
+Initial observations:
+
+- Nested traversal regression failed because the original collector selected hoisted `shared`
+  and `decoy` instead of `vendor/node_modules/shared` and its nested-only `leaf` dependency.
+- External installed extraction with nonempty selectors and a public entrypoint failed with
+  `ENOENT` for the hidden source checkout's `@typescript/old/lib`.
+- After packaging the reviewed roots, installed verification refused a closure digest mismatch.
+  Tar/source comparison found exactly the five metadata omissions listed in `design.md`, with
+  no other missing, added, or changed package bytes. The canonical-copy regression failed while
+  `elysia/bunfig.toml` was retained. Only those five installed paths are now omitted.
+- Direct nested/scoped intermediate-symlink negatives initially returned ambient package paths.
+  Every package path component is now inspected before any selected instance is read or copied.
+
+Watched fault proofs (all injected changes restored):
+
+| Boundary                  | Production path and injected fault                                                                                   | Observed oracle                                                                                               |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Installed manifest shape  | `trustedModuleNames`; removed manifest object boundary                                                               | `null` lost its named refusal and `[]` was admitted; both negatives failed                                    |
+| Mandatory dependency map  | `trustedModuleNames`; removed dependency-map boundary                                                                | `null` lost its named refusal and `[]` was admitted; both negatives failed                                    |
+| Dependency path/version   | `trustedModuleNames`; removed dependency-name/version validation                                                     | `../../escape` and numeric version lost the named malformed-dependency refusal                                |
+| Selected nested closure   | `copyTrustedModules`; copied nested `node_modules` wholesale                                                         | Unrelated nested package was present; expected missing-file assertion failed                                  |
+| Intermediate symlinks     | `releaseToolkit` in an external fixture; restored final-component-only inspection                                    | Ambient compatible nested dependency was copied; negative threw `expected a refusal, but the action resolved` |
+| Compiler/library version  | Relationship CLI; disabled package-version comparison                                                                | Mismatched `0.0.0` standard libraries extracted successfully; expected exit 1 failed                          |
+| Compiler default filename | Relationship CLI; restored source-installation filename                                                              | Arbitrary-basename vendor positive refused instead of extracting                                              |
+| Compiler default location | Relationship CLI; restored source-installation directory                                                             | Arbitrary-basename vendor positive refused instead of extracting                                              |
+| Packaged vendor digest    | Rebuilt/repacked installed CLI with closure comparison disabled, then appended a comment to `arktype/out/index.d.ts` | External extraction exited 0; corruption negative expected 1 and failed                                       |
+
+Missing and unreadable manifests are distinct focused cases; compiler-library absence,
+unreadability and version mismatch also have separate production CLI cases. Existing relationship
+negatives retain candidate modules, ancestor decoys, escape links and outside-input refusals.
+
+Fresh local checks:
+
+- `bun test ./apps/twilight-structure/twilight-burokrat/cli/src/policy/trusted-modules.test.ts`:
+  14 passed, 28 assertions. The root list contains all reviewed nested Ark instances.
+- `bun test ./apps/twilight-structure/twilight-burokrat/cli/src/relationships/relationships.test.ts --timeout=120000`:
+  48 passed, 616 assertions, 147.21 seconds.
+- `bun test ./apps/twilight-structure/twilight-burokrat/cli/src/policy/release.test.ts ./apps/twilight-structure/twilight-burokrat/cli/src/policy/relocation-activation.test.ts --timeout=120000`:
+  47 passed, 136 assertions, 115.10 seconds. The first run exposed an absent-install diagnostic
+  regression (zod instead of TypeScript); compiler-first traversal restores that named refusal.
+- `bun test --preload ./tools/test/scratch/preload.ts ./apps/twilight-structure/twilight-burokrat/cli/src/packaging --timeout=120000`:
+  48 passed, 352 assertions across eight source files, 287.38 seconds. This complete suite ran
+  with scoped sandbox escalation because its loopback registry listener otherwise receives
+  EPERM. No package cases were skipped. An earlier unscoped-path invocation also collected
+  emitted JS tests; its output is not the complete-source acceptance result.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_CACHE_DIRECTORY=/tmp/burokrat-closure-nx-cache bun nx run twilight-burokrat:lint:source --skip-nx-cache`:
+  exit 0. Direct ESLint without an Nx graph initially warned that module-boundary rules were
+  skipped; the recorded Nx invocation built the graph and passed the complete source lint.
+- `bun node_modules/.bin/tsc --build --force apps/twilight-structure/twilight-burokrat/cli/tsconfig.json`:
+  exit 0. Changed-file Prettier check and `git diff --check`: exit 0.
+- Cached pinned `@fission-ai/openspec@1.12.0/bin/openspec.js validate twilight-burokrat-package --json`:
+  one change passed, zero failed. No project dependency was added for OpenSpec.
+
+The existing secret-named filename oracle falsely rejected vendor Bun secrets API docs and
+Jose's public `generate_secret` code. It still checks repository-owned assets outside the pinned
+vendor closure. Repacking with a public `dist/secrets-fixture.txt` sentinel made that installed
+assertion fail; the sentinel was then removed. No credentials were used in that proof.
+
+A preliminary full packaged survey retained the exact diagnostic policy SHA-256
+`afbf5c8a64200e7b60d603496c74e4223777a58891a69e3524ce161e822025fa` and target candidate
+`7e160ba6911504d8bf46bb8674774d1006fb51d5` (candidate identity
+`27439665644653b40db7ffd26bcda465de1a65e0739d167459c72a0fb0629f12`). It returned typed JSON,
+exit 1 and `certifies:false`, with 41 F7 debt findings and four MOD-LAYOUT debt findings.
+Vendor/module/stdlib absence no longer blocked it. Remaining unevaluated rules are F1,
+K2–K6 and REL-EXTRACT because `libs/shared/domain/failures/src/index.ts` resolves through six
+configs; INV-CLASSIFY because of an undeclared website PNG; PERF-THRESHOLD because its config
+differs from reviewed authority; and SPEC-SCENARIOS because of a competing wbs-domain overlay.
+The policy was not narrowed. Final exact-commit tool identity and repetition follow below.
+
+No host-wide gate, registry publication, merge, deployment, or certification was performed.
+
+### Exact committed artifact and full-policy repetition
+
+The tool was rebuilt from clean implementation commit `1ae4142bd34d37fa15678fabeb8fc6b34242c14f`,
+packed with Bun 1.4.2, installed with lifecycle scripts disabled into a new external consumer,
+and exercised through its installed `node_modules/.bin/twib`. This evidence-only follow-up
+changes no implementation bytes.
+
+| Identity                     | Value                                                              |
+| ---------------------------- | ------------------------------------------------------------------ |
+| Package                      | twilight-burokrat@0.1.0                                            |
+| Tarball SHA-256              | `83ed1bb1aea631f49422e2402126f23640a058792fa65573e814671ef671bc19` |
+| Tarball size                 | 31,757,428 bytes                                                   |
+| Installed executable SHA-256 | `cc7b935e2f204f0f3d89d71a960012760dcd974c4ee2b475f1729a4634d984ed` |
+| Toolkit identity             | `cfd378dd3831400215fe0818178a331fdccdb162d6cb1747598f73babf1e2b95` |
+| Trusted closure identity     | `efe812480b995ccef8634e9c17adf9a51d8f3e016c771232ec49ea71aaba94ac` |
+| Selected installed instances | 348                                                                |
+| Diagnostic policy SHA-256    | `afbf5c8a64200e7b60d603496c74e4223777a58891a69e3524ce161e822025fa` |
+| Candidate revision           | `7e160ba6911504d8bf46bb8674774d1006fb51d5`                         |
+
+Exact installed hidden-source extraction and vendor-corruption acceptance passed: one test,
+14 assertions, 9.55 seconds. The full survey command was:
+
+```sh
+/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib check committed /tmp/puni-burokrat-survey-20261015 7e160ba6911504d8bf46bb8674774d1006fb51d5 /tmp/burokrat-closure-diagnostic-policy.json
+```
+
+It ran from `/tmp/burokrat-closure-exact-consumer` with only its HOME,
+`PATH=/home/df/.bun/bin:/usr/bin:/bin`, and the named `/tmp/burokrat-bun-temp` and
+`/tmp/burokrat-bun-cache` Bun directories. It finished in 212.994 seconds,
+exit 1, with `allowed:false` and `certifies:false`. The candidate identity stayed
+`27439665644653b40db7ffd26bcda465de1a65e0739d167459c72a0fb0629f12`. It reproduced the 45 debt findings and all ten
+unevaluated rules listed above, without any missing vendor dependency or source-library refusal.
+The remaining public-entrypoint overlap, binary inventory, Performance authority and competing
+overlay refusals are preserved; this is not a successful WBS admission or complete rule evaluation.
+
+Final `openspec validate --all --json` using pinned 1.12.0 passed all 206 entries
+(188 changes and 18 specs). The raw survey streams and full identity payload remain only in
+`/tmp`; they are not included in this PR.
+
+### Hosted CI fixture and cache repair (2026-10-15)
+
+Run `38698464552` on `bad12a7c83ac9de48c4b9fe51b73e7145dddbe20` exposed two test
+integration failures. The downloaded Twilight gate artifact records F1 exiting 1 because
+`node_modules/@typescript/old/package.json` was absent from its isolated compiler fixture;
+its expected exit was 0. The workspace shard reported
+`twilight-burokrat:test does not declare node_modules`. Both reproduced before repair in
+an isolated checkout of that exact revision.
+
+The scoped React fixture now copies both the pinned TypeScript wrapper and its
+`@typescript/old` implementation, matching the existing relationship vendor fixture.
+The production declaration roots, closure traversal, policy and refusal behavior are unchanged.
+
+Burokrat's normal test target is explicitly uncached because these tests inspect installed
+package bytes outside Nx's tracked file map. The outside-read oracle now limits itself to
+cacheable targets. An ignored `node_modules` glob would not prove that installed byte changes
+invalidate the cache. The tradeoff is that the full Burokrat source suite executes each time.
+A regression checks Nx's native task graph, rather than only inspecting project JSON.
+
+Watched negatives:
+
+- Before the fixture repair, the scoped React production CLI case failed with the same
+  missing `@typescript/old/package.json` refusal as hosted CI; afterward it passed (1 test,
+  9 assertions).
+- Before setting `cache:false`, the new native task-graph oracle failed with expected false,
+  received true. Restoring `cache:true` after repair made that oracle fail again and restored
+  the original outside-read refusal (2 passed, 2 failed). The mutation was restored.
+
+Fresh checks after restoring the injected cache fault:
+
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bun test tools/tool-devsync/src/workspace-targets.test.ts --timeout=60000`:
+  25 passed, zero failed, 86 assertions (final repetition: 5.23 seconds).
+- `TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/node_modules bun test --preload ./tools/test/scratch/preload.ts apps/twilight-structure/twilight-burokrat/cli/src/rules/rules.test.ts apps/twilight-structure/twilight-burokrat/cli/src/policy/trusted-modules.test.ts --timeout=60000`:
+  78 passed, zero failed, 597 assertions, 43.25 seconds.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bun nx run twilight-burokrat:lint:source --skip-nx-cache`
+  and `bun nx run tool-devsync:lint --skip-nx-cache` with the same environment: exit 0.
+- `bun node_modules/.bin/tsc --build --force tools/tool-devsync/tsconfig.json`: exit 0.
+- Changed-file Prettier check and `git diff --check`: exit 0.
+- Isolated pinned OpenSpec 1.12.0 installation: `validate twilight-burokrat-package --json`
+  passed one change with zero issues; `validate --all --json` passed all 206 entries
+  (188 changes, 18 specs). Initial direct cache invocation was unavailable because
+  its package dependencies were absent; the isolated installation resolved that tool failure.
+
+The full source suite, packaging suite and h2puni host gate were not rerun for this fixture/cache
+repair. No release artifact was rebuilt, published or deployed.
+
+### 2026-10-15 — synchronize the uncached source suite's authority facts
+
+Hosted Twilight run `38776546533`, job `116565763477`, ran PR #480 head
+`689fbf50a244a9c57f567c0a456bf8ee73e6eb2c` and exposed three failures after the
+source-suite target became uncached. Both committed `check.wiki-cli.test` facts still
+expected `cache:true`; the static comparisons and the production pilot therefore refused
+the actual `cache:false` target. The repair changes that field in both declarations.
+It preserves all target inputs, the static extractor, policy selectors, frozen baseline
+revisions, module mappings and external binding construction. The pilot computes policy,
+mapping and validator digests from external copies; there is no literal digest to repin.
+
+Watched negative: before the repair, the two static declaration comparisons and the
+production `pins exact pre-index tuples and passes observe lint from external trust`
+case failed together (zero passed, three failed, 78 assertions, 30.58 seconds). The
+pilot named `fact check.wiki-cli.test authority-selector mismatch` with expected
+`cache:true` and actual `cache:false`. Existing assertions remain intact; adjacent
+`Proof:` comments record this fault. No safety check was added or changed.
+
+This restores the existing exact-target authority contract and needs no delta spec.
+
+Fresh scoped checks in an isolated clone at that head, using the existing locked
+`/tmp/puni-burokrat-dependency-closure-sol/node_modules` through a read-only dependency
+symlink:
+
+- `bun test apps/twilight-structure/twilight-burokrat/cli/src/relationships/committed-target-facts.test.ts`:
+  two passed, zero failed, 24 assertions (1.45 seconds).
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bun nx run twilight-burokrat:lint:source --skip-nx-cache`:
+  exit 0 (1 minute 23 seconds).
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bun nx format:check --files=<changed files>`:
+  exit 0 before this verification entry; repeated below for the final file set.
+- Isolated OpenSpec 1.12.0 `validate twilight-burokrat-package --json`: one change
+  passed with zero issues. `validate --all --json`: 206 entries passed, zero failed
+  (188 changes, 18 specs).
+- `TOOL_WIKI_TRUSTED_NODE_MODULES=/tmp/puni-burokrat-dependency-closure-sol/node_modules bun test apps/twilight-structure/twilight-burokrat/cli/src/relationships/committed-target-facts.test.ts apps/twilight-structure/twilight-burokrat/cli/src/policy/pilot-policy.test.ts --timeout=240000`:
+  25 passed, zero failed, 440 assertions (294.24 seconds). This includes the production
+  observe success and external trust, predecessor, baseline and creation-revision refusals.
+- Final changed-file Nx formatting and `git diff --check`: exit 0.
+
+The full Burokrat source suite, packaging suite, typecheck, build and h2puni host gate
+were not rerun for these two authority-fact corrections and proof comments. No archive,
+release, activation or externally selected trust state was changed or published.
+
+### 2026-10-15 — settle typed contention after overlapping claims workers exit
+
+Hosted run `38782181555`, job `116585148481`, at PR #485 head
+`a4f71f84781d28ba698e3833a37e9044f770d08a` failed both overlapping-claims
+process tests: one worker committed, while its peer exhausted the authority's
+50-attempt busy budget. The assertions incorrectly required that concurrent
+attempt to reach the semantic overlap refusal. Startup readiness only proves the
+store opened; it does not guarantee acquisition finishes within the retry budget.
+
+The test-only repair waits for every original worker to exit, preserves the
+exactly-one-concurrent-winner assertion, then settles only typed contention once
+using the existing helper. Both settled races still require one winner and the
+exact path or conflict-group refusal. Production retry settings, transaction
+logic and conflict checks are unchanged. This restores the existing bounded
+contention contract and needs no delta spec.
+
+Watched proofs on that exact head, using the real SQLite production path:
+
+- Transiently wrap the generated worker's `Database.prototype.run`, call the
+  original, then `Bun.sleepSync(1000)` after successful `BEGIN IMMEDIATE`. This
+  models a descheduled write-lock holder beyond its peer's finite retry budget.
+  `bun test apps/twilight-structure/twilight-dash/cli/src/authority/claims.db.test.ts --timeout=60000 --test-name-pattern 'two Bun processes'`
+  reproduced both hosted messages before repair: zero passed, two failed.
+- With the same fault and repaired observations, that command passed both tests,
+  zero failed, 14 assertions (16.29 seconds).
+- Keeping that pause and removing production `acquireClaims`' whole-set
+  `assertAvailable(claims, state.generations)` call made both repaired races fail
+  on two settled winners: zero passed, two failed. Recovery cannot hide a real
+  overlap violation. Both injected faults were restored before final checks.
+
+Fresh scoped checks in an isolated clone with Bun 1.4.2 and frozen dependencies
+(`BUN_TMPDIR=/tmp bun install --frozen-lockfile`, exit 0):
+
+- `bun test --preload ./tools/test/scratch/preload.ts apps/twilight-structure/twilight-dash/cli/src/authority/claims.db.test.ts --timeout=60000`:
+  24 passed, zero failed, 80 assertions (24.80 seconds).
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bun nx run twilight-dash:lint --skip-nx-cache`:
+  exit 0 (26.1 seconds).
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bun nx run twilight-dash:typecheck --skip-nx-cache`:
+  exit 0 (2.1 seconds).
+
+The complete Dash suite, other project suites, build and h2puni host gate were
+not rerun for this test-only repair. Changed-file formatting and whitespace
+checks are recorded by their final commands in the implementation report. No
+release, activation or externally selected trust state was changed or published.

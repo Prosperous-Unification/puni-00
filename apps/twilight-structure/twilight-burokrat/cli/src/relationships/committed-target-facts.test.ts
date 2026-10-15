@@ -81,6 +81,8 @@ describe('current nx-target facts in the committed relationship declarations', (
       // pilot-policy.test.ts (2026-09-20).
       // Proof (2026-10-14): omitting Navigator's source glob from check.wiki-cli.test failed
       // both declaration comparisons on the missing input, matching the production pilot refusal.
+      // Proof (2026-10-15): retaining cache:true after the installed-byte suite became
+      // uncached failed both declarations on check.wiki-cli.test (expected false, received true).
       for (const fact of facts) {
         const live = targets.find(
           (target) => target.project === fact.project && target.target === fact.target,

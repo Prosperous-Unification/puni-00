@@ -3265,3 +3265,35 @@ The canonical h2puni gate, full Nx suite, deployment, attended UI acceptance, au
 Serial Performance-only retry: `bun test apps/twilight-structure/twilight-burokrat/cli/src/evidence/performance-levels.test.ts --timeout=30000` exited 0, 34 pass, zero fail, 171 assertions in 134.63s. The test's explicit 20-second selected-declaration bound was not edited. The coordinator subsequently approved the library's explicit lock-path seam for this local host: after `report_heavy_lock_status /tmp/wbs-heavy-work.lock` reported holder none, source `bin/heavy-lock-lib.sh` and use `with_heavy_lock /tmp/wbs-heavy-work.lock -- ...`. This local serialized diagnostic lock is separate from the canonical h2puni gate. No production lock resolver or timeout was changed.
 
 Locked focused retry: `with_heavy_lock /tmp/wbs-heavy-work.lock -- bun test .../evidence/test-sources.test.ts .../evidence/performance-levels.test.ts --test-name-pattern 'omitted, extra and unsupported|reordered real report|isolated upstream provenance|selected declaration snapshot|broken classifier cannot|both upstream digest|coherently changed inspector' --timeout=30000` exited 0: seven pass, zero fail, 66 assertions in 49.25s, with 48 unrelated tests filtered out. The lock reported zero seconds behind zero tickets; the explicit 20-second selected-declaration loop passed unchanged. Thus all seven initially timed-out cases have passing serial retry evidence; the original combined run remains recorded as failed. The complete Performance-only retry and these targeted retries do not claim a passing full suite. Final source and test TypeScript checks again exited 0 after the test assertion typing edits. Changed-file formatting, strict OpenSpec and whitespace checks are recorded by the normal-hooked implementation checkpoint. Task 4.1b.8 is complete within its diagnostic scope; Tasks 2.1, 2.2a, 2.2 and 4.1 remain open.
+
+## Task 4.1b.9 — bounded Performance-to-B3 observations (WBS 080.39, 2026-10-15)
+
+Base: exact second-wave aggregate `7e160ba6911504d8bf46bb8674774d1006fb51d5`; isolated checkout `/tmp/puni-performance-scenarios-20261015`. Production allocator `scenario allocate . openspec/changes/test-axes/specs/test-axes/spec.md` allocated TEST-AXES-096..099. Synthetic Git repositories have an empty committed predecessor journal and production-allocated successor identities; committed source files throw if executed. No denied survey evidence was retained.
+
+RED: the first six production CLI tests failed on unknown `inspect-performance-scenarios` before implementation (`/tmp/performance-scenarios-red.log`). A preliminary fixture error used three-hash scenario headings and was corrected before this RED; it is not implementation evidence. GREEN: final focused scenario suite includes complete selected rows and independent payload digest, multiple passing cases, nested-suite terminal-only citations, missing/malformed/unknown/retired diagnostics, requested unidentified/absent capability refusal, unrelated B3 debt preservation, unrelated competing overlays, missing external scenarios authority, selected-source/policy/declaration/publication failures, broken context joins, upstream digest sensitivity and real built installed dispatch.
+
+Watched production mutations (each exited 1 because its named assertion failed, restored immediately):
+
+| Injected fault                                 | Observed assertion                                            |
+| ---------------------------------------------- | ------------------------------------------------------------- |
+| Remove isolated-Performance guard              | Architecture fixture emitted success instead of refusal (099) |
+| Remove external-policy/publication digest join | Foreign policy digest emitted JSON (099)                      |
+| Remove external scenarios-authority guard      | Named policy.scenarios refusal was lost (099)                 |
+| Remove absent-capability guard                 | Empty success replaced refusal (098)                          |
+| Remove requested unidentified-ID guard         | Unidentified row emitted instead of refusal (098)             |
+| Filter unrelated selected entries before B3    | Competing unrelated overlays were accepted (098)              |
+| Accept one-digit citation ordinals             | Malformed citation became inactive (097)                      |
+| Read the first title instead of terminal title | Nested suite citation replaced terminal citation (097)        |
+| Change missing citation finding to inactive    | Missing finding differed (097)                                |
+| Remove active-ID guard                         | Unknown/retired citations exited zero (097)                   |
+| Remove empty-terminal context guard            | Named terminal refusal was lost (099)                         |
+| Hash an empty envelope                         | Independent full-payload digest differed (096)                |
+| Remove CLI arity guard                         | Extra operand accepted (099)                                  |
+| Remove citation failure exit mapping           | Invalid citation diagnostic exited zero (097)                 |
+| Remove installed command registration          | Real built executable rejected the command (099)              |
+
+Mutation logs are `/tmp/scenarios-mutant-*.log`; full-tree fault was a changed `evaluateSpecifications` operand, not a mocked selector response. Existing levels regression remains unchanged in output and preserved all 34 previous tests; initial combined run was 40 passing tests with zero failures (`/tmp/performance-scenarios-green.log`).
+
+Scoped validation: `bun test .../evidence/performance-scenarios.test.ts`; `bun node_modules/.bin/tsc --noEmit -p apps/twilight-structure/twilight-burokrat/cli/tsconfig.lib.json`; ESLint on all five changed TypeScript files; Prettier on changed code/artifacts; pinned OpenSpec 1.12.0 `validate test-axes --type change --strict --json`. Final scenario suite: 17 passed, zero failed. Library and spec TypeScript compilation exited zero; scoped ESLint exited zero; strict OpenSpec validation reported one valid change and zero issues. Prettier and `git diff --check` exited zero. ESLint exits zero but reports its Nx module-boundary rule skipped because this isolated checkout has no cached project graph; that check remains unverified here. Dependencies use the aggregate checkout's existing node_modules via an untracked symlink. No full Nx gate was run; the coordinator owns the exact-commit host gate, required frozen install, broader CI checks and merge decision.
+
+This diagnostic grants no global coverage, authenticated evidence, certification, receipt or admission. Existing Tasks 2.1/2.2a/2.2/4.1 remain open; this task closes only the bounded Performance-to-B3 table slice.

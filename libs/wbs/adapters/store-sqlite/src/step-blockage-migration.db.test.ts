@@ -19,6 +19,8 @@ beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'wbs-step-blockage-migration-'));
   path = join(directory, 'plan.db');
   runMigrations(path, FOLDER);
+  // Exercise the earlier migration's own rollback guard independently of receipt retention.
+  rollbackTo(path, FOLDER, '20261014140000_add_step_blockage_activation');
   activateTestStepBlockages(path);
   const sqlite = openDatabase(path);
   try {
