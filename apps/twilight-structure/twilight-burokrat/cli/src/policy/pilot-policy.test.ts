@@ -462,6 +462,8 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     // declaration made this production CLI report the exact authority-selector mismatch (0/1).
     // Proof (2026-10-14): omitting Navigator's source input from check.wiki-cli.test refused
     // production lint with authority-selector mismatch after all frozen tuple assertions passed.
+    // Proof (2026-10-15): retaining cache:true in check.wiki-cli.test after disabling its cache
+    // refused production lint with authority-selector mismatch (expected true, received false).
     // Proof (2026-10-12): omitting use-attempt-actions.ts from plan-commands' mapped consumers
     // while its index declared that production importer failed this case with exit 1 and
     // `pilot module external consumers disagree with index …/plan-commands/README.md` (0/1).
