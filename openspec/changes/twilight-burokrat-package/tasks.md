@@ -13,5 +13,5 @@
 - [x] C1 — Watch nested instance traversal and exclusion regressions fail; implement bounded importer-relative closure collection shared by all three producers.
 - [x] C2 — Record the reviewed release-owned roots; watch packed external extraction with nonempty selectors and public declarations fail before adding them.
 - [x] C3 — Prove missing, unreadable, decoy, unrelated package and digest corruption refusals on production paths; record watched faults and adjacent Proof comments.
-- [ ] C4 — Run focused package/policy checks, source lint, typecheck, formatting and OpenSpec validation; repeat the same-policy full packaged survey with exact executable identity and remaining refusals.
+- [x] C4 — Run focused package/policy checks, source lint, typecheck, formatting and OpenSpec validation; repeat the same-policy full packaged survey with exact executable identity and remaining refusals.
 - [ ] C5 — Obtain Astra review, commit and push a draft PR; do not merge or publish the package.

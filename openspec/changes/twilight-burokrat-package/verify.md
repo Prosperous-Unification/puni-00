@@ -140,3 +140,42 @@ differs from reviewed authority; and SPEC-SCENARIOS because of a competing wbs-d
 The policy was not narrowed. Final exact-commit tool identity and repetition follow below.
 
 No host-wide gate, registry publication, merge, deployment, or certification was performed.
+
+### Exact committed artifact and full-policy repetition
+
+The tool was rebuilt from clean implementation commit `1ae4142bd34d37fa15678fabeb8fc6b34242c14f`,
+packed with Bun 1.4.2, installed with lifecycle scripts disabled into a new external consumer,
+and exercised through its installed `node_modules/.bin/twib`. This evidence-only follow-up
+changes no implementation bytes.
+
+| Identity                     | Value                                                              |
+| ---------------------------- | ------------------------------------------------------------------ |
+| Package                      | twilight-burokrat@0.1.0                                            |
+| Tarball SHA-256              | `83ed1bb1aea631f49422e2402126f23640a058792fa65573e814671ef671bc19` |
+| Tarball size                 | 31,757,428 bytes                                                   |
+| Installed executable SHA-256 | `cc7b935e2f204f0f3d89d71a960012760dcd974c4ee2b475f1729a4634d984ed` |
+| Toolkit identity             | `cfd378dd3831400215fe0818178a331fdccdb162d6cb1747598f73babf1e2b95` |
+| Trusted closure identity     | `efe812480b995ccef8634e9c17adf9a51d8f3e016c771232ec49ea71aaba94ac` |
+| Selected installed instances | 348                                                                |
+| Diagnostic policy SHA-256    | `afbf5c8a64200e7b60d603496c74e4223777a58891a69e3524ce161e822025fa` |
+| Candidate revision           | `7e160ba6911504d8bf46bb8674774d1006fb51d5`                         |
+
+Exact installed hidden-source extraction and vendor-corruption acceptance passed: one test,
+14 assertions, 9.55 seconds. The full survey command was:
+
+```sh
+/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib check committed /tmp/puni-burokrat-survey-20261015 7e160ba6911504d8bf46bb8674774d1006fb51d5 /tmp/burokrat-closure-diagnostic-policy.json
+```
+
+It ran from `/tmp/burokrat-closure-exact-consumer` with only its HOME,
+`PATH=/home/df/.bun/bin:/usr/bin:/bin`, and the named `/tmp/burokrat-bun-temp` and
+`/tmp/burokrat-bun-cache` Bun directories. It finished in 212.994 seconds,
+exit 1, with `allowed:false` and `certifies:false`. The candidate identity stayed
+`27439665644653b40db7ffd26bcda465de1a65e0739d167459c72a0fb0629f12`. It reproduced the 45 debt findings and all ten
+unevaluated rules listed above, without any missing vendor dependency or source-library refusal.
+The remaining public-entrypoint overlap, binary inventory, Performance authority and competing
+overlay refusals are preserved; this is not a successful WBS admission or complete rule evaluation.
+
+Final `openspec validate --all --json` using pinned 1.12.0 passed all 206 entries
+(188 changes and 18 specs). The raw survey streams and full identity payload remain only in
+`/tmp`; they are not included in this PR.
