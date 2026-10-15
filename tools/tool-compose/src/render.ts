@@ -65,8 +65,9 @@ export function previewContext(
   // tools/tool-remote-scripts/src/lib/site.ts's `routeBlock`, which is what
   // a real deploy actually uses; this preview default just needs *some*
   // valid Caddyfile snippet per tier, deployed by default).
+  const container = env['CONTAINER'] ?? 'be-01-blue';
   return {
-    CONTAINER: env['CONTAINER'] ?? 'be-01-blue',
+    CONTAINER: container,
     NETWORK: env['NETWORK'] ?? 'wbs-net',
     IMAGE: env['IMAGE'] ?? `registry.infra.bulletpoints.club/wbs-be-01@sha256:${'0'.repeat(64)}`,
     SITE_ADDRESS: env['SITE_ADDRESS'] ?? 'wbs.bulletpoints.club',
@@ -78,6 +79,7 @@ export function previewContext(
     // tierComposeContext produces (see its doc comment) — a preview default
     // just needs *some* valid env_file entry, not the real per-tier
     // allowlisting a real deploy applies.
+    INIT: env['INIT'] ?? (container.startsWith('be-01-') ? '    init: true\n' : ''),
     ENV_FILES: env['ENV_FILES'] ?? '    env_file:\n      - /home/puni1/wbs/be-01.env\n',
     ENVIRONMENT: env['ENVIRONMENT'] ?? '',
     VOLUMES: env['VOLUMES'] ?? '    volumes:\n      - /home/puni1/wbs/data:/data\n',

@@ -68,13 +68,13 @@
     "lint": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "bunx eslint tools/tool-remote-scripts/src tools/tool-remote-scripts/caddy"
+        "command": "bunx eslint tools/tool-remote-scripts/src tools/tool-remote-scripts/caddy tools/tool-remote-scripts/test"
       }
     },
     "lint:fast": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "bunx eslint tools/tool-remote-scripts/src tools/tool-remote-scripts/caddy --cache --cache-location .nx/eslintcache-tool-remote-scripts"
+        "command": "bunx eslint tools/tool-remote-scripts/src tools/tool-remote-scripts/caddy tools/tool-remote-scripts/test --cache --cache-location .nx/eslintcache-tool-remote-scripts"
       }
     },
     "typecheck": {
@@ -88,6 +88,13 @@
       "cache": false,
       "options": {
         "command": "bun run tools/tool-remote-scripts/caddy/run.ts"
+      }
+    },
+    "test:backend-recreation": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun run tools/tool-remote-scripts/test/backend-recreation.ts"
       }
     }
   }

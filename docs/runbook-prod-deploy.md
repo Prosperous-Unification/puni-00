@@ -58,7 +58,7 @@ From an arm64 Mac instead, prepend a tunnel to prod's engine (QEMU otherwise):
 `ssh -f -N -L 8081:127.0.0.1:8081 h2puni` and `export _EXPERIMENTAL_DAGGER_RUNNER_HOST=tcp://127.0.0.1:8081`.
 
 Dagger builds `linux/amd64` → self-hosted registry (the only build/deploy contract) → swap starts the
-idle colour, health-gates, repoints Caddy, drains WS, stops old, runs smoke. `--dry-run` is default.
+idle colour for gateway/frontend, health-gates, repoints Caddy, drains WS, stops old, runs smoke. Backend swaps stop and prove every managed old writer before candidate startup, then gate migration, health and compatibility before any alias or routing exposure. `--dry-run` is default.
 It **refuses** on a dirty tree, a stale `release.json`, or an unbuilt executor bundle — those are the
 safety gates, not bugs. `deploy` builds the bundles itself via `dependsOn`.
 
@@ -72,12 +72,10 @@ nothing.
 `--version`, `--since` and `--skip-build` are **refused** — they were parsed and ignored
 until 2026-08-04, so `--version=v1.2.3` read as a rollback and deployed HEAD instead.
 
-**Step-code backfill.** A `be` swap ends with `backfill-step-codes`, after `stop-blue` and before
-`commit`. It runs `bun run src/backfill-step-codes-cli.ts` in the new colour, which codes every
-step an older release inserted without a code. If it fails, the new colour stays live, the swap
-exits non-zero and `commit` does not run. The error names the manual command,
+**Step-code backfill.** A `be` swap ends with `backfill-step-codes`, after `stop-blue` and before alias/routing exposure and `commit`. It runs `bun run src/backfill-step-codes-cli.ts` in the new colour, which codes every
+step an older release inserted without a code. If it fails, candidate boot has already established possible exposure: the executor retains the candidate and current writes, keeps the outgoing backend stopped, preserves interruption markers, and does not commit. The error names the manual command,
 `docker exec be-01-<colour> bun run src/backfill-step-codes-cli.ts`. That command is idempotent:
-run it until it prints `step codes backfilled: <n>`, then rerun the deploy to record it
+run it until it prints `step codes backfilled: <n>`, then follow the backend interruption recovery procedure before another deploy
 (`backfillStepCodes` in `libs/wbs/adapters/store-sqlite/src/step-code-backfill.ts`).
 
 **Pre-migration backup.** A `be` swap runs `backup-db` between `stored-vocabularies` and
@@ -136,39 +134,11 @@ If it refuses, stop: the rename is unsafe, and the expand/contract route in
 `openspec/changes/steps-schema-rename/design.md` D2 applies. Keep the accepted output and the
 dump with the deploy record.
 
-**Restore.** Before `reload`, a failed swap rolls back by itself. After that, restore the
-pre-migration backup the swap printed. Stop both be-01 colours first, then run the restore from a
-throwaway container of the new image:
+**Restore and migration evidence.** Backend failures after durable stop intent require the attended recovery procedure below. They never automatically reverse migrations, stop a potentially exposed candidate, restart the older writer, or restore a snapshot. A pre-migration snapshot and capture are evidence. After possible boot exposure, restoring the earlier snapshot would discard candidate writes and is forbidden by the ordinary swap recovery procedure. Preserve current database files and interruption evidence before any recovery decision. Gateway/frontend retain their existing pre-reload cleanup.
 
-For a pre-route `be` abort, swap first captures the complete applied migration set from green,
-persists an attempt-specific private file under `/home/puni1/wbs/state`, and reads it back before
-running the forward migration. On abort it verifies that the retained and copied bytes still match,
-runs `migrate-down-cli.ts --capture-file` in green, and compares the complete final ledger with
-the captured set. A zero-exit down command with a different ledger is a rollback failure. The
-capture remains on the host after green stops. If rollback fails, use the **exact pinned-image
-`docker run` command printed by swap**: it binds that retained capture read-only, binds
-`/home/puni1/wbs/data` read-write, and sets the DB_PATH observed from green before migration.
-The exact-set CLI requires `--capture-file`, `--capture-sha256` (from the original durable
-capture), `--target`, `--attempt` and `--candidate`; the printed automatic/manual command
-passes all five. The backend refuses changed bytes before parsing the file or opening SQLite for
-reversal. Keep those fields and the image digest unchanged; inspect the capture and current
-ledger before retrying. An absent or unreadable capture is not an empty applied set.
-Before migrating, capture refuses with `applied migration <name> is absent or changed in candidate`
-when the incoming image lacks an applied migration or carries different bytes for it. Ship every
-applied migration unchanged in the candidate; never reformat a historical `migration.sql`.
-The `--to=<baseline>` commands below are legacy operator procedures for
-separate data-removal workflows, not the automatic swap abort path.
+Before forward migration, swap captures the complete applied set in an attempt-specific private file under `/home/puni1/wbs/state`, verifies copied bytes, and records capture identity durably. Capture refuses when the incoming image lacks an applied migration or carries changed migration bytes. Ship every applied migration unchanged; never reformat historical migration.sql. An absent, unreadable or changed capture is not authority to reverse the schema. The exact-set down CLI's capture-file, capture-sha256, target, attempt and candidate fields protect capture integrity, but passing those fields does not prove a downgrade preserves post-boot writes. The stopped-writer flow does not execute down or print an authorized down command.
 
-After `reload`, restore the pre-migration backup as follows:
-
-```sh
-docker run --rm -v /home/puni1/wbs/data:/data -e DB_PATH=/data/wbs.db \
-  --entrypoint bun <be-01 image> run src/restore-db-cli.ts /data/backups/<name>.db
-```
-
-The restore verifies the backup before replacing anything. It moves `wbs.db`, `-wal` and `-shm`
-aside as `.displaced-<stamp>` and never deletes them. Then restore `site.caddy`, `docker start`
-the old containers and `caddy reload`. Copy the backup off the host before deploying.
+An explicitly authorized disaster recovery must first account for every write since the proposed snapshot, prove all writers stopped, and review schema, captured ledger and fact/replay compatibility for the chosen immutable image. Restoring a snapshot, changing Caddy routing, restarting older containers or clearing interruption markers requires that separate reviewed recovery decision. The `--to=<baseline>` commands below belong to explicit data-removal workflows; they are not swap abort recovery.
 
 **Smoke.** After the swap, smoke also checks the read paths. `/api/auth/me` without a credential
 must answer `{"user":null}`, and `/api/projects` without one must be 401. For signed-in reads,
@@ -189,10 +159,9 @@ not an application fault.
 
 **Code rollback with SS/FF rows.** The `be` swap compares the incoming binary's
 supported types with the shared database before migration, then checks again
-immediately after stopping the outgoing colour. An older image without
+after migration and health while the outgoing colour remains stopped, before shared-alias/routing admission. Candidate boot is already possible write exposure. An older image without
 `relationship-types-cli.ts` is treated as FS-only. If either check finds unsupported
-types, the error lists their counts. A post-stop failure leaves the new colour serving,
-exits non-zero, and does not commit. Redeploy a release that understands those types,
+types, the error lists their counts. A pre-boot compatibility failure leaves the candidate unstarted and the older writer stopped with interruption state retained. A post-boot compatibility failure retains the possibly exposed candidate and current writes, keeps the older writer stopped, preserves interruption state, and does not commit. Redeploy a release that understands those types,
 or stop all typed-dependency writers and use a compatible container to `save` and `remove`
 the rows with the commands below. Copy the saved file off the host and keep it secure.
 Rerun the code deploy; no schema
@@ -626,3 +595,78 @@ Drain incompatible writers before enabling blockage writes: older structural wri
 can invalidate node ownership during a blue/green overlap. New blockage command
 history must also be covered by rollback compatibility when that command family is
 enabled; the persistence checkpoint alone is not a deployable feature.
+
+## Backend writer barrier recovery
+
+Every Compose `be` swap has an attended outage window. Before stopping a writer, the executor checks registry/pull, environment, existing SQLite integrity and ledger, Caddy/exposure state and effective merged Compose configuration. The candidate's image/name must match, its network aliases may name only its own colour, and published ports, dependencies, external links and unresolved env files refuse. A private resolved JSON snapshot preserves exactly the checked environment and mounts. Startup uses that snapshot with `--force-recreate --no-deps --pull never`; an unchanged stopped idle container must never be restarted with a dynamically retained `be-01.internal` alias.
+
+The candidate database is resolved through its writable directory bind and canonical host directory plus filename. The main DB, `-wal`, `-shm` and `-journal` must share that mapping; main-file binds, sidecar shadows, renamed main-file symlinks and redirected/dangling sidecar links refuse before any writer stops. Outgoing and idle `Config.Env.DB_PATH` values are independently resolved through their Docker `Mounts.Destination` mappings and must identify that same file. A `/data` source mounted only at `/unused-backups` is not database proof. Missing/ambiguous environment, missing destinations, filename mismatch, unrelated live mounts and unreadable paths refuse before stop intent. Unmanaged writable mounts overlapping the database/data root or sharing a main/WAL/SHM/journal file device and inode refuse without receiving stop commands. Distinct writable regular files can be proved unrelated. Every unmanaged container with mounts requires a stable actual private PID/mount namespace audit, including nested writable mounts hidden beneath a Docker-inspected read-only mount and writable mounts on a SQLite-family device. A fresh bind of Docker `Mounts.Source` is insufficient: a running container can retain a replaced source or a private submount. A stopped unmanaged container with mounts refuses with its exact ID and requires operator review/removal; containers with no mounts remain irrelevant.
+
+The actual namespace audit runs fixed metadata-only code through exact-ID `docker exec`, using explicit `/bin/busybox sh` for both supervisor and scanner. It adds no capabilities. Audited running targets must have Docker `init: true`, a private PID namespace, `Privileged=false` and no added capabilities; missing tools or unsupported target configuration refuse before writer stop. A fresh Source rebind and the earlier DAC_READ_SEARCH-only proc-root helper are insufficient: default-cap Caddy/registry deny that helper's proc-root access. See [ADR 0054](adr/0054-compose-audits-run-in-initialized-containers.md).
+
+**Attended prerequisite:** updating `deploy/compose/base.yml` to `init: true` recreates Caddy and registry, causing ingress/registry interruption. Backend tier rendering also requires init; an already-running older backend without it must be prepared during maintenance. Review immutable images, retained data/volumes, networks and routes, and apply the resolved Compose configuration during that window. The swap never performs this maintenance automatically. Keep blockage activation disabled until the prerequisite and release review are complete. If backend interruption evidence already exists, follow the pinned recovery procedure below; applying init does not authorize an older writer restart or schema reversal.
+
+Before the window, record exact IDs and inspect `HostConfig.Init`, `HostConfig.Privileged`, `HostConfig.CapAdd`, `HostConfig.PidMode` and mounted sources/destinations. After the attended recreation, verify the new identities, `Init=true`, default capabilities, unchanged volumes/networks, ingress and registry health, and the routed backend's immutable image. Run the guarded swap only after these checks. No live maintenance was performed by this change.
+
+The source view is **code-read-only**, not a filesystem-enforced read-only mount. Immutable shell programs invoke only metadata reads, never write APIs or application code. A supervisor first proves its own PID=process-group=session identity and reports start ticks. It starts one scanner, waits up to 15 seconds for the host's nonce-specific ACK, kills its still-owned group on timeout/EOF/cancel and waits/reaps the scanner on success. Docker init reaps forced descendants. Strict NUL-framed path/device/inode/mode entries, before/after mountinfo, complete counts and reap receipts precede admission; BusyBox find/timeout exit status alone is insufficient and neither is used. Actual writable roots include nested mounts beneath top-level RO and writable mounts on any SQLite-family device. Managed running writers additionally prove the actual main/WAL/SHM/journal family matches the canonical probe family.
+
+The operating boundary is trusted, nonadversarial quiescence: all tasks retain the Docker-created namespace; persistent mounts and aliases remain stable during admission, and no process retains an already-open deleted SQLite alias. The audit proves observed persistent namespace exclusion. It does not claim protection against transient topology/inode ABA, hostile receipt spoofing or private per-process namespaces. Hold registry pushes/garbage collection and filesystem topology changes during the attended audit; required metadata races refuse visibly.
+
+Missing/unreadable or ambiguous mount metadata, special/symlink aliases, malformed/incomplete receipts, unavailable init/tools, more than 100,000 entries, depth over 64, stdout above32MiB or stderr above64KiB refuse. Every stderr byte is a failure. The complete host operation has a 45-second per-container deadline, reserving its final 20 seconds for bounded exact-group cleanup; each remote supervisor independently has a 15-second deadline. Host abort hard-kills the exact CLI. Cleanup inventories the original group's members in the same exact container and refuses any remaining live or zombie process after bounded convergence. Missing session identity, an unreadable/stalled cleanup or uncertain creation reports the exact container, attempt/group/start context for manual investigation. It never declares an orphan absent without proof. These checks repeat after managed writers stop.
+
+The exclusive private interruption files under `/home/puni1/wbs/state` are `be-writer-stop.json`, `be-writer-maintenance.json`, `be-writer-migration.json` and `be-writer-exposure.json`. Preflight freezes two mode0600, hash-pinned Compose snapshots from one validated resolved application configuration and immutable image. Both retain the exact environment, working directory, database/solver mounts and init prerequisite. Stop intent records both snapshot identities and exact outgoing/idle IDs before either writer stops. Stopped identities and the complete inventory are revalidated, then independent read-only fact/replay one-offs admit the digest against the stopped SQLite family.
+
+**Maintenance precedes application startup.** The maintenance snapshot explicitly replaces entrypoint with `bun -e 'setInterval(() => {}, 60000)'`, clears command, disables healthcheck and sets restart=no. It starts with forced recreation, no dependencies and pull=never. The executor records its exact ID, image ID and snapshot hashes, and inspects running/unpaused/not-restarting identity plus inert entrypoint/command/health/restart, environment, mounts and working directory before database CLI execution. Backup, migration-set capture and forward migration target that exact ID, never the reusable colour name. Capture bytes are published, read back and digested; durable migration intent precedes the forward CLI. After successful migration the exact maintenance ID stops and is independently proved stopped. Only then is application exposure durably recorded and the original application snapshot force-recreated. Actual app boot retains `migrateOnStartup=false` and the StepBlockage admission check; an authentic predecessor cannot boot until its admission migration has run. Health, compatibility readback, backfill and alias/Caddy routing follow. Only recorded commit clears interruption files.
+
+Each stored read-only probe copies the quiescent main file and retained WAL/journal into private writable scratch; source SHM is excluded and SQLite creates scratch SHM. Absence of optional sidecars is explicit; unreadability refuses. Source files must remain quiescent. Phase writes never replace interruption evidence, and ordinary retry refuses every retained, malformed or unreadable marker.
+
+Keep automation paused and preserve database, snapshots, all markers, migration capture and failure output off-host. Recovery has three distinct boundaries:
+
+- No migration intent and no application exposure: prove both marker absences, the candidate/maintenance identities stopped, the unchanged schema/ledger, and all fact/replay compatibility before an attended restart decision. This is never automatic.
+- Migration intent/capture without application exposure: the schema may have changed, including a CLI that failed after applying migrations. Preserve the database and original capture/hash, prove maintenance stopped, and review schema/ledger plus compatibility. Absence of application exposure does not authorize automatic down, snapshot restore or an older restart.
+- Application exposure present, unreadable, malformed or uncertain: application writes are possible. Preserve current writes and admit only a compatible image under an explicit recovery decision; never automatically down, restore an earlier snapshot or restart an incompatible old writer. Start/health failures retain exposure and do not automatically stop/reverse the candidate.
+
+A committed state whose marker cleanup failed requires actual routing, recorded candidate state and health verification before a reviewed cleanup action. Capture is evidence, not authority to discard post-boot writes. The read-only recovery command below enables neither the disabled SQLite writer marker nor any remove/restore operation.
+
+Only with proved absence of boot exposure may the operator consider restoring the stopped previous backend. The application must never have started; verify its absence/stopped identity, stopped maintenance, the unchanged migration ledger, and every fact/replay requirement. Migration intent or evidence of application boot prevents an unchanged-schema recovery classification and requires a reviewed recovery decision. Do not recompute a replacement digest to admit edited capture bytes or remove a marker to bypass an ordinary deploy refusal.
+
+The following read-only proof requires the pinned candidate image already installed locally (image inspect refuses absence and no command pulls), takes the deploy lock, proves all managed database writers stopped, validates the supplied DB_PATH through the full fixed `/data` family mapping even when no containers remain, resolves actual managed database identities, and compares independent candidate fact/replay inventories with the proposed previous immutable image. It never reverses schema, restarts a writer, restores a snapshot or clears a marker:
+
+```sh
+bun /home/puni1/wbs/bin/swap.js be --check-backend-recovery \
+  --previous-image=<previous-registry-ref@sha256:64hex> \
+  --image-be=<candidate-registry-ref@sha256:64hex> \
+  --database-path=/data/<actual-db-name>
+```
+
+Step blockage facts and nested move/deletion replay capabilities are cumulative obligations. Fact save/remove cannot erase journal compatibility. Proof success grants no restart; before any explicitly approved restart, the operator must also prove the retained schema/ledger compatible and account for every post-boot write. Verify resulting health and Caddy routing before a reviewed marker-completion action.
+
+The disposable Docker regression is `bunx nx run tool-remote-scripts:test:backend-recreation`. It requires the pinned Alpine image named in the proof script already installed, uses a unique project/network and scratch bind only, and verifies complete cleanup. It reproduces dynamic idle aliases and proves forced recreation, no dependency starts, and literal environment preservation.
+
+`/internal/forward` remains a pure acknowledgment endpoint; setter, import and activation-shaped frames confer no write or deploy authority. SQLite StepBlockage activation remains a separate durable application boundary. This Compose barrier does not activate it.
+
+The Debian backend runtime copies `/bin/busybox` from Docker Official Image
+`busybox:1.37.0-musl@sha256:5cec3fc171c87218698e85a52af7087de727372aae264a787b8112901a5b0092`.
+The [publisher's image documentation](https://github.com/docker-library/docs/tree/master/busybox)
+identifies musl as statically compiled; the extracted amd64 binary is static PIE,
+SHA-256 `2c92c1289f3ab36f8b43fb68d3b56b0ec32290f2d6f6bf4ef44df6bd7edc02ad`.
+Debian `/bin/sh` is dash and lacks the supervisor's `read -t` behavior.
+
+For an outgoing backend that predates this image dependency, prepare its attended
+`init: true` recreation before deployment: record and retain its exact current
+application image ID/digest and full effective environment/mount configuration.
+Extract `/bin/busybox` from the pinned official image into an operator-owned path,
+verify the SHA-256 above and executable mode, and bind that file read-only at
+`/bin/busybox` in the recreation configuration. Keep the exact old application
+image for this preparation. Review the resolved configuration and outage/recovery
+commands before stopping it; recreate it only in the attended window, then prove
+health and actual namespace admission. This preparation changes container init
+and supplies an audit executable; it is a separate prerequisite to candidate
+activation. Do not copy tools into or alter a running outgoing container.
+
+`bun tools/tool-remote-scripts/src/lib/mount-exec-image.rehearsal.ts` exercises
+production admission against disposable `wbs-be-01:f8-v1` containers, with the
+verified binary extracted to `/tmp/puni-audit-busybox`. It requires Docker access
+and that exact cached fixture image; missing dependencies fail. It checks normal
+admission, absent binary, restored Debian shell, and the 15-second supervisor
+deadline with a stalled scanner/descendant, then removes only its created IDs.

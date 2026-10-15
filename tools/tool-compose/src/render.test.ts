@@ -44,6 +44,7 @@ describe('renderAll', () => {
         GW_ROUTE: 'reverse_proxy gw-01-blue:3200',
         FE_ROUTE: 'reverse_proxy fe-01-green:80',
         MCP_ROUTES: '',
+        INIT: '',
         ENV_FILES:
           '    env_file:\n      - /home/puni1/wbs/be-01.env\n      - /home/puni1/wbs/be-01.secrets.env\n',
         ENVIRONMENT: '    environment:\n      APP_ORIGIN: https://wbs.bulletpoints.club\n',

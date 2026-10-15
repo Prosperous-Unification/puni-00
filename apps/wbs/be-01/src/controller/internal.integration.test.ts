@@ -40,6 +40,7 @@ function buildHarness() {
   // the per-project access check is gateway-browser.controller.db.test.ts's.
   const projects = testProjectService();
   spyOn(projects, 'readWithin').mockResolvedValue({ project: {}, steps: [] } as never);
+  const writes = testWrites();
   const app = buildApp({
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
@@ -67,7 +68,7 @@ function buildHarness() {
     workItems: testWorkItemService(),
     savedPlans: testSavedPlanService(),
     steps: testStepService(),
-    writes: testWrites(),
+    writes,
     migrationsApplied: true,
     internalAuthSecret: SECRET,
     replay,
@@ -89,7 +90,7 @@ function buildHarness() {
   }
 
   const authed = { 'x-internal-auth': SECRET, 'x-client-id': 'u-1', 'x-connection-id': 'c-1' };
-  return { app, log, buffer, replay, post, authed };
+  return { app, log, buffer, replay, post, authed, writes };
 }
 
 describe('POST /internal/forward', () => {
@@ -119,6 +120,24 @@ describe('POST /internal/forward', () => {
     await post('/internal/forward', { message: { type: 'ping' }, trace_id: 't-1' }, authed);
 
     expect(await log.latestSeq('project:anything')).toBe(-1);
+  });
+
+  it('acks forged blockage setter, import, and activation frames without executing writes', async () => {
+    const { post, authed, log, writes } = buildHarness();
+    for (const message of [
+      { type: 'setStepBlocked', projectId: 'p', workItemId: 'w', stepId: 's', isBlocked: true },
+      {
+        type: 'importPlan',
+        body: { version: 9, stepBlockages: [{ workItemId: 'w', stepId: 's', blockedAt: 1 }] },
+      },
+      { type: 'activateStepBlockage', enabled: true },
+    ]) {
+      const response = await post('/internal/forward', { message, trace_id: 'forged' }, authed);
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({ ack: true });
+      expect(await log.latestSeq('project:p')).toBe(-1);
+      expect(writes.uow.calls).toEqual([]);
+    }
   });
 
   it('returns 422 invalid_body on missing trace_id', async () => {
