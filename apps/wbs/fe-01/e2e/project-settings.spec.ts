@@ -75,7 +75,7 @@ const ROWS_BEFORE_AT_1280 = 2;
 /**
  * The controls a fresh project's toolbar offers at 1280, counted by role
  * (`countToolbarControls`), measured 2026-10-14: ten buttons, the `Plan with`
- * combobox, two textboxes (Find, the start date) and four popover groups.
+ * combobox, two textboxes (Find, the start date) and four `<details>` popovers.
  */
 const CONTROLS_AT_1280 = 17;
 

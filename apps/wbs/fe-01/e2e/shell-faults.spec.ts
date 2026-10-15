@@ -75,6 +75,36 @@ test.describe('the session gate when the server is down (F-079)', () => {
   });
 });
 
+test.describe('the session gate when a proxy refuses the read (F-095)', () => {
+  test('draws the access-refused state, in the sign-in column, with no form', async ({ page }) => {
+    // A WAF's "access denied" page: a 403 in HTML, before be-01 is asked.
+    await page.route('**/api/auth/me', (route) =>
+      route.fulfill({ status: 403, contentType: 'text/html', body: '<h1>Access denied</h1>' }),
+    );
+    await page.goto('/');
+
+    // Proof: on 3e06eb5a4 this failed on `getByRole('heading', { name: 'Access refused' })`
+    // `element(s) not found`: the sign-in form was drawn under "The server returned an
+    // unexpected response. Try again."
+    await expect(page.getByRole('heading', { name: 'Access refused' })).toBeVisible();
+    for (const size of [
+      { width: 1440, height: 900 },
+      { width: 375, height: 812 },
+    ]) {
+      await page.setViewportSize(size);
+      await expectAnchoredColumn(page);
+    }
+    await expect(page.getByRole('alert')).toHaveText(
+      'Something in front of the server refused this request, so your session could not be checked.',
+    );
+    await expect(page.getByRole('textbox', { name: 'Username' })).toHaveCount(0);
+
+    await page.unroute('**/api/auth/me');
+    await page.getByRole('button', { name: 'Try again' }).click();
+    await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
+  });
+});
+
 test.describe('the connection pill (D9)', () => {
   test('names the live link beside a write the server could not complete (F-078)', async ({
     page,
@@ -123,6 +153,63 @@ test.describe('the connection pill (D9)', () => {
       'Reconnecting: who else is here is not known until the link is back.',
     );
   });
+});
+
+/** The link dot's shape, and the header's height around it. */
+function readLinkDot(page: Page) {
+  return page.evaluate(() => {
+    const dot = document.querySelector('header [data-link-dot]');
+    const bar = document.querySelector('header');
+    if (dot === null || bar === null) throw new Error('the header draws no link dot');
+    const style = getComputedStyle(dot);
+    return {
+      state: dot.getAttribute('data-link-dot'),
+      filled: style.backgroundColor !== 'rgba(0, 0, 0, 0)',
+      ring: Number.parseFloat(style.borderTopWidth),
+      width: Math.round(dot.getBoundingClientRect().width),
+      header: Math.round(bar.getBoundingClientRect().height),
+    };
+  });
+}
+
+test('tells Live from Reconnecting by the dot’s shape, not colour alone (F-097)', async ({
+  page,
+}, testInfo) => {
+  const seeded = await seedFourRows(page, 'dot-shape', testInfo.workerIndex);
+  let down = true;
+  await page.routeWebSocket('**/ws', (socket) => {
+    if (down) void socket.close();
+    else socket.connectToServer();
+  });
+  await openSeededPlan(page, seeded);
+  await expect(pill(page).getByRole('heading', { name: 'Reconnecting' })).toBeAttached();
+
+  const reconnecting = new Map<number, Awaited<ReturnType<typeof readLinkDot>>>();
+  for (const width of [375, 1024]) {
+    await page.setViewportSize({ width, height: width === 375 ? 812 : 768 });
+    const read = await readLinkDot(page);
+    // Proof: on 3e06eb5a4 (a grey disc) this failed on `the reconnecting dot is a
+    // filled disc · Expected: false · Received: true` at 375: green vs grey was the
+    // whole difference below 1440 px (WCAG 1.4.1).
+    expect(read.filled, 'the reconnecting dot is a filled disc').toBe(false);
+    expect(read.ring, 'the reconnecting dot has no ring').toBeGreaterThanOrEqual(1);
+    reconnecting.set(width, read);
+  }
+
+  down = false;
+  await expect(pill(page).getByRole('heading', { name: 'Live' })).toBeAttached({
+    timeout: 30_000,
+  });
+  for (const width of [375, 1024]) {
+    await page.setViewportSize({ width, height: width === 375 ? 812 : 768 });
+    const read = await readLinkDot(page);
+    expect(read.filled, 'the live dot is not filled').toBe(true);
+    expect(read.ring, 'the live dot wears a ring').toBe(0);
+    const before = reconnecting.get(width);
+    // The ring takes the disc's own box, so neither state moves or wraps the header.
+    expect(read.width, `the dot changed size at ${String(width)}`).toBe(before?.width);
+    expect(read.header, `the header changed height at ${String(width)}`).toBe(before?.header);
+  }
 });
 
 /**

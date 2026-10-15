@@ -3,8 +3,8 @@
 ### Requirement: The session gate tells an outage from a refusal
 
 On load the app SHALL read the session once and SHALL draw the sign-in form only when that read says
-there is no session: a 200 answer with no user, a modelled refusal of the credential, or a 401 or 403
-the contract does not model. When the read cannot be completed for any other reason — no connection,
+there is no session: a 200 answer with no user, a modelled refusal of the credential, or a 401 the
+contract does not model (a 403 is `ui-review-shell-a11y`'s `Access refused`). When the read cannot be completed for any other reason — no connection,
 a 5xx answer, a reply that is not the contract's, a modelled refusal of the request's shape, or a
 thrown error — the app SHALL draw a `Server unavailable` state with one sentence naming the cause,
 SHALL NOT draw credential fields or sign-in links, and SHALL offer Try again, which SHALL read the
