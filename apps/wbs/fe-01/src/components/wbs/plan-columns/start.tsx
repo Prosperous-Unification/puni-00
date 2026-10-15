@@ -1,9 +1,9 @@
-import { useCardOpenOn } from '../cell-card-store';
 import { cellKey } from '../editable-grid';
 import { HoverCard } from '../hover-card';
 import { startCardId } from '../plan-cell-props';
 import { useStartSentence } from '../plan-cell-reading-context';
 import type { PlanLive } from '../plan-live';
+import { useCardOpenOn } from '../use-card-open-on';
 import { rowWords } from '../work-item-words';
 import { column } from './column';
 
