@@ -1,0 +1,32 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-parallel-conformance.db.test.ts:
+33 |     await store.set(explicit, stamp);
+34 |     expect(await store.listByWorkItems('p', ['a'])).toEqual([explicit]);
+35 |     await source.stores.workItems.patch('a', { maxParallel: 4 }, stamp);
+36 |     expect(await source.stores.workItems.findById('a')).toHaveProperty('maxParallel', 4);
+37 |     const facts = await store.listByWorkItems('p', ['a']);
+38 |     expect(facts).toEqual([explicit]);
+                       ^
+error: expect(received).toEqual(expected)
+
+  [
+    {
+-     "maxParallel": 1,
++     "maxParallel": 4,
+      "stepId": "dev",
+      "workItemId": "a",
+    },
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-step-parallel-foundation-sol-20261015/libs/wbs/application/conformance/src/step-parallel-conformance.ts:38:19)
+(fail) store-sqlite sparse step parallelism > retains an explicit equal-default value across row-default edits while its sibling stays absent [197.84ms]
+
+ 0 pass
+ 5 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [3.43s]

@@ -18,6 +18,7 @@ import { inMemoryProjects } from './project-fixture';
 import { inMemoryEventLog } from './replay-fixture';
 import { inMemoryStepBlockages } from './step-blockage-fixture';
 import { inMemorySteps } from './step-fixture';
+import { inMemoryStepParallels } from './step-parallel-fixture';
 import { inMemorySubtrees } from './subtree-fixture';
 import { inMemoryTypedDependencies } from './typed-dependency-fixture';
 
@@ -55,6 +56,7 @@ export function inMemoryStores(): TransactionalStores {
     measures,
     progress,
     attempts,
+    stepParallels: inMemoryStepParallels(workItems, steps),
     blockages: inMemoryStepBlockages(workItems, {
       async findById(stepId) {
         const step = await steps.findById(stepId);

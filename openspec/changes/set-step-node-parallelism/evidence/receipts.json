@@ -1,0 +1,242 @@
+[
+  {
+    "fault": "domain-integer",
+    "path": "libs/wbs/domain/domain/src/step-parallel.ts",
+    "test": "libs/wbs/adapters/store-memory/src/step-parallel-conformance.test.ts",
+    "pattern": "rejects each invalid value",
+    "exit": 1,
+    "observed": true
+  },
+  {
+    "fault": "domain-lower",
+    "path": "libs/wbs/domain/domain/src/step-parallel.ts",
+    "test": "libs/wbs/adapters/store-memory/src/step-parallel-conformance.test.ts",
+    "pattern": "rejects each invalid value",
+    "exit": 1,
+    "observed": true
+  },
+  {
+    "fault": "domain-upper",
+    "path": "libs/wbs/domain/domain/src/step-parallel.ts",
+    "test": "libs/wbs/adapters/store-memory/src/step-parallel-fixture.test.ts",
+    "pattern": "read refuses corrupt range",
+    "exit": 1,
+    "observed": true
+  },
+  {
+    "fault": "memory-range",
+    "path": "libs/wbs/adapters/store-memory/src/step-parallel-fixture.ts",
+    "test": "libs/wbs/adapters/store-memory/src/step-parallel-conformance.test.ts",
+    "pattern": "rejects each invalid value",
+    "exit": 1,
+    "observed": true
+  },
+  {
+    "fault": "memory-owner-read",
+    "path": "libs/wbs/adapters/store-memory/src/step-parallel-fixture.ts",
+    "test": "libs/wbs/adapters/store-memory/src/step-parallel-fixture.test.ts",
+    "pattern": "read refuses corrupt owner",
+    "exit": 1,
+    "observed": true
+  },
+  {
+    "fault": "memory-owner-write",
+    "path": "libs/wbs/adapters/store-memory/src/step-parallel-fixture.ts",
+    "test": "libs/wbs/adapters/store-memory/src/step-parallel-fixture.test.ts",
+    "pattern": "write refuses a missing owner",
+    "exit": 1,
+    "observed": true
+  },
+  {
+    "fault": "memory-step",
+    "path": "libs/wbs/adapters/store-memory/src/step-parallel-fixture.ts",
+    "test": "libs/wbs/adapters/store-memory/src/step-parallel-fixture.test.ts",
+    "pattern": "read refuses corrupt step",
+    "exit": 1,
+    "observed": true
+  },
+  {
+    "fault": "memory-project",
+    "path": "libs/wbs/adapters/store-memory/src/step-parallel-fixture.ts",
+    "test": "libs/wbs/adapters/store-memory/src/step-parallel-fixture.test.ts",
+    "pattern": "read refuses corrupt project",
+    "exit": 1,
+    "observed": true
+  },
+  {
+    "fault": "memory-leaf",
+    "path": "libs/wbs/adapters/store-memory/src/step-parallel-fixture.ts",
+    "test": "libs/wbs/adapters/store-memory/src/step-parallel-fixture.test.ts",
+    "pattern": "read refuses corrupt leaf",
+    "exit": 1,
+    "observed": true
+  },
+  {
+    "fault": "memory-unique",
+    "path": "libs/wbs/adapters/store-memory/src/step-parallel-fixture.ts",
+    "test": "libs/wbs/adapters/store-memory/src/step-parallel-fixture.test.ts",
+    "pattern": "read refuses duplicate pairs",
+    "exit": 1,
+    "observed": true
+  },
+  {
+    "fault": "sqlite-read-owner",
+    "path": "libs/wbs/adapters/store-sqlite/src/step-parallel.ts",
+    "test": "libs/wbs/adapters/store-sqlite/src/step-parallel.db.test.ts",
+    "pattern": "read refuses corrupt owner",
+    "exit": 1,
+    "observed": true
+  },
+  {
+    "fault": "sqlite-read-step",
+    "path": "libs/wbs/adapters/store-sqlite/src/step-parallel.ts",
+    "test": "libs/wbs/adapters/store-sqlite/src/step-parallel.db.test.ts",
+    "pattern": "read refuses corrupt step",
+    "exit": 1,
+    "observed": true
+  },
+  {
+    "fault": "sqlite-read-leaf",
+    "path": "libs/wbs/adapters/store-sqlite/src/step-parallel.ts",
+    "test": "libs/wbs/adapters/store-sqlite/src/step-parallel.db.test.ts",
+    "pattern": "read refuses corrupt leaf",
+    "exit": 1,
+    "observed": true
+  },
+  {
+    "fault": "sqlite-read-range",
+    "path": "libs/wbs/adapters/store-sqlite/src/step-parallel.ts",
+    "test": "libs/wbs/adapters/store-sqlite/src/step-parallel.db.test.ts",
+    "pattern": "read refuses corrupt range",
+    "exit": 1,
+    "observed": true
+  },
+  {
+    "fault": "sql-integer",
+    "path": "apps/wbs/be-01/drizzle/20261015110000_add_step_node_parallelism/migration.sql",
+    "test": "libs/wbs/adapters/store-sqlite/src/step-parallel.db.test.ts",
+    "pattern": "SQL rejects range/type 1.5",
+    "exit": 1,
+    "observed": true
+  },
+  {
+    "fault": "sql-range",
+    "path": "apps/wbs/be-01/drizzle/20261015110000_add_step_node_parallelism/migration.sql",
+    "test": "libs/wbs/adapters/store-sqlite/src/step-parallel.db.test.ts",
+    "pattern": "SQL rejects range/type 0",
+    "exit": 1,
+    "observed": true
+  },
+  {
+    "fault": "sql-unique",
+    "path": "apps/wbs/be-01/drizzle/20261015110000_add_step_node_parallelism/migration.sql",
+    "test": "libs/wbs/adapters/store-sqlite/src/step-parallel.db.test.ts",
+    "pattern": "SQL rejects duplicate",
+    "exit": 1,
+    "observed": true
+  },
+  {
+    "fault": "sql-owner",
+    "path": "apps/wbs/be-01/drizzle/20261015110000_add_step_node_parallelism/migration.sql",
+    "test": "libs/wbs/adapters/store-sqlite/src/step-parallel.db.test.ts",
+    "pattern": "SQL rejects insert owner",
+    "exit": 1,
+    "observed": true
+  },
+  {
+    "fault": "sql-step",
+    "path": "apps/wbs/be-01/drizzle/20261015110000_add_step_node_parallelism/migration.sql",
+    "test": "libs/wbs/adapters/store-sqlite/src/step-parallel.db.test.ts",
+    "pattern": "SQL rejects insert step",
+    "exit": 1,
+    "observed": true
+  },
+  {
+    "fault": "sql-insert-project",
+    "path": "apps/wbs/be-01/drizzle/20261015110000_add_step_node_parallelism/migration.sql",
+    "test": "libs/wbs/adapters/store-sqlite/src/step-parallel.db.test.ts",
+    "pattern": "SQL rejects insert project",
+    "exit": 1,
+    "observed": true
+  },
+  {
+    "fault": "sql-insert-leaf",
+    "path": "apps/wbs/be-01/drizzle/20261015110000_add_step_node_parallelism/migration.sql",
+    "test": "libs/wbs/adapters/store-sqlite/src/step-parallel.db.test.ts",
+    "pattern": "SQL rejects insert leaf",
+    "exit": 1,
+    "observed": true
+  },
+  {
+    "fault": "sql-update-project",
+    "path": "apps/wbs/be-01/drizzle/20261015110000_add_step_node_parallelism/migration.sql",
+    "test": "libs/wbs/adapters/store-sqlite/src/step-parallel.db.test.ts",
+    "pattern": "SQL rejects update project",
+    "exit": 1,
+    "observed": true
+  },
+  {
+    "fault": "sql-update-leaf",
+    "path": "apps/wbs/be-01/drizzle/20261015110000_add_step_node_parallelism/migration.sql",
+    "test": "libs/wbs/adapters/store-sqlite/src/step-parallel.db.test.ts",
+    "pattern": "SQL rejects update leaf",
+    "exit": 1,
+    "observed": true
+  },
+  {
+    "fault": "down-retained",
+    "path": "apps/wbs/be-01/drizzle/20261015110000_add_step_node_parallelism/down.sql",
+    "test": "libs/wbs/adapters/store-sqlite/src/step-parallel.db.test.ts",
+    "pattern": "down refuses retained",
+    "exit": 1,
+    "observed": true
+  },
+  {
+    "fault": "sqlite-write-range",
+    "path": "libs/wbs/adapters/store-sqlite/src/step-parallel.ts",
+    "test": "libs/wbs/adapters/store-sqlite/src/step-parallel-conformance.db.test.ts",
+    "pattern": "rejects each invalid value",
+    "exit": 1,
+    "observed": true
+  },
+  {
+    "fault": "memory-commit",
+    "path": "libs/wbs/adapters/store-memory/src/source.ts",
+    "test": "libs/wbs/adapters/store-memory/src/step-parallel-conformance.test.ts",
+    "pattern": "commits sparse facts",
+    "exit": 1,
+    "observed": true
+  },
+  {
+    "fault": "memory-rollback",
+    "path": "libs/wbs/adapters/store-memory/src/source.ts",
+    "test": "libs/wbs/adapters/store-memory/src/step-parallel-conformance.test.ts",
+    "pattern": "commits sparse facts",
+    "exit": 1,
+    "observed": true
+  },
+  {
+    "fault": "sqlite-rollback",
+    "path": "libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts",
+    "test": "libs/wbs/adapters/store-sqlite/src/step-parallel-conformance.db.test.ts",
+    "pattern": "commits sparse facts",
+    "exit": 1,
+    "observed": true
+  },
+  {
+    "fault": "source-inventory",
+    "path": "libs/wbs/application/conformance/src/case-manifest.ts",
+    "test": "libs/wbs/application/conformance/src/case-manifest.test.ts",
+    "pattern": "contains the complete source families",
+    "exit": 1,
+    "observed": true
+  },
+  {
+    "fault": "sqlite-read-project",
+    "path": "libs/wbs/adapters/store-sqlite/src/step-parallel.ts",
+    "test": "libs/wbs/adapters/store-sqlite/src/step-parallel.db.test.ts",
+    "pattern": "read refuses corrupt project",
+    "exit": 1,
+    "observed": true
+  }
+]

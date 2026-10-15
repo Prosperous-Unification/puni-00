@@ -1,0 +1,19 @@
+
+> nx run wbs-core:"build:portable"
+
+> bun build libs/wbs/application/core/testing/portable-composition.ts --target=browser --format=esm --outfile=dist/libs/wbs/application/core/portable-composition.js
+
+[32mBundled 571 modules in 46ms[0m
+
+  [34mportable-composition.js[33m  1.67 MB  [2m(entry point)[0m
+
+
+
+
+ NX   Successfully ran target build:portable for project wbs-core
+
+
+  Run duration:      98ms
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     82ms (1 task)
+  Recoverable time:  <1ms

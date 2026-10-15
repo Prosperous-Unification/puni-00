@@ -158,6 +158,7 @@ export type * from './step-values';
 // groupings would disagree about which work item is second, and the first two
 // of those are drawn on the same screen.
 export * from './step-blockage';
+export * from './step-parallel';
 export * from './stored-vocabularies';
 export * from './tree-order';
 export * from './typed-dependency';

@@ -191,6 +191,7 @@ export * from './ports/chain-snapshot-store';
 export * from './ports/shared-people-restore-approvals';
 export * from './ports/shared-people-values';
 export * from './ports/step-blockage-store';
+export * from './ports/step-parallel-store';
 export * from './service/numbered-work-item';
 export * from './service/optimizer-trigger-broadcaster';
 export * from './service/person-load.feature';
