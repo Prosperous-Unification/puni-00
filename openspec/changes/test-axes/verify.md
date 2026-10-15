@@ -3607,3 +3607,92 @@ No host gate, full repository gate, exact-head CI, secrets scan, migration lint,
 integration or deployment was performed by this worker. Independent implementation review and
 coordinator release acceptance remain pending. This diagnostic does not close the global ledgers,
 source reconciliation, T2 or certification.
+
+## Fourth-wave CI test repairs (2026-10-15)
+
+Hosted PR #493 run 38796593695 exposed three test defects on aggregate parent
+`ae12f88718c04523773a8f84405d410f0c5522e4`. The Compose migration fixture now supplies
+Docker's outgoing container image metadata and pinned image inspection. Its existing
+boot-exposure test first failed with `outgoing backend image inspection is malformed`,
+then reached the intended health failure and passed all seven retention assertions.
+The Dash boundary assertion retains full options equality, with record narrowing for
+its peer configuration and an explicit record type for the comparison value.
+
+The cancellation test's HTTP observer now treats `ECONNRESET` as not ready, alongside
+connection refusal, within its existing bounded readiness loop. A real TCP listener
+that disconnects immediately reproduced `socket hang up` / `ECONNRESET` before this
+change; the same regression passed afterward. Other request errors still reject.
+Production deployment and Performance guards are unchanged; no behavior-spec delta or
+new production safety check was introduced.
+
+Fresh verification from `/tmp/wbs-wave4-aggregate-sol-20261015`:
+
+- `bun test src/swap-migration.db.test.ts --preload ../test/scratch/preload.ts --timeout=60000`
+  from `tools/tool-remote-scripts`: exit 0, 10 passed, 71 assertions.
+- `bun test src/eslint-boundaries.test.ts --preload ../test/scratch/preload.ts --timeout=30000`
+  from `tools/tool-devsync`: exit 0, 26 passed, 153 assertions. After final peer narrowing,
+  the focused `-t 'Dash progress'` rerun passed, 14 assertions.
+- `bun test src/performance-level.test.ts --preload ../test/scratch/preload.ts --timeout=90000 -t 'readiness observation|cancelled supervisor'`
+  from `tools/tool-devsync`: exit 0, 2 passed, 10 assertions. Local sockets required
+  execution outside sandbox network restrictions; the sandbox attempt failed its
+  production shifted-port preflight and is not a pass.
+- Scoped uncached Nx `tool-devsync:typecheck`, `tool-remote-scripts:typecheck`,
+  `tool-devsync:lint`, and `tool-remote-scripts:lint`: exit 0. Commands used
+  `NX_DAEMON=false NX_ISOLATE_PLUGINS=false`; the initial socket-denied Nx invocation
+  exited 0 without running targets and is not counted as verification.
+- Changed-file Prettier and `git diff --check`: exit 0.
+- `OPENSPEC_TELEMETRY=0 bunx --bun @fission-ai/openspec@1.12.0 validate --all --json`:
+  exit 0, 213 valid (195 changes, 18 specs), zero failures.
+
+The initial scoped typecheck still rejected an unknown peer before record narrowing;
+initial lint rejected the reset test's void-expression shorthand before braces were
+added. Those failed attempts are superseded by the scoped final checks above. This
+worker did not run the complete Performance file, full repository tests, host gate,
+CI, secret scan, migration lint, merge, or deployment; coordinator acceptance remains
+open.
+
+## Wave-five hosted clock repair and wave-four restack (2026-10-15)
+
+The isolated aggregate `/tmp/wbs-wave5-aggregate-sol-20261015` started clean at
+`141876e9424b6ddaa79df128e4eb9c52217888e9`. The public wave-five tip was freshly
+verified at that exact SHA; repaired wave four was independently verified at
+`eede130ae6854b0c60cd1b29881fa2eea0dfc6c3` before fetching and normal-merging it.
+Both source packet commits remain ancestors. The merge preserves both appended verification
+records, and all three repaired wave-four test blobs match the exact wave-four commit.
+
+Hosted CI's Burokrat clock failure reproduced locally before editing: `bun test
+apps/twilight-structure/twilight-burokrat/cli/src/no-ambient-clock.test.ts` exited 1,
+zero passed/one failed, with 97 received diagnostic lines (`/tmp/wave5-clock-red.log`).
+The only source edit renames the local `performance` binding to `scenarioReport` in
+`scenario-ledger.ts` and `scenario-ledger-manual.fixture.ts`; returned `performance` properties,
+schema values, detector behavior and every adjacent R5 proof remain intact. The identical clock
+command then exited 0, one passed/zero failed (`/tmp/wave5-clock-green.log`). No safety check
+changed and no additional mutation proof is claimed.
+
+Fresh checks on the combined tree:
+
+- Scenario Ledger, Performance scenarios/levels, Manual and Burokrat clock focused suite:
+  exit 0, 264 passed, zero failed, 881 assertions across five files, 201.30 seconds
+  (`/tmp/wave5-restack-tests.log`); command matches the four-file acceptance above plus
+  `./src/no-ambient-clock.test.ts`.
+- Scoped Prettier check and `git diff --check`: exit 0. An initial format command named
+  the migration test under the wrong directory and exited 2; the corrected six-path check
+  and final hook formatting passed (`/tmp/wave5-restack-format-final.log`).
+
+- Clock detector plus Dash and Burokrat clock suites: exit 0, four passed, zero failed,
+  eight assertions (`/tmp/wave5-restack-no-clock.log`).
+- Scoped Burokrat Nx typecheck: exit 0, 2.3 seconds (`/tmp/wave5-restack-typecheck.log`).
+- Uncached scoped Burokrat Nx source lint: exit 0, 29.0 seconds
+  (`/tmp/wave5-restack-lint-isolated.log`). Two initial attempts refused stale Nx task invocation
+  registrations from the clone metadata; retry used its own `NX_WORKSPACE_DATA_DIRECTORY`
+  with `NX_DAEMON=false NX_ISOLATE_PLUGINS=false`. Direct full-source ESLint also exited 0
+  (`/tmp/wave5-restack-eslint.log`). No refused attempt counts as a pass.
+- Repository-pinned `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate --all
+--json`: exit 0, 214 passed/zero failed (`/tmp/wave5-restack-openspec.json`).
+
+The old aggregate Astra approval, exact-candidate K6 snapshot and hosted CI belong to
+`141876e9424b6ddaa79df128e4eb9c52217888e9`; they do not approve or bind the repaired head.
+The installed K6 binding for the committed repaired SHA is recorded separately in the PR
+and `/tmp/wave5-restack-evidence/` after commit. No canonical h2puni gate, full repository
+gate, browser/pixels, merge to main or deployment ran in this repair worker. Fresh exact-head review and hosted
+acceptance remain coordinator work.

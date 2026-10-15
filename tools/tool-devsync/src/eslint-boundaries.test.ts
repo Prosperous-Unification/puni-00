@@ -60,6 +60,7 @@ describe('the effective production and test boundaries', () => {
   it('Dash progress reaches exactly the contracts alias at its two scoped paths', async () => {
     const peer = 'apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts';
     const peerOptions = boundaryOf(await lint.calculateConfigForFile(peer))[1];
+    if (!isRecord(peerOptions)) throw new Error('Dash peer boundary options are malformed');
     for (const path of [
       'apps/twilight-structure/twilight-dash/cli/src/progress/record-progress.ts',
       'apps/twilight-structure/twilight-dash/cli/src/progress/record-progress.test.ts',
@@ -78,7 +79,8 @@ describe('the effective production and test boundaries', () => {
         );
       }
       expect(options['allow']).toEqual(['^@twilight-burokrat/contracts$']);
-      expect({ ...options, allow: [] }).toEqual(peerOptions);
+      const withoutLocalAlias: Readonly<Record<string, unknown>> = { ...options, allow: [] };
+      expect(withoutLocalAlias).toEqual(peerOptions);
     }
     for (const path of [
       peer,
