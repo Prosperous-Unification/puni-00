@@ -210,7 +210,7 @@ In an organization whose proven connection is enforced, the organization context
 
 The organization page SHALL render a Company sign-in panel that reads connections and domain claims from the active organization's typed routes. It SHALL display loading, empty, unavailable and query-failure states. A forbidden response SHALL offer no create or proof controls. Membership, authentication or credential authority loss SHALL replace the whole organization page through its shared refusal state. The server SHALL decide super-admin authority.
 
-The panel SHALL show each connection's domain, Auth0 name, strategy, login slug, proof timestamp, enforcement state and any last prefix mismatch timestamp from the server. The create form SHALL offer only verified claims without a connection, and SHALL post exactly the selected claim id, Auth0 name, strategy and login slug. It SHALL admit one pending create, re-read connections and claims after success or modeled conflict, and offer an explicit refresh. This setup slice SHALL provide no edit, delete or provisioning-token controls. Enforcement is specified below; the session-policy panel is specified separately.
+The panel SHALL show each connection's domain, Auth0 name, strategy, login slug, proof timestamp, enforcement state and any last prefix mismatch timestamp from the server. The create form SHALL offer only verified claims without a connection, and SHALL post exactly the selected claim id, Auth0 name, strategy and login slug. It SHALL admit one pending create, re-read connections and claims after success or modeled conflict, and offer an explicit refresh. The panel SHALL provide no provisioning-token controls. Editing and deletion are specified below. Enforcement is specified below; the session-policy panel is specified separately.
 
 #### Scenario: Verified unused domain creates a connection
 
@@ -274,3 +274,33 @@ The Company sign-in panel SHALL offer enable only for a server-proven connection
 - **GIVEN** the populated organization page at 1280px or 375px, including the company-link password form
 - **WHEN** the page is drawn and its controls are traversed with Tab
 - **THEN** no panel overflows horizontally and every enabled control can be reached
+
+### Requirement: Super-admins can edit and remove company connections in the browser
+
+The panel SHALL select at most one inline configuration editor or removal confirmation. The editor SHALL keep the domain immutable, prepopulate Auth0 connection name, strategy and login slug, and PATCH only those three fields to the selected connection id using the active organization expectation. It SHALL explain that changing the name or strategy clears proof and enforcement, while changing only the slug preserves them. The returned row SHALL be authoritative and clear stale proof and lockout actions; no optimistic state SHALL be published.
+
+Removal SHALL require an explicit confirmation identifying the connection domain and Auth0 name. Cancel SHALL send no request. The row SHALL remain until a typed 204 success; success SHALL refresh both connections and domain claims and clear the selected action and proof. A `provisioning_active` conflict SHALL explain that live organization provisioning prevents removal and refresh both lists without exposing token controls. Modeled conflicts and not-found SHALL reconcile both lists; transport failure SHALL retain confirmed rows and the action for retry. Forbidden and insufficient scope SHALL remove panel controls; shared authority loss SHALL withdraw the organization page.
+
+#### Scenario: Configuration edit uses the selected record
+
+- **GIVEN** two records whose ids differ from their login slugs
+- **WHEN** a super-admin edits one record
+- **THEN** the domain cannot change and the form contains the server's three configuration fields
+- **AND** one scoped configuration-only PATCH targets its id, and the returned row replaces it
+- **AND** the panel explains the prefix and slug effects and clears stale proof and lockout actions
+
+#### Scenario: Confirmed removal reconciles server state
+
+- **WHEN** a super-admin opens removal confirmation and cancels
+- **THEN** no DELETE is sent
+- **WHEN** the super-admin confirms removal
+- **THEN** a scoped DELETE uses the selected id, preserves the row until 204 and refreshes both lists afterward
+- **AND** provisioning-active and missing-record refusals explain the outcome and reconcile both lists
+
+#### Scenario: Edit and removal serialize with every setup operation
+
+- **WHEN** configuration PATCH, DELETE, create, enforcement, proof start or refresh is pending
+- **THEN** synchronous admission refuses conflicting handlers, including forced submissions and same-render clicks
+- **AND** transport failure retains the selected action for retry; authority refusal removes controls
+- **AND** earlier reads and replies after effect cleanup, StrictMode replay or runtime withdrawal cannot restore rows or authority
+- **AND** accessible domain-specific actions and their forms fit 375px and 1280px and support keyboard navigation

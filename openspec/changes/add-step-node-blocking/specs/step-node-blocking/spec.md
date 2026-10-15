@@ -481,6 +481,149 @@ identities, and preserve exact timestamps within the import transaction.
 - **THEN** it adapts to internal v9 with empty direct facts
 - **AND** external v9 remains refused before output files are written
 
+### Requirement: Compose backend transitions stop every prior database writer before candidate startup
+
+Every Compose backend swap SHALL complete registry, local image pull, environment, Compose, Caddy, exposure-state and writable database mount inventory preflight before any writer outage. Unmanaged writable mounts, including canonical path aliases and overlapping ancestor/file binds, and malformed or unreadable inventory SHALL refuse without stopping unrelated containers. Read-only mounts MAY remain. The executor SHALL durably publish stop intent before stopping outgoing and pre-existing idle container exact identities. It SHALL inspect each identity stopped, unpaused and not restarting and revalidate the complete identity set. Independent digest-pinned, network-none, read-only candidate fact/replay admission SHALL pass before any candidate boot; post-boot admission SHALL remain a readback. Candidate migration, health, fact/replay compatibility and backfill SHALL precede the gateway shared alias and Caddy routing. The effective candidate configuration SHALL reject exposing aliases, published ports and dependencies, and startup SHALL force a new container from a private resolved configuration without dependency starts or image pulls.
+
+#### Scenario: Old structural writers cannot overlap new blockage writers
+
+- **GIVEN** an outgoing backend can insert a child without accounting for step blockage and an idle backend exists
+- **WHEN** a Compose backend swap runs
+- **THEN** both exact old container identities are stopped and independently inspected before the candidate starts
+- **AND** a zero-exit stop whose inspection is running, missing, malformed, replaced, paused or restarting refuses startup
+
+#### Scenario: Preflight cannot establish an exclusive writer set
+
+- **GIVEN** a malformed inventory or an unmanaged writable mount overlapping the shared database
+- **WHEN** backend preflight runs
+- **THEN** it refuses before stop intent or any container stop
+- **AND** read-only unrelated mounts are accepted without receiving stop commands
+
+### Requirement: Interrupted backend transitions retain explicit recovery authority boundaries
+
+Stop, migration-capture identity and possible-exposure intent SHALL be exclusively published and synced before their corresponding actions. Possible writer exposure SHALL be durable before candidate startup, because boot can write or listen without a shared alias. Ordinary retries SHALL refuse retained markers, malformed/unreadable markers and missing trusted state directories. Phase writes SHALL NOT erase those markers. Possible-exposure intent SHALL precede the first alias-grant attempt. Only recorded candidate commit SHALL remove markers. Failure SHALL retain captures and never automatically reverse schema, restore a snapshot or restart the older writer. Before boot exposure, any managed cleanup SHALL prove exact stopped identities. After candidate startup, failure SHALL retain boot exposure and SHALL NOT authorize down recovery or old snapshot restore; the candidate MAY remain available while the older writer remains stopped.
+
+#### Scenario: Alias grant partly applies before throwing
+
+- **WHEN** a backend alias operation partly applies and then fails
+- **THEN** exposure intent already exists, ordinary retry refuses, and no older writer restarts or schema/snapshot rollback runs
+
+#### Scenario: A booted candidate fails after migration
+
+- **WHEN** the candidate starts and later fails health before shared-alias admission
+- **THEN** boot exposure was already durable, the outgoing writer remains stopped, and the migrated database and original capture remain
+- **AND** no down recovery or old snapshot restore is authorized merely because health or alias admission has not completed
+
+#### Scenario: Attended old-image recovery encounters retained replay history
+
+- **GIVEN** all backend writers are stopped and the proposed previous image lacks a stored fact or nested journal replay capability
+- **WHEN** read-only attended recovery admission runs
+- **THEN** it refuses before any restart and retains interruption state
+- **AND** schema recovery must prove the captured applied ledger exactly before a compatible older image may restart
+
+#### Scenario: Socket frames cannot grant mutation or activation authority
+
+- **WHEN** an authenticated internal forward contains setter, import or activation-shaped frames
+- **THEN** it only acknowledges and creates no command event or write authority
+
+#### Scenario: An unchanged idle container retained the shared backend alias
+
+- **GIVEN** a stopped idle container retains `be-01.internal` from its previous deployment
+- **WHEN** the candidate starts from the checked private Compose snapshot
+- **THEN** forced recreation produces a new container identity without that alias and no dependency starts
+- **AND** possible boot exposure was durable before any startup callback
+
+#### Scenario: Incidental database mounts conceal another live database
+
+- **GIVEN** an outgoing backend opens `/live/production.db` through `/actual-production:/live` and also mounts the configured data root at `/unused-backups`
+- **WHEN** preflight compares it with the candidate's effective database file
+- **THEN** mismatch refuses before stop intent, including different filenames and more-specific file-bind overrides
+- **AND** canonical path aliases are accepted only when they identify the same actual host database
+
+#### Scenario: Incoming code cannot read guarded history
+
+- **GIVEN** stopped previous writers and stored move/deletion replay metadata or direct blockage unsupported by the incoming digest
+- **WHEN** pre-boot candidate admission runs in read-only one-offs
+- **THEN** it refuses before candidate boot or possible-exposure publication, retains stop intent and starts no writer
+
+### Requirement: Compose admission reads the complete stopped SQLite family without source mutation
+
+Stored fact/replay admission SHALL keep the production directory mounted read-only and run independent production query commands against a private writable copy of the quiescent main database and retained WAL/journal. It SHALL exclude source SHM and refuse required-file absence or unreadability. Candidate/outgoing/idle identity SHALL prove the canonical directory, basename and sidecar mappings together before stop intent. Main-file binds, sidecar shadow mounts, renamed main-file aliases and redirected or dangling sidecar links SHALL refuse before any writer outage.
+
+#### Scenario: Clean WAL close leaves no sidecars
+
+- **GIVEN** every database writer is stopped and clean WAL closure left only the main database in a read-only directory
+- **WHEN** the exact production stored relationship query runs through pre-boot admission
+- **THEN** it succeeds through private scratch SHM creation and the production filenames and bytes remain unchanged
+
+#### Scenario: Retained WAL contains a newer relationship
+
+- **GIVEN** a killed writer left a committed relationship only in WAL, with or without retained SHM
+- **WHEN** independent stored relationship admission runs
+- **THEN** the retained relationship is inventoried and no production file is created, deleted or changed
+
+#### Scenario: Main-file equality conceals different sidecars
+
+- **GIVEN** an outgoing renamed file bind resolves to the candidate main file or a candidate mount shadows only WAL or SHM
+- **WHEN** preflight resolves the database family
+- **THEN** it refuses without stopping blue or publishing stop intent
+
+### Requirement: Compose writer exclusion covers physical aliases and recovery path families
+
+Unmanaged writable regular mounts SHALL be compared by device and inode against the main database and every existing WAL/SHM/journal file. Missing or unreadable physical metadata SHALL refuse. Every unmanaged container with mounts SHALL prove its actual persistent namespace with complete bounded metadata-only Docker exec, including nested writable mounts beneath inspected RO mounts and roots on SQLite-family devices. Fresh host Source rebinds and top-level RW flags SHALL NOT establish exclusion. Audited targets SHALL already have Docker init, a private PID namespace, unprivileged configuration and no added capabilities. The protocol SHALL add no capabilities or invoke write APIs. Init changes to shipped Caddy/registry and an existing backend SHALL be explicit attended prerequisites; the swap SHALL NOT restart them to satisfy this prerequisite. Candidate configuration SHALL require init/private PID/default capabilities before stop intent. Non-be swaps SHALL retain their existing behavior.
+
+The audit SHALL validate exact container ID/PID/start identity, actual before/after mountinfo, host family identity, strict per-entry device/inode/mode receipts, complete counts, nonce acknowledgment and successful reap. Every remote scanner SHALL have an independently bounded verified process group; EOF/cancellation/timeout SHALL kill that group, and initialized cleanup SHALL prove no live or zombie members remain. Missing tools/session identity, unreadability, symlinks/special files in writable roots, ambiguity, incomplete receipts, stderr, more than100,000 entries, depth above64, stdout above32MiB or stderr above64KiB SHALL refuse without stopping unrelated containers. The complete host Docker operation SHALL be bounded to45 seconds per container, including20 seconds reserved cleanup; uncertain cleanup SHALL report exact ownership context and refuse admission.
+
+This exclusion contract assumes trusted nonadversarial quiescence: tasks retain the Docker-created namespace, persistent topology/aliases remain stable, and no writer retains an open deleted SQLite alias. It SHALL NOT claim absolute exclusion against hostile receipt spoofing, transient topology/inode ABA or private process namespaces. Recovery admission SHALL validate supplied DB_PATH through the fixed probe directory's complete SQLite family before inventory/probes, including when no containers remain.
+
+#### Scenario: Unmanaged mount uses a hardlink outside the canonical data directory
+
+- **GIVEN** an unmanaged container has a writable hardlink to a SQLite family file with a distinct canonical pathname
+- **WHEN** writer inventory runs
+- **THEN** equal device and inode refuse before any stop command
+
+#### Scenario: Recovery alias conceals retained WAL
+
+- **GIVEN** alias.db resolves to wbs.db while committed SS facts remain in wbs.db-wal
+- **WHEN** recovery admission receives DB_PATH=/data/alias.db with or without a managed container
+- **THEN** the family mismatch refuses before any vocabulary probe
+
+#### Scenario: Shipped Caddy and registry mounts are unrelated
+
+- **GIVEN** shipped Caddy has writable caddy_data/caddy_config/logs and registry has writable registry_data, with Docker volume paths unreadable to the deploy user and attended init prerequisites satisfied
+- **WHEN** backend preflight executes complete initialized metadata-only namespace audits
+- **THEN** those mounts are admitted when their full trees contain no SQLite-family aliases and no unrelated container receives a stop command
+
+#### Scenario: Nested physical alias or incomplete audit
+
+- **GIVEN** a writable directory contains a nested main/WAL/SHM/journal hardlink, including under a different-device directory, or its audit is unreadable/oversized/too deep/timed out/incomplete
+- **WHEN** preflight inventories it
+- **THEN** it refuses before writer stop intent
+
+#### Scenario: Replaced source retains an actual writer alias
+
+- **GIVEN** an unmanaged container retains a private bind containing a SQLite-family hardlink while Docker Source text now names a clean replacement
+- **WHEN** preflight audits the actual target namespace
+- **THEN** the retained alias refuses before writer stop intent
+
+#### Scenario: Top-level read-only mount contains a private writable submount
+
+- **GIVEN** Docker reports a mount RO while actual mountinfo exposes a nested RW SQLite-family alias
+- **WHEN** namespace admission selects effective writable roots
+- **THEN** the nested alias refuses without stopping the unrelated container
+
+#### Scenario: Scanner/client interruption and failed metadata
+
+- **GIVEN** an initialized default-cap target with an unrelated sentinel process
+- **WHEN** its scanner stalls with a grandchild, the client disconnects, or any stat call fails
+- **THEN** admission refuses; the owned group converges to no live or zombie members, the sentinel remains, and incomplete/failed metadata never receives admission
+
+#### Scenario: Init prerequisite is absent
+
+- **GIVEN** a running mounted target lacks Docker init or has unsupported capabilities/PID mode
+- **WHEN** backend preflight runs
+- **THEN** it refuses before writer stop and reports the attended maintenance prerequisite
+
 ### Requirement: Step blockage writers require durable admission
 
 The application SHALL initialize a durable singleton blockage writer admission marker to `DISABLED` in an additive migration. Only exactly one valid `ENABLED` marker SHALL admit insert, update and delete statements on `step_blockage`, including writes from independent SQLite connections and foreign key cascades. Reads and export SHALL remain available while admission is disabled. This slice SHALL provide no production activation command or API.
@@ -512,3 +655,28 @@ The application SHALL initialize a durable singleton blockage writer admission m
 - **WHEN** blockage facts or relevant nested forward, inverse or precondition journal history remain
 - **THEN** the admission down migration refuses before changing its schema or ledger
 - **AND** the recovery runbook describes the existing lossless save protocol and the refusal of remove or restore until stopped-writer recovery integration is available
+
+### Requirement: Backend migration uses inert maintenance before application startup
+
+Compose SHALL derive hash-pinned private application and maintenance configurations from the same validated digest, environment, effective working directory and database/solver mounts. Maintenance SHALL override entrypoint and command with a fixed inert Bun program, disable healthcheck, use restart=no and init=true, and start with forced recreation, no dependencies and no pull only after all prior writers are proved stopped. Its exact ID/image/configuration and snapshot hashes SHALL be durably recorded. Backup, migration capture and forward migration SHALL use that exact identity; capture bytes/digest/identity and durable migration intent SHALL precede forward migration. Maintenance SHALL stop and independently inspect stopped before durable application exposure and normal app recreation. The application boot admission check SHALL remain enabled with migrateOnStartup=false.
+
+#### Scenario: Authentic predecessor upgrade
+
+- **GIVEN** the database has every predecessor migration but lacks StepBlockage admission
+- **WHEN** Compose upgrades the backend
+- **THEN** actual application boot refuses before migration, maintenance applies the migration first, and subsequent nonmigrating application boot succeeds with admission still disabled
+
+#### Scenario: Maintenance identity or configuration drifts
+
+- **WHEN** exact ID/image, inert entrypoint/command/health/restart, environment, working directory or mounts differ, a private snapshot hash changes, or maintenance cannot be proved stopped
+- **THEN** database CLI or application startup refuses at that boundary and interruption evidence remains
+
+#### Scenario: Migration interruption precedes app exposure
+
+- **WHEN** forward migration applies schema changes and then fails before app startup
+- **THEN** current database, original capture/hash and migration intent remain, application exposure is absent, and no automatic down, snapshot restore or older writer restart occurs
+
+#### Scenario: App exposure cannot be published
+
+- **WHEN** maintenance migration and stop proof succeed but durable app exposure publication fails
+- **THEN** app boot does not run, schema/capture evidence remains, and ordinary retry refuses

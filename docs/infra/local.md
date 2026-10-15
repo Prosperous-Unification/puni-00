@@ -50,6 +50,13 @@ served as worktrees; `--solver-runtime <dir>` mounts a solver supervisor's runti
 Memory is `MemAvailable`, disk the free space under Docker's root. A refusal names the next
 smaller profile. Measured on 2026-09-18 (24 cores, 31 GiB, shared with a VM lab):
 
+Before installing Flux, `platform` and `fleet` build the authenticated local
+object-store archive and verify its digest registration in each server and agent's
+containerd image store. This requires minisign (`MINISIGN` may name its executable)
+and the Buildx client locked in `infra/versions/object-store.json`; see
+[image inputs and tool provisioning](../../infra/versions/README.md).
+The `app` profile does not build object storage.
+
 | What                                                                      | Memory                                                          | Disk                                                             | Time                                                                                           |
 | ------------------------------------------------------------------------- | --------------------------------------------------------------- | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
 | `app` lab, idle                                                           | 0.66 GiB (server 621 MiB, load balancer 34 MiB, registry 6 MiB) | 1.6 GB k3s data volume, 0.2 GB registry, 0.43 GB images          | `up` 16.5 s with images cached, plus up to 40 s until the bundled Traefik serves; `down` 1.2 s |
@@ -79,7 +86,7 @@ cluster remains. Anything else with the label is reported and left.
 
 `bunx nx run tool-devsync:dev-env -- up|down|status --slug <slug> --worktree <path> --cluster puni-<id>-platform`
 
-One worktree, one slug, one Pod `dev-<slug>` in the trusted `puni-forge` namespace, served at
+One worktree, one slug, one Pod `dev-<slug>` in its trusted `puni-forge-<slug>` namespace, served at
 `http://<slug>.localhost:<port>/` where `<port>` is the lab's loopback ingress port. The Pod
 runs `bin/dev.sh` (be-01, gw-01, fe-01, mcp-01) from the mounted worktree, like the h2puni dev
 container.
@@ -97,14 +104,20 @@ shares no root commit with this repository, a slug already serving another workt
 worktree already served under another slug, a kubeconfig that reaches a cluster whose marker
 another lab owns, and a `--worktree-root` that is no longer the directory `lab up` mounted
 (moved aside and recreated: the node would still serve the old one). Two Leases,
-`dev-<slug>` and `dev-wt-<hash>`, are the claim: of two concurrent `up`s for one slug or one
+`dev-<slug>` and `dev-wt-<hash>`, stay in `puni-forge` and are the claim: of two concurrent `up`s for one slug or one
 worktree, the second refuses. `down` deletes them. The worktree needs `bun install` and
 `bun run dev:setup` first. The Pod runs as the worktree's owner UID and GID; a root-owned
 worktree is refused.
 
 The environment gets its own SQLite database on volume `dev-<slug>-data` (`DB_PATH=/data/wbs.db`),
-never the worktree's `local.db`. It survives Pod recreation; `down` deletes it with the Pod,
-Service, Ingress and NetworkPolicy, selected by the slug and lab labels only. A NetworkPolicy
+never the worktree's `local.db`. It survives Pod recreation; `down` deletes the owned namespace
+and its Pod, Service, Ingress, NetworkPolicy and database volume. Namespace ownership requires
+the lab and slug labels, source trust and worktree annotation; teardown uses the inspected UID
+so it cannot delete a replacement namespace. A failed create keeps the namespace and claims
+for the same pair to retry or tear down. Missing, malformed, foreign or terminating ownership
+refuses adoption. Before upgrading from shared-namespace environments, run `down` using the
+previous checkout; this deletes their databases. All three commands refuse surviving legacy
+Pods, Services, Ingresses, NetworkPolicies or database claims even when the old Pod is gone. This change does not transfer those databases. A NetworkPolicy
 admits only the ingress controller, so one environment cannot call another's tiers.
 
 `up` builds `deploy/dev-src/Dockerfile`, pushes it to the lab registry and, on a lab it owns,
@@ -114,8 +127,9 @@ kept in an annotation, written only at the version read (a conflict is retried),
 if the Pod cannot be created, and released by slug on `down` even when the Pod is gone. If a
 Flux Kustomization applies that ConfigMap without `kustomize.toolkit.fluxcd.io/ssa:
 IfNotPresent`, `dev-env` refuses: Flux would revert the roots on its next reconcile. The Pod is created as the
-`dev-environment-controller` service account, the only identity the forge Role lets create
-Pods there. Outside a lab those parameters are reviewed policy changes, and `dev-env` refuses
+`dev-environment-controller` service account in `puni-forge`. Each environment has a workload
+service account of the same name with no API token, and a local RoleBinding grants Pod access
+to the shared controller only. Outside a lab those parameters are reviewed policy changes, and `dev-env` refuses
 to write them. The forge admits one image, so all environments of a lab build the same
 Dockerfile.
 
@@ -131,8 +145,8 @@ namespace requires `puni.dev/trusted-hostpath: source` on creation and update. T
 rejects malformed reserved suffixes, missing/changed/removed labels, unknown trusted-label
 values and trusted labels on other identities. `wbs-solver` retains its `solver` identity.
 All forge identities use the same exact-root parameters, image, service-account,
-controller, node and container-security rules. `dev-env` currently uses `puni-forge`;
-workload namespace ownership and lifecycle migration are a later WBS 070.14 slice.
+controller, node and container-security rules. `dev-env` uses the namespace family with
+owned lifecycle as described above; `puni-forge` retains shared controller and Lease authority.
 
 Run this admission-only rehearsal against a new disposable cluster. It installs no Flux graph
 and proves API admission, including the ephemeral-container subresource. The test Pods

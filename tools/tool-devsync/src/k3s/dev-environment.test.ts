@@ -13,7 +13,6 @@ import {
   type EnvironmentBinding,
   existingPodFingerprint,
   findForgeCluster,
-  FORGE_NAMESPACE,
   installFailureOf,
   type LabRecord,
   parseDevEnvironmentRequest,
@@ -233,6 +232,7 @@ describe('requireUniqueEnvironment', () => {
   const running = [
     {
       slug: 'alpha',
+      namespace: 'puni-forge-alpha',
       worktree: '/w/alpha',
       worktreeNodePath: '/srv/puni/worktrees/alpha',
       image: IMAGE,
@@ -243,6 +243,12 @@ describe('requireUniqueEnvironment', () => {
     expect(() => {
       requireUniqueEnvironment('alpha', '/w/alpha', running);
     }).not.toThrow();
+  });
+
+  it('refuses a legacy shared-namespace environment before creating a duplicate', () => {
+    expect(() => {
+      requireUniqueEnvironment('alpha', '/w/alpha', [{ ...running[0], namespace: 'puni-forge' }]);
+    }).toThrow('prior revision');
   });
 
   it('refuses a duplicate slug for another worktree', () => {
@@ -322,7 +328,7 @@ describe('bindEnvironment', () => {
     for (const object of bound) {
       expect(object).toMatchObject({
         metadata: {
-          namespace: FORGE_NAMESPACE,
+          namespace: 'puni-forge-alpha',
           labels: { 'puni.dev/dev-slug': 'alpha', 'puni.dev/lab-id': 'f9' },
         },
       });
@@ -396,6 +402,7 @@ describe('decodeRunningEnvironments', () => {
     expect(decodeRunningEnvironments(JSON.stringify({ items: [pod] }))).toEqual([
       {
         slug: 'alpha',
+        namespace: 'puni-forge-alpha',
         worktree: '/home/dev/worktrees/alpha',
         worktreeNodePath: '/srv/puni/worktrees/alpha',
         image: IMAGE,

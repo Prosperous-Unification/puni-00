@@ -1,0 +1,13 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-fleet/src/object-store-import.test.ts:
+(pass) local object store digest distribution > refuses missing before accepting distribution [0.56ms]
+(pass) local object store digest distribution > refuses source before accepting distribution [0.08ms]
+(pass) local object store digest distribution > refuses alias before accepting distribution [0.06ms]
+(pass) local object store digest distribution > refuses import before accepting distribution
+(pass) local object store digest distribution > registers and verifies the digest alias in the node CRI namespace [0.10ms]
+
+ 5 pass
+ 0 fail
+ 5 expect() calls
+Ran 5 tests across 1 file. [257.00ms]

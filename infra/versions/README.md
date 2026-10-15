@@ -29,3 +29,24 @@ through the immutable Flux Git source and carry every enabled image digest from
 the chart lock. The
 `runtimeImages.networkProbe` BusyBox image is reserved for the committed live
 network-policy conformance Jobs.
+
+`object-store.json` locks only build inputs for the disposable local S3 target:
+the exact upstream MinIO/mc releases, SHA-256 values, detached minisign signature
+URLs, upstream key and immutable key provenance, BusyBox base, and BuildKit
+builder and Buildx client. `toolchain.json`'s `runtimeImages.objectStore` is the sole image name and
+manifest digest authority; the build-input reader rejects an image identity in
+`object-store.json`.
+
+`bunx nx run tool-fleet:object-store-image` requires minisign on PATH (or the
+`MINISIGN` executable path), plus the exact Buildx client recorded in the input lock. An owned `DOCKER_CONFIG` with the verified plugin in `cli-plugins/docker-buildx` avoids changing shared Docker configuration. Provision it through an authenticated distribution
+package source; the builder refuses an absent verifier, failed checksum or
+signature, failed download/build, or another manifest digest. It produces
+`dist/tool-fleet/object-store.oci`. Direct k3d import creates the release tag;
+`importObjectStore` then checks its exact manifest in each node's `k8s.io`
+containerd namespace, registers the repository digest alias, and checks that
+alias. Local consumers use `imagePullPolicy: Never` and require that registration.
+The backup lab performs both steps before applying its object store. This is a
+local artifact, with no public-registry publication implied.
+Executed build and transport evidence belongs in the local-object-store-image
+OpenSpec verification record; production continues to use provider object
+storage.

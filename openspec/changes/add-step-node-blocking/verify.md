@@ -678,6 +678,421 @@ Auckland command was skipped by the UTC failure. The complete broad command
 exited1; it is not a green final gate. Focused final checks are recorded in
 `/tmp/puni-release-candidate-evidence/`.
 
+## Compose stopped-writer barrier — 2026-10-14
+
+Historical evidence for `83e0506`: Astra blocked this revision because an idle
+container could retain its shared alias, mount-source overlap did not prove the
+effective DB_PATH identity, and application boot preceded durable exposure. The
+correction evidence below supersedes its safety conclusion.
+
+Isolated clone `/tmp/puni-compose-barrier`, exact parent
+`4bb78ec2674869c2bfd18114ef4f39e05d403863`, branch
+`fix/compose-writer-barrier`. No root checkout, candidate branch, live database,
+container, push, merge or deployment was changed by this worker.
+
+The backend planner now requires preflight, exclusive durable stop intent, exact
+outgoing/idle stop and inspection, complete writer-identity recheck, candidate
+startup, fact/replay admission, backup/capture/migrate/health, admission recheck,
+backfill, durable possible-exposure intent, alias/route/reload, and recorded commit.
+Preflight includes local image pull, frozen validated environment/Compose files,
+read-only existing SQLite integrity and nonempty-ledger proof, Caddy/exposure and
+canonical writable mount inventory. Startup does not pull after the outage.
+
+Backend interruption has no automatic down, snapshot restore or older-writer
+restart. Original capture digest and identity are published before migration;
+possible exposure is published before the first alias operation. Phase writes do
+not erase those files. The attended read-only recovery CLI verifies stopped
+writers and independently compares stored facts/replay capabilities with a pinned
+previous digest. It grants no restart or marker deletion. The real SQLite test
+keeps the migrated database on failure, runs the printed pinned exact-set recovery
+command against disposable storage, compares restored tables/ledger, and retains
+stop intent.
+
+Fresh focused command:
+
+```sh
+bun test tools/tool-remote-scripts/src/swap.test.ts tools/tool-remote-scripts/src/swap-migration.db.test.ts tools/tool-remote-scripts/src/swap-writer-barrier.test.ts tools/tool-remote-scripts/src/lib/reconcile.test.ts tools/tool-remote-scripts/src/lib/writer-barrier.test.ts tools/tool-remote-scripts/src/lib/step-code-backfill.test.ts apps/wbs/be-01/src/controller/internal.integration.test.ts --timeout=10000
+```
+
+Output: **192 pass, 0 fail, 612 expectations**, seven files. Final log:
+`/tmp/compose-barrier-tests-final.log`.
+
+Watched production-path R5 faults, each removed after observing exit1:
+
+| Injected fault                                          | Observed negative                                                               |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Old start-first planner                                 | stopped-writer ordering: expected preflight index 0, received -1                |
+| Omit stop persistence                                   | exact-ID stop fixture observes ENOENT; six executor negatives fail              |
+| Omit stop inspection                                    | running, wrong-ID and missing-container startup negatives fail                  |
+| Omit stopped-state validation                           | running/wrong-ID/paused/restarting/malformed-state negatives: six fail          |
+| Omit ordinary retry refusal                             | second ordinary transition negative fails                                       |
+| Omit exposure persistence                               | partial alias failure observes missing exposure bytes                           |
+| Forget possible exposure                                | partial alias failure incorrectly stops candidate; two fail                     |
+| Omit unmanaged writer refusal                           | directory, DB-file and ancestor writable mounts: three fail                     |
+| Skip canonical path resolution                          | symlink-alias unmanaged writer negative fails                                   |
+| Treat read-only mount as writable                       | unrelated reader/no-stop negative fails                                         |
+| Omit mount metadata validation                          | missing Source/RW/Type: three fail                                              |
+| Omit complete identity recheck                          | replaced backend during outage negative fails                                   |
+| Omit migration identity persistence                     | planned migration cannot observe original capture identity; complete plan fails |
+| Omit Compose config preflight                           | frozen-input/no-pull preparation negative fails                                 |
+| Bypass read-only SQLite preflight                       | absent/corrupt/empty-ledger database negatives: three fail                      |
+| Omit mounted DB_PATH guard                              | outside-mount path refusal fails                                                |
+| Admit unsupported recovery replay                       | move_progress_v1 old-image recovery refusal fails                               |
+| Route stopped transition through legacy automatic abort | real SQLite candidate table is reversed; retained recovery negative fails       |
+| Omit committed barrier cleanup                          | complete plan still has retained stop intent; test fails                        |
+| Grant a write transaction to internal forward           | forged setter/import/activation frame test observes write calls and fails       |
+| Omit trusted state directory check                      | missing state root is incorrectly admitted; negative fails                      |
+
+Adjacent `Proof:` comments record these observations. Logs are named
+`/tmp/<fault-name>.log`; fresh restored green output is in the final test log.
+The intent/commit file helper also uses the existing independently proven
+exclusive, file-synced, directory-synced capture publisher. Malformed marker bytes
+refuse without being interpreted as authority.
+
+Scoped checks:
+
+```sh
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_TUI=false bunx nx run-many -t lint,typecheck -p tool-remote-scripts,wbs-be-01 --parallel=1 --output-style=stream
+bunx --package @fission-ai/openspec@1.12.0 openspec validate add-step-node-blocking --strict --json
+```
+
+Strict validation returned one valid change, zero issues. Initial scoped lint and
+typecheck ran all five targets without cache hits successfully; the final rerun
+and changed-file formatting are recorded below. The complete canonical h2puni
+gate, full monorepo tests/build, Caddy Docker rehearsal, browser suite, CI secrets
+and migration lint were not run by this worker. Astra review and integration
+remain pending. SQLite StepBlockage activation belongs to the separate marker
+slice; this change does not activate it or claim Kubernetes writer protection.
+
+Final scoped rerun passed all five lint/typecheck targets for the two projects;
+Nx reused two unchanged cached outputs, while the initial run was fully uncached.
+Log: `/tmp/compose-barrier-checks-final.log`. Changed-file Prettier reported all
+matched files formatted (`/tmp/compose-barrier-format-final.log`); strict OpenSpec
+rerun reported zero issues (`/tmp/compose-barrier-openspec-final.log`).
+`git diff --check` exited0. Astra review remains pending; these scoped checks are
+not the canonical exact-SHA host gate.
+
+## Compose boot barrier review corrections — 2026-10-14
+
+Historical `bc40ee2` evidence: Astra subsequently reproduced a read-only WAL
+directory failure and main-file-only identity accepting different sidecars. The
+SQLite family correction below supersedes that revision’s safety conclusion.
+
+Astra's three production-path counterexamples are corrected. Candidate preflight
+validates the effective merged Compose config and exact canonical DB file before
+stop intent. Outgoing and idle container Env DB_PATH resolves through the most
+specific writable bind Destination; an incidental backup mount cannot establish
+identity. A private resolved snapshot preserves literal environment dollars.
+Startup forces recreation and suppresses dependencies, so a stopped idle
+container cannot carry a previously granted alias into candidate boot.
+
+After exact stopped-writer proof, independent digest-pinned, network-disabled,
+read-only fact/replay one-offs admit the incoming image before boot. Possible
+write exposure is persisted before invoking startup. Any startup or later failure
+retains that boundary and offers no automatic restart, down migration or snapshot
+restoration. The read-only recovery command grants no authority to restart or
+reverse the schema. The runbook now states these limits explicitly.
+
+Fresh scoped tests:
+
+```sh
+bun test tools/tool-remote-scripts/src/swap.test.ts tools/tool-remote-scripts/src/swap-migration.db.test.ts tools/tool-remote-scripts/src/swap-writer-barrier.test.ts tools/tool-remote-scripts/src/lib/reconcile.test.ts tools/tool-remote-scripts/src/lib/writer-barrier.test.ts tools/tool-remote-scripts/src/lib/backend-config.test.ts tools/tool-remote-scripts/src/lib/step-code-backfill.test.ts apps/wbs/be-01/src/controller/internal.integration.test.ts --timeout=10000
+```
+
+Observed **220 pass, 0 fail, 903 expectations** across eight files; log
+`/tmp/compose-boot-final-tests.log`.
+
+Watched production mutations were restored after each observed failure:
+
+| Removed protection                    | Observed failure / log                                                                                                        |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Durable exposure before boot          | Six protected startup paths observed missing marker inside startup; `/tmp/omit-durable-boot-exposure.log`                     |
+| Outgoing/idle exact database equality | Filename, alternate live mount and idle filename negatives failed; `/tmp/omit-outgoing-database-equality.log`                 |
+| Candidate exact database equality     | Effective file bind override negative failed; `/tmp/omit-candidate-database-equality.log`                                     |
+| Effective alias refusal               | Two shared-alias config negatives failed; `/tmp/omit-effective-alias-refusal.log`                                             |
+| Effective ports/dependencies refusal  | Four exposed/dependent config negatives failed; `/tmp/omit-effective-port-dependency-refusal.log`                             |
+| Most-specific bind resolution         | Two shadowed mount identity negatives failed; `/tmp/omit-most-specific-bind-order.log`                                        |
+| Literal dollar preservation           | Snapshot environment negative failed; `/tmp/omit-literal-dollar-escape.log`                                                   |
+| Pre-boot fact/replay admission        | Incoming unsupported replay history was admitted to startup; five tests failed; `/tmp/omit-preboot-fact-replay-admission.log` |
+| Force recreation                      | Disposable Docker reused the exact stopped idle ID; `/tmp/backend-recreation-docker-red.log`                                  |
+| No dependencies                       | Disposable Docker started an unrelated dependency; `/tmp/backend-no-deps-docker-red.log`                                      |
+
+Adjacent `Proof:` comments identify these observations. The new explicit target
+`tool-remote-scripts:test:backend-recreation` uses an immutable cached Alpine image,
+a unique disposable Compose project/network and scratch bind. Docker socket
+access required approved escalation; no approval was denied. Restored production
+startup printed PASS for exact-ID recreation, shared alias absence, literal
+environment and dependency absence (`/tmp/backend-recreation-docker-green.log`,
+project `writer-proof-fe218e80`). Every green/red Docker run printed CLEAN and
+verified no project containers or network remained. No production resource was
+used. This Docker target is explicit and is not silently added to ordinary tests.
+
+Final scoped checks and strict validation are recorded below. Independent Astra
+review, SQLite activation integration and the canonical exact-SHA host gate remain
+pending; this worker did not run full monorepo/build, CI secret or migration gates,
+browser suites or a live production deployment.
+
+Final uncached scoped `nx run-many -t lint,typecheck -p tool-remote-scripts,wbs-be-01
+--parallel=1 --output-style=stream --skip-nx-cache` passed both projects and their
+one dependent task (`/tmp/compose-boot-final-checks.log`). Changed-file Prettier
+completed successfully (`/tmp/compose-boot-final-format.log`). Pinned OpenSpec
+1.12.0 strict validation returned one valid change and zero issues
+(`/tmp/compose-boot-final-openspec.log`). `git diff --check` exited0.
+
+Fresh explicit Nx Docker target rerun also passed, with PASS and CLEAN for
+`writer-proof-65092cf9`; log `/tmp/compose-boot-final-docker.log`. The target ran
+uncached and verified zero remaining project containers or network.
+
+## Compose SQLite family and read-only probe correction — 2026-10-14
+
+Historical `6af0fc1` evidence: Astra subsequently reproduced unmanaged hardlink
+writer admission and a supplied recovery basename alias bypassing retained WAL.
+The physical identity/recovery-path correction below supersedes that revision’s
+safety conclusion.
+
+Astra reproduced ordinary SQLite readonly opening a clean WAL database under a
+readonly directory failing with SQLITE_READONLY_DIRECTORY 1544 after writer
+stop. The exact shipped `storedRelationshipTypesCommand` now runs against a
+private writable scratch copy, invoked by production `checkBackendRecovery`.
+Production remains mounted read-only. Every writer must already be proved stopped
+before copying main plus retained WAL/journal; source SHM is omitted. SQLite
+creates only scratch SHM. Optional sidecar absence is modeled ENOENT, while
+unreadability fails. This is a coherent quiescent family copy, not immutable-mode
+SQLite, which would ignore retained WAL.
+
+The resolver now requires one writable directory bind for main/WAL/SHM/journal,
+canonical directory plus basename identity, and matching existing sidecar
+canonical paths. Main-file binds, sidecar shadows, renamed main-file aliases,
+redirected sidecars and dangling WAL symlinks refuse. Outgoing file-bind/WAL
+shadow executor negatives leave blue serving with no stop intent; candidate
+WAL/SHM shadow preparation negatives also refuse before outage. This narrower
+supported layout intentionally rejects equal main-file identities when complete
+family identity cannot be established.
+
+Fresh production-command proofs cover clean close with no sidecars, killed-writer
+committed WAL with absent SHM, and retained WAL plus SHM. A readonly source fixture
+(chmod 0555) inventories filenames and every byte before/after standalone exact
+commands and production admission. Retained WAL's SS relationship is counted; no
+source file changes. Required main-file absence and unreadability, and unreadable
+WAL, fail visibly. The initial unwrapped production query observed errno1544;
+log `/tmp/sqlite-readonly-production-red.log`. The dangling-link negative was
+watched fail before the lstat distinction (`/tmp/sqlite-dangling-red.log`).
+
+Watched restored-production faults:
+
+| Removed protection                   | Observed negative                                                                                                                                          |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Snapshot use in production admission | All three exact-command fixtures failed with readonly-directory errors or source SHM mutation; `/tmp/omit-quiescent-snapshot.log`                          |
+| Complete family mount proof          | Nine resolver/executor/preparation negatives failed, including outgoing file bind and candidate WAL/SHM shadows; `/tmp/omit-sqlite-family-mount-proof.log` |
+| Canonical family equality            | Three renamed-main/redirected-WAL negatives failed; `/tmp/omit-sqlite-family-canonical-proof.log`                                                          |
+| Retained WAL copying                 | Both retained-WAL fixtures lost the stored relationship and failed; `/tmp/omit-retained-wal-copy.log`                                                      |
+
+Adjacent Proof comments name the observed faults. Source changes preserve the
+existing candidate recreation/no-dependencies flags and durable pre-boot exposure.
+No Docker command or live resource was used for this followup: Docker startup
+code is unchanged, and the previous disposable proof remains historical. Full
+host gate, monorepo/build, CI secrets/migration lint and independent Astra
+re-review remain pending. Scoped final results follow below.
+
+Fresh final scoped test command includes the previous eight-file Compose suite
+plus `tools/tool-remote-scripts/src/lib/sqlite-probe.test.ts`:
+**237 pass, 0 fail, 923 expectations**, nine files
+(`/tmp/sqlite-family-final-tests.log`). Initial scoped lint failed on new test
+Database.exec deprecation and import order; these were corrected to Database.run
+and sorted imports. The final uncached scoped lint/typecheck rerun and strict
+validation results are recorded below.
+
+Final uncached scoped Nx lint/typecheck for tool-remote-scripts and wbs-be-01,
+including the dependent backend module target, passed
+(`/tmp/sqlite-family-final-checks.log`). Changed-file Prettier check reported all
+matched files formatted (`/tmp/sqlite-family-final-format-check.log`). Pinned
+OpenSpec1.12.0 strict validation returned one valid change, zero issues
+(`/tmp/sqlite-family-final-openspec.log`). `git diff --check` exited0. These are
+scoped evidence, not the canonical host gate or approval to deploy.
+
+## Compose physical identity and recovery-path correction — 2026-10-14
+
+Historical `00aa40a5` evidence: Astra found its blanket unmanaged writable
+directory refusal blocked shipped Caddy/registry volumes and logs. The complete
+daemon-assisted audit below supersedes that admission policy.
+
+Astra's hardlink counterexample is addressed at production writer inventory.
+Canonical overlap still refuses unmanaged writers; a non-overlapping unmanaged
+writable regular mount now requires device/inode comparison against the main DB
+and each existing WAL/SHM/journal. Required metadata absence/unreadability and
+nonregular family state refuse. Optional absent sidecar ENOENT is modeled.
+
+The deliberate admission tradeoff is that unmanaged writable directories and
+special files now refuse: canonical names cannot exclude their nested filesystem
+aliases. This may require changing unrelated writable directory mounts to
+read-only or removing them before a backend swap. Distinct writable regular files
+with different physical identities remain admitted. Read-only mounts are
+unaffected, and the executor never stops unrelated containers.
+
+Recovery now resolves the supplied database path through the complete family
+resolver and the fixed `/data` probe mapping before any Docker inventory or
+vocabulary command. A real SQLite killed-writer fixture leaves SS in wbs.db-wal;
+alias.db -> wbs.db refuses before probes with both a managed writer and no
+containers. This protects the standalone attended CLI and pre-boot admission.
+
+The runbook's early backfill, restore/capture and typed-dependency sections now
+match the stopped-writer flow: no automatic candidate stop/down/snapshot restore
+or older writer restart after boot exposure. Snapshot/capture integrity alone is
+not authority to discard post-boot writes or reverse schema.
+
+New production-path negatives were watched fail before implementation:
+`/tmp/compose-physical-family-red.log` (hardlink, unresolved directory, managed and
+no-container recovery aliases). Restored focused output:
+`/tmp/compose-physical-final-focused.log`, **71 pass, 0 fail, 466 expectations**.
+
+Watched guard omissions, restored after every nonzero test run:
+
+| Omitted protection                    | Observed negative / log                                                                                              |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Device/inode comparison               | Main/WAL/SHM/journal hardlinks all admitted; four tests failed, `/tmp/omit-physical-database-identity.log`           |
+| Unresolved writable directory refusal | Unmanaged directory admitted; one test failed, `/tmp/omit-unresolved-directory-refusal.log`                          |
+| Required regular family metadata      | Directory admitted as trusted main DB; one test failed, `/tmp/omit-regular-family-metadata.log`                      |
+| Supplied recovery family resolution   | Retained-WAL aliases admitted with managed/no containers; two tests failed, `/tmp/omit-recovery-family-identity.log` |
+
+Adjacent Proof comments record these observations. Tests also break required path
+metadata with absence/unreadability, assert no unrelated stop command, and prove
+distinct writable regular-file admission. No live or disposable Docker command,
+push, merge, deploy or host gate was run for this followup. Independent Astra
+review and canonical exact-SHA gate remain pending. Final scoped evidence follows.
+
+Fresh final nine-file scoped suite: **249 pass, 0 fail, 948 expectations**
+(`/tmp/compose-physical-final-tests.log`). Uncached scoped
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_TUI=false bunx nx run-many -t
+lint,typecheck -p tool-remote-scripts,wbs-be-01 --parallel=1
+--output-style=stream --skip-nx-cache` passed both projects and their one dependent
+target (`/tmp/compose-physical-final-checks.log`). Changed-file Prettier reported
+all matched files formatted (`/tmp/compose-physical-final-format.log`). Pinned
+OpenSpec1.12.0 strict validation returned one valid change and zero issues
+(`/tmp/compose-physical-final-openspec.log`). `git diff --check` exited0.
+
+## Compose normal-topology bounded inode audits — 2026-10-14
+
+The directory policy now proves exclusion rather than rejecting all writable
+directories. Every non-overlapping unmanaged directory gets a complete recursive
+inode audit through a disposable digest-pinned candidate helper. Its two absolute
+bind sources are the inspected mount and canonical database-family directory;
+using bind mounts avoids creating missing named volumes or copying into them.
+Both are read-only, root filesystem is read-only, network is none, pull is never,
+and UID0 has only DAC_READ_SEARCH after dropping other capabilities. Resource
+bounds are 128MiB and 16 processes. The helper uses underlying dev+ino from both
+binds in its own namespace, visits every nested device without a shortcut, and
+accepts only regular files/directories. Symlinks/special files refuse.
+
+A host realpath EACCES for Docker volume traversal is explicitly delegated to the
+same complete audit. Other host lookup failures refuse. No unreadable path is
+interpreted as empty or trusted by service name. Every existing main/WAL/SHM/
+journal inode is compared; required family metadata must be regular and readable.
+Audits are bounded by 100,000 entries, depth 64 and 15 seconds per mount. Any helper
+failure, missing local image, timeout or malformed/incomplete/oversized receipt
+refuses. Candidate image inspect is local and precedes helpers; execute already
+pulls before stop, and recovery explicitly requires the candidate locally and
+uses no-pull one-offs. Inventory/audits are repeated after managed writers stop.
+
+Production-path tests drive inspectBackendWriters with the shipped Caddy
+caddy_data/caddy_config/logs and registry_data shape. They inject host EACCES for
+volume paths and exercise the readable same-device logs branch. The exact emitted
+helper program runs as a local Bun child against temporary real trees; four clean
+audits admit normal topology without stopping Caddy/registry. Nested hardlinks to
+each family inode refuse in both volume and logs paths. A directory dev mismatch
+fault proves nested-device traversal still finds its contained alias. Additional
+negative dependencies cover absent helper, command failure, timeout, malformed
+JSON/shape, incomplete/oversized receipts, unreadability, oversized/deep trees,
+nonregular family and symbolic links. The initial unmodified production positive
+was watched fail on host EACCES (`/tmp/compose-audit-initial-red.log`). Restored
+audit-focused tests passed 22/0 (`/tmp/compose-audit-final-focused.log`).
+
+Watched production omissions, each restored after nonzero test output:
+
+| Removed or injected fault     | Observed test / log                                                                                        |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Audit inode equality          | Nested family hardlinks admitted; `/tmp/omit-audit-physical-equality.log`                                  |
+| Complete receipt validation   | Malformed/incomplete/oversized output admitted; `/tmp/omit-audit-completion-proof.log`                     |
+| Entry bound                   | Oversized tree admitted; `/tmp/omit-audit-entry-bound.log`                                                 |
+| Depth bound                   | Deep tree admitted; `/tmp/omit-audit-depth-bound.log`                                                      |
+| Deadline callback             | Timeout-specific negative failed; `/tmp/omit-audit-deadline.log`                                           |
+| Different-device shortcut     | Nested-device hardlink missed; `/tmp/omit-nested-device-audit.log`                                         |
+| EACCES delegation audit       | Volume aliases admitted and normal audit count incomplete; `/tmp/omit-unreadable-mount-audit.log`          |
+| Readable directory audit      | Log-directory aliases admitted and normal audit count incomplete; `/tmp/omit-readable-directory-audit.log` |
+| Symbolic/special-file refusal | Symlink alias admitted; `/tmp/omit-audit-symlink-refusal.log`                                              |
+| Required family regularity    | Nonregular family admitted; `/tmp/omit-audit-family-metadata.log`                                          |
+
+Adjacent Proof comments record these observations. Test subprocesses have an
+independent bounded kill to avoid leaving a child when the production deadline is
+intentionally broken. No live/disposable Docker or production container was
+created, stopped or modified by this worker. The emitted script is tested, but
+real daemon bind identities, DAC_READ_SEARCH availability, read-only runtime and
+resource limits still require a disposable real-Docker rehearsal and Astra
+review before integration. Full canonical host gate, monorepo/build, CI secrets
+and migration lint remain unrun here. Fresh scoped results follow below.
+
+Bounds fixtures shorten only the emitted test-child constants to one entry,
+depth0 or10ms and suspend a dependency to exercise the deadline. Production
+thresholds remain100,000 entries/depth64/15 seconds. The independent test-child
+kill bounds intentionally broken deadline runs.
+
+Fresh final ten-file scoped suite: **271 pass, 0 fail, 1332 expectations**
+(`/tmp/compose-audit-final-tests.log`). Uncached scoped
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_TUI=false bunx nx run-many -t
+lint,typecheck -p tool-remote-scripts,wbs-be-01 --parallel=1
+--output-style=stream --skip-nx-cache` passed both projects and their one dependent
+target (`/tmp/compose-audit-final-checks.log`). Changed-file Prettier reported all
+matched files formatted (`/tmp/compose-audit-final-format.log`). Pinned OpenSpec
+1.12.0 strict validation returned one valid change, zero issues
+(`/tmp/compose-audit-final-openspec.log`). `git diff --check` exited0. These scoped
+results do not authorize integration/deployment before real-Docker rehearsal,
+Astra review and the required exact-SHA gate.
+
+## Actual container namespace repair prototype — 2026-10-14
+
+Astra found that a fresh Source rebind cannot prove the identity held by a running container, and Docker top-level `RW=false` can conceal writable nested mounts. Disposable Docker evidence confirms both: `/tmp/puni-namespace-rehearsal-v2.log` and `/tmp/puni-nested-rehearsal-v4.log`. The earlier source-audit admission above is superseded and is not safe to integrate.
+
+The isolated prototype audits actual proc-root inode identity and effective mountinfo, requires stable ID/PID/start/restart identity, enforces recursive RO on the fixed database bind, and bounds complete host operations and verified exact-CID cleanup. The source proc view is code-read-only under the approved immutable metadata program; it is not enforced source-RO. No write API is imported. Local fixture admission is not real default-cap target proc-access evidence; that feasibility experiment remains pending and blocks a mergeable claim.
+
+Fresh `bun test tools/tool-remote-scripts/src/lib/mount-audit.test.ts tools/tool-remote-scripts/src/lib/docker-deadline.test.ts`: **35 passed, 0 failed, 359 assertions**. Real local scratch Docker-CLI stand-in subprocess is hard-killed on timeout. No live Docker service was changed by this worker.
+
+Watched omission proofs restored after each run: actual file equality (`/tmp/omit-actual-namespace-exclusion.log`), trusting top-level RO (`/tmp/trust-top-readonly-metadata.log`), nested/hidden writable roots (`/tmp/omit-nested-writable-mounts.log`), mountinfo stability (`/tmp/omit-actual-namespace-stability.log`), exact PID reinspection (`/tmp/omit-id-pid-recheck.log`), recursive-RO flags (`/tmp/omit-recursive-ro-bind.log`), helper ownership (`/tmp/omit-helper-ownership.log`), managed mounted family identity (`/tmp/omit-managed-mounted-family.log`), real CLI abort signal (`/tmp/omit-cli-hard-abort.log`). Each corresponding production-path negative failed with its check omitted. Protocol faults also exercise absent/failing helper, malformed/incomplete receipt, unreadable metadata, stopped/host-PID targets, oversized/deep trees, stalled image/inspect/create/start/rm/cleanup inspection and forged helper cleanup.
+
+Unverified: default-cap shipped Caddy/registry proc access with DAC_READ_SEARCH-only helper; actual candidate digest rehearsal; latest full scoped lint/typecheck/format/OpenSpec suite. No new commit, push, integration, live deploy or host gate is authorized by this prototype evidence.
+
+### Definitive runtime blocker
+
+`/tmp/puni-defaultcap-rehearsal-v2.log` proves the approved DAC_READ_SEARCH-only helper can read mountinfo but cannot `lstat` proc-root `/data` or `/var/lib/registry` for disposable default-cap shipped Caddy/registry targets: exit1, EACCES/statx errno-13. Target CapPrm/Eff/Bnd is `00000000a80425fb`; the earlier successful proc holders dropped target capabilities and were insufficient admission evidence. Fixtures and temporary files were removed successfully; no capability was broadened. **This prototype is not mergeable.** The release must exclude the Compose barrier and keep activation disabled until a corrected protocol receives production-command evidence and independent review. A possible in-target metadata-only exec audit requires a new exact tool/whole-tree/lifetime proof; host CLI cancellation does not alone kill a target exec process. Latest full scoped checks remain skipped because runtime admission is conclusively blocked. The isolated changes remain uncommitted atop d350a97.
+
+## Initialized in-target namespace audit — 2026-10-14
+
+This repair supersedes the blocked proc-root prototype above. The immutable, metadata-only program runs through exact-ID `docker exec` in the target's actual namespace, with its existing default capabilities. It validates mountinfo, main/WAL/SHM/journal device and inode identities, strict per-entry receipts, exact container identity before and after, and a private session whose scanner is reaped on success. EOF, cancellation and the independent remote timer kill the owned process group; bounded cleanup refuses any live or zombie residue. Host operations have a shared 45-second deadline, reserving 20 seconds for cleanup; remote execution is limited to 15 seconds, 100,000 entries, depth64, 32MiB stdout and 64KiB stderr.
+
+Production prerequisites are explicit: initialized containers, private PID namespaces, unprivileged default capabilities, supported BusyBox tools and a quiescent filesystem. Applying `init: true` to existing Caddy/registry recreates ingress/registry and requires attended maintenance; existing backend preparation also requires attendance. This worker performed no live service changes. Metadata access is code-read-only, not source-filesystem-enforced RO. The contract excludes hostile receipt spoofing, transient topology/inode ABA and open-deleted SQLite aliases; all tasks must retain the Docker-created mount namespace. Activation remains disabled until prerequisites, independent review and the exact-SHA gate succeed. See ADR0054 and the deploy runbook.
+
+Fresh final scoped command:
+
+```sh
+bun test tools/tool-remote-scripts/src/swap.test.ts tools/tool-remote-scripts/src/swap-writer-barrier.test.ts tools/tool-remote-scripts/src/swap-migration.db.test.ts tools/tool-remote-scripts/src/lib/docker.test.ts tools/tool-remote-scripts/src/lib/backend-config.test.ts tools/tool-remote-scripts/src/lib/writer-barrier.test.ts tools/tool-remote-scripts/src/lib/sqlite-probe.test.ts tools/tool-remote-scripts/src/lib/migration-capture-file.test.ts tools/tool-remote-scripts/src/lib/mount-audit.test.ts tools/tool-remote-scripts/src/lib/docker-deadline.test.ts tools/tool-remote-scripts/src/lib/docker-exec.test.ts tools/tool-remote-scripts/src/lib/mount-exec.test.ts tools/tool-remote-scripts/src/lib/mount-exec-program.test.ts tools/tool-compose/src/render.test.ts --timeout=30000
+```
+
+**420 passed, 0 failed, 1,427 assertions across 14 files** (`/tmp/exec-clean-scoped-tests.log`). Uncached `NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_TUI=false bunx nx run-many --targets=lint,typecheck --projects=tool-remote-scripts,tool-compose --skip-nx-cache --output-style=static` passed both projects (`/tmp/exec-clean-scoped-static.log`). Changed-file Prettier and `git diff --check` passed. Pinned `bunx --package @fission-ai/openspec@1.12.0 openspec validate add-step-node-blocking --strict --json` returned valid with zero issues (`/tmp/exec-final-openspec.log`).
+
+R5: **31 watched unit omissions** failed their production-path negatives, with every mutation restored. Logs: `/tmp/puni-exec-r5-watch.log` (21), `/tmp/puni-exec-extra-r5-watch.log` (7), `/tmp/puni-exec-policy-r5-watch.log` (3). They cover family aliases, managed family identity, nested RW roots, mount/container/host-family stability, private sessions, init/capability prerequisites, image identity, strict framing/count/nonce/reap receipts, group cleanup, stat failures, missing/unreadable/nonregular files, entry/depth/output/stderr limits and exact CLI cancellation. Adjacent `Proof:` comments name the observed faults.
+
+Disposable real Docker used only cached shipped-image digests, fresh `/tmp` fixtures, `--pull never --network none`, and exact-ID removal in finally. Final bundled production source on both default-cap init-backed Caddy/registry admitted normal roots and matching managed SQLite families; it refused retained replaced-Source hardlinks and mismatching managed families: **8 cases**, all fixture cleanup0 (`/tmp/puni-exact-exec-audit-proof-h2-final.log`). The nested-RW fixture showed top-level RO Docker metadata with an actual writable nested mount; final production admission refused its SQLite-family hardlink (`/tmp/puni-exec-nested-builder-proof-h2-final.log`). Only the separate disposable mount-builder received explicitly authorized SYS_ADMIN and unconfined seccomp/AppArmor; the audited target and shipped protocol retained default capabilities. Target and temporary-directory cleanup succeeded.
+
+Init-backed lifecycle proof on both images covered timeout, EOF and canceled client, a stalled scanner plus grandchild, and an unrelated sentinel whose exact PID/start identity remained alive. All normal failure cases left no group members, including zombies. **Two additional real watched omissions** (group kill and remote deadline) left live owned descendants and failed the proof; fixture removal cleaned the deliberate faults (`/tmp/puni-exact-session-sentinel-proof-h2.log`). Emitted census code proved dotfiles, spaces, hardlinks and symlink modes, and missing-stat refusal without a DONE receipt (`/tmp/puni-shell-census-proof-h2-v2.log`).
+
+Not performed: live init maintenance, activation, actual release-candidate image build/rehearsal, full canonical host gate, monorepo build, CI secrets/migration lint, push, integration or deployment. Independent Astra review remains pending. The PM owns review, publication and the required exact-SHA gate.
+
+### Unreadable traversal repair after d602349 review
+
+Astra reproduced shell glob enumeration admitting a directory whose entries could not be read. The production-path test first failed: a chmod000 nested directory containing the database inode produced a successful receipt. The emitted census now requires successful metadata-only `/bin/busybox ls -A "$path"/.` before enumerating each directory. A failed listing returns80 without DONE; ordinary empty directories remain valid. This restores the existing fail-closed unreadable-state contract. Reduced capabilities remain supported only when the real census can enumerate every relevant directory; no DAC_OVERRIDE assumption is made.
+
+Exact final emitted code was bundled and exercised through the real Docker boundary on a disposable cached shipped Caddy image with `--init --cap-drop ALL --pull never --network none`. Empty-directory admission exited0; a readable SQLite hardlink refused; the same hardlink inside chmod000 refused, while direct `ls` returned EACCES. Removing only the new enumeration guard made that unreadable-directory admission exit0: **watched negative failed**. All exact fixture IDs were removed successfully and the fresh temporary directory was removed (`/tmp/puni-unreadable-census-proof-h2.log`). No live resources, privileges or service configuration changed. This real reduced-capability proof covers the capability case raised by review.
+
+Fresh final scoped verification after this repair: the same 14-file command above passed **421 tests, 0 failures, 1,431 assertions** (`/tmp/exec-unreadable-scoped-tests.log`). Uncached Nx lint/typecheck for tool-remote-scripts and tool-compose passed (`/tmp/exec-unreadable-scoped-static.log`); changed-file Prettier, strict OpenSpec 1.12.0 validation and `git diff --check` passed. Full host gate, release-candidate image build, independent re-review and attended production preparation remain pending with the PM.
+
 ## Immediate writer admission — 2026-10-14 (task 3.0.6)
 
 Base: `4bb78ec2674869c2bfd18114ef4f39e05d403863`, isolated clone `/tmp/puni-step-blockage-admission-sol`. The existing `20261013140000_add_step_node_blockages` migration and down bytes are unchanged (`git diff --exit-code -- apps/wbs/be-01/drizzle/20261013140000_add_step_node_blockages`, exit 0).
@@ -1038,3 +1453,75 @@ apps/wbs/fe-01/e2e/step-blockage.spec.ts --grep 'phone disclosure|nested blocked
 - Touched-source ESLint: exit 0. Pinned OpenSpec validation: exit 0.
 - Full host gate and unrelated browser suites are deferred to the PM release
   stack; this repair does not push, deploy, or change activation state.
+
+## Compose reconciliation with merged release — 2026-10-14
+
+Astra high re-review passed `b22d50a3de24d3f60cc950f1bcf07971f55075ca` with no P1/P2 findings. The reviewed Compose branch now merges main `50f5c2b8d286849557e3dace27418d62cff00cde` (#458). The only manual conflicts were independently appended design, specification and verification sections; both release admission/authoring semantics and the complete Compose barrier/history are retained. Auto-merged app composition retains main session-feature checks and the pure-ACK forward boundary; the runbook retains disabled SQLite admission, recovery write refusal, attended init prerequisites and Compose interruption authority. No reviewed Compose runtime source changed during reconciliation.
+
+The durable SQLite admission marker remains disabled. Deployment stop/exposure files do not enable it or authorize down, restore, remove or incompatible restart. This reconciliation adds no activation interface or live prerequisite application. Prior release and Compose evidence remains historical, with the fresh reconciliation checks recorded below.
+
+Fresh mounted/app/internal/session/SQLite-admission/public-authoring checks: **61 passed, 0 failed, 194 assertions across six files** (`/tmp/compose-main-reconcile-admission-tests.log`). Uncached scoped Nx lint/typecheck for tool-remote-scripts, tool-compose and wbs-be-01 plus its required dependent task passed (`/tmp/compose-main-reconcile-static.log`). Strict target OpenSpec validation passed; canonical `openspec validate --all --json` passed **197/197**. The additional `--all --strict` experiment failed on six unchanged main-spec placeholder-Purpose warnings: dev-deploy, live-plan-snapshot, plan-command-registry, plan-import, saved-plans and scheduler-optimization (`/tmp/compose-main-reconcile-openspec-all.log`). Those unrelated specs are unchanged here. Changed reconciliation/app/runbook files passed Prettier.
+
+The first 14-file Compose run had **420 passes and one 120-second timeout**, in unchanged bootRelease value-shape validation (`/tmp/compose-main-reconcile-tests.log`), in a run started alongside scoped lint/typecheck. Its source and imported configuration loaders have no reconciliation diff. The exact isolated case then passed in **57.98 seconds, 30 assertions**, without increasing the budget (`/tmp/compose-main-reconcile-boot-retry.log`). The complete suite is rerun sequentially below. This timeout remains part of the evidence rather than being counted as a successful first run.
+
+R5 was repeated on the merged tree: removing only the unreadable-directory enumeration guard made the production-path hidden-hardlink negative fail (`/tmp/compose-main-reconcile-watched.log`). The guard was restored in finally; the exact negative passed (`/tmp/compose-main-reconcile-restored.log`). No reviewed runtime source remains changed. The earlier exact-source real Docker CapDrop proof remains applicable because this merge changed no audit program or Docker execution protocol; no further live or disposable Docker action was required.
+
+Sequential final complete Compose retry: **421 passed, 0 failed, 1,431 assertions across 14 files**, 149.56 seconds (`/tmp/compose-main-reconcile-tests-retry.log`); the prior timeout case passed unchanged in74.49 seconds. Final strict target validation, reconciliation-file formatting and `git diff --check` passed. No timeout budget, application behavior or reviewed Compose runtime code was altered. Independent review of this merge, exact-SHA full host/CI gate, attended init application and activation remain pending; no push, deployment or live change was performed.
+
+## Predecessor-safe inert maintenance migration — 2026-10-14
+
+Astra identified a merge-specific P1 on e4823e741: actual `bootBe01(migrateOnStartup=false)` correctly refuses an authentic predecessor database lacking `20261014140000_add_step_blockage_activation`, while the old Compose plan started the app before executing its migration CLI. The fix retains that boot check and migrates through a separate inert incarnation of the same validated image/configuration before any application boot.
+
+Preflight captures installed image ID and effective image/service working directory, freezes mode0600 application/maintenance snapshots with exact byte hashes and literal-dollar preservation, and includes both in durable stop intent. Maintenance explicitly overrides app entrypoint/command, disables healthcheck/restart and retains init/environment/database/solver mounts. Exact ID/image, inert effective configuration, env/mounts/workdir, running state and private unprivileged namespace are proved before every maintenance database CLI. Durable maintenance receipt precedes backup/capture; original capture bytes/digest/identity and migration intent precede forward migration. The exact maintenance ID stops and independently proves stopped before durable app exposure and normal app force recreation. No automatic down/restore/older restart was added.
+
+Authentic database evidence uses all real predecessor migrations, actual backend migrate/status/backup CLIs and actual `bootBe01` in a child-process boundary with `migrateOnStartup=false`. Before upgrade it refuses specifically `missing step blockage activation migration`; the planned transition then backs up/captures/migrates in exact maintenance, proves stop, publishes exposure and boots successfully with admission still `DISABLED`. A second case injects interruption after the real forward CLI changed the schema: current database, capture and migration intent remain, app exposure/boot are absent and no old restart/down occurs. Final child-boundary test passed **2 tests/37 assertions** (`/tmp/maintenance-predecessor-final.log`). Initial in-process test composition passed the behavior but violated repo project-import boundaries; it was replaced rather than suppressing lint.
+
+R5: **25 watched maintenance omissions** failed the corresponding production-path tests (`/tmp/maintenance-watched.log`): exact ID/image/ref/running/paused/restarting/init/PID/privilege, entrypoint/command/health/restart/workdir/env/mount/port drift, inert snapshot overrides, private snapshot hash, completed maintenance/exposure proof, exact stopped proof and durable receipt publication. Four additional watched omissions cover extra capability policy, absent image identity, absent image working directory and malformed effective workdir (`/tmp/maintenance-watched-extra.log`). Removing the actual nonmigrating app boot admission check made the authentic premature-boot negative fail (`/tmp/maintenance-omit-boot-admission.log`); boot.ts was restored byte-for-byte. All **30 mutations** were restored in finally. Adjacent `Proof:` comments name observed faults; fixture outcomes also cover capture disk failure, failed app exposure publication and ordinary retry refusal.
+
+Fresh uncached Nx lint/typecheck for tool-remote-scripts and tool-compose passed (`/tmp/maintenance-scoped-static-final.log`). Strict target OpenSpec passed with zero issues. Final full scoped test and formatting results follow. Local read-only Docker availability query returned **29.7.2**. Exact backend image build/rehearsal is queued behind MinIO's authorized `/tmp/wbs-heavy-work.lock` lease; no image build, daemon mutation, h2 heavy work, live service recreation, activation, push or deployment occurred during this source repair. Independent combined review and the exact-SHA canonical host gate remain PM-owned.
+
+Final source suite command extends the prior 14-file command with `swap-maintenance.db.test.ts`, `backend-maintenance.test.ts` and `reconcile.test.ts`: **475 passed, 0 failed, 1,827 assertions across 17 files**, 214.74 seconds (`/tmp/maintenance-final-tests.log`). The unchanged boot-environment budget was retained and passed. Fresh uncached scoped Nx lint/typecheck, strict target OpenSpec, changed-file Prettier and `git diff --check` passed. Boot source is unchanged; all temporary omission mutations are absent from the final diff. Reviewed BusyBox integration and exact built-image rehearsal follow independently.
+
+### Reviewed BusyBox integration and exact built image
+
+Sequencing commit `3dfd97c060f5b9c24194417355141766a6d5bdbf` was clean before integrating independently reviewed BusyBox commits `64eb5e5811d8fac4ca862b2aea1c17ae4faf072f` and `ebb7b25a95bc472d5ebda67b8e151e604cd46fe7` as `4331975a1` and `c4e005f59c3b3421ca22f56b4fe2951590fa8ce5`. Runbook auto-merge retains both maintenance/recovery and static BusyBox/attended outgoing-image preparation contracts. Astra high combined review of c4 passed with no P1/P2 findings; its fresh subset passed89/214.
+
+Fresh combined database/namespace/maintenance command (swap-maintenance, swap-writer-barrier, swap-migration, backend-maintenance, reconcile, writer-barrier, mount-audit, docker-deadline, docker-exec, mount-exec and mount-exec-program): **188 passed, 0 failed, 1,036 assertions across11 files** (`/tmp/maintenance-busybox-combined-tests.log`). The complete sequencing suite's475/1827 and thirty watched omissions remain applicable; integration changes only the separately reviewed audit shell/image boundary and its fixtures.
+
+After MinIO released the local lease, the exact backend Dockerfile was built from a `git archive` of **c4e005f59c3b3421ca22f56b4fe2951590fa8ce5**, excluding ignored/untracked files. Build and rehearsal both used the shared local `/tmp/wbs-heavy-work.lock` through heavy-lock-lib; this is separate from the PM-owned h2 canonical SHA gate. Docker29.7.2 build succeeded (`/tmp/maintenance-exact-image-build.log`), producing image/manifest-list **sha256:81d3c8dfde7ed4c8520a290d04b27e4a3e7e9398af764cf1d48f32db90f7fb5b** and config sha256:9e6d29c17df03d50b2cc30e11a8cba1c887ff6d3feabfb53c22a8de9eade9171. A uniquely owned local `puni.fixture/wbs-be-01` alias admitted the real immutable manifest reference without an image-inspect substitution.
+
+Exact built-image rehearsal used a unique Compose project, network-none, pull=never, private mode0600 app/maintenance snapshots and a fresh authentic predecessor SQLite fixture. Actual Docker inspection passed inert entrypoint/cmd/health/restart/init/env/mount/workdir and exact image/ID proof. The production `verifyContainerNamespace` passed against the actual managed SQLite family on that built backend. `/bin/busybox sha256sum /bin/busybox` returned **2c92c1289f3ab36f8b43fb68d3b56b0ec32290f2d6f6bf4ef44df6bd7edc02ad**. Actual nonmigrating boot refused the missing activation migration, exact maintenance backup/capture/forward migration succeeded with durable intent, maintenance stopped and independently inspected stopped, exposure was published, and forced app recreation produced a distinct ID whose actual `bootBe01(migrateOnStartup=false)` completed. This fixture uses a no-socket listener to test real boot/admission rather than external HTTP reachability; the host authentic test additionally asserts admission remains DISABLED.
+
+The first image harness read logs immediately after detached app creation, before waiting for its short-lived test boot, and failed the completion assertion; exact-ID/alias/fixture cleanup passed (`/tmp/maintenance-exact-image-rehearsal.log`). Correcting only the harness to wait for app exit before checking logs made the final complete rehearsal pass, app exit0 (`/tmp/maintenance-exact-image-rehearsal-final.log`). Both temporary IDs and the disposable alias were removed, the project inventory was empty and fixture/state directories were removed. The unique built image tag is retained as a review artifact; no live service, production database, h2 container or activation state changed.
+
+Full exact-SHA h2/CI gate, publication, attended init/old-image BusyBox preparation and production activation remain pending with the PM. No push or deployment was performed. Final combined static/format/OpenSpec results follow.
+
+Fresh combined uncached Nx lint/typecheck passed both tool-remote-scripts and tool-compose (14.0s, `/tmp/maintenance-busybox-combined-static.log`). Each change was validated separately with pinned OpenSpec1.12.0 `--strict --json`: add-step-node-blocking and backend-audit-busybox both valid, zero issues (`/tmp/maintenance-busybox-combined-openspec-blockage.log`, `...-audit.log`). Changed-file Prettier and `git diff --check` passed. This final evidence commit changes documentation/tasks only; runtime source remains the independently reviewed and actually built c4 tree.
+
+## Hosted gate repair — 2026-10-15
+
+Hosted workspace gate run 38558945581 at 85ad022824f379df5f448576e90f7f13266dcc10 exposed three test-infrastructure defects. The two Docker hard-abort child programs resolved workspace-relative source paths against Nx's project cwd, doubling `tools/tool-remote-scripts`; resolving adjacent modules from `import.meta.url` restores the intended production-path negative. From the actual project cwd the unchanged tests first reported 5 passes/2 failures with missing-module diagnostics, then 7 passes/0 failures after the repair.
+
+The maintenance boot fixture imports observability and SQLite source modules inside an evaluated child program, so Nx's static project graph cannot infer those dependencies. The existing outside-read oracle first failed naming precisely `observability/src/index.ts` and `store-sqlite/src/source.ts`, then passed after declaring both exact inputs.
+
+The logout/rotated two-process race had a 10-second total budget despite multiple worker starts and operations, each independently bounded at 10 seconds. Hosted CI killed its pending ready worker after the total elapsed; exit 143 was cleanup. Injecting 5.1 seconds before each ready frame reproduced the outer 10-second timeout and exit 143. Raising the logout total to the existing refresh total of 20 seconds passed that same injection in 17.37 seconds. With normal ready frames restored, withholding `release-refresh` still failed at `reply 4: worker deadline` under the 20-second total. Both injected faults were removed. No production deadline or runtime behavior changed.
+
+The sandbox denied child stdin flush with EPERM during the first delayed green attempt; the authorized child-process proof was rerun outside that restriction and passed. Initial tool-devsync typecheck used inherited main dependencies and lacked `@noble/hashes/sha2.js` and `utils.js`; installing this checkout's frozen lockfile resolved that environmental mismatch. Both uncached tool-remote-scripts and tool-devsync typechecks then passed. Changed TypeScript passed ESLint; changed files passed Prettier and `git diff --check`. Full exact-SHA hosted/h2 gate remains pending.
+
+Final focused checks: mounted lifecycle **11 passed, 0 failed, 104 assertions**; complete workspace-targets **23 passed, 0 failed, 84 assertions**; project-cwd Docker tests **7 passed, 0 failed, 19 assertions**. Pinned OpenSpec 1.12.0 strict validation of add-step-node-blocking passed with zero issues.
+
+## Maintenance fixture cache closure — 2026-10-15
+
+Review of fb4101ce found that its two exact evaluated-import inputs did not cover transitive backend/adapter modules. The maintenance fixture loads backend boot/app, observability and store-sqlite through evaluated programs; the target now declares those three project dependencies, allowing its existing `^production` input to hash their full dependency closure. A permanent real Nx hash-input oracle requires boot, health-probe, logger, SQLite enterprise-connection and application core sources; before declaring those edges it failed naming all five, then passed.
+
+Fresh native task-hasher probes used a unique workspace-data directory per process to avoid persisted native file-map observations. Without the new edges, baseline and a health-probe comment edit both hashed to `13609384867971149359`. With the edges, baseline was `10597226469432407618`; independent comment edits changed health-probe to `1697405789163186210`, logger to `7621705732950126116`, and SQLite enterprise-connection to `5854002941219291612`. Restoring each source returned exactly to the baseline. All injected source/config faults were restored; this changes cache dependency declarations and their oracle only.
+
+Closure repair checks: complete workspace-targets **24 passed, 0 failed, 85 assertions**; project-cwd Docker negatives **7 passed, 0 failed, 19 assertions**; uncached tool-remote-scripts/tool-devsync typechecks, changed ESLint, Prettier, diff check and pinned OpenSpec 1.12.0 strict target validation passed. Full hosted/h2 exact-SHA gate remains pending.
+
+## Test cache inputs without production graph edges — 2026-10-15
+
+The canonical h2 gate on aggregate 9b552fa85 found that project-level implicit dependencies violate the infra/product boundary. The existing productConstraints oracle reproduced all three forbidden tool-remote-scripts edges before the repair. Removing those edges and declaring backend, WBS-library and shared-library workspace-tree inputs on the test target passed that oracle while retaining its full dynamic boot dependency coverage. These conservative input trees include transitive source and runtime assets; they may invalidate tests for unrelated changes within those trees, but introduce no production project edges or policy exceptions.
+
+R5: removing the three test-tree inputs made the real native hash-input oracle fail naming boot, health-probe, logger, SQLite enterprise-connection and application core. Restoring them passed. Fresh native task-hasher probes with unique workspace-data directories used baseline `3215147784100713459`; independent comment edits yielded health-probe `1431491260959070952`, logger `16535606122300405390`, SQLite enterprise-connection `5944545180893854218`, and shared validation `8934567712863891130`. Every source restoration returned exactly to baseline. All injected edits were restored. The earlier implicit-edge solution and its hash measurements remain historical evidence, superseded by this target-only repair.
+
+Target-only repair verification: complete workspace-projects and workspace-targets suites **41 passed, 0 failed, 105 assertions**; both uncached scoped typechecks, changed ESLint, Prettier/diff checks and pinned strict OpenSpec validation passed. The parent owns the aggregate merge and canonical h2 exact-SHA gate; no broad gate was run by this worker.

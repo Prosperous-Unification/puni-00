@@ -1,0 +1,14 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-fleet/src/k3d-object-store.test.ts:
+(pass) Flux lab object-store prerequisite > registers both worker agents as well as the platform and worker servers [0.09ms]
+(pass) Flux lab object-store prerequisite > refuses absent digest before Flux bootstrap [0.24ms]
+(pass) Flux lab object-store prerequisite > refuses wrong manifest digest before Flux bootstrap [0.02ms]
+(pass) Flux lab object-store prerequisite > refuses failed import before Flux bootstrap [0.02ms]
+(pass) Flux lab object-store prerequisite > prepares all nodes before bootstrapping the Flux controllers [0.12ms]
+(pass) Flux lab object-store prerequisite > does not require the object store for the app-only profile [0.06ms]
+
+ 6 pass
+ 0 fail
+ 9 expect() calls
+Ran 6 tests across 1 file. [254.00ms]

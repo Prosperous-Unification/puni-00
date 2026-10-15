@@ -9,3 +9,11 @@ resources:
   - ../otel
   - telemetry.yaml
   - otlp-ingress.yaml
+patches:
+  - target:
+      kind: HelmRelease
+      name: kube-prometheus-stack
+    patch: |-
+      - op: replace
+        path: /spec/values/kube-state-metrics/prometheus/monitor/metricRelabelings/0/replacement
+        value: platform-production

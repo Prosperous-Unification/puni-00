@@ -1,0 +1,127 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-fleet/src/object-store-import.test.ts:
+21 | }
+22 | describe('local object store digest distribution', () => {
+23 |   for (const fault of ['missing', 'source', 'alias', 'import'] as const) {
+24 |     it(`refuses ${fault} before accepting distribution`, () => {
+25 |       const { run } = createRunner(fault);
+26 |       expect(() => importObjectStore('/owned/image.oci', lock, 'owned', 'k3d-owned-server-0', 'k3d', run)).toThrow();
+                                                                                                                ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: undefined
+
+      at <anonymous> (/tmp/puni-minio-repack-sol/tools/tool-fleet/src/object-store-import.test.ts:26:108)
+(fail) local object store digest distribution > refuses missing before accepting distribution [0.56ms]
+21 | }
+22 | describe('local object store digest distribution', () => {
+23 |   for (const fault of ['missing', 'source', 'alias', 'import'] as const) {
+24 |     it(`refuses ${fault} before accepting distribution`, () => {
+25 |       const { run } = createRunner(fault);
+26 |       expect(() => importObjectStore('/owned/image.oci', lock, 'owned', 'k3d-owned-server-0', 'k3d', run)).toThrow();
+                                                                                                                ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: undefined
+
+      at <anonymous> (/tmp/puni-minio-repack-sol/tools/tool-fleet/src/object-store-import.test.ts:26:108)
+(fail) local object store digest distribution > refuses source before accepting distribution [0.10ms]
+21 | }
+22 | describe('local object store digest distribution', () => {
+23 |   for (const fault of ['missing', 'source', 'alias', 'import'] as const) {
+24 |     it(`refuses ${fault} before accepting distribution`, () => {
+25 |       const { run } = createRunner(fault);
+26 |       expect(() => importObjectStore('/owned/image.oci', lock, 'owned', 'k3d-owned-server-0', 'k3d', run)).toThrow();
+                                                                                                                ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: undefined
+
+      at <anonymous> (/tmp/puni-minio-repack-sol/tools/tool-fleet/src/object-store-import.test.ts:26:108)
+(fail) local object store digest distribution > refuses alias before accepting distribution [0.03ms]
+21 | }
+22 | describe('local object store digest distribution', () => {
+23 |   for (const fault of ['missing', 'source', 'alias', 'import'] as const) {
+24 |     it(`refuses ${fault} before accepting distribution`, () => {
+25 |       const { run } = createRunner(fault);
+26 |       expect(() => importObjectStore('/owned/image.oci', lock, 'owned', 'k3d-owned-server-0', 'k3d', run)).toThrow();
+                                                                                                                ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: undefined
+
+      at <anonymous> (/tmp/puni-minio-repack-sol/tools/tool-fleet/src/object-store-import.test.ts:26:108)
+(fail) local object store digest distribution > refuses import before accepting distribution [0.02ms]
+27 |     });
+28 |   }
+29 |   it('registers and verifies the digest alias in the node CRI namespace', () => {
+30 |     const { run, commands } = createRunner();
+31 |     importObjectStore('/owned/image.oci', lock, 'owned', 'k3d-owned-server-0', 'k3d', run);
+32 |     expect(commands).toEqual([
+                          ^
+error: expect(received).toEqual(expected)
+
+- [
+-   [
+-     "k3d",
+-     "image",
+-     "import",
+-     "/owned/image.oci",
+-     "--cluster",
+-     "owned",
+-     "--mode",
+-     "direct",
+-   ],
+-   [
+-     "docker",
+-     "exec",
+-     "k3d-owned-server-0",
+-     "ctr",
+-     "-n",
+-     "k8s.io",
+-     "images",
+-     "ls",
+-     "name==docker.io/puni-local/object-store:release",
+-   ],
+-   [
+-     "docker",
+-     "exec",
+-     "k3d-owned-server-0",
+-     "ctr",
+-     "-n",
+-     "k8s.io",
+-     "images",
+-     "tag",
+-     "--force",
+-     "docker.io/puni-local/object-store:release",
+-     "docker.io/puni-local/object-store@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+-   ],
+-   [
+-     "docker",
+-     "exec",
+-     "k3d-owned-server-0",
+-     "ctr",
+-     "-n",
+-     "k8s.io",
+-     "images",
+-     "ls",
+-     "name==docker.io/puni-local/object-store@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+-   ],
+- ]
++ []
+
+- Expected  - 47
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-minio-repack-sol/tools/tool-fleet/src/object-store-import.test.ts:32:22)
+(fail) local object store digest distribution > registers and verifies the digest alias in the node CRI namespace [0.34ms]
+
+ 0 pass
+ 5 fail
+ 5 expect() calls
+Ran 5 tests across 1 file. [729.00ms]

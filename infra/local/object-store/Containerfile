@@ -1,0 +1,8 @@
+ARG BASE
+FROM ${BASE}
+ARG SOURCE_DATE_EPOCH=0
+COPY --chmod=0755 minio mc /usr/local/bin/
+USER 1000:1000
+EXPOSE 9000
+ENTRYPOINT ["/usr/local/bin/minio"]
+CMD ["server", "/data"]
