@@ -152,7 +152,9 @@ sleep 1
 exec "$(command -v awk)" "\$@"
 FAKE
 chmod +x "$tmp/bin/awk"
-run_case "$tmp" 0 "$tmp/logs/dev.log"
+accepted=0
+run_case "$tmp" 0 "$tmp/logs/dev.log" || accepted=$?
+check 'a successful captured run exits zero' '0' "$accepted"
 check 'captured file exists' 'yes' "$([[ -f "$tmp/logs/dev.log" ]] && echo yes || echo no)"
 check 'captured file has the output' 'yes' \
   "$(grep -q 'fake nx up' "$tmp/logs/dev.log" && echo yes || echo no)"
