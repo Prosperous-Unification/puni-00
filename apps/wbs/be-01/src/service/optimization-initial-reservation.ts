@@ -1,11 +1,13 @@
-import type { UnitOfWork } from '@wbs/core';
+import type {
+  CommittedFanoutDelivery,
+  CommittedProjectEvent,
+} from '@wbs/core/ports/committed-fanout';
 import type { CapturedFanout } from '@wbs/core/ports/fanout-capture-store';
-import {
-  type CommittedFanoutDelivery,
-  type CommittedProjectEvent,
-  recordCommittedFanout,
-} from '@wbs/core/service/committed-fanout';
-import { reserveSolverSlot, solverSlot, type SqliteSource } from '@wbs/store-sqlite';
+import type { UnitOfWork } from '@wbs/core/ports/unit-of-work';
+import { recordCommittedFanout } from '@wbs/core/service/committed-fanout';
+import { reserveSolverSlot } from '@wbs/store-sqlite/optimization-admission';
+import { solverSlot } from '@wbs/store-sqlite/schema';
+import type { SqliteSource } from '@wbs/store-sqlite/source';
 
 import type { OptimizationRepository } from '../module/optimization/contract';
 import { reservationOf } from '../repository/optimization';
