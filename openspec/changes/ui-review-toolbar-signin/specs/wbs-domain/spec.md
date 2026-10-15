@@ -10,6 +10,8 @@ middle, so that what opens inside it grows downward and the heading does not
 move. The password form's refusal line SHALL take no space while it is empty,
 SHALL open between the password field and its button when a refusal is shown,
 and SHALL stay open with its sentence while a further attempt is in flight.
+Every reply that sets the refusal line SHALL put a new text node in its live
+region, so a screen reader announces a refusal identical to the last one.
 
 #### Scenario: a wide window
 
@@ -25,6 +27,11 @@ and SHALL stay open with its sentence while a further attempt is in flight.
 
 - **WHEN** the reader submits again while the refusal is shown
 - **THEN** the refusal line stays open with its sentence until the reply replaces it
+
+#### Scenario: the same refusal twice
+
+- **WHEN** the server refuses a second attempt with the same sentence as the first
+- **THEN** the refusal line's live region holds a new text node with that sentence, and the line stays open
 
 ### Requirement: The plan toolbar ends in one group
 

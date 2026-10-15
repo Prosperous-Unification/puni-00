@@ -1,6 +1,7 @@
 import { expect, type Page, test } from '@playwright/test';
 
 import { measureInk } from './measure-ink';
+import { expectAnchoredColumn } from './signed-out-column';
 
 /**
  * The signed-out page, measured (UI review F-052): one centred column with the
@@ -32,14 +33,11 @@ function measurePage(page: Page) {
       if (node === null) throw new Error(`the sign-in page has no ${selector}`);
       return node.getBoundingClientRect();
     };
-    const column = box('[data-sign-in]');
     const card = box('[data-sign-in] [data-sign-in-card]');
     const password = box('input[name="password"]');
     const submit = box('button[type="submit"]');
     return {
-      viewport: { width: window.innerWidth, height: window.innerHeight },
-      scrollWidth: document.documentElement.scrollWidth,
-      column: { left: column.left, right: column.right, top: column.top, bottom: column.bottom },
+      viewport: { width: window.innerWidth },
       card: { left: card.left, right: card.right },
       passwordToSubmit: submit.top - password.bottom,
     };
@@ -61,27 +59,20 @@ test.describe('the sign-in page (F-052)', () => {
       // column's centre stood `Received: 496` px off the window's, at 1024
       // `Received: 288`, and at 375 (where the old card already filled the width)
       // the password field stood `Received: 52` px above its button — the reserved
-      // `min-h-5` line between two 16px gaps.
+      // `min-h-5` line between two 16px gaps. (The column checks now live in
+      // `expectAnchoredColumn`, whose message reads `the signed-out page has no
+      // [data-sign-in]`.)
       await signOut(page);
       await page.setViewportSize(size);
+      // Centred across, and anchored by its top near the middle of the window
+      // (F-090), so it reads as centred at rest and grows downward.
+      await expectAnchoredColumn(page);
       const measured = await measurePage(page);
-
-      expect(measured.scrollWidth, 'the page scrolls sideways').toBe(measured.viewport.width);
-      const columnMiddle = (measured.column.left + measured.column.right) / 2;
-      expect(Math.abs(columnMiddle - measured.viewport.width / 2)).toBeLessThanOrEqual(1);
       const cardMiddle = (measured.card.left + measured.card.right) / 2;
       expect(Math.abs(cardMiddle - measured.viewport.width / 2)).toBeLessThanOrEqual(1);
       // At least the phone's 16px gutter on both sides.
       expect(measured.card.left).toBeGreaterThanOrEqual(16);
       expect(measured.viewport.width - measured.card.right).toBeGreaterThanOrEqual(16);
-      // Upright too: anchored by its top near the middle of the window (F-090),
-      // so it reads as centred at rest and grows downward. Inside the window,
-      // and within 48px of true centring where the window has room.
-      const above = measured.column.top;
-      const below = measured.viewport.height - measured.column.bottom;
-      expect(above).toBeGreaterThanOrEqual(16);
-      expect(below).toBeGreaterThanOrEqual(0);
-      expect(Math.abs(above - below)).toBeLessThanOrEqual(48);
       // One form gap, not a reserved blank line between two of them.
       expect(measured.passwordToSubmit).toBeLessThanOrEqual(16.5);
     });

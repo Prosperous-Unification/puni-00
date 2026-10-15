@@ -8,12 +8,19 @@ the contract does not model. When the read cannot be completed for any other rea
 a 5xx answer, a reply that is not the contract's, a modelled refusal of the request's shape, or a
 thrown error — the app SHALL draw a `Server unavailable` state with one sentence naming the cause,
 SHALL NOT draw credential fields or sign-in links, and SHALL offer Try again, which SHALL read the
-session again and draw whichever state that read reports.
+session again and draw whichever state that read reports. The `Server unavailable` card SHALL sit in
+the signed-out page's column, under the `WBS tool v2` heading and the product line, centred across
+the window and anchored by its top near the window's middle.
 
 #### Scenario: be-01 is down behind the proxy
 
 - **WHEN** the session read answers 502
 - **THEN** the page shows `Server unavailable` and "The server is not available right now." with Try again, and no Username field
+
+#### Scenario: the outage card in the signed-out column
+
+- **WHEN** the session read answers 502 at 1440 × 900 or 375 × 812
+- **THEN** the column holding the heading and the `Server unavailable` card is centred across the window within 1px, at least 16px below its top, inside the window, and within 48px of vertical centre
 
 #### Scenario: the server comes back
 

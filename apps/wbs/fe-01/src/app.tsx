@@ -24,6 +24,7 @@ import { type logout, me as fetchMe, type Session } from '@/lib/api';
 import { failureMessage, unreachable } from '@/lib/http';
 import { SessionFeaturesProvider } from '@/lib/session-features';
 import { ThemeProvider, useThemeChoice } from '@/lib/theme';
+import { cn } from '@/lib/utils';
 import { useRetirementJoin } from '@/runtime/application-services-context';
 import { type BrowserSignOutState, createBrowserSignOut } from '@/runtime/browser-sign-out';
 import { credentialOf } from '@/runtime/credential';
@@ -146,6 +147,71 @@ export function sessionReadFault(
 }
 
 /**
+ * The signed-out column's top padding per card: half the column's height above
+ * the window's middle, never under 1rem. Literal classes, so Tailwind sees them.
+ *
+ * - `sign-in`: 15.5rem, half the refused sign-in column (about 31.5rem at 1440
+ *   and 375; 29.5rem at rest, so the resting page sits 12px high).
+ * - `outage`: 9.5rem, half the server-unavailable column (308px at 1440 and
+ *   375), which does not grow. Under the sign-in anchor it stood 188px above
+ *   true centre at 1440 (F-093).
+ */
+const COLUMN_ANCHOR = {
+  'sign-in': 'pt-[max(1rem,calc(50dvh-15.5rem))]',
+  outage: 'pt-[max(1rem,calc(50dvh-9.5rem))]',
+} as const;
+
+/**
+ * The signed-out page's one column (UI review F-052): the word mark, one line
+ * saying what the product is, and the card the caller passes — the sign-in
+ * panel, or the outage card (F-093), so both pages share one layout.
+ *
+ * Anchored by its top rather than centred (F-090, the D3 rule that surfaces
+ * grow downward): a centred column re-centred when the refusal line opened,
+ * lifting the heading 16px. The top sits half the column's height above the
+ * window's middle, so at rest it reads as centred and anything that opens only
+ * adds below. The half is per card, in {@link COLUMN_ANCHOR}.
+ *
+ * The heading is the tracer for the Tailwind integration, and still the
+ * assertion `e2e/tailwind.spec.ts` reads the computed letter-spacing off. The
+ * explicit size and weight beside it are not decoration: the scoped reset in
+ * `styles.css` takes an `h1`'s user-agent font-size and weight away, the way
+ * every reset does, so a heading now says how big it is.
+ *
+ * The page's type and colour are `font-sans`, the named stack `styles.css`
+ * declares, and the two colour tokens a dark set re-points. It keeps its own
+ * layout rather than the signed-in page's viewport-height flex: it is a card on
+ * an empty page and fits any window. `e2e/sign-in.spec.ts` measures it at 1440,
+ * 1024 and 375, and `e2e/shell-faults.spec.ts` with the outage card.
+ */
+function SignedOutPage({
+  card,
+  children,
+}: {
+  card: keyof typeof COLUMN_ANCHOR;
+  children: React.ReactNode;
+}): React.JSX.Element {
+  return (
+    <main
+      className={cn(
+        'bg-background text-foreground grid min-h-full items-start justify-items-center px-4 pb-4 font-sans sm:px-8',
+        COLUMN_ANCHOR[card],
+      )}
+    >
+      <div data-sign-in className="grid w-full max-w-sm gap-6">
+        <div className="grid gap-1 text-center">
+          <h1 className="text-2xl font-semibold tracking-tight">WBS tool v2</h1>
+          <p className="text-muted-foreground text-sm">
+            Work breakdown structures, estimated and scheduled.
+          </p>
+        </div>
+        {children}
+      </div>
+    </main>
+  );
+}
+
+/**
  * The signed-out page while the session cannot be read (F-079): the sentence and
  * a Try again that reads the session again, and no sign-in form — an outage is
  * not a sign-in problem, and a form under it invites a password the server
@@ -161,8 +227,7 @@ function ServerUnavailable({
   onTryAgain: () => void;
 }): React.JSX.Element {
   return (
-    <main className="bg-background text-foreground min-h-full p-8 font-sans">
-      <h1 className="mb-6 text-2xl font-semibold tracking-tight">WBS tool v2</h1>
+    <SignedOutPage card="outage">
       <Card className="w-full max-w-sm" data-server-unavailable>
         <CardHeader>
           <CardTitle>Server unavailable</CardTitle>
@@ -179,7 +244,7 @@ function ServerUnavailable({
           </Button>
         </CardContent>
       </Card>
-    </main>
+    </SignedOutPage>
   );
 }
 
@@ -388,45 +453,10 @@ function AppContent({
 
   if (session === null)
     return (
-      // The page's own type and colour, which used to be `fontFamily:
-      // 'sans-serif'` inline — the browser's generic sans, whatever that was on
-      // the machine. `font-sans` is the named stack `styles.css` declares, and
-      // the two colour tokens are what a dark set would re-point.
-      <main className="bg-background text-foreground grid min-h-full items-start justify-items-center px-4 pt-[max(1rem,calc(50dvh-15.5rem))] pb-4 font-sans sm:px-8">
-        {/*
-         * One centred column (UI review F-052): the word mark, one line saying
-         * what the product is, and the sign-in panel. It sat top-left under a
-         * bare word mark, 500px from the middle of a 1440 window.
-         *
-         * Anchored by its top rather than centred (F-090, the D3 rule that
-         * surfaces grow downward): a centred column re-centred when the refusal
-         * line opened, lifting the heading 16px. The top sits 15.5rem above the
-         * window's middle, half the resting column (about 31rem at 1440 and
-         * 375), so at rest it reads as centred; a refusal or a longer list of
-         * sign-in methods only adds below.
-         *
-         * The heading is the tracer for the Tailwind integration, and still the
-         * assertion `e2e/tailwind.spec.ts` reads the computed letter-spacing off.
-         * The explicit size and weight beside it are not decoration: the scoped
-         * reset in `styles.css` takes an `h1`'s user-agent font-size and weight
-         * away, the way every reset does, so a heading now says how big it is.
-         *
-         * The signed-out page keeps its own layout: it is a form on an empty
-         * page, it fits any window, and giving it the signed-in page's
-         * viewport-height flex would buy nothing and cost a second thing to
-         * keep in step. `e2e/sign-in.spec.ts` measures it at 1440, 1024 and 375.
-         */}
-        <div data-sign-in className="grid w-full max-w-sm gap-6">
-          <div className="grid gap-1 text-center">
-            <h1 className="text-2xl font-semibold tracking-tight">WBS tool v2</h1>
-            <p className="text-muted-foreground text-sm">
-              Work breakdown structures, estimated and scheduled.
-            </p>
-          </div>
-          {sessionError !== '' && <p role="alert">{sessionError}</p>}
-          <SignInCard onSignedIn={acceptSession} />
-        </div>
-      </main>
+      <SignedOutPage card="sign-in">
+        {sessionError !== '' && <p role="alert">{sessionError}</p>}
+        <SignInCard onSignedIn={acceptSession} />
+      </SignedOutPage>
     );
 
   return (

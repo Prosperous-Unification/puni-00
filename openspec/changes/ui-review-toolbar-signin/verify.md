@@ -33,3 +33,17 @@ After the fix, on a banded row (2× pixel method): `+1` and `search` both 5.652:
 | ------------------------------------------------------------------------ | --------------------------------------------------------- | -------------------------------------------------------------------------------- |
 | Vitest `keeps the last refusal open while a second attempt is in flight` | `setError('')` at the top of `submit` (the reviewed code) | `expected 'grid transition-[grid-template-rows] …' to contain 'grid-rows-[1fr]'` |
 | e2e `opens a refused sign-in's message …`, heading still                 | the vertically centred column (the reviewed code)         | `the heading moved · Expected: <= 0.5 · Received: 16`                            |
+
+## Integration (`ui-review/integration-3`, F-098, 2026-10-15)
+
+The refusal sentence is keyed per reply (`<span key={replies}>` inside the live `<p>`), so an identical
+second refusal is a new node. Runs in `/home/df/wd/puni/ui-int-2`, shift 3300, with
+`env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`: Vitest `src/app.test.tsx` and `auth-form.test.tsx` — 71
+passed; `lint:fast` and `typecheck` — passed; Playwright `shell-faults, sign-in, header` — 24 passed
+(`sign-in.spec.ts` now takes its column checks from the shared `e2e/signed-out-column.ts`); OpenSpec
+validate — 210/210.
+
+| Check                                                                    | Injected fault                        | Observed                                       |
+| ------------------------------------------------------------------------ | ------------------------------------- | ---------------------------------------------- |
+| Vitest `announces an identical second refusal as a new line (F-098)`     | sentence unkeyed in the live `<p>`    | `expected Text{ …(1) } not to be Text{ …(1) }` |
+| Vitest `keeps the last refusal open while a second attempt is in flight` | (unchanged; still green with the key) | passed                                         |

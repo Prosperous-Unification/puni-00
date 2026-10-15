@@ -1,6 +1,7 @@
 import { expect, type Page, test } from '@playwright/test';
 
 import { openSeededPlan, type SeededPlan, seedPlan } from './plan-fixture';
+import { expectAnchoredColumn } from './signed-out-column';
 
 /**
  * The shell when a tier is down, and the plan table's drop cue (UI review round
@@ -49,6 +50,19 @@ test.describe('the session gate when the server is down (F-079)', () => {
     // an unexpected response. Try again." with "Other sign-in options could not be
     // loaded." below it.
     await expect(page.getByRole('heading', { name: 'Server unavailable' })).toBeVisible();
+    // The outage card sits in the sign-in page's own column (F-093). Proof,
+    // watched 2026-10-15: #479's top-left page (`p-8` main, `mb-6` heading)
+    // with only `data-sign-in` added to its card failed at 1440 on `the column
+    // is off the window’s middle · Expected: <= 1 · Received: 496`; the shared
+    // column under the sign-in card's 15.5rem anchor failed on `the column is
+    // off the window’s vertical centre · Expected: <= 48 · Received: 188`.
+    for (const size of [
+      { width: 1440, height: 900 },
+      { width: 375, height: 812 },
+    ]) {
+      await page.setViewportSize(size);
+      await expectAnchoredColumn(page);
+    }
     await expect(page.getByRole('alert')).toHaveText('The server is not available right now.');
     await expect(page.getByRole('textbox', { name: 'Username' })).toHaveCount(0);
     await expect(page.getByText('Other sign-in options could not be loaded')).toHaveCount(0);

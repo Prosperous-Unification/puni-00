@@ -161,6 +161,9 @@ export function SignInCard({ onSignedIn }: Pick<AuthFormProps, 'onSignedIn'>) {
 /** Offers the local password session beside the server-side Authorization Code flow. */
 export function AuthForm({ methods, onSignedIn }: AuthFormProps) {
   const [error, setError] = useState('');
+  // Bumped with every reply that sets `error`: it keys the sentence's node so
+  // an identical second refusal is a new node the live region announces.
+  const [replies, setReplies] = useState(0);
   const [busy, setBusy] = useState(false);
   const [passwordShown, setPasswordShown] = useState(false);
   /*
@@ -184,8 +187,7 @@ export function AuthForm({ methods, onSignedIn }: AuthFormProps) {
     // The last refusal stays until the reply replaces it: every branch below
     // sets `error` or signs in. Clearing it here shut the refusal row the
     // moment a retry was pressed and reopened it when the answer came, so the
-    // form jumped twice per attempt (review of PR #466). The cost: a repeated
-    // identical sentence is not announced a second time by the live region.
+    // form jumped twice per attempt (review of PR #466).
     try {
       const reply = await login(
         typeof username === 'string' ? username : '',
@@ -197,15 +199,18 @@ export function AuthForm({ methods, onSignedIn }: AuthFormProps) {
           break;
         case 'refusal':
           setError(refusalMessage(reply.body));
+          setReplies((count) => count + 1);
           break;
         case 'failure':
           setError(failureMessage(reply.failure));
+          setReplies((count) => count + 1);
           break;
         default:
           unreachable(reply);
       }
     } catch {
       setError('Password sign-in could not start. Reload and try again.');
+      setReplies((count) => count + 1);
     } finally {
       setBusy(false);
     }
@@ -293,7 +298,17 @@ export function AuthForm({ methods, onSignedIn }: AuthFormProps) {
                 role="status"
                 aria-live="polite"
               >
-                {error}
+                {/*
+                 * Keyed per reply (F-098): the same sentence twice is no change
+                 * to a live region, so a retry with the same wrong password was
+                 * silent. A new node is announced; the `<p>` and its row stay,
+                 * so nothing moves. Absent while empty, for `not-empty:`.
+                 *
+                 * Proof, watched 2026-10-15 with `{error}` unkeyed: `announces
+                 * an identical second refusal as a new line` failed on
+                 * `expected Text{ …(1) } not to be Text{ …(1) }`.
+                 */}
+                {error !== '' && <span key={replies}>{error}</span>}
               </p>
             </div>
             <Button className="h-11 w-full" type="submit" disabled={busy}>

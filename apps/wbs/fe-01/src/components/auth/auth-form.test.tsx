@@ -219,6 +219,32 @@ describe('the signed-out screen', () => {
     });
     expect(row?.className).toContain('grid-rows-[1fr]');
   });
+  itDom('announces an identical second refusal as a new line (F-098)', async () => {
+    // A polite live region speaks only what changes inside it; the same
+    // sentence set twice is no change, so a reader who retries the same wrong
+    // password must get a new text node, not the old one kept.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(response(401, { error: 'invalid_credentials' }))),
+    );
+    render(<AuthForm methods={NO_METHODS} onSignedIn={() => undefined} />);
+    const status = screen.getByRole('status');
+    const submit = screen.getByRole('button', { name: 'Sign in with password' });
+    fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'ada' } });
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'wrong' } });
+    fireEvent.click(submit);
+    await waitFor(() => {
+      expect(status.textContent).toBe('Username or password is incorrect.');
+    });
+    const first = status.firstChild;
+    fireEvent.click(submit);
+    // Proof, watched 2026-10-15 with the sentence unkeyed in the live `<p>`:
+    // failed on `expected Text{ …(1) } not to be Text{ …(1) }`.
+    await waitFor(() => {
+      expect(status.firstChild).not.toBe(first);
+    });
+    expect(status.textContent).toBe('Username or password is incorrect.');
+  });
   itDom(
     'explains a refused predecessor instead of treating it as invalid credentials',
     async () => {

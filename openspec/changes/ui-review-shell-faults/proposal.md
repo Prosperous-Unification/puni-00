@@ -34,14 +34,12 @@ be-01 under an open page and found the shell telling the reader things it did no
 ## Non-goals
 
 - No change to be-01, gw-01 or the session contract; no merged "server reachable" signal (D9's reverse
-  path, below).
+  path).
 - No drop cue on the phone: its card renderer has no reorder handle.
 
 ## Reverse path (D9)
 
-Make the pill reflect both tiers: after a write fails with a transport or 5xx failure, read
-`Server unreachable` until a later write or read succeeds. That needs a shared "last server answer"
-signal that every write path reports to.
+Pill for both tiers (`Server unreachable` after a failed write): puni-plan `ui-review/DECISIONS.md` D9.
 
 ## Impact
 

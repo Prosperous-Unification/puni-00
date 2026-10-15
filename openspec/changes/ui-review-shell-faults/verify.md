@@ -28,3 +28,21 @@ found ×4). Injected faults on the branch:
 - Roster drawn while reconnecting again: `expected <p …(1)></p> to be null`, `expected <ul …(1)>…`.
 - `attempt` removed from the session effect's dependencies: `Unable to find role="link" and name
 "Continue with SSO"` in `reads the session again on Try again…`.
+
+## Integration (`ui-review/integration-3`, F-093, 2026-10-15)
+
+The outage card moved into #466's signed-out column (`SignedOutPage` in `app.tsx`, with a per-card top
+anchor: 9.5rem for the 308px outage column). Runs in `/home/df/wd/puni/ui-int-2`, shift 3300, all with
+`env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT`:
+
+- `bunx nx run-many -t lint:fast typecheck -p wbs-fe-01 --skip-nx-cache` — successfully ran.
+- `TZ=UTC bunx vitest run --config vitest.config.ts src/app.test.tsx src/components/auth/auth-form.test.tsx` — 2 files, 71 tests passed.
+- Playwright `shell-faults, sign-in, header` — 24 passed; `tailwind` — 6 passed.
+- `bunx @fission-ai/openspec@1.12.0 validate --all --json` — 210/210 valid.
+- Proposal trimmed: 396 words excluding the comment block (406 by `wc -w`).
+
+R5 proof, `shell-faults.spec.ts` F-079 case with `expectAnchoredColumn` at 1440 and 375:
+
+- #479's top-left page as it stood: `the signed-out page has no [data-sign-in]`.
+- Same page with only `data-sign-in` on its card: `the column is off the window’s middle · Expected: <= 1 · Received: 496`.
+- Shared column under the sign-in card's 15.5rem anchor: `the column is off the window’s vertical centre · Expected: <= 48 · Received: 188`.
