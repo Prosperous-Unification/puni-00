@@ -204,6 +204,7 @@ describe('step blockage replay compatibility probes', () => {
       'replace_blockage',
       'move_progress_v1',
       'delete_state_v1',
+      'step_blockage_activation_v1',
     ]);
   });
 
@@ -268,6 +269,7 @@ describe('step blockage replay compatibility probes', () => {
     const directory = scratchSync('wbs-replay-database-');
     const path = join(directory, 'plan.db');
     const db = new Database(path);
+    db.run('CREATE TABLE __drizzle_migrations (name TEXT)');
     const command = storedStepBlockageReplayKindsCommand('green').slice(2);
     const read = async () => {
       const child = Bun.spawn(command, {
@@ -283,7 +285,7 @@ describe('step blockage replay compatibility probes', () => {
       expect(missing.exitCode).not.toBe(0);
       expect(missing.stderr).toContain('command journal table is missing');
       db.run(
-        "CREATE TABLE command_journal (payload text NOT NULL,inverse text NOT NULL,preconditions text NOT NULL DEFAULT '{}')",
+        "CREATE TABLE IF NOT EXISTS __drizzle_migrations (name TEXT); CREATE TABLE command_journal (payload text NOT NULL,inverse text NOT NULL,preconditions text NOT NULL DEFAULT '{}')",
       );
       expect((await read()).exitCode).toBe(0);
       chmodSync(path, 0o000);
@@ -304,7 +306,7 @@ describe('step blockage replay compatibility probes', () => {
       const db = new Database(path);
       try {
         db.run(
-          'CREATE TABLE command_journal (payload text NOT NULL,inverse text NOT NULL,preconditions text NOT NULL)',
+          'CREATE TABLE __drizzle_migrations (name TEXT); CREATE TABLE command_journal (payload text NOT NULL,inverse text NOT NULL,preconditions text NOT NULL)',
         );
         const plain = { do: 'move', workItemId: 'child', parentId: 'parent', afterId: null };
         const nested = {
@@ -346,7 +348,7 @@ describe('step blockage replay compatibility probes', () => {
       const db = new Database(path);
       try {
         db.run(
-          'CREATE TABLE command_journal (payload text NOT NULL,inverse text NOT NULL,preconditions text NOT NULL)',
+          'CREATE TABLE __drizzle_migrations (name TEXT); CREATE TABLE command_journal (payload text NOT NULL,inverse text NOT NULL,preconditions text NOT NULL)',
         );
         const plain = { do: 'patch' };
         const nested = {
@@ -385,7 +387,7 @@ describe('step blockage replay compatibility probes', () => {
     const db = new Database(path);
     try {
       db.run(
-        'CREATE TABLE command_journal (payload text NOT NULL,inverse text NOT NULL,preconditions text NOT NULL)',
+        'CREATE TABLE __drizzle_migrations (name TEXT); CREATE TABLE command_journal (payload text NOT NULL,inverse text NOT NULL,preconditions text NOT NULL)',
       );
       const guarded = { do: 'move', expectedProgress: [] };
       db.run('INSERT INTO command_journal VALUES (?,?,?)', [
@@ -428,7 +430,7 @@ describe('step blockage replay compatibility probes', () => {
     const db = new Database(path);
     try {
       db.run(
-        "CREATE TABLE command_journal (payload text NOT NULL,inverse text NOT NULL,preconditions text NOT NULL DEFAULT '{}')",
+        "CREATE TABLE IF NOT EXISTS __drizzle_migrations (name TEXT); CREATE TABLE command_journal (payload text NOT NULL,inverse text NOT NULL,preconditions text NOT NULL DEFAULT '{}')",
       );
       const replace = {
         do: 'replace_blockage',
@@ -1895,7 +1897,9 @@ describe('estimate unit commands', () => {
         return parsed;
       };
       expect(await readUnits()).toEqual([{ unit: 'workdays', count: 2 }]);
-      db.run('CREATE TABLE command_journal (preconditions text NOT NULL)');
+      db.run(
+        'CREATE TABLE __drizzle_migrations (name TEXT); CREATE TABLE command_journal (preconditions text NOT NULL)',
+      );
       db.run("ALTER TABLE step ADD COLUMN estimate_unit text NOT NULL DEFAULT 'workdays'");
       db.run("UPDATE step SET estimate_unit='minutes' WHERE id='a'");
       expect(await readUnits()).toEqual([
