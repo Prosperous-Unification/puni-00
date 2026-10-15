@@ -796,3 +796,38 @@ Only a terminal test-title prefix `[CAPABILITY-001] ` SHALL cite a scenario. A v
 - **GIVEN** unsupported operands or changed selected source, declaration pin, external policy or publication
 - **WHEN** source or installed dispatch runs
 - **THEN** it refuses without partial observation and preserves existing Performance level output
+
+### Requirement: Browser Conformance observations bind complete committed selections
+
+`inspect-browser-conformance <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <external-authority>` SHALL consume the real Browser report inspector and one exact committed snapshot without executing candidate code. Its closed version-1 external authority SHALL contain revision, candidate, mode, reportObservationDigest, projectRoot and projectManifest with path and digest. The manifest path SHALL equal `<projectRoot>/project.json`. The command SHALL require exact requested/selected commit identity, matching report and authority pins, a complete nonempty Browser file collection inside that root, and exact selected regular-source mode/digest joins for every reported file. Multiple cases sharing a file SHALL retain their distinct case identities. Missing, unreadable, malformed or escaping authority, unsupported fields and inherited report failures SHALL refuse without JSON.
+
+The selected manifest SHALL contain a supported `test:conformance` target interpreted with the same closed envelope and literal Bun command grammar as committed Performance Conformance facts. Its exact SQLite-only third input exception SHALL remain dependency metadata. Missing targets, unsupported shells, bare filters, globs, traversal, duplicate selectors, options or paths SHALL refuse. Every selected test SHALL be a readable regular selected Git blob before intersection, including disjoint files. Working-tree repairs SHALL confer no authority. Existing diagnostic contracts and Performance refusal behavior SHALL remain unchanged.
+
+The observation SHALL retain the complete report, raw authority digest, project root and manifest pin, sorted unique Browser collection and complete union of manifest/Browser/Conformance source tuples. It SHALL report Conformance as committed with target, complete selectedFiles and sorted intersection files; Manual, Architecture and Performance memberships SHALL each remain unknown. Same-path source disagreement SHALL refuse. An empty intersection SHALL remain valid. All report outcomes SHALL be preserved. The complete canonical envelope digest SHALL bind all output fields except itself, including authentication absent and certifies false. Successful inspection SHALL exit zero; refusals SHALL produce named stderr, nonzero exit and no JSON. It SHALL establish no classification, isolation, execution guarantee, scenario join, coverage or admission.
+
+#### Scenario: [TEST-AXES-100] Browser Conformance binds real reports and complete overlapping or disjoint selection
+
+- **GIVEN** one real immutable Browser publication and an exact authority naming one committed project with a supported Conformance target
+- **WHEN** source or installed inspection reads the selected Git objects
+- **THEN** it binds the entire declared selection and every source tuple, preserves all report cases and outcomes, and emits the sorted overlap or an explicit empty intersection
+- **AND** other earlier memberships remain unknown and the observation remains unauthenticated and noncertifying
+
+#### Scenario: [TEST-AXES-101] Browser Conformance refuses authority and report scope substitutions
+
+- **GIVEN** absent, unreadable, malformed UTF-8 or JSON, escaping, extra-field or unsupported-version authority, a mismatched revision, candidate, mode, report digest or manifest pin, an empty or out-of-root collection, or a report source tuple differing from selected Git bytes
+- **WHEN** the production command inspects the exact selection
+- **THEN** it refuses by name without JSON, including annotated tag peeling and coherent substitutions from a broken inspector dependency
+
+#### Scenario: [TEST-AXES-102] Browser Conformance refuses unsupported or incomplete committed targets
+
+- **GIVEN** a missing or malformed manifest/target, unsupported envelope, cwd, input tuple or command, a duplicate selector or a missing, nonregular or unreadable selected source even outside the Browser intersection
+- **WHEN** the command validates the complete committed selection
+- **THEN** it refuses without JSON despite working-tree repairs, and a bare filter with a nested matching decoy cannot establish membership
+- **AND** the existing Performance decoder and diagnostic contracts retain their behavior
+
+#### Scenario: [TEST-AXES-103] Browser Conformance preserves canonical identity and bounded dispatch
+
+- **GIVEN** reordered report cases or target selectors, multiple cases sharing a source, changed source bytes, changed authority bytes or unsupported CLI operands
+- **WHEN** source and installed executable dispatch inspect the input
+- **THEN** canonical arrays are sorted and deduplicated, distinct cases remain intact, the complete envelope digest reflects all identity changes, and unsupported operands or inherited report failures refuse
+- **AND** removing source validation, pin joins, collection completeness, digest binding or noncertifying output invariants makes its named production-path assertion fail
