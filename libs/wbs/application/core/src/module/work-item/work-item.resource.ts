@@ -41,6 +41,7 @@ import {
   minuteTrioProblem,
   nextWorkday,
   type NodeReading,
+  nodeResourcesOf,
   orderSteps,
   ORDINARY_BAND_RANK,
   parentIndexOf,
@@ -49,6 +50,7 @@ import {
   POSITION_STEP,
   type PriorityBand,
   type Readiness,
+  resolveStepResources,
   rollUp,
   rollUpActuals,
   rollUpCharged,
@@ -237,56 +239,7 @@ const UNSCHEDULED: Scheduled = {
  *   kept, in a slice after the steps the project does hold, rather than dropped
  *   silently or thrown over the whole project's read.
  */
-/**
- * Which pools one row's slices spend slots in, and the **narrowest** of their
- * sizes — read off the row's effective **team** set.
- *
- * Three rules, and the first two are today's, unchanged by the arity:
- *
- * 1. **No team, no pool.** An empty set states nothing, so the slice is
- *    unconstrained.
- * 2. **An unsized team labels the work and constrains nothing.** A team this
- *    project has stated no capacity for is absent from `teamSizes`, so it is
- *    absent from `poolIds` too — which is what keeps the engine's `no size for
- *    pool` throw a caller-fault assertion rather than ordinary control flow. It
- *    contributes no clamp either: an unstated capacity is not a capacity of
- *    zero, and reading it as one would move dates nobody typed.
- * 3. **Every sized team is a pool, and the block spends its whole width in
- *    each** (Dany, 2026-08-13, decision 3). `slots` is therefore the
- *    **minimum** of their sizes: a block wider than the narrowest of its pools
- *    can never be placed in that pool, so without the min
- *    `CapacityTooNarrowError` — an invariant about the caller and these sizes
- *    coming apart — becomes reachable from ordinary data.
- *
- * Rule 3 replaces `team-sets`' refusal, which threw on a second team because
- * the engine took one pool per slice. It takes several now.
- *
- * The order of `poolIds` is the effective set's order, which is the store's:
- * the joint search's answer does not depend on it (it is a max over the pools'
- * answers, and the union of their blocking sets), and the binding team's tie is
- * broken on the pool id rather than on placement, so nothing here needs sorting
- * to be deterministic.
- *
- * Exported for the tests alone; `slicesOf` is its only production caller.
- */
-export function poolsFor(
-  teamIds: readonly string[],
-  teamSizes: ReadonlyMap<string, number>,
-): { poolIds: string[]; slots: number | undefined } {
-  const poolIds: string[] = [];
-  let slots: number | undefined;
-  for (const teamId of teamIds) {
-    const size = teamSizes.get(teamId);
-    if (size === undefined) continue;
-    poolIds.push(teamId);
-    // Proof: written as `Math.max` and `clamps a work item’s parallelism down
-    // to the narrowest of its teams` failed with `width: 3` where 1 was owed —
-    // a block claiming three of a team that holds one, which the engine then
-    // refuses outright with `CapacityTooNarrowError`; watched 2026-08-14.
-    slots = slots === undefined ? size : Math.min(slots, size);
-  }
-  return { poolIds, slots };
-}
+export { poolsFor } from '@wbs/domain';
 
 /**
  * The slices a plan runs, from rows that are already in memory.
@@ -376,75 +329,34 @@ export function slicesOf(
   const slices: Slice[] = [];
   for (const row of rows) {
     if (hasChildren.has(row.id)) continue;
-    const byStep = assigneesOf.get(row.id) ?? {};
-    // The step's own assignee, or — when exactly one step is named — the person
-    // that one assignment is read as covering the lot. {@link assumedAssignee}
-    // is that reading, shared with the tree's `doesEveryStep` and with the
-    // step removal that has to say whose answer it would change.
-    //
-    // Proof: the fallback dropped, so that only named assignments queue, and
-    // `queues every step of a work item its one assignee is assumed to be
-    // doing` failed — the work item finished on day 3 with its `QA` running
-    // while its own assignee was on somebody else's `Dev`; watched 2026-08-09.
-    const personFor = (stepId: string | null): string | null =>
-      (stepId === null ? undefined : byStep[stepId]) ?? assumedAssignee(byStep);
-    const { poolIds, slots } = poolsFor(teamOf.get(row.id)?.teamIds ?? [], teamSizes);
-    /**
-     * How many slots one of this row's slices holds while it runs.
-     *
-     * Three rules, in this order, and each is a statement the plan actually
-     * makes:
-     *
-     * 1. **A named person is one person.** `assumedAssignee` means one named
-     *    assignment covers every step of the item, so naming somebody on a
-     *    `maxParallel: 3` item collapses the whole item to width 1 and
-     *    serialises its steps. One human cannot work beside themselves, and the
-     *    alternative — "kat plus two others" — has the engine claiming people
-     *    the plan has not named.
-     * 2. **Nobody may claim more people than the team has** — and where the
-     *    work names several teams, than the **narrowest** of them has. A
-     *    `maxParallel` of 4 against a team of 2 runs at 2, and against a team
-     *    of 4 and a team of 1 it runs at 1.
-     * 3. Otherwise the stored number.
-     *
-     * Resolved here rather than in the pass for `personId`'s reason: a second
-     * implementation of this inside the scheduler would put work on widths
-     * nobody asked for.
-     *
-     * Proof: the clamp against `slots` dropped and `clamps a work item's
-     * parallelism down to the size of its team` failed with `width: 4` and
-     * `duration: 1` — a plan claiming four of a team of two; watched
-     * 2026-08-12. The set-valued arm of the same clamp is
-     * {@link poolsFor}'s own proof.
-     *
-     * Proof: the named-person arm dropped and `runs a named person's work one
-     * at a time however parallel the item is` failed with `width: 3` and
-     * `duration: 2` on work one person is doing; watched 2026-08-12.
-     */
-    const widthFor = (personId: string | null): number => {
-      if (personId !== null) return 1;
-      return Math.min(row.maxParallel, slots ?? row.maxParallel);
-    };
+    const resourcesFor = (stepId: string | null) =>
+      resolveStepResources(
+        row.maxParallel,
+        stepId,
+        assigneesOf.get(row.id) ?? {},
+        teamOf.get(row.id)?.teamIds ?? [],
+        teamSizes,
+      );
     if (order.length === 0) {
-      const personId = personFor(null);
+      const { personId, width, poolIds } = resourcesFor(null);
       slices.push({
         workItemId: row.id,
         stepId: null,
         days: null,
         personId,
-        width: widthFor(personId),
+        width,
         poolIds,
       });
       continue;
     }
     for (const stepId of order) {
-      const personId = personFor(stepId);
+      const { personId, width, poolIds } = resourcesFor(stepId);
       slices.push({
         workItemId: row.id,
         stepId,
         days: days.get(sliceKey(row.id, stepId)) ?? null,
         personId,
-        width: widthFor(personId),
+        width,
         poolIds,
       });
     }
@@ -7397,6 +7309,15 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
     slotsOf,
   );
   const { assigneesOf, hasChildren, rule } = canonical;
+  // Proof: passing canonical.input.rows dropped held leaf resources and
+  // failed both mounted parity cases; full retained rows preserve inherited
+  // labels before the page filter. Watched 2026-10-15.
+  const resources = nodeResourcesOf(
+    rows,
+    steps.map((step) => step.id),
+    assigneesOf,
+    slotsOf,
+  );
   const scheduledIds = new Set(canonical.input.rows.map((row) => row.id));
   // What each row is **charged**, per step: a leaf's own estimate uplifted by
   // its step's allowance and rounded, a parent's the sum of its descendants'
@@ -7615,6 +7536,9 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
       ...attemptFieldsOf(attemptsOf.get(row.id) ?? [], steps),
       // A leaf's node readings by step id; a parent has no nodes and no key.
       ...readingFieldsOf(nodeProjection.readings.get(row.id)),
+      // Proof: serializing {} here failed both mounted resource readings
+      // (missing per-step resource); watched 2026-10-15.
+      ...(resources.has(row.id) ? { nodeResources: resources.get(row.id) } : {}),
       ...(nodeProjection.readings.has(row.id)
         ? {
             blockages: Object.fromEntries(

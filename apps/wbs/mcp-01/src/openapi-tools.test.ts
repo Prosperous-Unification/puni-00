@@ -455,6 +455,22 @@ describe('toolsFromDocument, on the generated document', () => {
     });
   });
 
+  it('carries node resource constraints through generated read descriptors for MCP', () => {
+    for (const path of [
+      '/api/projects/{id}/work-items',
+      '/api/projects/{id}/work-items/{workItemId}',
+      '/api/projects/{id}/work-item-rows',
+    ]) {
+      const operation = document.paths?.[path]?.['get'] as { responses?: unknown } | undefined;
+      const serialized = JSON.stringify(operation?.responses);
+      expect(serialized).toContain('nodeResources');
+      expect(serialized).toContain('fromStepId');
+      expect(serialized).toContain('fromWorkItemId');
+    }
+    const rows = byName(tools, 'getApiProjectsByIdWork-item-rows');
+    expect(rows.inputSchema.properties).toHaveProperty('fields');
+  });
+
   it('derives the work-item page with every filter optional', () => {
     const rows = byName(tools, 'getApiProjectsByIdWork-item-rows');
     expect(rows.path).toBe('/api/projects/{id}/work-item-rows');
