@@ -150,3 +150,5 @@
 - [x] 6.3 Prove issue/list/rotate/revoke and deletion blocker release against the mounted browser/API fixture. No real IdP acceptance is claimed.
 
 - [x] 6.4 Repair review findings: retain returned secrets across failed metadata reconciliation; provide keyboard selection and prove actual browser clipboard retrieval; withhold rotation for overlap predecessors while retaining revoke and accurate refusal wording. Watch the mounted production negatives before restoring each behavior.
+
+- [x] 6.5 Complete browser connection deletion through Company sign-in Remove/Confirm: explain all live tokens and explicit retry, preserve sibling tokens on conflict, render failed reconciliation without a refresh claim, and prove two-token refusal, one-token refusal and final scoped 204 after revoking both. Replace fixture API deletion bypasses. Watch instruction replacement and server live-token guard removal fail their production-path tests.

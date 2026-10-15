@@ -279,7 +279,7 @@ The Company sign-in panel SHALL offer enable only for a server-proven connection
 
 The panel SHALL select at most one inline configuration editor or removal confirmation. The editor SHALL keep the domain immutable, prepopulate Auth0 connection name, strategy and login slug, and PATCH only those three fields to the selected connection id using the active organization expectation. It SHALL explain that changing the name or strategy clears proof and enforcement, while changing only the slug preserves them. The returned row SHALL be authoritative and clear stale proof and lockout actions; no optimistic state SHALL be published.
 
-Removal SHALL require an explicit confirmation identifying the connection domain and Auth0 name. Cancel SHALL send no request. The row SHALL remain until a typed 204 success; success SHALL refresh both connections and domain claims and clear the selected action and proof. A `provisioning_active` conflict SHALL explain that live organization provisioning prevents removal and refresh both lists without exposing token controls. Modeled conflicts and not-found SHALL reconcile both lists; transport failure SHALL retain confirmed rows and the action for retry. Forbidden and insufficient scope SHALL remove panel controls; shared authority loss SHALL withdraw the organization page.
+Removal SHALL require an explicit confirmation identifying the connection domain and Auth0 name. Cancel SHALL send no request. The row SHALL remain until a typed 204 success; success SHALL refresh both connections and domain claims and clear the selected action and proof. A `provisioning_active` conflict SHALL instruct the administrator to revoke all live tokens in the separate Provisioning tokens panel, then explicitly retry removal. It SHALL reconcile both lists without claiming that reconciliation succeeded, preserve the connection and token state on refusal, and expose no token controls within Company sign-in. A failed reconciliation SHALL render the read failure. Revoking a token SHALL never automatically delete the connection; every retry SHALL require a new explicit removal confirmation and a scoped DELETE, with the server deciding whether live tokens still block it. Modeled conflicts and not-found SHALL reconcile both lists; transport failure SHALL retain confirmed rows and the action for retry. Forbidden and insufficient scope SHALL remove panel controls; shared authority loss SHALL withdraw the organization page.
 
 #### Scenario: Configuration edit uses the selected record
 
@@ -304,3 +304,21 @@ Removal SHALL require an explicit confirmation identifying the connection domain
 - **AND** transport failure retains the selected action for retry; authority refusal removes controls
 - **AND** earlier reads and replies after effect cleanup, StrictMode replay or runtime withdrawal cannot restore rows or authority
 - **AND** accessible domain-specific actions and their forms fit 375px and 1280px and support keyboard navigation
+
+#### Scenario: Browser removal remains blocked until every live token is revoked
+
+- **GIVEN** a connection and two live overlap provisioning tokens
+- **WHEN** a super-admin confirms removal in Company sign-in
+- **THEN** the server returns `provisioning_active`, the connection and both tokens remain, and the panel directs the administrator to revoke all live tokens in Provisioning tokens before retrying
+- **WHEN** the administrator revokes one token and explicitly confirms removal again
+- **THEN** the server still refuses removal and the connection remains
+- **WHEN** the administrator revokes the remaining token
+- **THEN** no automatic connection deletion occurs
+- **WHEN** the administrator explicitly confirms removal again
+- **THEN** a scoped DELETE returns 204, the connection row and confirmation disappear, and the domain becomes available in the refreshed creation form
+
+#### Scenario: Failed reconciliation does not claim refreshed state
+
+- **GIVEN** a confirmed removal receives `provisioning_active`
+- **WHEN** the subsequent connection or domain read fails
+- **THEN** the panel renders the read failure and the instruction to revoke all live tokens, without claiming the lists were refreshed
