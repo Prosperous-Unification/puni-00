@@ -3696,6 +3696,7 @@ The installed K6 binding for the committed repaired SHA is recorded separately i
 and `/tmp/wave5-restack-evidence/` after commit. No canonical h2puni gate, full repository
 gate, browser/pixels, merge to main or deployment ran in this repair worker. Fresh exact-head review and hosted
 acceptance remain coordinator work.
+
 ## 4.1b.11 Browser Architecture membership — 2026-10-15
 
 Implementation starts from exact `c000efb37750cb3095f3c2d6f88a684d058b149b` in isolated
@@ -3914,3 +3915,55 @@ no safety guard, schema or serialized value changed.
 
 Exact-SHA Astra rereview, inherited Scenario Ledger repair/restack, release, CI,
 host gate and deployment remain coordinator work. No push or host gate ran here.
+
+## Sixth-wave aggregate verification — 2026-10-16
+
+Isolated clone `/tmp/puni-wave6-aggregate-20261016`, stacked on exact fifth-wave
+`a3ee6e19c7931eb844dd273f607de5eee3640b8e` (#496). Applied reviewed source packets
+Browser Architecture `742b8aeb32d7fc2bb07ab68a5aac8481e01c5c28` (#497), Browser
+Performance `dc5ac746b690dafc0fe2500a20c869dc8be6c826` plus corrected tip
+`d710677f4eb14a0a090067ab75518cd2426078e7` (#498), and F9 restart state
+`173c68ec10d9ef672426c6287280160b2245d3c7` (#499). The only conflict was this
+append-only verification log; both inherited and source sections were preserved.
+No production behavior was added during aggregation.
+
+Evidence lives in `/tmp/puni-wave6-evidence/`:
+
+- Frozen Bun 1.4.2 install passed: 1,573 installs across 1,447 packages, no changes.
+  The initial invocation failed because its default temporary directory was read-only;
+  `BUN_TMPDIR=/tmp/puni-wave6-bun-tmp` succeeded.
+- The complete `src/no-ambient-clock.test.ts` detector passed: 1 test, 0 failures,
+  2 assertions (`no-ambient-clock.log`). The inherited fifth-wave Scenario Ledger
+  rename and reviewed Browser Performance correction coexist without clock findings.
+- Focused F9 `dev-environment.test.ts` passed: 33 tests, 0 failures, 81 assertions,
+  including installed Nx shared-ownership blocking, independent private-state launch,
+  and preservation of original database bytes and ownership (`f9-focused.log`).
+- Shared test-evidence, workspace-projects and ESLint-boundaries passed: 55 tests,
+  0 failures, 222 assertions (`separation.log`).
+- Uncached scoped Nx `lint:source`, `lint`, `typecheck` and `build` for
+  `twilight-burokrat,tool-devsync` passed in 35 seconds (`scoped-static.log`).
+  Burokrat's additional `lint` invocation explicitly reported inactive external
+  activation; that invocation grants no installed K6 or certification credit.
+- Pinned OpenSpec 1.12.0 strict validation passed for `test-axes` and
+  `forge-restart-state`; all validation passed 215/215 (197 changes, 18 specs),
+  zero failures (`openspec-{test-axes,forge,all}.json`). Production scenario
+  provenance returned `{"unidentified":[]}` (`provenance.json`).
+- The exact source union contains 21 paths. Every non-log blob equals its last
+  reviewed source packet; the log preserves the base and complete source append.
+  The entire prior scenario-allocation journal prefix is unchanged
+  (`path-blob-union.json`). Scoped Prettier and whitespace checks passed.
+
+F9 full `tool-devsync:test`, disposable runtime acceptance, cold OOM resolution and
+F9 acceptance remain unverified. No full repository gate, h2puni gate, merge or
+deployment ran in this aggregate worker. Source mutation proofs remain attached to
+the original packet verification sections; no new safety guard was introduced.
+
+- Focused Browser Performance/Architecture/Conformance, test-report, level-facts,
+  architecture-level and package clock suites passed: 124 tests, 0 failures,
+  1,707 assertions across seven files, 201.04 seconds (`browser-focused.log`),
+  including built installed command dispatch. Command: `bun test --preload
+../../../../tools/test/scratch/preload.ts ./src/evidence/browser-performance.test.ts
+./src/evidence/browser-architecture.test.ts ./src/evidence/browser-conformance.test.ts
+./src/evidence/test-reports.test.ts ./src/evidence/level-facts.test.ts
+./src/architecture-level.test.ts ./src/no-ambient-clock.test.ts --timeout=120000`
+  from the Burokrat CLI directory.
