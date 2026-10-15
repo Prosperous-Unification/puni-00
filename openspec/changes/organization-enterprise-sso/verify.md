@@ -460,3 +460,5 @@ Final focused evidence:
 Dependencies use the integration checkout's installed `node_modules` through an isolated-clone symlink. Frozen dependency installation, the canonical exact-head h2puni gate, aggregate review, merge and deployment are owned by the coordinator and were not run by this worker. No migration changed. The production backend logic is unchanged; only its adjacent watched-proof comment was added, and no separate backend suite was rerun.
 
 Final changed-file ESLint exited 0 with no warnings after `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx show projects` created the isolated clone's real `.nx/workspace-data/project-graph.json`. The graph-enabled run includes module-boundary checks. The final frontend TypeScript build also exited 0 after the fixture helper status was narrowed to `204 | 409`.
+
+Normal commit hooks on `2f833345e` passed format, staged lint, plaintext secrets, private nesting, tool-wiki and both agent trailer stages. Tool-wiki explicitly reported inactive external activation (`certified: false`); no certification is claimed. Migration and doc-cap hooks skipped because no matching files changed.
