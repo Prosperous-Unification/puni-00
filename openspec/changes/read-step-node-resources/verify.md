@@ -58,6 +58,8 @@ OpenSpec: exit 0, 211 valid items (193 changes, 18 specs), zero failures. The un
 
 The attempted `bunx nx run-many --target=typecheck --projects=wbs-domain,wbs-contracts,wbs-core --parallel=1` printed daemon/plugin socket permission failures and returned without task results. Repeated with `NX_DAEMON=false NX_ISOLATE_PLUGINS=false`, it stalled after the target banner and was canceled (exit 130). Neither invocation proves an Nx target passed. The direct compiler command above is the same underlying command declared by those project targets and the be-01/mcp-01 targets, and is reported separately.
 
+The normal implementation commit `9e0cfffe6` ran the installed Lefthook pre-commit hooks: changed-file lint/format, plaintext-secrets and private-nesting all exited 0; both agent-trailer hooks exited 0. Migration lint and website migration lint skipped because no matching migration paths changed; doc-caps skipped because LLM_README.md did not change. Tool Wiki exited 0 with `status: inactive`, `certified: false`, reason `external activation root is not provisioned`; this is not Tool Wiki certification.
+
 ## Checks outside this worker's scope
 
 The canonical host gate, full build, whole-repository lint/test and CI-only secrets/migration checks were not run. The clone initially had no installed `.git/hooks/pre-commit`; `bunx lefthook install` exited 0 and installed the normal pre-commit and agent-trailer hooks before committing. No migration or dependency changed. Root coordinates the required `bin/h2puni-gate.sh <sha>` on the reviewable commit before any completion claim.
