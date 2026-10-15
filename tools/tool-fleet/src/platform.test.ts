@@ -255,6 +255,19 @@ describe('validatePlatform', () => {
     );
   });
 
+  it('rejects a cert-manager base that omits its HelmRelease', async () => {
+    const root = await mutablePlatform();
+    await replaceManifestText(
+      root,
+      'infra/platform/networking/cert-manager/kustomization.yaml',
+      'resources: [release.yaml]',
+      'resources: []',
+    );
+    expect(validatePlatform(root)).rejects.toThrow(
+      /cert-manager.*resources differ from the locked graph/i,
+    );
+  });
+
   it('rejects changed vendored chart bytes', async () => {
     const root = await mutablePlatform();
     const path = join(root, 'infra/platform/charts/traefik-41.6.0.tgz');

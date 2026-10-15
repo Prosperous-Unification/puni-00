@@ -482,7 +482,7 @@ export const platformReleases: readonly PlatformRelease[] = [
   {
     name: 'cert-manager',
     lock: 'certManager',
-    path: 'networking/cert-manager.yaml',
+    path: 'networking/cert-manager/release.yaml',
     chart: 'charts/cert-manager-v1.21.2.tgz',
     imageReferences(values) {
       const parsed = decode('cert-manager', CertManagerValues, values);

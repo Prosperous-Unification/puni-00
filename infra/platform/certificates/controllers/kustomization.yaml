@@ -1,3 +1,5 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-resources: [namespace.yaml, ../../networking/cert-manager.yaml]
+# Proof: the former sibling YAML reference made pinned kubectl kustomize fail
+# with "file is not in or below" this controller root; a directory base renders.
+resources: [namespace.yaml, ../../networking/cert-manager]

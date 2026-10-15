@@ -165,7 +165,7 @@ const platformKustomizations: readonly (readonly [
   ['target/kustomization.yaml', []],
   [
     'certificates/controllers/kustomization.yaml',
-    ['namespace.yaml', '../../networking/cert-manager.yaml'],
+    ['namespace.yaml', '../../networking/cert-manager'],
   ],
   ...(['platform', 'workers'] as const).flatMap((purpose) =>
     (['local', 'production'] as const).map(
@@ -176,7 +176,9 @@ const platformKustomizations: readonly (readonly [
         ] as const,
     ),
   ),
-  ['networking/kustomization.yaml', ['namespaces.yaml', 'cert-manager.yaml', 'traefik.yaml']],
+  ['networking/kustomization.yaml', ['namespaces.yaml', 'cert-manager', 'traefik.yaml']],
+  // Proof: omitting this entry made the cert-manager base omission negative resolve.
+  ['networking/cert-manager/kustomization.yaml', ['release.yaml']],
   [
     'policy/kustomization.yaml',
     [

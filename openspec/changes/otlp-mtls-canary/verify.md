@@ -87,3 +87,29 @@ Replaced the fault with the nonempty path `/var/lib/puni-otelcol-empty`. Fresh c
 Command: `bun test --preload ./tools/test/scratch/preload.ts tools/tool-fleet/src/platform.test.ts --test-name-pattern 'OTLP effective queue'`. Temporary logs: `/tmp/otlp-proof-correction-guard.log`, `/tmp/otlp-proof-correction-removed.log`, `/tmp/otlp-proof-correction-restored.log`. No runtime code changed in this correction.
 
 After the review repair, the final scoped test command passed **86 tests, 0 failed** (84 platform and 2 budget tests). Scoped ESLint passed with no diagnostics, `tool-fleet:typecheck` passed, pinned OpenSpec validation reported valid/no issues, and `git diff --check` passed. The corrected focused mutation run above isolates the five reviewed safety checks; the original empty-string proof is superseded.
+
+## Strict Kustomize CI repair (2026-10-15)
+
+PR head `8be5a75bbfe0bffe154d0f6fe3cb9b7a8cf03bd2` failed the real locked
+`kubectl v1.36.4 kustomize infra/platform/certificates/controllers`: the bare sibling
+`../../networking/cert-manager.yaml` was outside the controller build root. The
+HelmRelease now lives in a shared `networking/cert-manager` directory base referenced
+by both networking and certificate controllers. Canonical validator and policy paths
+follow the move. Parsed renders of both consumers each contain exactly one
+cert-manager HelmRelease structurally identical to the original; namespace manifests
+and Flux stage dependencies are unchanged. No cluster reconciliation was performed.
+
+R5: the new production negative `rejects a cert-manager base that omits its HelmRelease`
+replaces the base resources with `[]`. Removing its `platformKustomizations` entry
+made the negative resolve unsafely (0 passed, 1 failed); restored enforcement rejects
+the omission. Adjacent `Proof:` comments record both the renderer fault and guard proof.
+
+`bun tools/tool-fleet/src/check-cli.ts` passed every family after staging the move
+(the checker enumerates Git-tracked paths): schema, 226 strict YAML files, 14 Ansible
+playbooks and 2 inventories, 49 strict Kustomize renders, 3 backup overlays, 13
+HelmRelease renders, ShellCheck, actionlint and executable coverage. The initial
+unstaged invocation also reported the removed tracked path as absent; this was
+resolved by staging the rename. Sandbox cache chmod/Docker denial required the
+normal elevated local invocation. Focused platform tests passed (85 passed, 0 failed); scoped ESLint, Prettier,
+`tool-fleet:typecheck` and pinned OpenSpec validation passed. The broad h2puni gate
+is delegated to the supervising agent; live Flux reconciliation remains unverified.
