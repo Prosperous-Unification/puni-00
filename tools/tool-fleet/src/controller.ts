@@ -50,7 +50,7 @@ export function controllerBuilderName(builder: ControllerBuildLock['builder']): 
  * host's Docker release; a pinned `docker-container` builder behaves the same on every host.
  * Throws when a builder of that name runs another image or when inspection or creation fails.
  */
-function requireBuilder(builder: ControllerBuildLock['builder'], run: RunCommand): string {
+export function requireBuilder(builder: ControllerBuildLock['builder'], run: RunCommand): string {
   const name = controllerBuilderName(builder);
   const image = `${builder.name}@${builder.digest}`;
   const inspection = run(['docker', 'buildx', 'inspect', name]);

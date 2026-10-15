@@ -2,7 +2,7 @@ services:
   {{CONTAINER}}:
     image: {{IMAGE}}
     container_name: {{CONTAINER}}
-    restart: unless-stopped
+{{INIT}}    restart: unless-stopped
     logging:
       driver: json-file
       options:

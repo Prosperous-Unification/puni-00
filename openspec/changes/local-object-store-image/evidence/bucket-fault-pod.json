@@ -1,0 +1,242 @@
+{
+  "apiVersion": "v1",
+  "items": [
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "creationTimestamp": "2026-10-14T11:16:56Z",
+        "generateName": "object-store-bucket-fault-",
+        "generation": 1,
+        "labels": {
+          "batch.kubernetes.io/controller-uid": "e8b54068-331a-41ab-b37c-ceabd0e520e0",
+          "batch.kubernetes.io/job-name": "object-store-bucket-fault",
+          "controller-uid": "e8b54068-331a-41ab-b37c-ceabd0e520e0",
+          "job-name": "object-store-bucket-fault"
+        },
+        "name": "object-store-bucket-fault-shmsg",
+        "namespace": "puni-backup",
+        "ownerReferences": [
+          {
+            "apiVersion": "batch/v1",
+            "blockOwnerDeletion": true,
+            "controller": true,
+            "kind": "Job",
+            "name": "object-store-bucket-fault",
+            "uid": "e8b54068-331a-41ab-b37c-ceabd0e520e0"
+          }
+        ],
+        "resourceVersion": "651",
+        "uid": "cf8f5d89-b46e-48e9-83e2-b8158d4f7215"
+      },
+      "spec": {
+        "automountServiceAccountToken": false,
+        "containers": [
+          {
+            "command": [
+              "sh",
+              "-ec",
+              "\nmc alias set store http://object-store.puni-backup.svc:9000 \"$MINIO_ROOT_USER\" \"$MINIO_ROOT_PASSWORD\"\nmc version enable store/puni-missing-package-proof\nprintf 'UNDETECTED bucket command failure\\n'\n"
+            ],
+            "env": [
+              {
+                "name": "MC_CONFIG_DIR",
+                "value": "/tmp/mc"
+              }
+            ],
+            "envFrom": [
+              {
+                "secretRef": {
+                  "name": "object-store-root"
+                }
+              }
+            ],
+            "image": "puni-local/object-store:RELEASE.2025-09-07T16-13-09Z@sha256:6892027e04ff9f75ad83dcff7f459b8cdfa043ac573a9d88a616bd7803890670",
+            "imagePullPolicy": "Never",
+            "name": "buckets",
+            "resources": {
+              "limits": {
+                "cpu": "200m",
+                "memory": "128Mi"
+              },
+              "requests": {
+                "cpu": "10m",
+                "memory": "32Mi"
+              }
+            },
+            "securityContext": {
+              "allowPrivilegeEscalation": false,
+              "capabilities": {
+                "drop": ["ALL"]
+              },
+              "readOnlyRootFilesystem": true
+            },
+            "terminationMessagePath": "/dev/termination-log",
+            "terminationMessagePolicy": "File",
+            "volumeMounts": [
+              {
+                "mountPath": "/tmp",
+                "name": "tmp"
+              }
+            ]
+          }
+        ],
+        "dnsPolicy": "ClusterFirst",
+        "enableServiceLinks": true,
+        "nodeName": "k3d-puni-minio-repack-server-0",
+        "preemptionPolicy": "PreemptLowerPriority",
+        "priority": 0,
+        "restartPolicy": "Never",
+        "schedulerName": "default-scheduler",
+        "securityContext": {
+          "runAsNonRoot": true,
+          "runAsUser": 1000,
+          "seccompProfile": {
+            "type": "RuntimeDefault"
+          }
+        },
+        "serviceAccount": "default",
+        "serviceAccountName": "default",
+        "terminationGracePeriodSeconds": 30,
+        "tolerations": [
+          {
+            "effect": "NoExecute",
+            "key": "node.kubernetes.io/not-ready",
+            "operator": "Exists",
+            "tolerationSeconds": 300
+          },
+          {
+            "effect": "NoExecute",
+            "key": "node.kubernetes.io/unreachable",
+            "operator": "Exists",
+            "tolerationSeconds": 300
+          }
+        ],
+        "volumes": [
+          {
+            "emptyDir": {},
+            "name": "tmp"
+          }
+        ]
+      },
+      "status": {
+        "allocatedResources": {
+          "cpu": "10m",
+          "memory": "32Mi"
+        },
+        "conditions": [
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-14T11:16:59Z",
+            "observedGeneration": 1,
+            "status": "False",
+            "type": "PodReadyToStartContainers"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-14T11:16:56Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "Initialized"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-14T11:16:58Z",
+            "observedGeneration": 1,
+            "reason": "PodFailed",
+            "status": "False",
+            "type": "Ready"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-14T11:16:58Z",
+            "observedGeneration": 1,
+            "reason": "PodFailed",
+            "status": "False",
+            "type": "ContainersReady"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-14T11:16:56Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "PodScheduled"
+          }
+        ],
+        "containerStatuses": [
+          {
+            "allocatedResources": {
+              "cpu": "10m",
+              "memory": "32Mi"
+            },
+            "containerID": "containerd://b6d255031920eb05a20603712c95b6c03e918890f66c9dd3f016cc88cdfe2bbf",
+            "image": "docker.io/puni-local/object-store:RELEASE.2025-09-07T16-13-09Z",
+            "imageID": "docker.io/puni-local/object-store@sha256:6892027e04ff9f75ad83dcff7f459b8cdfa043ac573a9d88a616bd7803890670",
+            "lastState": {},
+            "name": "buckets",
+            "ready": false,
+            "resources": {
+              "limits": {
+                "cpu": "200m",
+                "memory": "128Mi"
+              },
+              "requests": {
+                "cpu": "10m",
+                "memory": "32Mi"
+              }
+            },
+            "restartCount": 0,
+            "started": false,
+            "state": {
+              "terminated": {
+                "containerID": "containerd://b6d255031920eb05a20603712c95b6c03e918890f66c9dd3f016cc88cdfe2bbf",
+                "exitCode": 1,
+                "finishedAt": "2026-10-14T11:16:58Z",
+                "reason": "Error",
+                "startedAt": "2026-10-14T11:16:57Z"
+              }
+            },
+            "user": {
+              "linux": {
+                "gid": 0,
+                "supplementalGroups": [0],
+                "uid": 1000
+              }
+            },
+            "volumeMounts": [
+              {
+                "mountPath": "/tmp",
+                "name": "tmp"
+              }
+            ]
+          }
+        ],
+        "hostIP": "172.18.0.2",
+        "hostIPs": [
+          {
+            "ip": "172.18.0.2"
+          }
+        ],
+        "observedGeneration": 1,
+        "phase": "Failed",
+        "podIP": "10.42.0.10",
+        "podIPs": [
+          {
+            "ip": "10.42.0.10"
+          }
+        ],
+        "qosClass": "Burstable",
+        "resources": {
+          "requests": {
+            "memory": "32Mi"
+          }
+        },
+        "startTime": "2026-10-14T11:16:56Z"
+      }
+    }
+  ],
+  "kind": "List",
+  "metadata": {
+    "resourceVersion": ""
+  }
+}

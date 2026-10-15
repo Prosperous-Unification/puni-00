@@ -1,0 +1,261 @@
+heavy lock: waited 0s behind 0 tickets
+Name:      docker.io/library/busybox:1.36.1@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
+MediaType: application/vnd.oci.image.index.v1+json
+Digest:    sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
+
+Manifests:
+  Name:        docker.io/library/busybox:1.36.1@sha256:b7f3d86d6e84fc17718c48bcde1450807faa2d56704205c697b4bd5df7b9e29f
+  MediaType:   application/vnd.oci.image.manifest.v1+json
+  Platform:    linux/amd64
+  Annotations:
+    org.opencontainers.image.url:             https://hub.docker.com/_/busybox
+    org.opencontainers.image.version:         1.36.1-glibc
+    com.docker.official-images.bashbrew.arch: amd64
+    org.opencontainers.image.base.name:       scratch
+    org.opencontainers.image.created:         2026-03-18T22:39:12Z
+    org.opencontainers.image.revision:        c1375496373e76f680b1ef5f713500e98921a45c
+    org.opencontainers.image.source:          https://github.com/docker-library/busybox.git
+
+  Name:        docker.io/library/busybox:1.36.1@sha256:89ac95482c5fefb46a0d3470431760940c36e9c0ff0c40e9e5c259091a26b1e3
+  MediaType:   application/vnd.oci.image.manifest.v1+json
+  Platform:    unknown/unknown
+  Annotations:
+    com.docker.official-images.bashbrew.arch: amd64
+    vnd.docker.reference.digest:              sha256:b7f3d86d6e84fc17718c48bcde1450807faa2d56704205c697b4bd5df7b9e29f
+    vnd.docker.reference.type:                attestation-manifest
+
+  Name:        docker.io/library/busybox:1.36.1@sha256:71b0cbca78cef3413c843ed16136b822b6deefc6dea540f0f77b0e39eb991dc5
+  MediaType:   application/vnd.oci.image.manifest.v1+json
+  Platform:    linux/arm/v5
+  Annotations:
+    org.opencontainers.image.source:          https://github.com/docker-library/busybox.git
+    org.opencontainers.image.url:             https://hub.docker.com/_/busybox
+    org.opencontainers.image.version:         1.36.1-glibc
+    com.docker.official-images.bashbrew.arch: arm32v5
+    org.opencontainers.image.base.name:       scratch
+    org.opencontainers.image.created:         2026-03-18T22:39:12Z
+    org.opencontainers.image.revision:        ca40c0d2d0d41236d15489a29866c186f86eef50
+
+  Name:        docker.io/library/busybox:1.36.1@sha256:f7af5586d19090e26c244084d82896458b1c87ddc1a072fb307411e2a3546822
+  MediaType:   application/vnd.oci.image.manifest.v1+json
+  Platform:    unknown/unknown
+  Annotations:
+    vnd.docker.reference.digest:              sha256:71b0cbca78cef3413c843ed16136b822b6deefc6dea540f0f77b0e39eb991dc5
+    vnd.docker.reference.type:                attestation-manifest
+    com.docker.official-images.bashbrew.arch: arm32v5
+
+  Name:        docker.io/library/busybox:1.36.1@sha256:410cc112a49bb59a661cb2431b15e16dcbd55145e7f0760233e785b8a9630f90
+  MediaType:   application/vnd.oci.image.manifest.v1+json
+  Platform:    linux/arm/v6
+  Annotations:
+    org.opencontainers.image.source:          https://github.com/docker-library/busybox.git
+    org.opencontainers.image.url:             https://hub.docker.com/_/busybox
+    org.opencontainers.image.version:         1.36.1-musl
+    com.docker.official-images.bashbrew.arch: arm32v6
+    org.opencontainers.image.base.name:       scratch
+    org.opencontainers.image.created:         2026-01-22T18:01:52Z
+    org.opencontainers.image.revision:        e4def65e99453b20d5cb5a90b2029fe38825c3e3
+
+  Name:        docker.io/library/busybox:1.36.1@sha256:4feb116b4bab62c542362b105be7dd0f207f42fb15daa2d4b51a3d38789ec8aa
+  MediaType:   application/vnd.oci.image.manifest.v1+json
+  Platform:    linux/arm/v7
+  Annotations:
+    org.opencontainers.image.url:             https://hub.docker.com/_/busybox
+    org.opencontainers.image.version:         1.36.1-glibc
+    com.docker.official-images.bashbrew.arch: arm32v7
+    org.opencontainers.image.base.name:       scratch
+    org.opencontainers.image.created:         2026-03-18T22:39:12Z
+    org.opencontainers.image.revision:        b9b6bc9e93104819ef6b50a4de1c3677f5f9d416
+    org.opencontainers.image.source:          https://github.com/docker-library/busybox.git
+
+  Name:        docker.io/library/busybox:1.36.1@sha256:be18d95c660d53685deecdc04d535b9f2f6347738a15d53b06d7ada77f7782e8
+  MediaType:   application/vnd.oci.image.manifest.v1+json
+  Platform:    unknown/unknown
+  Annotations:
+    com.docker.official-images.bashbrew.arch: arm32v7
+    vnd.docker.reference.digest:              sha256:4feb116b4bab62c542362b105be7dd0f207f42fb15daa2d4b51a3d38789ec8aa
+    vnd.docker.reference.type:                attestation-manifest
+
+  Name:        docker.io/library/busybox:1.36.1@sha256:bd44eb136a95dcc8dc58995e43abc40a413f2e8e3d4a2aae6bccbe94686acb05
+  MediaType:   application/vnd.oci.image.manifest.v1+json
+  Platform:    linux/arm64/v8
+  Annotations:
+    org.opencontainers.image.created:         2026-03-18T22:39:12Z
+    org.opencontainers.image.revision:        b6ab7c14ba46700181395f420545aee1ab297934
+    org.opencontainers.image.source:          https://github.com/docker-library/busybox.git
+    org.opencontainers.image.url:             https://hub.docker.com/_/busybox
+    org.opencontainers.image.version:         1.36.1-glibc
+    com.docker.official-images.bashbrew.arch: arm64v8
+    org.opencontainers.image.base.name:       scratch
+
+  Name:        docker.io/library/busybox:1.36.1@sha256:f460228af1a366e38fde461b880629971d27e9c3b1d11d909cb6482fef7597ae
+  MediaType:   application/vnd.oci.image.manifest.v1+json
+  Platform:    unknown/unknown
+  Annotations:
+    com.docker.official-images.bashbrew.arch: arm64v8
+    vnd.docker.reference.digest:              sha256:bd44eb136a95dcc8dc58995e43abc40a413f2e8e3d4a2aae6bccbe94686acb05
+    vnd.docker.reference.type:                attestation-manifest
+
+  Name:        docker.io/library/busybox:1.36.1@sha256:d5f45b39573a582b66cc64866691322abdfeccc6d77a13194c7ab6b3915baaf6
+  MediaType:   application/vnd.oci.image.manifest.v1+json
+  Platform:    linux/386
+  Annotations:
+    org.opencontainers.image.revision:        30feda7759d9d42f55d7c7daf1d2241d7eb36524
+    org.opencontainers.image.source:          https://github.com/docker-library/busybox.git
+    org.opencontainers.image.url:             https://hub.docker.com/_/busybox
+    org.opencontainers.image.version:         1.36.1-glibc
+    com.docker.official-images.bashbrew.arch: i386
+    org.opencontainers.image.base.name:       scratch
+    org.opencontainers.image.created:         2026-03-18T22:39:12Z
+
+  Name:        docker.io/library/busybox:1.36.1@sha256:9be4ccb7c9eeca6ed282158e5e82b4dd56bde27046bb44b4aba653646a34e499
+  MediaType:   application/vnd.oci.image.manifest.v1+json
+  Platform:    unknown/unknown
+  Annotations:
+    com.docker.official-images.bashbrew.arch: i386
+    vnd.docker.reference.digest:              sha256:d5f45b39573a582b66cc64866691322abdfeccc6d77a13194c7ab6b3915baaf6
+    vnd.docker.reference.type:                attestation-manifest
+
+  Name:        docker.io/library/busybox:1.36.1@sha256:3ed5c2b0c88ab2930e121111d667577a8a6e3033c70ef52ac5239e271d55ade5
+  MediaType:   application/vnd.oci.image.manifest.v1+json
+  Platform:    linux/ppc64le
+  Annotations:
+    org.opencontainers.image.base.name:       scratch
+    org.opencontainers.image.created:         2026-03-18T22:39:12Z
+    org.opencontainers.image.revision:        3dbe0834ac3fa8142a54ea6c676ef4f9581a7bc3
+    org.opencontainers.image.source:          https://github.com/docker-library/busybox.git
+    org.opencontainers.image.url:             https://hub.docker.com/_/busybox
+    org.opencontainers.image.version:         1.36.1-glibc
+    com.docker.official-images.bashbrew.arch: ppc64le
+
+  Name:        docker.io/library/busybox:1.36.1@sha256:fa60eaf37ad328621044ff2b394d2e358eab4562e6d7071a555224df69653660
+  MediaType:   application/vnd.oci.image.manifest.v1+json
+  Platform:    unknown/unknown
+  Annotations:
+    com.docker.official-images.bashbrew.arch: ppc64le
+    vnd.docker.reference.digest:              sha256:3ed5c2b0c88ab2930e121111d667577a8a6e3033c70ef52ac5239e271d55ade5
+    vnd.docker.reference.type:                attestation-manifest
+
+  Name:        docker.io/library/busybox:1.36.1@sha256:64a79a5dfe6e2fa46b950eeee2077c475ae37dccf5e2ebc3fb021e5b6a169d22
+  MediaType:   application/vnd.oci.image.manifest.v1+json
+  Platform:    linux/riscv64
+  Annotations:
+    com.docker.official-images.bashbrew.arch: riscv64
+    org.opencontainers.image.base.name:       scratch
+    org.opencontainers.image.created:         2026-03-18T22:39:12Z
+    org.opencontainers.image.revision:        5e7e6f8960e72260400505fc5b6d547bb0e4223b
+    org.opencontainers.image.source:          https://github.com/docker-library/busybox.git
+    org.opencontainers.image.url:             https://hub.docker.com/_/busybox
+    org.opencontainers.image.version:         1.36.1-glibc
+
+  Name:        docker.io/library/busybox:1.36.1@sha256:440cb5d78e92bb08ebb4949beb8c8ba5982f981b5d203da58b6a66af39adb9d5
+  MediaType:   application/vnd.oci.image.manifest.v1+json
+  Platform:    unknown/unknown
+  Annotations:
+    com.docker.official-images.bashbrew.arch: riscv64
+    vnd.docker.reference.digest:              sha256:64a79a5dfe6e2fa46b950eeee2077c475ae37dccf5e2ebc3fb021e5b6a169d22
+    vnd.docker.reference.type:                attestation-manifest
+
+  Name:        docker.io/library/busybox:1.36.1@sha256:aa25235b35cf838a5060e286badfe8c35bfe64645145a7cadbe38d3d86bcbc0d
+  MediaType:   application/vnd.oci.image.manifest.v1+json
+  Platform:    linux/s390x
+  Annotations:
+    org.opencontainers.image.created:         2026-03-18T22:39:12Z
+    org.opencontainers.image.revision:        f83ddfed5a43316725b4ff637d76e8f895ae22e3
+    org.opencontainers.image.source:          https://github.com/docker-library/busybox.git
+    org.opencontainers.image.url:             https://hub.docker.com/_/busybox
+    org.opencontainers.image.version:         1.36.1-glibc
+    com.docker.official-images.bashbrew.arch: s390x
+    org.opencontainers.image.base.name:       scratch
+
+  Name:        docker.io/library/busybox:1.36.1@sha256:2142d777d166e724ca5a7c382fbd27cda3e7fa5cc8c104c034984b92691c513b
+  MediaType:   application/vnd.oci.image.manifest.v1+json
+  Platform:    unknown/unknown
+  Annotations:
+    com.docker.official-images.bashbrew.arch: s390x
+    vnd.docker.reference.digest:              sha256:aa25235b35cf838a5060e286badfe8c35bfe64645145a7cadbe38d3d86bcbc0d
+    vnd.docker.reference.type:                attestation-manifest
+Signature and comment signature verified
+Trusted comment: timestamp:1757267687	filename:minio.RELEASE.2025-09-07T16-13-09Z
+
+Signature and comment signature verified
+Trusted comment: timestamp:1757203863	filename:mc.RELEASE.2025-08-13T08-35-41Z
+
+Discovery only: Object store manifest mismatch: expected , received sha256:6892027e04ff9f75ad83dcff7f459b8cdfa043ac573a9d88a616bd7803890670
+first manifest sha256:6892027e04ff9f75ad83dcff7f459b8cdfa043ac573a9d88a616bd7803890670
+Signature and comment signature verified
+Trusted comment: timestamp:1757267687	filename:minio.RELEASE.2025-09-07T16-13-09Z
+
+Signature and comment signature verified
+Trusted comment: timestamp:1757203863	filename:mc.RELEASE.2025-08-13T08-35-41Z
+
+second manifest sha256:6892027e04ff9f75ad83dcff7f459b8cdfa043ac573a9d88a616bd7803890670
+INFO[0000] Prep: Network
+INFO[0000] Created network 'k3d-puni-minio-repack'
+INFO[0000] Created image volume k3d-puni-minio-repack-images
+INFO[0000] Starting new tools node...
+INFO[0000] Starting node 'k3d-puni-minio-repack-tools'
+INFO[0001] Creating node 'k3d-puni-minio-repack-server-0'
+INFO[0001] Using the k3d-tools node to gather environment information
+INFO[0001] HostIP: using network gateway 172.18.0.1 address
+INFO[0001] Starting cluster 'puni-minio-repack'
+INFO[0001] Starting servers...
+INFO[0001] Starting node 'k3d-puni-minio-repack-server-0'
+INFO[0007] All agents already running.
+INFO[0007] All helpers already running.
+INFO[0007] Injecting records for hostAliases (incl. host.k3d.internal) and for 1 network members into CoreDNS configmap...
+INFO[0010] Cluster 'puni-minio-repack' created successfully!
+INFO[0010] You can now use it like this:
+export KUBECONFIG=$(/tmp/puni-minio-tools/k3d kubeconfig write puni-minio-repack)
+kubectl cluster-info
+INFO[0000] Importing image(s) into cluster 'puni-minio-repack'
+INFO[0000] Importing images from 1 tarball(s)...
+INFO[0000] Importing images '[dist/tool-fleet/object-store.oci]' into node 'k3d-puni-minio-repack-server-0'...
+INFO[0003] Successfully imported image(s)
+INFO[0003] Successfully imported 1 image(s) into 1 cluster(s)
+namespace/puni-backup created
+storageclass.storage.k8s.io/puni-local created
+storageclass.storage.k8s.io/puni-retain created
+secret/object-store-root created
+persistentvolumeclaim/object-store created
+deployment.apps/object-store created
+service/object-store created
+job.batch/object-store-buckets created
+Waiting for deployment "object-store" rollout to finish: 0 of 1 updated replicas are available...
+deployment "object-store" successfully rolled out
+job.batch/object-store-buckets condition met
+Found 3 pods, using pod/object-store-buckets-99lcs
+object-store-69dccd5d6d-f2cm7: docker.io/puni-local/object-store@sha256:6892027e04ff9f75ad83dcff7f459b8cdfa043ac573a9d88a616bd7803890670
+object-store-buckets-99lcs: docker.io/puni-local/object-store@sha256:6892027e04ff9f75ad83dcff7f459b8cdfa043ac573a9d88a616bd7803890670
+object-store-buckets-pvvlj: docker.io/puni-local/object-store@sha256:6892027e04ff9f75ad83dcff7f459b8cdfa043ac573a9d88a616bd7803890670
+object-store-buckets-s6778: docker.io/puni-local/object-store@sha256:6892027e04ff9f75ad83dcff7f459b8cdfa043ac573a9d88a616bd7803890670
+server UID 1000 proved
+job.batch/object-store-generations created
+job.batch/object-store-generations condition met
+mc UID 1000 proved
+Added `store` successfully.
+ 0 B / ? 15 bytes -> `store/puni-velero/minio-package-proof`
+ 0 B / ? 15 bytes -> `store/puni-velero/minio-package-proof`
+{"status":"success","type":"file","lastModified":"2026-10-14T11:16:48.677Z","size":15,"key":"minio-package-proof","etag":"6bef37719f8e2f276cadbd3cb184392d-1","url":"http://object-store.puni-backup.svc:9000/puni-velero/minio-package-proof","versionId":"275a84e6-9d74-4abb-830e-c28e476d7828","versionOrdinal":2,"storageClass":"STANDARD"}
+{"status":"success","type":"file","lastModified":"2026-10-14T11:16:48.514Z","size":15,"key":"minio-package-proof","etag":"b1528601bdce3113ea55c7dc8885290a-1","url":"http://object-store.puni-backup.svc:9000/puni-velero/minio-package-proof","versionId":"d7b06e02-8242-493f-a643-d67fb642e4a3","versionOrdinal":1,"storageClass":"STANDARD"}
+puni-velero: versioning, lifecycle, both generation bytes verified
+ 0 B / ? 15 bytes -> `store/puni-es-snapshots/minio-package-proof`
+ 0 B / ? 15 bytes -> `store/puni-es-snapshots/minio-package-proof`
+{"status":"success","type":"file","lastModified":"2026-10-14T11:16:49.916Z","size":15,"key":"minio-package-proof","etag":"6bef37719f8e2f276cadbd3cb184392d-1","url":"http://object-store.puni-backup.svc:9000/puni-es-snapshots/minio-package-proof","versionId":"f347ba9c-6415-4bd2-8fdb-5931e01f38ce","versionOrdinal":2,"storageClass":"STANDARD"}
+{"status":"success","type":"file","lastModified":"2026-10-14T11:16:49.733Z","size":15,"key":"minio-package-proof","etag":"b1528601bdce3113ea55c7dc8885290a-1","url":"http://object-store.puni-backup.svc:9000/puni-es-snapshots/minio-package-proof","versionId":"0084cee3-d5a0-43af-a03e-3c597631b1f5","versionOrdinal":1,"storageClass":"STANDARD"}
+puni-es-snapshots: versioning, lifecycle, both generation bytes verified
+ 0 B / ? 15 bytes -> `store/puni-sqlite/minio-package-proof`
+ 0 B / ? 15 bytes -> `store/puni-sqlite/minio-package-proof`
+{"status":"success","type":"file","lastModified":"2026-10-14T11:16:50.908Z","size":15,"key":"minio-package-proof","etag":"6bef37719f8e2f276cadbd3cb184392d-1","url":"http://object-store.puni-backup.svc:9000/puni-sqlite/minio-package-proof","versionId":"f2bbaec0-b4f6-4162-9bcd-a995ce942e66","versionOrdinal":2,"storageClass":"STANDARD"}
+{"status":"success","type":"file","lastModified":"2026-10-14T11:16:50.769Z","size":15,"key":"minio-package-proof","etag":"b1528601bdce3113ea55c7dc8885290a-1","url":"http://object-store.puni-backup.svc:9000/puni-sqlite/minio-package-proof","versionId":"1963fd84-8814-4c25-8922-c4f8e73ca3e1","versionOrdinal":1,"storageClass":"STANDARD"}
+puni-sqlite: versioning, lifecycle, both generation bytes verified
+ 0 B / ? 15 bytes -> `store/puni-etcd/minio-package-proof`
+ 0 B / ? 15 bytes -> `store/puni-etcd/minio-package-proof`
+{"status":"success","type":"file","lastModified":"2026-10-14T11:16:51.866Z","size":15,"key":"minio-package-proof","etag":"6bef37719f8e2f276cadbd3cb184392d-1","url":"http://object-store.puni-backup.svc:9000/puni-etcd/minio-package-proof","versionId":"6e8de194-f3d3-4ea6-85e7-d7dfa26dd330","versionOrdinal":2,"storageClass":"STANDARD"}
+{"status":"success","type":"file","lastModified":"2026-10-14T11:16:51.709Z","size":15,"key":"minio-package-proof","etag":"b1528601bdce3113ea55c7dc8885290a-1","url":"http://object-store.puni-backup.svc:9000/puni-etcd/minio-package-proof","versionId":"9c4b933c-4de5-4c94-87c4-7a28da2e6938","versionOrdinal":1,"storageClass":"STANDARD"}
+puni-etcd: versioning, lifecycle, both generation bytes verified
+job.batch/object-store-bucket-fault created
+job.batch/object-store-bucket-fault condition met
+Added `store` successfully.
+mc: <ERROR> Unable to enable versioning. The specified bucket does not exist.
+Owned MinIO image reproducibility, exact Kubernetes image IDs, four bucket generations and bucket failure proved

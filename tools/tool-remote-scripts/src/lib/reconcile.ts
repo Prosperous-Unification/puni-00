@@ -11,6 +11,13 @@ export interface Observed {
 }
 
 export type SwapStep =
+  | 'preflight-green'
+  | 'record-writer-stop'
+  | 'verify-blue-stopped'
+  | 'stored-vocabularies-before-start'
+  | 'start-maintenance'
+  | 'stop-maintenance'
+  | 'record-writer-exposure'
   | 'start-green'
   | 'stored-vocabularies'
   | 'backup-db'
@@ -52,32 +59,40 @@ export function planSwap(tier: Tier, observed: Observed): SwapPlan {
   const from = resolveLiveColor(observed);
   const to = from === null ? 'blue' : flipColor(from);
 
-  const steps: SwapStep[] = ['start-green'];
-  // Migrations run as a discrete step before green takes traffic, so a failure
-  // aborts with the old colour untouched and un-migrated. The backup comes
-  // first: it is the only rollback once a migration's down script cannot be
-  // trusted or blue has already stopped.
-  // Proof: leaving 'backup-db' out of this list made `backs up before
-  // migrating, and never after` in reconcile.test.ts fail (15 pass, 1 fail,
-  // 2026-09-29).
-  if (tier === 'be') steps.push('stored-vocabularies', 'backup-db', 'migrate');
-  steps.push('health-gate');
-  // gw-01 reads BE_URL once at startup, so a be swap moves a stable network
-  // alias (be-01.internal) rather than reconfiguring gw. Granting it to the
-  // incoming colour happens BEFORE render-route/reload, while nothing routes
-  // to that colour yet (safe to briefly disconnect/reconnect it); revoking it
-  // from the outgoing colour is deferred until AFTER reload, once Caddy has
-  // already switched its own-alias-based route away from it — see
-  // lib/docker.ts's grantAliasCommands/revokeAliasCommands doc comment.
-  if (tier === 'be') steps.push('grant-alias');
-  steps.push('render-route', 'reload');
+  if (tier === 'be') {
+    // Proof: the old start-first planner failed the stopped-writer ordering test.
+    // Every backend transition has an outage: a binary that predates a new fact
+    // can still corrupt its ownership with structural writes during overlap.
+    return {
+      tier,
+      from,
+      to,
+      steps: [
+        'preflight-green',
+        'record-writer-stop',
+        'stop-blue',
+        'verify-blue-stopped',
+        'stored-vocabularies-before-start',
+        'start-maintenance',
+        'backup-db',
+        'migrate',
+        'stop-maintenance',
+        'record-writer-exposure',
+        'start-green',
+        'stored-vocabularies',
+        'health-gate',
+        'stored-vocabularies-after-stop',
+        'backfill-step-codes',
+        'grant-alias',
+        'render-route',
+        'reload',
+        'commit',
+      ],
+    };
+  }
+  const steps: SwapStep[] = ['start-green', 'health-gate', 'render-route', 'reload'];
   if (tier === 'gw') steps.push('drain');
-  if (tier === 'be' && from !== null) steps.push('revoke-alias');
   if (from !== null) steps.push('stop-blue');
-  if (tier === 'be' && from !== null) steps.push('stored-vocabularies-after-stop');
-  // After the old colour stops, so no writer that ignores `step.code` is left;
-  // on a first deploy too, because the database may predate this release.
-  if (tier === 'be') steps.push('backfill-step-codes');
   steps.push('commit');
   return { tier, from, to, steps };
 }

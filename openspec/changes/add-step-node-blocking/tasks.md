@@ -54,3 +54,32 @@
 - [ ] 6.3 Document historical parent-progress inventory/explicit repair and incompatible-writer overlap release obligations. Run `bin/h2puni-gate.sh <sha>` on the exact candidate when the shared gate checkout is clean; capture exact-SHA CI and migration-lint evidence before integration. Do not mark the WBS parent complete while unrelated gate dirt remains.
 
 - [x] 4.2.2 Plan-document direct transfer: allocate v9 on exact b4537c83; require root direct facts and exclude row aliases; normalize empty v1–8 facts and refuse nonempty legacy collections; validate owner/leaf/step/time/unique pairs; restore remapped identities and exact timestamps through the scoped import resource inside its existing unit of work; prove memory/SQLite roundtrip, mounted 400/export, full rollback and schedule neutrality; preserve Navigator external v7 with internal v9 adapter and saved schema7/scheduler16.
+
+## 6.4 Compose stopped-writer release barrier
+
+- [x] 6.4.1 Red planner ordering and durable retry/interruption negatives; preflight before stop, exact outgoing and idle IDs, complete canonical writable-mount inventory, independent stopped inspection, candidate gating and exposure before alias.
+- [x] 6.4.2 Replace backend overlap with the mandatory stopped-writer sequence; retain stop/migration/exposure evidence, refuse ordinary retries, keep older writers stopped on every failure, and provide digest-pinned attended schema/replay recovery without automatic restart.
+- [x] 6.4.3 Add full planned execution, partial alias failure, preflight/no-unrelated-stop, identity replacement, read-only/canonical alias, and real SQLite printed recovery proofs; watch production guard omissions fail and add adjacent Proof comments.
+- [x] 6.4.4 Run scoped test/lint/typecheck/format and strict OpenSpec validation; record outputs and retained limitations.
+- [ ] 6.4.5 Obtain Astra review before integration and combine the separate SQLite activation boundary. No live deployment belongs to this slice.
+
+- [x] 6.4.6 Repair Astra's stopped-idle alias, actual database identity and boot-exposure blockers: decode effective merged configuration, private snapshot with forced recreation/no dependencies/no pull, most-specific DB bind resolution for candidate/outgoing/idle before stop, durable possible exposure before boot, and independent read-only fact/replay admission before that exposure. Watch all reported omissions fail, including disposable Docker mutations with verified cleanup.
+- [ ] 6.4.7 Rerun scoped checks and strict validation on the corrected transition; obtain independent Astra review before integrating the separate SQLite activation boundary or deploying.
+
+- [x] 6.4.8 Repair Astra SQLite probe/family blockers with quiescent private main/WAL copies under read-only source mount, production-command clean/retained-WAL proofs, whole-family directory mapping and pre-stop shadow/alias negatives; watch protection omissions fail.
+- [ ] 6.4.9 Obtain Astra re-review of the SQLite family/probe correction before integration or deployment.
+
+- [x] 6.4.10 Repair physical hardlink exclusion and recovery-path family admission; refuse unresolved unmanaged directory aliases, preserve read-only/distinct-file admission, correct stale automatic recovery prose, and watch all three production omissions fail.
+- [ ] 6.4.11 Obtain independent Astra re-review of physical/family admission before integration or deployment.
+
+- [x] 6.4.12 Replace blanket writable-directory refusal with complete bounded daemon-assisted read-only inode audits; admit shipped Caddy/registry volumes and logs, preserve physical/recovery guards, require local pinned helper/no pull, and prove nested aliases and all failed/incomplete audit paths.
+- [ ] 6.4.13 Obtain Astra review and a disposable real-Docker helper rehearsal before integration or deployment.
+
+- [x] 6.4.14 Reproduce host Source replacement, top-level RO/nested RW and default-cap proc-root refusal; discard the unmergeable proc-root helper. Prove initialized default-image process groups on timeout/EOF/client cancellation, including scanner/grandchild, unrelated sentinel and zero zombie residue.
+- [x] 6.4.15 Replace source rebinds with strict in-target metadata sessions, immutable read-only code, per-entry stat failure propagation, actual mountinfo/family/ID stability, bounded complete Docker operations and verified initialized-group cleanup. Add attended init prerequisites and be-only candidate/render checks; document trusted nonadversarial quiescence explicitly. Watch safety omissions fail.
+- [ ] 6.4.16 Run final scoped checks/strict OpenSpec validation, record exact-source real-Docker evidence and obtain independent Astra review before integration. No live prerequisite application or activation belongs to this slice.
+
+- [x] 6.4.17 Refuse unreadable census directories explicitly before shell glob traversal; prove an empty directory remains admissible and a chmod000 hardlink cannot be hidden under reduced capabilities.
+
+- [x] 6.4.18 Repair merged predecessor boot refusal with hash-pinned inert maintenance, exact-ID backup/capture/migrate, durable maintenance/migration receipts and stopped proof before app exposure; preserve the boot admission check and disabled activation.
+- [x] 6.4.19 Complete authentic predecessor/interruption, snapshot/identity/configuration and watched guard proofs, scoped verification, reviewed BusyBox integration and exact-image rehearsal; obtain combined independent review before publication.
