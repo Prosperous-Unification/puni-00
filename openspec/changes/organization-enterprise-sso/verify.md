@@ -370,3 +370,66 @@ Each fault below was injected independently into the production path, the named 
 The browser fixture initially could not listen in the sandbox (`EPERM 127.0.0.1:6299`); automatic escalation review allowed the local Vite/Chromium run. A preliminary interleaved browser run passed 13/14 while production fault mutations were changing the served source; it is not final verification. The complete restored-source run above passed all 14 with no source mutations running. Nx reported unavailable plugin sockets and ran plugins in-process; its scoped commands still completed normally. Existing Vite native-config and terminal color warnings were present.
 
 No backend, contracts or migration changed. The ordinary backend/solver browser stack, live Auth0/customer proof, deployment and canonical h2puni host gate were not run by this worker; the integration owner handles the exact-head gate and review. This fixture verifies browser behavior against typed route replies and does not prove live provider configuration. Dependencies were supplied by the existing installed workspace `node_modules` through an isolated-clone symlink; frozen install remains part of the canonical host gate.
+
+## Browser provisioning tokens — 2026-10-15
+
+Tasks 6.1–6.3 add a separate organization panel. The fixture seeds a proven connection in a disposable database; it does not establish Auth0 entitlement, configure an upstream provider or prove a customer IdP accepts SCIM.
+
+Initial red: the empty component scaffold failed all nine initial mounted tests. Before composition, `composes provisioning token administration on the organization page` failed because the region was absent. The implementation then passed the mounted panel/page suite (39 tests). The mounted backend token suite passed nine tests with 78 assertions. `bunx @fission-ai/openspec@1.12.0 validate organization-enterprise-sso --json` reported valid with no issues.
+
+Watched production-path faults (each restored):
+
+| Injected fault                                                           | Observed negative                                                                       |
+| ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
+| Bypass exact token-ID comparison                                         | Wrong-confirmation test failed because DELETE occurred without its error.               |
+| Remove pending guards in form and mutation                               | Forced held-form submission observed two DELETEs, expected one.                         |
+| Remove list generation fence                                             | Held StrictMode GET restored `token-a` after issue; stale-read test failed.             |
+| Remove the captured scope from `useResourceClient`'s client construction | Scoped read/write test observed a missing expected-organization header.                 |
+| Omit secret clearing                                                     | Refresh test retained `ephemeral-secret`; test failed.                                  |
+| Break the shared client's currentness fences                             | Held issued reply published `withdrawn-secret` after authority withdrawal; test failed. |
+| Replace returned `previousExpiresAt` with zero                           | Rotation test failed to find the server's exact expiry.                                 |
+| Remove refresh pending admission                                         | Same-render Refresh→Issue test observed a POST, expected none.                          |
+| Omit page composition                                                    | Mounted page test failed to find the Provisioning tokens region.                        |
+
+Two false-green test harness conditions were corrected before accepting the proofs: the duplicate test initially counted only the first mocked fetch, and the withdrawn-reply test initially withdrew before the async client reached fetch. The corrected tests count every write and wait until the request is held at fetch before withdrawing authority. The first unscoped fault rebuilt the client every render and did not terminate; it was cancelled, restored, and replaced with removal of the captured scope at the existing memoized client boundary.
+
+The first real browser attempt was unavailable because the sandbox denied the localhost listener (`EPERM listen`); it is rerun with socket access. Final browser, lint, typecheck and exact-SHA gate evidence follows after those runs.
+
+Final focused evidence:
+
+- `bunx vitest run src/components/organization/provisioning-tokens-panel.test.tsx src/components/organization/organization-page.test.tsx --maxWorkers=1` (from fe-01): 39 passed, zero failed.
+- `bun test apps/wbs/be-01/src/controller/provisioning-token.controller.db.test.ts`: nine passed, zero failed, 78 assertions.
+- `bunx tsc --build --force apps/wbs/fe-01/tsconfig.json`: exit 0.
+- Normal commit hooks on checkpoint `1023ef5388cb4c722ae74cfd6a57fd4710b36116`: format, staged lint, secrets, private nesting and tool-wiki command passed. Tool-wiki explicitly reported inactive external activation, not certified. No migration hook applied because no SQL changed.
+- Socket-enabled `bunx playwright test --config apps/wbs/fe-01/playwright.organization.config.ts -g 'browser provisioning'`: one passed. The first socket-enabled attempt correctly showed the fixture must explicitly select its organization; after adding that selection it passed in 11.8 seconds. The real mounted production boot answered `provisioning_active` while tokens lived and 204 after browser revocation of both tokens; metadata and the rotation expiry came from the backend. At 375px the document had no horizontal overflow.
+
+The pending aggregate #467 and source #463 were still open at this checkpoint. This slice proves connection deletion through the existing API, without claiming the pending Company sign-in deletion controls have merged. The canonical h2puni gate on the final SHA and review remain separate required checks; no gate pass is claimed here.
+
+Final fixture expansion: the complete organization Playwright config passed both tests (23.4 seconds), including keyboard focus and secret absence after reload. Whole-store OpenSpec validation passed 200 entries: 182 changes and 18 specs. After a mounted red for absent revocation-time metadata, rows also display the server revocation timestamp.
+
+## Review repairs — 2026-10-15
+
+Independent review of `1e280fe47922678b641d9ebc87a9bb94517f035a` found three P2 issues: a successful write's secret was discarded when its metadata read failed; code-only display lacked keyboard retrieval; overlap predecessors incorrectly offered rotation and the not_found wording asserted they were no longer live.
+
+The secret now survives metadata transport and response failures, alongside the rendered failure. Explicit refresh, another mutation, authority refusal, dismissal and unmount still discard it. A labeled read-only input selects its full value on focus; the application needs no clipboard API. A non-null server expiry hides Rotate while retaining Revoke, and not_found now describes unavailability for the action.
+
+Red evidence: both issue and rotate metadata-failure tests failed before secret preservation; the keyboard field test failed before the focusable field existed; the overlap-control and corrected-refusal tests failed against the previous implementation.
+
+Watched production negatives, restored before final checks:
+
+| Fault                                    | Observed failure                                                                        |
+| ---------------------------------------- | --------------------------------------------------------------------------------------- |
+| Reintroduce clearing on metadata failure | Four issue/rotate network/503 cases lost recoverable-secret.                            |
+| Remove input focus selection             | Keyboard test selected an empty range instead of the whole secret.                      |
+| Render Rotate despite non-null expiry    | Overlap predecessor test found the prohibited Rotate button; Revoke remained available. |
+| Omit authority-refusal secret clearing   | Three post-issue metadata refusals retained authority-secret.                           |
+
+The real browser fixture performed native keyboard copy from the selected field and verified the actual clipboard value. No upstream IdP was contacted. Final focused suite, browser suite, lint, typecheck, hooks and OpenSpec evidence are recorded after their final runs. The root coordinator owns the h2puni gate; this worker did not run it.
+
+Final review-repair checks:
+
+- Mounted panel and page suite: 48 passed, zero failed (30.91 seconds).
+- Complete real organization browser/API fixture: two passed (40.9 seconds), including native keyboard copy verified through the actual clipboard, hidden overlap rotation, retained revoke, 375px layout, reload secret absence and deletion-blocker release.
+- Changed frontend files: ESLint exit 0; full frontend TypeScript build exit 0 after removing unsupported Testing Library `exact` options from three new queries (string names are already exact).
+- OpenSpec `validate --all --json`: 200 passed, zero failed (182 changes and 18 specs).
+- No backend production changes or migrations were made for these review repairs. The previously recorded mounted backend result remains the backend evidence; it was not rerun for this browser-only repair.

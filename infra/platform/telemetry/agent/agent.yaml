@@ -39,6 +39,9 @@ spec:
       requests: { cpu: 50m, memory: 96Mi }
       limits: { cpu: 500m, memory: 256Mi }
     extraEnvs:
+      - name: PUNI_TELEMETRY_SERVER_NAME
+        valueFrom:
+          configMapKeyRef: { name: puni-telemetry, key: serverName }
       - name: PUNI_TELEMETRY_UPSTREAM
         valueFrom:
           configMapKeyRef: { name: puni-telemetry, key: upstream }
@@ -46,6 +49,10 @@ spec:
         valueFrom:
           configMapKeyRef: { name: puni-telemetry, key: cluster }
     extraVolumes:
+      - name: otel-client-tls
+        secret: { secretName: otel-client-tls }
+      - name: otel-server-trust
+        secret: { secretName: otel-server-trust }
       - name: pod-logs
         hostPath: { path: /var/log/pods, type: Directory }
       - name: host-proc
@@ -53,6 +60,8 @@ spec:
       - name: state
         hostPath: { path: /var/lib/puni-otelcol, type: DirectoryOrCreate }
     extraVolumeMounts:
+      - { name: otel-client-tls, mountPath: /etc/otel/client, readOnly: true }
+      - { name: otel-server-trust, mountPath: /etc/otel/server-trust, readOnly: true }
       - { name: pod-logs, mountPath: /var/log/pods, readOnly: true }
       - { name: host-proc, mountPath: /hostfs/proc, readOnly: true }
       - { name: state, mountPath: /var/lib/otelcol }
@@ -131,9 +140,13 @@ spec:
       exporters:
         otlp:
           endpoint: ${env:PUNI_TELEMETRY_UPSTREAM}
-          # Private network only; otlp-ingress admits the private CIDR. mTLS is an open item.
           tls:
-            insecure: true
+            ca_file: /etc/otel/server-trust/ca.crt
+            cert_file: /etc/otel/client/tls.crt
+            key_file: /etc/otel/client/tls.key
+            server_name_override: ${env:PUNI_TELEMETRY_SERVER_NAME}
+            min_version: '1.3'
+            reload_interval: 1m
           sending_queue:
             enabled: true
             storage: file_storage/queue

@@ -78,3 +78,7 @@ Problem: complete committed level facts and inspected Performance publications a
 ## 2.1j intent
 
 Problem: six find-based Bun level commands emit bare substring filters, allowing nested matching files to execute outside selection. Outcome: emit literal `./src` operands, keep the Memory Unit Conformance exclusion effective, and remove exactly one leading `./` only from collected canonical identities. Constraints: preserve each command's selector scope, report clearing, empty/failed-selection behavior, timeout and flags. Non-goals: a new registry or parser, shell whitespace/glob safety, remaining levels, trusted receipts, coverage or admission.
+
+## 4.1b.8 intent
+
+Problem: Browser report observations bind real cases and sources but provide no explicit earlier-row review state. Outcome: a facts-only Browser membership adapter binds a strict external authority to one exact report observation, retaining unknown versus reviewed-empty assertions for Manual, Conformance, Architecture and Performance across the complete recorded fixture collection. Constraints: exact revision/candidate/mode/report digest joins, complete unique row inventory, inherited publication/source refusals, absent authentication, false certification and full-envelope digest. Non-goals: discovered membership, committed earlier-row extraction, classification, isolation, T1/T2, coverage, receipts, admission or source reconciliation.

@@ -65,6 +65,17 @@ It does not run tests or resolve scenario citations. The observation has absent 
 completed, even when a case failed or was skipped. The command retains the Browser inspector's
 policy, publication, discovery and report refusals.
 
+`inspect-browser-memberships <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <external-authority>`
+binds the real report observation to strict external version-1 review facts. The authority pins
+`revision`, `candidate`, `mode` and `reportObservationDigest`, and lists exactly four
+`memberships`: each has `level` (`manual`, `conformance`, `architecture`, `performance`) and
+`kind` (`unknown` or `reviewed-empty`). Each assertion covers the complete recorded Browser
+fixture collection. Unknown remains an evidence gap; reviewed-empty records an external review
+assertion. The output retains the complete report, sorted unique collection and review rows,
+raw authority digest and full-envelope digest. These facts neither discover membership nor
+classify a test, establish isolation or grant T1/T2, coverage or admission credit. Authentication
+is absent and `certifies:false`; failed and skipped cases remain observations.
+
 `inspect-test-sources <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable>`
 joins those observed Browser case files to their exact validated module indexes in the same
 selected commit. It reports the source owner, source and index identities, index review debt, and

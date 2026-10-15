@@ -43,6 +43,8 @@ const validatorCommands = new Set([
   'inspect-level-facts',
   // Proof: removing this registration failed [TEST-AXES-090]'s packaged executable success.
   'inspect-performance-levels',
+  // Proof: removing this registration failed TEST-AXES-095's real installed executable success.
+  'inspect-browser-memberships',
   'template',
   'validate-policy-activation',
 ]);
@@ -52,10 +54,11 @@ const help = `usage: twilight-burokrat <command> ...
 commands:
   twilight-burokrat validate-record <kind> <json>
   twilight-burokrat validate-plan-tasks <plan-reference.json> <tasks.json>
-  twilight-burokrat check <committed|staged|working> <repository> <revision-or-base> <rule-policy-json> [--rule <rule-id>]
+  twilight-burokrat check <committed|staged|working> <repository> <revision-or-base> <rule-policy-json> [--rule <rule-id>] [--performance-evidence <json>]
   twilight-burokrat inspect-performance <repository> <committed-sha> <external-rule-policy>
   twilight-burokrat inspect-performance-sources <repository> <committed-sha> <external-rule-policy>
   twilight-burokrat inspect-spec-sources <repository> <committed-sha>
+  twilight-burokrat inspect-browser-memberships <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <external-authority>
   twilight-burokrat inspect-performance-levels <repository> <committed-sha> <external-facts-authority> <external-rule-policy>
   twilight-burokrat inspect-level-facts <repository> <committed-sha> <external-authority>
   twilight-burokrat inspect-manual <repository> <committed-sha> <external-rule-policy> <report-path> --now <UTC instant>

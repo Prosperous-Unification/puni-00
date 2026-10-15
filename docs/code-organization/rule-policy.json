@@ -602,7 +602,7 @@
       {
         "path": "infra/platform/charts/cert-manager-v1.21.2.tgz",
         "format": "application/gzip",
-        "consumer": "infra/platform/networking/cert-manager.yaml",
+        "consumer": "infra/platform/networking/cert-manager/release.yaml",
         "regenerationAuthority": {
           "kind": "source",
           "path": "infra/versions/toolchain.json"
