@@ -105,6 +105,7 @@ import { runStepCodeBackfill } from './lib/step-code-backfill';
 import {
   assertNoWriterBarrier,
   clearWriterBarrier,
+  type WriterImage,
   type WriterIntent,
   writeWriterBarrier,
 } from './lib/writer-barrier';
@@ -924,12 +925,13 @@ const STORED_VOCABULARIES: readonly StoredVocabulary[] = [
 /** Parses the incoming release's supported values at the Docker output boundary. */
 function parseSupported(output: string, vocabulary: StoredVocabulary): string[] {
   const parsed: unknown = JSON.parse(output);
-  if (!Array.isArray(parsed))
+  // Proof: duplicate and empty activation capability fixtures migrated before this guard.
+  if (!Array.isArray(parsed) || new Set(parsed).size !== parsed.length)
     throw new Error(`incoming release reported malformed supported ${vocabulary.name}`);
   return parsed.map((value: unknown) => {
     // Proof: disabling this type check made `rejects a non-string supported relationship type`
     // fail on `Unable to find property` for the expected malformed-output error.
-    if (typeof value !== 'string')
+    if (typeof value !== 'string' || value.length === 0)
       throw new Error(`incoming release reported malformed supported ${vocabulary.name}`);
     return value;
   });
@@ -1230,18 +1232,21 @@ export async function inspectBackendWriters(
 /**
  * Read-only admission proof before candidate boot or attended recovery. Both colours and every known
  * writer must be stopped. The candidate independently inventories the database;
- * the proposed previous digest must understand every fact and journal capability.
+ * both candidate and previous digest must independently understand every stored vocabulary,
+ * including fact kinds and journal capabilities, before maintenance or migration.
+ * Null predecessor is reserved for a proven first installation: no managed backend writer,
+ * a capable candidate, and pre-marker/DISABLED authority. ENABLED requires rollback.
  * This proof grants no write authority and never restarts a container.
  */
 export async function checkBackendRecovery(
-  previousImage: string,
+  previousImage: string | null,
   candidateImage: string,
   databasePath: string,
   runDocker: SwapExecutionIo['sh'],
   resolveMount: (path: string) => Promise<string> = (path) => Promise.resolve(path),
   namespaceProof: typeof verifyContainerNamespace = verifyContainerNamespace,
 ): Promise<void> {
-  assertDigestPinnedRef(previousImage, 'be');
+  if (previousImage !== null) assertDigestPinnedRef(previousImage, 'be');
   assertDigestPinnedRef(candidateImage, 'be');
   await runDockerBefore(
     ['image', 'inspect', '--format', '{{.Id}}', candidateImage],
@@ -1265,16 +1270,17 @@ export async function checkBackendRecovery(
     ],
     resolveMount,
   );
-  for (const identity of (
-    await inspectBackendWriters(
-      runDocker,
-      expectedDatabase,
-      resolveMount,
-      candidateImage,
-      namespaceProof,
-    )
-  ).values())
-    await assertContainerStopped(identity, runDocker);
+  const writers = await inspectBackendWriters(
+    runDocker,
+    expectedDatabase,
+    resolveMount,
+    candidateImage,
+    namespaceProof,
+  );
+  // Proof: omitting this refusal admitted a backend appearing after first-install preflight; the ordinary first-late-writer negative failed.
+  if (previousImage === null && writers.size !== 0)
+    throw new Error('first backend install requires no existing backend writer');
+  for (const identity of writers.values()) await assertContainerStopped(identity, runDocker);
   const oneOff = (image: string, command: string[]): string[] => [
     'run',
     '--rm',
@@ -1292,10 +1298,21 @@ export async function checkBackendRecovery(
     ...command.slice(1),
   ];
   for (const vocabulary of STORED_VOCABULARIES) {
-    const supported = parseSupported(
-      await runDocker(oneOff(previousImage, vocabulary.supportedCommand('recovery').slice(2))),
+    // Proof: substituting the rollback observation failed all asymmetric candidate cases and every both-capable image-observation control.
+    const candidateSupported = parseSupported(
+      await runDocker(oneOff(candidateImage, vocabulary.supportedCommand('recovery').slice(2))),
       vocabulary,
     );
+    // Proof: substituting the candidate observation failed all asymmetric rollback cases and the independent image-observation controls.
+    const rollbackSupported =
+      previousImage === null
+        ? null
+        : parseSupported(
+            await runDocker(
+              oneOff(previousImage, vocabulary.supportedCommand('recovery').slice(2)),
+            ),
+            vocabulary,
+          );
     const stored = parseStored(
       // Proof: bypassing the snapshot here made all three production admission
       // clean/retained-WAL fixtures fail on readonly opening or source SHM mutation.
@@ -1307,13 +1324,83 @@ export async function checkBackendRecovery(
       ),
       vocabulary,
     );
-    const unsupported = stored.filter((row) => !supported.includes(row.value));
-    // Proof: omitting this comparison admitted move_progress_v1 during attended old-image recovery.
-    if (unsupported.length > 0)
+    if (previousImage === null && vocabulary === STEP_BLOCKAGE_REPLAY_VOCABULARY) {
+      // Proof: bypassing capability/ENABLED refusals separately admitted incapable candidate or ENABLED authority without rollback in ordinary first-install negatives.
+      if (!candidateSupported.includes('step_blockage_activation_v1'))
+        throw new Error(
+          'first backend install requires step_blockage_activation_v1 candidate capability',
+        );
+      if (stored.some((row) => row.value === 'step_blockage_activation_v1'))
+        throw new Error('enabled step blockage authority requires a rollback image');
+    }
+    if (rollbackSupported !== null) {
+      const unsupported = stored.filter((row) => !rollbackSupported.includes(row.value));
+      // Proof: bypassing rollback membership failed each asymmetric ordinary complete-vocabulary rollback negative before maintenance.
+      if (unsupported.length > 0)
+        throw new Error(
+          `recovery image cannot read stored ${vocabulary.name}: ${unsupported.map((row) => `${row.value} (${String(row.count)})`).join(', ')}`,
+        );
+    }
+    const unsupportedCandidate = stored.filter((row) => !candidateSupported.includes(row.value));
+    // Proof: bypassing candidate membership failed each asymmetric ordinary complete-vocabulary candidate negative before maintenance.
+    if (unsupportedCandidate.length > 0)
       throw new Error(
-        `recovery image cannot read stored ${vocabulary.name}: ${unsupported.map((row) => `${row.value} (${String(row.count)})`).join(', ')}`,
+        `candidate image cannot read stored ${vocabulary.name}: ${unsupportedCandidate.map((row) => `${row.value} (${String(row.count)})`).join(', ')}`,
       );
   }
+}
+
+/**
+ * Captures the outgoing container's pinned reference and verifies that Docker resolves it to
+ * that container's immutable image ID. Re-read after writer stop before compatibility admission.
+ */
+async function readWriterImage(
+  containerId: string,
+  runDocker: SwapExecutionIo['sh'],
+): Promise<WriterImage> {
+  const inspected: unknown = JSON.parse(
+    await runDockerBefore(
+      ['inspect', '--type', 'container', containerId],
+      runDocker,
+      performance.now() + 15000,
+    ),
+  );
+  // Proof: removing the array/object checks separately failed ordinary array-like and null-container image observation negatives.
+  if (!Array.isArray(inspected) || inspected.length !== 1)
+    throw new Error('outgoing backend image inspection is malformed');
+  const container: unknown = inspected[0];
+  if (container === null || typeof container !== 'object')
+    throw new Error('outgoing backend image inspection is malformed');
+  const identity: unknown = Reflect.get(container, 'Id');
+  const imageId: unknown = Reflect.get(container, 'Image');
+  const config: unknown = Reflect.get(container, 'Config');
+  const image: unknown =
+    config !== null && typeof config === 'object' ? Reflect.get(config, 'Image') : undefined;
+  // Proof: removing exact container identity or image-ID format separately admitted wrong-container or mutually malformed image IDs in ordinary deployment.
+  if (
+    identity !== containerId ||
+    typeof imageId !== 'string' ||
+    !/^sha256:[0-9a-f]{64}$/.test(imageId) ||
+    typeof image !== 'string'
+  )
+    throw new Error('outgoing backend image identity is missing or malformed');
+  try {
+    // Proof: removing pinned-reference validation let mutable-ref proceed to writer stop; its ordinary preflight negative failed.
+    assertDigestPinnedRef(image, 'be');
+  } catch (cause) {
+    throw new Error('outgoing backend image is not pinned to a backend digest', { cause });
+  }
+  const pinned: unknown = JSON.parse(
+    await runDockerBefore(
+      ['image', 'inspect', '--format', '{{json .}}', image],
+      runDocker,
+      performance.now() + 15000,
+    ),
+  );
+  // Proof: removing this comparison admitted a pinned reference resolving to another image; ordinary wrong-pinned-id failed.
+  if (pinned === null || typeof pinned !== 'object' || Reflect.get(pinned, 'Id') !== imageId)
+    throw new Error('outgoing backend image digest resolves to another image ID');
+  return { containerId, image, imageId };
 }
 
 /** Exact container identity and stopped state must both be observed after Docker stop. */
@@ -1596,11 +1683,14 @@ export async function execute(
           if (outgoingId === undefined)
             throw new Error('outgoing backend container is absent from writer inventory');
           const idleId = writers.get(greenName) ?? null;
-          // With no routed/recorded colour, a writer on the other colour is unowned.
-          if (from === null && writers.has(containerName(tier, to === 'blue' ? 'green' : 'blue')))
+          // Proof: bypassing this absence predicate failed both-colour false-first-install negatives before writer stop.
+
+          if (from === null && writers.size !== 0)
             throw new Error('unowned backend writer exists; explicit recovery required');
+          const rollback = outgoingId === null ? null : await readWriterImage(outgoingId, io.sh);
           writerIntent = {
             candidate: image,
+            rollback,
             snapshots: { imageId: backendPrepared.imageId, ...backendPrepared.snapshots },
             sha,
             from,
@@ -1647,9 +1737,21 @@ export async function execute(
         case 'stored-vocabularies-before-start':
           if (backendPrepared === null || !stopProven)
             throw new Error('pre-boot admission lacks stopped writer/database proof');
+          if (writerIntent === null)
+            throw new Error('outgoing backend image association is missing');
+          if (writerIntent.rollback !== null) {
+            // Proof: omitting readback or equality admitted a changed post-stop reference; changed-ref/changed-image-id ordinary negatives failed.
+            const observed = await readWriterImage(writerIntent.rollback.containerId, io.sh);
+            if (
+              observed.image !== writerIntent.rollback.image ||
+              observed.imageId !== writerIntent.rollback.imageId
+            )
+              throw new Error('outgoing backend image association changed after writer stop');
+          }
           // Proof: omitting this read-only admission started a digest lacking move_progress_v1; the pre-boot history negative failed.
           await checkBackendRecovery(
-            image,
+            // Proof: substituting candidate here admitted an incapable outgoing image in ordinary execute; the incapable-outgoing negative failed.
+            writerIntent.rollback === null ? null : writerIntent.rollback.image,
             image,
             backendPrepared.databasePath,
             io.sh,

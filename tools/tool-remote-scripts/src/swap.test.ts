@@ -1081,6 +1081,29 @@ describe('execute, stored vocabulary rollback guard', () => {
     return { ran, phases, caught };
   }
 
+  it.each([
+    '["step_blockage_activation_v1","step_blockage_activation_v1"]',
+    '["step_blockage_activation_v1",""]',
+  ])('refuses malformed activation capability output %s before migration', async (supported) => {
+    const attempt = await runGuard(
+      '["FS"]',
+      '[]',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      false,
+      { supported, stored: () => '[{"kind":"step_blockage_activation_v1","count":1}]' },
+    );
+    expect(attempt.caught).toHaveProperty(
+      'message',
+      expect.stringContaining('malformed supported step blockage replay commands'),
+    );
+    expect(attempt.ran.some((args) => args.includes('src/migrate-cli.ts'))).toBe(false);
+  });
+
   it('refuses an image without step blockage support before migration', async () => {
     const attempt = await runGuard(
       '["FS"]',
@@ -1231,7 +1254,7 @@ describe('execute, stored vocabulary rollback guard', () => {
       const db = new Database(path);
       try {
         db.run(
-          'CREATE TABLE command_journal (payload text NOT NULL,inverse text NOT NULL,preconditions text NOT NULL)',
+          'CREATE TABLE __drizzle_migrations (name TEXT); CREATE TABLE command_journal (payload text NOT NULL,inverse text NOT NULL,preconditions text NOT NULL)',
         );
         const inventory = async () => {
           const probe = Bun.spawn(storedStepBlockageReplayKindsCommand('green').slice(2), {
@@ -1309,7 +1332,7 @@ describe('execute, stored vocabulary rollback guard', () => {
     const db = new Database(path);
     try {
       db.run(
-        "CREATE TABLE command_journal (payload text NOT NULL,inverse text NOT NULL,preconditions text NOT NULL DEFAULT '{}')",
+        "CREATE TABLE __drizzle_migrations (name TEXT); CREATE TABLE command_journal (payload text NOT NULL,inverse text NOT NULL,preconditions text NOT NULL DEFAULT '{}')",
       );
       const inventory = async () => {
         const child = Bun.spawn(storedStepBlockageReplayKindsCommand('green').slice(2), {

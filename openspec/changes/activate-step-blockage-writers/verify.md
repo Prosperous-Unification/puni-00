@@ -1,8 +1,8 @@
 # Verification Report
 
 **Change:** `activate-step-blockage-writers`
-**Verified at:** `2026-10-15 17:35 UTC`
-**Status:** Image-local prerequisite only; overall change incomplete and blocked from archive/release activation.
+**Verified at:** `2026-10-15 18:49 UTC`
+**Status:** Image-local prerequisite and preserve-only deployment admission implemented; attended activation remains incomplete and blocked from archive/release activation.
 
 ## 1. Structural Validation
 
@@ -14,7 +14,7 @@
 
 ## 2. Task Completion
 
-Tasks 1.1–1.4 are implemented. Tasks 2.1–2.3 remain unchecked and block activation and archive: independent enabled-empty capability inventories, candidate/rollback admission, explicit Compose activation/inspect orchestration, durable intent and uncertainty barriers, and Kubernetes admission while retaining first-start DISABLED.
+Tasks 1.1–1.4 and 2.1 are implemented. The preserve-only admission evidence is in section 8. Tasks 2.2–2.3 remain unchecked and block activation and archive: explicit Compose activation/inspect orchestration, durable intent and uncertainty barriers, and the complete attended operator procedure. Kubernetes first-start still requires DISABLED.
 
 The runbook documents the two-stage prerequisite and identifies the missing host operation explicitly. No production activation, deployment, push or PR occurred.
 
@@ -94,7 +94,7 @@ Base: `5c228a6a70b43faf225a0a49e5a511266f5dc058`. Isolated clone: `/tmp/puni-ste
 
 ## Decision
 
-The image-local prerequisite is reviewable. The full change is incomplete; retain tasks 2.1–2.3 and obtain Astra review before any integration, push, release or activation.
+The image-local prerequisite is reviewable. The full change is incomplete; retain tasks 2.2–2.3 and obtain Astra review before any integration, push, release or activation.
 
 ## 7. Astra Review Correction: Empty Receipt Schema
 
@@ -119,7 +119,130 @@ Ran 667 tests across 35 files. [303.07s]
 
 Scoped formatting of every changed file passed (exit 0). Exact regression argv, output and exit status are retained at `/tmp/blockage-schema-affected-command.json`, `/tmp/blockage-schema-affected.log` and `/tmp/blockage-schema-affected-exit.json`. Static exits are `[0,0,0,0]` in `/tmp/blockage-schema-static-exit.json`. The full h2puni gate and image build remain unrun. Host/Kubernetes activation remains unimplemented and no production activation or push occurred.
 
-## 8. Host Gate Test Isolation Repair (#488)
+## 8. Preserve-only Deployment Admission
+
+Base: reviewed disabled prerequisite `3535ecc83960b47638b68a799ca04c64fa6c6e54` (#486). Isolated clone: `/tmp/step-blockage-preserve`; shared checkout untouched. Task 2.1 is implemented; tasks 2.2–2.3 remain unchecked. No activation flag/coordinator, live writer enable, host deployment, image publication, push, PR or canonical host gate ran. Migration execution in this packet was confined to disposable test fixtures; no migration SQL changed.
+
+The backend image explicitly advertises `step_blockage_activation_v1` in its existing capability CLI. Both generated transport commands embed one coordinator-owned SQLite authority inspector. ENABLED with an exact validated receipt contributes one compatibility obligation even with no facts or journal. Kubernetes seals that inventory with independent exact candidate/previous image observations. Compose's existing stopped-writer recovery proof independently observes both exact image CLIs when the activation obligation exists. Missing/invalid CLI output still refuses through those existing transport boundaries; duplicate and empty capability entries now refuse Compose parsing too.
+
+Coherent pre-marker authority is positively classified using a physical, readable migration ledger plus absence of both activation migration records, every marker/receipt schema object and all three admission trigger remnants. Pre-receipt DISABLED is accepted without writes. This classification changes neither runtime boot nor receipt CLI inspection. It never skips the separate fact or journal inventories. Kubernetes first-start retains its DISABLED guard. Successful DISABLED deployment alone is not positive capability evidence for a later activation; the remaining attended coordinator must independently prove the routed and rollback digests.
+
+### Fresh checks
+
+`BUN_TMPDIR=/tmp/step-preserve-bun-tmp bun install --frozen-lockfile` exited 0: 1573 installs across 1447 packages checked. Initial iteration used a shared dependency symlink; it was replaced by this clone's frozen dependencies before repeating all mutation proofs and final checks.
+
+| Command scope                                                                                                                      | Fresh result                                                                |
+| ---------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Six admission suites: activation-admission, replay-capability, replay-coordinator, cutover-replay, swap, swap-writer-barrier       | 405 pass, 0 fail, 1825 assertions                                           |
+| Docker `step blockage replay compatibility probes` subset                                                                          | 13 pass, 0 fail, 40 assertions                                              |
+| Kubernetes execute-adapter and first-start, first-start-adapter, first-start-startup                                               | 235 pass, 0 fail, 425 assertions                                            |
+| `bunx tsc --build --force` separately for tool-remote-scripts, tool-deploy and wbs-be-01 tsconfigs                                 | Each exit 0                                                                 |
+| Fresh Nx graph then ESLint on every changed TypeScript file                                                                        | Each exit 0                                                                 |
+| `bun build tools/tool-remote-scripts/src/swap.ts --target=bun --outfile=/tmp/step-preserve-swap.js`                                | Exit 0, 110 modules bundled                                                 |
+| Bundled recovery smoke against disposable real migrated ENABLED-empty SQLite, executing generated commands through the Docker seam | Exit 0; candidate, rollback and activation inventory independently observed |
+| `shellcheck -s bash bin/assert-no-prod-release.sh`                                                                                 | Exit 0                                                                      |
+| OpenSpec 1.12.0 `validate --all --json`                                                                                            | Exit 0                                                                      |
+
+Exact regression argv and exit codes are in `/tmp/step-preserve-tests.json`; outputs are `/tmp/step-preserve-{focused,docker-replay,k8s-adapter-first-start}-final.log`. Static argv/exits are in `/tmp/step-preserve-static.json`, with individual output files under `/tmp/step-preserve-*-final.log`. The bundle smoke is `/tmp/step-preserve-bundle-smoke.ts` and its `.log`. Changed-file formatting and commit-hook results are recorded in the implementation handoff.
+
+### Watched production negatives
+
+Both actual generated transport commands initially returned an empty array for ENABLED-empty; their new tests failed before inventory implementation. The new explicit capability advertisement, Kubernetes receipt/cutover allowlists and Compose candidate comparison also had watched RED cases. The table below records 35 additional injected production faults. Every mutation caused the named negative to fail, and every source was restored before regression/static checks.
+
+| Guard                                          | Injected fault and observed negative                                                                                                                                                                                                                                                                    |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Physical ledger and ledger rows                | Removed physical-table refusal and malformed-row refusal separately; substituted ledger view and null-name ledger negatives failed in both transports                                                                                                                                                   |
+| Pre-marker schema absence                      | Removed schema-object predicate; marker/receipt tables and views plus each orphan admission trigger were admitted; 14 negatives failed                                                                                                                                                                  |
+| Pre-marker receipt migration absence           | Removed receipt-ledger predicate; orphan receipt migration negative failed in both transports                                                                                                                                                                                                           |
+| Marker migration count                         | Removed exact singleton ledger count; duplicate-ledger negatives failed                                                                                                                                                                                                                                 |
+| Physical marker relation                       | Removed marker-table refusal; migrated marker view negatives failed                                                                                                                                                                                                                                     |
+| Marker singleton, id and state                 | Removed count/id/state predicates separately; duplicate-marker, wrong-id and malformed-state negatives failed                                                                                                                                                                                           |
+| Exact trigger bodies                           | Removed trigger-definition refusal; missing insert/update/delete and changed insert trigger negatives failed                                                                                                                                                                                            |
+| Receipt schema and migration                   | Removed schema refusal and receipt-ledger predicate separately; weakened-schema and absent-receipt-ledger negatives failed                                                                                                                                                                              |
+| Receipt state consistency                      | Removed DISABLED receipt exclusion and ENABLED exact-row refusal separately; retained-disabled-receipt and enabled-no-receipt negatives failed                                                                                                                                                          |
+| Receipt field shape                            | Removed field-count predicate; unexpected-field negatives failed                                                                                                                                                                                                                                        |
+| Receipt fields                                 | Removed protocol/version, activation/database identity type and emptiness, candidate/rollback digest and type, and time integer/bound guards separately; corresponding invalid-field negatives failed. The time type check was removed together with safe-integer validation for its string-valued case |
+| Compose exact candidate and rollback admission | Removed candidate support comparison and rollback unsupported comparison separately; each enabled-empty image incompatibility negative failed                                                                                                                                                           |
+| Compose capability shape                       | Removed duplicate and empty-entry checks separately; corresponding malformed capability negatives reached migration and failed                                                                                                                                                                          |
+| Kubernetes exact image admission               | Removed image support membership; both enabled-empty candidate/previous incompatibility negatives failed                                                                                                                                                                                                |
+| Both transport activation contributions        | Removed each activation contribution independently; that transport's ENABLED-empty inventory positive failed                                                                                                                                                                                            |
+
+Authority mutation argv/exits and named failed tests are in `/tmp/step-preserve-mutations.json` (28 faults). Admission/transport mutations are in `/tmp/step-preserve-admission-mutations.json` (7 faults). Each has an individual `/tmp/step-preserve-mutation-<guard>.log`. Missing/unreadable databases, absent/malformed/unreadable ledger access, partial authority and real fresh/rollback predecessor controls are separate tests. SQLite stores its ledger in the same database file; the unreadable-ledger fixture denies that file. Diagnostic assertions inspect emitted error lines, excluding source excerpts, so an earlier unrelated failure cannot satisfy them.
+
+The full h2puni gate, full Nx test/lint/typecheck/build/format gate, image build, Docker/Kubernetes conformance and live capability observations remain unrun. The fixture transport seam verifies generated commands and exact image arguments; it is not evidence about a deployed digest. Task 2.2 still owns durable host activation intent, exact fenced execution/readback and uncertainty barriers. Task 2.3 still owns the completed attended operator procedure. This packet grants no activation authority.
+
+## 9. Independent Review Corrections
+
+Astra rejected `13df409270cb4cbd26cfff0a3c2b7f827875ca93`: the standalone recovery proof handled two supplied images, but ordinary Compose passed the candidate for both; the new authority suite also assumed repository-root cwd. Section 8's tests established the helper boundaries, not correct ordinary caller integration or configured-cwd execution. This correction addresses both blockers and remains preserve-only. Tasks 2.2–2.3 stay open.
+
+Ordinary preflight now captures the actual outgoing container's pinned `Config.Image` and immutable `Image` ID, verifies the pinned reference resolves to that ID, and persists the container/reference/image-ID association in the existing writer intent. After exact writer stop, deployment re-reads and compares that association before supplying the captured rollback digest and separate candidate digest to admission. Missing/malformed/mutable identity fails before stop; changed identity and incapable outgoing image retain stop intent and refuse before maintenance, migration and exposure.
+
+A genuinely empty initial installation records null predecessor explicitly. Both preflight and read-only admission require no existing managed backend writer, preventing either colour or a late-arriving writer from being reclassified as no predecessor. The candidate must advertise `step_blockage_activation_v1` even while the database is DISABLED. ENABLED authority requires a rollback image. Coherent pre-marker/DISABLED first installs remain admitted. No candidate substitutes for a missing predecessor.
+
+The authority test resolves backend and migration paths from `import.meta.dir`. Fresh configured-cwd reproduction in `/tmp/step-blockage-preserve/tools/tool-deploy` with `--preload ../test/scratch/preload.ts --timeout=10000` observed **107 fail, 0 pass** before the fix and **107 pass, 0 fail** after it. Logs: `/tmp/step-preserve-cwd-red.log` and `/tmp/step-preserve-cwd-green.log`.
+
+### Fresh correction checks
+
+- Configured remote-scripts cwd/preload: swap-writer-barrier, swap-maintenance.db, swap and writer-barrier suites: **217 pass, 0 fail, 1314 assertions**.
+- Configured deploy cwd/preload: activation-admission, replay-capability, replay-coordinator and cutover-replay suites: **213 pass, 0 fail, 801 assertions**.
+- `bunx tsc --build --force` separately for tool-remote-scripts and tool-deploy: each exit 0.
+- Swap bundle build: exit 0.
+
+Exact commands, working directories and exits are in `/tmp/step-preserve-correction-checks.json`; logs are `/tmp/step-preserve-{caller-configured,deploy-configured,type-remote,type-deploy,build-correction}-correction.log`. The authentic predecessor fixture now supplies real Docker image metadata and omits both later activation migrations before its preserved boot/migration exercise.
+
+### New watched production negatives
+
+| Boundary                             | Injected production fault and observation                                                                                                          |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Ordinary rollback argument           | Candidate substituted for captured outgoing digest; incapable-outgoing ordinary execute negative failed                                            |
+| Container observation shape          | Removed array and object guards separately; array-like output and null-container ordinary negatives failed                                         |
+| Exact container identity             | Removed container-ID equality; wrong-container ordinary negative failed                                                                            |
+| Runtime image identity               | Removed SHA-256 image-ID format check; mutually malformed container and image-inspect IDs were admitted and ordinary negative failed               |
+| Pinned reference                     | Removed reference validation; mutable reference reached writer stop and its ordinary preflight negative failed                                     |
+| Reference/image-ID association       | Removed pinned image-ID equality; wrong-pinned-id ordinary negative failed                                                                         |
+| Post-stop readback                   | Removed re-observation, reference equality and image-ID equality separately; changed-reference and consistently re-bound image-ID negatives failed |
+| Initial first-install classification | Removed empty-writer-inventory predicate; both-colour false-first-install negatives failed                                                         |
+| Late first-install classification    | Removed admission's empty-writer-inventory predicate; late-writer ordinary negative reached maintenance and failed                                 |
+| Null predecessor candidate           | Removed candidate capability comparison; incapable first candidate reached maintenance and negative failed                                         |
+| Null predecessor authority           | Removed ENABLED refusal; ENABLED with no rollback reached maintenance and negative failed                                                          |
+
+All **14 new faults** were observed through ordinary `execute`, with the configured remote-scripts cwd and scratch preload. Commands, exits and failing test names are in `/tmp/step-preserve-caller-mutations.json`; individual logs are `/tmp/step-preserve-caller-mutation-<guard>.log`. Sources were restored after every mutation. The original 35 inventory/admission faults were also repeated and detected on this correction, with their existing JSON/log paths updated.
+
+Changed-file formatting/lint, OpenSpec validation and enabled commit hooks are recorded in the correction handoff. The full canonical h2puni gate, full Nx gates, Docker/Kubernetes conformance, deployed digest observation, push, PR, host deployment and activation remain unrun. Disposable fixture migrations are the only migration execution. Independent review of the final correction SHA remains required.
+
+## 10. Complete Candidate Vocabulary Admission
+
+Astra rejected `366e10b5d4ebe3fc7737c2a99890190d3e264f3e`: passing the actual outgoing digest correctly established rollback compatibility but displaced the candidate's complete pre-maintenance admission. A candidate lacking `move_progress_v1` could pass with a capable outgoing image and reach maintenance, migration and exposure. Section 9's image identity proof remained valid; its candidate coverage was insufficient outside activation obligations.
+
+The read-only proof now unconditionally executes the exact candidate's own supported-values command for every entry in `STORED_VOCABULARIES`. A non-null outgoing digest receives its own independent observation for every entry. Each observation is compared against the same coordinator-owned database inventory before any maintenance phase. Candidate membership is no longer conditional on `step_blockage_activation_v1`. Null predecessor remains explicit, without a fabricated rollback observation; complete candidate admission and first-install constraints remain enforced.
+
+The ordinary-execute matrix covers eleven obligations through all eight channels: FF relationships, on_hold holds, ready readiness, shared capacity, succeeded attempts, blocked facts, replace_blockage/move_progress_v1/delete_state_v1/step_blockage_activation_v1 semantics, and minute estimates. Each obligation has an incapable-candidate/capable-rollback negative, a capable-candidate/incapable-rollback negative, and a both-capable control. Negatives assert the correct image role and exact stored value/count and refuse before maintenance/migration/start. Controls reach start and prove independent capability command execution for both exact digests.
+
+Before the fix the 33-case matrix observed **20 failures**: ten unsupported candidate obligations were admitted and ten controls lacked an independent candidate observation. After the fix all **33 cases passed**. Logs: `/tmp/step-preserve-vocabulary-red.log` and `/tmp/step-preserve-vocabulary-green.log`.
+
+Four production faults were watched through this ordinary-execute matrix, with sources restored after every run:
+
+| Fault                                                          | Observed failures                                                                       |
+| -------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Removed complete candidate membership comparison               | All 11 incapable-candidate negatives failed after deployment reached maintenance        |
+| Removed complete rollback membership comparison                | All 11 incapable-rollback negatives failed after deployment reached maintenance         |
+| Substituted rollback CLI observation for candidate observation | All 11 incapable-candidate negatives and all 11 independent-observation controls failed |
+| Substituted candidate CLI observation for rollback observation | All 33 asymmetric/control cases failed                                                  |
+
+Commands, exact failing names and exits are in `/tmp/step-preserve-vocabulary-mutations.json`; individual outputs are `/tmp/step-preserve-vocabulary-mutation-<fault>.log`. This corrects the ordinary caller without changing image capture, writer fencing, additive migrations, activation defaults or Kubernetes admission. Tasks 2.2–2.3 remain open; no host action or activation occurred. Final configured regression/static/hook results are recorded in the handoff, and independent review of the final correction SHA remains required.
+
+### Final configured checks for section 10
+
+- Configured remote-scripts cwd/preload, four focused suites: **250 pass, 0 fail, 2774 assertions**.
+- Configured deploy cwd/preload, four focused suites: **213 pass, 0 fail, 801 assertions**.
+- `bunx tsc --build --force tools/tool-remote-scripts/tsconfig.json` and the corresponding `tool-deploy` build: both exit 0.
+- `bun build tools/tool-remote-scripts/src/swap.ts --target=bun --outfile=/tmp/step-preserve-swap.js`: exit 0.
+
+Exact argv, working directories and exits are in `/tmp/step-preserve-correction-checks.json`; the configured test logs are `/tmp/step-preserve-caller-configured-correction.log` and `/tmp/step-preserve-deploy-configured-correction.log`. These are bounded checks. The full canonical host gate and live image/deployment observations remain unrun.
+
+Changed-file Prettier and ESLint, `git diff --check`, and `openspec validate --all --json` exited 0. The rebuilt swap bundle passed the disposable ENABLED-empty admission smoke (separate candidate/rollback capability and activation inventory observations; no Docker or live database). Logs: `/tmp/step-preserve-openspec-vocabulary.log` and `/tmp/step-preserve-bundle-correction.log`. Enabled commit hooks are recorded in the handoff; independent final-SHA review and the canonical gate remain outstanding.
+
+## 11. Host Gate Test Isolation Repair (#488)
 
 Base: `f7f982cae8c633779f10f4f786da389dc1138be8`, isolated clone
 `/tmp/puni-488-dbpath-sol`. Only the missing-`DB_PATH` test subprocess now runs

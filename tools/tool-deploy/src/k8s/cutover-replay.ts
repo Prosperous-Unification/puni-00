@@ -126,7 +126,10 @@ export function validateCutoverReplay(
     // Proof: zero/unknown/duplicate count identities fail versioned report verification;
     // deleting delete_state_v1 admission refused its matching cutover control.
     if (
-      (kind !== 'replace_blockage' && kind !== 'move_progress_v1' && kind !== 'delete_state_v1') ||
+      (kind !== 'replace_blockage' &&
+        kind !== 'move_progress_v1' &&
+        kind !== 'delete_state_v1' &&
+        kind !== 'step_blockage_activation_v1') ||
       typeof count['count'] !== 'number' ||
       !Number.isSafeInteger(count['count']) ||
       count['count'] <= 0 ||
