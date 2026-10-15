@@ -954,6 +954,30 @@
       "id": "TEST-AXES-111",
       "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
       "title": "Browser Architecture deterministic identity and installed dispatch"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-112",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser Performance preserves complete overlapping disjoint and shared fixture observations"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-113",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser Performance refuses authority report and selected source substitutions"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-114",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser Performance validates every declared source before intersection"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-115",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser Performance binds canonical identity and installed dispatch"
     }
   ]
 }
