@@ -1,21 +1,10 @@
+import type { CommittedProjectEvent } from '../ports/committed-fanout';
 import type { EventLogStore } from '../ports/event-log-store';
 import type { CapturedFanout } from '../ports/fanout-capture-store';
 import { type ProjectEvent, subscriptionFor } from '../ports/project-event';
-import type { RecordedEvent } from '../ports/recorded-event';
 import { compareSharedPeopleFanout } from './shared-people-fanout';
 
-/** The exact row inserted by a committed command, never a request to publish another row. */
-export interface CommittedProjectEvent {
-  readonly projectId: string;
-  readonly event: ProjectEvent;
-  readonly recorded: RecordedEvent;
-}
-
-/** Delivery occurs after the writer releases its turn. */
-export interface CommittedFanoutDelivery {
-  now(): number;
-  deliverCommitted(events: readonly CommittedProjectEvent[]): Promise<void>;
-}
+export type { CommittedFanoutDelivery, CommittedProjectEvent } from '../ports/committed-fanout';
 
 /** Records one sorted recipient/cause pair per whole committed unit of work. */
 export async function recordCommittedFanout(
