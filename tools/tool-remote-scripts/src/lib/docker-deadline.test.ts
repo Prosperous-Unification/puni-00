@@ -1,6 +1,6 @@
 import { chmod, mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 
 import { expect, test } from 'bun:test';
 
@@ -39,7 +39,7 @@ test('production Docker CLI hard abort terminates its exact stalled subprocess',
     const executable = join(root, 'bin/docker');
     await Bun.write(executable, '#!/bin/sh\nprintf "%s" "$$" > "$PID_FILE"\nexec /bin/sleep 60\n');
     await chmod(executable, 0o700);
-    const module = resolve('tools/tool-remote-scripts/src/lib/docker-deadline.ts');
+    const module = new URL('./docker-deadline.ts', import.meta.url).pathname;
     const child = Bun.spawn(
       [
         process.execPath,
