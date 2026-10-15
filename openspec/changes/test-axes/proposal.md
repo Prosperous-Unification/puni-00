@@ -102,3 +102,15 @@ Problem: Browser facts cannot bind committed Architecture fixture membership. Ou
 ## Browser Performance membership slice 4.1b.12
 
 Problem: Browser reports do not bind complete declared Performance fixture membership. Outcome: a separate diagnostic joins real Browser observation to exact pinned committed Performance declaration, config, manifest and every fixture, with complete identities and explicit overlap or disjoint intersection. Constraints: closed v1 external authority, immutable selection, shared decoder/digest, project-root containment, complete selected regular blobs and noncertifying output. Non-goals: reviewed-empty, classification, execution, scenario joining, coverage, admission or runner changes. Parent tasks remain open.
+
+## Browser Conformance reviewed-empty slice 4.1b.13
+
+Problem: Browser Conformance cannot represent an explicit reviewed-empty assertion. Outcome:
+the existing command accepts closed version-2 authority requiring committed or reviewed-empty
+Conformance disposition while preserving version-1 committed observations byte-for-byte.
+Constraints: identical identity and scope pins; valid selected manifest targets; every own
+Conformance property contradicts reviewed-empty; complete report, source union, raw-authority
+and envelope digests; unknown other memberships, absent authentication and false certification.
+Missing, malformed or unreadable state refuses. Non-goals: implicit absence, a new command,
+classification, isolation, execution, scenario joins, coverage, admission, StepBlockage,
+source reconciliation or closing WBS080.39. Parent tasks remain open.

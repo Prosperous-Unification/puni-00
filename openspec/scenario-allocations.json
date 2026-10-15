@@ -978,6 +978,30 @@
       "id": "TEST-AXES-115",
       "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
       "title": "Browser Performance binds canonical identity and installed dispatch"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-116",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser Conformance explicit reviewed-empty succeeds"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-117",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser Conformance contradictory or invalid empty authority refuses"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-118",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser Conformance version-1 compatibility is preserved"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-119",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser Conformance empty identity and installed dispatch remain complete"
     }
   ]
 }

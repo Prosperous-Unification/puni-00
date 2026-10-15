@@ -339,6 +339,17 @@ cannot repair or replace selected blobs. Inherited publication and exact-case re
 
 #### Complete committed selection
 
+Version-2 authority extends the same identity and scope pins with required
+`conformance:{kind:'committed'}` or `{kind:'reviewed-empty'}`. Both authority objects and
+dispositions are closed. Version 1 continues to reject a disposition field and retains its
+exact output bytes. Reviewed-empty checks the same selected manifest, including its valid
+object-valued targets, then refuses any own `test:conformance` key regardless of value.
+It emits exactly `{kind:'reviewed-empty'}` membership after validating every Browser source
+and the manifest. Its source union omits unrelated unselected test files. All report identity,
+scope, source and raw-authority joins remain in force. Observation schemaVersion remains 1;
+only the accepted authority gains version 2. Explicit committed uses the unchanged bounded
+decoder and complete selected-source validation, including disjoint empty intersections.
+
 Read and pin the selected regular manifest. A missing `test:conformance` target refuses, even if
 its apparent intersection would be empty. Reuse the exact bounded target/command interpretation
 from `inspectLevelFacts`: closed `nx:run-commands` envelope, exact cwd, forwarding false, optional

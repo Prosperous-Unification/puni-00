@@ -79,7 +79,15 @@ is absent and `certifies:false`; failed and skipped cases remain observations.
 `inspect-browser-conformance <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <external-authority>`
 binds the real report to a complete committed Conformance selection in one externally declared
 project root. The closed version-1 authority pins `revision`, `candidate`, `mode`,
-`reportObservationDigest`, `projectRoot` and `projectManifest:{path,digest}`. Every Browser file
+`reportObservationDigest`, `projectRoot` and `projectManifest:{path,digest}`. Version 1 retains
+its exact committed-selection observation bytes. A closed version-2 authority retains those pins
+and requires `conformance:{kind:'committed'}` or `{kind:'reviewed-empty'}`. Reviewed-empty is
+an external review assertion over the complete collection; its selected manifest must have valid
+object-valued `targets` with no own `test:conformance` property. Every present value, including
+null, false or an unsupported envelope, contradicts that assertion. Missing, malformed or
+unreadable selected state refuses. Its membership is exactly `{kind:'reviewed-empty'}` and its
+source union retains every Browser source and the manifest. An explicit committed selection with
+no overlap remains committed with an empty intersection. Every Browser file
 must lie inside that root; the manifest must be its `project.json`. Only the existing bounded
 literal Bun Conformance command is supported. Every selected source is validated before the
 intersection, including disjoint files. Output retains the full report, complete selection,

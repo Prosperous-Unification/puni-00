@@ -832,6 +832,38 @@ The observation SHALL retain the complete report, raw authority digest, project 
 - **THEN** canonical arrays are sorted and deduplicated, distinct cases remain intact, the complete envelope digest reflects all identity changes, and unsupported operands or inherited report failures refuse
 - **AND** removing source validation, pin joins, collection completeness, digest binding or noncertifying output invariants makes its named production-path assertion fail
 
+### Requirement: Browser Conformance permits explicit reviewed-empty authority
+
+The existing command SHALL preserve version-1 committed-selection observations byte-for-byte for identical inputs. A closed version-2 external authority SHALL retain every version-1 identity and project pin and require `conformance:{kind:'committed'}` or `conformance:{kind:'reviewed-empty'}` with no additional fields. Version-1 SHALL continue to refuse a conformance field. Missing, malformed, unsupported or unreadable authority SHALL refuse without JSON.
+
+Reviewed-empty SHALL be an explicit external assertion over the complete Browser collection. The selected regular manifest SHALL remain readable, pinned and valid with object-valued targets. Any own `test:conformance` property, including null, false or an unsupported envelope, SHALL contradict reviewed-empty and refuse without JSON. Missing, malformed or unreadable selected manifests SHALL refuse despite working-tree repairs. Committed authority SHALL use the unchanged complete bounded selection and an empty intersection SHALL remain committed.
+
+Version-2 observations SHALL retain schemaVersion 1, the complete real report, Browser collection, manifest and sorted source union, full raw-authority digest, all identity joins, unknown other memberships, absent authentication, certifies false and full-envelope digest. Reviewed-empty membership SHALL be exactly `{kind:'reviewed-empty'}`. Source and installed dispatch SHALL agree.
+
+#### Scenario: [TEST-AXES-116] Browser Conformance explicit reviewed-empty succeeds
+
+- **GIVEN** an explicit version-2 reviewed-empty authority and a pinned committed manifest with valid targets and no Conformance property
+- **WHEN** the existing production command inspects a real complete Browser publication
+- **THEN** it emits exactly reviewed-empty membership with complete report, collection and Browser/manifest sources
+
+#### Scenario: [TEST-AXES-117] Browser Conformance contradictory or invalid empty authority refuses
+
+- **GIVEN** any present Conformance property, invalid or missing disposition, unsupported version or keys, or missing malformed unreadable manifest
+- **WHEN** production inspection validates reviewed-empty authority and selected state
+- **THEN** it refuses by name without JSON despite working-tree repairs
+
+#### Scenario: [TEST-AXES-118] Browser Conformance version-1 compatibility is preserved
+
+- **GIVEN** unchanged version-1 committed authority or explicit version-2 committed authority
+- **WHEN** the existing command inspects complete overlapping or disjoint selections
+- **THEN** version-1 output bytes remain unchanged and disjoint version-2 selection remains committed with empty intersection
+
+#### Scenario: [TEST-AXES-119] Browser Conformance empty identity and installed dispatch remain complete
+
+- **GIVEN** a real reviewed-empty publication with failed and skipped cases, reordered authority bytes or substituted identity pins
+- **WHEN** source and installed executable dispatch inspect it
+- **THEN** complete identities and raw-byte/full-envelope digests remain bound, substitutions refuse, other memberships remain unknown and certification remains false
+
 ### Requirement: Capability scenario ledger remains a diagnostic
 
 `inspect-scenario-ledger` SHALL enumerate every adopted effective scenario of the requested capability from the complete isolated Performance scenario observation. The external version-1 ledger authority SHALL pin exact committed revision, candidate, capability and Performance observation digest and contain unique obligations. Omitted obligations SHALL remain named unassigned debt. Foreign, retired, duplicate, malformed and conflicting obligations SHALL refuse without partial JSON.

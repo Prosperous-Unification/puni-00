@@ -8,15 +8,25 @@ import { decodeConformanceSelection } from './conformance-selection';
 import { compareCanonicalText, hashBytes, hashCanonical } from './content-manifest';
 import { inspectTestReports } from './test-reports';
 
-const Authority = type({
-  schemaVersion: '1',
+const Identity = {
   revision: /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/,
   candidate: /^[0-9a-f]{64}$/,
   mode: "'ordinary'|'packaged'|'portable'",
   reportObservationDigest: /^[0-9a-f]{64}$/,
   projectRoot: RelativePath,
   projectManifest: type({ path: RelativePath, digest: /^[0-9a-f]{64}$/ }).onUndeclaredKey('reject'),
-}).onUndeclaredKey('reject');
+} as const;
+// Proof: widening v2 to version 3 or unknown disposition lost TEST-AXES-117's named production schema refusal.
+// Proof: removing either v2 closure or making disposition optional lost TEST-AXES-117's named field refusals.
+const Authority = type({ schemaVersion: '1', ...Identity })
+  .onUndeclaredKey('reject')
+  .or(
+    type({
+      schemaVersion: '2',
+      ...Identity,
+      conformance: type({ kind: "'committed'|'reviewed-empty'" }).onUndeclaredKey('reject'),
+    }).onUndeclaredKey('reject'),
+  );
 
 function decodeJson(bytes: Uint8Array, subject: string): unknown {
   let text: string;
@@ -35,7 +45,8 @@ function decodeJson(bytes: Uint8Array, subject: string): unknown {
 }
 
 /**
- * Joins a real complete Browser report to one pinned project's complete committed Conformance selection.
+ * Joins a real complete Browser report to one pinned project's committed or explicitly reviewed-empty Conformance selection.
+ * Version-1 authority retains committed behavior; version 2 requires a closed disposition.
  * Reads selected Git bytes without executing candidate code. Other memberships remain unknown;
  * overlap or its absence establishes no classification, isolation, execution, coverage or admission.
  * @throws when authority, report, selected sources or the bounded target cannot be joined exactly.
@@ -85,7 +96,7 @@ export function inspectBrowserConformance(
       { cause },
     );
   }
-  // Proof: each disabled authority pin join failed TEST-AXES-101's production substitution assertion.
+  // Proof: each disabled authority pin join failed TEST-AXES-101; disabling candidate equality also failed v2 TEST-AXES-119.
   if (authority.revision !== report.revision)
     throw new Error('Browser Conformance authority revision differs from report');
   if (authority.candidate !== report.candidate)
@@ -154,7 +165,7 @@ export function inspectBrowserConformance(
   if (manifestSource.contentDigest !== authority.projectManifest.digest)
     throw new Error('Browser Conformance project manifest digest differs from selected blob');
   const manifest = decodeJson(manifestSource.bytes, 'Browser Conformance project manifest');
-  // Proof: dropping the targets-array check lost TEST-AXES-102's malformed-manifest refusal.
+  // Proof: dropping the targets-array check lost TEST-AXES-102 and reviewed-empty TEST-AXES-117's malformed-manifest refusal.
   if (
     typeof manifest !== 'object' ||
     manifest === null ||
@@ -165,9 +176,26 @@ export function inspectBrowserConformance(
     Array.isArray(manifest.targets)
   )
     throw new Error('Browser Conformance project manifest is malformed');
-  const selectedFiles = decodeConformanceSelection(manifest.targets, authority.projectRoot);
-  // Proof: omitting this loop accepted TEST-AXES-102's missing, nonregular and unreadable disjoint sources.
-  for (const path of selectedFiles) readSource(path);
+  const conformance = (() => {
+    // Proof: treating every v2 disposition as empty failed TEST-AXES-118's committed disjoint production success.
+    // Proof: removing version dispatch failed TEST-AXES-118's legacy byte-preservation assertion.
+    if (authority.schemaVersion === 2 && authority.conformance.kind === 'reviewed-empty') {
+      // Proof: removing this check made TEST-AXES-117 emit success for a committed null target under empty authority.
+      if (Object.hasOwn(manifest.targets, 'test:conformance'))
+        throw new Error('Browser Conformance reviewed-empty contradicts committed target');
+      return { kind: 'reviewed-empty' as const };
+    }
+    const selectedFiles = decodeConformanceSelection(manifest.targets, authority.projectRoot);
+    // Proof: omitting this loop accepted TEST-AXES-102's missing, nonregular and unreadable disjoint sources.
+    for (const path of selectedFiles) readSource(path);
+    return {
+      kind: 'committed' as const,
+      target: 'test:conformance' as const,
+      // Proof: dropping complete selectedFiles failed TEST-AXES-100; unfiltered files failed disjoint membership.
+      selectedFiles,
+      files: selectedFiles.filter((path) => collection.includes(path)),
+    };
+  })();
   const observation = {
     schemaVersion: 1 as const,
     kind: 'browser-conformance' as const,
@@ -183,13 +211,7 @@ export function inspectBrowserConformance(
       compareCanonicalText(left.path, right.path),
     ),
     memberships: {
-      conformance: {
-        kind: 'committed' as const,
-        target: 'test:conformance' as const,
-        // Proof: dropping complete selectedFiles failed TEST-AXES-100; unfiltered files failed disjoint membership.
-        selectedFiles,
-        files: selectedFiles.filter((path) => collection.includes(path)),
-      },
+      conformance,
       // Proof: independently converting any unknown row to reviewed-empty failed TEST-AXES-100.
       manual: { kind: 'unknown' as const },
       architecture: { kind: 'unknown' as const },

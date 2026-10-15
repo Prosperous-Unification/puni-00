@@ -117,3 +117,10 @@ concrete design before Sol implements it. Existing 2.1/2.2a/2.2/4.1 obligations 
 - [x] 4.1b.12b Observe actual invokeCli unknown-command RED; implement complete committed Browser Performance membership with shared decoder/digest, full selected-source validation, source and installed dispatch, negative guards and watched proofs; run focused/scoped acceptance.
 - [ ] 4.1b.12c Obtain independent Astra review of exact committed candidate.
 - [ ] 4.1b.12d Coordinator restacks onto #496 lineage and performs release/CI/host acceptance.
+
+## 4.1b.13 Browser Conformance explicit reviewed-empty (WBS080.39)
+
+- [x] 4.1b.13a Record approved bounded intent and contract; allocate four scenarios through production scenario allocate preserving every prior journal event; observe production CLI RED for explicit v2 authority.
+- [x] 4.1b.13b Add closed v2 committed/reviewed-empty authority, selected-manifest contradiction and unchanged v1 bytes; retain complete identities/source union and noncertifying output. Cover source and built installed dispatch, malformed/missing/unreadable boundaries and working-tree repairs.
+- [x] 4.1b.13c Watch disposition, contradiction, authority version/shape and identity guard faults fail their production assertions; run focused regressions, scoped Nx lint/typecheck/build, changed-file formatting, scenario provenance and pinned strict/all OpenSpec validation; record actual evidence.
+- [ ] 4.1b.13d Obtain independent Astra review of exact committed candidate. Coordinator owns integration, release/CI/host acceptance; WBS080.39 and parent tasks remain open.
