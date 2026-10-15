@@ -691,9 +691,15 @@ describe('sharing the plan', () => {
     click('Copy as Markdown');
 
     await waitFor(() => {
-      expect(toastTexts()).toEqual([expect.stringContaining('refused the clipboard')]);
+      expect(toastTexts()).toEqual([
+        'The browser refused the clipboard, so nothing was copied. Use Download as Markdown instead.',
+      ]);
     });
     expect(screen.getAllByRole('alert')).toHaveLength(1);
+    // The way out it names is a real item in the same menu.
+    expect(screen.getByRole('button', { name: 'Download as Markdown' })).toBeInTheDocument();
+    // Proof: with the one shared sentence back, this failed on `… Download the
+    // CSV instead.`, a CSV offered for a Markdown copy. Observed 2026-10-15.
   });
 
   itDom('says so when the page has no clipboard at all', async () => {
@@ -703,9 +709,32 @@ describe('sharing the plan', () => {
     click('Copy as Markdown');
 
     await waitFor(() => {
-      expect(toastTexts()).toEqual([expect.stringContaining('no clipboard')]);
+      expect(toastTexts()).toEqual([
+        'This page has no clipboard — that needs an https address. Use Download as Markdown instead.',
+      ]);
     });
     expect(screen.getAllByRole('alert')).toHaveLength(1);
+  });
+
+  itDom('points a refused Mermaid copy at the download that carries the chart', async () => {
+    stubClipboard(() => Promise.reject(new Error('NotAllowedError')));
+    await onePlannedRow();
+    typeIntoDate('Project start date', '2026-08-03');
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(
+        false,
+      );
+    });
+
+    click('Copy as Mermaid');
+
+    await waitFor(() => {
+      expect(toastTexts()).toEqual([
+        'The browser refused the clipboard, so nothing was copied. Download as Markdown saves the same Mermaid chart.',
+      ]);
+    });
+    // Proof: with the one shared sentence back, this failed on `… Download the
+    // CSV instead.`; a CSV holds no chart. Observed 2026-10-15.
   });
 
   itDom('copies the chart as a Mermaid gantt, and says it did', async () => {

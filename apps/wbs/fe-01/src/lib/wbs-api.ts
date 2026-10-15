@@ -1438,7 +1438,29 @@ function planDocumentIssuePath(
     .join('');
 }
 
-/** Parses and generated-client-validates one untrusted archival JSON file. */
+/**
+ * Whether parsed JSON at least says it is the app's export (`document.format`
+ * is `wbs-plan`). Anything else is some other JSON, refused at `document`
+ * rather than at the first key the schema happens to miss.
+ */
+function isPlanExportHeader(untrusted: unknown): boolean {
+  if (typeof untrusted !== 'object' || untrusted === null || !('document' in untrusted))
+    return false;
+  const header = untrusted.document;
+  return (
+    typeof header === 'object' &&
+    header !== null &&
+    'format' in header &&
+    header.format === 'wbs-plan'
+  );
+}
+
+/**
+ * Parses and generated-client-validates one untrusted archival JSON file.
+ *
+ * @throws {PlanDocumentSchemaError} at `document` when the JSON is not a
+ * `wbs-plan` export at all, else at the first schema issue's path.
+ */
 export async function planDocumentRequestFromJson(json: string): Promise<PlanDocumentRequest> {
   let untrustedDocument: unknown;
   try {
@@ -1449,6 +1471,12 @@ export async function planDocumentRequestFromJson(json: string): Promise<PlanDoc
     // wording instead of the modeled `invalid_json`. Observed 2026-09-14.
     if (cause instanceof SyntaxError) throw new Error('invalid_json', { cause });
     throw cause;
+  }
+  // Proof: without this header check, `says JSON that is not a plan export is
+  // not one` read the first schema issue of `[1, 2, 3]`, `calendarMarkers must
+  // be an array (was missing)`, as if it were a damaged plan. Observed 2026-10-15.
+  if (!isPlanExportHeader(untrustedDocument)) {
+    throw new PlanDocumentSchemaError('document', 'is not a wbs-plan export');
   }
   const validation = await validateSchema(importProjectShape.body, untrustedDocument);
   if (validation.issues !== undefined) {
