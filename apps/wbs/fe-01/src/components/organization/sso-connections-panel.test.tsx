@@ -41,6 +41,663 @@ function holdFirstRoute(path: string, method?: string): (response: Response) => 
   };
 }
 
+describe('company sign-in configuration editing', () => {
+  it('edits the selected id with scoped config only and renders the authoritative reply', async () => {
+    const sent = stubPanel({
+      'GET /api/organization/sso-connections': [
+        () =>
+          answer(200, {
+            connections: [connection('one'), connection('two', { provenAt: 1, enforced: true })],
+          }),
+      ],
+      'PATCH /api/organization/sso-connections/connection-two': [
+        () =>
+          answer(200, {
+            connection: connection('two', {
+              auth0Connection: 'server-oidc',
+              strategy: 'oidc',
+              loginSlug: 'server-route',
+            }),
+          }),
+      ],
+    });
+    renderScopedPanel({
+      organization: { kind: 'active', organizationId: 'org-a' },
+      isCurrent: () => true,
+      refuse: () => undefined,
+    });
+    fireEvent.click(await screen.findByRole('button', { name: 'Start proof for two.test' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Edit connection for two.test' }));
+    const editor = screen.getByRole('form', { name: 'Edit connection for two.test' });
+    expect(within(editor).getByText('two.test')).toBeDefined();
+    expect(within(editor).getByLabelText('Auth0 connection name')).toHaveProperty(
+      'value',
+      'two-saml',
+    );
+    expect(within(editor).getByLabelText('Strategy')).toHaveProperty('value', 'samlp');
+    expect(within(editor).getByLabelText('Login slug')).toHaveProperty('value', 'route-two');
+    expect(
+      within(editor).getByText(/Changing the Auth0 name or strategy clears proof and enforcement/),
+    ).toBeDefined();
+    fireEvent.change(within(editor).getByLabelText('Auth0 connection name'), {
+      target: { value: ' requested-oidc ' },
+    });
+    fireEvent.change(within(editor).getByLabelText('Strategy'), { target: { value: 'oidc' } });
+    fireEvent.change(within(editor).getByLabelText('Login slug'), {
+      target: { value: ' requested-route ' },
+    });
+    fireEvent.submit(editor);
+    await screen.findByText('server-oidc');
+    const request = sent.find(
+      (request) => request.route === 'PATCH /api/organization/sso-connections/connection-two',
+    );
+    expect(request?.body).toEqual({
+      auth0Connection: 'requested-oidc',
+      strategy: 'oidc',
+      loginSlug: 'requested-route',
+    });
+    expect(
+      new Headers(
+        vi
+          .mocked(fetch)
+          .mock.calls.find(
+            ([url, init]) =>
+              url === '/api/organization/sso-connections/connection-two' &&
+              init?.method === 'PATCH',
+          )?.[1]?.headers,
+      ).get('X-WBS-Expected-Organization'),
+    ).toBe('org-a');
+    expect(screen.getByText('server-route')).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Enable enforcement for two.test' })).toHaveProperty(
+      'disabled',
+      true,
+    );
+    expect(screen.queryByRole('group', { name: 'Prove two.test' })).toBeNull();
+    expect(screen.queryByRole('form', { name: 'Edit connection for two.test' })).toBeNull();
+  });
+
+  it('retains confirmed configuration and the editor until a held reply returns', async () => {
+    stubPanel({
+      'GET /api/organization/sso-connections': [
+        () => answer(200, { connections: [connection('two', { provenAt: 1, enforced: true })] }),
+      ],
+    });
+    const release = holdFirstRoute('/api/organization/sso-connections/connection-two', 'PATCH');
+    renderPanel();
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit connection for two.test' }));
+    const editor = screen.getByRole('form', { name: 'Edit connection for two.test' });
+    fireEvent.change(within(editor).getByLabelText('Login slug'), {
+      target: { value: 'changed-route' },
+    });
+    fireEvent.submit(editor);
+    expect(screen.getByText('route-two')).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Disable enforcement for two.test' })).toHaveProperty(
+      'disabled',
+      true,
+    );
+    release(
+      answer(200, {
+        connection: connection('two', { loginSlug: 'changed-route', provenAt: 1, enforced: true }),
+      }),
+    );
+    await waitFor(() => {
+      expect(screen.queryByRole('form', { name: 'Edit connection for two.test' })).toBeNull();
+    });
+    expect(screen.getByRole('button', { name: 'Disable enforcement for two.test' })).toHaveProperty(
+      'disabled',
+      false,
+    );
+  });
+});
+
+describe('company configuration recovery', () => {
+  it('cancels editing before a same-render forced form submission', async () => {
+    const sent = stubPanel({
+      'GET /api/organization/sso-connections': [
+        () => answer(200, { connections: [connection('two')] }),
+      ],
+    });
+    renderPanel();
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit connection for two.test' }));
+    const editor = screen.getByRole('form', { name: 'Edit connection for two.test' });
+    await act(async () => {
+      fireEvent.click(within(editor).getByRole('button', { name: 'Cancel editing two.test' }));
+      fireEvent.submit(editor);
+      await Promise.resolve();
+    });
+    expect(sent.filter((request) => request.route.startsWith('PATCH'))).toHaveLength(0);
+    expect(screen.queryByRole('form', { name: 'Edit connection for two.test' })).toBeNull();
+  });
+
+  it.each([
+    ['login_slug_taken', 409],
+    ['not_found', 404],
+  ] as const)('reconciles config refusal %s with both lists', async (error, status) => {
+    const sent = stubPanel({
+      'GET /api/organization/sso-connections': [
+        () => answer(200, { connections: [connection('two')] }),
+        () => answer(200, { connections: [] }),
+      ],
+      'PATCH /api/organization/sso-connections/connection-two': [() => answer(status, { error })],
+    });
+    renderPanel();
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit connection for two.test' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save connection for two.test' }));
+    await screen.findByText('No company sign-in connections yet.');
+    expect(
+      sent.filter((request) => request.route === 'GET /api/organization/domains'),
+    ).toHaveLength(2);
+    expect(screen.getByRole('status').textContent).toContain(
+      error === 'not_found' ? 'no longer exists' : 'login slug',
+    );
+  });
+
+  it('clears an old lockout route after configuration succeeds', async () => {
+    stubPanel({
+      'GET /api/organization/sso-connections': [
+        () => answer(200, { connections: [connection('two', { provenAt: 1 })] }),
+      ],
+      'PATCH /api/organization/sso-connections/connection-two': [
+        () => answer(409, { error: 'enforcement_would_lock_out_actor' }),
+        () =>
+          answer(200, { connection: connection('two', { loginSlug: 'new-route', provenAt: 1 }) }),
+      ],
+    });
+    renderPanel();
+    fireEvent.click(await screen.findByRole('button', { name: 'Enable enforcement for two.test' }));
+    await screen.findByRole('link', { name: 'Sign in through two.test' });
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit connection for two.test' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save connection for two.test' }));
+    await screen.findByText('new-route');
+    expect(screen.queryByRole('link', { name: 'Sign in through two.test' })).toBeNull();
+  });
+
+  it('throws on an impossible editor strategy selection', async () => {
+    stubPanel({
+      'GET /api/organization/sso-connections': [
+        () => answer(200, { connections: [connection('two')] }),
+      ],
+    });
+    renderPanel();
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit connection for two.test' }));
+    const faults: unknown[] = [];
+    const collectFault = (event: ErrorEvent) => {
+      faults.push(event.error);
+      event.preventDefault();
+    };
+    window.addEventListener('error', collectFault);
+    try {
+      fireEvent.change(
+        within(screen.getByRole('form', { name: 'Edit connection for two.test' })).getByLabelText(
+          'Strategy',
+        ),
+        { target: { value: 'unknown' } },
+      );
+      expect(faults).toHaveLength(1);
+      expect(faults[0]).toHaveProperty('message', 'Unexpected enterprise strategy');
+    } finally {
+      window.removeEventListener('error', collectFault);
+    }
+  });
+});
+
+describe('company sign-in connection removal', () => {
+  it('requires selected domain/name confirmation, cancels without request and refreshes both lists after 204', async () => {
+    const sent = stubPanel({
+      'GET /api/organization/sso-connections': [
+        () => answer(200, { connections: [connection('one'), connection('two')] }),
+        () => answer(200, { connections: [connection('one')] }),
+      ],
+      'GET /api/organization/domains': [
+        () => answer(200, { domains: [claim('available')] }),
+        () => answer(200, { domains: [claim('two')] }),
+      ],
+      'DELETE /api/organization/sso-connections/connection-two': [
+        () => new Response(null, { status: 204 }),
+      ],
+    });
+    renderScopedPanel({
+      organization: { kind: 'active', organizationId: 'org-a' },
+      isCurrent: () => true,
+      refuse: () => undefined,
+    });
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit connection for one.test' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Remove connection for two.test' }));
+    expect(screen.queryByRole('form', { name: 'Edit connection for one.test' })).toBeNull();
+    const confirmation = screen.getByRole('group', { name: 'Remove connection for two.test' });
+    expect(within(confirmation).getByText(/two-saml/).textContent).toContain('two.test');
+    const confirm = within(confirmation).getByRole('button', {
+      name: 'Confirm removal of two.test',
+    });
+    await act(async () => {
+      fireEvent.click(
+        within(confirmation).getByRole('button', { name: 'Cancel removal of two.test' }),
+      );
+      fireEvent.click(confirm);
+      await Promise.resolve();
+    });
+    expect(sent.filter((request) => request.route.startsWith('DELETE'))).toHaveLength(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Start proof for two.test' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Remove connection for two.test' }));
+    const release = holdFirstRoute('/api/organization/sso-connections/connection-two', 'DELETE');
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm removal of two.test' }));
+    expect(screen.getByText('two-saml')).toBeDefined();
+    expect(
+      new Headers(
+        vi
+          .mocked(fetch)
+          .mock.calls.find(
+            ([url, init]) =>
+              url === '/api/organization/sso-connections/connection-two' &&
+              init?.method === 'DELETE',
+          )?.[1]?.headers,
+      ).get('X-WBS-Expected-Organization'),
+    ).toBe('org-a');
+    release(new Response(null, { status: 204 }));
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Remove connection for two.test' })).toBeNull();
+    });
+    expect(
+      sent.filter((request) => request.route === 'GET /api/organization/sso-connections'),
+    ).toHaveLength(2);
+    expect(
+      sent.filter((request) => request.route === 'GET /api/organization/domains'),
+    ).toHaveLength(2);
+    expect(screen.getByRole('option', { name: 'two.test' })).toBeDefined();
+    expect(screen.queryByRole('group', { name: 'Prove two.test' })).toBeNull();
+  });
+
+  it.each([
+    ['provisioning_active', 409, 'live provisioning'],
+    ['not_found', 404, 'no longer exists'],
+  ] as const)('reconciles removal refusal %s with both lists', async (error, status, copy) => {
+    const sent = stubPanel({
+      'GET /api/organization/sso-connections': [
+        () => answer(200, { connections: [connection('two')] }),
+        () => answer(200, { connections: error === 'not_found' ? [] : [connection('two')] }),
+      ],
+      'DELETE /api/organization/sso-connections/connection-two': [() => answer(status, { error })],
+    });
+    renderPanel();
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove connection for two.test' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm removal of two.test' }));
+    await waitFor(() => {
+      expect(
+        sent.filter((request) => request.route === 'GET /api/organization/domains'),
+      ).toHaveLength(2);
+    });
+    expect(screen.getByRole('status').textContent).toContain(copy);
+    expect(screen.queryByRole('button', { name: /token/i })).toBeNull();
+  });
+
+  it.each(['edit', 'remove'] as const)(
+    'retains %s action and confirmed row after transport failure for retry',
+    async (kind) => {
+      stubPanel({
+        'GET /api/organization/sso-connections': [
+          () => answer(200, { connections: [connection('two')] }),
+        ],
+      });
+      renderPanel();
+      fireEvent.click(
+        await screen.findByRole('button', {
+          name: `${kind === 'edit' ? 'Edit' : 'Remove'} connection for two.test`,
+        }),
+      );
+      const original = fetch;
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((input: RequestInfo | URL, init?: RequestInit) =>
+          input === '/api/organization/sso-connections/connection-two'
+            ? Promise.reject(new Error('offline'))
+            : original(input, init),
+        ),
+      );
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: kind === 'edit' ? 'Save connection for two.test' : 'Confirm removal of two.test',
+        }),
+      );
+      await screen.findByRole('status');
+      expect(screen.getByText('two-saml')).toBeDefined();
+      expect(
+        screen.getByRole('button', {
+          name: kind === 'edit' ? 'Save connection for two.test' : 'Confirm removal of two.test',
+        }),
+      ).toHaveProperty('disabled', false);
+    },
+  );
+});
+
+describe('company sign-in edit and removal admission', () => {
+  it.each(['edit', 'remove'] as const)(
+    'serializes held %s with forced create, enforcement, proof and repeated action',
+    async (kind) => {
+      const sent = stubPanel({
+        'GET /api/organization/sso-connections': [
+          () =>
+            answer(200, {
+              connections: [connection('one', { provenAt: 1 }), connection('two', { provenAt: 1 })],
+            }),
+        ],
+      });
+      renderPanel();
+      await fillCreate();
+      fireEvent.click(screen.getByRole('button', { name: 'Start proof for one.test' }));
+      fireEvent.change(screen.getByLabelText('How did you sign in to WBS?'), {
+        target: { value: 'provider' },
+      });
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: `${kind === 'edit' ? 'Edit' : 'Remove'} connection for two.test`,
+        }),
+      );
+      const release = holdFirstRoute(
+        '/api/organization/sso-connections/connection-two',
+        kind === 'edit' ? 'PATCH' : 'DELETE',
+      );
+      const submit = screen.getByRole('button', {
+        name: kind === 'edit' ? 'Save connection for two.test' : 'Confirm removal of two.test',
+      });
+      const enable = screen.getByRole('button', { name: 'Enable enforcement for one.test' });
+      const anotherEditor = screen.getByRole('button', { name: 'Edit connection for one.test' });
+      const proofForm = screen
+        .getByRole('button', { name: 'Link your company sign-in' })
+        .closest('form')!;
+      await act(async () => {
+        fireEvent.click(submit);
+        fireEvent.click(anotherEditor);
+        if (kind === 'edit') fireEvent.submit(submit.closest('form')!);
+        else fireEvent.click(submit);
+        fireEvent.submit(
+          screen.getByRole('button', { name: 'Create connection' }).closest('form')!,
+        );
+        fireEvent.click(enable);
+        fireEvent.submit(proofForm);
+        await Promise.resolve();
+      });
+      const writes = vi
+        .mocked(fetch)
+        .mock.calls.filter(([, init]) =>
+          ['PATCH', 'DELETE', 'POST'].includes(init?.method ?? 'GET'),
+        );
+      expect(writes).toHaveLength(1);
+      expect(screen.queryByRole('form', { name: 'Edit connection for one.test' })).toBeNull();
+      expect(sent.filter((request) => request.route.startsWith('POST'))).toHaveLength(0);
+      expect(screen.getByRole('button', { name: 'Refresh company sign-in' })).toHaveProperty(
+        'disabled',
+        true,
+      );
+      release(answer(403, { error: 'forbidden' }));
+      await screen.findByRole('alert');
+    },
+  );
+
+  it.each(['edit', 'remove'] as const)(
+    'refuses same-render %s while a refresh read is held',
+    async (kind) => {
+      stubPanel({
+        'GET /api/organization/sso-connections': [
+          () => answer(200, { connections: [connection('two')] }),
+        ],
+      });
+      renderPanel();
+      fireEvent.click(
+        await screen.findByRole('button', {
+          name: `${kind === 'edit' ? 'Edit' : 'Remove'} connection for two.test`,
+        }),
+      );
+      const submit = screen.getByRole('button', {
+        name: kind === 'edit' ? 'Save connection for two.test' : 'Confirm removal of two.test',
+      });
+      const release = holdFirstRoute('/api/organization/sso-connections', 'GET');
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Refresh company sign-in' }));
+        fireEvent.click(submit);
+        await Promise.resolve();
+      });
+      expect(
+        vi
+          .mocked(fetch)
+          .mock.calls.filter(([, init]) => ['PATCH', 'DELETE'].includes(init?.method ?? 'GET')),
+      ).toHaveLength(0);
+      release(answer(200, { connections: [connection('two')] }));
+      await screen.findByRole('button', { name: 'Edit connection for two.test' });
+    },
+  );
+
+  it.each(['edit', 'remove'] as const)(
+    'refuses %s while proof start owns the panel',
+    async (kind) => {
+      stubPanel({
+        'GET /api/organization/sso-connections': [
+          () => answer(200, { connections: [connection('two')] }),
+        ],
+      });
+      renderPanel();
+      fireEvent.click(
+        await screen.findByRole('button', {
+          name: `${kind === 'edit' ? 'Edit' : 'Remove'} connection for two.test`,
+        }),
+      );
+      const submit = screen.getByRole('button', {
+        name: kind === 'edit' ? 'Save connection for two.test' : 'Confirm removal of two.test',
+      });
+      fireEvent.click(screen.getByRole('button', { name: 'Start proof for two.test' }));
+      fireEvent.change(screen.getByLabelText('How did you sign in to WBS?'), {
+        target: { value: 'provider' },
+      });
+      const release = holdFirstRoute('/api/auth/link/auth0', 'POST');
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Link your company sign-in' }));
+        fireEvent.click(submit);
+        await Promise.resolve();
+      });
+      expect(
+        vi
+          .mocked(fetch)
+          .mock.calls.filter(([, init]) => ['PATCH', 'DELETE'].includes(init?.method ?? 'GET')),
+      ).toHaveLength(0);
+      release(answer(401, { error: 'invalid_credentials' }));
+      await screen.findByRole('alert');
+    },
+  );
+
+  it.each(['edit', 'remove'] as const)(
+    'discards a late %s authority refusal after unmount',
+    async (kind) => {
+      const onAccessLost = vi.fn();
+      stubPanel({
+        'GET /api/organization/sso-connections': [
+          () => answer(200, { connections: [connection('two')] }),
+        ],
+      });
+      const release = holdFirstRoute(
+        '/api/organization/sso-connections/connection-two',
+        kind === 'edit' ? 'PATCH' : 'DELETE',
+      );
+      const mounted = render(<SsoConnectionsPanel onAccessLost={onAccessLost} />);
+      fireEvent.click(
+        await screen.findByRole('button', {
+          name: `${kind === 'edit' ? 'Edit' : 'Remove'} connection for two.test`,
+        }),
+      );
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: kind === 'edit' ? 'Save connection for two.test' : 'Confirm removal of two.test',
+        }),
+      );
+      mounted.unmount();
+      await act(async () => {
+        release(answer(409, { error: 'organization_context_changed' }));
+        await Promise.resolve();
+      });
+      expect(onAccessLost).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['edit', 'remove'] as const)(
+    'does not let an earlier StrictMode read restore controls after forbidden %s',
+    async (kind) => {
+      stubPanel({
+        'GET /api/organization/sso-connections': [
+          () => answer(200, { connections: [connection('two')] }),
+        ],
+        [`${kind === 'edit' ? 'PATCH' : 'DELETE'} /api/organization/sso-connections/connection-two`]:
+          [() => answer(403, { error: 'forbidden' })],
+      });
+      const release = holdFirstRoute('/api/organization/sso-connections', 'GET');
+      renderBare(
+        <StrictMode>
+          <OrganizationResourcesProvider
+            scope={{
+              organization: LEGACY_ORGANIZATION,
+              isCurrent: () => true,
+              refuse: () => undefined,
+            }}
+          >
+            <SsoConnectionsPanel onAccessLost={() => undefined} />
+          </OrganizationResourcesProvider>
+        </StrictMode>,
+      );
+      fireEvent.click(
+        await screen.findByRole('button', {
+          name: `${kind === 'edit' ? 'Edit' : 'Remove'} connection for two.test`,
+        }),
+      );
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: kind === 'edit' ? 'Save connection for two.test' : 'Confirm removal of two.test',
+        }),
+      );
+      await screen.findByRole('alert');
+      await act(async () => {
+        release(answer(200, { connections: [connection('two')] }));
+        await Promise.resolve();
+      });
+      expect(screen.queryByRole('button', { name: 'Edit connection for two.test' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Remove connection for two.test' })).toBeNull();
+    },
+  );
+
+  it.each([
+    ['edit', 'forbidden'],
+    ['edit', 'insufficient_scope'],
+    ['remove', 'forbidden'],
+    ['remove', 'insufficient_scope'],
+  ] as const)('withdraws %s controls for %s', async (kind, error) => {
+    stubPanel({
+      'GET /api/organization/sso-connections': [
+        () => answer(200, { connections: [connection('two')] }),
+      ],
+      [`${kind === 'edit' ? 'PATCH' : 'DELETE'} /api/organization/sso-connections/connection-two`]:
+        [() => answer(403, { error })],
+    });
+    renderPanel();
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: `${kind === 'edit' ? 'Edit' : 'Remove'} connection for two.test`,
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: kind === 'edit' ? 'Save connection for two.test' : 'Confirm removal of two.test',
+      }),
+    );
+    await screen.findByRole('alert');
+    expect(screen.queryByRole('button', { name: 'Create connection' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Edit connection for two.test' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Remove connection for two.test' })).toBeNull();
+  });
+
+  it.each(['edit', 'remove'] as const)(
+    'hands %s shared authority loss to the page',
+    async (kind) => {
+      const onAccessLost = vi.fn();
+      stubPanel({
+        'GET /api/organization/sso-connections': [
+          () => answer(200, { connections: [connection('two')] }),
+        ],
+        [`${kind === 'edit' ? 'PATCH' : 'DELETE'} /api/organization/sso-connections/connection-two`]:
+          [() => answer(409, { error: 'organization_context_changed' })],
+      });
+      renderPanel(onAccessLost);
+      fireEvent.click(
+        await screen.findByRole('button', {
+          name: `${kind === 'edit' ? 'Edit' : 'Remove'} connection for two.test`,
+        }),
+      );
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: kind === 'edit' ? 'Save connection for two.test' : 'Confirm removal of two.test',
+        }),
+      );
+      await waitFor(() => {
+        expect(onAccessLost).toHaveBeenCalledWith('no_organization');
+      });
+    },
+  );
+});
+
+describe('company configuration runtime ownership', () => {
+  it.each(['edit', 'remove'] as const)(
+    'rejects a late %s success from a withdrawn runtime',
+    async (kind) => {
+      let current = true;
+      const sent = stubPanel({
+        'GET /api/organization/sso-connections': [
+          () => answer(200, { connections: [connection('two')] }),
+        ],
+      });
+      const release = holdFirstRoute(
+        '/api/organization/sso-connections/connection-two',
+        kind === 'edit' ? 'PATCH' : 'DELETE',
+      );
+      renderScopedPanel({
+        organization: { kind: 'active', organizationId: 'org-a' },
+        isCurrent: () => current,
+        refuse: () => undefined,
+      });
+      fireEvent.click(
+        await screen.findByRole('button', {
+          name: `${kind === 'edit' ? 'Edit' : 'Remove'} connection for two.test`,
+        }),
+      );
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: kind === 'edit' ? 'Save connection for two.test' : 'Confirm removal of two.test',
+        }),
+      );
+      current = false;
+      await act(async () => {
+        release(
+          kind === 'edit'
+            ? answer(200, { connection: connection('two', { auth0Connection: 'late-name' }) })
+            : new Response(null, { status: 204 }),
+        );
+        await Promise.resolve();
+      });
+      await waitFor(() => {
+        expect(
+          screen.getByRole('button', {
+            name: kind === 'edit' ? 'Save connection for two.test' : 'Confirm removal of two.test',
+          }),
+        ).toHaveProperty('disabled', false);
+      });
+      expect(screen.getByText('two-saml')).toBeDefined();
+      expect(screen.queryByText('late-name')).toBeNull();
+      expect(
+        screen.getByRole('button', {
+          name: kind === 'edit' ? 'Save connection for two.test' : 'Confirm removal of two.test',
+        }),
+      ).toBeDefined();
+      expect(
+        sent.filter((request) => request.route === 'GET /api/organization/domains'),
+      ).toHaveLength(1);
+    },
+  );
+});
+
 describe('company sign-in enforcement', () => {
   it('keeps confirmed enforcement until a held disable reply returns', async () => {
     stubPanel({

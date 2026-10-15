@@ -3,6 +3,7 @@ import {
   createSsoConnection,
   listOrganizationDomains,
   listSsoConnections,
+  removeSsoConnection,
   updateSsoConnection,
 } from '@wbs/contracts';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -37,6 +38,7 @@ const SSO_SHAPES = [
   listOrganizationDomains,
   createSsoConnection,
   updateSsoConnection,
+  removeSsoConnection,
 ] as const;
 type Connection = Extract<
   ClientReply<typeof listSsoConnections>,
@@ -46,16 +48,25 @@ type Claim = Extract<
   ClientReply<typeof listOrganizationDomains>,
   { kind: 'success' }
 >['body']['domains'][number];
+type Action =
+  | {
+      kind: 'edit';
+      connection: Connection;
+      auth0Connection: string;
+      strategy: 'samlp' | 'oidc';
+      loginSlug: string;
+    }
+  | { kind: 'remove'; connection: Connection };
 type View =
   | { kind: 'loading' }
   | { kind: 'failure'; message: string }
   | { kind: 'ready'; connections: readonly Connection[]; claims: readonly Claim[] };
 
 /**
- * Records enterprise connections and starts their routed proof links. The
+ * Records, edits and removes enterprise connections and starts their routed proof links. The
  * server decides super-admin authority. A single proof form owns the browser's
  * single link-binding cookie; its target cannot change during a link start.
- * Proof and enforcement labels come only from refreshed server records.
+ * Proof and enforcement labels come only from server records.
  */
 export function SsoConnectionsPanel({
   onAccessLost,
@@ -66,12 +77,17 @@ export function SsoConnectionsPanel({
   // late-row SSO tests; reads and create now share the owning runtime's scope.
   // Proof: replacing this with a stable global client failed the enforcement
   // selected-row test: PATCH lost X-WBS-Expected-Organization (2026-10-13).
+  // Proof: 2026-10-14, an unscoped editor PATCH failed its captured-header
+  // assertion; removing the client's response fence published a withdrawn
+  // runtime's edit and removal success in the mounted ownership cases.
   const settings = useResourceClient(SSO_SHAPES);
   const [view, setView] = useState<View>({ kind: 'loading' });
   const [domainClaimId, setDomainClaimId] = useState('');
   const [auth0Connection, setAuth0Connection] = useState('');
   const [strategy, setStrategy] = useState<'samlp' | 'oidc'>('samlp');
   const [loginSlug, setLoginSlug] = useState('');
+  const [action, setAction] = useState<Action | null>(null);
+  const selectedAction = useRef<Action | null>(null);
   const [proof, setProof] = useState<Connection | null>(null);
   const proofPending = useRef(false);
   const pending = useRef(false);
@@ -98,6 +114,11 @@ export function SsoConnectionsPanel({
     // cleanup and mutation admission invalidated its panel-local read generation.
     if (read !== readGeneration.current || lifetime !== lifetimeGeneration.current) return;
     readPending.current = false;
+    // Clear only accepted reads: synchronous read admission must protect an
+    // already-selected action until this response has passed the fences.
+    // Proof: 2026-10-14, removing read admission sent a same-render edit PATCH.
+    selectedAction.current = null;
+    setAction(null);
     // Read both replies before rendering rows: either route can revoke access.
     // Proof: 2026-10-13, omitting onAccessLost failed all five
     // `hands read authority loss` production cases.
@@ -323,6 +344,177 @@ export function SsoConnectionsPanel({
     }
   }
 
+  function selectAction(next: Action | null) {
+    // Proof: 2026-10-14, removing this admission switched to another editor
+    // during held edit/removal in `serializes held ...` mounted cases.
+    if (pending.current || proofPending.current || readPending.current) return;
+    selectedAction.current = next;
+    setAction(next);
+  }
+
+  async function saveConfiguration(event: React.SyntheticEvent<HTMLFormElement>) {
+    event.preventDefault();
+    // Proof: 2026-10-14, removing pending, proof and read predicates independently
+    // sent repeated writes, a write during proof, and a same-render refresh write.
+    if (pending.current || proofPending.current || readPending.current || view.kind !== 'ready')
+      return;
+    const selected = selectedAction.current;
+    // Proof: 2026-10-14, bypassing this selection check made a cancelled
+    // editor's same-render forced submission fault instead of sending nothing.
+    if (selected?.kind !== 'edit') return;
+    pending.current = true;
+    ++readGeneration.current;
+    const lifetime = lifetimeGeneration.current;
+    setSending(true);
+    setMessage('');
+    try {
+      const reply = await settings['patchApiOrganizationSso-connectionsById']({
+        // Proof: 2026-10-14, substituting the slug failed the selected-id
+        // configuration test; the authoritative returned row never appeared.
+        params: { id: selected.connection.id },
+        body: {
+          auth0Connection: selected.auth0Connection.trim(),
+          strategy: selected.strategy,
+          loginSlug: selected.loginSlug.trim(),
+        },
+      });
+      // Proof: 2026-10-14, removing this fence delivered late edit/removal
+      // authority refusals to onAccessLost after unmount.
+      if (lifetime !== lifetimeGeneration.current) return;
+      switch (reply.kind) {
+        case 'success':
+          // Proof: 2026-10-14, optimistic slug replacement failed the held
+          // configuration test; confirmed route-two disappeared before its reply.
+          setView((current) =>
+            current.kind === 'ready'
+              ? {
+                  ...current,
+                  connections: current.connections.map((row) =>
+                    row.id === selected.connection.id ? reply.body.connection : row,
+                  ),
+                }
+              : current,
+          );
+          selectedAction.current = null;
+          setAction(null);
+          setProof(null);
+          setLockout(null);
+          setMessage('Connection updated. Proof and enforcement reflect the saved configuration.');
+          return;
+        case 'failure':
+          setMessage(failureMessage(reply.failure));
+          return;
+        case 'refusal': {
+          const outcome = setupRefusal(reply.body);
+          if (outcome.kind === 'lost') {
+            onAccessLost(outcome.loss);
+            return;
+          }
+          setMessage(
+            reply.body.error === 'not_found'
+              ? 'That company connection no longer exists. The connection list has been refreshed.'
+              : outcome.text,
+          );
+          // Proof: 2026-10-14, bypassing this withdrawal left edit/removal
+          // and create controls available in all four authority-refusal cases.
+          if (reply.body.error === 'forbidden' || reply.body.error === 'insufficient_scope') {
+            selectedAction.current = null;
+            setAction(null);
+            setProof(null);
+            setLockout(null);
+            setView({ kind: 'failure', message: outcome.text });
+            return;
+          }
+          if (reply.status === 409 || reply.body.error === 'not_found') await refresh();
+          return;
+        }
+        default:
+          return unreachable(reply);
+      }
+    } catch (cause) {
+      if (lifetime === lifetimeGeneration.current)
+        setFault(new Error('Unexpected company sign-in configuration failure', { cause }));
+    } finally {
+      if (lifetime === lifetimeGeneration.current) {
+        pending.current = false;
+        setSending(false);
+      }
+    }
+  }
+
+  async function removeConnection(connection: Connection) {
+    // Proof: 2026-10-14, removing pending, proof and read predicates independently
+    // sent repeated writes, a write during proof, and a same-render refresh write.
+    if (pending.current || proofPending.current || readPending.current || view.kind !== 'ready')
+      return;
+    // Proof: 2026-10-14, bypassing confirmation ownership sent a DELETE
+    // after same-render Cancel in the explicit confirmation test.
+    if (
+      selectedAction.current?.kind !== 'remove' ||
+      selectedAction.current.connection.id !== connection.id
+    )
+      return;
+    pending.current = true;
+    ++readGeneration.current;
+    const lifetime = lifetimeGeneration.current;
+    setSending(true);
+    setMessage('');
+    try {
+      const reply = await settings['deleteApiOrganizationSso-connectionsById']({
+        params: { id: connection.id },
+      });
+      // Proof: 2026-10-14, removing this fence delivered late edit/removal
+      // authority refusals to onAccessLost after unmount.
+      if (lifetime !== lifetimeGeneration.current) return;
+      switch (reply.kind) {
+        case 'success':
+          // Proof: 2026-10-14, premature removal failed the held DELETE test:
+          // the confirmed row disappeared before a typed 204 arrived.
+          setLockout(null);
+          setMessage('Connection removed.');
+          await refresh();
+          return;
+        case 'failure':
+          setMessage(failureMessage(reply.failure));
+          return;
+        case 'refusal': {
+          const outcome = setupRefusal(reply.body);
+          if (outcome.kind === 'lost') {
+            onAccessLost(outcome.loss);
+            return;
+          }
+          setMessage(
+            reply.body.error === 'not_found'
+              ? 'That company connection no longer exists. The connection list has been refreshed.'
+              : outcome.text,
+          );
+          // Proof: 2026-10-14, bypassing this withdrawal left edit/removal
+          // and create controls available in all four authority-refusal cases.
+          if (reply.body.error === 'forbidden' || reply.body.error === 'insufficient_scope') {
+            selectedAction.current = null;
+            setAction(null);
+            setProof(null);
+            setLockout(null);
+            setView({ kind: 'failure', message: outcome.text });
+            return;
+          }
+          if (reply.status === 409 || reply.body.error === 'not_found') await refresh();
+          return;
+        }
+        default:
+          return unreachable(reply);
+      }
+    } catch (cause) {
+      if (lifetime === lifetimeGeneration.current)
+        setFault(new Error('Unexpected company sign-in removal failure', { cause }));
+    } finally {
+      if (lifetime === lifetimeGeneration.current) {
+        pending.current = false;
+        setSending(false);
+      }
+    }
+  }
+
   return (
     <OrganizationSection id="sso-heading" title="Company sign-in">
       <Button
@@ -498,6 +690,171 @@ export function SsoConnectionsPanel({
                   >
                     {connection.enforced ? 'Disable enforcement' : 'Enable enforcement'}
                   </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className={`self-start ${CONTROL_HEIGHT}`}
+                    aria-label={`Edit connection for ${connection.domain}`}
+                    disabled={sending || proving}
+                    onClick={() => {
+                      selectAction({
+                        kind: 'edit',
+                        connection,
+                        auth0Connection: connection.auth0Connection,
+                        strategy: connection.strategy,
+                        loginSlug: connection.loginSlug,
+                      });
+                    }}
+                  >
+                    Edit connection
+                  </Button>
+                  {action?.kind === 'edit' && action.connection.id === connection.id && (
+                    <form
+                      aria-label={`Edit connection for ${connection.domain}`}
+                      className="bg-muted flex min-w-0 flex-col gap-3 rounded-md p-3"
+                      onSubmit={(event) => void saveConfiguration(event)}
+                    >
+                      <p className="m-0 text-sm">
+                        Domain: <span>{connection.domain}</span>
+                      </p>
+                      <p className="m-0 text-sm">
+                        Changing the Auth0 name or strategy clears proof and enforcement. Changing
+                        only the login slug preserves them.
+                      </p>
+                      <span className={FIELD_CLASS}>
+                        <label
+                          htmlFor={`sso-edit-name-${connection.id}`}
+                          className={FIELD_LABEL_CLASS}
+                        >
+                          Auth0 connection name
+                        </label>
+                        <Input
+                          id={`sso-edit-name-${connection.id}`}
+                          className={CONTROL_HEIGHT}
+                          value={action.auth0Connection}
+                          required
+                          maxLength={128}
+                          pattern="[A-Za-z0-9-]{1,128}"
+                          disabled={sending || proving}
+                          onChange={(event) => {
+                            selectAction({ ...action, auth0Connection: event.target.value });
+                          }}
+                        />
+                      </span>
+                      <span className={FIELD_CLASS}>
+                        <label
+                          htmlFor={`sso-edit-strategy-${connection.id}`}
+                          className={FIELD_LABEL_CLASS}
+                        >
+                          Strategy
+                        </label>
+                        <select
+                          id={`sso-edit-strategy-${connection.id}`}
+                          className={SELECT_CLASS}
+                          value={action.strategy}
+                          disabled={sending || proving}
+                          onChange={(event) => {
+                            const next = event.target.value;
+                            // Proof: 2026-10-14, removing this check failed
+                            // `throws on an impossible editor strategy selection`.
+                            if (next !== 'samlp' && next !== 'oidc')
+                              throw new Error('Unexpected enterprise strategy');
+                            selectAction({ ...action, strategy: next });
+                          }}
+                        >
+                          <option value="samlp">SAML (samlp)</option>
+                          <option value="oidc">OpenID Connect (oidc)</option>
+                        </select>
+                      </span>
+                      <span className={FIELD_CLASS}>
+                        <label
+                          htmlFor={`sso-edit-slug-${connection.id}`}
+                          className={FIELD_LABEL_CLASS}
+                        >
+                          Login slug
+                        </label>
+                        <Input
+                          id={`sso-edit-slug-${connection.id}`}
+                          className={CONTROL_HEIGHT}
+                          value={action.loginSlug}
+                          required
+                          minLength={3}
+                          maxLength={63}
+                          pattern="[a-z0-9-]{3,63}"
+                          disabled={sending || proving}
+                          onChange={(event) => {
+                            selectAction({ ...action, loginSlug: event.target.value });
+                          }}
+                        />
+                      </span>
+                      <Button
+                        type="submit"
+                        className={`self-start ${CONTROL_HEIGHT}`}
+                        disabled={sending || proving}
+                        aria-label={`Save connection for ${connection.domain}`}
+                      >
+                        Save connection
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className={`self-start ${CONTROL_HEIGHT}`}
+                        disabled={sending || proving}
+                        onClick={() => {
+                          selectAction(null);
+                        }}
+                        aria-label={`Cancel editing ${connection.domain}`}
+                      >
+                        Cancel
+                      </Button>
+                    </form>
+                  )}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className={`self-start ${CONTROL_HEIGHT}`}
+                    disabled={sending || proving}
+                    aria-label={`Remove connection for ${connection.domain}`}
+                    onClick={() => {
+                      selectAction({ kind: 'remove', connection });
+                    }}
+                  >
+                    Remove connection
+                  </Button>
+                  {action?.kind === 'remove' && action.connection.id === connection.id && (
+                    <div
+                      role="group"
+                      aria-label={`Remove connection for ${connection.domain}`}
+                      className="bg-muted flex min-w-0 flex-col gap-3 rounded-md p-3 text-sm"
+                    >
+                      <p className="m-0">
+                        Remove company sign-in for {connection.domain} through{' '}
+                        {connection.auth0Connection}? This removes its proof, enforcement and login
+                        routing. Live provisioning in this organization prevents removal.
+                      </p>
+                      <Button
+                        type="button"
+                        className={`self-start ${CONTROL_HEIGHT}`}
+                        disabled={sending || proving}
+                        aria-label={`Confirm removal of ${connection.domain}`}
+                        onClick={() => void removeConnection(connection)}
+                      >
+                        Confirm removal
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className={`self-start ${CONTROL_HEIGHT}`}
+                        disabled={sending || proving}
+                        aria-label={`Cancel removal of ${connection.domain}`}
+                        onClick={() => {
+                          selectAction(null);
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  )}
                   {connection.lastPrefixMismatchAt !== null && (
                     <p className={ALERT_CLASS}>
                       Last prefix mismatch:{' '}
@@ -576,6 +933,7 @@ type SetupRefusal = Extract<
     | typeof createSsoConnection
     | typeof listOrganizationDomains
     | typeof updateSsoConnection
+    | typeof removeSsoConnection
   >,
   { kind: 'refusal' }
 >['body'];
@@ -599,6 +957,10 @@ function setupRefusal(refusal: SetupRefusal): RefusalOutcome {
       return said('That domain already has a company sign-in connection.');
     case 'login_slug_taken':
       return said('That login slug is already in use. Choose another.');
+    case 'provisioning_active':
+      return said(
+        'This organization has live provisioning. Revoke its provisioning token before removing a company connection. The connection list has been refreshed.',
+      );
     case 'not_found':
       return said('That domain claim no longer exists.');
     case 'sso_connection_unproven':

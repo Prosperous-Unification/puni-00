@@ -59,6 +59,14 @@
 
   Fault: replace selected id, boolean or scoped client; bypass proof or pending guard, including the open child form's synchronous owner check; remove read generation, cleanup or mutation admission; retain controls on forbidden or publish stale rows. Watch each mounted negative fail and record `Proof:` beside the check and in `verify.md`.
 
+- [x] 2.8 Add one inline configuration editor with immutable domain, prepopulated name/strategy/slug, selected-id scoped configuration-only PATCH, server-authoritative row replacement and proof/enforcement explanation.
+      Red: selected id/body/header, prefix/slug effects, held response and transport retry. Green: implement editor. Proof: wrong selected id, unscoped client and optimistic row injected.
+- [x] 2.9 Add explicit domain/name removal confirmation, cancel without request, scoped DELETE and 204 refresh of both lists; explain provisioning-active, reconcile conflicts/not-found, preserve retryable confirmed state.
+      Red: confirmation, cancel, held delete and modeled refusal cases. Green: implement removal. Proof: bypass confirmation and premature removal injected.
+- [x] 2.10 Extend synchronous admission and generation/lifetime fences to editing and removal, including same-render and StrictMode replies; withdraw controls on authority loss.
+      Red: competing create/proof/read/mutations, forbidden/scope/shared authority and stale replies. Green: share existing fences. Proof: pending/read/lifetime/forbidden guards removed independently.
+- [x] 2.11 Verify edit/removal accessible controls and keyboard navigation at 375px and 1280px, focused mounted tests, frontend lint/typecheck and OpenSpec validation.
+
 ## 3. Enforcement
 
 - [x] 3.1 Add one `EnforcedSso` rule inside `OrganizationAccess`, applied at selection, binding resolution, direct context and delegation verification. The rule uses the pair that authenticated this credential. The refusal is typed `403 sso_required` in contracts. Membership listing marks such organizations.
