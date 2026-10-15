@@ -1,4 +1,4 @@
-import type { SessionFeatures } from '@wbs/contracts';
+import type { ClientFailure, SessionFeatures } from '@wbs/contracts';
 import {
   type ReactNode,
   useCallback,
@@ -17,6 +17,8 @@ import { LifetimeFault } from '@/components/chrome/lifetime-fault';
 import { OnboardingScreen } from '@/components/onboarding/onboarding-screen';
 import { OrganizationGate } from '@/components/organization/organization-gate';
 import { PresencePanel } from '@/components/presence/presence-panel';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { HintLayer } from '@/components/wbs/hint';
 import { type logout, me as fetchMe, type Session } from '@/lib/api';
 import { failureMessage, unreachable } from '@/lib/http';
@@ -107,6 +109,80 @@ function ThemedAccountMenu({
   );
 }
 
+/** The sentence for a session read that failed for a reason of its own. */
+const SESSION_UNCHECKED = 'Could not check your session.';
+
+/**
+ * What a session read the client could not complete means for the gate (F-079).
+ *
+ * `sign-in`: the read was refused (a 401 or 403 the contract does not model, such
+ * as a site gateway's challenge) or withdrawn, so the form is the way on, with
+ * `notice` above it. `unavailable`: the server did not answer it — no connection,
+ * a 5xx from the proxy in front of a stopped be-01, or a reply that is not the
+ * contract's — and signing in could not help, so no credential boxes are drawn.
+ */
+export function sessionReadFault(
+  failure: ClientFailure,
+):
+  | { readonly kind: 'sign-in'; readonly notice: string }
+  | { readonly kind: 'unavailable'; readonly sentence: string } {
+  switch (failure.code) {
+    case 'cancelled':
+      return { kind: 'sign-in', notice: '' };
+    case 'transport':
+      return { kind: 'unavailable', sentence: 'Could not reach the server.' };
+    case 'invalid_request':
+      return { kind: 'unavailable', sentence: SESSION_UNCHECKED };
+    case 'unexpected_status':
+    case 'invalid_response':
+      if (failure.status === 401 || failure.status === 403)
+        return { kind: 'sign-in', notice: failureMessage(failure) };
+      if (failure.status >= 500)
+        return { kind: 'unavailable', sentence: 'The server is not available right now.' };
+      return { kind: 'unavailable', sentence: 'The server returned an unexpected response.' };
+    default:
+      return unreachable(failure);
+  }
+}
+
+/**
+ * The signed-out page while the session cannot be read (F-079): the sentence and
+ * a Try again that reads the session again, and no sign-in form — an outage is
+ * not a sign-in problem, and a form under it invites a password the server
+ * cannot check either.
+ */
+function ServerUnavailable({
+  sentence,
+  rechecking,
+  onTryAgain,
+}: {
+  sentence: string;
+  rechecking: boolean;
+  onTryAgain: () => void;
+}): React.JSX.Element {
+  return (
+    <main className="bg-background text-foreground min-h-full p-8 font-sans">
+      <h1 className="mb-6 text-2xl font-semibold tracking-tight">WBS tool v2</h1>
+      <Card className="w-full max-w-sm" data-server-unavailable>
+        <CardHeader>
+          <CardTitle>Server unavailable</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <p className="text-sm" role="alert">
+            {sentence}
+          </p>
+          <p className="text-muted-foreground text-sm">
+            Try again in a moment. Signing in will not help until the server answers.
+          </p>
+          <Button className="h-11 w-full" type="button" disabled={rechecking} onClick={onTryAgain}>
+            {rechecking ? 'Trying again…' : 'Try again'}
+          </Button>
+        </CardContent>
+      </Card>
+    </main>
+  );
+}
+
 function AppContent({
   signOutMode,
   openOwner,
@@ -117,6 +193,12 @@ function AppContent({
   const [session, setSession] = useState<Session | null>(null);
   const [checked, setChecked] = useState(false);
   const [sessionError, setSessionError] = useState('');
+  // The sentence for a session read the server did not answer (F-079); null
+  // while the last read was answered, either way.
+  const [unavailable, setUnavailable] = useState<string | null>(null);
+  // Bumped by Try again: the session read's effect runs once per attempt.
+  const [attempt, setAttempt] = useState(0);
+  const [rechecking, setRechecking] = useState(false);
   // What the startup session read reported, signed in or out; null when the
   // backend reported nothing, which keeps every feature's own reads.
   const [features, setFeatures] = useState<SessionFeatures | null>(null);
@@ -200,7 +282,8 @@ function AppContent({
     );
   };
 
-  // Session refusal and unavailable verification are distinct rendered states.
+  // Session refusal and unavailable verification are distinct rendered states:
+  // only an answer that says "no session" draws the sign-in form (F-079).
   useEffect(() => {
     let active = true;
     const requestedAt = sessionRevision.current;
@@ -209,6 +292,8 @@ function AppContent({
         // Proof: a delayed Strict Mode /me response after acknowledged logout
         // must not restore the retired identity.
         if (!active || requestedAt !== sessionRevision.current) return;
+        setUnavailable(null);
+        setSessionError('');
         switch (reply.kind) {
           case 'success':
             // Proof: dropping this made quiet-load.spec.ts record
@@ -216,9 +301,12 @@ function AppContent({
             setFeatures(reply.body.features ?? null);
             if (reply.body.user !== null) acceptSession({ token: '', user: reply.body.user });
             return;
-          case 'failure':
-            setSessionError(failureMessage(reply.failure));
+          case 'failure': {
+            const fault = sessionReadFault(reply.failure);
+            if (fault.kind === 'unavailable') setUnavailable(fault.sentence);
+            else setSessionError(fault.notice);
             return;
+          }
           case 'refusal':
             switch (reply.body.error) {
               case 'invalid_token':
@@ -226,7 +314,7 @@ function AppContent({
               case 'invalid_body':
               case 'invalid_query':
               case 'invalid_params':
-                setSessionError('Could not check your session. Reload and try again.');
+                setUnavailable(SESSION_UNCHECKED);
                 return;
               default:
                 return unreachable(reply.body);
@@ -236,16 +324,20 @@ function AppContent({
         }
       })
       .catch(() => {
-        if (active && requestedAt === sessionRevision.current)
-          setSessionError('Could not check your session. Reload and try again.');
+        if (active && requestedAt === sessionRevision.current) setUnavailable(SESSION_UNCHECKED);
       })
       .finally(() => {
-        if (active) setChecked(true);
+        if (!active) return;
+        setChecked(true);
+        setRechecking(false);
       });
     return () => {
       active = false;
     };
-  }, [acceptSession]);
+    // Proof: with `attempt` left out of this list, `reads the session again on Try
+    // again, and signs in once the server answers` failed on `Unable to find
+    // role="link" and name "Continue with SSO"`: the click read nothing.
+  }, [acceptSession, attempt]);
 
   if (!checked)
     return (
@@ -280,6 +372,18 @@ function AppContent({
           </button>
         )}
       </main>
+    );
+
+  if (session === null && unavailable !== null)
+    return (
+      <ServerUnavailable
+        sentence={unavailable}
+        rechecking={rechecking}
+        onTryAgain={() => {
+          setRechecking(true);
+          setAttempt((count) => count + 1);
+        }}
+      />
     );
 
   if (session === null)

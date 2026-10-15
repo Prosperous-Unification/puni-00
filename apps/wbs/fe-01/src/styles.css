@@ -278,6 +278,8 @@
   --grid-armed: color-mix(in oklab, var(--destructive) 14%, var(--background));
   --grid-invalid: color-mix(in oklab, var(--destructive) 10%, var(--background));
   --grid-drop: color-mix(in oklab, var(--ring) 22%, var(--background));
+  /* The drop position's edge: the strongest ink, so it clears 3:1 on a lit row (F-076). */
+  --grid-drop-edge: var(--primary);
   --grid-match: color-mix(in oklab, var(--highlight) 55%, var(--background));
   /* The rows a hovered Depends on cell names. The drop tint's ink at a lower
      dose: related-but-different meanings ("where this lands" / "what this
@@ -1511,22 +1513,51 @@
    * Where a dropped row would land. Last, so these beat the separators above
    * them — same specificity, and the cascade reads source order.
    *
-   * `into` re-points the row's colour rather than drawing a line, because
-   * "inside this row" has no edge to draw: it is the whole row that would take
-   * the dragged one as a child.
+   * `above` and `below` draw a 2px line on that edge of the target; `into` draws
+   * the target's whole outline and tints it, because "inside this row" is the
+   * whole row taking the dragged one as a child. The ink is `--primary`, the
+   * strongest the palette has, and not `--ring`: a `--ring` line measured 2.6:1
+   * against the lit row in light, under the 3:1 WCAG 1.4.11 asks of a graphical
+   * cue, and the `into` tint alone was the same grey as the pointed row's light,
+   * so the three positions read as one (UI review F-076).
+   *
+   * Proof: on 5b65fd5ae (a `--ring` edge, no `into` edge) `e2e/shell-faults.spec.ts`
+   * `a dragged row shows where it will land` failed on `above: the top edge
+   * Expected: >= 3 Received: 2.63…` in light and `into: the top edge Received: 1`
+   * in dark, with a real pointer drag.
    */
   [data-grid] tbody tr[data-drop='into'] {
     --cell-bg: var(--grid-drop);
   }
 
+  [data-grid] tbody tr[data-drop='into'] td {
+    box-shadow:
+      inset 0 2px 0 var(--grid-drop-edge),
+      inset 0 -2px 0 var(--grid-drop-edge);
+  }
+
+  [data-grid] tbody tr[data-drop='into'] td:first-child {
+    box-shadow:
+      inset 2px 0 0 var(--grid-drop-edge),
+      inset 0 2px 0 var(--grid-drop-edge),
+      inset 0 -2px 0 var(--grid-drop-edge);
+  }
+
+  [data-grid] tbody tr[data-drop='into'] td:last-child {
+    box-shadow:
+      inset -2px 0 0 var(--grid-drop-edge),
+      inset 0 2px 0 var(--grid-drop-edge),
+      inset 0 -2px 0 var(--grid-drop-edge);
+  }
+
   [data-grid] tbody tr[data-drop='above'] td {
     box-shadow:
-      inset 0 2px 0 var(--ring),
+      inset 0 2px 0 var(--grid-drop-edge),
       inset 0 -1px 0 var(--border);
   }
 
   [data-grid] tbody tr[data-drop='below'] td {
-    box-shadow: inset 0 -2px 0 var(--ring);
+    box-shadow: inset 0 -2px 0 var(--grid-drop-edge);
   }
 
   /*
