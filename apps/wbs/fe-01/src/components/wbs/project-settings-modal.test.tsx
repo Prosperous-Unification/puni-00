@@ -569,6 +569,52 @@ describe('closing over an edit', () => {
     expect(box.value).toBe('2');
     expect(screen.queryByRole('alert')).toBeNull();
   });
+
+  itDom('typing after an Escape put a field back raises no refusal (F-080)', async () => {
+    // The Escape above met a dirty section, so the modal refused the close it
+    // read in the key; the refusal is about that hold, and ends with it.
+    mounted();
+    open();
+    const box = screen.getByLabelText<HTMLInputElement>('How many of Backend at once');
+    fireEvent.change(box, { target: { value: '9' } });
+    fireEvent.keyDown(box, { key: 'Escape' });
+    await settle();
+    expect(box.value).toBe('2');
+
+    fireEvent.change(box, { target: { value: '3' } });
+    await settle();
+
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  itDom('says, politely, which section is saving while its write travels (F-081)', async () => {
+    const write = held();
+    mounted({
+      priorities: {
+        bands: DEFAULT_PRIORITY_BANDS,
+        setBands: () => write.promise,
+        onChanged: () => Promise.resolve(),
+      },
+    });
+    open();
+    fireEvent.click(tab('Priorities'));
+    // Mounted and quiet before anything travels: a live region a screen reader
+    // has not met before it speaks is one it may not read out.
+    const live = dialog().querySelector('[data-settings-saving]');
+    expect(live?.getAttribute('role')).toBe('status');
+    expect(live?.textContent).toBe('');
+
+    const band = screen.getByLabelText<HTMLInputElement>('Name of band 1');
+    fireEvent.change(band, { target: { value: 'Blocker' } });
+    fireEvent.keyDown(band, { key: 'Enter' });
+    await settle();
+
+    expect(dialog().querySelector('[data-settings-saving]')).toBe(live);
+    expect(live?.textContent).toBe('Saving Priorities…');
+    write.land();
+    await settle();
+    expect(live?.textContent).toBe('');
+  });
 });
 
 describe('the section it reopens on', () => {

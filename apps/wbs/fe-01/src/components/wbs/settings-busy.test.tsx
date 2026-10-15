@@ -280,4 +280,34 @@ describe('the zone typed while the list loads (F-069)', () => {
     expect(screen.getByLabelText<HTMLInputElement>('Timezone').value).toBe('Europe/Kyiv');
     expect(screen.getByText('Europe/Kyiv applies once the list of zones is read.')).toBeTruthy();
   });
+
+  itDom('stops waiting when a peer saves the very zone that was typed (F-082)', async () => {
+    let listed: (zones: string[]) => void = () => undefined;
+    const listTimezones = (): Promise<string[]> =>
+      new Promise((done) => {
+        listed = done;
+      });
+    const setTimezone = vi.fn(quiet);
+    const panel = (timezone: string) => (
+      <TimezonePanel
+        timezone={timezone}
+        listTimezones={listTimezones}
+        setTimezone={setTimezone}
+        onChanged={quiet}
+        onDirtyChange={() => undefined}
+      />
+    );
+    const { rerender } = render(panel('UTC'));
+    const zone = screen.getByLabelText<HTMLInputElement>('Timezone');
+    fireEvent.change(zone, { target: { value: 'Europe/Kyiv' } });
+    fireEvent.blur(zone);
+    rerender(panel('Europe/Kyiv'));
+    await act(async () => {
+      listed(['UTC', 'Europe/Kyiv']);
+      await new Promise((resume) => setTimeout(resume, 0));
+    });
+
+    expect(setTimezone).not.toHaveBeenCalled();
+    expect(screen.getByText('Saved as Europe/Kyiv.')).toBeTruthy();
+  });
 });

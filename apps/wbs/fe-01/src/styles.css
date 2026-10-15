@@ -2052,3 +2052,20 @@
 [data-sheet-rows] > details[open] > summary::after {
   transform: rotate(90deg);
 }
+
+/*
+ * A settings box whose section's write is in the air (UI review F-081). The box
+ * is `readOnly` rather than `disabled`, so it keeps the focus (F-066), and it
+ * drew exactly like an editable one: same ink, fill and text cursor, with a
+ * caret that took keystrokes it then dropped. Muted fill, `--quiet-ink` (which
+ * clears 4.5:1 on `--muted` in both themes, `settings-layout.spec.ts`), the
+ * progress cursor and no caret say "not now" without moving anything; the
+ * focus ring stays. Unlayered, because the box's own `bg-background` is a
+ * utility and a component-layer rule loses to it.
+ */
+[role='tabpanel'][aria-busy='true'] input:read-only:not([type='radio'], [type='checkbox']) {
+  background-color: var(--muted);
+  color: var(--quiet-ink);
+  cursor: progress;
+  caret-color: transparent;
+}

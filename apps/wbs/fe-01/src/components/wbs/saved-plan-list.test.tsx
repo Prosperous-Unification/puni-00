@@ -65,16 +65,22 @@ describe('the shelf', () => {
   });
 
   it('spells a saved instant once, in the app’s words (F-067)', () => {
-    // Under TZ=UTC, as every fe-01 case runs: 1_788_501_600_000 is 06:00 UTC.
+    // 06:00 on the reader's own clock, whatever zone runs the case: `longInstant`
+    // reads the reader's zone, so a UTC instant held the case to `TZ=UTC` (UI
+    // review F-083). Proof: on 2026-10-16, with `ROW`'s UTC instant under
+    // `TZ=Europe/Kyiv`, this failed on `expected 'before the re-plan4 Sep 2026,
+    // 09:00 s…' to contain '4 Sep 2026, 06:00 saved by ada'`.
     // Proof: on 2026-10-14, against 85849d1f3 (`toLocaleString` in the meta
     // line and be-01's default name as the row name), this failed on
     // `expected 'before the re-plan9/4/2026, 6:00:00 A…' to contain '4 Sep
     // 2026, 06:00 saved by ada'`.
-    const unnamed = { ...ROW, id: 'sp2', name: defaultSavedPlanName(1_788_501_600) };
-    render(<SavedPlanList state={{ kind: 'ready', rows: [ROW, unnamed] }} />);
-    const [named, stamped] = screen.getAllByRole('listitem');
+    const createdAt = new Date(2026, 8, 4, 6, 0).getTime();
+    const named = { ...ROW, createdAt };
+    const unnamed = { ...named, id: 'sp2', name: defaultSavedPlanName(createdAt / 1000) };
+    render(<SavedPlanList state={{ kind: 'ready', rows: [named, unnamed] }} />);
+    const [namedRow, stamped] = screen.getAllByRole('listitem');
     expect(screen.getAllByRole('listitem')).toHaveLength(2);
-    expect(named.textContent).toContain('4 Sep 2026, 06:00 saved by ada');
+    expect(namedRow.textContent).toContain('4 Sep 2026, 06:00 saved by ada');
     // A row be-01 named after its own time says the time once, as its name.
     expect(stamped.querySelector('.saved-plan-list__name')?.textContent).toBe('4 Sep 2026, 06:00');
     expect(stamped.textContent.split('4 Sep 2026, 06:00')).toHaveLength(2);

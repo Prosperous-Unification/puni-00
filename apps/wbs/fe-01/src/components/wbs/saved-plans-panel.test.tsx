@@ -164,7 +164,12 @@ describe('what the save status line says', () => {
     // before the re-plan at 9/4/2026, 6:00:00 AM.' to be 'Saved “before the
     // re-plan”.'`.
     expect(saveWords({ kind: 'saved', savedPlan: ROW })).toBe('Saved “before the re-plan”.');
-    const stamped = { ...ROW, name: defaultSavedPlanName(ROW.createdAt / 1000) };
+    // 06:00 on the reader's own clock, so the case holds in any zone (UI review
+    // F-083). Proof: on 2026-10-16, with `ROW`'s UTC instant under
+    // `TZ=Europe/Kyiv`, this failed on `expected 'Saved 4 Sep 2026, 09:00.' to
+    // be 'Saved 4 Sep 2026, 06:00.'`.
+    const createdAt = new Date(2026, 8, 4, 6, 0).getTime();
+    const stamped = { ...ROW, createdAt, name: defaultSavedPlanName(createdAt / 1000) };
     expect(saveWords({ kind: 'saved', savedPlan: stamped })).toBe('Saved 4 Sep 2026, 06:00.');
   });
 
