@@ -433,3 +433,30 @@ Final review-repair checks:
 - Changed frontend files: ESLint exit 0; full frontend TypeScript build exit 0 after removing unsupported Testing Library `exact` options from three new queries (string names are already exact).
 - OpenSpec `validate --all --json`: 200 passed, zero failed (182 changes and 18 specs).
 - No backend production changes or migrations were made for these review repairs. The previously recorded mounted backend result remains the backend evidence; it was not rerun for this browser-only repair.
+
+## Browser connection removal after provisioning conflicts — 2026-10-15
+
+Task 6.5 is stacked on the combined review head `7e160ba6911504d8bf46bb8674774d1006fb51d5`. The existing backend transaction remains the deletion authority. Company sign-in now says: “Removal was blocked by live provisioning tokens. Revoke all live tokens in Provisioning tokens, then try removing the connection again.” It does not claim a refresh succeeded. Reconciliation still clears the old confirmation, so each retry requires Remove and Confirm again. No shared mutation state or automatic deletion was added.
+
+The new mounted cases retain the connection and both sibling token rows on conflict, send no token mutation, require a newly confirmed second scoped DELETE, and render a failed reconciliation without the former refresh claim. Initial guidance red: the old singular-token wording failed the new instruction expectation. A first draft of the failure test looked for HTTP 503 text; the client correctly renders its modeled generic unexpected-response message, so the test was corrected to wait for the rendered alert before asserting the instruction.
+
+Both direct fixture API DELETE calls were removed. The real browser now creates a token, rotates to two live overlap tokens, confirms removal and observes 409 `provisioning_active`, revokes one and explicitly confirms another refused removal, revokes the remaining token, then explicitly confirms a scoped DELETE that returns 204. It checks retained tokens and connection on refusal, no deletion caused by revoke alone, removal confirmation disappearance, connection row disappearance, and the refreshed eligible domain. The existing native keyboard/clipboard, reload secret absence and 375px layout checks remain.
+
+Watched production faults, restored before final checks:
+
+| Injected fault                                                        | Observed negative                                                                                                               |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Remove the live-token guard inside the connection removal transaction | The real browser lifecycle failed its first UI removal: expected 409, received 204 while both overlap tokens were live.         |
+| Replace the instruction with the former singular-token/refresh claim  | Both mounted conflict cases failed: the new instruction was absent and failed reconciliation still claimed a completed refresh. |
+
+Final focused evidence:
+
+- From fe-01, `bunx vitest run src/components/organization/sso-connections-panel.test.tsx src/components/organization/provisioning-tokens-panel.test.tsx src/components/organization/organization-page.test.tsx --maxWorkers=1`: 128 passed, zero failed (34.40 seconds).
+- `bunx playwright test --config apps/wbs/fe-01/playwright.organization.config.ts`: two passed (28.6 seconds). The first sandbox attempt could not listen on localhost (`EPERM`); socket-enabled execution passed. No real IdP was contacted.
+- `bunx tsc --build --force apps/wbs/fe-01/tsconfig.json`: exit 0.
+- `bunx @fission-ai/openspec@1.12.0 validate --all --json`: 206 passed, zero failed (188 changes and 18 specs).
+- Initial changed-file lint caught a prefer-includes violation in a new assertion; it was corrected. The first clean lint run explicitly skipped Nx module-boundary checks because the isolated clone had no graph; final graph-enabled lint and normal hook evidence follow below.
+
+Dependencies use the integration checkout's installed `node_modules` through an isolated-clone symlink. Frozen dependency installation, the canonical exact-head h2puni gate, aggregate review, merge and deployment are owned by the coordinator and were not run by this worker. No migration changed. The production backend logic is unchanged; only its adjacent watched-proof comment was added, and no separate backend suite was rerun.
+
+Final changed-file ESLint exited 0 with no warnings after `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx show projects` created the isolated clone's real `.nx/workspace-data/project-graph.json`. The graph-enabled run includes module-boundary checks. The final frontend TypeScript build also exited 0 after the fixture helper status was narrowed to `204 | 409`.
