@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import {
   chmod,
   lstat,
@@ -16,6 +16,7 @@ import { join, resolve } from 'node:path';
 import { type } from 'arktype';
 
 import { readToolchain } from './contracts';
+import { executeCreationAttempt } from './creation-journal';
 import { buildObjectStore, importObjectStore, readObjectStoreLock } from './object-store-image';
 
 type K3dLabAction = 'up' | 'down' | 'status';
@@ -749,86 +750,102 @@ async function upLab(root: string, request: K3dLabRequest, tools: LabTools): Pro
     planned.push({ role, name, apiPort, configPath });
   }
 
-  // Every refusal above leaves Docker untouched. From here on, a failure leaves lab-labelled
-  // resources that the ordinary teardown removes exactly.
+  // Proof: injecting attempt-history removal into ordinary down made the up/down/up caller
+  // negative observe one journal instead of two. Keep history outside runtime state.
+  const attempts = join(root, STATE_PARENT, '.attempts', request.labId);
+  await mkdir(attempts, { recursive: true, mode: 0o700 });
+  const identity = {
+    labId: request.labId,
+    attemptId: randomUUID(),
+    daemonId: (await run('docker', ['info', '--format', '{{.ID}}'])).trim(),
+  };
+  // Proof: the offline real-up caller negative observes its journal before network creation.
+  // This is an attempt journal, not resource ownership proof for legacy name-based down.
   try {
-    const started = Date.now();
-    await run('docker', [
-      'network',
-      'create',
-      '--label',
-      `${LAB_LABEL}=${request.labId}`,
-      names.network,
-    ]);
-    await run('docker', [
-      'run',
-      '--detach',
-      '--name',
-      names.registry,
-      '--label',
-      `${LAB_LABEL}=${request.labId}`,
-      '--network',
-      names.network,
-      '--publish',
-      '127.0.0.1::5000',
-      '--restart',
-      'unless-stopped',
-      registryImage,
-    ]);
-    const published = await run('docker', ['port', names.registry]);
-    requireLoopbackPublished(names.registry, published);
-    const registryPort = Number(published.trim().split('\n')[0]?.split(':').at(-1));
-    if (!Number.isInteger(registryPort)) {
-      throw new Error(`Lab registry port is unreadable: ${published}`);
-    }
+    const announcement = await executeCreationAttempt(attempts, identity, async () => {
+      const started = Date.now();
+      await run('docker', [
+        'network',
+        'create',
+        '--label',
+        `${LAB_LABEL}=${request.labId}`,
+        names.network,
+      ]);
+      await run('docker', [
+        'run',
+        '--detach',
+        '--name',
+        names.registry,
+        '--label',
+        `${LAB_LABEL}=${request.labId}`,
+        '--network',
+        names.network,
+        '--publish',
+        '127.0.0.1::5000',
+        '--restart',
+        'unless-stopped',
+        registryImage,
+      ]);
+      const published = await run('docker', ['port', names.registry]);
+      requireLoopbackPublished(names.registry, published);
+      const registryPort = Number(published.trim().split('\n')[0]?.split(':').at(-1));
+      if (!Number.isInteger(registryPort)) {
+        throw new Error(`Lab registry port is unreadable: ${published}`);
+      }
 
-    const clusters: K3dLabRecord['clusters'][number][] = [];
-    for (const { role, name, apiPort, configPath } of planned) {
-      // `platform`/`fleet` hand ingress on both clusters to the Flux-owned Traefik DaemonSet
-      // (`infra/platform/networking`); the bundled one would hold the same host ports.
-      const replaced = profile.flux
-        ? ['--k3s-arg', '--disable=traefik@server:*', '--k3s-arg', '--disable=servicelb@server:*']
-        : [];
-      // k3d edits $KUBECONFIG on create and delete; pointing it into the state directory keeps the
-      // user's default kubeconfig and current context untouched.
-      await run(tools.k3d, ['cluster', 'create', '--config', configPath, ...replaced], {
-        environment: { KUBECONFIG: join(state, 'k3d-scratch.kubeconfig') },
-      });
-      requireLoopbackPublished(
-        `k3d-${name}-serverlb`,
-        await run('docker', ['port', `k3d-${name}-serverlb`]),
-      );
-      const kubeconfig = join(state, `${name}.kubeconfig`);
-      await writeFile(kubeconfig, await run(tools.k3d, ['kubeconfig', 'get', name]), {
+      const clusters: K3dLabRecord['clusters'][number][] = [];
+      for (const { role, name, apiPort, configPath } of planned) {
+        // `platform`/`fleet` hand ingress on both clusters to the Flux-owned Traefik DaemonSet
+        // (`infra/platform/networking`); the bundled one would hold the same host ports.
+        const replaced = profile.flux
+          ? ['--k3s-arg', '--disable=traefik@server:*', '--k3s-arg', '--disable=servicelb@server:*']
+          : [];
+        // k3d edits $KUBECONFIG on create and delete; pointing it into the state directory keeps the
+        // user's default kubeconfig and current context untouched.
+        // Proof: the k3d-stage failure fixture removes its partial cluster unless --no-rollback
+        // is present; removing this flag made the real-up caller negative fail with ENOENT.
+        // Pinned v5.9.0 otherwise invokes ClusterDelete internally on ClusterRun failure.
+        await run(
+          tools.k3d,
+          ['cluster', 'create', '--no-rollback', '--config', configPath, ...replaced],
+          {
+            environment: { KUBECONFIG: join(state, 'k3d-scratch.kubeconfig') },
+          },
+        );
+        requireLoopbackPublished(
+          `k3d-${name}-serverlb`,
+          await run('docker', ['port', `k3d-${name}-serverlb`]),
+        );
+        const kubeconfig = join(state, `${name}.kubeconfig`);
+        await writeFile(kubeconfig, await run(tools.k3d, ['kubeconfig', 'get', name]), {
+          mode: 0o600,
+        });
+        clusters.push({
+          name,
+          role,
+          clusterId: `${role}-local`,
+          context: `k3d-${name}`,
+          kubeconfig,
+          apiPort,
+        });
+      }
+      await bootstrapLab(root, tools, request.labId, clusters, profile.flux);
+      const record: K3dLabRecord = {
+        schemaVersion: 1,
+        labId: request.labId,
+        profile: request.profile,
+        network: names.network,
+        registry: { host: names.registry, hostPort: registryPort },
+        httpPort,
+        worktreeRoot,
+        worktreeRootIdentity: await directoryIdentity(worktreeRoot),
+        solverRuntime,
+        clusters,
+      };
+      await writeFile(join(state, 'lab.json'), `${JSON.stringify(record, null, 2)}\n`, {
         mode: 0o600,
       });
-      clusters.push({
-        name,
-        role,
-        clusterId: `${role}-local`,
-        context: `k3d-${name}`,
-        kubeconfig,
-        apiPort,
-      });
-    }
-    await bootstrapLab(root, tools, request.labId, clusters, profile.flux);
-    const record: K3dLabRecord = {
-      schemaVersion: 1,
-      labId: request.labId,
-      profile: request.profile,
-      network: names.network,
-      registry: { host: names.registry, hostPort: registryPort },
-      httpPort,
-      worktreeRoot,
-      worktreeRootIdentity: await directoryIdentity(worktreeRoot),
-      solverRuntime,
-      clusters,
-    };
-    await writeFile(join(state, 'lab.json'), `${JSON.stringify(record, null, 2)}\n`, {
-      mode: 0o600,
-    });
-    console.log(
-      [
+      return [
         `k3d lab ${request.labId} (${request.profile}) up in ${String(Math.round((Date.now() - started) / 1000))}s`,
         ...clusters.map(
           (cluster) =>
@@ -839,12 +856,14 @@ async function upLab(root: string, request: K3dLabRequest, tools: LabTools): Pro
         ...(profile.flux
           ? ['  Flux is installed; reconcile the platform graph as docs/infra/local.md describes.']
           : []),
-      ].join('\n'),
-    );
+      ].join('\n');
+    });
+    console.log(announcement);
   } catch (cause) {
     throw new Error(
-      `k3d lab ${request.labId} up failed after creating resources; remove them with ` +
-        `\`bunx nx run tool-fleet:lab -- down --id ${request.labId} --profile ${request.profile}\``,
+      `k3d lab ${request.labId} attempt ${identity.attemptId} failed; resource state is unknown and requires manual inspection. ` +
+        `Journal ${join(attempts, `${identity.attemptId}.json`)} is not cleanup authority; ` +
+        'inspect exact resource identities manually (docs/infra/local.md).',
       { cause },
     );
   }

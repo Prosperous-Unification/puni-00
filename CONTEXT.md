@@ -1912,3 +1912,15 @@ _Avoid_: restore log, retry token
 The durable link between a completed restore operation and one personally issued organization
 approval used by that recovery.
 _Avoid_: operator attestation, approval deletion
+
+### Local fleet creation
+
+**Creation attempt**:
+One invocation that tries to create a local fleet lab, identified independently of later invocations
+and bound to one Docker daemon.
+_Avoid_: lab generation, recovery session
+
+**Creation journal**:
+The durable lifecycle record of one creation attempt. Its completion describes the attempt's
+outcome and does not establish ownership of individual resources.
+_Avoid_: ownership receipt, deletion authority
