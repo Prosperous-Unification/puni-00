@@ -1740,24 +1740,34 @@ export function PlanToolbar({
       {filterCount}
       {noMatches}
       {unestimated}
-      {undo}
-      {redo}
-      {shortcuts}
-      {transfer}
       {/*
-        The schedule controls, as one group at the end of the bar (UI review
-        F-005): the day the plan starts, the figure it is planned with, and —
-        while there is one to forget — the table's layout reset. One flex item
-        rather than three, so the bar wraps them together: at 1440 the actions
-        fill the first row and the group stands right-aligned on the second,
-        rather than Plan with and Reset layout alone there while Starts held on
-        to the row above. `ml-auto` keeps the group at the right edge whichever
-        row it is on.
+        The end of the bar as one flex item (UI review F-056, after F-005): the
+        icon buttons that act on the plan as a whole — Undo, Redo, Keyboard
+        shortcuts and Export / Import — and then the schedule controls, the day
+        the plan starts, the figure it is planned with and, while there is one
+        to forget, the table's layout reset. One item rather than five, so the
+        bar wraps them together: at 1024 Export / Import stood alone at the left
+        of row two with the schedule group at its right, two islands; now row
+        two, wherever the bar wraps (1024 to 1440 on a plan with unestimated
+        rows), is this group alone, right-aligned by `ml-auto`
+        (`toolbar-panels.spec.ts`). The inner gap is the bar's own `gap-x-1.5`, so the width
+        the budgets in `project-settings.spec.ts` and `optimization-cue.spec.ts`
+        add up is unchanged; they count the controls by role, not by child.
       */}
-      <div data-schedule className="ml-auto flex shrink-0 items-center gap-1.5">
-        {starts}
-        {method}
-        {layoutReset}
+      <div data-toolbar-end className="ml-auto flex shrink-0 items-center gap-1.5">
+        {undo}
+        {redo}
+        {shortcuts}
+        {transfer}
+        {/*
+          The schedule controls stay a group of their own inside it (F-005):
+          Starts, Plan with and Reset layout never part.
+        */}
+        <div data-schedule className="flex shrink-0 items-center gap-1.5">
+          {starts}
+          {method}
+          {layoutReset}
+        </div>
       </div>
 
       {/*

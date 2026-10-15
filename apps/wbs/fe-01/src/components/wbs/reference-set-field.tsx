@@ -274,7 +274,8 @@ export function useHiddenChips(
 /**
  * How many chips a resting line hid — `+N`, after the chips, with a `title`
  * naming them (`Also: 010.3.02, 010.3.03`). Nothing when none is hidden. The
- * cell's own hover card still lists the whole set.
+ * cell's own hover card still lists the whole set. In `--quiet-ink`, which
+ * clears 4.5:1 on a banded row where `--muted-foreground` measured 4.48 (F-071).
  */
 export function HiddenChipCount({ hidden }: { hidden: readonly HiddenChip[] }) {
   if (hidden.length === 0) return null;
@@ -282,7 +283,7 @@ export function HiddenChipCount({ hidden }: { hidden: readonly HiddenChip[] }) {
     <span
       data-reference-hidden-count={hidden.length}
       title={`Also: ${hidden.map(({ text }) => text).join(', ')}`}
-      className="text-muted-foreground shrink-0 text-xs"
+      className="text-quiet-ink shrink-0 text-xs"
     >
       +{hidden.length}
     </span>

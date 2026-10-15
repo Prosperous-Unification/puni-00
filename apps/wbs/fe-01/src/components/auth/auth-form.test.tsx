@@ -153,7 +153,10 @@ describe('the signed-out screen', () => {
     render(<AuthForm methods={NO_METHODS} onSignedIn={() => undefined} />);
 
     const error = screen.getByRole('status');
-    expect(error.className).toContain('min-h-5');
+    // The password form's own line, in a row that is shut while it is empty and
+    // opens for the refusal (UI review F-052; `e2e/sign-in.spec.ts` measures it).
+    const row = error.closest('[data-refusal-row]');
+    expect(row?.className).toContain('grid-rows-[0fr]');
     fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'ada' } });
     fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'wrong' } });
     fireEvent.submit(
@@ -163,7 +166,58 @@ describe('the signed-out screen', () => {
     await waitFor(() => {
       expect(error.textContent).toBe('Username or password is incorrect.');
     });
+    // Proof, watched 2026-10-14: with the row left at `0fr` whatever it held,
+    // this failed on `expected 'grid transition-[grid-template-rows] …' to
+    // contain 'grid-rows-[1fr]'`.
+    expect(row?.className).toContain('grid-rows-[1fr]');
     expect(screen.getByLabelText<HTMLInputElement>('Username').value).toBe('ada');
+  });
+  itDom('keeps the last refusal open while a second attempt is in flight', async () => {
+    // Review of PR #466: clearing the line at the top of `submit` shut the row
+    // the instant the button was pressed and reopened it when the next refusal
+    // landed, so the form jumped twice on every retry.
+    let answerSecond = (): void => {
+      throw new Error('the second login was never asked');
+    };
+    const fetch = vi
+      .fn()
+      .mockImplementationOnce(() =>
+        Promise.resolve(response(401, { error: 'invalid_credentials' })),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise<Response>((resolve) => {
+            answerSecond = () => {
+              resolve(response(401, { error: 'invalid_credentials' }));
+            };
+          }),
+      );
+    vi.stubGlobal('fetch', fetch);
+    render(<AuthForm methods={NO_METHODS} onSignedIn={() => undefined} />);
+    const error = screen.getByRole('status');
+    const row = error.closest('[data-refusal-row]');
+    const form = screen.getByRole('button', { name: 'Sign in with password' }).closest('form')!;
+    fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'ada' } });
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'wrong' } });
+    fireEvent.submit(form);
+    await waitFor(() => {
+      expect(error.textContent).toBe('Username or password is incorrect.');
+    });
+
+    fireEvent.submit(form);
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledTimes(2);
+    });
+    // Proof, watched 2026-10-15 with `setError('')` still at the top of
+    // `submit`: failed on `expected 'grid transition-[grid-template-rows] …'
+    // to contain 'grid-rows-[1fr]'`.
+    expect(row?.className).toContain('grid-rows-[1fr]');
+    expect(error.textContent).toBe('Username or password is incorrect.');
+    answerSecond();
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Sign in with password' })).toBeEnabled();
+    });
+    expect(row?.className).toContain('grid-rows-[1fr]');
   });
   itDom(
     'explains a refused predecessor instead of treating it as invalid credentials',
@@ -367,7 +421,7 @@ describe('a refused SSO sign-in', () => {
 
     const slots = screen.getAllByRole('status');
     expect(slots).toHaveLength(1);
-    expect(slots[0].className).toContain('min-h-5');
+    expect(slots[0].closest('[data-refusal-row]')).not.toBeNull();
     consoleWatch.expectSilent();
   });
 
@@ -399,11 +453,11 @@ describe('a refused SSO sign-in', () => {
       arriveWith(`?auth_error=${code}`);
       const { container } = render(<AuthForm methods={NO_METHODS} onSignedIn={() => undefined} />);
 
-      // One slot, the password form's own reserved line — the SSO paragraph is
+      // One slot, the password form's own line — the SSO paragraph is
       // conditional, so a second `role="status"` means something rendered.
       const slots = screen.getAllByRole('status');
       expect(slots).toHaveLength(1);
-      expect(slots[0].className).toContain('min-h-5');
+      expect(slots[0].closest('[data-refusal-row]')).not.toBeNull();
       expect(slots[0].textContent).toBe('');
       /*
        * The two shapes a leaked prototype value can take as text. Neither is
@@ -425,7 +479,7 @@ describe('a refused SSO sign-in', () => {
 
     const slots = screen.getAllByRole('status');
     expect(slots).toHaveLength(1);
-    expect(slots[0].className).toContain('min-h-5');
+    expect(slots[0].closest('[data-refusal-row]')).not.toBeNull();
     expect(slots[0].textContent).toBe('');
     expect(screen.getByRole('link', { name: 'Continue with SSO' })).toBeDefined();
   });

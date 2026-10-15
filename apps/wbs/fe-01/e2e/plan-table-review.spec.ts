@@ -234,6 +234,24 @@ async function lastCrossContrast(page: Page, rowName: string): Promise<number> {
     const box = range.getBoundingClientRect();
     return { x: box.x, y: box.y, width: box.width, height: box.height };
   });
+  return paintedContrast(page, clip);
+}
+
+/**
+ * The worst contrast the ink inside `clip` has against its own ground, as painted.
+ *
+ * Screenshots the box at the device's scale, decodes it on a canvas, and splits
+ * it into thirds across. In each third it takes the strongest ink against its
+ * column's top pixel (the ground above the glyphs); the answer is the weakest
+ * third. So a word that fades or pales toward one end reads as that end, while
+ * the antialiased edge pixels of a full-ink stroke cannot drag the answer down.
+ * The clip must start above the glyphs and end at their last one, or a third
+ * of bare ground reads 1.
+ */
+async function paintedContrast(
+  page: Page,
+  clip: { x: number; y: number; width: number; height: number },
+): Promise<number> {
   const shot = await page.screenshot({ clip, scale: 'device' });
   return page.evaluate(async (png) => {
     const image = new Image();
@@ -716,6 +734,75 @@ test.describe('the last dependency chip a resting line draws', () => {
         ),
         'something on the resting strip wears a fade',
       ).toBe(0);
+    });
+  }
+});
+
+test.describe('the quiet ink on a banded row (F-071)', () => {
+  // At 2× for the same reason as the ✕ above: full-ink strokes, not a 1×
+  // antialiased grey.
+  test.use({ deviceScaleFactor: 2 });
+
+  for (const scheme of ['light', 'dark'] as const) {
+    test(`draws the hidden-chip count and the search word at 4.5:1 or more, ${scheme}`, async ({
+      page,
+    }, testInfo) => {
+      // Proof, watched 2026-10-14 on the code before this change (the count in
+      // `text-muted-foreground`, the grid's placeholders in `--muted-foreground`
+      // at 0.7 opacity): light failed on `the +1 on the band · Received:
+      // 4.4775…` (dark already passed the count). With the count in
+      // `--quiet-ink` and the placeholders left as they were, `the search word
+      // on the band` failed on `Received: 2.652…` (light) and `4.158…` (dark).
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await seedReviewPlan(page, `quiet-${scheme}`, testInfo.workerIndex);
+      await showEveryColumn(page);
+      await page.mouse.move(2, 890);
+
+      // `Rate limiting` is the second row (banded) and carries two teams, of
+      // which the line draws one: `+1`.
+      const rate = page.locator('tr', { hasText: 'Rate limiting' });
+      await expect(rate).toHaveAttribute('data-row-parity', 'even');
+      const count = rate.locator('td[data-column="team"] [data-reference-hidden-count]');
+      await expect(count).toHaveText('+1');
+      const countBox = await count.evaluate((node) => {
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        const box = range.getBoundingClientRect();
+        return { x: box.x, y: box.y, width: box.width, height: box.height };
+      });
+      expect(await paintedContrast(page, countBox), 'the +1 on the band').toBeGreaterThanOrEqual(
+        4.5,
+      );
+
+      // `Spike` is the fourth row (banded) with no team: its box says `search`.
+      const spike = page.locator('tr', { hasText: 'Spike: evaluate' });
+      await expect(spike).toHaveAttribute('data-row-parity', 'even');
+      const search = spike.locator('td[data-column="team"] [data-reference-strip] input');
+      await expect(search).toHaveAttribute('placeholder', 'search');
+      // The placeholder's own extent: from the content box's left edge, as wide
+      // as the word in the box's font.
+      const wordBox = await search.evaluate((node) => {
+        if (!(node instanceof HTMLInputElement)) throw new Error('the strip box is not an input');
+        const style = getComputedStyle(node);
+        const context = document.createElement('canvas').getContext('2d');
+        if (context === null) throw new Error('no 2d canvas in this browser');
+        context.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+        const box = node.getBoundingClientRect();
+        const left =
+          box.x + Number.parseFloat(style.borderLeftWidth) + Number.parseFloat(style.paddingLeft);
+        return {
+          x: left,
+          y: box.y,
+          width: context.measureText(node.placeholder).width,
+          height: box.height,
+        };
+      });
+      expect(wordBox.width).toBeGreaterThan(0);
+      expect(
+        await paintedContrast(page, wordBox),
+        'the search word on the band',
+      ).toBeGreaterThanOrEqual(4.5);
     });
   }
 });

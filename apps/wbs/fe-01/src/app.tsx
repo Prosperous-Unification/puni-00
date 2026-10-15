@@ -392,22 +392,40 @@ function AppContent({
       // 'sans-serif'` inline — the browser's generic sans, whatever that was on
       // the machine. `font-sans` is the named stack `styles.css` declares, and
       // the two colour tokens are what a dark set would re-point.
-      <main className="bg-background text-foreground min-h-full p-8 font-sans">
+      <main className="bg-background text-foreground grid min-h-full items-start justify-items-center px-4 pt-[max(1rem,calc(50dvh-15.5rem))] pb-4 font-sans sm:px-8">
         {/*
-         * The tracer for the Tailwind integration, and still the assertion
-         * `e2e/tailwind.spec.ts` reads the computed letter-spacing off. The
-         * explicit size and weight beside it are not decoration: the scoped
+         * One centred column (UI review F-052): the word mark, one line saying
+         * what the product is, and the sign-in panel. It sat top-left under a
+         * bare word mark, 500px from the middle of a 1440 window.
+         *
+         * Anchored by its top rather than centred (F-090, the D3 rule that
+         * surfaces grow downward): a centred column re-centred when the refusal
+         * line opened, lifting the heading 16px. The top sits 15.5rem above the
+         * window's middle, half the resting column (about 31rem at 1440 and
+         * 375), so at rest it reads as centred; a refusal or a longer list of
+         * sign-in methods only adds below.
+         *
+         * The heading is the tracer for the Tailwind integration, and still the
+         * assertion `e2e/tailwind.spec.ts` reads the computed letter-spacing off.
+         * The explicit size and weight beside it are not decoration: the scoped
          * reset in `styles.css` takes an `h1`'s user-agent font-size and weight
          * away, the way every reset does, so a heading now says how big it is.
          *
          * The signed-out page keeps its own layout: it is a form on an empty
          * page, it fits any window, and giving it the signed-in page's
          * viewport-height flex would buy nothing and cost a second thing to
-         * keep in step.
+         * keep in step. `e2e/sign-in.spec.ts` measures it at 1440, 1024 and 375.
          */}
-        <h1 className="mb-6 text-2xl font-semibold tracking-tight">WBS tool v2</h1>
-        {sessionError !== '' && <p role="alert">{sessionError}</p>}
-        <SignInCard onSignedIn={acceptSession} />
+        <div data-sign-in className="grid w-full max-w-sm gap-6">
+          <div className="grid gap-1 text-center">
+            <h1 className="text-2xl font-semibold tracking-tight">WBS tool v2</h1>
+            <p className="text-muted-foreground text-sm">
+              Work breakdown structures, estimated and scheduled.
+            </p>
+          </div>
+          {sessionError !== '' && <p role="alert">{sessionError}</p>}
+          <SignInCard onSignedIn={acceptSession} />
+        </div>
       </main>
     );
 
