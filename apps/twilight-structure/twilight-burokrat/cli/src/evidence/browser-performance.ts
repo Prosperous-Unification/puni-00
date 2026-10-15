@@ -211,7 +211,7 @@ export function inspectBrowserPerformance(
   const selectedFiles = [
     ...new Set(declaration.cases.map((performanceCase) => performanceCase.fixture)),
   ].sort(compareCanonicalText);
-  const performance = {
+  const performanceMembership = {
     kind: 'committed' as const,
     ...authority.declaration,
     declaration,
@@ -240,7 +240,7 @@ export function inspectBrowserPerformance(
     ),
     // Proof: promoting any unknown row failed TEST-AXES-112's explicit membership assertions.
     memberships: {
-      performance,
+      performance: performanceMembership,
       manual: { kind: 'unknown' as const },
       conformance: { kind: 'unknown' as const },
       architecture: { kind: 'unknown' as const },
