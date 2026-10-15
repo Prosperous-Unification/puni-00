@@ -76,6 +76,17 @@ raw authority digest and full-envelope digest. These facts neither discover memb
 classify a test, establish isolation or grant T1/T2, coverage or admission credit. Authentication
 is absent and `certifies:false`; failed and skipped cases remain observations.
 
+`inspect-browser-conformance <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <external-authority>`
+binds the real report to a complete committed Conformance selection in one externally declared
+project root. The closed version-1 authority pins `revision`, `candidate`, `mode`,
+`reportObservationDigest`, `projectRoot` and `projectManifest:{path,digest}`. Every Browser file
+must lie inside that root; the manifest must be its `project.json`. Only the existing bounded
+literal Bun Conformance command is supported. Every selected source is validated before the
+intersection, including disjoint files. Output retains the full report, complete selection,
+sorted intersection and source union. Manual, Architecture and Performance remain unknown.
+Authentication is absent and `certifies:false`; no classification, isolation, execution,
+coverage or admission claim follows. Failed and skipped Browser outcomes remain observations.
+
 `inspect-test-sources <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable>`
 joins those observed Browser case files to their exact validated module indexes in the same
 selected commit. It reports the source owner, source and index identities, index review debt, and

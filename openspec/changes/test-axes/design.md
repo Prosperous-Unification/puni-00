@@ -328,7 +328,9 @@ makes no claim about nearest module ownership or every Nx project in the reposit
 Capture one exact committed candidate with the existing Git reader, refusing symbolic selections
 and annotated tag objects that peel to another SHA. Call the real `inspectTestReports` for the
 requested mode and require its revision and complete candidate digest to equal that capture.
-Then compare all authority pins with that report. Derive sorted unique collection paths from
+Require the report mode to equal the requested mode independently, before comparing all authority
+pins with that report. A coherently substituted report and authority cannot change the requested
+mode. Derive sorted unique collection paths from
 its cases; require a nonempty collection and every path to begin with `projectRoot + '/'`,
 using the validated canonical paths. Do not filter away out-of-scope report cases. For every
 reported file, compare its report source mode and content digest with the captured selected
