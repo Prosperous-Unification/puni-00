@@ -882,6 +882,30 @@
       "id": "TEST-AXES-099",
       "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
       "title": "Performance scenario dispatch preserves source and authority refusals"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-100",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser Conformance binds real reports and complete overlapping or disjoint selection"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-101",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser Conformance refuses authority and report scope substitutions"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-102",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser Conformance refuses unsupported or incomplete committed targets"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-103",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser Conformance preserves canonical identity and bounded dispatch"
     }
   ]
 }
