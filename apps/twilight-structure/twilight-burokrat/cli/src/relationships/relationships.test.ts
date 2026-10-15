@@ -1,5 +1,6 @@
 import {
   chmodSync,
+  cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -1611,6 +1612,10 @@ function createVendorFixture(): { repository: string; modules: string; request: 
   const runtime = mkdtempSync(join(tmpdir(), 'tool-wiki-vendors-'));
   pathsToRemove.push(runtime);
   const modules = join(runtime, 'trusted-node-modules');
+  mkdirSync(join(modules, '@typescript'), { recursive: true });
+  cpSync(join(trustedNodeModules, '@typescript/old'), join(modules, '@typescript/old'), {
+    recursive: true,
+  });
   write(
     runtime,
     'trusted-node-modules/typescript/package.json',
@@ -1958,4 +1963,33 @@ for (const alias of [false, true]) {
         'relationship candidate may not supply trusted runtime modules',
       );
   });
+}
+
+for (const fault of ['missing', 'unreadable', 'version'] as const) {
+  test(`refuses trusted compiler standard libraries that are ${fault}`, async () => {
+    const fixture = createVendorFixture();
+    const compiler = join(fixture.modules, '@typescript/old');
+    const library = join(compiler, 'lib/lib.es2022.d.ts');
+    if (fault === 'missing') rmSync(join(compiler, 'lib'), { recursive: true });
+    if (fault === 'unreadable') chmodSync(library, 0);
+    if (fault === 'version') writeFileSync(join(compiler, 'package.json'), '{"version":"0.0.0"}');
+    try {
+      const invocation = await invoke(
+        fixture.repository,
+        commitAll(fixture.repository, `compiler library ${fault}`),
+        fixture.request,
+        { TOOL_WIKI_TRUSTED_NODE_MODULES: fixture.modules },
+      );
+      expect(invocation.exitCode, output(invocation)).toBe(1);
+      expect(output(invocation)).toContain(
+        fault === 'version'
+          ? 'trusted compiler library version differs'
+          : fault === 'unreadable'
+            ? 'trusted runtime path unreadable'
+            : '@typescript/old/lib',
+      );
+    } finally {
+      if (fault === 'unreadable') chmodSync(library, 0o644);
+    }
+  }, 20_000);
 }

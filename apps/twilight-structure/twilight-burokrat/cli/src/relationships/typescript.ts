@@ -154,6 +154,11 @@ function parseProject(workspace: string, configPath: string, system: TrustedSyst
     noEmit: false,
   };
   const host = ts.createCompilerHost(options);
+  // Proof: restoring either host default to the bundled source installation made the
+  // arbitrary-basename vendor CLI positive fail; packed extraction also failed with source hidden.
+  host.getDefaultLibFileName = (compilerOptions) =>
+    resolve(system.compilerLibraryDirectory, ts.getDefaultLibFileName(compilerOptions));
+  host.getDefaultLibLocation = () => system.compilerLibraryDirectory;
   host.fileExists = system.fileExists.bind(system);
   host.readFile = system.readFile.bind(system);
   host.directoryExists = system.directoryExists.bind(system);

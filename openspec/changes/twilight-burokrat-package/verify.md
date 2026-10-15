@@ -62,3 +62,81 @@ artifact and the next command. Not claimed: any GitHub Actions run of the releas
 | Workflow tag availability  | Omitted the explicit event-tag fetch from a SHA-only checkout                     | Release planner in a clone made with `--no-tags`                                       | Planner refused `release tag is unknown`; fetching only the event tag restored preparation while HEAD remained at the event SHA                                                                                                                                               |
 | Installed manifest states  | Disabled the read, parse and schema boundaries in turn                            | Packed `validate-record` with missing, directory, malformed and empty-object manifests | Each installed-command negative advanced to a later outer-identity failure or lost its required state label; restored boundaries refuse every invalid state before toolkit execution                                                                                          |
 | Registry response state    | Disabled malformed-success, unknown-failure and retry-exhaustion refusals in turn | Post-publication verifier with malformed JSON, timeout and twelve 404 responses        | Each watched negative failed by accepting undefined integrity, misclassifying the timeout, or returning after bounded retries; restored guards keep all three states release-blocking                                                                                         |
+
+## Declaration closure repair (2026-10-15)
+
+The repair starts from exact candidate/tool base `7e160ba6911504d8bf46bb8674774d1006fb51d5`.
+All work is in an isolated clone; the existing raw packaged-survey evidence bundle is not part
+of this change. The release-owned roots were reviewed against the same 21-config policy scope.
+No candidate-import expansion, optional-peer expansion, or ambient dependency fallback was added.
+
+Initial observations:
+
+- Nested traversal regression failed because the original collector selected hoisted `shared`
+  and `decoy` instead of `vendor/node_modules/shared` and its nested-only `leaf` dependency.
+- External installed extraction with nonempty selectors and a public entrypoint failed with
+  `ENOENT` for the hidden source checkout's `@typescript/old/lib`.
+- After packaging the reviewed roots, installed verification refused a closure digest mismatch.
+  Tar/source comparison found exactly the five metadata omissions listed in `design.md`, with
+  no other missing, added, or changed package bytes. The canonical-copy regression failed while
+  `elysia/bunfig.toml` was retained. Only those five installed paths are now omitted.
+- Direct nested/scoped intermediate-symlink negatives initially returned ambient package paths.
+  Every package path component is now inspected before any selected instance is read or copied.
+
+Watched fault proofs (all injected changes restored):
+
+| Boundary                  | Production path and injected fault                                                                                   | Observed oracle                                                                                               |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Installed manifest shape  | `trustedModuleNames`; removed manifest object boundary                                                               | `null` lost its named refusal and `[]` was admitted; both negatives failed                                    |
+| Mandatory dependency map  | `trustedModuleNames`; removed dependency-map boundary                                                                | `null` lost its named refusal and `[]` was admitted; both negatives failed                                    |
+| Dependency path/version   | `trustedModuleNames`; removed dependency-name/version validation                                                     | `../../escape` and numeric version lost the named malformed-dependency refusal                                |
+| Selected nested closure   | `copyTrustedModules`; copied nested `node_modules` wholesale                                                         | Unrelated nested package was present; expected missing-file assertion failed                                  |
+| Intermediate symlinks     | `releaseToolkit` in an external fixture; restored final-component-only inspection                                    | Ambient compatible nested dependency was copied; negative threw `expected a refusal, but the action resolved` |
+| Compiler/library version  | Relationship CLI; disabled package-version comparison                                                                | Mismatched `0.0.0` standard libraries extracted successfully; expected exit 1 failed                          |
+| Compiler default filename | Relationship CLI; restored source-installation filename                                                              | Arbitrary-basename vendor positive refused instead of extracting                                              |
+| Compiler default location | Relationship CLI; restored source-installation directory                                                             | Arbitrary-basename vendor positive refused instead of extracting                                              |
+| Packaged vendor digest    | Rebuilt/repacked installed CLI with closure comparison disabled, then appended a comment to `arktype/out/index.d.ts` | External extraction exited 0; corruption negative expected 1 and failed                                       |
+
+Missing and unreadable manifests are distinct focused cases; compiler-library absence,
+unreadability and version mismatch also have separate production CLI cases. Existing relationship
+negatives retain candidate modules, ancestor decoys, escape links and outside-input refusals.
+
+Fresh local checks:
+
+- `bun test ./apps/twilight-structure/twilight-burokrat/cli/src/policy/trusted-modules.test.ts`:
+  14 passed, 28 assertions. The root list contains all reviewed nested Ark instances.
+- `bun test ./apps/twilight-structure/twilight-burokrat/cli/src/relationships/relationships.test.ts --timeout=120000`:
+  48 passed, 616 assertions, 147.21 seconds.
+- `bun test ./apps/twilight-structure/twilight-burokrat/cli/src/policy/release.test.ts ./apps/twilight-structure/twilight-burokrat/cli/src/policy/relocation-activation.test.ts --timeout=120000`:
+  47 passed, 136 assertions, 115.10 seconds. The first run exposed an absent-install diagnostic
+  regression (zod instead of TypeScript); compiler-first traversal restores that named refusal.
+- `bun test --preload ./tools/test/scratch/preload.ts ./apps/twilight-structure/twilight-burokrat/cli/src/packaging --timeout=120000`:
+  48 passed, 352 assertions across eight source files, 287.38 seconds. This complete suite ran
+  with scoped sandbox escalation because its loopback registry listener otherwise receives
+  EPERM. No package cases were skipped. An earlier unscoped-path invocation also collected
+  emitted JS tests; its output is not the complete-source acceptance result.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_CACHE_DIRECTORY=/tmp/burokrat-closure-nx-cache bun nx run twilight-burokrat:lint:source --skip-nx-cache`:
+  exit 0. Direct ESLint without an Nx graph initially warned that module-boundary rules were
+  skipped; the recorded Nx invocation built the graph and passed the complete source lint.
+- `bun node_modules/.bin/tsc --build --force apps/twilight-structure/twilight-burokrat/cli/tsconfig.json`:
+  exit 0. Changed-file Prettier check and `git diff --check`: exit 0.
+- Cached pinned `@fission-ai/openspec@1.12.0/bin/openspec.js validate twilight-burokrat-package --json`:
+  one change passed, zero failed. No project dependency was added for OpenSpec.
+
+The existing secret-named filename oracle falsely rejected vendor Bun secrets API docs and
+Jose's public `generate_secret` code. It still checks repository-owned assets outside the pinned
+vendor closure. Repacking with a public `dist/secrets-fixture.txt` sentinel made that installed
+assertion fail; the sentinel was then removed. No credentials were used in that proof.
+
+A preliminary full packaged survey retained the exact diagnostic policy SHA-256
+`afbf5c8a64200e7b60d603496c74e4223777a58891a69e3524ce161e822025fa` and target candidate
+`7e160ba6911504d8bf46bb8674774d1006fb51d5` (candidate identity
+`27439665644653b40db7ffd26bcda465de1a65e0739d167459c72a0fb0629f12`). It returned typed JSON,
+exit 1 and `certifies:false`, with 41 F7 debt findings and four MOD-LAYOUT debt findings.
+Vendor/module/stdlib absence no longer blocked it. Remaining unevaluated rules are F1,
+K2–K6 and REL-EXTRACT because `libs/shared/domain/failures/src/index.ts` resolves through six
+configs; INV-CLASSIFY because of an undeclared website PNG; PERF-THRESHOLD because its config
+differs from reviewed authority; and SPEC-SCENARIOS because of a competing wbs-domain overlay.
+The policy was not narrowed. Final exact-commit tool identity and repetition follow below.
+
+No host-wide gate, registry publication, merge, deployment, or certification was performed.
