@@ -44,6 +44,9 @@ export function planInputRowsOf(reads: PlanInputReads): PlanInputRows {
       pertWeightPessimistic: reads.project.pertWeights.pessimistic,
       timezone: reads.project.timezone,
     },
+    // Proof: spreading the captured row leaked live resources and failed
+    // `drops live node resources before canonical saved-plan persistence and
+    // hashing`; watched 2026-10-15. Capture only authored fields explicitly.
     workItems: reads.workItems.map((row) => ({
       id: row.id,
       parentId: row.parentId,

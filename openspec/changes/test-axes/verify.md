@@ -3472,6 +3472,142 @@ No production guard changed, and the source packet's documented mutation proofs 
 rerun. This worker ran no full host gate, full repository gate, exact-head CI, push, PR,
 merge, or deploy. Coordinator release acceptance and parent ledgers remain open.
 
+## 4.1c Capability scenario diagnostic ledger (2026-10-15)
+
+Implemented in isolated `/tmp/wbs-scenario-ledger-sol-20261015` from exact wave-4 candidate
+`ae12f88718c04523773a8f84405d410f0c5522e4`. The production allocator issued
+TEST-AXES-104..107, with spec and journal applied together from its JSON proposal.
+The new command consumes the real complete Performance/B3 observation, enumerates its adopted
+capability scenarios and joins closed external obligations. Manual fixtures share the same real
+committed candidate, publication and external policy; current, stale, failed, skipped and overdue
+are actual inspector verdicts. Stale uses an intervening committed module edit. No output grants
+coverage, admission, authentication or certification; WBS080.39 and parent 4.1 remain open.
+
+The initial production CLI RED was the named omitted-obligation test: zero passed, one failed
+because `inspect-scenario-ledger` was unknown (`/tmp/scenario-ledger-red.log`). Restored GREEN
+and regression results are recorded below. Performance fixture construction was moved into a
+shared test utility; each test file registers explicit cleanup, so cached imports do not leave
+later fixtures uncollected. The existing Performance scenario result contract is unchanged;
+its citation finding interface is exported so TypeScript can name the composed result.
+
+### Watched R5 proofs
+
+Each fault below was injected into the production implementation or its production CLI branch,
+then the named production CLI test was run and observed failing (Bun exit 1). The implementation
+was restored in `finally` before the next fault. All 46 faults were observed. Reports are
+`/tmp/scenario-ledger-{proofs,boundary-proofs,schema-proofs,preservation-proofs}.json`; individual command output is
+`/tmp/scenario-ledger-mutation-<fault>.log`. Manual/Performance substitution tests call the real
+inspector first, then inject one changed field and repin the outer observation digest, so a
+nested identity check cannot pass merely because the outer digest was not recomputed.
+
+| Injected production fault   | Failing CLI test selection                                          |
+| --------------------------- | ------------------------------------------------------------------- |
+| `canonical`                 | `noncanonical ledger`                                               |
+| `symlink`                   | `refuses symlink ledger`                                            |
+| `regular`                   | `refuses directory ledger`                                          |
+| `utf8`                      | `refuses invalid UTF8 ledger`                                       |
+| `version`                   | `authority schemaVersion`                                           |
+| `closed`                    | `authority extra / nested unknown`                                  |
+| `pins`                      | `authority (revision / candidate / capability) substitution`        |
+| `performance-pin`           | `authority performanceObservationDigest`                            |
+| `foreign`                   | `refuses foreign / retired obligation`                              |
+| `duplicate`                 | `refuses duplicate`                                                 |
+| `blank`                     | `refuses blank reason`                                              |
+| `unassigned`                | `enumerates adopted`                                                |
+| `level`                     | `mismatched lowest`                                                 |
+| `manual-debt`               | `joins real Manual`                                                 |
+| `citation-debt`             | `lost citation`                                                     |
+| `unidentified-debt`         | `lost citation`                                                     |
+| `digest-guard`              | `substituted (Manual / Performance) digest`                         |
+| `authentication`            | `complete report diagnostic`                                        |
+| `certifies`                 | `complete report diagnostic`                                        |
+| `payload-digest`            | `complete report diagnostic`                                        |
+| `manual-revision`           | `substituted Manual revision`                                       |
+| `manual-nested-revision`    | `substituted Manual nested revision`                                |
+| `manual-candidate`          | `substituted Manual candidate`                                      |
+| `manual-instant`            | `substituted Manual evaluation`                                     |
+| `manual-policy`             | `substituted Manual policy`                                         |
+| `manual-scenario`           | `substituted Manual scenario`                                       |
+| `manual-nested-scenario`    | `substituted Manual nested scenario`                                |
+| `manual-title`              | `substituted Manual title`                                          |
+| `manual-pin`                | `foreign observation pin`                                           |
+| `manual-auth`               | `substituted Manual authentication`                                 |
+| `manual-certifies`          | `substituted Manual certifies`                                      |
+| `manual-nested-certifies`   | `substituted Manual nested certifies`                               |
+| `performance-revision`      | `substituted Performance revision`                                  |
+| `performance-capability`    | `substituted Performance capability`                                |
+| `performance-auth`          | `substituted Performance authentication`                            |
+| `performance-certifies`     | `substituted Performance certifies`                                 |
+| `arity`                     | `unsupported operands`                                              |
+| `debt-exit`                 | `enumerates adopted`                                                |
+| `diagnostic-authentication` | `substituted (Manual / Performance) authentication`                 |
+| `diagnostic-certifies`      | `substituted (Manual / Performance) (nested certifies / certifies)` |
+| `scenario-shape`            | `malformed scenario ID refuses`                                     |
+| `disposition-kind`          | `unknown disposition refuses at`                                    |
+| `upstream-preservation`     | `complete report diagnostic`                                        |
+| `b3-preservation`           | `complete report diagnostic`                                        |
+| `obligation-order`          | `complete report diagnostic`                                        |
+| `installed-route`           | `installed dispatch retains`                                        |
+
+The installed-route proof is recorded separately in `/tmp/scenario-ledger-installed-proof.json`
+and `/tmp/scenario-ledger-mutation-installed-route.log`.
+
+The first symlink guard removal still refused through the stable external reader. The test was
+strengthened to require the responsible named `contains a symlink` refusal, then the same local
+guard removal failed that assertion. The UTF-8 fault replaces a byte inside an otherwise valid
+JSON reason; nonfatal decoding therefore admits a replacement character and loses the refusal.
+Directory evidence similarly requires the named nonregular-file refusal. Missing and unreadable
+authority/report paths are separate actual filesystem cases; unreadability uses mode 000 and
+restores permissions during cleanup. Existing strict Manual readers retain their original
+production proofs for the report/environment/review/acceptance chain.
+
+### Scoped acceptance
+
+From `apps/twilight-structure/twilight-burokrat/cli`:
+
+```sh
+bun test --preload ../../../../tools/test/scratch/preload.ts ./src/evidence/scenario-ledger.test.ts ./src/evidence/performance-scenarios.test.ts ./src/evidence/performance-levels.test.ts ./src/evidence/manual.test.ts --timeout=120000
+```
+
+Exit 0: **263 passed, zero failed, 879 assertions**, 188.36 seconds
+(`/tmp/scenario-ledger-acceptance.log`). This includes source and built installed dispatch;
+the installed wrapper preserves debt JSON/nonzero status and adds its standard
+`Twilight Burokrat validator exited 1` stderr line. The real Manual stale fixture initially
+staged runtime publication artifacts with a broad add; it was corrected to stage only
+`source/module.ts`, and the complete four-file command above then passed freshly.
+
+After all omission/order/installed-route faults were restored, the complete-report/reorder and
+built installed-dispatch tests were rerun: exit 0, two passed, zero failed, 11 assertions,
+9.48 seconds (`/tmp/scenario-ledger-restored-final.log`).
+
+Changed-file Prettier check: exit 0, all 15 changed/new paths matched; `git diff --check`:
+exit 0 (`/tmp/scenario-ledger-format-final.log`).
+
+Dependency directory: reused the aggregate checkout's installed `node_modules` through a local
+symlink; this worker did not run an installation. Bun 1.4.2 and the actual source/package commands
+below executed successfully against it. Initial bare `openspec` was absent from nonlogin PATH;
+validation used the repository-pinned cached `@fission-ai/openspec@1.12.0` command. Nx socket
+creation was refused by the sandbox, so scoped Nx commands ran with `NX_DAEMON=false` and
+`NX_ISOLATE_PLUGINS=false`, without daemon/plugin worker sockets.
+
+- Uncached `bunx nx run twilight-burokrat:lint:source`: exit 0, success, 29.8 seconds
+  (`/tmp/scenario-ledger-lint-final.log`).
+- `bunx nx run twilight-burokrat:typecheck`: exit 0, success, 2.3 seconds
+  (`/tmp/scenario-ledger-typecheck-final2.log`). Initial failures for exported private return
+  types and test-only union/index syntax were corrected before this fresh successful run.
+- Uncached `bunx nx run twilight-burokrat:build`: exit 0, target and three dependencies
+  successful, 4.0 seconds (`/tmp/scenario-ledger-build-final.log`).
+- Built `dist/bin.mjs scenario validate . openspec/changes/test-axes/specs/test-axes/spec.md`:
+  exit 0, `{"unidentified":[]}` (`/tmp/scenario-ledger-provenance.json`).
+- `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate test-axes --strict --json`:
+  exit 0, 1/1 valid. `validate --all --json`: exit 0, 213/213 valid
+  (`/tmp/scenario-ledger-openspec-{strict,all}.json`).
+
+No host gate, full repository gate, exact-head CI, secrets scan, migration lint, push, PR,
+integration or deployment was performed by this worker. Independent implementation review and
+coordinator release acceptance remain pending. This diagnostic does not close the global ledgers,
+source reconciliation, T2 or certification.
+
 ## Fourth-wave CI test repairs (2026-10-15)
 
 Hosted PR #493 run 38796593695 exposed three test defects on aggregate parent
@@ -3514,3 +3650,49 @@ added. Those failed attempts are superseded by the scoped final checks above. Th
 worker did not run the complete Performance file, full repository tests, host gate,
 CI, secret scan, migration lint, merge, or deployment; coordinator acceptance remains
 open.
+
+## Wave-five hosted clock repair and wave-four restack (2026-10-15)
+
+The isolated aggregate `/tmp/wbs-wave5-aggregate-sol-20261015` started clean at
+`141876e9424b6ddaa79df128e4eb9c52217888e9`. The public wave-five tip was freshly
+verified at that exact SHA; repaired wave four was independently verified at
+`eede130ae6854b0c60cd1b29881fa2eea0dfc6c3` before fetching and normal-merging it.
+Both source packet commits remain ancestors. The merge preserves both appended verification
+records, and all three repaired wave-four test blobs match the exact wave-four commit.
+
+Hosted CI's Burokrat clock failure reproduced locally before editing: `bun test
+apps/twilight-structure/twilight-burokrat/cli/src/no-ambient-clock.test.ts` exited 1,
+zero passed/one failed, with 97 received diagnostic lines (`/tmp/wave5-clock-red.log`).
+The only source edit renames the local `performance` binding to `scenarioReport` in
+`scenario-ledger.ts` and `scenario-ledger-manual.fixture.ts`; returned `performance` properties,
+schema values, detector behavior and every adjacent R5 proof remain intact. The identical clock
+command then exited 0, one passed/zero failed (`/tmp/wave5-clock-green.log`). No safety check
+changed and no additional mutation proof is claimed.
+
+Fresh checks on the combined tree:
+
+- Scenario Ledger, Performance scenarios/levels, Manual and Burokrat clock focused suite:
+  exit 0, 264 passed, zero failed, 881 assertions across five files, 201.30 seconds
+  (`/tmp/wave5-restack-tests.log`); command matches the four-file acceptance above plus
+  `./src/no-ambient-clock.test.ts`.
+- Scoped Prettier check and `git diff --check`: exit 0. An initial format command named
+  the migration test under the wrong directory and exited 2; the corrected six-path check
+  and final hook formatting passed (`/tmp/wave5-restack-format-final.log`).
+
+- Clock detector plus Dash and Burokrat clock suites: exit 0, four passed, zero failed,
+  eight assertions (`/tmp/wave5-restack-no-clock.log`).
+- Scoped Burokrat Nx typecheck: exit 0, 2.3 seconds (`/tmp/wave5-restack-typecheck.log`).
+- Uncached scoped Burokrat Nx source lint: exit 0, 29.0 seconds
+  (`/tmp/wave5-restack-lint-isolated.log`). Two initial attempts refused stale Nx task invocation
+  registrations from the clone metadata; retry used its own `NX_WORKSPACE_DATA_DIRECTORY`
+  with `NX_DAEMON=false NX_ISOLATE_PLUGINS=false`. Direct full-source ESLint also exited 0
+  (`/tmp/wave5-restack-eslint.log`). No refused attempt counts as a pass.
+- Repository-pinned `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate --all
+--json`: exit 0, 214 passed/zero failed (`/tmp/wave5-restack-openspec.json`).
+
+The old aggregate Astra approval, exact-candidate K6 snapshot and hosted CI belong to
+`141876e9424b6ddaa79df128e4eb9c52217888e9`; they do not approve or bind the repaired head.
+The installed K6 binding for the committed repaired SHA is recorded separately in the PR
+and `/tmp/wave5-restack-evidence/` after commit. No canonical h2puni gate, full repository
+gate, browser/pixels, merge to main or deployment ran in this repair worker. Fresh exact-head review and hosted
+acceptance remain coordinator work.
