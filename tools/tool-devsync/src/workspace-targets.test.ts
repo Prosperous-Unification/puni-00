@@ -852,9 +852,9 @@ describe('every cached target declares what it reads', () => {
       'libs/wbs/application/core/src/index.ts',
     ];
     const files = hash.inputs.files;
-    // Proof: removing the dynamic-import project dependencies omitted all five files.
-    // A real health-probe edit then left the task hash unchanged; declaring the closure
-    // made health-probe, logger and SQLite dependency edits each change it (2026-10-15).
+    // Proof: removing the test workspace-tree inputs omitted all five files.
+    // With them declared, independent health-probe, logger, SQLite and shared validation
+    // edits changed the native hash; each restoration recovered its baseline (2026-10-15).
     expect(required.filter((path) => !files.includes(path))).toEqual([]);
   });
 
