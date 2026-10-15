@@ -10,3 +10,7 @@
 ## 3. Evidence
 
 - [x] 3.1 Update JSDoc and CLI READMEs, record focused checks and R5 proofs in verify.md; full gate delegated to parent.
+
+## WBS080.25 Navigator v9 read and receipt
+
+- [x] Accept strict external v9 direct facts without blockage commands; validate narrow archival references, preserve original bytes/version and native schema-2 tasks, retain historical versions, verify both consistency commands and receipt conversion including re-digested v9/schema1 and future v10 refusal, and exercise packaged external use. Evidence: ../read-current-plan-exports-in-navigator/verify.md.

@@ -8,6 +8,7 @@ import {
   PlanReferenceRecord,
   PlanTasks,
 } from '@twilight-burokrat/contracts';
+import type { PlanDocument } from '@wbs/contracts';
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 
 import {
@@ -197,36 +198,90 @@ describe('twin plan-reference', () => {
     });
     expectRefusal(
       await planReference({ '--export': path }),
-      /has version 6; twin reads versions 7 and 8 only/,
+      /has version 6; twin reads versions 7 and 8 and 9 only/,
     );
   });
 
-  test('refuses a version-9 document before writing', async () => {
-    const path = writeExport((document) => {
-      document['document'] = {
-        format: 'wbs-plan',
-        version: 9,
-        exportedAt: '2026-10-11T09:00:00.000Z',
-      };
-    });
-    expectRefusal(
-      await planReference({ '--export': path }),
-      /has version 9; twin reads versions 7 and 8 only/,
-    );
+  // Exported by PlanDocumentService.exportCaptured on 2026-10-15 with mixed units,
+  // a negative direct timestamp and done progress on its owner/step.
+  test.each([false, true])(
+    'reads v9 with empty facts %s and preserves native units and raw bytes',
+    async (empty) => {
+      const path = join(scratch.path, 'v9.json');
+      const document = JSON.parse(
+        readFileSync(join(import.meta.dir, 'fixtures', 'plan-export.v9.json'), 'utf8'),
+      ) as PlanDocument;
+      expect(document.stepBlockages).toHaveLength(1);
+      if (empty) document.stepBlockages = [];
+      writeFileSync(path, JSON.stringify(document, null, 3) + '\n');
+      const bytes = readFileSync(path);
+      const run = await planReference({ '--export': path });
+      expect(run.exitCode, run.stderr).toBe(0);
+      const record = PlanReferenceRecord.assert(readJson(join(output, 'plan-reference.json')));
+      const tasks = PlanTasks.assert(readJson(join(output, 'tasks.json')));
+      expect(record.planDocumentVersion).toBe(9);
+      expect(record.exportDigest).toBe(createHash('sha256').update(bytes).digest('hex'));
+      expect(tasks.schemaVersion).toBe(2);
+      expect(tasks.tasks[0]).toMatchObject({
+        estimates: [
+          { stepCode: 'dev', unit: 'workdays', optimistic: 1, realistic: 2, pessimistic: 4 },
+          { stepCode: 'qa', unit: 'minutes', optimistic: 30, realistic: 60, pessimistic: 120 },
+        ],
+      });
+      expect(readFileSync(path)).toEqual(bytes);
+    },
+  );
+
+  test('a blockedAt-only change preserves tasks but changes export and reference digests', async () => {
+    const path = join(scratch.path, 'v9.json');
+    const document = JSON.parse(
+      readFileSync(join(import.meta.dir, 'fixtures', 'plan-export.v9.json'), 'utf8'),
+    ) as PlanDocument;
+    writeFileSync(path, JSON.stringify(document));
+    expect((await planReference({ '--export': path })).exitCode).toBe(0);
+    const first = PlanReferenceRecord.assert(readJson(join(output, 'plan-reference.json')));
+    const firstTasks = readJson(join(output, 'tasks.json'));
+    document.stepBlockages[0].blockedAt = -2;
+    writeFileSync(path, JSON.stringify(document));
+    expect((await planReference({ '--export': path, '--output': scratch.path })).exitCode).toBe(0);
+    const second = PlanReferenceRecord.assert(readJson(join(scratch.path, 'plan-reference.json')));
+    expect(readJson(join(scratch.path, 'tasks.json'))).toEqual(firstTasks);
+    expect(second.tasksDigest).toBe(first.tasksDigest);
+    expect(second.exportDigest).not.toBe(first.exportDigest);
+    expect(second.referenceDigest).not.toBe(first.referenceDigest);
   });
 
-  test('refuses a version-9 document with blockage facts before writing', async () => {
-    const path = writeExport((document) => {
-      document['document'] = {
-        format: 'wbs-plan',
-        version: 9,
-        exportedAt: '2026-10-11T09:00:00.000Z',
-      };
-      document['stepBlockages'] = [];
-    });
+  test.each([
+    'owner',
+    'parent',
+    'step',
+    'duplicate',
+    'unsafe time',
+    'fractional time',
+    'missing facts',
+    'unknown nested key',
+    'future version',
+  ])('refuses v9 %s before writing', async (fault) => {
+    const document = JSON.parse(
+      readFileSync(join(import.meta.dir, 'fixtures', 'plan-export.v9.json'), 'utf8'),
+    ) as PlanDocument;
+    const fact = document.stepBlockages[0];
+    if (fault === 'owner') fact.workItemId = 'absent';
+    if (fault === 'parent') fact.workItemId = document.workItems[0].id;
+    if (fault === 'step') fact.stepId = 'absent';
+    if (fault === 'duplicate') document.stepBlockages.push({ ...fact });
+    if (fault === 'unsafe time') fact.blockedAt = Number.MAX_SAFE_INTEGER + 1;
+    if (fault === 'fractional time') fact.blockedAt = 1.5;
+    if (fault === 'missing facts') Reflect.deleteProperty(document, 'stepBlockages');
+    if (fault === 'unknown nested key') Reflect.set(fact, 'extra', true);
+    if (fault === 'future version') Reflect.set(document.document, 'version', 10);
+    const path = join(scratch.path, 'v9.json');
+    writeFileSync(path, JSON.stringify(document));
     expectRefusal(
       await planReference({ '--export': path }),
-      /has version 9; twin reads versions 7 and 8 only/,
+      fault === 'future version'
+        ? /has version 10; twin reads versions 7 and 8 and 9 only/
+        : /plan export is malformed/,
     );
   });
 

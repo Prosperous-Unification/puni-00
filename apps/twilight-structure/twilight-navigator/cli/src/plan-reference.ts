@@ -33,7 +33,7 @@ export const PLAN_REFERENCE_FLAGS = [
 type PlanReferenceFlag = (typeof PLAN_REFERENCE_FLAGS)[number];
 
 /** Explicit supported wire versions; a future WBS bump requires contract review here. */
-const NAVIGATOR_PLAN_DOCUMENT_VERSIONS = [7, 8] as const;
+const NAVIGATOR_PLAN_DOCUMENT_VERSIONS = [7, 8, 9] as const;
 
 const EXPORT_ROLE = 'plan export';
 const REQUIREMENTS_ROLE = 'requirements file';
@@ -66,14 +66,47 @@ const HistoricalPlanDocument = planDocument
 /** Current wire contract; nested unknown keys remain a refused input. */
 // Proof: ignoring deep unknown keys made both current-export unknown-key tests exit 0.
 // Injecting a workday default before this decode made the missing-unit test exit 0 (2026-10-13).
-const CurrentPlanDocument = planDocument
+const Version8PlanDocument = planDocument
   .omit('document', 'stepBlockages')
   .and({ document: { format: "'wbs-plan'", version: '8', exportedAt: 'string' } })
   .onDeepUndeclaredKey('reject');
 
+/** Strict current external wire shape, without historical defaults or discarded keys. */
+// Proof: removing deep rejection accepted `refuses v9 unknown nested key`; defaulting a missing
+// collection accepted `refuses v9 missing facts`; truncating accepted `refuses v9 fractional time`
+// through plan-reference.test.ts production dispatch (2026-10-15).
+const Version9PlanDocument = planDocument.onDeepUndeclaredKey('reject');
+
+/**
+ * Checks only direct archival facts at Navigator's external export boundary. Retained facts
+ * on done nodes and negative instants are valid; progress and eligibility are not derived.
+ * @throws when a direct fact has no existing leaf owner or step, repeats a pair, or has an unsafe instant.
+ */
+function validateBlockageFacts(document: PlanDocument): void {
+  const owners = new Set(document.workItems.map(({ id }) => id));
+  const parents = new Set(document.workItems.map(({ parentId }) => parentId));
+  const steps = new Set(document.steps.map(({ id }) => id));
+  const pairs = new Set<string>();
+  for (const { workItemId, stepId, blockedAt } of document.stepBlockages) {
+    // Proof: Removing owner membership accepted `refuses v9 owner` in plan-reference.test.ts (2026-10-15).
+    if (!owners.has(workItemId)) throw new Error(`blockage names unknown owner ${workItemId}`);
+    // Proof: Removing leaf ownership accepted `refuses v9 parent` in plan-reference.test.ts (2026-10-15).
+    if (parents.has(workItemId)) throw new Error(`blockage owner ${workItemId} is not a leaf`);
+    // Proof: Removing step membership accepted `refuses v9 step` in plan-reference.test.ts (2026-10-15).
+    if (!steps.has(stepId)) throw new Error(`blockage names unknown step ${stepId}`);
+    // Proof: Removing safe-integer validation accepted `refuses v9 unsafe time` in plan-reference.test.ts (2026-10-15).
+    if (!Number.isSafeInteger(blockedAt))
+      throw new Error('blockage timestamp is not a safe integer');
+    const pair = JSON.stringify([workItemId, stepId]);
+    // Proof: Removing uniqueness accepted `refuses v9 duplicate` in plan-reference.test.ts (2026-10-15).
+    if (pairs.has(pair)) throw new Error('blockage repeats an owner/step pair');
+    pairs.add(pair);
+  }
+}
+
 interface DecodedPlanExport {
   document: PlanDocument;
-  wireVersion: 7 | 8;
+  wireVersion: 7 | 8 | 9;
 }
 
 function sha256Hex(bytes: Uint8Array): string {
@@ -93,15 +126,26 @@ function decodePlanExport(bytes: Uint8Array, path: string): DecodedPlanExport {
     throw new Error(`${EXPORT_ROLE} is malformed: ${path} is not a WBS plan (${header.summary})`);
   }
   // Proof: restoring the v7 pin failed the mixed-unit v8 test; removing this guard
-  // failed the version-9 refusal diagnostic (plan-reference.test.ts, 2026-10-13).
-  if (header.document.version !== 7 && header.document.version !== 8) {
+  // failed the historical future-version refusal diagnostic (plan-reference.test.ts, 2026-10-13).
+  // Proof: restoring the v7/v8 pin broke both v9 positives; bypassing the guard broke the v10
+  // refusal diagnostic in plan-reference.test.ts (2026-10-15).
+  if (
+    header.document.version !== 7 &&
+    header.document.version !== 8 &&
+    header.document.version !== 9
+  ) {
     throw new Error(
       `${EXPORT_ROLE} ${path} has version ${String(header.document.version)}; twin reads versions ${NAVIGATOR_PLAN_DOCUMENT_VERSIONS.join(' and ')} only`,
     );
   }
   try {
+    if (header.document.version === 9) {
+      const document = parseOrThrow(Version9PlanDocument, parsed);
+      validateBlockageFacts(document);
+      return { document, wireVersion: 9 };
+    }
     if (header.document.version === 8) {
-      const document = parseOrThrow(CurrentPlanDocument, parsed);
+      const document = parseOrThrow(Version8PlanDocument, parsed);
       return {
         document: {
           ...document,
@@ -133,7 +177,7 @@ function decodePlanExport(bytes: Uint8Array, path: string): DecodedPlanExport {
  * @throws when a parent, an estimate's step or a step code is missing or repeated, since the
  * export would then not describe one tree.
  */
-export function derivePlanTasks(document: PlanDocument, wireVersion: 7 | 8): PlanTasks {
+export function derivePlanTasks(document: PlanDocument, wireVersion: 7 | 8 | 9): PlanTasks {
   const steps = [...document.steps]
     .sort((left, right) => left.position - right.position || left.id.localeCompare(right.id))
     .map((step) => ({
@@ -249,6 +293,8 @@ export async function runPlanReference(request: FlagValues<PlanReferenceFlag>): 
     kind: 'plan-reference',
     planRef,
     planDocumentVersion: wireVersion,
+    // Proof: hashing decoded canonical JSON broke both v9 raw-byte assertions in
+    // plan-reference.test.ts (2026-10-15).
     exportDigest: sha256Hex(exportBytes),
     tasksDigest: digestOf(tasks),
     taskCount: tasks.tasks.length,

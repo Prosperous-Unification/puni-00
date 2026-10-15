@@ -479,7 +479,8 @@ identities, and preserve exact timestamps within the import transaction.
 
 - **WHEN** Navigator receives external v7 or v8
 - **THEN** it adapts to internal v9 with empty direct facts
-- **AND** external v9 remains refused before output files are written
+- **AND** external v9 requires strict direct facts with existing leaf owners and steps, unique pairs and safe-integer timestamps, including negative times and facts retained on done progress
+- **AND** external v9 writes task schema 2 while its original bytes and version bind the reference; malformed facts or external v10 are refused before output files are written
 
 ### Requirement: Compose backend transitions stop every prior database writer before candidate startup
 

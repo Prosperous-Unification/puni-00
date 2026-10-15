@@ -1525,3 +1525,13 @@ The canonical h2 gate on aggregate 9b552fa85 found that project-level implicit d
 R5: removing the three test-tree inputs made the real native hash-input oracle fail naming boot, health-probe, logger, SQLite enterprise-connection and application core. Restoring them passed. Fresh native task-hasher probes with unique workspace-data directories used baseline `3215147784100713459`; independent comment edits yielded health-probe `1431491260959070952`, logger `16535606122300405390`, SQLite enterprise-connection `5944545180893854218`, and shared validation `8934567712863891130`. Every source restoration returned exactly to baseline. All injected edits were restored. The earlier implicit-edge solution and its hash measurements remain historical evidence, superseded by this target-only repair.
 
 Target-only repair verification: complete workspace-projects and workspace-targets suites **41 passed, 0 failed, 105 assertions**; both uncached scoped typechecks, changed ESLint, Prettier/diff checks and pinned strict OpenSpec validation passed. The parent owns the aggregate merge and canonical h2 exact-SHA gate; no broad gate was run by this worker.
+
+## WBS080.25 v9 read and receipt amendment — 2026-10-15
+
+Strict external v9 is now accepted by Navigator with direct fact validation and native
+schema-2 tasks. V9/schema1 and v10 refuse; historical compatibility remains. Both Burokrat
+consistency commands, receipt conversion and the packaged external consumer exercise v9.
+The six-field PlanRef remains the receipt binding; there is no blockage freshness claim.
+Focused command results, exporter fixture provenance and thirteen watched production mutation
+proofs are recorded in [the current-export verification report](../read-current-plan-exports-in-navigator/verify.md#wbs08025-strict-v9-reader-and-receipt-amendment--2026-10-15).
+The exact-SHA canonical gate and independent review remain parent-coordinated.

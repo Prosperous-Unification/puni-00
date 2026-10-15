@@ -28,7 +28,7 @@ export function validateProgressReceipt(
   referenceInput: unknown,
   tasksInput: unknown,
 ): ProgressReceiptConsistency {
-  // Proof: bypassing these decoders failed 16 production CLI digest/unknown-key/v9
+  // Proof: bypassing these decoders failed 16 production CLI digest/unknown-key/future-version
   // refusals in progress-receipt.test.ts (2026-10-15).
   const receipt = parseOrThrow(ProgressReceiptRecord, receiptInput);
   const reference = parseOrThrow(PlanReferenceRecord, referenceInput);

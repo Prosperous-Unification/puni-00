@@ -176,7 +176,8 @@ It checks existing plan/task consistency, the complete plan reference and each r
 leaf task ID and step code membership. Navigator reuses `checkProgressReceiptConsistency` before
 constructing commands. The report grants no certification, authorship, freshness, evidence
 authority, approval, admission or authority over current WBS state. Historical v6/v7/v8 references
-remain supported; v9 remains refused. Missing, unreadable, malformed and inconsistent inputs fail
+remain supported; v9 requires task schema 2 and v10 is refused. Receipt binding uses the six-field
+PlanRef, without asserting direct blockage freshness. Missing, unreadable, malformed and inconsistent inputs fail
 with no success stdout. This command reads files only.
 
 `twib validate-plan-tasks <plan-reference.json> <tasks.json>` strictly checks the two supplied

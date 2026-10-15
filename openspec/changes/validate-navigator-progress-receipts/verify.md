@@ -79,3 +79,13 @@ Based on public main `b773e5f64d9b8eeb1bffcd9ceda099425f14297a`, in isolated `/t
 ## Decision
 
 Implementation is ready for independent review and the parent's full gate. Archive and merge remain pending those checks.
+
+## WBS080.25 v9 read and receipt amendment — 2026-10-15
+
+Strict external v9 is now accepted by Navigator with direct fact validation and native
+schema-2 tasks. V9/schema1 and v10 refuse; historical compatibility remains. Both Burokrat
+consistency commands, receipt conversion and the packaged external consumer exercise v9.
+The six-field PlanRef remains the receipt binding; there is no blockage freshness claim.
+Focused command results, exporter fixture provenance and thirteen watched production mutation
+proofs are recorded in [the current-export verification report](../read-current-plan-exports-in-navigator/verify.md#wbs08025-strict-v9-reader-and-receipt-amendment--2026-10-15).
+The exact-SHA canonical gate and independent review remain parent-coordinated.

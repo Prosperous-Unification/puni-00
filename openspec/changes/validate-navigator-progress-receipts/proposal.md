@@ -8,11 +8,11 @@ Add `twib validate-progress-receipt <receipt.json> <plan-reference.json> <tasks.
 
 ## Non-Goals
 
-Certification, authentication, current WBS authority, network access, WBS writes, sorting or deduplication, a new receipt format, and v9 support. Version 9 remains deliberately refused by the existing step blockage contract.
+Certification, authentication, current WBS authority, network access, WBS writes, sorting or deduplication, a new receipt format, and blockage freshness authority.
 
 ## Constraints
 
-Retain historical v6/v7/v8 references and native task values. Refuse absent, unreadable, malformed and inconsistent documents with empty success stdout. Preserve exclusive output creation and receipt/measure order. Use Bun, existing contracts, focused TDD and watched production negatives. The parent owns the full h2puni gate and merge.
+Retain historical v6/v7/v8 references, admit v9 only with task schema 2, and refuse v10 and native task values. Refuse absent, unreadable, malformed and inconsistent documents with empty success stdout. Preserve exclusive output creation and receipt/measure order. Use Bun, existing contracts, focused TDD and watched production negatives. The parent owns the full h2puni gate and merge.
 
 ## Capabilities
 

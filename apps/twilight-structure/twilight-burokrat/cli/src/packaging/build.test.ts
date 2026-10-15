@@ -116,7 +116,7 @@ describe('buildPackage', () => {
         '--export',
         join(
           import.meta.dir,
-          '../../../../twilight-navigator/cli/src/fixtures/plan-export.v8.json',
+          '../../../../twilight-navigator/cli/src/fixtures/plan-export.v9.json',
         ),
         '--repository',
         'repo',

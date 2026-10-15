@@ -199,10 +199,15 @@ after subtree insertion in the existing unit of work, before announcements.
 A refused store write throws; any later failure rolls the entire import back.
 Import is a blockage writer, so enabling it has the same incompatible-writer drain
 obligation as command writes during blue/green overlap.
-Navigator accepts external v7 and v8: both strict wire shapes exclude the new
-root field, while their internal adapters supply v9 and empty facts. External v9
-remains refused. Version 7 retains task schema1 with workday estimates; version 8
-retains task schema2 with native estimate units. Schedule calculations and progress are independent of these facts.
+Navigator accepts external v7, v8 and v9. Historical v7/v8 strict wire shapes exclude
+the new root field and adapt to internal v9 with empty facts. External v9 requires
+strict direct facts with existing leaf owners and steps, unique pairs and safe integer
+times, including negative instants and retained facts on done progress. A narrow
+Navigator boundary validator checks these references without importing WBS domain logic.
+Version 7 retains task schema1 with workday estimates; versions 8/9 use task schema2
+with native estimate units. Raw export bytes and original version bind the reference;
+facts create no commands or eligibility calculation. Receipts bind the six-field PlanRef
+without asserting blockage freshness. Schedule calculations and progress are independent of these facts.
 
 ## Compose stopped-writer transition (task 6.4)
 

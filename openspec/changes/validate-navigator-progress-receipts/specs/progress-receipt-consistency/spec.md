@@ -6,7 +6,7 @@ Burokrat SHALL accept exactly three nonempty positional paths to `validate-progr
 
 #### Scenario: Historical supported plans
 
-- **WHEN** real Navigator v6, v7 or v8 documents and a consistent receipt are supplied
+- **WHEN** real Navigator v6, v7, v8 or v9 documents and a consistent receipt are supplied
 - **THEN** source and installed validators emit the scoped report without modifying any input
 
 #### Scenario: Untrusted or inconsistent input
@@ -21,7 +21,7 @@ Burokrat SHALL accept exactly three nonempty positional paths to `validate-progr
 
 #### Scenario: Unsupported wire version
 
-- **WHEN** a supplied reference names plan version 9
+- **WHEN** a supplied reference names plan version 10
 - **THEN** strict decoding refuses it
 
 ### Requirement: Shared Navigator validation
@@ -37,3 +37,17 @@ Navigator SHALL call the typed consistency checker before constructing commands 
 
 - **WHEN** a re-digested inconsistent plan or unknown receipt member is supplied
 - **THEN** Navigator refuses before creating an output file
+
+### Requirement: V9 receipts preserve reference binding without blockage authority
+
+Consistency SHALL admit version-9 references paired with task schema 2 and refuse re-digested v9/schema1 pairs and version 10. Both consistency commands and receipt conversion SHALL preserve the existing six-field PlanRef binding. Direct blockage facts SHALL remain in the export and SHALL NOT create commands, eligibility calculations or blockage freshness claims.
+
+#### Scenario: V9 native task receipt
+
+- **WHEN** a receipt binds a strict v9 reference and native-unit schema-2 task export
+- **THEN** consistency succeeds and receipt conversion emits only existing progress and measure commands
+
+#### Scenario: Unsupported v9 schema pairing
+
+- **WHEN** a v9 reference is re-digested around schema-1 tasks
+- **THEN** both consistency commands and receipt conversion refuse before creating output
