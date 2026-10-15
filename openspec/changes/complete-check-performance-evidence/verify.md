@@ -8,10 +8,14 @@ Base: remote main `b773e5f64`. This is a non-certifying CLI change. No external 
 - Focused `bun test .../evidence/performance.test.ts --test-name-pattern 'complete check Performance' --timeout=120000`: RED rejected `--performance-evidence` as a complete-check flag. GREEN: 1 pass, 0 fail, 59 assertions, 54.87 seconds; includes source and freshly built executable.
 - `NX_DAEMON=false bunx nx run twilight-burokrat:typecheck`: passed, 2.3 seconds. Nx fell back from sandbox-denied worker sockets to its main process.
 - `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run twilight-burokrat:lint`: exited 0 but reports `status: inactive`, `certified: false`, external activation root not provisioned. This does not prove activated policy validation.
-- OpenSpec change validation: passed, zero issues.
-- Source ESLint, focused rule regression suite, package tests and format check: running at checkpoint.
+- `bunx @fission-ai/openspec@1.12.0 validate --all --json`: 201 passed, 0 failed (183 changes, 18 specs).
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx format:check --all`: exit 0, no differing files. Follow-up changed files also pass Prettier.
+- Source ESLint: passed (Nx lint:source, 48.8 seconds). Focused Performance + rule regression suite: 86 pass, 0 fail, 798 assertions, 111.97 seconds. Follow-up actual consumer installation with `bun add --ignore-scripts` and installed `node_modules/.bin/twib`, including help: 1 pass, 0 fail, 62 assertions, 62.78 seconds.
 - First project test run overlapped deliberate mutation and reported validator artifact digest mismatches; it is invalid as final evidence. A concurrent rerun was refused by Nx's recursive-task detector. A clean serialized rerun is required after outstanding runs finish.
-- Full monorepo gate and h2puni gate: not run at checkpoint.
+- Read-only Astra high review of checkpoint `22e8b816e`: PASS, no P1/P2 findings. Optional design.md skipped because this changes an existing flag parser with no new technical boundary.
+- Follow-up test file ESLint and TypeScript build: passed.
+- Package test first attempt failed because sandbox denied local registry listen (`EPERM`), then was stopped; rerun with local socket access is pending.
+- Full monorepo test/lint/typecheck/build and h2puni gate: not run.
 
 ## Failure proofs
 

@@ -799,7 +799,7 @@ describe('Burokrat Performance judge', () => {
 });
 
 describe('complete check Performance evidence', () => {
-  it('evaluates bound evidence and refuses invalid inputs in source and built executable', async () => {
+  it('evaluates bound evidence and refuses invalid inputs in source and installed executable', async () => {
     const fixture = productionFixture();
     const policy = JSON.parse(readFileSync(fixture.policyPath, 'utf8')) as Record<string, unknown>;
     writeFileSync(
@@ -829,7 +829,29 @@ describe('complete check Performance evidence', () => {
     const packageRoot = mkdtempSync(join(tmpdir(), 'burokrat-complete-check-package-'));
     roots.push(packageRoot);
     await buildPackage(packageRoot);
-    for (const entry of ['source', join(packageRoot, 'dist/bin.mjs')]) {
+    writeFileSync(
+      join(packageRoot, 'package.json'),
+      readFileSync(join(import.meta.dir, '../../package.json')),
+    );
+    const consumer = mkdtempSync(join(tmpdir(), 'burokrat-complete-check-consumer-'));
+    roots.push(consumer);
+    writeFileSync(join(consumer, 'package.json'), JSON.stringify({ private: true }));
+    const installation = Bun.spawnSync([process.execPath, 'add', '--ignore-scripts', packageRoot], {
+      cwd: consumer,
+      env: { ...process.env, BUN_TMPDIR: consumer, BUN_INSTALL_CACHE_DIR: join(consumer, 'cache') },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    expect(installation.exitCode, installation.stderr.toString()).toBe(0);
+    const executable = join(consumer, 'node_modules/.bin/twib');
+    const help = Bun.spawnSync([process.execPath, executable, '--help'], {
+      cwd: consumer,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    expect(help.exitCode, help.stderr.toString()).toBe(0);
+    expect(help.stdout.toString()).toContain('[--performance-evidence <json>]');
+    for (const entry of ['source', executable]) {
       const check = async (flags: string[]): Promise<CliInvocation> => {
         const args = [
           'check',
@@ -841,6 +863,7 @@ describe('complete check Performance evidence', () => {
         ];
         if (entry === 'source') return await invokeCli(args);
         const invocation = Bun.spawnSync([process.execPath, entry, ...args], {
+          cwd: consumer,
           stdout: 'pipe',
           stderr: 'pipe',
         });
