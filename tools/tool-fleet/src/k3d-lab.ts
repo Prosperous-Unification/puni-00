@@ -802,9 +802,16 @@ async function upLab(root: string, request: K3dLabRequest, tools: LabTools): Pro
           : [];
         // k3d edits $KUBECONFIG on create and delete; pointing it into the state directory keeps the
         // user's default kubeconfig and current context untouched.
-        await run(tools.k3d, ['cluster', 'create', '--config', configPath, ...replaced], {
-          environment: { KUBECONFIG: join(state, 'k3d-scratch.kubeconfig') },
-        });
+        // Proof: the k3d-stage failure fixture removes its partial cluster unless --no-rollback
+        // is present; removing this flag made the real-up caller negative fail with ENOENT.
+        // Pinned v5.9.0 otherwise invokes ClusterDelete internally on ClusterRun failure.
+        await run(
+          tools.k3d,
+          ['cluster', 'create', '--no-rollback', '--config', configPath, ...replaced],
+          {
+            environment: { KUBECONFIG: join(state, 'k3d-scratch.kubeconfig') },
+          },
+        );
         requireLoopbackPublished(
           `k3d-${name}-serverlb`,
           await run('docker', ['port', `k3d-${name}-serverlb`]),
@@ -854,7 +861,7 @@ async function upLab(root: string, request: K3dLabRequest, tools: LabTools): Pro
     console.log(announcement);
   } catch (cause) {
     throw new Error(
-      `k3d lab ${request.labId} attempt ${identity.attemptId} failed; resources retained. ` +
+      `k3d lab ${request.labId} attempt ${identity.attemptId} failed; resource state is unknown and requires manual inspection. ` +
         `Journal ${join(attempts, `${identity.attemptId}.json`)} is not cleanup authority; ` +
         'inspect exact resource identities manually (docs/infra/local.md).',
       { cause },

@@ -8,7 +8,7 @@ import { readCreationAttempt } from './creation-journal';
 
 const ROOT = join(import.meta.dir, '../../..');
 
-async function fixture(failCreation: boolean) {
+async function fixture(failCreation: 'none' | 'network' | 'cluster') {
   const root = await scratchAsync('k3d-creation-caller-');
   const binaries = join(root, 'bin');
   await mkdir(binaries, { mode: 0o700 });
@@ -20,6 +20,7 @@ async function fixture(failCreation: boolean) {
   await writeFile(join(root, '.gitignore'), '.puni/\n');
   const calls = join(root, 'calls');
   const present = join(root, 'present');
+  const partial = join(root, 'partial-cluster');
   const attempts = join(root, '.puni/fleet-labs/k3d/.attempts/f9');
   await writeFile(
     join(binaries, 'docker'),
@@ -36,12 +37,40 @@ case "$*" in
   'network rm '*) rm '${present}' ;;
   'network create '*)
     test -n "$(find '${attempts}' -name '*.json' -print -quit)" || { echo 'missing reservation' >&2; exit 89; }
-    ${failCreation ? "echo 'injected create failure' >&2; exit 71" : `touch '${present}'; printf '%064d\\n' 2`} ;;
+    ${failCreation === 'network' ? "echo 'injected create failure' >&2; exit 71" : `touch '${present}'; printf '%064d\\n' 2`} ;;
   *) echo 'unexpected command' >&2; exit 99 ;;
 esac
 `,
   );
-  await writeFile(join(binaries, 'k3d'), '#!/bin/sh\nprintf "k3d version v5.9.0\\n"\n');
+  await writeFile(
+    join(binaries, 'k3d'),
+    `#!/bin/sh
+printf 'k3d %s\\n' "$*" >> '${calls}'
+case "$*" in
+  version) printf 'k3d version v5.9.0\\n' ;;
+  'cluster create '*)
+    ${
+      failCreation === 'cluster'
+        ? `
+    printf 'partially created cluster' > '${partial}'
+    no_rollback=false
+    for argument in "$@"; do
+      if test "$argument" = '--no-rollback'; then no_rollback=true; fi
+    done
+    if test "$no_rollback" = false; then
+      rm '${partial}'
+      printf 'k3d internal rollback\\n' >> '${calls}'
+    fi
+    echo 'injected k3d cluster create failure' >&2
+    exit 72`
+        : "printf 'cluster created\\n'"
+    } ;;
+  'cluster delete '*) ;;
+  'kubeconfig get '*) printf 'fixture kubeconfig\\n' ;;
+  *) echo 'unexpected k3d command' >&2; exit 99 ;;
+esac
+`,
+  );
   await writeFile(join(binaries, 'kubectl'), '#!/bin/sh\nprintf "Client Version: v1.36.4\\n"\n');
   for (const name of ['docker', 'k3d', 'kubectl']) await chmod(join(binaries, name), 0o700);
   const invoke = (action: 'up' | 'down') =>
@@ -63,11 +92,11 @@ esac
         stderr: 'pipe',
       },
     );
-  return { root, calls, attempts, invoke };
+  return { root, calls, attempts, partial, invoke };
 }
 
 it('reserves a journal before real up creates resources and records a creation failure', async () => {
-  const { calls, attempts, invoke } = await fixture(true);
+  const { calls, attempts, invoke } = await fixture('network');
   const invocation = invoke('up');
   const stderr = await new Response(invocation.stderr).text();
   expect(await invocation.exited).not.toBe(0);
@@ -89,7 +118,7 @@ it('reserves a journal before real up creates resources and records a creation f
 });
 
 it('keeps old attempt journals across ordinary up down up', async () => {
-  const { attempts, invoke } = await fixture(false);
+  const { attempts, invoke } = await fixture('none');
   for (const action of ['up', 'down', 'up'] as const) {
     const invocation = invoke(action);
     const stderr = await new Response(invocation.stderr).text();
@@ -103,4 +132,28 @@ it('keeps old attempt journals across ordinary up down up', async () => {
       (await readCreationAttempt(attempts, { labId: 'f9', daemonId: 'daemon-1', attemptId })).state,
     ).toBe('ready');
   }
+});
+
+it('disables k3d rollback when cluster creation fails and leaves its partial fixture for manual inspection', async () => {
+  const { calls, attempts, partial, invoke } = await fixture('cluster');
+  const invocation = invoke('up');
+  const stderr = await new Response(invocation.stderr).text();
+  expect(await invocation.exited).not.toBe(0);
+  expect(stderr).toContain('injected k3d cluster create failure');
+  expect(stderr).toContain('not cleanup authority');
+  expect(stderr).not.toContain('lab -- down');
+  expect(await readFile(partial, 'utf8')).toBe('partially created cluster');
+  expect(stderr).toContain('resource state is unknown');
+  const commands = await readFile(calls, 'utf8');
+  expect(commands).toContain('k3d cluster create');
+  expect(commands).not.toContain('internal rollback');
+  expect(commands).not.toContain('cluster delete');
+  expect(commands).not.toMatch(/(^|\n)(network )?rm /);
+  const journals = await readdir(attempts);
+  expect(journals).toHaveLength(1);
+  const attemptId = journals.at(0)?.replace(/\.json$/, '');
+  if (attemptId === undefined) throw new Error('Missing journal filename');
+  expect(
+    (await readCreationAttempt(attempts, { labId: 'f9', daemonId: 'daemon-1', attemptId })).state,
+  ).toBe('failed');
 });

@@ -4,7 +4,7 @@ Local fleet lab creation can fail after Docker resources exist, while the curren
 
 ## What Changes
 
-Every k3d lab creation reserves an owner-only, exclusive attempt journal bound to its validated lab, UUID and Docker daemon identity before resource creation. Success and failure durably complete that journal. Attempt history survives ordinary lab teardown. A separate receipt-consuming lifecycle boundary rejects missing, unreadable, malformed and mismatched journals, and refuses deletion even with a valid journal.
+Every k3d lab creation reserves an owner-only, exclusive attempt journal bound to its validated lab, UUID and Docker daemon identity before resource creation. Success and failure durably complete that journal. k3d automatic failure rollback is explicitly disabled; resource state remains unknown until manual inspection. Attempt history survives ordinary lab teardown. A separate receipt-consuming lifecycle boundary rejects missing, unreadable, malformed and mismatched journals, and refuses deletion even with a valid journal.
 
 ## Non-Goals
 
@@ -12,7 +12,7 @@ Resource ownership receipts, adoption of existing resources, identity-based dele
 
 ## Constraints
 
-Offline fixtures only; no live Docker, k3d or Kubernetes operations. Preserve existing lab callers and profiles. Do not claim a journal makes existing name/label teardown safe. Persistence failures must prevent resource creation or propagate visibly, retaining resources for manual inspection. Bun and scoped Nx checks only; no host gate, push or PR.
+Offline fixtures only; no live Docker, k3d or Kubernetes operations. Preserve existing lab callers and profiles. Do not claim a journal makes existing name/label teardown safe. Persistence failures must prevent resource creation or propagate visibly, requiring manual inspection of unknown resource state. Bun and scoped Nx checks only; no host gate, push or PR.
 
 ## Capabilities
 

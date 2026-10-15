@@ -238,3 +238,74 @@ for (const boundary of ['file', 'directory']) {
     expect(stdout).not.toContain('CREATION CALLBACK RAN');
   });
 }
+
+it('refuses a FIFO journal at the real consuming boundary without blocking', async () => {
+  const path = await directory();
+  const fifo = Bun.spawnSync(['mkfifo', '--mode=600', filename(path)]);
+  expect(fifo.exitCode).toBe(0);
+  const script = `
+    const { consumeCreationAttempt } = await import(${JSON.stringify(join(import.meta.dir, 'creation-journal.ts'))});
+    try {
+      await consumeCreationAttempt(${JSON.stringify(path)}, ${JSON.stringify(identity)});
+      throw new Error('FIFO journal was accepted');
+    } catch (cause) {
+      if (!(cause instanceof Error) || !cause.message.includes('owner-only regular file')) throw cause;
+      console.log('refused nonregular journal');
+    }
+  `;
+  const invocation = Bun.spawn([process.execPath, '--eval', script], {
+    stdout: 'pipe',
+    stderr: 'pipe',
+    timeout: 2000,
+    killSignal: 'SIGKILL',
+  });
+  const [stdout, stderr, code] = await Promise.all([
+    new Response(invocation.stdout).text(),
+    new Response(invocation.stderr).text(),
+    invocation.exited,
+  ]);
+  expect({ code, stderr }).toEqual({ code: 0, stderr: '' });
+  expect(stdout).toContain('refused nonregular journal');
+});
+
+for (const boundary of ['directory', 'file']) {
+  it(`refuses an injected ${boundary} UID mismatch at the real consuming boundary`, async () => {
+    const path = await directory();
+    await createCreationAttempt(path, identity);
+    const actualUid = process.getuid?.();
+    if (actualUid === undefined) throw new Error('UID provider is required for ownership proof');
+    expect((await stat(path)).uid).toBe(actualUid);
+    expect((await stat(filename(path))).uid).toBe(actualUid);
+    const refusal =
+      boundary === 'directory' ? 'directory must be owner-only' : 'owner-only regular file';
+    const script = `
+      const { consumeCreationAttempt } = await import(${JSON.stringify(join(import.meta.dir, 'creation-journal.ts'))});
+      const actualUid = process.getuid();
+      let lookups = 0;
+      process.getuid = () => {
+        lookups += 1;
+        return ${JSON.stringify(boundary === 'directory')} || lookups > 1 ? actualUid + 1 : actualUid;
+      };
+      try {
+        await consumeCreationAttempt(${JSON.stringify(path)}, ${JSON.stringify(identity)});
+        throw new Error('UID mismatch was accepted');
+      } catch (cause) {
+        if (!(cause instanceof Error) || !cause.message.includes(${JSON.stringify(refusal)})) throw cause;
+        console.log('refused injected UID mismatch');
+      }
+    `;
+    const invocation = Bun.spawn([process.execPath, '--eval', script], {
+      stdout: 'pipe',
+      stderr: 'pipe',
+      timeout: 2000,
+      killSignal: 'SIGKILL',
+    });
+    const [stdout, stderr, code] = await Promise.all([
+      new Response(invocation.stdout).text(),
+      new Response(invocation.stderr).text(),
+      invocation.exited,
+    ]);
+    expect({ code, stderr }).toEqual({ code: 0, stderr: '' });
+    expect(stdout).toContain('refused injected UID mismatch');
+  });
+}

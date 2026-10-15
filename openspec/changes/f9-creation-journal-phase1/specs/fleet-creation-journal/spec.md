@@ -21,16 +21,21 @@ A creating journal SHALL transition atomically to ready or failed, with exclusiv
 #### Scenario: Creation fails
 
 - **WHEN** resource creation throws
-- **THEN** the attempt records failed state before the error propagates and performs no cleanup
+- **THEN** the attempt records failed state before the error propagates, the wrapper performs no cleanup, and output reports resource state as unknown
 
 #### Scenario: Separate attempts and repeated ordinary lifecycle
 
 - **WHEN** distinct attempts run concurrently or ordinary up/down/up repeats
 - **THEN** their identities and terminal states remain distinct, and ordinary down does not remove attempt journals
 
+#### Scenario: k3d creation fails internally
+
+- **WHEN** the pinned k3d cluster-create command fails after partial creation
+- **THEN** the wrapper has explicitly passed `--no-rollback`, disabling the tool's automatic failure rollback, records failed state and requires manual inspection without claiming resource ownership
+
 ### Requirement: Strict consuming lifecycle boundary
 
-The receipt-consuming lifecycle API SHALL require an owner-only regular journal file owned by the invoking user, without following a final symlink, and SHALL validate its exact schema and expected attempt, lab and daemon identities. It SHALL refuse deletion for valid journals while the identity executor is disabled.
+The receipt-consuming lifecycle API SHALL require an owner-only regular journal file owned by the invoking user, without following a final symlink or blocking on a FIFO, and SHALL validate its exact schema and expected attempt, lab and daemon identities. It SHALL refuse deletion for valid journals while the identity executor is disabled.
 
 #### Scenario: Missing journal
 
@@ -51,3 +56,13 @@ The receipt-consuming lifecycle API SHALL require an owner-only regular journal 
 
 - **WHEN** the journal passes the consuming boundary
 - **THEN** deletion is refused because the identity executor is disabled
+
+#### Scenario: Nonregular journal
+
+- **WHEN** an owner-only FIFO occupies the requested journal path
+- **THEN** the consuming boundary opens nonblocking and rejects the opened descriptor before reading contents
+
+#### Scenario: Foreign owner identity
+
+- **WHEN** the directory owner or opened file owner differs from the consuming process identity
+- **THEN** the boundary rejects that ownership mismatch independently of the permission mode

@@ -34,7 +34,8 @@ function requireIdentity(input: CreationIdentity): CreationIdentity {
 
 async function requireDirectory(directory: string): Promise<void> {
   const status = await lstat(directory);
-  // Proof: public-directory lifecycle negative fails when this ownership/mode refusal is removed.
+  // Proof: public-directory negative detects mode refusal; injected directory-UID consuming
+  // negative detects removal of only the directory UID comparison (real fixture, isolated process).
   if (
     !status.isDirectory() ||
     status.uid !== process.getuid?.() ||
@@ -97,7 +98,7 @@ export async function createCreationAttempt(
 }
 
 /**
- * Read trusted attempt state through a non-following descriptor. Missing, unreadable, public,
+ * Read trusted attempt state through a nonblocking, non-following descriptor. Missing, unreadable, public,
  * malformed, foreign-owner and mismatched identity state throws, including at deletion entry.
  */
 export async function readCreationAttempt(
@@ -106,14 +107,16 @@ export async function readCreationAttempt(
 ): Promise<CreationJournal> {
   const identity = requireIdentity(input);
   await requireDirectory(directory);
-  // Proof: symlink consuming negative fails if O_NOFOLLOW is removed.
+  // Proof: symlink consuming negative detects removing O_NOFOLLOW; actual FIFO consuming
+  // negative is killed at 2s if O_NONBLOCK is removed, instead of reaching regular-file refusal.
   const descriptor = await open(
     join(directory, `${identity.attemptId}.json`),
-    constants.O_RDONLY | constants.O_NOFOLLOW,
+    constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
   );
   try {
     const status = await descriptor.stat();
-    // Proof: separate unreadable/public-mode consuming negatives fail if mode checks are removed.
+    // Proof: unreadable/public-mode negatives detect mode refusal; FIFO negative detects removing
+    // isFile; injected file-UID consuming negative detects removing only this UID comparison.
     if (!status.isFile() || status.uid !== process.getuid?.() || (status.mode & 0o777) !== 0o600) {
       throw new Error(
         'Creation journal must be an owner-only regular file owned by the current user',
@@ -191,7 +194,8 @@ export async function consumeCreationAttempt(
 
 /**
  * Run creation only after its durable exclusive reservation. Creation failure records failed
- * state before rethrowing; a journal failure always propagates and resources are retained.
+ * state before rethrowing; a journal failure always propagates. This wrapper never attempts cleanup;
+ * the external resource inventory remains unknown until it is inspected.
  * This records attempt completion, never resource ownership or deletion authority.
  */
 export async function executeCreationAttempt<Created>(

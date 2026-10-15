@@ -12,3 +12,9 @@
 ## 3. Evidence
 
 - [x] 3.1 Watch production-path fault injections fail, restore checks, run scoped verification and record results and skipped checks in verify.md.
+
+## 4. Astra review corrections
+
+- [x] 4.1 Verify pinned k3d v5.9.0 rollback behavior, disable automatic failure rollback, and prove a failure inside real-up k3d creation preserves its partial offline fixture; watch removing `--no-rollback` fail that test.
+- [x] 4.2 Open journals nonblocking and validate the opened regular-file descriptor; prove an actual FIFO refuses promptly, then watch removing O_NONBLOCK or the regular-file check fail the consuming test.
+- [x] 4.3 Add separate isolated process-UID mismatch consuming negatives for directory and file; selectively remove each UID comparison and watch its test fail. Record that these inject process identity and do not establish a real foreign-owned inode proof.
