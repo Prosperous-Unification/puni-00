@@ -66,8 +66,8 @@ fi
 mkdir -p "$(dirname "$WBS_DEV_LOG")"
 
 # Colour reaches the terminal and never reaches the file: `tee` writes the
-# untouched stream to stdout, and the process substitution writes a stripped
-# copy. Only CSI sequences are stripped, which is what nx, vite and pino emit
+# untouched stream to stdout, and awk writes a stripped copy through fd 3.
+# Only CSI sequences are stripped, which is what nx, vite and pino emit
 # here; an OSC title sequence would survive, and no tier writes one.
 #
 # `awk` rather than `sed`, because line-buffering is `-u` on GNU sed and `-l` on
@@ -87,4 +87,18 @@ strip_csi='{ gsub(/\033\[[0-9;?]*[a-zA-Z]/, ""); print; fflush() }'
 # Proof: `set -eu` in place of `set -euo pipefail` failed `bin/dev.test.sh`'s
 # `a failing nx exits non-zero · expected: 3 · actual: 0` — the run reporting
 # success because `tee` had written the file it was asked for.
-bunx nx "${args[@]}" 2>&1 | tee >(awk "$strip_csi" >"$WBS_DEV_LOG")
+# Own the writer separately so its pid is available to wait for. Close the
+# shell's write end before waiting, otherwise awk never receives EOF. Retain
+# nx/tee's failure until the writer drains, including when nx exits non-zero.
+#
+# Proof: restoring the unwaited process substitution failed
+# `captured file has the output` with a PATH-injected one-second delay before
+# the real awk, and `a failed capture writer exits non-zero` expected 7 but
+# got 0 with a PATH-injected awk that exits 7, in bin/dev.test.sh.
+exec 3> >(awk "$strip_csi" >"$WBS_DEV_LOG")
+capture_pid=$!
+nx_status=0
+bunx nx "${args[@]}" 2>&1 | tee /dev/fd/3 || nx_status=$?
+exec 3>&-
+wait "$capture_pid"
+exit "$nx_status"

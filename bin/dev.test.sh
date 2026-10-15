@@ -142,12 +142,34 @@ asked_target() {
   sed -E 's/.*run-many -t ([^ ]+).*/\1/' "$1/bin/argv"
 }
 
-# 1. The captured file is written, and it is what the run printed.
+# 1. Capture must finish before dev.sh returns, even when its writer is slow.
+# The PATH wrapper delays the real awk, preserving its stripping and writes.
 tmp=$(mktemp -d)
+mkdir -p "$tmp/bin"
+cat >"$tmp/bin/awk" <<FAKE
+#!/usr/bin/env bash
+sleep 1
+exec "$(command -v awk)" "\$@"
+FAKE
+chmod +x "$tmp/bin/awk"
 run_case "$tmp" 0 "$tmp/logs/dev.log"
 check 'captured file exists' 'yes' "$([[ -f "$tmp/logs/dev.log" ]] && echo yes || echo no)"
 check 'captured file has the output' 'yes' \
   "$(grep -q 'fake nx up' "$tmp/logs/dev.log" && echo yes || echo no)"
+check 'captured file has stderr output' 'yes' \
+  "$(grep -q 'fake nx warning' "$tmp/logs/dev.log" && echo yes || echo no)"
+check 'terminal stream has stderr output' 'yes' \
+  "$(grep -q 'fake nx warning' "$tmp/stdout" && echo yes || echo no)"
+rm -rf "$tmp"
+
+# A failed capture writer makes the run fail, even when nx succeeds.
+tmp=$(mktemp -d)
+mkdir -p "$tmp/bin"
+printf '#!/usr/bin/env bash\nexit 7\n' >"$tmp/bin/awk"
+chmod +x "$tmp/bin/awk"
+failed=0
+run_case "$tmp" 0 "$tmp/dev.log" || failed=$?
+check 'a failed capture writer exits non-zero' '7' "$failed"
 rm -rf "$tmp"
 
 # 2. Colour reaches the terminal and never reaches the file.
