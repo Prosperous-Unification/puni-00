@@ -288,6 +288,19 @@ describe('validatePlatform', () => {
     );
   });
 
+  it('rejects a cert-manager base that omits its HelmRelease', async () => {
+    const root = await mutablePlatform();
+    await replaceManifestText(
+      root,
+      'infra/platform/networking/cert-manager/kustomization.yaml',
+      'resources: [release.yaml]',
+      'resources: []',
+    );
+    expect(validatePlatform(root)).rejects.toThrow(
+      /cert-manager.*resources differ from the locked graph/i,
+    );
+  });
+
   it('rejects changed vendored chart bytes', async () => {
     const root = await mutablePlatform();
     const path = join(root, 'infra/platform/charts/traefik-41.6.0.tgz');
@@ -640,7 +653,15 @@ describe('validatePlatform', () => {
     const root = await mutablePlatform();
     await writeFile(
       join(root, 'infra/platform/secrets/workers-local/externally-provided.json'),
-      JSON.stringify([{ namespace: 'wbs', name: 'sqlite-backup-s3', source: 'rehearsal' }]),
+      JSON.stringify([
+        ...(JSON.parse(
+          await readFile(
+            join(root, 'infra/platform/secrets/workers-local/externally-provided.json'),
+            'utf8',
+          ),
+        ) as unknown[]),
+        { namespace: 'wbs', name: 'sqlite-backup-s3', source: 'rehearsal' },
+      ]),
     );
     expect(validatePlatform(root)).rejects.toThrow(
       /workers-local provides Secret wbs\/sqlite-backup-s3, which nothing consumes/,
@@ -848,4 +869,188 @@ describe('validatePlatform', () => {
       expect.arrayContaining(['https://dev.puni.dev/', 'https://dev.app.puni.dev/']),
     );
   });
+});
+
+describe('cross-cluster OTLP topology', () => {
+  for (const [name, path, before, after] of [
+    [
+      'plaintext exporter',
+      'infra/platform/telemetry/agent/agent.yaml',
+      'ca_file: /etc/otel/server-trust/ca.crt',
+      'insecure: true',
+    ],
+    [
+      'server identity bypass',
+      'infra/platform/telemetry/agent/agent.yaml',
+      'server_name_override: ${env:PUNI_TELEMETRY_SERVER_NAME}',
+      'insecure_skip_verify: true',
+    ],
+    [
+      'missing client authentication',
+      'infra/platform/observability/otel/collector.yaml',
+      'client_ca_file: /etc/otel/client-trust/ca.crt',
+      'client_ca_file: ""',
+    ],
+    [
+      'unbounded sessions',
+      'infra/platform/observability/otel/collector.yaml',
+      'max_connection_age: 5m',
+      'max_connection_age: 0s',
+    ],
+    [
+      'queue identity change',
+      'infra/platform/telemetry/agent/agent.yaml',
+      'storage: file_storage/queue',
+      'storage: file_storage/replaced',
+    ],
+    [
+      'canary plaintext target',
+      'infra/platform/observability/production/otlp-ingress.yaml',
+      'targetPort: 14317',
+      'targetPort: 4317',
+    ],
+    [
+      'signing key mount',
+      'infra/platform/telemetry/agent/agent.yaml',
+      'secretName: otel-client-tls',
+      'secretName: otel-client-ca',
+    ],
+  ] as const) {
+    it(`rejects ${name}`, async () => {
+      const root = await mutablePlatform();
+      await replaceManifestText(root, path, before, after);
+      expect(validatePlatform(root)).rejects.toThrow(/OTLP/);
+    });
+  }
+});
+
+describe('OTLP certificate lifecycle', () => {
+  for (const [name, path, before, after] of [
+    [
+      'server-only client usage',
+      'infra/platform/certificates/workers/production/certificate.yaml',
+      'client auth',
+      'server auth',
+    ],
+    [
+      'shared server signing authority',
+      'infra/platform/certificates/workers/local/certificate.yaml',
+      'secretName: otel-client-ca',
+      'secretName: otel-server-ca',
+    ],
+    [
+      'stale certificate readiness',
+      'infra/clusters/workers/production/certificates.yaml',
+      ' && c.observedGeneration == metadata.generation',
+      '',
+    ],
+    [
+      'missing certificate dependency',
+      'infra/clusters/workers/local/telemetry.yaml',
+      '    - name: certificates\n',
+      '',
+    ],
+    [
+      'disabled rotation',
+      'infra/platform/certificates/platform/production/certificate.yaml',
+      'rotationPolicy: Always',
+      'rotationPolicy: Never',
+    ],
+  ] as const) {
+    it(`rejects ${name}`, async () => {
+      const root = await mutablePlatform();
+      await replaceManifestText(root, path, before, after);
+      expect(validatePlatform(root)).rejects.toThrow(/OTLP|dependency order/);
+    });
+  }
+});
+
+describe('OTLP runtime wiring', () => {
+  for (const [name, path, before, after] of [
+    [
+      'receiver detached from logs',
+      'infra/platform/observability/otel/collector.yaml',
+      'receivers: [filelog, otlp, otlp/mtls]',
+      'receivers: [filelog, otlp]',
+    ],
+    [
+      'wrong trust mount',
+      'infra/platform/observability/otel/collector.yaml',
+      'mountPath: /etc/otel/client-trust',
+      'mountPath: /etc/otel/unused-trust',
+    ],
+    [
+      'server signing key exposure',
+      'infra/platform/observability/otel/collector.yaml',
+      'secretName: otel-server-tls',
+      'secretName: otel-server-ca',
+    ],
+    [
+      'wrong upstream environment',
+      'infra/platform/telemetry/agent/agent.yaml',
+      'name: puni-telemetry, key: upstream',
+      'name: puni-telemetry, key: cluster',
+    ],
+    [
+      'queue directory change',
+      'infra/platform/telemetry/agent/agent.yaml',
+      'directory: /var/lib/otelcol/queue',
+      'directory: /var/lib/otelcol/another-queue',
+    ],
+  ] as const) {
+    it(`rejects ${name}`, async () => {
+      const root = await mutablePlatform();
+      await replaceManifestText(root, path, before, after);
+      expect(validatePlatform(root)).rejects.toThrow(/OTLP/);
+    });
+  }
+});
+
+describe('OTLP client trust reload', () => {
+  it('rejects a receiver that pins retired client trust until restart', async () => {
+    const root = await mutablePlatform();
+    await replaceManifestText(
+      root,
+      'infra/platform/observability/otel/collector.yaml',
+      'client_ca_file_reload: true',
+      'client_ca_file_reload: false',
+    );
+    expect(validatePlatform(root)).rejects.toThrow(/OTLP/);
+  });
+});
+
+describe('OTLP effective queue and destination', () => {
+  for (const [name, before, after] of [
+    [
+      'different persistent host path',
+      'path: /var/lib/puni-otelcol',
+      'path: /var/lib/puni-otelcol-empty',
+    ],
+    [
+      'disconnected state mount',
+      '{ name: state, mountPath: /var/lib/otelcol }',
+      '{ name: state, mountPath: /var/lib/otelcol-other }',
+    ],
+    [
+      'read-only state mount',
+      '{ name: state, mountPath: /var/lib/otelcol }',
+      '{ name: state, mountPath: /var/lib/otelcol, readOnly: true }',
+    ],
+    [
+      'disconnected exporter endpoint',
+      'endpoint: ${env:PUNI_TELEMETRY_UPSTREAM}',
+      'endpoint: otel-gateway.puni.internal:30417',
+    ],
+    [
+      'checkpoint consumer using queue storage',
+      'storage: file_storage/checkpoints',
+      'storage: file_storage/queue',
+    ],
+  ] as const) {
+    it(`rejects ${name}`, async () => {
+      const root = await mutablePlatform();
+      await replaceManifestText(root, 'infra/platform/telemetry/agent/agent.yaml', before, after);
+      expect(validatePlatform(root)).rejects.toThrow(/OTLP/);
+    });
+  }
 });

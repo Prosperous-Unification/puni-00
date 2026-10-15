@@ -1469,7 +1469,7 @@ describe('check production CLI', () => {
       '--only',
       'MOD-INDEX',
     ]);
-    expect(stderrOf(badFlag)).toContain('the only check flag is --rule <rule-id>: received --only');
+    expect(stderrOf(badFlag)).toContain('invalid or duplicate check flag: --only');
     expect(badFlag.exitCode).toBe(1);
 
     const badRule = await runCli([

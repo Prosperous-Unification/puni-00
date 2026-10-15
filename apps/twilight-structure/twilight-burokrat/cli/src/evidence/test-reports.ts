@@ -5,7 +5,8 @@ import { compareCanonicalText, hashBytes, hashCanonical } from './content-manife
 
 type BrowserMode = 'ordinary' | 'packaged' | 'portable';
 
-interface ReportCase {
+/** One recorded Browser case bound to the exact committed source bytes. */
+export interface ReportCase {
   caseId: string;
   config: string;
   project: string;

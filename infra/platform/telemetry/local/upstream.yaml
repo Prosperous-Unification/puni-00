@@ -6,4 +6,6 @@ metadata:
 data:
   cluster: workers-local
   # The platform-local cluster's otel-gateway NodePort.
-  upstream: host.k3d.internal:30417
+  upstream: host.k3d.internal:30419
+  serverName: otel-gateway.puni.internal
+  transport: mtls-canary

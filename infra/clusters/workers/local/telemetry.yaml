@@ -20,5 +20,6 @@ spec:
   dependsOn:
     - name: storage
     - name: secrets
+    - name: certificates
   wait: true
   timeout: 10m
