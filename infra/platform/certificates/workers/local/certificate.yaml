@@ -1,0 +1,27 @@
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: otel-client
+  namespace: observability
+spec:
+  ca:
+    secretName: otel-client-ca
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: otel-client
+  namespace: observability
+spec:
+  secretName: otel-client-tls
+  duration: 24h
+  renewBefore: 8h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  commonName: workers-local
+  usages: [digital signature, client auth]
+  issuerRef:
+    name: otel-client
+    kind: Issuer

@@ -3,7 +3,9 @@ kind: Kustomization
 resources:
   - identity.yaml
   - target.yaml
+  - controllers.yaml
   - storage.yaml
   - policy.yaml
   - secrets.yaml
+  - certificates.yaml
   - telemetry.yaml

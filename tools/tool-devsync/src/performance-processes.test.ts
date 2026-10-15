@@ -124,11 +124,13 @@ isolatedTest(
     let adoptedPid = 0;
     let wrapper: Bun.Subprocess | undefined;
     try {
+      // Proof: delaying echo after shell redirection exposed an empty final marker and
+      // failed the positive-PID assertion. Publishing by rename preserves that boundary.
       wrapper = owner.spawn(
         [
           'bash',
           '-c',
-          `setsid bash -c 'trap "" TERM; echo $$ > "${marker}"; exec sleep 30' >/dev/null 2>&1 & exit 0`,
+          `setsid bash -c 'trap "" TERM; echo() { sleep 0.2; builtin echo "$@"; }; echo $$ > "${marker}.pending" && mv "${marker}.pending" "${marker}" && exec sleep 30' >/dev/null 2>&1 & exit 0`,
         ],
         process.cwd(),
         { PATH: process.env['PATH'] ?? '/usr/bin:/bin' },
@@ -159,7 +161,7 @@ isolatedTest(
       }
       foreign.kill('SIGKILL');
       await foreign.exited;
-      await rm(marker, { force: true });
+      await Promise.all([rm(marker, { force: true }), rm(`${marker}.pending`, { force: true })]);
     }
   },
   12_000,

@@ -27,6 +27,7 @@ const offer = (id: string, email: string, fields: Record<string, unknown> = {}) 
 function stubPage(routes: Parameters<typeof stubServer>[0]) {
   return stubServer({
     'GET /api/organization/sso-connections': [() => answer(200, { connections: [] })],
+    'GET /api/organization/provisioning-tokens': [() => answer(200, { tokens: [] })],
     'GET /api/organization/session-policy': [() => answer(200, { policy: null })],
     'GET /api/organization/join-requests': [() => answer(200, { requests: [] })],
     'GET /api/organization/domains': [() => answer(200, { domains: [] })],
@@ -48,6 +49,13 @@ describe('organization page', () => {
     renderPage();
     expect(await screen.findByRole('region', { name: 'Company sign-in' })).toBeDefined();
     expect(await screen.findByRole('region', { name: 'Session policy' })).toBeDefined();
+  });
+
+  it('composes provisioning token administration on the organization page', async () => {
+    stubPage({ 'GET /api/organization/invitations': [() => answer(200, { invitations: [] })] });
+    renderPage();
+    expect(await screen.findByRole('region', { name: 'Provisioning tokens' })).toBeDefined();
+    await screen.findByText('No provisioning tokens.');
   });
 
   it('shows whether the organization shares its people', async () => {
@@ -310,6 +318,7 @@ describe('organization invitations', () => {
   it('drops every panel when another panel loses access', async () => {
     stubServer({
       'GET /api/organization/sso-connections': [() => answer(200, { connections: [] })],
+      'GET /api/organization/provisioning-tokens': [() => answer(200, { tokens: [] })],
       'GET /api/organization/session-policy': [() => answer(200, { policy: null })],
       'GET /api/organization/invitations': [
         () => answer(200, { invitations: [offer('a', 'ada@acme.test')] }),
@@ -329,4 +338,26 @@ describe('organization invitations', () => {
     expect(screen.queryByText('ada@acme.test')).toBeNull();
     expect(screen.queryByRole('heading', { name: 'Join requests' })).toBeNull();
   });
+});
+
+it('withdraws an issued provisioning secret with the organization page', async () => {
+  stubPage({
+    'GET /api/organization/invitations': [() => answer(200, { invitations: [] })],
+    'GET /api/organization/provisioning-tokens': [
+      () => answer(200, { tokens: [] }),
+      () => answer(200, { tokens: [] }),
+      () => answer(403, { error: 'not_a_member' }),
+    ],
+    'POST /api/organization/provisioning-tokens': [
+      () => answer(201, { id: 'new', token: 'page-secret', createdAt: 1000 }),
+    ],
+  });
+  renderPage();
+  await screen.findByText('No provisioning tokens.');
+  fireEvent.click(screen.getByRole('button', { name: 'Issue provisioning token' }));
+  await screen.findByDisplayValue('page-secret');
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh provisioning tokens' }));
+  await screen.findByText('You no longer have access to this organization.');
+  expect(screen.queryByDisplayValue('page-secret')).toBeNull();
+  expect(screen.queryByRole('region', { name: 'Provisioning tokens' })).toBeNull();
 });

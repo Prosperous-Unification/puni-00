@@ -66,8 +66,8 @@ fi
 mkdir -p "$(dirname "$WBS_DEV_LOG")"
 
 # Colour reaches the terminal and never reaches the file: `tee` writes the
-# untouched stream to stdout, and the process substitution writes a stripped
-# copy. Only CSI sequences are stripped, which is what nx, vite and pino emit
+# untouched stream to stdout, and awk writes a stripped copy through a FIFO.
+# Only CSI sequences are stripped, which is what nx, vite and pino emit
 # here; an OSC title sequence would survive, and no tier writes one.
 #
 # `awk` rather than `sed`, because line-buffering is `-u` on GNU sed and `-l` on
@@ -87,4 +87,46 @@ strip_csi='{ gsub(/\033\[[0-9;?]*[a-zA-Z]/, ""); print; fflush() }'
 # Proof: `set -eu` in place of `set -euo pipefail` failed `bin/dev.test.sh`'s
 # `a failing nx exits non-zero · expected: 3 · actual: 0` — the run reporting
 # success because `tee` had written the file it was asked for.
-bunx nx "${args[@]}" 2>&1 | tee >(awk "$strip_csi" >"$WBS_DEV_LOG")
+# An ordinary background child can be waited for on macOS Bash 3.2; waiting
+# for a process substitution requires Bash 4.4. The private FIFO connects tee
+# to that child without reopening or redirecting the caller's stdout. Retain
+# nx/tee's failure until the writer drains, including when nx exits non-zero.
+#
+# Proof: restoring the unwaited process substitution failed
+# `captured file has the output` with a PATH-injected one-second delay before
+# the real awk, and `a failed capture writer exits non-zero` expected 7 but
+# got 0 with a PATH-injected awk that exits 7, in bin/dev.test.sh.
+# Proof: the preceding process-substitution wait made the Bash 3.2 suite fail
+# `a successful captured run exits zero` with actual 127, and the delayed
+# writer's output was absent when the script returned.
+capture_dir=$(mktemp -d)
+trap 'rm -rf "$capture_dir"' EXIT
+mkfifo "$capture_dir/stream"
+awk "$strip_csi" <"$capture_dir/stream" >"$WBS_DEV_LOG" &
+capture_pid=$!
+pipeline_status=(0 0)
+bunx nx "${args[@]}" 2>&1 | tee "$capture_dir/stream" || pipeline_status=("${PIPESTATUS[@]}")
+# A tee that never opens the FIFO leaves the reader blocked in open(), so
+# cancel that child before waiting. If it already exited, wait preserves its
+# failure; otherwise cancellation exits 143, or 1 when Bash 3.2's blocked
+# open reports EINTR. In those cases tee's failure wins.
+# The FIFO read-open precedes awk's execution, so a failed writer cannot leave
+# tee waiting for a reader that exited before tee opened its write end.
+#
+# Proof: without this branch, PATH-injected tee exit 7 and absent tee both
+# timed out (124) in bin/dev.test.sh under Bash 3.2 instead of exiting 7/127.
+# A writer exiting 7 with a delayed real tee still exits 7 without hanging.
+if ((pipeline_status[1] != 0)); then
+  # This direct child may finish between the pipeline and cancellation.
+  if ! kill -TERM "$capture_pid" 2>/dev/null; then
+    wait "$capture_pid"
+  fi
+  capture_status=0
+  wait "$capture_pid" || capture_status=$?
+  if ((capture_status != 0 && capture_status != 1 && capture_status != 143)); then
+    exit "$capture_status"
+  fi
+  exit "${pipeline_status[1]}"
+fi
+wait "$capture_pid"
+exit "${pipeline_status[0]}"
