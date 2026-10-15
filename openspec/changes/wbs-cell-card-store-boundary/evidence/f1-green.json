@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "candidate": "ce7d45f8ee6e4d0d5348ac0aed0ad6a9232bc6dfd327effb7ba37648211754b9",
+  "policy": "rules.puni-00.v1",
+  "allowed": true,
+  "ruleIds": ["F1"],
+  "findings": [],
+  "unevaluated": [],
+  "certifies": false
+}
