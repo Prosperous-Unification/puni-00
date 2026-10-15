@@ -19,5 +19,6 @@ spec:
       name: sops-age
   dependsOn:
     - name: platform
+    - name: certificates
   wait: true
   timeout: 20m
