@@ -25,6 +25,23 @@ export function stepParallelConformance(
     ]);
     expect(await store.listByProject('foreign')).toEqual([]);
   });
+  it('retains an explicit equal-default value across row-default edits while its sibling stays absent', async () => {
+    const { source, stamp } = open();
+    const store = source.stores.stepParallels;
+    const explicit = { workItemId: 'a', stepId: 'dev', maxParallel: 1 };
+    expect(await source.stores.workItems.findById('a')).toHaveProperty('maxParallel', 1);
+    await store.set(explicit, stamp);
+    // Proof: each adapter setter independently dropped explicit 1; this shared case failed here
+    // (equal-default-{memory,sqlite}-drop.txt), observed 2026-10-15.
+    expect(await store.listByWorkItems('p', ['a'])).toEqual([explicit]);
+    await source.stores.workItems.patch('a', { maxParallel: 4 }, stamp);
+    expect(await source.stores.workItems.findById('a')).toHaveProperty('maxParallel', 4);
+    const facts = await store.listByWorkItems('p', ['a']);
+    // Proof: each adapter reader independently substituted the row default; this shared case
+    // failed after the edit (equal-default-{memory,sqlite}-read-default.txt), observed 2026-10-15.
+    expect(facts).toEqual([explicit]);
+    expect(facts.find(({ stepId }) => stepId === 'qa')).toBeUndefined();
+  });
   it('orders mixed-case owner IDs identically to SQLite binary order', async () => {
     const { source, stamp } = open();
     for (const id of ['work-a', 'work-A']) {

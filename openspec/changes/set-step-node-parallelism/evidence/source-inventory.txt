@@ -2,7 +2,7 @@ bun test v1.4.2 (744846f84)
 
 libs/wbs/application/conformance/src/case-manifest.test.ts:
 59 |   });
-60 | 
+60 |
 61 |   it('contains the complete source families and exact history mechanisms', () => {
 62 |     // Proof (2026-10-14): deleting the production blockage family failed this inventory;
 63 |     // replacing its case ID with blockages.set:broken failed the exact case assertion below.

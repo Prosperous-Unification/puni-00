@@ -1,0 +1,15 @@
+
+> nx run wbs-conformance:lint
+
+> bunx eslint libs/wbs/application/conformance/src
+
+
+
+
+ NX   Successfully ran target lint for project wbs-conformance
+
+
+  Run duration:      11.2s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     11.2s (1 task)
+  Recoverable time:  <1ms

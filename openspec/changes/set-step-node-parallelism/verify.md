@@ -14,8 +14,9 @@ semantics for authored overrides. Do not enable a writer from this foundation al
 `source.stores.stepParallels` did not exist. An initial test import-path typo was corrected
 before this RED was captured. `evidence/tdd-order-red.txt`: a later mixed-case owner-order
 case failed on memory's locale comparator; the corrected comparator passed on both sources.
-The shared store case additionally changes the row default after storing an equal-default
-value, proving the explicit fact remains present.
+The original committed shared case replaced explicit 1 with 3 before reading it; it did not
+prove preservation across a row-default edit. The dedicated review correction below supplies
+that missing evidence.
 
 ## Final checks
 
@@ -26,7 +27,7 @@ value, proving the explicit fact remains present.
 - `bun run tools/tool-git-hooks/src/hooks/migration-lint.ts apps/wbs/be-01/drizzle/20261015110000_add_step_node_parallelism/migration.sql apps/wbs/be-01/drizzle/20261015110000_add_step_node_parallelism/down.sql`: **exit 0**. Focused SQL tests exercise real empty rollback/forward and retained-fact rollback refusal with table and applied ledger preservation.
 - Installed pinned OpenSpec CLI: `bun /tmp/bunx-1000-@fission-ai/openspec@1.12.0/node_modules/@fission-ai/openspec/bin/openspec.js --version`: **1.12.0**. `validate set-step-node-parallelism --strict --json`: **1 valid, zero issues**; `validate --all --json`: **212 passed, 0 failed (194 changes, 18 specs)**. JSON transcripts are under `evidence/`.
 - `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint -p wbs-domain,wbs-core,wbs-conformance,wbs-store-memory,wbs-store-sqlite --skip-nx-cache --parallel=2`: **all 5 passed**, cache skipped. Transcript: `evidence/scoped-lint-final.txt`.
-- Changed-file Prettier check and `git diff --check`: **passed** before committing. Normal lefthook hooks are installed; no hook bypass is used.
+- Changed-file Prettier check passed before the initial commit. The original unstaged `git diff --check` exited 0 but omitted new evidence files and did not prove the committed range was clean. Astra review ran `git diff --check e7b49e09dec24eb5d50b11ffe6bb137391a3043d 72a44ceff2ed1b6dc8acc6a26cb8cfcbbde89b8a` and observed exit 2: CRLF/trailing spaces in `evidence/portable-build-final.txt` and `evidence/source-inventory.txt`. The earlier whitespace verification claim was therefore too broad; the corrected full-range check is recorded below. Normal lefthook hooks are installed; no hook bypass is used.
 
 ## Safety mutations
 
@@ -58,3 +59,45 @@ checks were run. Those slices remain unchecked and the parent owns review/integr
 Dependencies are shared through a symlink to the exact-base clone's existing `node_modules`;
 a fresh frozen install was not performed and is not claimed. Plain `openspec` is absent from
 PATH; the available installed pinned CLI above performed validation. No push or deployment.
+
+## Exact-review corrections (2026-10-15)
+
+Astra blocked `72a44ceff2ed1b6dc8acc6a26cb8cfcbbde89b8a` on the missing equal-default
+preservation proof and committed evidence whitespace. The shared source conformance now
+contains `retains an explicit equal-default value across row-default edits while its sibling
+stays absent`: assert the row default is 1; store Dev=1; read explicit Dev=1 with no QA fact;
+change the actual row default to 4; read explicit Dev=1 again; explicitly assert QA remains
+absent. Row-default inheritance inputs are proved without activating Stage 7a override resolution.
+
+Four additional watched production-path faults each failed that case: independently drop
+explicit 1 in the memory and SQLite setters, and independently substitute the row default
+in the memory and SQLite readers. Both read faults pass the first read at default 1 and fail
+after the default changes to 4. All production files were restored; this correction changes
+coverage and evidence only. See `evidence/equal-default-receipts.json` and its four transcripts.
+Adjacent `Proof:` comments identify the failed assertions.
+
+The two flagged evidence files now use LF and contain no trailing whitespace. Their observed
+command output is preserved; only output-transport whitespace was normalized. Review evidence
+transcripts are likewise normalized before being added to Git.
+
+Revalidation after the corrections:
+
+- The same seven-file focused command above: **55 passed, 0 failed, 219 assertions**;
+  `evidence/review-focused.txt` includes the two new source cases.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-conformance:lint --skip-nx-cache`:
+  **passed**, cache skipped (`evidence/review-lint.txt`). Other production projects were
+  unchanged by these corrections; their earlier scoped lint evidence remains recorded above.
+- `bunx tsc --build --force libs/wbs/adapters/store-memory/tsconfig.json libs/wbs/adapters/store-sqlite/tsconfig.json`:
+  **exit 0**, including the changed shared kit and its two adapter test consumers.
+- Pinned OpenSpec 1.12.0 `validate --all --json`: **212 passed, 0 failed**;
+  summary extracted from that run in `evidence/review-openspec-summary.json`.
+- Changed-file Prettier check and the full staged-range whitespace check
+  `git diff --cached --check e7b49e09dec24eb5d50b11ffe6bb137391a3043d` are run before the
+  correction commit: **both passed, exit 0**. The post-commit base-to-HEAD check is reported
+  with the exact new candidate SHA. Unlike the original unstaged check, this range includes every
+  previously committed and newly staged evidence file.
+
+No production behavior changed, so the portable build and migration lint were not repeated;
+the migration rollback cases remain included in the fresh focused run. No push, host gate,
+merge or deployment was performed. External Tool Wiki activation remains inactive and is
+not a claimed certification.
