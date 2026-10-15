@@ -118,3 +118,46 @@ Ran 667 tests across 35 files. [303.07s]
 ```
 
 Scoped formatting of every changed file passed (exit 0). Exact regression argv, output and exit status are retained at `/tmp/blockage-schema-affected-command.json`, `/tmp/blockage-schema-affected.log` and `/tmp/blockage-schema-affected-exit.json`. Static exits are `[0,0,0,0]` in `/tmp/blockage-schema-static-exit.json`. The full h2puni gate and image build remain unrun. Host/Kubernetes activation remains unimplemented and no production activation or push occurred.
+
+## 8. Host Gate Test Isolation Repair (#488)
+
+Base: `f7f982cae8c633779f10f4f786da389dc1138be8`, isolated clone
+`/tmp/puni-488-dbpath-sol`. Only the missing-`DB_PATH` test subprocess now runs
+from its fresh fixture directory. Bun otherwise reloads an app-local `.env` after
+the test removes the inherited variable. Production CLI guards are unchanged.
+
+- Reproduction: added only an untracked app `.env` with a dummy `DB_PATH` pointing
+  to a nonexistent database. From `apps/wbs/be-01`,
+  `bun test ./src/step-blockage-activation-cli.db.test.ts --timeout=30000`
+  exited 1: **18 pass, 1 fail, 59 assertions**. The missing-path negative received
+  `SQLITE_CANTOPEN` instead of `DB_PATH must be set`
+  (`/tmp/puni-488-dbpath-red.log`).
+- With the fixture working directory and that same `.env` still present, the
+  same test command filtered by `-t 'refuses absent and empty DB_PATH'` exited 0:
+  **1 pass, 0 fail, 4 assertions** (`/tmp/puni-488-dbpath-env-green.log`).
+- Production-path proof: temporarily removed the existing CLI `DB_PATH` guard.
+  The repaired filtered negative exited 1: **0 pass, 1 fail, 2 assertions**,
+  receiving the anonymous read-only SQLite refusal instead of the named guard
+  error (`/tmp/puni-488-dbpath-guard-red.log`). Restored the production source
+  byte-for-byte and removed the dummy `.env` before final checks. The existing
+  adjacent production `Proof:` comment records this same guard-removal fault.
+- Final clean focused suite, same unfiltered command: exit 0, **19 pass, 0 fail,
+  61 assertions** (`/tmp/puni-488-dbpath-clean-green.log`).
+- `BUN_TMPDIR=/tmp bun install --frozen-lockfile`: exit 0, 1573 installs checked.
+  The initial invocation without `BUN_TMPDIR` refused its read-only temporary
+  directory; the explicit writable temporary directory resolved that boundary.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false BUN_TMPDIR=/tmp bunx tsc --build
+apps/wbs/be-01/tsconfig.json`: exit 0.
+- Changed-test ESLint: exit 0 with no warnings after Nx project graph generation
+  (`/tmp/puni-488-dbpath-scoped-lint.log`). The earlier direct ESLint invocation
+  warned that module-boundary checking was skipped without a cached graph;
+  this clean rerun supersedes that incomplete check.
+- Changed-test/report `bunx prettier --check` and `git diff --check`: exit 0.
+- `BUN_TMPDIR=/tmp bunx @fission-ai/openspec@1.12.0 validate --all --json`:
+  exit 0, **210 passed, 0 failed** (`/tmp/puni-488-dbpath-openspec.json`).
+
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false BUN_TMPDIR=/tmp bunx nx run wbs-be-01:lint --skip-nx-cache` also exited 0; backend lint passed with caching disabled (`/tmp/puni-488-dbpath-lint.log`).
+
+Full host gate, full workspace format/test/lint/typecheck/build, image builds,
+release operations and production activation were not run in this repair slice.
+The exact committed repair requires Astra review and the canonical host gate.

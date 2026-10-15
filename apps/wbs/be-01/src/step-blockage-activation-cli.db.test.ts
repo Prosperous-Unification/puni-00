@@ -90,6 +90,8 @@ test('refuses absent and empty DB_PATH', () => {
   const env = { ...process.env };
   delete env['DB_PATH'];
   const missing = Bun.spawnSync([process.execPath, cli, 'inspect'], {
+    // Bun loads .env from cwd; keep an app-local DB_PATH from filling the omitted variable.
+    cwd: directory,
     env,
     stdout: 'pipe',
     stderr: 'pipe',
