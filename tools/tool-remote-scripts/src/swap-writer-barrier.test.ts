@@ -1257,3 +1257,29 @@ for (const fault of ['image-absent', 'image-malformed', 'working-directory-absen
     expect(events).not.toContain('start:never');
   });
 }
+
+for (const incompatible of ['candidate', 'rollback'] as const) {
+  test(`preserve-only recovery refuses enabled-empty ${incompatible} image incompatibility`, async () => {
+    const previous = `registry/wbs-be-01@sha256:${'e'.repeat(64)}`;
+    const commands: string[][] = [];
+    await refuses(
+      checkBackendRecovery(previous, image, '/data/wbs.db', (args) => {
+        commands.push(args);
+        if (args[0] === 'ps') return Promise.resolve('');
+        if (args.some((argument) => argument.includes('SELECT payload,inverse,preconditions')))
+          return Promise.resolve('[{"kind":"step_blockage_activation_v1","count":1}]');
+        if (args.some((argument) => argument.includes('src/step-blockage-replay-kinds-cli.ts'))) {
+          return Promise.resolve(
+            args.includes(incompatible === 'candidate' ? image : previous)
+              ? '[]'
+              : '["step_blockage_activation_v1"]',
+          );
+        }
+        return Promise.resolve('[]');
+      }),
+      'step_blockage_activation_v1',
+    );
+    expect(commands.some((args) => ['start', 'stop'].includes(args[0]))).toBe(false);
+    expect(commands.some((args) => args.includes('src/migrate-cli.ts'))).toBe(false);
+  });
+}

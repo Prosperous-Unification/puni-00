@@ -27,3 +27,9 @@ Apply the receipt migration while DISABLED during the preserve-only release. Lat
 ## Open Questions
 
 None for the local receipt boundary. Host implementation remains tracked in tasks.md.
+
+## Preserve-only admission
+
+The existing image-local replay capability CLI explicitly advertises `step_blockage_activation_v1`; this deployment capability does not change the core journal command vocabulary. Both transport inventories embed the same coordinator-owned read-only SQLite inspector, independent of image application decoding. ENABLED with a validated exact receipt contributes one activation obligation regardless of fact and journal counts. Kubernetes seals that obligation with both image observations in its existing admission receipt. The existing Compose recovery proof reads each exact digest's CLI independently before admitting enabled authority.
+
+A coherent pre-marker predecessor is classified only after reading a physical migration ledger and proving neither activation migration is recorded and no marker/receipt schema object or admission trigger remains. Partial authority, malformed/unreadable ledger, invalid singleton/trigger/receipt authority and ENABLED without an exact receipt refuse. A valid marker with DISABLED and no receipt migration/table remains accepted during the preserve-only rollout. Runtime boot, receipt inspection and Kubernetes first-start retain their strict existing requirements.

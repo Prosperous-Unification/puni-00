@@ -56,3 +56,23 @@ Host activation SHALL require an explicit operator flag, durable intent, exact s
 
 - **WHEN** activation may have committed but exact receipt readback is unavailable
 - **THEN** deploy retains barriers and refuses application exposure or rollback
+
+#### Scenario: Preserve enabled empty authority
+
+- **WHEN** either deployment transport inventories a valid ENABLED database with its exact receipt and no facts or journal entries
+- **THEN** it retains one `step_blockage_activation_v1` obligation and refuses an incapable candidate or rollback image
+
+#### Scenario: Preserve-only predecessor rollout
+
+- **WHEN** admission reads a valid pre-receipt DISABLED database
+- **THEN** it accepts the unchanged activation authority so the existing deployment migration phase can apply the additive receipt migration
+
+#### Scenario: Coherent pre-marker predecessor
+
+- **WHEN** the existing readable physical migration ledger records neither activation migration and no marker/receipt schema object or admission trigger remains
+- **THEN** coordinator inventory reports no activation obligation and still inventories fact and journal compatibility
+
+#### Scenario: Partial or unreadable predecessor
+
+- **WHEN** predecessor ledger, marker, receipt or trigger authority is missing inconsistently, malformed or unreadable
+- **THEN** admission refuses instead of inferring DISABLED or an empty activation inventory

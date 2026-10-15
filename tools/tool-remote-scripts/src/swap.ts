@@ -924,12 +924,13 @@ const STORED_VOCABULARIES: readonly StoredVocabulary[] = [
 /** Parses the incoming release's supported values at the Docker output boundary. */
 function parseSupported(output: string, vocabulary: StoredVocabulary): string[] {
   const parsed: unknown = JSON.parse(output);
-  if (!Array.isArray(parsed))
+  // Proof: duplicate and empty activation capability fixtures migrated before this guard.
+  if (!Array.isArray(parsed) || new Set(parsed).size !== parsed.length)
     throw new Error(`incoming release reported malformed supported ${vocabulary.name}`);
   return parsed.map((value: unknown) => {
     // Proof: disabling this type check made `rejects a non-string supported relationship type`
     // fail on `Unable to find property` for the expected malformed-output error.
-    if (typeof value !== 'string')
+    if (typeof value !== 'string' || value.length === 0)
       throw new Error(`incoming release reported malformed supported ${vocabulary.name}`);
     return value;
   });
@@ -1307,8 +1308,19 @@ export async function checkBackendRecovery(
       ),
       vocabulary,
     );
+    if (stored.some((row) => row.value === 'step_blockage_activation_v1')) {
+      const candidateSupported = parseSupported(
+        await runDocker(oneOff(candidateImage, vocabulary.supportedCommand('recovery').slice(2))),
+        vocabulary,
+      );
+      // Proof: before this guard, preserve-only recovery admitted enabled-empty with an incapable candidate and capable rollback.
+      if (!candidateSupported.includes('step_blockage_activation_v1'))
+        throw new Error(
+          `candidate image cannot read step_blockage_activation_v1: ${candidateImage}`,
+        );
+    }
     const unsupported = stored.filter((row) => !supported.includes(row.value));
-    // Proof: omitting this comparison admitted move_progress_v1 during attended old-image recovery.
+    // Proof: omitting this comparison admitted move_progress_v1 and ENABLED-empty with an incapable rollback image during attended recovery.
     if (unsupported.length > 0)
       throw new Error(
         `recovery image cannot read stored ${vocabulary.name}: ${unsupported.map((row) => `${row.value} (${String(row.count)})`).join(', ')}`,
