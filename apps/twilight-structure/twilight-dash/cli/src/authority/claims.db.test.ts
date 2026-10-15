@@ -163,6 +163,29 @@ async function settleWorker(
   return observation(spawnWorker(fixture, input));
 }
 
+/** Preserves the concurrent winner count, then resolves only typed contention after every exit. */
+async function observeOverlap(
+  fixture: FixtureRepository,
+  workers: readonly {
+    readonly input: WorkerInput;
+    readonly child: ReturnType<typeof spawnWorker>;
+  }[],
+): Promise<readonly WorkerObservation[]> {
+  const concurrent = await Promise.all(
+    workers.map(async ({ input, child }) => ({ input, observed: await observation(child) })),
+  );
+  // Proof: pausing a successful BEGIN IMMEDIATE for 1000ms made the original path and group
+  // races fail on terminal busy; settlement preserved their exact refusals (2026-10-15).
+  expect(concurrent.filter(({ observed }) => observed.ok)).toHaveLength(1);
+  const observations: WorkerObservation[] = [];
+  for (const { input, observed } of concurrent) {
+    // Proof: under that pause, bypassing acquireClaims' assertAvailable made both settled
+    // races observe two winners, so contention recovery cannot hide overlap (2026-10-15).
+    observations.push(await settleWorker(fixture, input, observed));
+  }
+  return observations;
+}
+
 /**
  * How long a test's lock holder waits for its COMMIT. A contender retrying `BEGIN IMMEDIATE` holds
  * a shared lock for an instant on each attempt, and a COMMIT that meets one fails with SQLITE_BUSY
@@ -494,10 +517,10 @@ test('two Bun processes atomically refuse overlap and both admit disjoint work',
     },
   ];
   const overlapping = await Promise.all(
-    overlappingInputs.map((input) => prepareWorker(fixture, input)),
+    overlappingInputs.map(async (input) => ({ input, child: await prepareWorker(fixture, input) })),
   );
   writeFileSync(startOverlap, 'start');
-  const overlap = await Promise.all(overlapping.map(observation));
+  const overlap = await observeOverlap(fixture, overlapping);
   expect(overlap.filter(({ ok }) => ok)).toHaveLength(1);
   expect(overlap.find(({ ok }) => !ok)?.message).toContain('path claim overlaps session');
   const afterOverlap = openOrBootstrapAuthority(fixture.root, { clock: FIXED_CLOCK });
@@ -577,9 +600,11 @@ test('two Bun processes serialize exclusive conflict-group claims', async () => 
       startPath: start,
     },
   ];
-  const children = await Promise.all(groupInputs.map((input) => prepareWorker(fixture, input)));
+  const children = await Promise.all(
+    groupInputs.map(async (input) => ({ input, child: await prepareWorker(fixture, input) })),
+  );
   writeFileSync(start, 'start');
-  const observations = await Promise.all(children.map(observation));
+  const observations = await observeOverlap(fixture, children);
 
   expect(observations.filter(({ ok }) => ok)).toHaveLength(1);
   expect(observations.find(({ ok }) => !ok)?.message).toContain(

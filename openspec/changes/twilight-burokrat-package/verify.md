@@ -267,3 +267,48 @@ symlink:
 The full Burokrat source suite, packaging suite, typecheck, build and h2puni host gate
 were not rerun for these two authority-fact corrections and proof comments. No archive,
 release, activation or externally selected trust state was changed or published.
+
+### 2026-10-15 — settle typed contention after overlapping claims workers exit
+
+Hosted run `38782181555`, job `116585148481`, at PR #485 head
+`a4f71f84781d28ba698e3833a37e9044f770d08a` failed both overlapping-claims
+process tests: one worker committed, while its peer exhausted the authority's
+50-attempt busy budget. The assertions incorrectly required that concurrent
+attempt to reach the semantic overlap refusal. Startup readiness only proves the
+store opened; it does not guarantee acquisition finishes within the retry budget.
+
+The test-only repair waits for every original worker to exit, preserves the
+exactly-one-concurrent-winner assertion, then settles only typed contention once
+using the existing helper. Both settled races still require one winner and the
+exact path or conflict-group refusal. Production retry settings, transaction
+logic and conflict checks are unchanged. This restores the existing bounded
+contention contract and needs no delta spec.
+
+Watched proofs on that exact head, using the real SQLite production path:
+
+- Transiently wrap the generated worker's `Database.prototype.run`, call the
+  original, then `Bun.sleepSync(1000)` after successful `BEGIN IMMEDIATE`. This
+  models a descheduled write-lock holder beyond its peer's finite retry budget.
+  `bun test apps/twilight-structure/twilight-dash/cli/src/authority/claims.db.test.ts --timeout=60000 --test-name-pattern 'two Bun processes'`
+  reproduced both hosted messages before repair: zero passed, two failed.
+- With the same fault and repaired observations, that command passed both tests,
+  zero failed, 14 assertions (16.29 seconds).
+- Keeping that pause and removing production `acquireClaims`' whole-set
+  `assertAvailable(claims, state.generations)` call made both repaired races fail
+  on two settled winners: zero passed, two failed. Recovery cannot hide a real
+  overlap violation. Both injected faults were restored before final checks.
+
+Fresh scoped checks in an isolated clone with Bun 1.4.2 and frozen dependencies
+(`BUN_TMPDIR=/tmp bun install --frozen-lockfile`, exit 0):
+
+- `bun test --preload ./tools/test/scratch/preload.ts apps/twilight-structure/twilight-dash/cli/src/authority/claims.db.test.ts --timeout=60000`:
+  24 passed, zero failed, 80 assertions (24.80 seconds).
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bun nx run twilight-dash:lint --skip-nx-cache`:
+  exit 0 (26.1 seconds).
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bun nx run twilight-dash:typecheck --skip-nx-cache`:
+  exit 0 (2.1 seconds).
+
+The complete Dash suite, other project suites, build and h2puni host gate were
+not rerun for this test-only repair. Changed-file formatting and whitespace
+checks are recorded by their final commands in the implementation report. No
+release, activation or externally selected trust state was changed or published.
