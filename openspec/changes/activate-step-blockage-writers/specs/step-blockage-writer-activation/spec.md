@@ -91,3 +91,9 @@ Host activation SHALL require an explicit operator flag, durable intent, exact s
 
 - **WHEN** no managed backend writer exists at preflight and admission and no outgoing colour is recorded or routed
 - **THEN** Compose records a null predecessor and admits only a capable candidate over coherent pre-marker or DISABLED authority; ENABLED authority refuses without a rollback image
+
+#### Scenario: Complete asymmetric image compatibility before maintenance
+
+- **WHEN** an ordinary Compose deployment encounters any stored vocabulary value that either the candidate or captured outgoing rollback image cannot read
+- **THEN** it refuses before maintenance, migration or application exposure, independently of activation state or whether the other image supports that value
+- **AND** this comparison covers the entire stored-vocabulary registry, including facts and journal semantics

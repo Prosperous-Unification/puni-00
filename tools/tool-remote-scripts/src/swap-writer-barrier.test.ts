@@ -1489,3 +1489,95 @@ test('ordinary first install proves capable candidate and retains explicit absen
   expect(intent).toMatchObject({ from: null, outgoingId: null, rollback: null });
   expect(attempt.events).toContain('start');
 });
+
+const storedVocabularies = [
+  {
+    kind: 'FF',
+    key: 'type',
+    cli: 'relationship-types',
+    inventory: 'FROM typed_dependency GROUP BY type',
+  },
+  { kind: 'on_hold', key: 'kind', cli: 'hold-kinds', inventory: 'SELECT hold AS kind' },
+  { kind: 'ready', key: 'kind', cli: 'readiness-kinds', inventory: 'SELECT readiness AS kind' },
+  {
+    kind: 'shared',
+    key: 'mode',
+    cli: 'capacity-modes',
+    inventory: 'SELECT shared_people AS encoding',
+  },
+  {
+    kind: 'succeeded',
+    key: 'outcome',
+    cli: 'attempt-outcomes',
+    inventory: 'SELECT outcome, count(*) AS count',
+  },
+  {
+    kind: 'blocked',
+    key: 'kind',
+    cli: 'step-blockage-kinds',
+    inventory: "SELECT 'blocked' AS kind",
+  },
+  ...['replace_blockage', 'move_progress_v1', 'delete_state_v1', 'step_blockage_activation_v1'].map(
+    (kind) => ({
+      kind,
+      key: 'kind',
+      cli: 'step-blockage-replay-kinds',
+      inventory: 'SELECT payload,inverse,preconditions FROM command_journal',
+    }),
+  ),
+  {
+    kind: 'minutes',
+    key: 'unit',
+    cli: 'estimate-units',
+    inventory: 'SELECT estimate_unit AS unit',
+  },
+];
+
+for (const vocabulary of storedVocabularies) {
+  for (const incompatible of ['candidate', 'rollback', null] as const) {
+    test(`ordinary complete vocabulary ${vocabulary.kind} with ${incompatible ?? 'both capable'} images`, async () => {
+      const attempt = await fixture();
+      const docker = attempt.io.sh;
+      const commands: string[][] = [];
+      attempt.io.sh = async (args) => {
+        commands.push(args);
+        if (args[0] === 'run' && args.some((argument) => argument.includes(vocabulary.inventory)))
+          return JSON.stringify([{ [vocabulary.key]: vocabulary.kind, count: 1 }]);
+        if (
+          args[0] === 'run' &&
+          args.some((argument) => argument.includes(`src/${vocabulary.cli}-cli.ts`))
+        )
+          return JSON.stringify(
+            incompatible !== null &&
+              args.includes(incompatible === 'candidate' ? image : previousImage)
+              ? []
+              : [vocabulary.kind],
+          );
+        return docker(args);
+      };
+      if (incompatible === null) {
+        await execute(attempt.plan, image, 'deadbeef', attempt.io);
+        expect(attempt.events).toContain('start');
+        const observations = commands.filter(
+          (args) =>
+            args[0] === 'run' &&
+            args.some((argument) => argument.includes(`src/${vocabulary.cli}-cli.ts`)),
+        );
+        expect(observations.some((args) => args.includes(image))).toBe(true);
+        expect(observations.some((args) => args.includes(previousImage))).toBe(true);
+      } else {
+        const failure = await execute(attempt.plan, image, 'deadbeef', attempt.io).then(
+          () => '',
+          (cause: unknown) => (cause instanceof Error ? cause.message : String(cause)),
+        );
+        expect(failure).toContain(
+          `${incompatible === 'candidate' ? 'candidate' : 'recovery'} image cannot read`,
+        );
+        expect(failure).toContain(`${vocabulary.kind} (1)`);
+        expect(attempt.events).not.toContain('maintenance');
+        expect(attempt.events).not.toContain('start');
+        expect(commands.some((args) => args.includes('src/migrate-cli.ts'))).toBe(false);
+      }
+    });
+  }
+}

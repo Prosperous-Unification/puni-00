@@ -209,3 +209,35 @@ Exact commands, working directories and exits are in `/tmp/step-preserve-correct
 All **14 new faults** were observed through ordinary `execute`, with the configured remote-scripts cwd and scratch preload. Commands, exits and failing test names are in `/tmp/step-preserve-caller-mutations.json`; individual logs are `/tmp/step-preserve-caller-mutation-<guard>.log`. Sources were restored after every mutation. The original 35 inventory/admission faults were also repeated and detected on this correction, with their existing JSON/log paths updated.
 
 Changed-file formatting/lint, OpenSpec validation and enabled commit hooks are recorded in the correction handoff. The full canonical h2puni gate, full Nx gates, Docker/Kubernetes conformance, deployed digest observation, push, PR, host deployment and activation remain unrun. Disposable fixture migrations are the only migration execution. Independent review of the final correction SHA remains required.
+
+## 10. Complete Candidate Vocabulary Admission
+
+Astra rejected `366e10b5d4ebe3fc7737c2a99890190d3e264f3e`: passing the actual outgoing digest correctly established rollback compatibility but displaced the candidate's complete pre-maintenance admission. A candidate lacking `move_progress_v1` could pass with a capable outgoing image and reach maintenance, migration and exposure. Section 9's image identity proof remained valid; its candidate coverage was insufficient outside activation obligations.
+
+The read-only proof now unconditionally executes the exact candidate's own supported-values command for every entry in `STORED_VOCABULARIES`. A non-null outgoing digest receives its own independent observation for every entry. Each observation is compared against the same coordinator-owned database inventory before any maintenance phase. Candidate membership is no longer conditional on `step_blockage_activation_v1`. Null predecessor remains explicit, without a fabricated rollback observation; complete candidate admission and first-install constraints remain enforced.
+
+The ordinary-execute matrix covers eleven obligations through all eight channels: FF relationships, on_hold holds, ready readiness, shared capacity, succeeded attempts, blocked facts, replace_blockage/move_progress_v1/delete_state_v1/step_blockage_activation_v1 semantics, and minute estimates. Each obligation has an incapable-candidate/capable-rollback negative, a capable-candidate/incapable-rollback negative, and a both-capable control. Negatives assert the correct image role and exact stored value/count and refuse before maintenance/migration/start. Controls reach start and prove independent capability command execution for both exact digests.
+
+Before the fix the 33-case matrix observed **20 failures**: ten unsupported candidate obligations were admitted and ten controls lacked an independent candidate observation. After the fix all **33 cases passed**. Logs: `/tmp/step-preserve-vocabulary-red.log` and `/tmp/step-preserve-vocabulary-green.log`.
+
+Four production faults were watched through this ordinary-execute matrix, with sources restored after every run:
+
+| Fault                                                          | Observed failures                                                                       |
+| -------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Removed complete candidate membership comparison               | All 11 incapable-candidate negatives failed after deployment reached maintenance        |
+| Removed complete rollback membership comparison                | All 11 incapable-rollback negatives failed after deployment reached maintenance         |
+| Substituted rollback CLI observation for candidate observation | All 11 incapable-candidate negatives and all 11 independent-observation controls failed |
+| Substituted candidate CLI observation for rollback observation | All 33 asymmetric/control cases failed                                                  |
+
+Commands, exact failing names and exits are in `/tmp/step-preserve-vocabulary-mutations.json`; individual outputs are `/tmp/step-preserve-vocabulary-mutation-<fault>.log`. This corrects the ordinary caller without changing image capture, writer fencing, additive migrations, activation defaults or Kubernetes admission. Tasks 2.2–2.3 remain open; no host action or activation occurred. Final configured regression/static/hook results are recorded in the handoff, and independent review of the final correction SHA remains required.
+
+### Final configured checks for section 10
+
+- Configured remote-scripts cwd/preload, four focused suites: **250 pass, 0 fail, 2774 assertions**.
+- Configured deploy cwd/preload, four focused suites: **213 pass, 0 fail, 801 assertions**.
+- `bunx tsc --build --force tools/tool-remote-scripts/tsconfig.json` and the corresponding `tool-deploy` build: both exit 0.
+- `bun build tools/tool-remote-scripts/src/swap.ts --target=bun --outfile=/tmp/step-preserve-swap.js`: exit 0.
+
+Exact argv, working directories and exits are in `/tmp/step-preserve-correction-checks.json`; the configured test logs are `/tmp/step-preserve-caller-configured-correction.log` and `/tmp/step-preserve-deploy-configured-correction.log`. These are bounded checks. The full canonical host gate and live image/deployment observations remain unrun.
+
+Changed-file Prettier and ESLint, `git diff --check`, and `openspec validate --all --json` exited 0. The rebuilt swap bundle passed the disposable ENABLED-empty admission smoke (separate candidate/rollback capability and activation inventory observations; no Docker or live database). Logs: `/tmp/step-preserve-openspec-vocabulary.log` and `/tmp/step-preserve-bundle-correction.log`. Enabled commit hooks are recorded in the handoff; independent final-SHA review and the canonical gate remain outstanding.

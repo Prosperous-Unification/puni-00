@@ -1232,7 +1232,8 @@ export async function inspectBackendWriters(
 /**
  * Read-only admission proof before candidate boot or attended recovery. Both colours and every known
  * writer must be stopped. The candidate independently inventories the database;
- * the proposed previous digest must understand every fact and journal capability.
+ * both candidate and previous digest must independently understand every stored vocabulary,
+ * including fact kinds and journal capabilities, before maintenance or migration.
  * Null predecessor is reserved for a proven first installation: no managed backend writer,
  * a capable candidate, and pre-marker/DISABLED authority. ENABLED requires rollback.
  * This proof grants no write authority and never restarts a container.
@@ -1297,18 +1298,21 @@ export async function checkBackendRecovery(
     ...command.slice(1),
   ];
   for (const vocabulary of STORED_VOCABULARIES) {
-    let supported: string[];
-    if (previousImage === null) {
-      supported = parseSupported(
-        await runDocker(oneOff(candidateImage, vocabulary.supportedCommand('recovery').slice(2))),
-        vocabulary,
-      );
-    } else {
-      supported = parseSupported(
-        await runDocker(oneOff(previousImage, vocabulary.supportedCommand('recovery').slice(2))),
-        vocabulary,
-      );
-    }
+    // Proof: substituting the rollback observation failed all asymmetric candidate cases and every both-capable image-observation control.
+    const candidateSupported = parseSupported(
+      await runDocker(oneOff(candidateImage, vocabulary.supportedCommand('recovery').slice(2))),
+      vocabulary,
+    );
+    // Proof: substituting the candidate observation failed all asymmetric rollback cases and the independent image-observation controls.
+    const rollbackSupported =
+      previousImage === null
+        ? null
+        : parseSupported(
+            await runDocker(
+              oneOff(previousImage, vocabulary.supportedCommand('recovery').slice(2)),
+            ),
+            vocabulary,
+          );
     const stored = parseStored(
       // Proof: bypassing the snapshot here made all three production admission
       // clean/retained-WAL fixtures fail on readonly opening or source SHM mutation.
@@ -1322,29 +1326,26 @@ export async function checkBackendRecovery(
     );
     if (previousImage === null && vocabulary === STEP_BLOCKAGE_REPLAY_VOCABULARY) {
       // Proof: bypassing capability/ENABLED refusals separately admitted incapable candidate or ENABLED authority without rollback in ordinary first-install negatives.
-      if (!supported.includes('step_blockage_activation_v1'))
+      if (!candidateSupported.includes('step_blockage_activation_v1'))
         throw new Error(
           'first backend install requires step_blockage_activation_v1 candidate capability',
         );
       if (stored.some((row) => row.value === 'step_blockage_activation_v1'))
         throw new Error('enabled step blockage authority requires a rollback image');
     }
-    if (stored.some((row) => row.value === 'step_blockage_activation_v1')) {
-      const candidateSupported = parseSupported(
-        await runDocker(oneOff(candidateImage, vocabulary.supportedCommand('recovery').slice(2))),
-        vocabulary,
-      );
-      // Proof: before this guard, preserve-only recovery admitted enabled-empty with an incapable candidate and capable rollback.
-      if (!candidateSupported.includes('step_blockage_activation_v1'))
+    if (rollbackSupported !== null) {
+      const unsupported = stored.filter((row) => !rollbackSupported.includes(row.value));
+      // Proof: bypassing rollback membership failed each asymmetric ordinary complete-vocabulary rollback negative before maintenance.
+      if (unsupported.length > 0)
         throw new Error(
-          `candidate image cannot read step_blockage_activation_v1: ${candidateImage}`,
+          `recovery image cannot read stored ${vocabulary.name}: ${unsupported.map((row) => `${row.value} (${String(row.count)})`).join(', ')}`,
         );
     }
-    const unsupported = stored.filter((row) => !supported.includes(row.value));
-    // Proof: omitting this comparison admitted move_progress_v1 and ENABLED-empty with an incapable rollback image during attended recovery.
-    if (unsupported.length > 0)
+    const unsupportedCandidate = stored.filter((row) => !candidateSupported.includes(row.value));
+    // Proof: bypassing candidate membership failed each asymmetric ordinary complete-vocabulary candidate negative before maintenance.
+    if (unsupportedCandidate.length > 0)
       throw new Error(
-        `recovery image cannot read stored ${vocabulary.name}: ${unsupported.map((row) => `${row.value} (${String(row.count)})`).join(', ')}`,
+        `candidate image cannot read stored ${vocabulary.name}: ${unsupportedCandidate.map((row) => `${row.value} (${String(row.count)})`).join(', ')}`,
       );
   }
 }
