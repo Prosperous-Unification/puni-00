@@ -1,0 +1,5 @@
+- [x] 1. Prove domain assignment, inheritance, capacity and width behavior; extract the shared resolver preserving slicing.
+- [x] 2. Prove mounted isolated/shared complete, single and page projection including held leaves and filtered ancestors.
+- [x] 3. Prove schema/field-group/MCP compatibility and malformed-value rejection.
+- [x] 4. Prove export exclusion, import ignoring and saved-plan persistence boundary.
+- [x] 5. Watch required production-path fault injections; record exact verification and retain stage7a in progress.

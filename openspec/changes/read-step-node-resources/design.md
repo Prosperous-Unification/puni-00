@@ -1,0 +1,3 @@
+## Technical shape
+
+Extract the existing pools and person/width arithmetic into a domain resolver. `slicesOf` calls it without changing estimate arithmetic, iteration order, person IDs or pool IDs. A domain projector uses the same resolver over complete retained rows, `effectiveTeamsOf`, assignments and project capacity. `projectTree` supplies its existing captured values for isolated and shared reads. The wire field is optional, with discriminated assignment and team unions. The constraints field group exposes it through existing page/MCP projections. Plan document schema and projection explicitly omit it; saved-plan capture already selects authored fields.
