@@ -150,7 +150,9 @@ function readDetail(remembered: RememberedPreferences): boolean | null {
  * is then decided once, against the first links known; until then the marks
  * it gates have nothing to draw. Before 2026-10-14 the default was taken at
  * mount, so an empty, unread plan decided "off" and the same plan opened with
- * Detail on or off depending on which arrived first (ui-review F-065).
+ * Detail on or off depending on which arrived first (ui-review F-065). Links
+ * that become unknown again (`null` after a value: the next project, before
+ * its first read) decide the default again (ui-review F-088).
  */
 export interface GanttDetail {
   /** Whether the three families of mark are drawn. */
@@ -214,8 +216,20 @@ export function useGanttDetail(hasDependencyEdges: boolean | null): GanttDetail 
    * answer it opened on. Set during render (React's "adjust state while
    * rendering" pattern) rather than in an effect, so the read that brings the
    * links paints the marks in the same frame instead of one frame later.
+   *
+   * Links that become **unknown again** unlatch it: that is a project switch
+   * (generation 0 before the next plan's first read), and the next plan's
+   * default is its own, decided again from its own first read (ui-review
+   * F-088). Within one plan the links never go back to unknown, so a late
+   * first link still does not flip the answer.
    */
   const [opening, setOpening] = useState<boolean | null>(hasDependencyEdges);
+  // Proof: this line deleted, `gantt-detail.test.tsx` `decides the never-said
+  // default again once the links are unknown again` failed on `expected false
+  // to be true`, and `gantt-panel.test.tsx` `decides the never-said detail
+  // again for the next plan, both ways` on `expected 'false' to be 'true'`.
+  // Watched 2026-10-16.
+  if (opening !== null && hasDependencyEdges === null) setOpening(null);
   if (opening === null && hasDependencyEdges !== null) setOpening(hasDependencyEdges);
   const [persists, setPersists] = useState(() => rendered !== null);
 
