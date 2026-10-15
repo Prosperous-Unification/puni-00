@@ -94,3 +94,7 @@ Problem: Browser membership observations retain external review assertions but c
 ## 4.1c intent
 
 The next bounded B4 diagnostic is a capability scenario ledger (4.1c). It consumes the real isolated Performance scenario observation and exact external obligations, enumerates the effective adopted scenario set, and preserves unassigned, unsupported, uncited and Manual freshness debt. It does not complete either global coverage ledger, T2, admission, source reconciliation or certification. WBS080.39 remains in progress.
+
+## 4.1b.11 intent
+
+Problem: Browser facts cannot bind committed Architecture fixture membership. Outcome: a separate `inspect-browser-architecture` observation joins a real complete Browser report to one exact project's explicit reviewed-empty assertion or complete pinned Architecture policy. Constraints: closed v1 external authority, exact committed SHA and report identity, manifest and fixed policy pins, selected regular Git bytes, existing Architecture validators and immediate-child discovery, complete fixture validation before intersection, sorted complete source union, raw authority and byte digest, unknown Manual/Conformance/Performance, absent authentication and false certification. Non-goals: classification, isolation, scenario joining, coverage, admission, source reconciliation, StepBlockage, candidate execution, Browser execution or changes to existing inspectors. Parent Tasks 2.1/2.2a/2.2/4.1 remain open.

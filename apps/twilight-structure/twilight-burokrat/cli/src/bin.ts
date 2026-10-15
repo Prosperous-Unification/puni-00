@@ -51,6 +51,8 @@ const validatorCommands = new Set([
   'inspect-scenario-ledger',
   // Proof: removing this registration failed TEST-AXES-095's real installed executable success.
   'inspect-browser-memberships',
+  // Proof: removing registration failed TEST-AXES-111's real built installed executable success.
+  'inspect-browser-architecture',
   // Proof: removing registration failed TEST-AXES-103's real built executable success.
   'inspect-browser-conformance',
   'template',
@@ -67,6 +69,7 @@ commands:
   twilight-burokrat inspect-performance <repository> <committed-sha> <external-rule-policy>
   twilight-burokrat inspect-performance-sources <repository> <committed-sha> <external-rule-policy>
   twilight-burokrat inspect-spec-sources <repository> <committed-sha>
+  twilight-burokrat inspect-browser-architecture <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <external-authority>
   twilight-burokrat inspect-browser-conformance <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <external-authority>
   twilight-burokrat inspect-browser-memberships <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <external-authority>
   twilight-burokrat inspect-performance-levels <repository> <committed-sha> <external-facts-authority> <external-rule-policy>

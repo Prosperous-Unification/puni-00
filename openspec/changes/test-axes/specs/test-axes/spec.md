@@ -859,3 +859,27 @@ The ledger SHALL preserve the full upstream B3 report, citation findings and uni
 
 - **WHEN** an obligation references a current, stale, failed or overdue external Manual observation
 - **THEN** the exact joined typed verdict is retained and noncurrent observations remain debt
+
+### Requirement: Browser Architecture membership observations
+
+Twilight Burokrat SHALL expose `inspect-browser-architecture <repository> <full-committed-sha> <external-rule-policy> <ordinary|packaged|portable> <external-authority>` as a noncertifying observation over one real complete Browser report and one project. A closed version-1 external authority SHALL pin revision, candidate, mode, report observation digest, project root, project manifest path and digest, and an explicit Architecture `reviewed-empty` or committed fixed policy path and digest. The inspector SHALL read exact selected regular Git blobs, validate the complete mapped Architecture selection through the existing rule mapping and immediate-child discovery validators before Browser intersection, and refuse contradictory empty assertions. It SHALL retain complete report and raw authority, raw authority digest, sorted complete Browser collection, sorted selected files and intersection, and the sorted deduplicated source union with same-path mode and digest agreement. Manual, Conformance and Performance SHALL remain unknown; authentication SHALL be absent and certification false. The observation digest SHALL bind the complete payload. Invalid inputs SHALL produce named stderr, nonzero exit and no partial JSON.
+
+#### Scenario: [TEST-AXES-108] Committed Browser Architecture complete overlap and disjoint observations
+
+- **WHEN** a complete real Browser report and exact external authority select committed Architecture fixtures overlapping or disjoint from the Browser collection
+- **THEN** the observation preserves all report outcomes, selected fixtures and source tuples, emits the exact sorted intersection and complete payload digest, and grants no classification or coverage
+
+#### Scenario: [TEST-AXES-109] Browser Architecture authority and source joins refuse substitution
+
+- **WHEN** authority is absent, unreadable, malformed, unsupported, escaping or wrongly pinned, or upstream capture or source tuples disagree
+- **THEN** the production command refuses with a named diagnostic and no observation
+
+#### Scenario: [TEST-AXES-110] Browser Architecture complete committed policy and empty assertions are checked
+
+- **WHEN** any mapped fixture or manifest or policy is missing, nonregular, unreadable or invalid, any immediate Architecture suffix child is unmapped, or reviewed-empty contradicts a fixed policy, its descendants or the declared Architecture target
+- **THEN** the production command refuses even for disjoint fixtures and working-tree repairs, preserving the runner's immediate-child discovery boundary
+
+#### Scenario: [TEST-AXES-111] Browser Architecture deterministic identity and installed dispatch
+
+- **WHEN** source or installed command inspects exact committed inputs with canonical collection and source ordering or receives unsupported arguments or selection
+- **THEN** output preserves complete deterministic identity and raw authority sensitivity, while symbolic and annotated tag selection and invalid CLI usage refuse before publication inspection
