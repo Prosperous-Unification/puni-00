@@ -248,3 +248,29 @@ bunx nx run tool-devsync:dev-env -- up --slug main --worktree ~/puni-worktrees/p
 bunx nx run tool-devsync:dev-env -- down --slug main --cluster puni-walk-platform
 bunx nx run tool-fleet:lab -- down --id walk --profile app
 ```
+
+### Bounded first-attempt forge diagnostics
+
+From a fresh independent clone of a committed candidate containing the driver, use the
+locked `KUBECTL` and `K3D` above and an evidence directory outside the served checkout:
+
+```sh
+bun tools/tool-devsync/src/k3s/forge-recovery-lab.ts \
+  --lab f9diagnostic --worktree /tmp/f9-fresh/puni-00 \
+  --evidence /tmp/f9-diagnostic-evidence --sha <exact-40-character-commit>
+```
+
+The driver refuses an existing lab or worktree caches, records SHA/tree and effective Pod
+snapshots (digest, resources, mounts, security and container identity), starts a bounded
+node cgroup memory/current/peak/events and process RSS sampler before `dev-env up`, and
+keeps the first browser navigation/marker log and Playwright trace. It records cold,
+two PID1 recoveries, first full checker, ingress positive, denied checker, exact policy
+restoration/readback, restored full checker and cleanup as separate verdicts. A cold OOM
+or restart keeps overall acceptance false even if every later stage succeeds. Node sampling
+covers only the owned disposable node; no resource limit or startup fix is applied.
+
+`events.json`, command stdout/stderr, raw Pod and policy responses, `node-memory-rss.log`,
+browser JSONL/ZIP files and `report.json` stay outside the checkout after teardown. Pending
+stages are unverified. Failure before the coordinator starts is recorded in `events.json`
+and throws after owned cleanup; it cannot produce a successful report. A bounded command
+interruption fails the stage. This diagnostic does not certify production or VM recovery.

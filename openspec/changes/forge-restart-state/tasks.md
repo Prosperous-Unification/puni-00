@@ -8,3 +8,10 @@
 
 - [x] 2.1 Document dated ownership recovery and separate cold-start OOM in `docs/infra/local.md`.
 - [ ] 2.2 Run focused tests, scoped tool-devsync test/lint/typecheck/build, formatting and OpenSpec validation; record fresh output and limits in `verify.md`. Focused regression, scoped lint/typecheck/build, formatting and OpenSpec passed; full `tool-devsync:test` remains unverified after the bounded 600-second run exited 124.
+
+## 3. Bounded first-attempt diagnostic driver
+
+- [ ] 3.1 RED/GREEN: exercise the production rehearsal orchestration with controlled external observations; preserve cold OOM, reject foreign UID/unchanged identity, omitted ingress negative and restoration mismatch.
+- [ ] 3.2 Add bounded Bun CLI for owned disposable fresh-worktree labs, node memory/RSS observation, exact identity/policy/browser evidence and always-run cleanup; keep the existing checker and runtime limits unchanged.
+- [ ] 3.3 Watch removed-check faults fail, restore guards, run focused checks and full tool-devsync:test separately within a realistic deadline.
+- [ ] 3.4 Run one instrumented fresh-worktree disposable lab if tools/capacity/ownership permit; record each stage independently and precise unavailable evidence.

@@ -19,3 +19,7 @@ Keep the 2Gi limit, 768Mi/250m requests, Restricted security settings and exact 
 ### New Capabilities
 
 - `forge-restart-state`: container-local Nx ownership for source-run forge recovery.
+
+## Bounded rehearsal diagnostic extension (2026-10-16)
+
+Add a reusable Bun driver for an owned disposable app lab. Preserve the first fresh-worktree startup, including OOM/restart history and node cgroup memory/RSS samples; independently report cold readiness, PID1 replacement, full checker, denied ingress, exact restoration, restored checker and cleanup. An overall pass requires all stages, including a first container reaching readiness without restart. Keep the production checker, source image, resource limits and startup behavior unchanged. Missing observations fail closed; warm retries cannot replace first outcomes. This is diagnostic tooling, not an OOM fix.
