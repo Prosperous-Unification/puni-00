@@ -766,3 +766,33 @@ The `inspect-browser-memberships` diagnostic SHALL consume the real Browser repo
 - **GIVEN** unsupported CLI operands, invalid committed selection or broken Browser evidence
 - **WHEN** source or installed Browser membership dispatch runs
 - **THEN** it preserves named usage and upstream refusals without JSON or promotion
+
+### Requirement: Performance scenario observations are bounded to selected publication
+
+`inspect-performance-scenarios <repository> <committed-sha> <external-rule-policy> <external-level-authority> <capability>` SHALL reuse the validated committed snapshot, decoded declaration, Performance publication and level observation. It SHALL require isolated Performance classification and the same external RulePolicy identity with `policy.scenarios`. It SHALL evaluate B3 over the entire selected active specification tree against its pinned predecessor before filtering the requested capability. Absent capabilities and unidentified requested scenarios SHALL refuse without JSON; unrelated unidentified B3 debt SHALL remain visible.
+
+Only a terminal test-title prefix `[CAPABILITY-001] ` SHALL cite a scenario. A valid citation SHALL name an effective active B3 scenario. Missing, malformed, unknown or retired citations SHALL produce separate diagnostic findings and nonzero exit. The observation SHALL list every adopted requested scenario with sorted passing case IDs or `unobserved-in-selection`, meaning only absence from this selection. It SHALL bind revision, candidate, external policy, declaration, publication, level and B3 identities, complete selection, absent authentication, `certifies:false` and the complete payload digest. Source, policy, isolation or B3 failure SHALL produce no partial observation. Existing Performance level output SHALL be preserved. No global uncovered status, certified coverage, receipt, admission or Browser classification is introduced.
+
+#### Scenario: [TEST-AXES-096] Complete Performance scenario rows retain selection limits
+
+- **GIVEN** an isolated exact-bound Performance publication and an adopted capability with observed and unobserved scenarios
+- **WHEN** source or installed scenario inspection runs
+- **THEN** every adopted requested scenario carries passing case IDs or unobserved-in-selection and all identities bind the noncertifying payload
+
+#### Scenario: [TEST-AXES-097] Terminal Performance citations diagnose invalid identities
+
+- **GIVEN** missing, malformed, unknown or retired terminal citation prefixes
+- **WHEN** scenario inspection runs
+- **THEN** separate citation findings cause nonzero exit without granting those cases a scenario observation
+
+#### Scenario: [TEST-AXES-098] Whole-tree B3 authority precedes capability filtering
+
+- **GIVEN** unrelated active conflicts, an absent capability or an unidentified requested scenario
+- **WHEN** scenario inspection runs
+- **THEN** it refuses without JSON, while unrelated unidentified debt remains visible in an otherwise valid observation
+
+#### Scenario: [TEST-AXES-099] Performance scenario dispatch preserves source and authority refusals
+
+- **GIVEN** unsupported operands or changed selected source, declaration pin, external policy or publication
+- **WHEN** source or installed dispatch runs
+- **THEN** it refuses without partial observation and preserves existing Performance level output

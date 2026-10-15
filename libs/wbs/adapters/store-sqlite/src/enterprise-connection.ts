@@ -345,6 +345,8 @@ export class EnterpriseConnectionRepository implements EnterpriseConnections {
       if (refusal !== null) return refusal;
       const current = connectionIn(tx, organizationId, connectionId);
       if (current === null) return 'not_found';
+      // Proof: 2026-10-15, removing this transaction guard made the real browser
+      // token lifecycle's first confirmed removal return 204 instead of 409 with two live tokens.
       if (hasLiveProvisioningToken(tx, organizationId, act.stamp.at)) return 'provisioning_active';
       tx.delete(organizationSsoConnection)
         .where(eq(organizationSsoConnection.id, connectionId))

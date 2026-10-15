@@ -18,3 +18,13 @@ Ship `twilight-burokrat@0.1.0` as a Bun-compatible npm package with a `twilight-
 ## Constraints
 
 Bun and Nx remain the only package manager and task runner. The installed package must not resolve monorepo aliases or ship WBS sources, consumer policy, attestations, secrets, or selected activations. Missing or corrupted trusted assets fail before validator execution. The physical corpus remains under `apps/wiki/cli` until the unfinished exhaustive freeze and adoption tasks permit relocation.
+
+## Declaration closure repair (2026-10-15)
+
+Installed relationship extraction currently carries only the compiler closure, so meaningful
+consumer TypeScript selections cannot resolve supported WBS vendor declarations. The bundled
+compiler also retains its build checkout's standard-library path. Ship an explicitly reviewed
+finite declaration-root set, preserve each installed nested dependency instance, and resolve
+standard libraries only from the authenticated physical closure. Prove nonempty extraction and
+public declaration output through the installed tarball with the source checkout hidden. This
+repair does not certify the WBS candidate, merge changes, or publish the package.

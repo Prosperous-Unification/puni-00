@@ -120,7 +120,7 @@
       "project": "twilight-burokrat",
       "target": "test",
       "expectedConfiguration": {
-        "cache": true,
+        "cache": false,
         "inputs": [
           "default",
           "^production",

@@ -16,6 +16,7 @@ import { hashBytes, hashCanonical, serializeCanonical } from '../evidence/conten
 import { readCandidate } from '../inventory/read-candidate';
 import { prepareActivation, selectActivation } from './activation';
 import type { RelocationSources } from './relocation-activation';
+import { trustedModuleNames } from './trusted-modules';
 
 /**
  * The relocation fixture: one repository whose enforced boundary owns a real, rebuildable
@@ -284,8 +285,8 @@ const fixtureTargets = {
 type FixtureTarget = keyof typeof fixtureTargets;
 
 function materializeFixtureModules(repository: string): void {
-  const pending = ['nx', 'typescript'];
-  const modules = new Set<string>();
+  const pending = ['nx'];
+  const modules = new Set(trustedModuleNames(join(workspaceRoot, 'node_modules')));
   while (pending.length > 0) {
     const name = pending.shift();
     if (name === undefined || modules.has(name)) continue;

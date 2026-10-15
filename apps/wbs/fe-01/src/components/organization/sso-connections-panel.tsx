@@ -958,8 +958,10 @@ function setupRefusal(refusal: SetupRefusal): RefusalOutcome {
     case 'login_slug_taken':
       return said('That login slug is already in use. Choose another.');
     case 'provisioning_active':
+      // Proof: 2026-10-15, replacing this instruction with the former singular-token
+      // refresh claim failed both mounted provisioning-conflict guidance cases.
       return said(
-        'This organization has live provisioning. Revoke its provisioning token before removing a company connection. The connection list has been refreshed.',
+        'Removal was blocked by live provisioning tokens. Revoke all live tokens in Provisioning tokens, then try removing the connection again.',
       );
     case 'not_found':
       return said('That domain claim no longer exists.');

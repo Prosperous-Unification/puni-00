@@ -688,6 +688,51 @@
           "kind": "source",
           "path": "infra/versions/toolchain.json"
         }
+      },
+      {
+        "path": "apps/website/fe-01/public/apple-touch-icon.png",
+        "format": "image/png",
+        "consumer": "apps/website/fe-01/index.html",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "docs/website/app-icons.md"
+        }
+      },
+      {
+        "path": "apps/website/fe-01/public/favicon-32.png",
+        "format": "image/png",
+        "consumer": "apps/website/fe-01/index.html",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "docs/website/app-icons.md"
+        }
+      },
+      {
+        "path": "apps/website/fe-01/public/favicon.ico",
+        "format": "image/vnd.microsoft.icon",
+        "consumer": "apps/website/fe-01/index.html",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "docs/website/app-icons.md"
+        }
+      },
+      {
+        "path": "apps/website/fe-01/src/assets/fonts/Geist-variable.ttf",
+        "format": "font/ttf",
+        "consumer": "apps/website/fe-01/src/style.css",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "apps/website/fe-01/src/assets/fonts/README.md"
+        }
+      },
+      {
+        "path": "apps/website/fe-01/src/assets/fonts/InterTight-variable.ttf",
+        "format": "font/ttf",
+        "consumer": "apps/website/fe-01/src/style.css",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "apps/website/fe-01/src/assets/fonts/README.md"
+        }
       }
     ],
     "gitlinkBoundaries": [],

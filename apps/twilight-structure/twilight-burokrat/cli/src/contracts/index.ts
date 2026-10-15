@@ -6,6 +6,7 @@ export * from './navigator-records';
 export * from './plan-tasks';
 export * from './records';
 export * from './validate-plan-tasks';
+export * from './validate-progress-receipt';
 
 const IndexPathPattern = /^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))(?!.*[*?[\]{}\\])(?!.*\/\/)(?!.*\/$).+$/;
 const StableId = type(/^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/);

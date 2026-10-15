@@ -260,6 +260,7 @@ for (const direction of ['forward', 'inverse', 'preconditions'] as const) {
 
 for (const retained of ['facts', 'forward-history', 'inverse-history', 'preconditions'] as const) {
   it(`refuses down migration over retained ${retained} without changing the ledger`, () => {
+    rollbackTo(path, FOLDER, '20261014140000_add_step_blockage_activation');
     activateTestStepBlockages(path);
     const sqlite = openDatabase(path);
     if (retained === 'facts')

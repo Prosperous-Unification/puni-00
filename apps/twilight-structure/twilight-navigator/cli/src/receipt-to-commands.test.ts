@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 
 import { runTwin, runTwinInProcess, scratchDirectory, type TwinRun } from './testing/run-twin';
 
-const FIXTURE = join(import.meta.dir, 'fixtures', 'plan-export.v8.json');
+const FIXTURE = join(import.meta.dir, 'fixtures', 'plan-export.v9.json');
 const RECORDS_TASK = '00000000-0000-4000-8000-000000000007';
 const DOCS_TASK = '00000000-0000-4000-8000-000000000013';
 const DEV_STEP = '00000000-0000-4000-8000-000000000002';
@@ -126,7 +126,7 @@ describe('twin receipt-to-commands', () => {
     const batch = JSON.parse(readFileSync(output, 'utf8')) as { id: string; commands: unknown[] };
     expect(run.stdout).toBe(`${digestOf(batch)}\n`);
     expect(statSync(output).mode & 0o777).toBe(0o600);
-    expect(batch).toEqual({
+    const expectedBatch = {
       id: '00000000-0000-4000-8000-000000000001',
       commands: [
         { kind: 'setProgress', workItemId: RECORDS_TASK, stepId: DEV_STEP, state: 'done' },
@@ -146,7 +146,9 @@ describe('twin receipt-to-commands', () => {
         },
         { kind: 'setProgress', workItemId: DOCS_TASK, stepId: QA_STEP, state: 'in_progress' },
       ],
-    });
+    };
+    expect(batch).toEqual(expectedBatch);
+    expect(readFileSync(output, 'utf8')).toBe(`${JSON.stringify(expectedBatch, null, 2)}\n`);
   });
 
   test.each([6, 7] as const)(
@@ -192,17 +194,49 @@ describe('twin receipt-to-commands', () => {
     },
   );
 
+  test.each([8, 9])('converts native v%s receipts without blockage commands', async (version) => {
+    const directory = join(scratch.path, 'native-pair');
+    await writePlanReference(
+      directory,
+      reference.planRef.change,
+      join(import.meta.dir, 'fixtures', `plan-export.v${String(version)}.json`),
+    );
+    tasksPath = join(directory, 'tasks.json');
+    referencePath = join(directory, 'plan-reference.json');
+    writeReceipt(receiptBody({ entries: [doneEntry] }));
+    const run = await runTwinInProcess(receiptToCommands());
+    expect(run.exitCode, run.stderr).toBe(0);
+    expect((JSON.parse(readFileSync(output, 'utf8')) as { commands: unknown[] }).commands).toEqual([
+      { kind: 'setProgress', workItemId: RECORDS_TASK, stepId: DEV_STEP, state: 'done' },
+      {
+        kind: 'setMeasure',
+        workItemId: RECORDS_TASK,
+        stepId: DEV_STEP,
+        metric: 'token_actual',
+        value: 120000,
+      },
+      {
+        kind: 'setMeasure',
+        workItemId: RECORDS_TASK,
+        stepId: DEV_STEP,
+        metric: 'hours_actual',
+        value: 3.5,
+      },
+    ]);
+  });
+
   test.each([
     ['plan mismatch', /plan identity/],
     ['count mismatch', /task count/],
     ['v6 schema2', /schema pairing/],
     ['v7 schema2', /schema pairing/],
     ['v8 schema1', /schema pairing/],
+    ['v9 schema1', /schema pairing/],
     ['duplicate task ID', /unique task IDs/],
     ['duplicate step ID', /unique step IDs/],
     ['duplicate step code named by receipt', /unique step codes/],
   ] as const)('refuses re-digested %s before writing', async (fault, diagnostic) => {
-    if (fault === 'v8 schema1') {
+    if (fault === 'v8 schema1' || fault === 'v9 schema1') {
       const directory = join(scratch.path, 'historical-pair');
       await writePlanReference(
         directory,
@@ -223,6 +257,7 @@ describe('twin receipt-to-commands', () => {
     if (fault === 'v6 schema2') bound['planDocumentVersion'] = 6;
     if (fault === 'v7 schema2') bound['planDocumentVersion'] = 7;
     if (fault === 'v8 schema1') bound['planDocumentVersion'] = 8;
+    if (fault === 'v9 schema1') bound['planDocumentVersion'] = 9;
     if (fault === 'duplicate task ID') tasks.tasks[1].id = tasks.tasks[0].id;
     if (fault === 'duplicate step ID') tasks.steps[1].id = tasks.steps[0].id;
     if (fault === 'duplicate step code named by receipt') tasks.steps[1].code = 'dev';
