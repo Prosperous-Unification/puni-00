@@ -1,0 +1,22 @@
+mc UID 1000 proved
+Added `store` successfully.
+ 0 B / ? 15 bytes -> `store/puni-velero/minio-package-proof`
+ 0 B / ? 15 bytes -> `store/puni-velero/minio-package-proof`
+{"status":"success","type":"file","lastModified":"2026-10-14T11:16:48.677Z","size":15,"key":"minio-package-proof","etag":"6bef37719f8e2f276cadbd3cb184392d-1","url":"http://object-store.puni-backup.svc:9000/puni-velero/minio-package-proof","versionId":"275a84e6-9d74-4abb-830e-c28e476d7828","versionOrdinal":2,"storageClass":"STANDARD"}
+{"status":"success","type":"file","lastModified":"2026-10-14T11:16:48.514Z","size":15,"key":"minio-package-proof","etag":"b1528601bdce3113ea55c7dc8885290a-1","url":"http://object-store.puni-backup.svc:9000/puni-velero/minio-package-proof","versionId":"d7b06e02-8242-493f-a643-d67fb642e4a3","versionOrdinal":1,"storageClass":"STANDARD"}
+puni-velero: versioning, lifecycle, both generation bytes verified
+ 0 B / ? 15 bytes -> `store/puni-es-snapshots/minio-package-proof`
+ 0 B / ? 15 bytes -> `store/puni-es-snapshots/minio-package-proof`
+{"status":"success","type":"file","lastModified":"2026-10-14T11:16:49.916Z","size":15,"key":"minio-package-proof","etag":"6bef37719f8e2f276cadbd3cb184392d-1","url":"http://object-store.puni-backup.svc:9000/puni-es-snapshots/minio-package-proof","versionId":"f347ba9c-6415-4bd2-8fdb-5931e01f38ce","versionOrdinal":2,"storageClass":"STANDARD"}
+{"status":"success","type":"file","lastModified":"2026-10-14T11:16:49.733Z","size":15,"key":"minio-package-proof","etag":"b1528601bdce3113ea55c7dc8885290a-1","url":"http://object-store.puni-backup.svc:9000/puni-es-snapshots/minio-package-proof","versionId":"0084cee3-d5a0-43af-a03e-3c597631b1f5","versionOrdinal":1,"storageClass":"STANDARD"}
+puni-es-snapshots: versioning, lifecycle, both generation bytes verified
+ 0 B / ? 15 bytes -> `store/puni-sqlite/minio-package-proof`
+ 0 B / ? 15 bytes -> `store/puni-sqlite/minio-package-proof`
+{"status":"success","type":"file","lastModified":"2026-10-14T11:16:50.908Z","size":15,"key":"minio-package-proof","etag":"6bef37719f8e2f276cadbd3cb184392d-1","url":"http://object-store.puni-backup.svc:9000/puni-sqlite/minio-package-proof","versionId":"f2bbaec0-b4f6-4162-9bcd-a995ce942e66","versionOrdinal":2,"storageClass":"STANDARD"}
+{"status":"success","type":"file","lastModified":"2026-10-14T11:16:50.769Z","size":15,"key":"minio-package-proof","etag":"b1528601bdce3113ea55c7dc8885290a-1","url":"http://object-store.puni-backup.svc:9000/puni-sqlite/minio-package-proof","versionId":"1963fd84-8814-4c25-8922-c4f8e73ca3e1","versionOrdinal":1,"storageClass":"STANDARD"}
+puni-sqlite: versioning, lifecycle, both generation bytes verified
+ 0 B / ? 15 bytes -> `store/puni-etcd/minio-package-proof`
+ 0 B / ? 15 bytes -> `store/puni-etcd/minio-package-proof`
+{"status":"success","type":"file","lastModified":"2026-10-14T11:16:51.866Z","size":15,"key":"minio-package-proof","etag":"6bef37719f8e2f276cadbd3cb184392d-1","url":"http://object-store.puni-backup.svc:9000/puni-etcd/minio-package-proof","versionId":"6e8de194-f3d3-4ea6-85e7-d7dfa26dd330","versionOrdinal":2,"storageClass":"STANDARD"}
+{"status":"success","type":"file","lastModified":"2026-10-14T11:16:51.709Z","size":15,"key":"minio-package-proof","etag":"b1528601bdce3113ea55c7dc8885290a-1","url":"http://object-store.puni-backup.svc:9000/puni-etcd/minio-package-proof","versionId":"9c4b933c-4de5-4c94-87c4-7a28da2e6938","versionOrdinal":1,"storageClass":"STANDARD"}
+puni-etcd: versioning, lifecycle, both generation bytes verified

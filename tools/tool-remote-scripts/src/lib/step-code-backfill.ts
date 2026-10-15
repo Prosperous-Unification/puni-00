@@ -11,11 +11,9 @@ export function backfillStepCodesCommand(container: string): string[] {
  * Runs the post-swap step-code backfill in `container` and answers what it
  * printed, or fails naming the command that finishes the job by hand.
  *
- * Not abortable: it runs after routing has moved, so the new colour is the
- * live one and rolling back to the old would be backwards. A failure must
- * still stop the swap before `commit`, so the deploy is not recorded as a
- * success while steps are left uncoded. The backfill is idempotent, so the
- * manual command is the same one and is safe to run again.
+ * Backend swaps run this while the previous writer is stopped and before
+ * exposing the candidate. Failure retains the interruption barrier and cannot
+ * commit the swap. The operation is idempotent; the error names its manual command.
  *
  * @param container the incoming colour's be-01 container.
  * @param run executes a docker argument list and rejects on a non-zero exit —
@@ -32,7 +30,7 @@ export async function runStepCodeBackfill(
     return await run(command);
   } catch (cause) {
     throw new Error(
-      `step-code backfill failed on ${container}; the new colour is serving with uncoded steps. ` +
+      `step-code backfill failed on ${container}; the candidate has uncoded steps. ` +
         `Finish it by hand: docker ${command.join(' ')}`,
       { cause },
     );

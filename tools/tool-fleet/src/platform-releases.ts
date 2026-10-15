@@ -297,6 +297,22 @@ const KubePrometheusStackValues = type({
     '+': 'reject',
   },
   'kube-state-metrics': {
+    // Proof: changing the label to platform-production failed the production wrong-cluster
+    // relabeling negative in platform.test.ts on 2026-10-14.
+    prometheus: {
+      monitor: {
+        metricRelabelings: type([
+          {
+            targetLabel: "'puni_cluster'",
+            replacement: "'platform-local'",
+            action: "'replace'",
+            '+': 'reject',
+          },
+        ]),
+        '+': 'reject',
+      },
+      '+': 'reject',
+    },
     image: {
       registry: 'string>0',
       repository: 'string>0',

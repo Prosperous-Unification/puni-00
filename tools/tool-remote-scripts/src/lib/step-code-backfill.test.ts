@@ -42,7 +42,7 @@ describe('runStepCodeBackfill', () => {
     }
     expect(caught).toHaveProperty(
       'message',
-      'step-code backfill failed on be-01-green; the new colour is serving with uncoded steps. ' +
+      'step-code backfill failed on be-01-green; the candidate has uncoded steps. ' +
         'Finish it by hand: docker exec be-01-green bun run src/backfill-step-codes-cli.ts',
     );
   });

@@ -118,6 +118,9 @@ spec:
                 - replace_pattern(body, "AKIA[0-9A-Z]{16}", "[REDACTED]")
                 - replace_pattern(body, "(?i)(authorization:\\s*(bearer|basic)\\s+)[^\\s\"]+", "$$1[REDACTED]")
                 - replace_pattern(body, "(?i)((password|passwd|secret|token|api[_-]?key)[\"']?\\s*[:=]\\s*[\"']?)[^\\s\"',}]+", "$$1[REDACTED]")
+        resource/host-namespace:
+          attributes:
+            - { key: k8s.namespace.name, value: observability, action: upsert }
         resource/cluster:
           attributes:
             - { key: puni.cluster, value: '${env:PUNI_CLUSTER_ID}', action: upsert }
@@ -155,5 +158,5 @@ spec:
             exporters: [otlp]
           metrics:
             receivers: [hostmetrics]
-            processors: [memory_limiter, resource/cluster, batch]
+            processors: [memory_limiter, resource/cluster, resource/host-namespace, batch]
             exporters: [otlp]

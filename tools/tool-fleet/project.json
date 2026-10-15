@@ -69,17 +69,23 @@
     "rehearse:drain": {
       "executor": "nx:run-commands",
       "cache": false,
-      "options": { "command": "bun tools/tool-fleet/src/drain-rehearsal.ts" }
+      "options": {
+        "command": "bun tools/tool-fleet/src/drain-rehearsal.ts"
+      }
     },
     "rehearse:traefik": {
       "executor": "nx:run-commands",
       "cache": false,
-      "options": { "command": "bun tools/tool-fleet/src/traefik-rehearsal.ts" }
+      "options": {
+        "command": "bun tools/tool-fleet/src/traefik-rehearsal.ts"
+      }
     },
     "lab": {
       "executor": "nx:run-commands",
       "cache": false,
-      "options": { "command": "bun tools/tool-fleet/src/k3d-lab.ts" }
+      "options": {
+        "command": "bun tools/tool-fleet/src/k3d-lab.ts"
+      }
     },
     "plan": {
       "executor": "nx:run-commands",
@@ -150,6 +156,14 @@
       "outputs": ["{workspaceRoot}/dist/tool-fleet/controller.oci"],
       "options": {
         "command": "bun tools/tool-fleet/src/entrypoint.ts build"
+      }
+    },
+    "object-store-image": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "outputs": ["{workspaceRoot}/dist/tool-fleet/object-store.oci"],
+      "options": {
+        "command": "bun tools/tool-fleet/src/object-store-image-cli.ts"
       }
     }
   }

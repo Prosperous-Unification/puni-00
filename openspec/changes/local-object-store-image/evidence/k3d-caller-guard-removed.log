@@ -1,0 +1,59 @@
+Removed object-store prerequisite: exit 1
+
+tools/tool-fleet/src/k3d-object-store.test.ts:
+(pass) Flux lab object-store prerequisite > registers both worker agents as well as the platform and worker servers [0.09ms]
+37 |           scheduled = true;
+38 |           return Promise.resolve();
+39 |         },
+40 |       ).then(
+41 |         () => {
+42 |           throw new Error('Preparation succeeded');
+                         ^
+error: Preparation succeeded
+      at <anonymous> (/tmp/puni-minio-repack-sol/tools/tool-fleet/src/k3d-object-store.test.ts:42:21)
+(fail) Flux lab object-store prerequisite > refuses absent digest before Flux bootstrap [0.32ms]
+37 |           scheduled = true;
+38 |           return Promise.resolve();
+39 |         },
+40 |       ).then(
+41 |         () => {
+42 |           throw new Error('Preparation succeeded');
+                         ^
+error: Preparation succeeded
+      at <anonymous> (/tmp/puni-minio-repack-sol/tools/tool-fleet/src/k3d-object-store.test.ts:42:21)
+(fail) Flux lab object-store prerequisite > refuses wrong manifest digest before Flux bootstrap [0.04ms]
+37 |           scheduled = true;
+38 |           return Promise.resolve();
+39 |         },
+40 |       ).then(
+41 |         () => {
+42 |           throw new Error('Preparation succeeded');
+                         ^
+error: Preparation succeeded
+      at <anonymous> (/tmp/puni-minio-repack-sol/tools/tool-fleet/src/k3d-object-store.test.ts:42:21)
+(fail) Flux lab object-store prerequisite > refuses failed import before Flux bootstrap [0.02ms]
+63 |       (_root, _tools, _labId, cluster) => {
+64 |         events.push(`bootstrap:${cluster.name}`);
+65 |         return Promise.resolve();
+66 |       },
+67 |     );
+68 |     expect(events).toEqual(['prepare:owned-platform', 'bootstrap:owned-platform']);
+                        ^
+error: expect(received).toEqual(expected)
+
+  [
+-   "prepare:owned-platform",
+    "bootstrap:owned-platform",
+  ]
+
+- Expected  - 1
++ Received  + 0
+
+      at <anonymous> (/tmp/puni-minio-repack-sol/tools/tool-fleet/src/k3d-object-store.test.ts:68:20)
+(fail) Flux lab object-store prerequisite > prepares all nodes before bootstrapping the Flux controllers [0.22ms]
+(pass) Flux lab object-store prerequisite > does not require the object store for the app-only profile [0.07ms]
+
+ 2 pass
+ 4 fail
+ 3 expect() calls
+Ran 6 tests across 1 file. [320.00ms]

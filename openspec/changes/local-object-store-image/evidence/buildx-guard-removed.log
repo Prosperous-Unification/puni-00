@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-fleet/src/object-store-image.test.ts:
+114 |     );
+115 |   });
+116 |   it('refuses another Buildx client version', async () => {
+117 |     const root = await scratchAsync('object-store-client-');
+118 |     await prepareRecipe(root);
+119 |     expect(buildObjectStore(root, lock, createRunner('client'), fetchArtifact)).rejects.toThrow(
+                                                                                              ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-minio-repack-sol/tools/tool-fleet/src/object-store-image.test.ts:119:89)
+(fail) object store production build boundary > refuses another Buildx client version [14.21ms]
+
+ 0 pass
+ 11 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [292.00ms]
