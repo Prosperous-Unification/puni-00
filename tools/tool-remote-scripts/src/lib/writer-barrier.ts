@@ -4,6 +4,13 @@ import type { BackendSnapshot } from './backend-maintenance';
 import { writeNewMigrationCapture } from './migration-capture-file';
 import type { Color } from './state';
 
+/** Immutable outgoing image bound to the exact container observed before writer stop. */
+export interface WriterImage {
+  containerId: string;
+  image: string;
+  imageId: string;
+}
+
 /** Durable recovery identity, captured before the outgoing writer is stopped. */
 export interface WriterIntent {
   candidate: string;
@@ -11,6 +18,8 @@ export interface WriterIntent {
   from: Color | null;
   to: Color;
   outgoingId: string | null;
+  /** Null denotes a proven first installation with no outgoing writer. */
+  rollback: WriterImage | null;
   databaseHostPath?: string;
   idleId?: string | null;
   snapshots?: { imageId: string; application: BackendSnapshot; maintenance: BackendSnapshot };

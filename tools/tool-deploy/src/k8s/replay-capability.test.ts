@@ -53,7 +53,9 @@ it.each(['forward', 'inverse', 'preconditions', 'empty-map', 'mixed'])(
     const path = join(root, 'journal.sqlite');
     const db = new Database(path);
     try {
-      db.run('CREATE TABLE command_journal (payload TEXT, inverse TEXT, preconditions TEXT)');
+      db.run(
+        'CREATE TABLE __drizzle_migrations (name TEXT); CREATE TABLE command_journal (payload TEXT, inverse TEXT, preconditions TEXT)',
+      );
       const plain = { do: 'move' };
       const guarded = { do: 'move', expectedProgress: [] };
       const nested = { do: 'batch', steps: [{ do: 'batch', steps: [guarded] }] };
@@ -98,7 +100,9 @@ it('counts replacement commands in both directions and leaves empty legacy histo
   const path = join(root, 'journal.sqlite');
   const db = new Database(path);
   try {
-    db.run('CREATE TABLE command_journal (payload TEXT, inverse TEXT, preconditions TEXT)');
+    db.run(
+      'CREATE TABLE __drizzle_migrations (name TEXT); CREATE TABLE command_journal (payload TEXT, inverse TEXT, preconditions TEXT)',
+    );
     expect((await execute(buildReplayInventoryCommand(), root, path)).stdout).toBe('[]\n');
     const batch = { do: 'batch', steps: [{ do: 'replace_blockage' }] };
     db.run('INSERT INTO command_journal VALUES (?,?,?)', [
@@ -123,7 +127,9 @@ it('refuses missing, unreadable and malformed trusted database state', async () 
   const db = new Database(path);
   try {
     expect((await execute(buildReplayInventoryCommand(), root, path)).code).not.toBe(0);
-    db.run('CREATE TABLE command_journal (payload TEXT, inverse TEXT, preconditions TEXT)');
+    db.run(
+      'CREATE TABLE __drizzle_migrations (name TEXT); CREATE TABLE command_journal (payload TEXT, inverse TEXT, preconditions TEXT)',
+    );
     db.run('INSERT INTO command_journal VALUES (?,?,?)', [
       '{"forward":{"do":"move"}}',
       '{"do":"move"}',
