@@ -1,0 +1,18 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-memory/src/step-parallel-conformance.test.ts:
+78 |   operation: Promise<unknown>,
+79 |   message?: string | RegExp,
+80 | ): Promise<void> {
+81 |   await operation.then(
+82 |     () => {
+83 |       throw new Error('step parallelism operation unexpectedly resolved');
+                     ^
+error: step parallelism operation unexpectedly resolved
+      at <anonymous> (/tmp/puni-step-parallel-foundation-sol-20261015/libs/wbs/application/conformance/src/step-parallel-conformance.ts:83:17)
+(fail) store-memory sparse step parallelism > rejects each invalid value without storing a fact [11.36ms]
+
+ 0 pass
+ 3 filtered out
+ 1 fail
+Ran 1 test across 1 file. [2.88s]

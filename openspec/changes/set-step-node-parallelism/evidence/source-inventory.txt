@@ -1,0 +1,51 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/conformance/src/case-manifest.test.ts:
+59 |   });
+60 | 
+61 |   it('contains the complete source families and exact history mechanisms', () => {
+62 |     // Proof (2026-10-14): deleting the production blockage family failed this inventory;
+63 |     // replacing its case ID with blockages.set:broken failed the exact case assertion below.
+64 |     expect(Object.keys(CASE_MANIFEST)).toEqual([
+                                            ^
+error: expect(received).toEqual(expected)
+
+  [
+    "livePlans",
+    "projects",
+    "projectRanks",
+    "users",
+    "directory",
+    "capacity",
+    "priorityBands",
+    "calendarMarkers",
+    "eventLog",
+    "planEvents",
+    "steps",
+    "workItems",
+    "estimates",
+    "actuals",
+    "measures",
+    "progress",
+    "attempts",
+    "blockages",
+-   "stepParallels",
+    "dependencies",
+    "typedDependencies",
+    "subtrees",
+    "journal",
+    "savedPlans",
+    "savedPlanCapture",
+  ]
+
+- Expected  - 1
++ Received  + 0
+
+      at <anonymous> (/tmp/puni-step-parallel-foundation-sol-20261015/libs/wbs/application/conformance/src/case-manifest.test.ts:64:40)
+(fail) the closed case manifest > contains the complete source families and exact history mechanisms [0.39ms]
+
+ 0 pass
+ 2 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [28.00ms]

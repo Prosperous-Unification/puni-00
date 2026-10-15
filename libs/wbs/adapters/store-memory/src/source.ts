@@ -77,6 +77,11 @@ import {
   memoryStepBlockageTable,
 } from './step-blockage-fixture';
 import { inMemorySteps, type MemoryStepTable, memoryStepTable } from './step-fixture';
+import {
+  inMemoryStepParallels,
+  type MemoryStepParallelTable,
+  memoryStepParallelTable,
+} from './step-parallel-fixture';
 import { inMemorySubtrees } from './subtree-fixture';
 import {
   inMemoryTypedDependencies,
@@ -98,6 +103,7 @@ interface MemoryTables {
   readonly progress: MemoryProgressTable;
   readonly attempts: MemoryAttemptTable;
   readonly blockages: MemoryStepBlockageTable;
+  readonly stepParallels: MemoryStepParallelTable;
   readonly capacity: MemoryCapacityTable;
   readonly priorityBands: MemoryPriorityBandTable;
   readonly calendarMarkers: MemoryCalendarMarkerTable;
@@ -120,6 +126,7 @@ function emptyTables(): MemoryTables {
     progress: memoryProgressTable(),
     attempts: memoryAttemptTable(),
     blockages: memoryStepBlockageTable(),
+    stepParallels: memoryStepParallelTable(),
     capacity: memoryCapacityTable(),
     priorityBands: memoryPriorityBandTable(),
     calendarMarkers: memoryCalendarMarkerTable(),
@@ -219,6 +226,8 @@ export class MemoryState {
     // Proof: removing this copy failed the project-seeded fact transaction test
     // after commit left the old fact in place; watched 2026-10-13.
     replaceArray(this.tables.blockages.rows, next.tables.blockages.rows);
+    // Proof: copy removed; source commit assertion lost the real authored fact (memory-commit.txt), 2026-10-15.
+    replaceArray(this.tables.stepParallels.rows, next.tables.stepParallels.rows);
     replaceArray(this.tables.attempts.issued, next.tables.attempts.issued);
     replaceMap(this.tables.capacity.held, next.tables.capacity.held);
     replaceMap(this.tables.priorityBands.held, next.tables.priorityBands.held);
@@ -284,6 +293,23 @@ function bindStores(
     },
     state.tables.blockages,
   );
+  const stepParallels = inMemoryStepParallels(
+    workItems,
+    {
+      async findById(stepId) {
+        const step = await steps.findById(stepId);
+        if (step !== null) return step;
+        for (const project of await projects.list()) {
+          const seeded = (await projects.stepsOf(project.id)).find(
+            (candidate) => candidate.id === stepId,
+          );
+          if (seeded !== undefined) return seeded;
+        }
+        return null;
+      },
+    },
+    state.tables.stepParallels,
+  );
   const rowsOnlyWorkItems = workItems;
   workItems = {
     ...rowsOnlyWorkItems,
@@ -322,6 +348,7 @@ function bindStores(
     progress,
     attempts,
     blockages,
+    stepParallels,
     dependencies,
     typedDependencies,
     capacity: inMemoryCapacity({}, state.tables.capacity),
@@ -448,6 +475,7 @@ function coordinatedStores(
       coordinator,
     ),
     blockages: coordinatedStore(stores.blockages, ['set', 'remove', 'moveAll'], coordinator),
+    stepParallels: coordinatedStore(stores.stepParallels, ['set', 'remove'], coordinator),
     dependencies: coordinatedStore(
       stores.dependencies,
       ['add', 'remove', 'removeAllFor'],
@@ -779,6 +807,7 @@ function openMemorySourceWithSeams(
           coordinator.run(async () => {
             const staged = committed.clone();
             const decision = await act({ stores: bindStores(staged, lateWrite) });
+            // Proof: unconditional commit injected; sparse override replacement/removal rollback negative failed (memory-rollback.txt), 2026-10-15.
             if (decision.commit) committed.replaceWith(staged);
             else if (decision.afterRollback !== undefined) {
               await decision.afterRollback({ stores: bindStores(committed, lateWrite) });

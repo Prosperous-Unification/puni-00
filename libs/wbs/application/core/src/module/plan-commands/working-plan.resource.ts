@@ -517,6 +517,7 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
     progress: retainedProgress,
     attempts,
     blockages,
+    stepParallels: scope.stores.stepParallels,
     dependencies: retainedDependencies,
     typedDependencies,
     subtrees: retainedSubtrees,

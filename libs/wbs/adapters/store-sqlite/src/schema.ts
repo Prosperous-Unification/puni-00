@@ -3551,3 +3551,26 @@ export const sharedPeopleRestoreConsumption = sqliteTable(
     ),
   ],
 );
+
+/** Sparse authored node maximum parallelism; SQL triggers enforce leaf and project ownership. */
+export const stepParallel = sqliteTable(
+  'step_parallel',
+  {
+    workItemId: text('work_item_id')
+      .notNull()
+      .references(() => workItem.id, { onDelete: 'cascade' }),
+    stepId: text('step_id')
+      .notNull()
+      .references(() => step.id),
+    maxParallel: integer('max_parallel').notNull(),
+    ...auditColumns(),
+  },
+  (columns) => [
+    primaryKey({ columns: [columns.workItemId, columns.stepId] }),
+    index('step_parallel_by_step').on(columns.stepId),
+    check(
+      'step_parallel_range',
+      sql`typeof(${columns.maxParallel}) = 'integer' AND ${columns.maxParallel} BETWEEN 1 AND 1000`,
+    ),
+  ],
+);

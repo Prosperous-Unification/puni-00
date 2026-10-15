@@ -842,6 +842,7 @@ const openers: ExistingStoreOpeners = {
   progress: (caseId) => openMemoryCase('progress', caseId),
   attempts: (caseId) => openMemoryCase('attempts', caseId),
   blockages: (caseId) => openMemoryCase('blockages', caseId),
+  stepParallels: (caseId) => openMemoryCase('stepParallels', caseId),
   dependencies: (caseId) => openMemoryCase('dependencies', caseId),
   typedDependencies: (caseId) => openMemoryCase('typedDependencies', caseId),
   directory: (caseId) => openMemoryCase('directory', caseId),
@@ -983,6 +984,7 @@ const declaration: SourceDeclaration = {
     progress: { kind: 'offered', gaps: [progressUnknownStepGap], open: openers.progress },
     attempts: { kind: 'offered', gaps: [], open: openers.attempts },
     blockages: { kind: 'offered', gaps: [], open: openers.blockages },
+    stepParallels: { kind: 'offered', gaps: [], open: openers.stepParallels },
     dependencies: { kind: 'offered', gaps: [], open: openers.dependencies },
     typedDependencies: { kind: 'offered', gaps: [], open: openers.typedDependencies },
     directory: { kind: 'offered', gaps: [], open: openers.directory },
@@ -4276,6 +4278,7 @@ async function proveFault(
         progress: (caseId) => takeFixture('progress', caseId),
         attempts: (caseId) => takeFixture('attempts', caseId),
         blockages: (caseId) => takeFixture('blockages', caseId),
+        stepParallels: (caseId) => takeFixture('stepParallels', caseId),
         dependencies: (caseId) => takeFixture('dependencies', caseId),
         typedDependencies: (caseId) => takeFixture('typedDependencies', caseId),
         directory: (caseId) => takeFixture('directory', caseId),
@@ -5689,6 +5692,13 @@ describe('memory existing source conformance', () => {
     expect(Bun.stripANSI(priorityBands.failure)).toContain(
       priorityMissingProjectGap.evidence.observedFailure,
     );
+  });
+
+  it('certifies the sparse step parallelism source inventory', async () => {
+    const report = await runCases(existingStoreRegistrations(openers), {
+      focus: ['stepParallels.set:sparse-replace-remove'],
+    });
+    expect(report.cases.map(({ status }) => status)).toEqual(['passed']);
   });
 
   it('certifies the persisted blockage port', async () => {
