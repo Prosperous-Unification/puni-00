@@ -310,6 +310,9 @@ function documentWorkItems(
       span: _span,
       blockages: _blockages,
       blockageCauses: _blockageCauses,
+      // Proof: retaining this field leaked derived resources in both mounted
+      // mode exports; their omission assertions failed, watched 2026-10-15.
+      nodeResources: _nodeResources,
       ...row
     }) => {
       if (attempts === undefined) return row;

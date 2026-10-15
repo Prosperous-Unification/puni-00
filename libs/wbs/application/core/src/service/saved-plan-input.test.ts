@@ -480,3 +480,18 @@ it('captures direct blockage while canonical schedule input and full Fast schedu
   );
   expect(schedulePlanInput(blocked)).toEqual(schedulePlanInput(plain));
 });
+
+it('drops live node resources before canonical saved-plan persistence and hashing', () => {
+  const withResources: PlanInputReads = {
+    ...reads,
+    workItems: reads.workItems.map((row) => ({
+      ...row,
+      nodeResources: { s1: { nodeId: 'sn1.w.s', width: 999 } },
+    })),
+  };
+  const baseline = planInputRowsOf(reads);
+  const projected = planInputRowsOf(withResources);
+  expect(projected).toEqual(baseline);
+  for (const row of projected.workItems) expect(row).not.toHaveProperty('nodeResources');
+  expect(canonicalisePlanInput(projected)).toEqual(canonicalisePlanInput(baseline));
+});
