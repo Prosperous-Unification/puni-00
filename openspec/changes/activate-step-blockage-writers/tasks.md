@@ -8,6 +8,6 @@
 
 ## 2. Deployment admission
 
-- [x] 2.1 Add step_blockage_activation_v1 image capability and independent enabled-empty inventory for Compose/Kubernetes — test: candidate/rollback incompatibility negatives and empty ENABLED inventory.
+- [x] 2.1 Add step_blockage_activation_v1 image capability and independent enabled-empty inventory for Compose/Kubernetes — test: ordinary candidate/outgoing rollback incompatibility, exact image association, first-install classification, and empty ENABLED inventory.
 - [ ] 2.2 Add explicit Compose activation flag and inspect, durable intent and exact fenced execution/readback — test: uncertain commit/readback retains all barriers and never exposes or restarts writers.
 - [ ] 2.3 Document preserve-only deployment then attended activation with a capable rollback; retain Kubernetes first-start DISABLED guard — test: first-start enabled refusal and operator runbook review.

@@ -1,7 +1,7 @@
 # Verification Report
 
 **Change:** `activate-step-blockage-writers`
-**Verified at:** `2026-10-15 18:28 UTC`
+**Verified at:** `2026-10-15 18:49 UTC`
 **Status:** Image-local prerequisite and preserve-only deployment admission implemented; attended activation remains incomplete and blocked from archive/release activation.
 
 ## 1. Structural Validation
@@ -170,3 +170,42 @@ Both actual generated transport commands initially returned an empty array for E
 Authority mutation argv/exits and named failed tests are in `/tmp/step-preserve-mutations.json` (28 faults). Admission/transport mutations are in `/tmp/step-preserve-admission-mutations.json` (7 faults). Each has an individual `/tmp/step-preserve-mutation-<guard>.log`. Missing/unreadable databases, absent/malformed/unreadable ledger access, partial authority and real fresh/rollback predecessor controls are separate tests. SQLite stores its ledger in the same database file; the unreadable-ledger fixture denies that file. Diagnostic assertions inspect emitted error lines, excluding source excerpts, so an earlier unrelated failure cannot satisfy them.
 
 The full h2puni gate, full Nx test/lint/typecheck/build/format gate, image build, Docker/Kubernetes conformance and live capability observations remain unrun. The fixture transport seam verifies generated commands and exact image arguments; it is not evidence about a deployed digest. Task 2.2 still owns durable host activation intent, exact fenced execution/readback and uncertainty barriers. Task 2.3 still owns the completed attended operator procedure. This packet grants no activation authority.
+
+## 9. Independent Review Corrections
+
+Astra rejected `13df409270cb4cbd26cfff0a3c2b7f827875ca93`: the standalone recovery proof handled two supplied images, but ordinary Compose passed the candidate for both; the new authority suite also assumed repository-root cwd. Section 8's tests established the helper boundaries, not correct ordinary caller integration or configured-cwd execution. This correction addresses both blockers and remains preserve-only. Tasks 2.2–2.3 stay open.
+
+Ordinary preflight now captures the actual outgoing container's pinned `Config.Image` and immutable `Image` ID, verifies the pinned reference resolves to that ID, and persists the container/reference/image-ID association in the existing writer intent. After exact writer stop, deployment re-reads and compares that association before supplying the captured rollback digest and separate candidate digest to admission. Missing/malformed/mutable identity fails before stop; changed identity and incapable outgoing image retain stop intent and refuse before maintenance, migration and exposure.
+
+A genuinely empty initial installation records null predecessor explicitly. Both preflight and read-only admission require no existing managed backend writer, preventing either colour or a late-arriving writer from being reclassified as no predecessor. The candidate must advertise `step_blockage_activation_v1` even while the database is DISABLED. ENABLED authority requires a rollback image. Coherent pre-marker/DISABLED first installs remain admitted. No candidate substitutes for a missing predecessor.
+
+The authority test resolves backend and migration paths from `import.meta.dir`. Fresh configured-cwd reproduction in `/tmp/step-blockage-preserve/tools/tool-deploy` with `--preload ../test/scratch/preload.ts --timeout=10000` observed **107 fail, 0 pass** before the fix and **107 pass, 0 fail** after it. Logs: `/tmp/step-preserve-cwd-red.log` and `/tmp/step-preserve-cwd-green.log`.
+
+### Fresh correction checks
+
+- Configured remote-scripts cwd/preload: swap-writer-barrier, swap-maintenance.db, swap and writer-barrier suites: **217 pass, 0 fail, 1314 assertions**.
+- Configured deploy cwd/preload: activation-admission, replay-capability, replay-coordinator and cutover-replay suites: **213 pass, 0 fail, 801 assertions**.
+- `bunx tsc --build --force` separately for tool-remote-scripts and tool-deploy: each exit 0.
+- Swap bundle build: exit 0.
+
+Exact commands, working directories and exits are in `/tmp/step-preserve-correction-checks.json`; logs are `/tmp/step-preserve-{caller-configured,deploy-configured,type-remote,type-deploy,build-correction}-correction.log`. The authentic predecessor fixture now supplies real Docker image metadata and omits both later activation migrations before its preserved boot/migration exercise.
+
+### New watched production negatives
+
+| Boundary                             | Injected production fault and observation                                                                                                          |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Ordinary rollback argument           | Candidate substituted for captured outgoing digest; incapable-outgoing ordinary execute negative failed                                            |
+| Container observation shape          | Removed array and object guards separately; array-like output and null-container ordinary negatives failed                                         |
+| Exact container identity             | Removed container-ID equality; wrong-container ordinary negative failed                                                                            |
+| Runtime image identity               | Removed SHA-256 image-ID format check; mutually malformed container and image-inspect IDs were admitted and ordinary negative failed               |
+| Pinned reference                     | Removed reference validation; mutable reference reached writer stop and its ordinary preflight negative failed                                     |
+| Reference/image-ID association       | Removed pinned image-ID equality; wrong-pinned-id ordinary negative failed                                                                         |
+| Post-stop readback                   | Removed re-observation, reference equality and image-ID equality separately; changed-reference and consistently re-bound image-ID negatives failed |
+| Initial first-install classification | Removed empty-writer-inventory predicate; both-colour false-first-install negatives failed                                                         |
+| Late first-install classification    | Removed admission's empty-writer-inventory predicate; late-writer ordinary negative reached maintenance and failed                                 |
+| Null predecessor candidate           | Removed candidate capability comparison; incapable first candidate reached maintenance and negative failed                                         |
+| Null predecessor authority           | Removed ENABLED refusal; ENABLED with no rollback reached maintenance and negative failed                                                          |
+
+All **14 new faults** were observed through ordinary `execute`, with the configured remote-scripts cwd and scratch preload. Commands, exits and failing test names are in `/tmp/step-preserve-caller-mutations.json`; individual logs are `/tmp/step-preserve-caller-mutation-<guard>.log`. Sources were restored after every mutation. The original 35 inventory/admission faults were also repeated and detected on this correction, with their existing JSON/log paths updated.
+
+Changed-file formatting/lint, OpenSpec validation and enabled commit hooks are recorded in the correction handoff. The full canonical h2puni gate, full Nx gates, Docker/Kubernetes conformance, deployed digest observation, push, PR, host deployment and activation remain unrun. Disposable fixture migrations are the only migration execution. Independent review of the final correction SHA remains required.

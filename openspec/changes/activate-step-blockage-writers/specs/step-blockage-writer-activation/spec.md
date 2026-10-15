@@ -76,3 +76,18 @@ Host activation SHALL require an explicit operator flag, durable intent, exact s
 
 - **WHEN** predecessor ledger, marker, receipt or trigger authority is missing inconsistently, malformed or unreadable
 - **THEN** admission refuses instead of inferring DISABLED or an empty activation inventory
+
+#### Scenario: Ordinary deployment uses the outgoing rollback digest
+
+- **WHEN** an ordinary Compose deployment replaces an existing backend
+- **THEN** it captures the outgoing container's pinned image and runtime image identity before stopping it, revalidates that association after stop, and independently checks that rollback digest and the candidate digest before maintenance or migration
+
+#### Scenario: Missing or changed outgoing image
+
+- **WHEN** the outgoing image identity is missing, unpinned, inconsistent or changes after writer stop
+- **THEN** ordinary deployment refuses before maintenance, migration or application exposure and retains any existing writer barriers
+
+#### Scenario: Genuine first installation
+
+- **WHEN** no managed backend writer exists at preflight and admission and no outgoing colour is recorded or routed
+- **THEN** Compose records a null predecessor and admits only a capable candidate over coherent pre-marker or DISABLED authority; ENABLED authority refuses without a rollback image

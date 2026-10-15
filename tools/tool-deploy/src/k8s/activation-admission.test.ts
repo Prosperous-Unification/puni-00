@@ -22,6 +22,9 @@ function diagnostics(stderr: string): string {
     .join('\n');
 }
 
+const backend = resolve(import.meta.dir, '../../../../apps/wbs/be-01');
+const migrations = join(backend, 'drizzle');
+
 const roots: string[] = [];
 afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
@@ -33,7 +36,7 @@ function migrateFixture(path: string, migrations: string, rollback: boolean): vo
     : "import {runMigrations} from '@wbs/store-sqlite/migrate'; runMigrations(process.env.DB_PATH,process.env.MIGRATIONS);";
   const child = Bun.spawnSync({
     cmd: ['bun', '-e', script],
-    cwd: 'apps/wbs/be-01',
+    cwd: backend,
     env: { ...process.env, DB_PATH: path, MIGRATIONS: resolve(migrations) },
     stdout: 'pipe',
     stderr: 'pipe',
@@ -53,7 +56,7 @@ function fixture() {
     '20261014140000_add_step_blockage_activation',
     '20261015100000_add_step_blockage_activation_receipt',
   ]) {
-    db.run(readFileSync(join('apps/wbs/be-01/drizzle', migration, 'migration.sql'), 'utf8'));
+    db.run(readFileSync(join(migrations, migration, 'migration.sql'), 'utf8'));
     db.query('INSERT INTO __drizzle_migrations VALUES (?)').run(migration);
   }
   return { path, db };
@@ -196,7 +199,7 @@ for (const [name, command] of [
 it('backend image advertises activation separately from journal replay vocabulary', () => {
   const child = Bun.spawnSync({
     cmd: ['bun', 'run', 'src/step-blockage-replay-kinds-cli.ts'],
-    cwd: 'apps/wbs/be-01',
+    cwd: backend,
     stdout: 'pipe',
     stderr: 'pipe',
   });
@@ -344,7 +347,6 @@ for (const [name, command] of [
       const root = mkdtempSync('/tmp/activation-real-baseline-');
       roots.push(root);
       const path = join(root, 'wbs.sqlite');
-      const migrations = 'apps/wbs/be-01/drizzle';
       if (route === 'fresh') {
         const staged = join(root, 'drizzle');
         mkdirSync(staged);

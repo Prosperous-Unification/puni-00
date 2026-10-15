@@ -21,6 +21,11 @@ const intent = {
   from: 'blue' as const,
   to: 'green' as const,
   outgoingId: 'a'.repeat(64),
+  rollback: {
+    containerId: 'a'.repeat(64),
+    image: 'registry/be@sha256:abc',
+    imageId: `sha256:${'b'.repeat(64)}`,
+  },
 };
 
 test('persisted stop intent blocks an ordinary retry without replacing recovery bytes', async () => {
