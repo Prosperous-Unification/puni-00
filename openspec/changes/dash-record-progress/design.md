@@ -71,8 +71,10 @@ moving unrelated IO abstractions. Validate before opening output, create with
 clean up only a path created by this invocation and propagate failure, including
 cleanup failure. Existing paths, including symlinks, are refused by exclusive
 creation; no parent directory is created. Preserve Dash's existing exit-1 and
-single-line error behavior, wrapping parser/schema failures so raw entries never
-appear in diagnostics.
+single-line error behavior, wrapping parser/schema and consistency failures so raw entries never
+appear in diagnostics. In particular, unknown `stepCode` can include newlines or secrets;
+retain the consistency exception as a cause behind the fixed single-line
+`progress inputs are inconsistent` outer message. Dash prints cause codes only.
 
 ### Acceptance through the actual consumers
 

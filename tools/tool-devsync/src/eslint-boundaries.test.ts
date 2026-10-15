@@ -57,6 +57,40 @@ function boundaryOf(config: unknown): readonly unknown[] {
 }
 
 describe('the effective production and test boundaries', () => {
+  it('Dash progress reaches exactly the contracts alias at its two scoped paths', async () => {
+    const peer = 'apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts';
+    const peerOptions = boundaryOf(await lint.calculateConfigForFile(peer))[1];
+    for (const path of [
+      'apps/twilight-structure/twilight-dash/cli/src/progress/record-progress.ts',
+      'apps/twilight-structure/twilight-dash/cli/src/progress/record-progress.test.ts',
+    ]) {
+      const options = boundaryOf(await lint.calculateConfigForFile(path))[1];
+      if (!isRecord(options)) throw new Error('Dash progress boundary options are malformed');
+      expect(await ruleIds(path, "await import('@twilight-burokrat/contracts');")).not.toContain(
+        '@nx/enforce-module-boundaries',
+      );
+      for (const alias of [
+        '@twilight-burokrat/judge',
+        '../../../../twilight-burokrat/cli/src/contracts',
+      ]) {
+        expect(await ruleIds(path, `await import('${alias}');`)).toContain(
+          '@nx/enforce-module-boundaries',
+        );
+      }
+      expect(options['allow']).toEqual(['^@twilight-burokrat/contracts$']);
+      expect({ ...options, allow: [] }).toEqual(peerOptions);
+    }
+    for (const path of [
+      peer,
+      'apps/twilight-structure/twilight-dash/cli/src/clock.ts',
+      'apps/twilight-structure/twilight-dash/cli/src/authority/claims.ts',
+      'apps/twilight-structure/twilight-dash/cli/src/check-runs/run-activation-checks.ts',
+    ])
+      expect(await ruleIds(path, "await import('@twilight-burokrat/contracts');")).toContain(
+        '@nx/enforce-module-boundaries',
+      );
+  }, 30_000);
+
   it('keeps every root production boundary for the Dash planner except its exact local alias', async () => {
     const cliPath = 'apps/twilight-structure/twilight-dash/cli/src/cli.ts';
     const peerPath = 'apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts';

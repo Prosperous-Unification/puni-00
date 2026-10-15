@@ -85,3 +85,8 @@ Dash SHALL read all three input files as strict UTF-8 JSON and report missing, u
 
 - **WHEN** writing or closing a newly created output fails
 - **THEN** Dash emits no digest, removes its partial output where cleanup succeeds, and reports the failure; a cleanup failure is reported visibly
+
+#### Scenario: Consistency failure contains untrusted step text
+
+- **WHEN** an otherwise valid entry names an absent step containing a newline or secret text
+- **THEN** Dash refuses before output creation with empty stdout and one fixed safe consistency error line, retains the original exception as its cause, and exposes none of that text
