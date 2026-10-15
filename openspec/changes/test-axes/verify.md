@@ -3967,3 +3967,269 @@ the original packet verification sections; no new safety guard was introduced.
 ./src/evidence/test-reports.test.ts ./src/evidence/level-facts.test.ts
 ./src/architecture-level.test.ts ./src/no-ambient-clock.test.ts --timeout=120000`
   from the Burokrat CLI directory.
+
+## Browser Conformance explicit reviewed-empty 4.1b.13 (2026-10-16)
+
+Bounded local candidate based exactly on reviewed aggregate
+`a628558e3ca17e13bbc05e70cfef791805de78aa`, cloned from
+`/tmp/puni-wbs-final-integration-20261016` into
+`/tmp/puni-browser-empty-20261016`. The root workspace was not edited.
+The existing command now accepts closed authority v2 with explicit committed or
+reviewed-empty disposition. Observation schemaVersion stays 1; v1 bytes and all
+identity/report/source joins remain intact. Empty means an external review assertion,
+with valid selected manifest targets and no own Conformance property. Every present
+value contradicts it. Other memberships stay unknown, authentication absent and
+certification false. Parent WBS080.39 and Tasks 2.1/2.2a/2.2/4.1 remain open.
+
+### Preparation and production RED/GREEN
+
+- `BUN_TMPDIR=/tmp/puni-browser-empty-install bun install --frozen-lockfile`:
+  exit 0; Bun 1.4.2 checked 1,573 installs across 1,447 packages without changes.
+  The first attempt lacked a writable Bun temporary directory and refused EROFS.
+- Global `openspec` was absent. The cached pinned package alone could not resolve
+  commander/diff. Installed required OpenSpec 1.12.0 in an isolated tool directory
+  with `BUN_TMPDIR=/tmp/puni-browser-empty-install BUN_INSTALL=/tmp/puni-browser-empty-install bun add --cwd /tmp/puni-browser-empty-tools --exact @fission-ai/openspec@1.12.0`:
+  exit 0, 71 packages installed. Restricted DNS initially refused; the authorized
+  network escalation completed the pinned install. All OpenSpec commands below use
+  `bun /tmp/puni-browser-empty-tools/node_modules/.bin/openspec`.
+- Ran `status --change test-axes --json` and `instructions apply --change test-axes --json`;
+  read the returned local sdd-lean artifacts. Existing progress was 43/54 tasks.
+- `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts scenario allocate . openspec/changes/test-axes/specs/test-axes/spec.md`:
+  exit 0, allocated TEST-AXES-116..119. Persisted returned specMarkdown and journal.
+  Fresh comparison with the exact base preserved every prior 163 journal events and
+  appended only those four (167 total; `/tmp/browser-empty-journal-proof.json`).
+- Before implementation, `bun test apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-conformance.test.ts --test-name-pattern 'TEST-AXES-11[6-9]' --timeout 120000`:
+  1 passed, 5 failed, 17 filtered; production stderr rejected v2 because version 1
+  was required and conformance undeclared (`/tmp/browser-empty-red.log`).
+- After implementation, the same focused command passed 6 tests with 133 assertions
+  (`/tmp/browser-empty-green.log`). Subsequent added absence/nonregular/authority
+  checks and built installed v2 success/contradiction also passed in the complete
+  Browser Conformance suite: 24 tests, 481 assertions, 0 failures in 71.56 seconds
+  (`/tmp/browser-empty-full.log`). Final regressions below include the final tests.
+- A separate temporary compatibility test loaded the original production module from
+  exact base Git bytes, dispatched it and the changed CLI against the same committed
+  fixture and authority, and compared stdout bytes: 1 passed, 4 assertions, 0 failures
+  (`/tmp/browser-empty-compatibility.log`). Temporary source and test copies were
+  removed. The committed TEST-AXES-118 independently constructs the exact legacy
+  envelope and checks serialized stdout, including field order and digest.
+
+### Watched production faults
+
+Each fault was injected into the real inspector, its targeted test invoked the real
+CLI, the named assertion failed with exit 1, and original source was restored before
+the next fault. `/tmp/browser-empty-mutations.log` and individual
+`/tmp/browser-empty-fault-<name>.log` contain fresh observations. Adjacent Proof
+comments name these tests.
+
+| Fault                                              | Observed production assertion failure                                       |
+| -------------------------------------------------- | --------------------------------------------------------------------------- |
+| Treat every v2 disposition as reviewed-empty       | TEST-AXES-118 lost committed disjoint success                               |
+| Remove own Conformance property contradiction      | TEST-AXES-117 accepted a committed null target and emitted success JSON     |
+| Widen authority version 2 to 2 or 3                | TEST-AXES-117 lost the named closed-authority schema refusal                |
+| Widen disposition to permit unknown                | TEST-AXES-117 lost the named closed-authority schema refusal                |
+| Remove authority candidate equality                | TEST-AXES-119 accepted a substituted candidate pin and emitted success JSON |
+| Remove targets array rejection                     | TEST-AXES-117 accepted array-valued targets under reviewed-empty authority  |
+| Remove version dispatch before reading disposition | TEST-AXES-118 lost legacy version-1 byte-preservation success               |
+| Remove v2 disposition closed-key validation        | TEST-AXES-117 accepted extra disposition fields                             |
+| Remove v2 authority closed-key validation          | TEST-AXES-117 accepted extra authority fields                               |
+| Make v2 disposition optional                       | TEST-AXES-117 lost the named missing-disposition schema refusal             |
+
+The final four faults ran after the full regression suite with source restoration
+in `finally` (`/tmp/browser-empty-closure-faults.log`).
+After all restorations, `bun test apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-conformance.test.ts --test-name-pattern 'TEST-AXES-11[6-8]|TEST-AXES-119.*identity' --timeout 120000`
+passed 7 tests, 165 assertions, 0 failures, 17 filtered in 12.53 seconds
+(`/tmp/browser-empty-final-restored.log`).
+
+The tests separately model selected manifest unreadability by breaking the real
+selected-blob reader, and absence/nonregular manifest paths by committed Git state,
+then repair working files to prove those repairs confer no authority. External
+authority absence and directory unreadability produce distinct ENOENT/EISDIR.
+These are bounded reader faults and explicit directory reads, not filesystem mode
+claims. Null, false, empty object, array, string and supported Conformance target
+values all contradict reviewed-empty. No candidate source is executed.
+
+### Scoped validation
+
+- Final focused regression command from repository root was `bun test apps/twilight-structure/twilight-burokrat/cli/src/evidence/{browser-conformance,browser-architecture,browser-performance,browser-memberships,test-reports,level-facts,performance-levels,performance-scenarios}.test.ts --timeout 120000`:
+  exit 0, **166 tests, 2,060 assertions, 0 failures across seven files**, 323.26 seconds
+  (`/tmp/browser-empty-regressions.log`). The listed standalone browser-memberships
+  test file does not exist and Bun ignored it; actual Browser Memberships tests
+  TEST-AXES-093..095 live in test-reports.test.ts and were collected and passed.
+  This count is the observed seven-file collection, not an eight-file claim.
+  It includes final built installed legacy/v2 success and contradictory v2 refusal.
+- `NX_DAEMON=false bunx nx run twilight-burokrat:lint:source`: exit 0, uncached
+  (`/tmp/browser-empty-lint.log`).
+- `NX_DAEMON=false bunx nx run twilight-burokrat:typecheck`: final exit 0, uncached
+  (`/tmp/browser-empty-typecheck.log`). Initial typecheck found widened mode inference
+  in extracted shared schema fields; `as const` preserves the literal definition.
+- `NX_DAEMON=false bunx nx run twilight-burokrat:build`: exit 0; CLI and three
+  dependencies built, cache 0/4 (`/tmp/browser-empty-build.log`). Nx reported denied
+  worker sockets and explicitly ran plugins in its main process.
+- `bunx eslint apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-conformance.ts apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-conformance.test.ts`:
+  exit 0 after final source/test edits (`/tmp/browser-empty-final-eslint.log`).
+- Pinned `openspec validate test-axes --strict --json`: 1/1 valid, no issues.
+  Pinned `openspec validate --all --json`: 215/215 valid, 0 failures
+  (`/tmp/browser-empty-openspec-strict.json`, `/tmp/browser-empty-openspec-all.json`).
+- Production `scenario validate . openspec/changes/test-axes/specs/test-axes/spec.md`:
+  exit 0, `{"unidentified":[]}` (`/tmp/browser-empty-provenance.json`).
+- Changed-file `bunx prettier --check` passed for both Browser Conformance files,
+  README, proposal/design/tasks/verify/spec and scenario allocation journal
+  (`/tmp/browser-empty-final-format.log`). `git diff --check` passed.
+
+Independent Astra review of the exact local commit remains required. No push, PR,
+merge, host gate, full Nx gate, release, live activation, Browser execution,
+source reconciliation or WBS completion was performed in this worker. Source and
+built installed executable fixture observations remain diagnostic and noncertifying.
+
+## Browser level composer 4.1b.14 (2026-10-16)
+
+This bounded packet starts exactly on reviewed Conformance candidate
+`f29ca96ee3f45cf8e4bac5bff9e043662df329d0`, tree
+`396869ffdbf8d205fec1d16325bea22b9c0bd6bd`, in the same isolated
+`/tmp/puni-browser-empty-20261016` clone. Root reported independent Astra approval
+of that exact candidate with no P0–P3 findings and an independent 24-test,
+493-assertion run. That review completes 4.1b.13d's review obligation; coordinator
+integration, release and host acceptance remain separate.
+
+The composer calls the real Browser Memberships, Conformance, Architecture and
+Performance readers in order, captures an exact selected snapshot, verifies full
+report/envelope digests and complete collection/scope/manifest/source joins, and
+finally rereads the actual Browser report. Manual must be explicitly reviewed-empty;
+generic other rows and each adapter's unrelated rows remain unknown. Shared
+first-match classification resolves Conformance before Architecture before
+Performance, then only an admitted unmatched collection member becomes Browser.
+Complete upstream observations, failed/skipped outcomes and source unions remain
+in the full noncertifying output. No external observation JSON is accepted.
+
+### Planning and production RED/GREEN
+
+- Re-read LLM_README, the test-axes artifacts and adjacent real readers, callers,
+  tests and shared classifier. The root confirmed the concrete join shape and final
+  publication re-read matched Astra's approved contract. Recorded bounded intent,
+  design and ordered TDD tasks before implementation.
+- Pinned OpenSpec 1.12.0 `status --change test-axes --json` and
+  `instructions apply --change test-axes --json` selected local sdd-lean;
+  returned progress was 46/62 complete. The same isolated pinned executable from
+  4.1b.13 is used below: `bun /tmp/puni-browser-empty-tools/node_modules/.bin/openspec`.
+- Production `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts scenario allocate . openspec/changes/test-axes/specs/test-axes/spec.md`
+  allocated TEST-AXES-120..124; persisted returned specMarkdown and journal
+  (`/tmp/browser-levels-allocation.json`).
+- Real committed fixture and four valid external authorities reached the new
+  production command: `bun test apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-levels.test.ts --test-name-pattern TEST-AXES-120 --timeout 120000`
+  failed exactly with unknown command (`/tmp/browser-levels-red.log`). The
+  separate initial negative run also failed all four tests on missing dispatch
+  (`/tmp/browser-levels-negatives-red.log`).
+- After implementation the isolated/precedence production tests passed 2 tests,
+  38 assertions (`/tmp/browser-levels-green.log`). Initial complete composer run
+  passed 12 tests, 222 assertions, 0 failures in 105.18 seconds including source
+  and built installed isolated/wrong-level dispatch (`/tmp/browser-levels-full.log`).
+- Added actual multi-file immutable discovery/execution/JUnit/manifest publication
+  and complete sorted cross-row bindings: 1 test, 14 assertions, 0 failures
+  (`/tmp/browser-levels-multiple.log`). Final combined checks are recorded below.
+
+### Watched composer joins
+
+Each targeted guard assertion first passed on the unchanged production source,
+then failed after that guard was removed, and source was restored before the next
+case. These use the committed fixture and the same production CLI fault helper as
+the permanent scenario tests; temporary named WATCH tests select one assertion at
+a time. No supplied observation JSON is a production operand. Faulting a reader
+changes its real return only after the original inspector has read and validated
+the real fixture, then recomputes the full envelope (and nested report where
+appropriate) to prove semantic joins independently of stale digest detection.
+
+First pass: all 19 baseline tests exited zero and all 19 guard removals failed
+their named WATCH assertion with exit one (`/tmp/browser-levels-mutations.log`;
+individual `/tmp/browser-levels-watch-<name>{,-baseline}.log`).
+
+| Removed guard                             | Injected production dependency fault / observed failure                                                       |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Full observation digest                   | Conformance reader returned an invalid envelope digest; WATCH_observation-digest accepted it                  |
+| Complete membership canonical uniqueness  | Duplicate committed selectors with canonical intersection; WATCH_complete-membership accepted them            |
+| Complete intersection                     | Conformance files omitted a selected Browser overlap; WATCH_intersection accepted it                          |
+| Nonempty collection                       | Review reader returned empty real-report projection; WATCH_empty lost its named refusal                       |
+| Requested report revision                 | Coherent changed report revision and recomputed digests; WATCH_revision lost named requested-revision refusal |
+| Requested candidate                       | Coherent changed report candidate and digests; WATCH_candidate lost selected-snapshot refusal                 |
+| Requested Browser mode                    | Coherent changed report mode and digests; WATCH_mode lost requested-mode refusal                              |
+| Common full report identity               | Changed invocation identity with valid digests; WATCH_report-join accepted mixed report observations          |
+| Complete collection equality              | Duplicate collection paths; WATCH_collection accepted them                                                    |
+| Explicit complete generic review          | Manual became unknown; WATCH_review accepted classification without reviewed Manual absence                   |
+| Unrelated adapter unknown rows            | Conformance reader promoted Manual to reviewed-empty; WATCH_unknown accepted it                               |
+| Overlapping source agreement              | Substituted source digest; WATCH_source accepted disagreement                                                 |
+| Common project root                       | Foreign Conformance project root; WATCH_root accepted it                                                      |
+| Common project manifest pins              | Changed manifest digest; WATCH_manifest-pin lost its named common-pin refusal                                 |
+| Unique adapter source paths               | Duplicate source tuple; WATCH_duplicate accepted it                                                           |
+| Every Browser source in every adapter     | Omitted reported file tuple; WATCH_missing-browser accepted omission                                          |
+| Every pinned manifest source              | Omitted manifest tuple; WATCH_missing-manifest lost its named missing-manifest refusal                        |
+| Manifest tuple equals its pin             | Changed manifest source bytes; WATCH_manifest-source lost its named source/pin refusal                        |
+| Final publication identity and collection | Fifth real report read changed invocation identity; WATCH_drift accepted the changed publication              |
+
+Second pass: 23 further original baseline assertions passed and all 23 injected
+faults failed (`/tmp/browser-levels-more-mutations.log`), for 42 watched fault variants.
+This includes named SHA, committed-kind and annotated tag-object identity refusals;
+separate source-mode and nested report-digest faults; independently disconnected
+Conformance/Architecture/Performance classifier sets and disabled shared classifier;
+forced isolation; unsorted or duplicate source output; substituted upstream digest;
+omitted nested outcomes; promoted authentication or certification; empty-payload
+digest; deleted Browser eligibility in a broken classifier; skipped final real
+report read after physical report corruption; independently removed CLI arity,
+mode and wrong-level status mappings; and deleted built installed registration.
+The physical corruption proof passed with the real final read, then failed when
+that read was replaced by the earlier observation. Installed registration removal
+produced the actual executable's unknown-command refusal instead of success.
+
+All temporary WATCH files were removed and source restored in `finally` before
+final validation. Adjacent production Proof comments identify the observed
+scenario assertions. These bounded reader faults are not independent authentication
+or whole-repository evidence.
+
+Final review found a valid-input issue in JSON.stringify comparison of generic
+review row objects: reversed object key order was incorrectly refused. Added a
+production test, observed RED with the named review refusal, then compared rows
+canonically. The new valid-order test plus explicit invalid-review regression
+passed 2 tests, 28 assertions, 0 failures (`/tmp/browser-levels-review-order-red.log`,
+`/tmp/browser-levels-review-order-green.log`). Raw authority bytes remain digest-bound.
+
+After that correction, replayed the removed canonical review guard in an isolated
+copy of the actual inspector through the real CLI route. Its explicit-review test
+failed because unknown Manual was accepted with CLI exit zero
+(`/tmp/browser-levels-review-guard-replay.log`). The actual source file was not
+mutated during the concurrent regression run; the temporary inspector copy and
+preload were removed. This rechecks the same review-guard fault variant after
+the canonical-comparison fix.
+
+### Scoped validation and limits
+
+- Final restored six-file regression command from repository root:
+  `bun test apps/twilight-structure/twilight-burokrat/cli/src/evidence/{browser-levels,browser-conformance,browser-architecture,browser-performance,test-reports,performance-levels}.test.ts --timeout 120000`.
+  Exit 0, **126 tests, 1,838 assertions, 0 failures across all six files**, 437.20
+  seconds (`/tmp/browser-levels-regressions.log`). This includes the final canonical
+  review fix and real installed isolated/wrong-level dispatch. Browser Memberships
+  tests are in test-reports.test.ts; all six listed files exist and were collected.
+- `NX_DAEMON=false bunx nx run twilight-burokrat:lint:source`: final exit 0,
+  uncached (`/tmp/browser-levels-lint.log`). Initial lint found four style issues
+  (interface spelling, redundant optional chain, manifest optional chain and
+  modeled Browser fallthrough spelling), which were corrected; no suppressions.
+- `NX_DAEMON=false bunx nx run twilight-burokrat:typecheck`: final exit 0,
+  uncached (`/tmp/browser-levels-typecheck.log`).
+- `NX_DAEMON=false bunx nx run twilight-burokrat:build`: final exit 0; CLI rebuilt,
+  three unchanged dependencies came from cache (`/tmp/browser-levels-build.log`).
+  Nx reported denied plugin-worker sockets and explicitly ran plugins in its main
+  process; these outcomes are scoped task evidence, not plugin isolation evidence.
+- Pinned `openspec validate test-axes --strict --json`: 1/1 valid, no issues;
+  pinned `openspec validate --all --json`: 215/215 valid, no failures
+  (`/tmp/browser-levels-openspec-strict.json`, `/tmp/browser-levels-openspec-all.json`).
+- Production `scenario validate . openspec/changes/test-axes/specs/test-axes/spec.md`:
+  exit 0, `{"unidentified":[]}` (`/tmp/browser-levels-provenance.json`).
+- Fresh exact-base journal comparison preserved all 167 prior f29 events and
+  appended only TEST-AXES-120..124, 172 total (`/tmp/browser-levels-journal-proof.json`).
+- Changed-file Prettier checks passed on the complete eleven-file packet
+  (`/tmp/browser-levels-final-format.log`); `git diff --check` passed.
+
+No upstream adapter source changed. These are committed scratch publications and
+built executable observations; no Browser runner or candidate code executed.
+No push, PR, host gate, full Nx gate, exact-head CI, release, deployment, live
+activation, receipt, source reconciliation, T2, coverage, admission or WBS closure
+ran in this worker. The exact local candidate requires independent Astra review;
+the coordinator owns integration and release/host acceptance. Parent tasks and
+WBS080.39 remain open.

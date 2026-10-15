@@ -978,6 +978,60 @@
       "id": "TEST-AXES-115",
       "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
       "title": "Browser Performance binds canonical identity and installed dispatch"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-116",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser Conformance explicit reviewed-empty succeeds"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-117",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser Conformance contradictory or invalid empty authority refuses"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-118",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser Conformance version-1 compatibility is preserved"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-119",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser Conformance empty identity and installed dispatch remain complete"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-120",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser levels preserve complete isolated real observations"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-121",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser levels refuse identity collection and pin substitutions"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-122",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser levels require explicit complete review and stable publication"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-123",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser levels preserve first-match precedence and typed isolation"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-124",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser levels bind canonical identity and installed dispatch"
     }
   ]
 }
