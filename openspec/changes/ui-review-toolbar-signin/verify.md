@@ -2,11 +2,11 @@
 
 Branch `ui-review/toolbar-signin` from `ui-review/integration-2` @ `85849d1f3`, with `origin/main` @ `50f5c2b8d` merged in. fe-01 only. No migration, no dependency, no be-01 change. Every run below is fresh, 2026-10-14, with `E2E_PORT_SHIFT=2500`.
 
-| Command                                                                                                                                               | Result                                             |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| `bunx nx run-many -t lint:fast typecheck test:unit test -p wbs-fe-01` (`env -u CLAUDECODE`)                                                           | see the lane record (final run on the pushed head) |
-| Playwright: layout, toolbar-panels, project-settings, optimization-cue, plan-table-review, dark-mode, status, sign-in, tailwind, header (merged tree) | 145 passed (16.8m)                                 |
-| `bunx @fission-ai/openspec@1.12.0 validate ui-review-toolbar-signin --json`                                                                           | 1 passed, 0 failed                                 |
+| Command                                                                                                                                                                   | Result                   |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
+| `bunx nx run-many -t lint:fast typecheck test:unit test -p wbs-fe-01 --skip-nx-cache` (`env -u CLAUDECODE`), tree f59aa1626                                               | Successfully ran, exit 0 |
+| Playwright: layout, toolbar-panels, project-settings, optimization-cue, plan-table-review, dark-mode, status, sign-in, tailwind, header, reference-cells (tree f59aa1626) | 149 passed (19.9m)       |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                                                                                  | 200 of 200 passed        |
 
 ## R5 proofs (each fault injected alone, then watched fail)
 
@@ -24,3 +24,5 @@ Branch `ui-review/toolbar-signin` from `ui-review/integration-2` @ `85849d1f3`, 
 | `optimization-cue.spec.ts` budget and switch premises            | same                                                      | `Expected: >= 19 · Received: 18` (both tests)                                                               |
 | e2e `draws the hidden-chip count and the search word at 4.5:1 …` | code before the change                                    | light `the +1 on the band · Received: 4.4775…`                                                              |
 | same                                                             | count in `--quiet-ink`, placeholders unchanged            | `the search word on the band · Received: 2.652…` (light), `4.158…` (dark)                                   |
+
+After the fix, on a banded row (2× pixel method): `+1` and `search` both 5.652:1 light, 7.495:1 dark.
