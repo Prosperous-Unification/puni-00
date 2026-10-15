@@ -583,11 +583,14 @@ const BAR_RADIUS_PX = 3;
  * control. Off is now drawn plain and pressed is drawn filled
  * ({@link CHART_TOGGLE_PRESSED}). The review also asked for the toolbar's
  * 32px size; that is left open in the lane record, because the strip's
- * metrics are pinned by two gates. A 32px strip made `scroll-stability.e2e.ts`
- * fail on `[data-table-frame] leaves mismatched faces at end` (0.2268 of a
- * row at 1280×800), and the toolbar's `text-xs` at this height, with no
- * height change at all, brought `gantt.spec.ts`'s marker-rule body-ink fault
- * (delta 40, columns 122–124) back in 2 of 10 local runs.
+ * metrics are pinned by a gate. The scroll-sync end no longer pins them
+ * (`plan-terminal-tail.ts` fits the two faces' tails, ui-review F-055), and
+ * the marker rule's body ink lost its deterministic 2-pixel residue
+ * ({@link markerPaintKey}); but at 32px `gantt.spec.ts`'s marker-rule oracle
+ * still read delta 40 in columns 123–124 (the arrow head's tip over a bar's
+ * left edge) when run inside the full suite, never alone. Not root-caused, so
+ * the strip stays at 16px (D5, F-055 lane record). A 32px strip also wraps to
+ * two 44px lines at 375 and needs a phone layout of its own.
  */
 const chartChip = (extra?: string): string =>
   cn(
@@ -3195,7 +3198,9 @@ interface GanttProps {
   scheduleError: 'calendar_range' | 'cycle' | null;
   /**
    * Which chart read this is drawn from — a number that moves whenever a new
-   * one lands.
+   * one lands, and 0 before any has (`NO_CHART_READ`): the plan drawn at 0 is
+   * the empty placeholder, whose links are not known yet (F-065, the detail
+   * switch's never-said default waits for the first read).
    *
    * An open hover surface is closed when this moves, and that is the whole of
    * why it is a prop rather than something the panel could work out. A slice
@@ -3608,6 +3613,15 @@ export function GanttRenderer({
   const [viewportPx, setViewportPx] = useState(0);
   const viewportPxReading = useRef(0);
   /**
+   * Takes {@link scrolledPx} off one scroll box: on its own scroll events, and
+   * whenever a box is mounted — Full puts the chart in a new box at 0.
+   */
+  const readTheScroll = useCallback((port: HTMLElement): void => {
+    if (port.scrollLeft === scrolledPxReading.current) return;
+    scrolledPxReading.current = port.scrollLeft;
+    setScrolledPx(port.scrollLeft);
+  }, []);
+  /**
    * Whether anything is below the fold, off one laid-out scroll box.
    *
    * The box is a parameter rather than the ref: the observer below holds the
@@ -3705,6 +3719,15 @@ export function GanttRenderer({
     if (!(row instanceof HTMLElement)) {
       throw new Error("the chart's scroll box holds no content row to watch");
     }
+    // A new box starts at `scrollLeft` 0, and the caption's month and the
+    // marker-rule density are read off the scroll — so the offset is taken
+    // from the box on screen, not carried over from the one Full replaced.
+    //
+    // Proof: with this line removed, `gantt-panel.test.tsx` `names the month
+    // of the box on screen after Full is switched on and off` failed on
+    // `Unable to find an element with the text: Aug 2026` — the caption still
+    // naming September over a box at 0 (ui-review F-064). Watched 2026-10-14.
+    readTheScroll(port);
     measureTheFold(port);
     measureTheViewport(port);
     measureTheSpan(port);
@@ -3719,12 +3742,16 @@ export function GanttRenderer({
     return () => {
       watch.disconnect();
     };
-  }, [fullScreen, measureTheFold, measureTheSpan, measureTheViewport]);
+  }, [fullScreen, measureTheFold, measureTheSpan, measureTheViewport, readTheScroll]);
   // Dependency arrows and parent summary brackets open with detail shown when
   // either legacy or typed dependencies exist. {@link useGanttDetail} owns the
-  // stored answer; this panel draws the marks and the switch.
+  // stored answer; this panel draws the marks and the switch. Generation 0 is
+  // "no plan read has landed" ({@link GanttProps.generation}): the links are
+  // not known yet, which is not the same as a plan without links (F-065).
   const detail = useGanttDetail(
-    plan.dependencies.length > 0 || (plan.typedDependencies?.length ?? 0) > 0,
+    generation === 0
+      ? null
+      : plan.dependencies.length > 0 || (plan.typedDependencies?.length ?? 0) > 0,
   );
   const detailShown = detail.shown;
   const fullScreenRef = useRef<HTMLDivElement | null>(null);
@@ -6024,6 +6051,13 @@ export function GanttRenderer({
    * Proof: making this key constant failed the 28px browser pixel oracle
    * (20 changed pixels, maxDelta 40); keying the SVG disconnected the focused
    * bar on the first peer-marker update.
+   *
+   * The surface spans the **whole viewBox**, the {@link CHART_PAD_PX} bands
+   * included: a day-0 bar's stroke and anti-aliasing sit in the left band, and
+   * a surface over `0..days` alone left those pixels unrepainted — 2 pixels at
+   * delta 7 in body column 11 on every 28px oracle run with the strip at the
+   * toolbar's 32px, tried for ui-review F-055. `gantt-panel.test.tsx` `covers the
+   * whole viewBox, pad bands included` holds the extent.
    */
   const markerPaintKey = JSON.stringify(markers.map(({ id, date, color }) => [id, date, color]));
 
@@ -6138,11 +6172,7 @@ export function GanttRenderer({
               }
         }
         onScroll={(scrollEvent) => {
-          const nextScrolledPx = scrollEvent.currentTarget.scrollLeft;
-          if (nextScrolledPx !== scrolledPxReading.current) {
-            scrolledPxReading.current = nextScrolledPx;
-            setScrolledPx(nextScrolledPx);
-          }
+          readTheScroll(scrollEvent.currentTarget);
           // The fold moved: a reader who has scrolled to the last row is owed
           // the fade going away, and one who scrolls back up is owed it
           // returning. The event's own target is the box, so nothing here has
@@ -6685,9 +6715,10 @@ export function GanttRenderer({
                 </defs>
                 <rect
                   key={markerPaintKey}
-                  x={0}
+                  data-gantt-paint-surface
+                  x={-pad}
                   y={0}
-                  width={days}
+                  width={horizon + 2 * pad}
                   height={rowCount}
                   fill="transparent"
                   pointerEvents="none"
@@ -6760,10 +6791,11 @@ export function GanttRenderer({
           </div>
         </div>
 
-        {/* The table keeps this trailing room for open pickers. Giving the chart
-            the same terminal extent lets either face drive the last row/fraction
-            without its follower clamping. A child, not panel padding: padding
-            would consume the chart's visible height under border-box sizing. */}
+        {/* The chart's terminal room, fitted beside the table's picker room
+            (`plan-terminal-tail.ts`) so either face can drive to the last
+            row and fraction without its follower clamping. A child, not panel
+            padding: padding would consume the chart's visible height under
+            border-box sizing. */}
         {/* Only large plans need extra terminal travel. Adding it to short plans
             forces an otherwise fitted chart to overflow and changes card/drag
             geometry. Proof: making this unconditional failed five short-plan
@@ -6773,7 +6805,7 @@ export function GanttRenderer({
           <div
             aria-hidden="true"
             data-gantt-terminal-allowance
-            style={{ height: PLAN_TERMINAL_ALLOWANCE }}
+            style={{ height: `var(--plan-chart-tail, ${PLAN_TERMINAL_ALLOWANCE})` }}
           />
         )}
 

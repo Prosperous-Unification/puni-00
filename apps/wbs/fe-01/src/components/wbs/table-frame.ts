@@ -1787,12 +1787,20 @@ export const GANTT_DOCK_SLACK: CSSProperties = {
   minHeight: 0,
 };
 
-/** Trailing room that keeps an open table picker reachable at the plan's end. */
-export const PLAN_TERMINAL_ALLOWANCE = '13rem';
+/**
+ * Trailing room that keeps an open table picker reachable at the plan's end,
+ * in `rem` — the table's floor when `plan-terminal-tail.ts` fits the two faces'
+ * tails so they end on one row.
+ */
+export const PLAN_TERMINAL_ALLOWANCE_REM = 13;
+/** {@link PLAN_TERMINAL_ALLOWANCE_REM} as CSS: the tail before any fitting. */
+export const PLAN_TERMINAL_ALLOWANCE = `${String(PLAN_TERMINAL_ALLOWANCE_REM)}rem`;
 
 export const TABLE_FRAME: CSSProperties = {
   overflow: 'auto',
   flex: '0 1 auto',
   minHeight: '20rem',
-  paddingBottom: PLAN_TERMINAL_ALLOWANCE,
+  // The fitted tail while the chart is open beside the table
+  // (`fitPlanTerminalTails`), else the picker room itself.
+  paddingBottom: `var(--plan-table-tail, ${PLAN_TERMINAL_ALLOWANCE})`,
 };

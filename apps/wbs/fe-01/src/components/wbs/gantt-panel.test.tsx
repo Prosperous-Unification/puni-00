@@ -4598,6 +4598,42 @@ describe('the caption follows the scroll', () => {
   });
 
   /**
+   * Full mounts a new scroll box (the overlay wraps the chart in a layer the
+   * panel is not in), and a new box starts at `scrollLeft` 0 — so the caption
+   * has to name the month at 0, not the month the old box was scrolled to.
+   * The same on the way back under the plan. ui-review F-064.
+   */
+  itDom('names the month of the box on screen after Full is switched on and off', () => {
+    augustIntoSeptember();
+    const scrolled = document.querySelector('[data-gantt-panel]');
+    if (!(scrolled instanceof HTMLElement)) throw new Error('the panel is not on the page');
+    scrolled.scrollLeft = 8 * DAY_PX + CHART_PAD_PX;
+    fireEvent.scroll(scrolled);
+    expect(screen.getByText('Sep 2026')).toBeDefined();
+
+    const pressFull = (): void => {
+      const toggle = document.querySelector('[data-gantt-fullscreen-toggle]');
+      if (!(toggle instanceof HTMLElement)) throw new Error('the full-screen switch is not drawn');
+      fireEvent.click(toggle);
+    };
+    pressFull();
+    const full = document.querySelector('[data-gantt-panel]');
+    if (!(full instanceof HTMLElement)) throw new Error('full screen drew no scroll box');
+    expect(full, 'setup: Full mounts a new scroll box').not.toBe(scrolled);
+    expect(full.scrollLeft).toBe(0);
+    expect(screen.getByText('Aug 2026')).toBeDefined();
+    expect(screen.queryByText('Sep 2026')).toBeNull();
+
+    full.scrollLeft = 8 * DAY_PX + CHART_PAD_PX;
+    fireEvent.scroll(full);
+    expect(screen.getByText('Sep 2026')).toBeDefined();
+    pressFull();
+    expect(document.querySelector('[data-gantt-fullscreen]'), 'setup: Full closed').toBeNull();
+    expect(screen.getByText('Aug 2026')).toBeDefined();
+    expect(screen.queryByText('Sep 2026')).toBeNull();
+  });
+
+  /**
    * A scroll reads no rect.
    *
    * The panel's `onScroll` measured **both** the fold and the content row's
@@ -4711,13 +4747,15 @@ const everyGatedMark = (
   });
 
 describe('the detail switch', () => {
+  // Generation 1: a read has landed, so the plan's links are known and the
+  // never-said default is decided on them (F-065). At 0 it waits.
   const drawEveryMark = (plan: GanttPlan = everyGatedMark()) =>
     render(
       <GanttPanel
         plan={plan}
         startDate={MONDAY_START}
         scheduleError={null}
-        generation={0}
+        generation={1}
         heightPx={null}
         onPickRow={() => undefined}
         onPointRow={() => undefined}
@@ -4785,6 +4823,38 @@ describe('the detail switch', () => {
     expect(typedElbow).toBe(markAttribute('[data-gantt-arrow="A->B"]', 'd'));
     expect(typedHead).toBe(markAttribute('[data-gantt-arrow-head="A->B"]', 'd'));
   });
+
+  /**
+   * The chart can mount before the first plan read lands (generation 0, no
+   * rows, no links). The never-said default waits for that read instead of
+   * being decided on the empty plan, so a plan with links opens with the
+   * detail on however the two arrived (ui-review F-065).
+   *
+   * Proof: on the code before F-065 this failed on `expected 'false' to be
+   * 'true'` — the switch decided off on the empty plan and kept it. Watched
+   * 2026-10-14.
+   */
+  itDom(
+    'decides the never-said detail on the first read, not on the chart mounted before it',
+    () => {
+      const waiting = (generation: number, plan: GanttPlan) => (
+        <GanttPanel
+          plan={plan}
+          startDate={MONDAY_START}
+          scheduleError={null}
+          generation={generation}
+          heightPx={null}
+          onPickRow={() => undefined}
+          onPointRow={() => undefined}
+          pointed={pointedAtRow(null)}
+        />
+      );
+      const drawn = render(waiting(0, planOf({ rows: [], slices: [] })));
+      drawn.rerender(waiting(1, everyGatedMark()));
+      expect(theSwitch().getAttribute('aria-pressed')).toBe('true');
+      expect(countOf('[data-gantt-arrow]')).toBeGreaterThan(0);
+    },
+  );
 
   itDom('opens with both families on a plan with edges, and hides them when asked', () => {
     drawEveryMark();
@@ -6922,8 +6992,10 @@ describe('the height the panel is drawn at', () => {
   itDom('has the table’s reachable terminal extent', () => {
     const panel = panelAt(400, null, 50);
     const allowance = panel.querySelector<HTMLElement>('[data-gantt-terminal-allowance]');
-    expect(allowance?.style.height).toBe(PLAN_TERMINAL_ALLOWANCE);
-    expect(allowance?.style.height).toBe(TABLE_FRAME.paddingBottom);
+    // The table's picker room until `fitPlanTerminalTails` fits the two
+    // faces' tails to each other; both read the same fallback.
+    expect(allowance?.style.height).toBe(`var(--plan-chart-tail, ${PLAN_TERMINAL_ALLOWANCE})`);
+    expect(TABLE_FRAME.paddingBottom).toBe(`var(--plan-table-tail, ${PLAN_TERMINAL_ALLOWANCE})`);
   });
 
   itDom('does not force a short fitted chart to overflow', () => {
@@ -10670,3 +10742,44 @@ itDom.each([
     expect(surfaceOn('minute-dev')).toHaveTextContent(`${words} · placed on the working calendar`);
   },
 );
+
+/**
+ * The transparent surface a marker change remounts has to repaint the whole
+ * drawn canvas, pad bands included: the viewBox starts at `-pad`, and a day-0
+ * bar's stroke and its anti-aliasing land in that band. A surface spanning
+ * only `0..days` left those pixels from the paint before the marker, and the
+ * browser oracle (`e2e/gantt.spec.ts`, the marker rule's body ink) measured
+ * them as 2 pixels at delta 7 in column 11 on every 28px run with a 32px
+ * strip, tried for ui-review F-055.
+ */
+describe('the marker paint surface', () => {
+  itDom('covers the whole viewBox, pad bands included', () => {
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [rowAt('strip', 0, 10)],
+          slices: [sliceAt('strip-dev', 'strip', 0, 10)],
+        })}
+        startDate="2026-08-24"
+        scheduleError={null}
+        generation={1}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointed={pointedAtRow(null)}
+      />,
+    );
+    const chart = document.querySelector('[data-gantt-chart]');
+    const surface = document.querySelector('[data-gantt-paint-surface]');
+    if (chart === null || surface === null) throw new Error('no chart or paint surface drawn');
+    const [minX, minY, width, height] = (chart.getAttribute('viewBox') ?? '')
+      .split(' ')
+      .map(Number);
+    // Proof: with the surface back at `x={0} width={days}`, this failed on
+    // `expected +0 to be -0.42857142857142855`. Watched 2026-10-14.
+    expect(Number(surface.getAttribute('x'))).toBe(minX);
+    expect(Number(surface.getAttribute('y'))).toBe(minY);
+    expect(Number(surface.getAttribute('width'))).toBe(width);
+    expect(Number(surface.getAttribute('height'))).toBe(height);
+  });
+});
