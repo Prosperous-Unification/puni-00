@@ -52,7 +52,7 @@ const help = `usage: twilight-burokrat <command> ...
 commands:
   twilight-burokrat validate-record <kind> <json>
   twilight-burokrat validate-plan-tasks <plan-reference.json> <tasks.json>
-  twilight-burokrat check <committed|staged|working> <repository> <revision-or-base> <rule-policy-json> [--rule <rule-id>]
+  twilight-burokrat check <committed|staged|working> <repository> <revision-or-base> <rule-policy-json> [--rule <rule-id>] [--performance-evidence <json>]
   twilight-burokrat inspect-performance <repository> <committed-sha> <external-rule-policy>
   twilight-burokrat inspect-performance-sources <repository> <committed-sha> <external-rule-policy>
   twilight-burokrat inspect-spec-sources <repository> <committed-sha>

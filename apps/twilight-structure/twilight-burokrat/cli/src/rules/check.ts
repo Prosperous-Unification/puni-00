@@ -312,25 +312,33 @@ function candidateRequest(kind: string, revision: string): CandidateRequest {
   return kind === 'committed' ? { kind, revision } : { kind, base: revision };
 }
 
-/** `check <committed|staged|working> <repository> <revision-or-base> <policy> [--rule <id>]` */
+/** Runs a complete or selected-rule check, optionally with external Performance evidence. */
 export function writeCheckCommand(argv: readonly string[]): void {
-  const [, kind, repository, revision, rulePolicyPath, flag, ruleId, evidenceFlag, evidencePath] =
-    argv;
-  // Proof: on 2026-09-20, deleting this guard made `--only MOD-INDEX` exit 0 with empty stderr.
-  if (argv.length === 7 && flag !== '--rule') {
-    throw new Error(`the only check flag is --rule <rule-id>: received ${flag}`);
-  }
-  // Proof: disabling this flag check made the production CLI test accept --other-evidence
-  // as a Performance evidence selector.
-  if (argv.length === 9 && (flag !== '--rule' || evidenceFlag !== '--performance-evidence')) {
-    throw new Error('usage: check ... --rule PERF-THRESHOLD --performance-evidence <json>');
+  const [, kind, repository, revision, rulePolicyPath] = argv;
+  let ruleId: string | undefined;
+  let performanceEvidencePath: string | undefined;
+  // Proof: removing either duplicate guard or bypassing the unknown-flag refusal made the
+  // complete-check source test lose its required check-flag diagnostic (2026-10-15).
+  for (let index = 5; index < argv.length; index += 2) {
+    const flag = argv[index];
+    const value = argv[index + 1];
+    if (flag === '--rule' && ruleId === undefined) ruleId = value;
+    else if (flag === '--performance-evidence' && performanceEvidencePath === undefined)
+      performanceEvidencePath = value;
+    else {
+      throw new Error(
+        `invalid or duplicate check flag: ${flag}; expected --rule <rule-id> or --performance-evidence <json> once each`,
+      );
+    }
   }
   const verdict = checkCandidate({
     repository,
     candidate: candidateRequest(kind, revision),
     rulePolicyPath,
-    ...(argv.length >= 7 ? { ruleId } : {}),
-    ...(argv.length === 9 ? { performanceEvidencePath: evidencePath } : {}),
+    ...(ruleId === undefined ? {} : { ruleId }),
+    // Proof: removing this forwarding made the complete-check source test leave PERF-THRESHOLD
+    // unevaluated with the missing-run-evidence reason (2026-10-15).
+    ...(performanceEvidencePath === undefined ? {} : { performanceEvidencePath }),
   });
   process.stdout.write(`${JSON.stringify(verdict)}\n`);
   // A refused or unevaluated verdict must fail the caller's shell while the record still reaches

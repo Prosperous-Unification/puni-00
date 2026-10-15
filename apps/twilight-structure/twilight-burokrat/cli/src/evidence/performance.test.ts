@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it } from 'bun:test';
 
 import { readCandidate } from '../inventory/read-candidate';
 import { type CliInvocation, invokeCli } from '../invoke-cli';
+import { buildPackage } from '../packaging/build';
 import { registeredRules } from '../rules/registry';
 import { loadRulePolicyWithIdentity } from '../rules/rule-policy';
 import { hashBytes, hashCanonical } from './content-manifest';
@@ -795,4 +796,122 @@ describe('Burokrat Performance judge', () => {
       ).toBe(false);
     }
   });
+});
+
+describe('complete check Performance evidence', () => {
+  it('evaluates bound evidence and refuses invalid inputs in source and built executable', async () => {
+    const fixture = productionFixture();
+    const policy = JSON.parse(readFileSync(fixture.policyPath, 'utf8')) as Record<string, unknown>;
+    writeFileSync(
+      fixture.policyPath,
+      JSON.stringify({
+        ...policy,
+        classificationPolicy: JSON.parse(
+          readFileSync(
+            join(import.meta.dir, '../contracts/fixtures/classification-policy.v1.json'),
+            'utf8',
+          ),
+        ) as unknown,
+        plainTypeScriptPaths: [],
+        relationshipRequest: {
+          schemaVersion: 1,
+          typescript: { configPaths: ['tsconfig.json'], publicEntrypoints: ['src/entry.ts'] },
+        },
+        sizeCeilings: { ceiling: 40, roots: ['src'], pinned: [] },
+        scenarios: { baseRevision: '0'.repeat(40) },
+      }),
+    );
+    const evidence = {
+      ...fixture.evidence,
+      policyDigest: loadRulePolicyWithIdentity(fixture.repository, fixture.policyPath).digest,
+    };
+    writeFileSync(fixture.evidencePath, JSON.stringify(evidence));
+    const packageRoot = mkdtempSync(join(tmpdir(), 'burokrat-complete-check-package-'));
+    roots.push(packageRoot);
+    await buildPackage(packageRoot);
+    for (const entry of ['source', join(packageRoot, 'dist/bin.mjs')]) {
+      const check = async (flags: string[]): Promise<CliInvocation> => {
+        const args = [
+          'check',
+          'committed',
+          fixture.repository,
+          'HEAD',
+          fixture.policyPath,
+          ...flags,
+        ];
+        if (entry === 'source') return await invokeCli(args);
+        const invocation = Bun.spawnSync([process.execPath, entry, ...args], {
+          stdout: 'pipe',
+          stderr: 'pipe',
+        });
+        return {
+          exitCode: invocation.exitCode,
+          stdout: invocation.stdout.toString(),
+          stderr: invocation.stderr.toString(),
+        };
+      };
+      const flags = ['--performance-evidence', fixture.evidencePath];
+      const valid = await check(flags);
+      expect(valid.stderr, entry).not.toContain('check flag');
+      const verdict = JSON.parse(valid.stdout) as {
+        ruleIds: string[];
+        certifies: boolean;
+        unevaluated: { ruleId: string; reason: string }[];
+        findings: { ruleId: string }[];
+      };
+      expect(verdict.ruleIds, entry).toEqual(registeredRules().map((rule) => rule.id));
+      expect(verdict.certifies).toBe(false);
+      expect(
+        verdict.unevaluated.filter((rule) => rule.ruleId === 'PERF-THRESHOLD'),
+        entry,
+      ).toEqual([]);
+      expect(
+        verdict.findings.filter((finding) => finding.ruleId === 'PERF-THRESHOLD'),
+        entry,
+      ).toEqual([]);
+      const absent = await check([]);
+      expect(absent.exitCode).toBe(1);
+      expect(absent.stdout).toContain('Performance run evidence is not supplied');
+      for (const [field, message] of [
+        ['candidate', 'Performance evidence candidate identity mismatch'],
+        ['policyDigest', 'Performance evidence policy identity mismatch'],
+        ['declarationDigest', 'Performance evidence declaration identity mismatch'],
+      ]) {
+        writeFileSync(
+          fixture.evidencePath,
+          JSON.stringify({ ...evidence, [field]: '0'.repeat(64) }),
+        );
+        const mismatched = await check(flags);
+        expect(mismatched.exitCode).toBe(1);
+        expect(mismatched.stdout, entry).toContain(message);
+      }
+      writeFileSync(fixture.evidencePath, '{');
+      const malformed = await check(flags);
+      expect(malformed.exitCode).toBe(1);
+      expect(malformed.stderr).toContain('JSON');
+      rmSync(fixture.evidencePath);
+      const missing = await check(flags);
+      expect(missing.exitCode).toBe(1);
+      expect(missing.stderr).toContain(fixture.evidencePath);
+      writeFileSync(fixture.evidencePath, JSON.stringify(evidence));
+      for (const invalid of [
+        [...flags, ...flags],
+        ['--rule', 'PERF-THRESHOLD', '--rule', 'MOD-INDEX'],
+        ['--other-evidence', fixture.evidencePath],
+      ]) {
+        const refused = await check(invalid);
+        expect(refused.exitCode).toBe(1);
+        expect(refused.stderr).toContain('check flag');
+      }
+      const unrelated = await check(['--rule', 'MOD-INDEX', ...flags]);
+      expect(unrelated.exitCode).toBe(1);
+      expect(unrelated.stderr).toContain('without selecting PERF-THRESHOLD');
+      const selected = await check(['--rule', 'PERF-THRESHOLD', ...flags]);
+      expect(selected.exitCode, selected.stderr).toBe(0);
+      expect(JSON.parse(selected.stdout) as unknown).toMatchObject({
+        ruleIds: ['PERF-THRESHOLD'],
+        certifies: false,
+      });
+    }
+  }, 120_000);
 });
