@@ -3471,3 +3471,46 @@ successfully through the built executable. None of those refused attempts is a p
 No production guard changed, and the source packet's documented mutation proofs were not
 rerun. This worker ran no full host gate, full repository gate, exact-head CI, push, PR,
 merge, or deploy. Coordinator release acceptance and parent ledgers remain open.
+
+## Fourth-wave CI test repairs (2026-10-15)
+
+Hosted PR #493 run 38796593695 exposed three test defects on aggregate parent
+`ae12f88718c04523773a8f84405d410f0c5522e4`. The Compose migration fixture now supplies
+Docker's outgoing container image metadata and pinned image inspection. Its existing
+boot-exposure test first failed with `outgoing backend image inspection is malformed`,
+then reached the intended health failure and passed all seven retention assertions.
+The Dash boundary assertion retains full options equality, with record narrowing for
+its peer configuration and an explicit record type for the comparison value.
+
+The cancellation test's HTTP observer now treats `ECONNRESET` as not ready, alongside
+connection refusal, within its existing bounded readiness loop. A real TCP listener
+that disconnects immediately reproduced `socket hang up` / `ECONNRESET` before this
+change; the same regression passed afterward. Other request errors still reject.
+Production deployment and Performance guards are unchanged; no behavior-spec delta or
+new production safety check was introduced.
+
+Fresh verification from `/tmp/wbs-wave4-aggregate-sol-20261015`:
+
+- `bun test src/swap-migration.db.test.ts --preload ../test/scratch/preload.ts --timeout=60000`
+  from `tools/tool-remote-scripts`: exit 0, 10 passed, 71 assertions.
+- `bun test src/eslint-boundaries.test.ts --preload ../test/scratch/preload.ts --timeout=30000`
+  from `tools/tool-devsync`: exit 0, 26 passed, 153 assertions. After final peer narrowing,
+  the focused `-t 'Dash progress'` rerun passed, 14 assertions.
+- `bun test src/performance-level.test.ts --preload ../test/scratch/preload.ts --timeout=90000 -t 'readiness observation|cancelled supervisor'`
+  from `tools/tool-devsync`: exit 0, 2 passed, 10 assertions. Local sockets required
+  execution outside sandbox network restrictions; the sandbox attempt failed its
+  production shifted-port preflight and is not a pass.
+- Scoped uncached Nx `tool-devsync:typecheck`, `tool-remote-scripts:typecheck`,
+  `tool-devsync:lint`, and `tool-remote-scripts:lint`: exit 0. Commands used
+  `NX_DAEMON=false NX_ISOLATE_PLUGINS=false`; the initial socket-denied Nx invocation
+  exited 0 without running targets and is not counted as verification.
+- Changed-file Prettier and `git diff --check`: exit 0.
+- `OPENSPEC_TELEMETRY=0 bunx --bun @fission-ai/openspec@1.12.0 validate --all --json`:
+  exit 0, 213 valid (195 changes, 18 specs), zero failures.
+
+The initial scoped typecheck still rejected an unknown peer before record narrowing;
+initial lint rejected the reset test's void-expression shorthand before braces were
+added. Those failed attempts are superseded by the scoped final checks above. This
+worker did not run the complete Performance file, full repository tests, host gate,
+CI, secret scan, migration lint, merge, or deployment; coordinator acceptance remains
+open.

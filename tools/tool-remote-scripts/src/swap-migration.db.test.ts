@@ -228,16 +228,19 @@ describe('Compose migration command adapter', () => {
         }),
       healthGate: () => Promise.reject(new Error('candidate health failure')),
       sh: async (args) => {
+        if (args[0] === 'image' && args[3] === '{{json .}}')
+          return JSON.stringify({ Id: `sha256:${'b'.repeat(64)}` });
         if (args[0] === 'image') return image;
         if (args[0] === 'run') return '[]';
         if (args[0] === 'inspect' && args[2] === '{{.Id}}') return identity;
         if (args[0] === 'ps') return identity;
-        if (args[0] === 'inspect' && args[1] === identity)
+        if (args[0] === 'inspect' && (args[1] === identity || args[1] === '--type'))
           return JSON.stringify([
             {
               Id: identity,
               Name: '/be-01-blue',
-              Config: { Env: ['DB_PATH=/data/plan.db'] },
+              Image: `sha256:${'b'.repeat(64)}`,
+              Config: { Image: image, Env: ['DB_PATH=/data/plan.db'] },
               Mounts: [{ Type: 'bind', Source: `${ROOT}/data`, Destination: '/data', RW: true }],
             },
           ]);
