@@ -156,7 +156,10 @@ bash apps/wbs/be-01/scripts/solver-image-smoke.sh \
 
 Supply the exact digest reference already present in the local Docker daemon. This command refuses
 a missing image or an inspect failure; it never pulls, builds, publishes, retags or removes that
-image. Tags, duplicate/unknown arguments and malformed references fail before Docker.
+image. The registry component must be a dotted host, `localhost`, or a host with an explicit numeric
+port (`registry:5000` and `localhost:5000` are accepted). Namespace-only references such as
+`library/backend` are refused. Tags, duplicate/unknown arguments and malformed references fail
+before Docker.
 `WBS_RUN_SOLVER_ORPHAN_PROC` must be unset or `0`: its derivative-build proof belongs to the
 no-argument build smoke.
 

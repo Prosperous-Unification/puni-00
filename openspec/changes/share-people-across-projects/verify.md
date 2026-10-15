@@ -5447,3 +5447,28 @@ was restored before the next final check. Logs are local `/tmp/digest-mutation-<
 | Ignore temporary supervisor shutdown failure          | Supervisor-stop-failure test exited 0 and failed.                     |
 | Ignore socket-directory cleanup refusal               | Socket-cleanup-failure test exited 0 and failed.                      |
 | Skip container absence readback after removal         | Ignored-removal test exited 0 and failed.                             |
+
+### Explicit registry correction after exact review (2026-10-16)
+
+Exact review of `655d3724bacd2f0eb5c16a466c1031855353104d` found that the overall syntax regex
+accepted a lowercase Docker Hub namespace as its first path component. The production shell
+entrypoint reproduced the gap: `library/backend`, `team/nested/backend` and `registry/backend`
+each reached Docker image inspection before refusing (three RED tests). A separate registry guard
+now requires a dotted host, exact `localhost`, or a syntax-validated host with an explicit numeric
+port. Boundary positives cover `registry.example`, `docker.io`, `localhost`, `localhost:5000`, `registry:5000`
+and `127.0.0.1:5000`; namespace-only paths refuse before Docker.
+
+R5 watched negative: removing only the new registry guard made all three namespace refusal tests
+fail again with an observed `image inspect` call. The restored boundary group passed 9/9.
+This correction changes input validation only; the earlier live acceptance's fully qualified
+`docker.io/library/puni-compose-backend` reference retains the same meaning and evidence bounds.
+
+Correction checks: the final combined smoke/scenario command above passed **40/40, 127
+assertions**; registry boundary selection passed **9/9, 24 assertions**. Shellcheck, direct ESLint,
+uncached `NX_DAEMON=false bunx nx run wbs-be-01:typecheck` (including modules), all **214**
+OpenSpec items, changed-path Prettier and `git diff --check` passed. The canonical supplied digest
+command above was rerun with the tightened guard and again exited **0** after authenticated
+feasible baseline and shared-person responses; its temporary runtime cleanup completed.
+The no-argument build branch and application source were unchanged by this correction, so the
+previous real build smoke and project source lint were retained without repetition. Canonical
+h2puni gate, CI and current-release/installed binding acceptance remain unverified.

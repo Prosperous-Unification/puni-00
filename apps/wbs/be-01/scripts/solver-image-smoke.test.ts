@@ -317,6 +317,9 @@ describe('solver-image-smoke supplied immutable image', () => {
     ['tag', ['--image=registry.example/wbs-be-01:latest']],
     ['uppercase digest', [`--image=registry.example/wbs-be-01@sha256:${'A'.repeat(64)}`]],
     ['short digest', ['--image=registry.example/wbs-be-01@sha256:abc']],
+    ['namespace without registry', [`--image=library/backend@sha256:${'a'.repeat(64)}`]],
+    ['nested namespace without registry', [`--image=team/nested/backend@sha256:${'a'.repeat(64)}`]],
+    ['single-label namespace without port', [`--image=registry/backend@sha256:${'a'.repeat(64)}`]],
     ['missing registry', [`--image=wbs-be-01@sha256:${'a'.repeat(64)}`]],
     ['duplicate', [`--image=${SUPPLIED_IMAGE}`, `--image=${SUPPLIED_IMAGE}`]],
     ['unknown', ['--unknown']],
@@ -326,6 +329,25 @@ describe('solver-image-smoke supplied immutable image', () => {
     const smoke = runSmoke(undefined, { supplied: true, args });
     expect(smoke.exitCode).not.toBe(0);
     expect(smoke.dockerCalls).toEqual([]);
+  });
+
+  it.each([
+    'registry.example',
+    'docker.io',
+    'localhost',
+    'localhost:5000',
+    'registry:5000',
+    '127.0.0.1:5000',
+  ])('accepts explicit registry %s through the local inspection boundary', (registry) => {
+    const image = `${registry}/team/backend@sha256:${'a'.repeat(64)}`;
+    const smoke = runSmoke(undefined, {
+      supplied: true,
+      args: [`--image=${image}`],
+      missing: true,
+    });
+    expect(smoke.exitCode).not.toBe(0);
+    expect(smoke.stderr).toContain('supplied image is not locally available');
+    expect(smoke.dockerCalls).toEqual([`image inspect ${image}`]);
   });
 
   it('rejects the orphan derivative build flag before Docker', () => {

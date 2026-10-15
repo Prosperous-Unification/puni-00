@@ -274,7 +274,9 @@ deletion; the target's saved input alone SHALL NOT be represented as replayable 
 
 The solver image smoke SHALL accept either no arguments for its existing build proof or exactly
 one `--image=REGISTRY/BE@sha256:<64 lowercase hex>` argument for local artifact acceptance.
-Supplied mode SHALL reject tags, duplicate/unknown/malformed arguments and the orphan derivative
+The registry component SHALL be a dotted host, `localhost`, or a host with an explicit numeric
+port; a bare namespace such as `library/backend` or `team/nested/backend` SHALL be refused before
+Docker. Supplied mode SHALL reject tags, duplicate/unknown/malformed arguments and the orphan derivative
 build flag before Docker. It SHALL inspect the exact supplied reference before runtime creation,
 refuse absence without fallback, and distinguish daemon/permission failures from absence.
 It SHALL NOT build, publish, pull, retag or remove the supplied artifact.

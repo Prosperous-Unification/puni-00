@@ -14,6 +14,13 @@ if [ "$#" -ne 0 ]; then
     exit 1
   fi
   supplied_image="${1#--image=}"
+  registry_host="${supplied_image%%/*}"
+  # Proof: removing this guard let library/backend, team/nested/backend and registry/backend
+  # reach Docker; all three production-entrypoint namespace refusal tests failed.
+  if [[ "$registry_host" != localhost && "$registry_host" != *.* && "$registry_host" != *:* ]]; then
+    echo '[solver-image-smoke] supplied image requires an explicit registry host (dotted host, localhost or host:port)' >&2
+    exit 1
+  fi
   client_pull=(--pull=never)
   # Proof: before this guard, the orphan-flag refusal test reached Docker and failed.
   if [ "${WBS_RUN_SOLVER_ORPHAN_PROC:-0}" != '0' ]; then
