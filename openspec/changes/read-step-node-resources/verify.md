@@ -63,3 +63,56 @@ The normal implementation commit `9e0cfffe6` ran the installed Lefthook pre-comm
 ## Checks outside this worker's scope
 
 The canonical host gate, full build, whole-repository lint/test and CI-only secrets/migration checks were not run. The clone initially had no installed `.git/hooks/pre-commit`; `bunx lefthook install` exited 0 and installed the normal pre-commit and agent-trailer hooks before committing. No migration or dependency changed. Root coordinates the required `bin/h2puni-gate.sh <sha>` on the reviewable commit before any completion claim.
+
+## Final aggregate historical-oracle repair — 2026-10-16
+
+Isolated clone `/tmp/puni-wbs-final-integration-20261016` merges reviewed sixth-wave
+`7a13fd0033b9067f0b9cfb980139efb20c4bde56` with reviewed Burokrat source-test fix
+`7ce235c47d763fce94e6e2ad5c8e2a645f37aa62`. The merge was conflict-free and
+retains public main `155c1c67cdd1b4e997dccd7da62c38ab988af0e2` as an ancestor.
+Inherited verification sections describe their original commits and scopes.
+
+Hosted fifth-wave #496 run `38806657558`, workspace job `116669543132`, failed
+four assertions: capacity migration identity line 502, priority-band identity
+lines 201 and 216, and project export line 1659. The historical scheduling
+capture predates additive live `nodeResources`; the portable document contract
+explicitly omits that derived field. Extra document metadata in the diff was
+incidental to a partial-object comparison: the missing expected live resource
+field caused the export failure.
+
+The repair changes only tests. Historical comparisons assert leaf step membership,
+stable node IDs, stored maxParallel and parent omission before lifting the new
+field from the unchanged captured scheduling comparison. Dedicated resource
+suites retain their assignment/team/width coverage. Portable export expectations
+omit live resources alongside the existing omitted blockage fields. No fixture,
+production behavior, schema or safety guard changed.
+
+Evidence:
+
+- Frozen install with `BUN_TMPDIR=/tmp/puni-wbs-final-bun-tmp`: exit 0, 1,573
+  installs checked, no dependency changes. An initial install with `/tmp` as
+  BUN_TMPDIR failed EROFS; the dedicated directory fixed that environment issue.
+- Before repair, the exact three affected files: exit 1, 61 pass / 4 fail,
+  8,676 assertions, 14.59s (`/tmp/wbs-final-backend-before.log`).
+- After repair, the same files: exit 0, 65 pass / 0 fail, 19,731 assertions,
+  14.76s (`/tmp/wbs-final-backend-after.log`).
+- Watched production fault: omitted the resource spread in `projectTree`, ran
+  both historical suites, and observed exit 1, 5 pass / 4 fail, 495 assertions,
+  4.69s. Every failure reached the new resource assertion with undefined where
+  per-step entries were owed (`/tmp/wbs-final-node-resources-fault.log`). The
+  production file was restored in `finally`; adjacent Proof comments record it.
+
+- Final restored-production rerun of the same three files: exit 0, 65 pass /
+  0 fail, 19,731 assertions, 15.24s (`/tmp/wbs-final-backend-final.log`).
+- Scoped Prettier, direct ESLint and `git diff --check`: exit 0. ESLint explicitly
+  skipped `@nx/enforce-module-boundaries` because no cached ProjectGraph exists;
+  that rule remains unverified locally. No typecheck/build was run for this
+  test-only repair; the canonical gate must cover those checks.
+- Installed the normal Lefthook hooks before the repair commit; no hook bypass
+  was used.
+
+Full canonical host gate, full repository checks, publication and deployment are
+coordinator work and remain unverified by this worker. No push or PR mutation
+was performed. UI #492 was still open at `3b2963ccbeea7912ec6be5a5e4eda9722df05016`
+when public main was last read; its later merge requires merging exact updated
+main into this candidate and gating that new SHA.
