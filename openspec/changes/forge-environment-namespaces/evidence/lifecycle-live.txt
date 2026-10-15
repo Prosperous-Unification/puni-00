@@ -1,0 +1,55 @@
+PASS alpha partial-create retry preserves UID
+PASS beta partial-create retry preserves UID
+PASS alpha shared controller can create scoped Pods
+PASS alpha ordinary identity cannot create Pods
+PASS beta shared controller can create scoped Pods
+PASS beta ordinary identity cannot create Pods
+PASS alpha self-control HTTP serves
+14 |  const [exitCode,stdout,stderr]=await Promise.all([child.exited,new Response(child.stdout).text(),new Response(child.stderr).text()]);return {exitCode,stdout,stderr};
+15 | }
+16 | async function kubectl(args: readonly string[], options?: {input?:string}) {const o=await attempt(args,options);if(o.exitCode!==0)throw new Error(`${args.join(' ')}: ${o.stderr}`);return o.stdout;}
+17 | const client={attempt,kubectl};
+18 | async function apply(objects:unknown[]){await kubectl(['apply','-f','-'],{input:JSON.stringify({apiVersion:'v1',kind:'List',items:objects})});}
+19 | function check(ok:boolean, message:string){if(!ok)throw new Error(message);console.log(`PASS ${message}`);}
+                                                                 ^
+error: cross-namespace alpha to beta denied by NetworkPolicy
+      at check (/tmp/puni-forge-lifecycle-live-followup.ts:19:61)
+      at /tmp/puni-forge-lifecycle-live-followup.ts:26:34
+
+Bun v1.4.2 (Linux x64)
+PASS alpha self-control HTTP serves
+PASS cross-namespace alpha to beta denied by NetworkPolicy
+PASS removed NetworkPolicy admits cross-namespace traffic (watched negative)
+PASS restored policy denies cross-namespace traffic
+PASS allowed ingress control reaches beta
+[dev-env] beta: Running, ready=true, container restarts=0
+  worktree: /tmp/puni-forge-namespaces
+  RECREATE REQUIRED: deploy/dev-src/Dockerfile or deploy/k8s/wbs/overlays/dev changed since this Pod was created;
+  a restart cannot apply it. Run dev-env up again to recreate the Pod (the database volume stays).
+  web:     http://beta.localhost:4200/  (Vite, HMR over the same origin)
+  api:     http://beta.localhost:4200/api/  (be-01 through Vite's edge proxy)
+  gateway: ws://beta.localhost:4200/ws
+  mcp:     http://beta.localhost:4200/mcp
+PASS preexisting unowned namespace refuses up adoption
+PASS foreign namespace refuses production status
+PASS foreign namespace refuses production down
+PASS foreign namespace remains after refused commands
+PASS live API refuses UID-replaced namespace deletion
+PASS gamma replacement retains a distinct UID
+[dev-env] alpha: deleted its namespace, Pod, Service, Ingress, NetworkPolicy, database volume and claim, and released its admitted root
+PASS production down removes alpha namespace
+PASS production down deletes alpha database PVC
+PASS beta survives alpha teardown
+PASS beta database volume survives alpha teardown
+PASS alpha shared uniqueness leases removed
+PASS beta shared uniqueness leases remain
+PASS only alpha admission root is released
+[dev-env] alpha: deleted its namespace, Pod, Service, Ingress, NetworkPolicy, database volume and claim, and released its admitted root
+[dev-env] alpha: not running on puni-lifecycle-platform
+[dev-env] beta: deleted its namespace, Pod, Service, Ingress, NetworkPolicy, database volume and claim, and released its admitted root
+PASS shared controller survives both teardowns
+PASS live namespace lifecycle complete
+PASS shared authority enabled in owned namespace
+PASS workload identity has no Pod creation authority
+PASS removed local RoleBinding fails controller permission positive
+PASS restored local RoleBinding restores scoped authority

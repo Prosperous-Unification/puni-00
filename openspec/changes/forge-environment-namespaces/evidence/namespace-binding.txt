@@ -1,0 +1,192 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/dev-environment.test.ts:
+324 |     expect(ingress.spec.rules.map((rule) => rule.host)).toEqual(['alpha.localhost']);
+325 |     for (const path of ingress.spec.rules[0]?.http.paths ?? []) {
+326 |       expect(path.backend).toMatchObject({ service: { name: 'dev-alpha' } });
+327 |     }
+328 |     for (const object of bound) {
+329 |       expect(object).toMatchObject({
+                           ^
+error: expect(received).toMatchObject(expected)
+
+  {
++   "apiVersion": "v1",
++   "kind": "Pod",
+    "metadata": {
++     "annotations": {
++       "puni.dev/pod-spec": "f7fd3fcd31210e2247e828408156e87629a2204e37189347545d941a1fda1dbe",
++       "puni.dev/recreate-inputs": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
++       "puni.dev/worktree": "/home/dev/worktrees/alpha",
++     },
+      "labels": {
++       "app.kubernetes.io/name": "dev-environment",
++       "app.kubernetes.io/part-of": "wbs",
++       "puni.dev/controller": "dev-environment",
+        "puni.dev/dev-slug": "alpha",
+        "puni.dev/lab-id": "f9",
+      },
+-     "namespace": "puni-forge-alpha",
++     "name": "dev-alpha",
++     "namespace": "puni-forge",
++   },
++   "spec": {
++     "automountServiceAccountToken": false,
++     "containers": [
++       {
++         "command": [
++           "bun",
++           "tools/tool-devsync/src/k3s/forge-supervisor.ts",
++         ],
++         "env": [
++           {
++             "name": "NODE_ENV",
++             "value": "development",
++           },
++           {
++             "name": "NX_DAEMON",
++             "value": "false",
++           },
++           {
++             "name": "HOME",
++             "value": "/tmp",
++           },
++           {
++             "name": "DB_PATH",
++             "value": "/data/wbs.db",
++           },
++           {
++             "name": "APP_ORIGIN",
++             "value": "http://alpha.localhost:44425",
++           },
++           {
++             "name": "MCP_AUTH_MODE",
++             "value": "standalone",
++           },
++           {
++             "name": "WBS_API_URL",
++             "value": "http://127.0.0.1:3100",
++           },
++           {
++             "name": "MCP_PUBLIC_URL",
++             "value": "http://alpha.localhost:44425/mcp",
++           },
++         ],
++         "image": "puni-f9-registry:5000/dev-environment@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
++         "name": "source",
++         "ports": [
++           {
++             "containerPort": 4200,
++             "name": "web",
++           },
++           {
++             "containerPort": 3300,
++             "name": "mcp",
++           },
++         ],
++         "readinessProbe": {
++           "failureThreshold": 3,
++           "httpGet": {
++             "path": "/health",
++             "port": 3100,
++           },
++           "periodSeconds": 5,
++         },
++         "resources": {
++           "limits": {
++             "memory": "2Gi",
++           },
++           "requests": {
++             "cpu": "250m",
++             "memory": "768Mi",
++           },
++         },
++         "securityContext": {
++           "allowPrivilegeEscalation": false,
++           "capabilities": {
++             "drop": [
++               "ALL",
++             ],
++           },
++           "privileged": false,
++           "runAsNonRoot": true,
++           "seccompProfile": {
++             "type": "RuntimeDefault",
++           },
++         },
++         "startupProbe": {
++           "failureThreshold": 60,
++           "httpGet": {
++             "path": "/",
++             "port": "web",
++           },
++           "periodSeconds": 5,
++         },
++         "volumeMounts": [
++           {
++             "mountPath": "/src",
++             "name": "worktree",
++           },
++           {
++             "mountPath": "/data",
++             "name": "data",
++           },
++           {
++             "mountPath": "/run/wbs-solver",
++             "name": "solver-runtime",
++             "readOnly": true,
++           },
++         ],
++         "workingDir": "/src",
++       },
++     ],
++     "nodeSelector": {
++       "puni.dev/capability-forge": "true",
++     },
++     "restartPolicy": "Always",
++     "securityContext": {
++       "runAsGroup": 1000,
++       "runAsNonRoot": true,
++       "runAsUser": 1000,
++       "seccompProfile": {
++         "type": "RuntimeDefault",
++       },
++     },
++     "serviceAccountName": "dev-environment-controller",
++     "terminationGracePeriodSeconds": 20,
++     "volumes": [
++       {
++         "name": "data",
++         "persistentVolumeClaim": {
++           "claimName": "dev-alpha-data",
++         },
++       },
++       {
++         "hostPath": {
++           "path": "/run/puni/solver",
++           "type": "Directory",
++         },
++         "name": "solver-runtime",
++       },
++       {
++         "hostPath": {
++           "path": "/srv/puni/worktrees/alpha",
++           "type": "Directory",
++         },
++         "name": "worktree",
++       },
++     ],
+    },
+  }
+
+- Expected  - 1
++ Received  + 159
+
+      at <anonymous> (/tmp/puni-forge-namespaces/tools/tool-devsync/src/k3s/dev-environment.test.ts:329:22)
+(fail) bindEnvironment > binds the committed overlay to one environment [2.19ms]
+
+ 0 pass
+ 31 filtered out
+ 1 fail
+ 18 expect() calls
+Ran 1 test across 1 file. [142.00ms]

@@ -11,6 +11,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+import { Database } from 'bun:sqlite';
 import { afterAll, expect, test } from 'bun:test';
 import fc from 'fast-check';
 
@@ -66,6 +67,15 @@ type Outcome =
   | { readonly kind: 'refused'; readonly failure: string };
 
 const FIXED_CLOCK = { read: () => 1_000_000 };
+/**
+ * Uses the store's supported ceilings for the two deliberate stalled-writer tests: at most
+ * 4.95 seconds of retry sleeps. Their 600 ms reserved lock exceeds the worker default's
+ * 245 ms. The released-holder test checks eventual linearization; the permanent-holder test
+ * checks typed exhaustion. Ordinary model jobs retain the worker default or caller override.
+ * Proof: a 600 ms reserved lock made the stalled-writer test return three contention failures
+ * with the default 50 attempts at 5 ms; the explicit budget preserves one winner and two overlaps.
+ */
+const CONCURRENT_BUSY_OPTIONS = { maxBusyAttempts: 100, busyDelayMilliseconds: 50 };
 const PATHS = ['src', 'src/a', 'src/b', 'docs'] as const;
 const STORE_MODULE = pathToFileURL(join(import.meta.dir, 'authority-store.ts')).href;
 const CLAIMS_MODULE = pathToFileURL(join(import.meta.dir, 'claims.ts')).href;
@@ -250,6 +260,7 @@ const job = JSON.parse(process.argv[4]);
 await Bun.write(job.ready, 'ready');
 while (!(await Bun.file(job.start).exists())) Bun.sleepSync(1);
 const clock = { read: () => 1_000_000 };
+const options = { busyDelayMilliseconds: 5, ...job.options, clock };
 function classify(error) {
   if (error instanceof AuthorityContentionError) return { kind: 'contended' };
   if (error instanceof AuthorityOpenError) return { failure: error.failure, kind: 'refused' };
@@ -261,11 +272,12 @@ function classify(error) {
 let outcome;
 try {
   if (job.op === 'bootstrap') {
-    bootstrapAuthority(job.root, { clock, busyDelayMilliseconds: 5, ...job.options }).close();
+    bootstrapAuthority(job.root, options).close();
     outcome = { kind: 'bootstrapped' };
   } else {
-    const store = openAuthority(job.root, { clock, busyDelayMilliseconds: 5 });
+    const store = openAuthority(job.root, options);
     try {
+      if (job.attemptPath) await Bun.write(job.attemptPath, 'attempting');
       const token = acquireClaims(store, {
         conflictGroups: [],
         owner: { sessionId: job.session, worktreePath: job.root },
@@ -282,15 +294,20 @@ try {
 console.log(JSON.stringify(outcome));
 `;
 
+interface BusyOptions {
+  readonly maxBusyAttempts: number;
+  readonly busyDelayMilliseconds: number;
+}
+
 type Job =
+  | { readonly op: 'bootstrap'; readonly options?: BusyOptions }
   | {
-      readonly op: 'bootstrap';
-      readonly options?: {
-        readonly maxBusyAttempts: number;
-        readonly busyDelayMilliseconds: number;
-      };
-    }
-  | { readonly op: 'acquire'; readonly session: string; readonly path: string };
+      readonly op: 'acquire';
+      readonly session: string;
+      readonly path: string;
+      readonly attemptPath?: string;
+      readonly options?: BusyOptions;
+    };
 
 /**
  * Starts each job as a child process in an order the scheduler picks, then releases them all at
@@ -314,7 +331,12 @@ async function runConcurrently(
           worker,
           STORE_MODULE,
           CLAIMS_MODULE,
-          JSON.stringify({ ...job, ready, root: real.root, start }),
+          JSON.stringify({
+            ...job,
+            ready,
+            root: real.root,
+            start,
+          }),
         ],
         { stderr: 'pipe', stdout: 'pipe' },
       );
@@ -439,6 +461,78 @@ function repository(): string {
 const session = fc.constantFrom('session-a', 'session-b', 'session-c', 'session-d');
 const path = fc.constantFrom(...PATHS);
 
+test('concurrent acquisitions linearize after a stalled writer releases', async () => {
+  // Proof: replacing production `pathsOverlap` with false admitted generations 1, 2 and 3;
+  // this assertion expected one winner and two overlap refusals (2026-10-14).
+  const root = repository();
+  bootstrapAuthority(root, { clock: FIXED_CLOCK }).close();
+  const blocker = new Database(resolveAuthorityDatabasePath(root));
+  blocker.run('BEGIN IMMEDIATE');
+  const attempts = ['session-a', 'session-d', 'session-c'].map((session) => ({
+    attemptPath: join(root, `${session}-attempting`),
+    op: 'acquire' as const,
+    options: CONCURRENT_BUSY_OPTIONS,
+    path: session === 'session-c' ? 'src' : 'src/b',
+    session,
+  }));
+  const pending = runConcurrently({ root }, fc.schedulerFor([1, 2, 3]), attempts);
+  let outcomes: Outcome[];
+  try {
+    while (!attempts.every(({ attemptPath }) => existsSync(attemptPath))) await Bun.sleep(1);
+    await Bun.sleep(600);
+  } finally {
+    blocker.run('ROLLBACK');
+    blocker.close();
+    outcomes = await pending;
+  }
+  expect([...outcomes].sort((left, right) => left.kind.localeCompare(right.kind))).toEqual([
+    { generation: 1, kind: 'acquired' },
+    { failure: 'overlap', kind: 'refused' },
+    { failure: 'overlap', kind: 'refused' },
+  ]);
+  const store = openAuthority(root, { clock: FIXED_CLOCK });
+  try {
+    expect(store.inspect().nextGeneration).toBe(2);
+    expect(store.inspect().generations).toHaveLength(1);
+  } finally {
+    store.close();
+  }
+}, 60_000);
+
+test('concurrent acquisition exhausts its finite budget while a writer remains locked', async () => {
+  const root = repository();
+  bootstrapAuthority(root, { clock: FIXED_CLOCK }).close();
+  const blocker = new Database(resolveAuthorityDatabasePath(root));
+  blocker.run('BEGIN IMMEDIATE');
+  const attemptPath = join(root, 'attempting');
+  const pending = runConcurrently({ root }, fc.schedulerFor([1]), [
+    {
+      attemptPath,
+      op: 'acquire',
+      options: CONCURRENT_BUSY_OPTIONS,
+      path: 'src/b',
+      session: 'session-a',
+    },
+  ]);
+  try {
+    while (!existsSync(attemptPath)) await Bun.sleep(1);
+    expect(await pending).toEqual([{ kind: 'contended' }]);
+  } finally {
+    blocker.run('ROLLBACK');
+    blocker.close();
+    await pending;
+  }
+  const store = openAuthority(root, { clock: FIXED_CLOCK });
+  try {
+    expect(store.inspect().nextGeneration).toBe(1);
+    expect(store.inspect().generations).toHaveLength(0);
+  } finally {
+    store.close();
+  }
+}, 60_000);
+
+// Proof: overriding each job with CONCURRENT_BUSY_OPTIONS timed out this classifier at
+// 3000 ms; preserving its one-attempt override passed in 1151 ms (2026-10-14).
 test('the lifecycle classifier accepts only typed contention', async () => {
   const root = repository();
   const databasePath = resolveAuthorityDatabasePath(root);
