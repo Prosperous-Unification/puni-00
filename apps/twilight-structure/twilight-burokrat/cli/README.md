@@ -95,6 +95,20 @@ sorted intersection and source union. Manual, Architecture and Performance remai
 Authentication is absent and `certifies:false`; no classification, isolation, execution,
 coverage or admission claim follows. Failed and skipped Browser outcomes remain observations.
 
+`inspect-browser-levels <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <review-authority> <conformance-authority> <architecture-authority> <performance-authority>`
+joins the real Browser Memberships and three source adapters for one exact committed candidate,
+mode and complete collection. The generic review must explicitly mark Manual reviewed-empty
+and the other three rows unknown. Conformance, Architecture and Performance memberships come
+from their real adapters. Matching report/envelope digests, complete collections, project and
+manifest pins and overlapping source tuples are required. A final real report read refuses
+publication changes during composition. The output retains all four observations and digests,
+complete sorted collection and source union, per-file bindings and Browser isolation. Shared
+first-match classification gives Conformance precedence over Architecture, then Performance;
+only an admitted collection member without an earlier match becomes Browser. Isolated exits
+zero; valid wrong-level findings emit complete JSON and exit one. Refusals emit no JSON.
+All passed, failed and skipped outcomes remain observations. Authentication is absent and
+`certifies:false`; this diagnostic grants no T2, scenario coverage or admission.
+
 `inspect-browser-architecture <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <external-authority>`
 binds the complete report to one project's explicit reviewed-empty assertion or complete committed
 Architecture selection. Its closed version-1 authority pins `revision`, `candidate`, `mode`,

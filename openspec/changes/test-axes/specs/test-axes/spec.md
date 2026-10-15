@@ -1,5 +1,41 @@
 ## ADDED Requirements
 
+### Requirement: Browser level composition joins complete real observations
+
+`inspect-browser-levels <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <review-authority> <conformance-authority> <architecture-authority> <performance-authority>` SHALL invoke the real Browser Memberships, Conformance, Architecture and Performance readers and accept no supplied observation JSON. It SHALL require an exact committed requested snapshot, matching revision/candidate/mode, independently correct full report and observation digests, identical complete nonempty sorted unique collection, matching project roots and manifest pins and agreeing overlapping selected-source tuples. Missing, extra or duplicate collection or source identities, missing Browser or pinned manifest source tuples, unreadable authority and inherited upstream refusals SHALL refuse without JSON. A final real Browser report read SHALL refuse any publication identity, complete collection or digest drift during composition.
+
+The generic review SHALL contain exactly Manual reviewed-empty and Conformance/Architecture/Performance unknown. Each source adapter's unrelated memberships SHALL remain unknown. The composer SHALL preserve all four full observations and digests, all sources and all passed/failed/skipped cases. Unknown SHALL never become an empty assertion. It SHALL invoke classifyDeclaredTest using the complete admitted Browser collection and validated earlier memberships, preserving Conformance before Architecture before Performance. Only an admitted collection member with no earlier match SHALL become Browser. It SHALL emit canonical per-file bindings and typed Browser isolated or wrong-level findings. Isolated SHALL exit zero, valid wrong-level findings SHALL emit complete JSON and exit one, and refusals SHALL emit no JSON. Authentication SHALL remain absent, certification false and the full canonical observation digest SHALL bind every field except itself. No T2, coverage or admission follows.
+
+#### Scenario: [TEST-AXES-120] Browser levels preserve complete isolated real observations
+
+- **GIVEN** real committed Browser reports, explicit Manual empty, generic other rows unknown and disjoint earlier memberships
+- **WHEN** source composition validates the complete common identity and source unions
+- **THEN** every admitted file becomes Browser, complete upstream observations and outcomes remain intact, and the noncertifying observation is isolated
+
+#### Scenario: [TEST-AXES-121] Browser levels refuse identity collection and pin substitutions
+
+- **GIVEN** mismatched revision candidate mode report or envelope digest, incomplete duplicate or foreign collection, differing scope or manifest pins, or contradictory source tuples
+- **WHEN** the production command joins the real inspectors
+- **THEN** it refuses by name without JSON, including coherent dependency substitutions
+
+#### Scenario: [TEST-AXES-122] Browser levels require explicit complete review and stable publication
+
+- **GIVEN** unknown Manual, promoted generic or adapter unknown rows, absent unreadable authority, inherited report failure or publication drift between real reads
+- **WHEN** production composition validates review and rereads publication
+- **THEN** it refuses without classifying unknown state or emitting JSON
+
+#### Scenario: [TEST-AXES-123] Browser levels preserve first-match precedence and typed isolation
+
+- **GIVEN** complete Browser collection files also selected by Conformance Architecture or Performance, including overlap and disjoint selected sources
+- **WHEN** the shared declared-level classifier resolves every admitted file
+- **THEN** Conformance precedes Architecture before Performance and only unmatched admitted files become Browser, with deterministic wrong-level findings and nonzero CLI status
+
+#### Scenario: [TEST-AXES-124] Browser levels bind canonical identity and installed dispatch
+
+- **GIVEN** reordered report enumeration or changed authority bytes, complete outcomes and supported or unsupported command operands
+- **WHEN** source and built installed executable dispatch inspect the selection
+- **THEN** outputs agree, full-envelope digest binds all observations and sources, bounded usage refuses, authentication stays absent and certification false
+
 ### Requirement: Every test resolves to exactly one level
 
 Every test file SHALL have exactly one level, selected by the first matching rule of the level-selection table. The table, not any single suffix, SHALL be the statement of the rule.

@@ -4080,3 +4080,156 @@ Independent Astra review of the exact local commit remains required. No push, PR
 merge, host gate, full Nx gate, release, live activation, Browser execution,
 source reconciliation or WBS completion was performed in this worker. Source and
 built installed executable fixture observations remain diagnostic and noncertifying.
+
+## Browser level composer 4.1b.14 (2026-10-16)
+
+This bounded packet starts exactly on reviewed Conformance candidate
+`f29ca96ee3f45cf8e4bac5bff9e043662df329d0`, tree
+`396869ffdbf8d205fec1d16325bea22b9c0bd6bd`, in the same isolated
+`/tmp/puni-browser-empty-20261016` clone. Root reported independent Astra approval
+of that exact candidate with no P0–P3 findings and an independent 24-test,
+493-assertion run. That review completes 4.1b.13d's review obligation; coordinator
+integration, release and host acceptance remain separate.
+
+The composer calls the real Browser Memberships, Conformance, Architecture and
+Performance readers in order, captures an exact selected snapshot, verifies full
+report/envelope digests and complete collection/scope/manifest/source joins, and
+finally rereads the actual Browser report. Manual must be explicitly reviewed-empty;
+generic other rows and each adapter's unrelated rows remain unknown. Shared
+first-match classification resolves Conformance before Architecture before
+Performance, then only an admitted unmatched collection member becomes Browser.
+Complete upstream observations, failed/skipped outcomes and source unions remain
+in the full noncertifying output. No external observation JSON is accepted.
+
+### Planning and production RED/GREEN
+
+- Re-read LLM_README, the test-axes artifacts and adjacent real readers, callers,
+  tests and shared classifier. The root confirmed the concrete join shape and final
+  publication re-read matched Astra's approved contract. Recorded bounded intent,
+  design and ordered TDD tasks before implementation.
+- Pinned OpenSpec 1.12.0 `status --change test-axes --json` and
+  `instructions apply --change test-axes --json` selected local sdd-lean;
+  returned progress was 46/62 complete. The same isolated pinned executable from
+  4.1b.13 is used below: `bun /tmp/puni-browser-empty-tools/node_modules/.bin/openspec`.
+- Production `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts scenario allocate . openspec/changes/test-axes/specs/test-axes/spec.md`
+  allocated TEST-AXES-120..124; persisted returned specMarkdown and journal
+  (`/tmp/browser-levels-allocation.json`).
+- Real committed fixture and four valid external authorities reached the new
+  production command: `bun test apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-levels.test.ts --test-name-pattern TEST-AXES-120 --timeout 120000`
+  failed exactly with unknown command (`/tmp/browser-levels-red.log`). The
+  separate initial negative run also failed all four tests on missing dispatch
+  (`/tmp/browser-levels-negatives-red.log`).
+- After implementation the isolated/precedence production tests passed 2 tests,
+  38 assertions (`/tmp/browser-levels-green.log`). Initial complete composer run
+  passed 12 tests, 222 assertions, 0 failures in 105.18 seconds including source
+  and built installed isolated/wrong-level dispatch (`/tmp/browser-levels-full.log`).
+- Added actual multi-file immutable discovery/execution/JUnit/manifest publication
+  and complete sorted cross-row bindings: 1 test, 14 assertions, 0 failures
+  (`/tmp/browser-levels-multiple.log`). Final combined checks are recorded below.
+
+### Watched composer joins
+
+Each targeted guard assertion first passed on the unchanged production source,
+then failed after that guard was removed, and source was restored before the next
+case. These use the committed fixture and the same production CLI fault helper as
+the permanent scenario tests; temporary named WATCH tests select one assertion at
+a time. No supplied observation JSON is a production operand. Faulting a reader
+changes its real return only after the original inspector has read and validated
+the real fixture, then recomputes the full envelope (and nested report where
+appropriate) to prove semantic joins independently of stale digest detection.
+
+First pass: all 19 baseline tests exited zero and all 19 guard removals failed
+their named WATCH assertion with exit one (`/tmp/browser-levels-mutations.log`;
+individual `/tmp/browser-levels-watch-<name>{,-baseline}.log`).
+
+| Removed guard                             | Injected production dependency fault / observed failure                                                       |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Full observation digest                   | Conformance reader returned an invalid envelope digest; WATCH_observation-digest accepted it                  |
+| Complete membership canonical uniqueness  | Duplicate committed selectors with canonical intersection; WATCH_complete-membership accepted them            |
+| Complete intersection                     | Conformance files omitted a selected Browser overlap; WATCH_intersection accepted it                          |
+| Nonempty collection                       | Review reader returned empty real-report projection; WATCH_empty lost its named refusal                       |
+| Requested report revision                 | Coherent changed report revision and recomputed digests; WATCH_revision lost named requested-revision refusal |
+| Requested candidate                       | Coherent changed report candidate and digests; WATCH_candidate lost selected-snapshot refusal                 |
+| Requested Browser mode                    | Coherent changed report mode and digests; WATCH_mode lost requested-mode refusal                              |
+| Common full report identity               | Changed invocation identity with valid digests; WATCH_report-join accepted mixed report observations          |
+| Complete collection equality              | Duplicate collection paths; WATCH_collection accepted them                                                    |
+| Explicit complete generic review          | Manual became unknown; WATCH_review accepted classification without reviewed Manual absence                   |
+| Unrelated adapter unknown rows            | Conformance reader promoted Manual to reviewed-empty; WATCH_unknown accepted it                               |
+| Overlapping source agreement              | Substituted source digest; WATCH_source accepted disagreement                                                 |
+| Common project root                       | Foreign Conformance project root; WATCH_root accepted it                                                      |
+| Common project manifest pins              | Changed manifest digest; WATCH_manifest-pin lost its named common-pin refusal                                 |
+| Unique adapter source paths               | Duplicate source tuple; WATCH_duplicate accepted it                                                           |
+| Every Browser source in every adapter     | Omitted reported file tuple; WATCH_missing-browser accepted omission                                          |
+| Every pinned manifest source              | Omitted manifest tuple; WATCH_missing-manifest lost its named missing-manifest refusal                        |
+| Manifest tuple equals its pin             | Changed manifest source bytes; WATCH_manifest-source lost its named source/pin refusal                        |
+| Final publication identity and collection | Fifth real report read changed invocation identity; WATCH_drift accepted the changed publication              |
+
+Second pass: 23 further original baseline assertions passed and all 23 injected
+faults failed (`/tmp/browser-levels-more-mutations.log`), for 42 watched fault variants.
+This includes named SHA, committed-kind and annotated tag-object identity refusals;
+separate source-mode and nested report-digest faults; independently disconnected
+Conformance/Architecture/Performance classifier sets and disabled shared classifier;
+forced isolation; unsorted or duplicate source output; substituted upstream digest;
+omitted nested outcomes; promoted authentication or certification; empty-payload
+digest; deleted Browser eligibility in a broken classifier; skipped final real
+report read after physical report corruption; independently removed CLI arity,
+mode and wrong-level status mappings; and deleted built installed registration.
+The physical corruption proof passed with the real final read, then failed when
+that read was replaced by the earlier observation. Installed registration removal
+produced the actual executable's unknown-command refusal instead of success.
+
+All temporary WATCH files were removed and source restored in `finally` before
+final validation. Adjacent production Proof comments identify the observed
+scenario assertions. These bounded reader faults are not independent authentication
+or whole-repository evidence.
+
+Final review found a valid-input issue in JSON.stringify comparison of generic
+review row objects: reversed object key order was incorrectly refused. Added a
+production test, observed RED with the named review refusal, then compared rows
+canonically. The new valid-order test plus explicit invalid-review regression
+passed 2 tests, 28 assertions, 0 failures (`/tmp/browser-levels-review-order-red.log`,
+`/tmp/browser-levels-review-order-green.log`). Raw authority bytes remain digest-bound.
+
+After that correction, replayed the removed canonical review guard in an isolated
+copy of the actual inspector through the real CLI route. Its explicit-review test
+failed because unknown Manual was accepted with CLI exit zero
+(`/tmp/browser-levels-review-guard-replay.log`). The actual source file was not
+mutated during the concurrent regression run; the temporary inspector copy and
+preload were removed. This rechecks the same review-guard fault variant after
+the canonical-comparison fix.
+
+### Scoped validation and limits
+
+- Final restored six-file regression command from repository root:
+  `bun test apps/twilight-structure/twilight-burokrat/cli/src/evidence/{browser-levels,browser-conformance,browser-architecture,browser-performance,test-reports,performance-levels}.test.ts --timeout 120000`.
+  Exit 0, **126 tests, 1,838 assertions, 0 failures across all six files**, 437.20
+  seconds (`/tmp/browser-levels-regressions.log`). This includes the final canonical
+  review fix and real installed isolated/wrong-level dispatch. Browser Memberships
+  tests are in test-reports.test.ts; all six listed files exist and were collected.
+- `NX_DAEMON=false bunx nx run twilight-burokrat:lint:source`: final exit 0,
+  uncached (`/tmp/browser-levels-lint.log`). Initial lint found four style issues
+  (interface spelling, redundant optional chain, manifest optional chain and
+  modeled Browser fallthrough spelling), which were corrected; no suppressions.
+- `NX_DAEMON=false bunx nx run twilight-burokrat:typecheck`: final exit 0,
+  uncached (`/tmp/browser-levels-typecheck.log`).
+- `NX_DAEMON=false bunx nx run twilight-burokrat:build`: final exit 0; CLI rebuilt,
+  three unchanged dependencies came from cache (`/tmp/browser-levels-build.log`).
+  Nx reported denied plugin-worker sockets and explicitly ran plugins in its main
+  process; these outcomes are scoped task evidence, not plugin isolation evidence.
+- Pinned `openspec validate test-axes --strict --json`: 1/1 valid, no issues;
+  pinned `openspec validate --all --json`: 215/215 valid, no failures
+  (`/tmp/browser-levels-openspec-strict.json`, `/tmp/browser-levels-openspec-all.json`).
+- Production `scenario validate . openspec/changes/test-axes/specs/test-axes/spec.md`:
+  exit 0, `{"unidentified":[]}` (`/tmp/browser-levels-provenance.json`).
+- Fresh exact-base journal comparison preserved all 167 prior f29 events and
+  appended only TEST-AXES-120..124, 172 total (`/tmp/browser-levels-journal-proof.json`).
+- Changed-file Prettier checks passed on the complete eleven-file packet
+  (`/tmp/browser-levels-final-format.log`); `git diff --check` passed.
+
+No upstream adapter source changed. These are committed scratch publications and
+built executable observations; no Browser runner or candidate code executed.
+No push, PR, host gate, full Nx gate, exact-head CI, release, deployment, live
+activation, receipt, source reconciliation, T2, coverage, admission or WBS closure
+ran in this worker. The exact local candidate requires independent Astra review;
+the coordinator owns integration and release/host acceptance. Parent tasks and
+WBS080.39 remain open.

@@ -1,5 +1,51 @@
 # Test axes implementation shape
 
+## 4.1b.14 Browser level composer
+
+Create `evidence/browser-levels.ts` and `browser-levels.test.ts`. Add thin command routing
+in `cli.ts` and installed registration/help in `bin.ts`; document the owning README.
+The command operands are repository, full committed SHA, external rule policy, Browser mode,
+review authority, Conformance authority, Architecture authority and Performance authority.
+
+Capture an exact committed snapshot and compute its complete candidate digest. Call real
+Browser Memberships, Conformance, Architecture and Performance inspectors in that order.
+Require every nested report to match requested revision, candidate and mode; independently
+recompute nested report and upstream observation digests. Require complete report identities
+and digests to agree across reads and sorted unique nonempty collection to equal the exact
+file projection of every report, rejecting missing, extra and duplicate paths. All three
+project roots and project manifest path/digest pins must agree. Merge complete selected source
+unions, refusing duplicate paths inside one observation, missing Browser or pinned manifest
+tuples, or mode/digest disagreement across overlapping sources. Report cases retain every
+identity and outcome. Finally call the real report reader again and compare its full digest,
+identity and complete collection to the first report to refuse publication drift during the join.
+
+The generic review must have exactly Manual reviewed-empty and Conformance/Architecture/
+Performance unknown. Each adapter's other three memberships must remain unknown. Compare
+review rows canonically so valid JSON object key order does not affect validation; the complete
+raw authority byte digest remains bound. Use the three adapters' validated intersections with
+the collection as facts for `classifyDeclaredTest`.
+Pass the entire admitted collection as browserFiles. Manual remains empty. Only an undefined
+earlier-row result for an admitted collection member becomes Browser. Conformance precedes
+Architecture, which precedes Performance. Preserve overlapping facts in nested observations.
+
+Output schemaVersion 1, kind browser-levels, revision, candidate and mode. Preserve all four
+full observations as review/conformance/architecture/performance, their observation digest
+fields, sorted complete collection, sorted unique complete sources, bindings `{fixture,level}`,
+and the existing Performance-style isolation union with level browser and sorted wrong-level
+files `{fixture,actual}`. This deliberately retains full upstream observations in addition to
+digest pins, since this command joins four separate review and source observations. It otherwise
+follows `inspect-performance-levels` naming and exit conventions: isolated exits zero; valid
+wrong-level findings emit complete JSON and exit one; refusals emit stderr and no JSON.
+Authentication is absent, certifies false and the canonical digest binds the whole envelope.
+
+Implement ordered TDD slices in tasks.md. First observe the unknown-command RED with a real
+committed Browser fixture and four external authorities. Then cover valid isolation, complete
+joins and expected wrong-level outcomes. Use production CLI dependency faults and watched
+guard removals for each new safety check, including coherent substitutions with recomputed
+upstream digests. Prove final publication drift separately. Source and built installed dispatch
+must agree. Regress the four existing adapters and Performance levels; run scoped Nx static/
+build checks, changed-file format, scenario provenance and pinned strict/all OpenSpec validation.
+
 ## Scenario identity
 
 `openspec/scenario-allocations.json` is one versioned, append-only event journal. The only current index is derived from it. `import` reserves existing hand-written IDs unchanged; `allocate` issues the next unused ordinal in the capability namespace; `split` issues a new ID with the old scenario as predecessor; `rename` retains the ID and records its prior title and source revision; `retire` leaves a tombstone. A new allocation never reuses any ID present in the journal, including retired ones.
