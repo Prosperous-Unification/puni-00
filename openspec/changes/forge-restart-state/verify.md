@@ -144,3 +144,89 @@ remained tracked-clean; no shared Docker prune or cleanup was used.
 Overall F9 acceptance remains **failed**, independently for cold startup and restored positive.
 No canonical h2puni gate, hosted CI, secrets/migration gate, complete repository gate,
 production deployment, VM or full platform/fleet certification is claimed.
+
+## Astra review: automatic ownership split and executable boundaries
+
+Review of `21a3ca20bbf0b453a2e037cb05822243f6a764f5` found three P2 blockers: network/volume-only
+pre-existing resources could reach generic teardown after a failed up; Bun's default TERM timeout
+could wait indefinitely on an ignoring child; and destructive guards had only coordinator stubs.
+
+Automatic lab up/down has now been **removed** from the executable packet. The remaining CLI
+always exits nonzero with `automatic lab up/down disabled: tool-fleet creation receipts required`
+before creating or deleting resources. This supersedes the earlier reusable-runner description.
+The current tool-fleet owner exposes no per-resource creation receipts. Another preflight or a
+cooperating-only host lock cannot prove ownership of a raced registry/network or partially created
+cluster, so it is not a safe authorization for generic down. Re-enabling automatic creation,
+partial-startup cleanup and teardown is an explicit separate architecture task (tasks 3.2/4.4).
+No claim of a safe reusable automatic lab provisioner is made.
+
+The coordinator, read-only inventory/cleanup verification, guarded node PID1 boundary and browser
+preload remain library components. `runRecoveryCommand` creates an owned local process group and
+uses a hard SIGKILL deadline plus a finite one-second observation ceiling. Direct process exit also
+kills remaining local group members. TERM delivery is observed and ignored by the real fixture
+before its deadline. A Docker client's death does not terminate a remote command; the old startup
+and remote sampler launch paths are removed, and a future remote sampler needs a separately
+verified hard deadline. Cleanup verification deletes nothing and runs all independent probes
+before throwing combined failures.
+
+### New RED/GREEN and watched receipts
+
+The command fixture is an actual Bun child executable with a persisted world and command log;
+it stands in for external Docker/kubectl without contacting a live daemon. Production inventory,
+node inspection, PID1 kill construction and cleanup verification execute through that boundary.
+Seeded resources and the raced resource remain unchanged. A valid owned PID1 reaches the fixture's
+kill command; foreign UID, node PID zero/one and non-PID1 never reach it.
+
+- Initial contract RED: 2 pass / 15 fail, `/tmp/puni-f9-review-boundary-red.log`.
+- Focused GREEN: 41 pass / 0 fail, 118 assertions across 2 files,
+  `/tmp/puni-f9-review-boundary-green.log`.
+- Actual TERM-only deadline negative: finite observation ceiling rejects at about 1.5s;
+  restored hard-kill fixture completes about 0.5s. Separate direct-exit descendant regression
+  failed before final group cleanup, then passed. Fixture cleanup independently kills its own
+  process group after every outcome, including deliberately broken production guards.
+
+| Boundary             | Injected production fault            | Observed failing fixture                                   |
+| -------------------- | ------------------------------------ | ---------------------------------------------------------- |
+| Inventory            | Remove nonempty inventory refusal    | Labelled container, network-only and volume-only           |
+| Disabled provisioner | Remove CLI refusal                   | Post-inventory raced network; CLI exits zero unexpectedly  |
+| Node ownership       | Remove UID comparison                | Foreign node UID reaches kill                              |
+| Node PID             | Remove PID > 1 guard                 | PID zero and PID one reach kill                            |
+| Container PID1       | Remove NSpid refusal                 | Namespace PID two reaches kill                             |
+| Namespace absence    | Remove refusal                       | Surviving namespace fails its assertion                    |
+| Lease absence        | Remove refusal                       | Surviving Lease fails its assertion                        |
+| Docker absence       | Remove generic resource refusal      | Container, network and volume survivor assertions all fail |
+| Lab state            | Remove state-file refusal            | Surviving lab.json fails its assertion                     |
+| Global kubeconfig    | Remove digest comparison             | Changed kubeconfig fails its assertion                     |
+| Hard deadline        | Replace process-group KILL with TERM | Real TERM-ignoring child/descendant exceeds exit ceiling   |
+| Command budget       | Remove finite-positive validation    | Zero, negative, infinite and NaN deadline assertions fail  |
+| Direct exit          | Remove final local group cleanup     | Descendant remains running after direct command exit       |
+
+Every mutation exited 1 and was restored in `/tmp/puni-f9-review-faults`; development sources and
+immutable live evidence were not mutated. Receipts: `/tmp/puni-f9-review-fault-receipts.log`,
+`/tmp/puni-f9-review-fault-direct-exit-receipt.log`, and per-fault `.stderr` files. Cleanup survivor
+tests also verify subsequent Lease and all three Docker probes still execute after an earlier
+failure. Proof comments are adjacent to the corresponding production guards.
+
+No third lab, remote sampler, provisioning, teardown, production checker or resource change was
+run during review corrections. The original first-cold OOM and failed restored positive remain
+unchanged. Final static/OpenSpec checks and exact committed full-target status are recorded below;
+the earlier 637-case receipt does not certify the new boundary fixtures.
+
+### Corrected packet checks
+
+- Focused `bun test tools/tool-devsync/src/k3s/forge-recovery-lab.test.ts
+tools/tool-devsync/src/k3s/forge-recovery-check.test.ts`: **41 pass, 0 fail, 118 assertions**;
+  `/tmp/puni-f9-review-boundary-green.log`.
+- Scoped Nx lint/typecheck/build and six dependencies: **passed, 15.5s**;
+  `/tmp/puni-f9-review-compile.log`. Final direct ESLint/TypeScript checks also passed.
+- Prettier and `git diff --check`: passed; `/tmp/puni-f9-review-format-check.log`.
+- All OpenSpec validation: **197 changes and 18 specs passed, 0 failed**;
+  `/tmp/puni-f9-review-openspec-all.log`.
+- Exact committed full `tool-devsync:test` after these corrections: **pending** at handoff.
+  The bounded command will use the committed checkout with daemon/plugin isolation/native runner
+  disabled and no Nx cache, timeout 1800s plus finite kill grace. Its output will be
+  `/tmp/puni-f9-review-full-test.log`, with final command exit status in
+  `/tmp/puni-f9-review-full-test.exit`. The previous 637-case pass is historical and does not
+  substitute for this run. No corrected full-target success is claimed here.
+
+No canonical gate, push, PR, live lab or deployment accompanies this corrected packet.

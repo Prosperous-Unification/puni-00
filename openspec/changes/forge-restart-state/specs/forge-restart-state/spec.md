@@ -50,3 +50,27 @@ The rehearsal SHALL save the exact NetworkPolicy spec, deny ingress, require a n
 
 - **WHEN** policy readback differs from the saved spec
 - **THEN** restoration fails and overall acceptance fails even if a later checker succeeds
+
+### Requirement: Receipt-backed lab ownership before automation
+
+Until tool-fleet exposes resource creation receipts, the automatic recovery-lab CLI SHALL refuse before any resource creation or deletion. A preflight inventory SHALL include containers, networks and volumes, and SHALL NOT be considered ownership evidence for later resources. The remaining library boundaries SHALL verify node UID, node PID greater than one and container PID1 before issuing a kill, aggregate independent cleanup failures, and use finite local process-group hard deadlines. Killing a Docker client SHALL NOT be described as terminating its remote process.
+
+#### Scenario: Labelled network or volume already exists
+
+- **WHEN** a labelled network or volume exists without a labelled container
+- **THEN** read-only inventory refuses adoption, leaves it unchanged and issues no down command
+
+#### Scenario: Resource appears after inventory
+
+- **WHEN** a resource appears after an empty inventory
+- **THEN** the unavailable automatic CLI still exits nonzero and leaves the resource unchanged
+
+#### Scenario: Child ignores TERM
+
+- **WHEN** a command and its descendant ignore TERM
+- **THEN** the hard deadline kills their owned local process group and observation has a finite exit ceiling
+
+#### Scenario: Independent cleanup failures
+
+- **WHEN** a namespace, Lease, resource, lab state or changed global kubeconfig survives cleanup
+- **THEN** verification fails and still runs all subsequent independent probes

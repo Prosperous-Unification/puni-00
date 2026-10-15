@@ -12,6 +12,14 @@
 ## 3. Bounded first-attempt diagnostic driver
 
 - [x] 3.1 RED/GREEN: exercise the production rehearsal orchestration with controlled external observations; preserve cold OOM, reject foreign UID/unchanged identity, omitted ingress negative and restoration mismatch.
-- [x] 3.2 Add bounded Bun CLI for owned disposable fresh-worktree labs, node memory/RSS observation, exact identity/policy/browser evidence and always-run cleanup; keep the existing checker and runtime limits unchanged.
+- [ ] 3.2 Add bounded Bun CLI for owned disposable fresh-worktree labs, node memory/RSS observation, exact identity/policy/browser evidence and always-run cleanup; keep the existing checker and runtime limits unchanged.
 - [x] 3.3 Watch removed-check faults fail, restore guards, run focused checks and full tool-devsync:test separately within a realistic deadline.
 - [x] 3.4 Run one instrumented fresh-worktree disposable lab if tools/capacity/ownership permit; record each stage independently and precise unavailable evidence.
+
+## 4. Astra review: safe split and executable boundaries
+
+- [x] 4.1 Remove automatic lab creation and teardown until tool-fleet supplies creation receipts. Inventory all Docker resource kinds, prove seeded network/volume refusal, and prove the disabled CLI preserves a post-inventory resource. No cooperating-only lock is treated as ownership.
+- [x] 4.2 Add finite process-group SIGKILL deadlines and an explicit exit ceiling. Exercise a real TERM-ignoring process and descendant plus direct-exit descendants; watch the TERM-only mutation fail. Automatic startup and remote sampler paths are removed.
+- [x] 4.3 Exercise real command fixtures for foreign node UID, PID zero/one, non-PID1, every surviving cleanup resource and kubeconfig mutation. Continue all independent verifications after a failure; watch each guard removal fail.
+- [ ] 4.4 Design and implement creation receipts in the owning tool-fleet lifecycle before re-enabling 3.2. This is an explicit follow-up architecture boundary, outside this bounded diagnostic packet.
+- [ ] 4.5 Record final focused/static/OpenSpec checks and an exact committed full tool-devsync:test run if feasible; preserve original failed live outcomes.

@@ -251,26 +251,21 @@ bunx nx run tool-fleet:lab -- down --id walk --profile app
 
 ### Bounded first-attempt forge diagnostics
 
-From a fresh independent clone of a committed candidate containing the driver, use the
-locked `KUBECTL` and `K3D` above and an evidence directory outside the served checkout:
+Automatic lab creation and teardown in `forge-recovery-lab.ts` are **disabled**. The command
+exits nonzero before any mutation with `tool-fleet creation receipts required`.
+A read-only inventory cannot authorize deleting resources that appear after that snapshot,
+and the current lab owner returns no per-resource creation receipts for partial startup.
+Do not use this packet as a reusable automatic lab provisioner.
 
-```sh
-bun tools/tool-devsync/src/k3s/forge-recovery-lab.ts \
-  --lab f9diagnostic --worktree /tmp/f9-fresh/puni-00 \
-  --evidence /tmp/f9-diagnostic-evidence --sha <exact-40-character-commit>
-```
+The retained components are the independent-verdict coordinator (`forge-recovery-check.ts`),
+first-container memory/parser checks, read-only inventory and cleanup verification, guarded
+node PID1 command boundary, browser trace preload, and a process runner with finite process-group
+SIGKILL deadlines (`forge-recovery-process.ts`). Killing a Docker client does not kill its
+remote process. Any future node sampler therefore needs its own verified remote hard deadline,
+as well as receipt-backed teardown of the owned node. Current code does not launch a sampler.
 
-The driver refuses an existing lab or worktree caches, records SHA/tree and effective Pod
-snapshots (digest, resources, mounts, security and container identity), starts a bounded
-node cgroup memory/current/peak/events and process RSS sampler before `dev-env up`, and
-keeps the first browser navigation/marker log and Playwright trace. It records cold,
-two PID1 recoveries, first full checker, ingress positive, denied checker, exact policy
-restoration/readback, restored full checker and cleanup as separate verdicts. A cold OOM
-or restart keeps overall acceptance false even if every later stage succeeds. Node sampling
-covers only the owned disposable node; no resource limit or startup fix is applied.
-
-`events.json`, command stdout/stderr, raw Pod and policy responses, `node-memory-rss.log`,
-browser JSONL/ZIP files and `report.json` stay outside the checkout after teardown. Pending
-stages are unverified. Failure before the coordinator starts is recorded in `events.json`
-and throws after owned cleanup; it cannot produce a successful report. A bounded command
-interruption fails the stage. This diagnostic does not certify production or VM recovery.
+The one historical 2026-10-16 run used candidate `9c5828e43879059ec5708df4a381d4fa5cdbb36c`.
+Its original cold OOM and restored-checker failures remain in the immutable external evidence
+listed in [verification](../../openspec/changes/forge-restart-state/verify.md#one-instrumented-fresh-worktree-lab).
+No later lab or warm retry replaces them. The CLI will remain unavailable until the lab owner's
+creation-receipt contract is designed and proven, including partial creation and name races.
