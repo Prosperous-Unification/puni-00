@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/forge-namespace.test.ts:
+11 | async function expectRefusal(promise: Promise<void>, message = ''): Promise<void> {
+12 |   const rejection = await promise.then(
+13 |     () => undefined,
+14 |     (cause: unknown) => cause,
+15 |   );
+16 |   expect(rejection).toBeInstanceOf(Error);
+                         ^
+error: expect(received).toBeInstanceOf(expected)
+
+Expected constructor: [class Error]
+Received value: undefined
+
+      at expectRefusal (/tmp/puni-forge-namespaces/tools/tool-devsync/src/k3s/forge-namespace.test.ts:16:21)
+      at async <anonymous> (/tmp/puni-forge-namespaces/tools/tool-devsync/src/k3s/forge-namespace.test.ts:138:13)
+(fail) forge namespace lifecycle > refuses name namespace before adoption [0.84ms]
+
+ 0 pass
+ 14 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [118.00ms]

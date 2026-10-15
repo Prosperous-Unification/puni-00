@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/dev-environment-lifecycle.test.ts:
+172 |
+173 |   it('refuses a malformed legacy workload list before releasing admission or Leases', async () => {
+174 |     const root = await scratchAsync('legacy-workload-malformed-');
+175 |     const prepared = await fixture(root, { items: {} });
+176 |     const outcome = await invoke(root, prepared.executable, 'down');
+177 |     expect(outcome.exitCode).toBe(1);
+                                   ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/tmp/puni-forge-namespaces/tools/tool-devsync/src/k3s/dev-environment-lifecycle.test.ts:177:30)
+(fail) legacy workload production command boundary > refuses a malformed legacy workload list before releasing admission or Leases [309.00ms]
+
+ 0 pass
+ 14 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [335.00ms]

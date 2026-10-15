@@ -1,0 +1,31 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/forge-namespace.test.ts:
+(pass) forge namespace lifecycle > refuses name namespace before adoption [0.74ms]
+(pass) forge namespace lifecycle > refuses lab namespace before adoption [0.05ms]
+11 | async function expectRefusal(promise: Promise<void>, message = ''): Promise<void> {
+12 |   const rejection = await promise.then(
+13 |     () => undefined,
+14 |     (cause: unknown) => cause,
+15 |   );
+16 |   expect(rejection).toBeInstanceOf(Error);
+                         ^
+error: expect(received).toBeInstanceOf(expected)
+
+Expected constructor: [class Error]
+Received value: undefined
+
+      at expectRefusal (/tmp/puni-forge-namespaces/tools/tool-devsync/src/k3s/forge-namespace.test.ts:16:21)
+      at async <anonymous> (/tmp/puni-forge-namespaces/tools/tool-devsync/src/k3s/forge-namespace.test.ts:138:13)
+(fail) forge namespace lifecycle > refuses slug namespace before adoption [0.15ms]
+(pass) forge namespace lifecycle > refuses worktree namespace before adoption [0.03ms]
+(pass) forge namespace lifecycle > refuses trust namespace before adoption [0.63ms]
+(pass) forge namespace lifecycle > refuses uid namespace before adoption [0.14ms]
+(pass) forge namespace lifecycle > refuses terminating namespace before adoption [0.02ms]
+(pass) forge namespace lifecycle > refuses unlabelled namespace before adoption [0.09ms]
+
+ 7 pass
+ 7 filtered out
+ 1 fail
+ 22 expect() calls
+Ran 8 tests across 1 file. [117.00ms]

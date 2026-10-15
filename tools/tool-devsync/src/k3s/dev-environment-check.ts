@@ -4,6 +4,9 @@ import { join, resolve } from 'node:path';
 
 import { chromium } from '@playwright/test';
 
+import { parseDevEnvironmentRequest } from './dev-environment';
+import { environmentNamespace } from './forge-namespace';
+
 /**
  * Live acceptance for one running dev environment: HTTP and browser routing through the lab's
  * loopback ingress, local auth, the MCP resource, the independent database, HMR without a reload,
@@ -20,6 +23,7 @@ interface CheckRequest {
   readonly kubeconfig: string;
   readonly context: string;
   readonly pod: string;
+  readonly namespace: string;
 }
 
 const STYLES = 'apps/wbs/fe-01/src/styles.css';
@@ -55,6 +59,15 @@ function parseRequest(arguments_: readonly string[]): CheckRequest {
     kubeconfig: required('kubeconfig'),
     context: required('context'),
     pod: required('pod'),
+    namespace: environmentNamespace(
+      parseDevEnvironmentRequest([
+        'status',
+        '--slug',
+        required('pod').replace(/^dev-/, ''),
+        '--cluster',
+        'puni-check-platform',
+      ]).slug,
+    ),
   };
 }
 
@@ -71,7 +84,7 @@ async function kubectl(request: CheckRequest, arguments_: readonly string[]): Pr
       request.kubeconfig,
       '--context',
       request.context,
-      '--namespace=puni-forge',
+      `--namespace=${request.namespace}`,
       ...arguments_,
     ],
     { stdout: 'pipe', stderr: 'pipe' },
