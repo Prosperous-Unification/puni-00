@@ -53,6 +53,14 @@ All mutations use the production CLI and a freshly built, packed and installed p
 | Accept a declaration without checking binary bytes                                       | Text contradiction checks expected exit 1, received exit 0                         |
 | Route committed selection through the staged reader                                      | Requested-commit checks expected exit 0, received exit 1 for staged text decoys    |
 
+## Architecture runner review correction
+
+Review base: `9bc206609644528936a9790a75c62ab38e285d6f`. The production command `bun src/architecture-level.ts . /tmp/binary-assets-review-red.xml` (from the CLI project) was watched exiting 1 with `unmapped architecture fixture: src/architecture/website-binaries.architecture.test.ts`. The runner accepts one mapped fixture per rule; the binary cases now live in the existing `inv-classify.architecture.test.ts`, alongside its original unknown-content negative. The separate unmapped fixture is removed. The mapping, production guards and exact five-asset policy are unchanged.
+
+The runner's existing production-path unmapped-fixture negative was watched failing with the discovery guard removed: it expected a refusal and observed exit 0. The guard was restored, and the same selected negative passed again (1 test, 3 assertions). `bun test --timeout 60000 src/architecture-level.test.ts` passed all 15 tests and 70 assertions. The merged `bun test --timeout 60000 apps/twilight-structure/twilight-burokrat/cli/src/architecture/inv-classify.architecture.test.ts` run passed 11 tests and 75 assertions, including all ten binary cases plus the original unknown-content negative. Scoped ESLint, the CLI TypeScript spec configuration and Prettier passed for the merged fixture. `bun src/architecture-level.ts . /tmp/binary-assets-review-architecture.xml` from the CLI project passed 24 tests across all 14 mapped files, 139 assertions, no failures (149.59 seconds). The fresh JUnit was parsed independently: every mapped file is present, the consolidated INV-CLASSIFY fixture contributes 11 cases, and no failures, errors or skipped cases exist. OpenSpec `validate --all --json` passed all 208 artifacts. Scoped formatting and `git diff --check` passed.
+
+The earlier 10-case source/installed run and survey evidence above remain historical evidence from the original packet; this correction consolidates test registration without changing the surveyed production behavior.
+
 ## Limits
 
 Execution host: `pop-os`. The h2puni SHA gate, full monorepo format/test/lint/typecheck/build, CI secrets scan, CI migration lint and the broader installed package suite have not run for this change. Focused tests include real package build/pack/install. No publication, push, activation, deployment or runtime asset hash enforcement is claimed. Raw survey stdout/stderr and mutation logs stay local under `/tmp/binary-assets-*`; this file records sanitized evidence only.
