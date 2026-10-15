@@ -18,8 +18,8 @@ No section of the Project settings modal SHALL offer its own Save, Cancel or Don
 field SHALL apply when it loses the focus or on Enter, and Escape in a field SHALL put
 that field back. The priority ladder and the PERT weights SHALL each be sent as one
 request when the focus leaves the group or Enter is pressed in it, never as the focus
-moves between their boxes, and once one lands the section SHALL offer Undo, which sends
-the values it replaced. The close control, a click outside and Escape outside a field
+moves between their boxes, and once one lands the section SHALL offer Put back (named so
+by decision D8, `ui-review-settings-flow`), which sends the values it replaced. The close control, a click outside and Escape outside a field
 SHALL close the modal; while a write is in flight the close SHALL wait and SHALL then happen
 once nothing is held. While every hold is a write in flight the modal SHALL neither switch
 section nor show the unsaved-edit refusal, only a status that it is saving; a draft or a
@@ -37,10 +37,10 @@ refused write SHALL keep the modal open on its section with the refusal and its 
 - **THEN** the section shown does not change, no refusal is shown, a status says it is saving,
   and the modal closes once the capacity lands
 
-#### Scenario: the ladder applied and undone
+#### Scenario: the ladder applied and put back
 
-- **WHEN** a reader renames a band, leaves the ladder, and presses Undo
-- **THEN** the renamed ladder is sent once, and Undo sends the ladder it replaced
+- **WHEN** a reader renames a band, leaves the ladder, and presses Put back
+- **THEN** the renamed ladder is sent once, and Put back sends the ladder it replaced
 
 ### Requirement: The Saved plans popover reads like the Views panel
 

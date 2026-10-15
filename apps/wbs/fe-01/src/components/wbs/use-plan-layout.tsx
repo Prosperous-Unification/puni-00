@@ -15,6 +15,7 @@ import {
 import { DEFAULT_SECTION_MODE, type SectionMode } from './plan-mermaid';
 import type { PlanRenderer } from './plan-renderer';
 import { linkPlanScroll } from './plan-scroll-link';
+import { fitPlanTerminalTails } from './plan-terminal-tail';
 import type { ViewportEntry } from './plan-viewport';
 import {
   forgetGanttDayPx,
@@ -592,30 +593,73 @@ export function usePlanLayoutEffects({
   useEffect(() => {
     const frame = frameRef.current;
     if (frame === null || !ganttOpen) return;
-    const panel = document.querySelector<HTMLElement>('[data-gantt-panel]');
-    if (panel === null) return;
-    // A panel is not always a chart. A plan whose dependencies run in a circle
-    // draws the sentence about it under this same attribute
-    // (`gantt-panel.tsx`), and that section has no calendar axis and no rows to
-    // pair — `panelFace` refuses an element it cannot measure, and it would do
-    // it inside a scroll listener, where no boundary of ours is: every scroll
-    // of the frame would throw for as long as the circle stood. Found in
-    // cross-review, 2026-08-12; `wbs-table.test.tsx` holds it.
-    //
-    // Read off the axis rather than off `scheduleError` because the axis is
-    // exactly what the link needs — a panel that is a message of any other kind
-    // is as unusable, and would not have to be remembered here. The dependency
-    // list already covers the swap: `scheduleError` is set on the same read as
-    // `chartRead` below, so a read that lands or clears a circle brings a new
-    // `generation` with it.
-    if (panel.querySelector('[data-gantt-axis]') === null) return;
-    // The renderer's complete measured row order is the table face. Its DOM
-    // contains only a viewport slice, whose nth node is not logical row n.
-    // Proof: omitting rendererRows, `a windowed table and the complete Gantt
-    // stay on the same logical row` failed on `Expected: 53 · Received: 0`.
-    // Watched in Chromium, 2026-09-08.
-    return linkPlanScroll(frame, panel, rendererRows);
-  }, [ganttOpen, renderer, chartRead.generation, frameRef, rendererRows]);
+    const column = ganttColumn.current;
+    if (column === null) {
+      throw new Error('the plan has a table frame but no column around it to watch');
+    }
+    /** The panel element the link and the fit are installed on, if any. */
+    let linked: Element | null = null;
+    let unwind = (): void => undefined;
+    /**
+     * Installs the link and the fit on the panel on screen, once per element.
+     *
+     * Full mounts a **new** `[data-gantt-panel]` (the overlay wraps the chart
+     * in a layer the panel is not in), and again on the way back, without a
+     * new plan read. Found once per read, the link and the fit held the
+     * detached box after Full closed: the table driven to its end left the
+     * chart at row 0 (ui-review F-087). So the column is watched and a
+     * different element is linked afresh.
+     *
+     * Proof: with this re-installation removed (the panel found once per
+     * effect run), `scroll-stability.e2e.ts` `the faces still end together
+     * after Full is opened and closed` failed on `after Full:
+     * [data-table-frame] at end: mismatched faces` (`Received:
+     * 46.957040572792366`). Watched 2026-10-15.
+     */
+    const install = (): void => {
+      const panel = document.querySelector<HTMLElement>('[data-gantt-panel]');
+      if (panel === linked) return;
+      unwind();
+      unwind = () => undefined;
+      linked = panel;
+      if (panel === null) return;
+      // A panel is not always a chart. A plan whose dependencies run in a circle
+      // draws the sentence about it under this same attribute
+      // (`gantt-panel.tsx`), and that section has no calendar axis and no rows to
+      // pair — `panelFace` refuses an element it cannot measure, and it would do
+      // it inside a scroll listener, where no boundary of ours is: every scroll
+      // of the frame would throw for as long as the circle stood. Found in
+      // cross-review, 2026-08-12; `wbs-table.test.tsx` holds it.
+      //
+      // Read off the axis rather than off `scheduleError` because the axis is
+      // exactly what the link needs — a panel that is a message of any other kind
+      // is as unusable, and would not have to be remembered here. The dependency
+      // list already covers the swap: `scheduleError` is set on the same read as
+      // `chartRead` below, so a read that lands or clears a circle brings a new
+      // `generation` with it.
+      if (panel.querySelector('[data-gantt-axis]') === null) return;
+      // The renderer's complete measured row order is the table face. Its DOM
+      // contains only a viewport slice, whose nth node is not logical row n.
+      // Proof: omitting rendererRows, `a windowed table and the complete Gantt
+      // stay on the same logical row` failed on `Expected: 53 · Received: 0`.
+      // Watched in Chromium, 2026-09-08.
+      const unlink = linkPlanScroll(frame, panel, rendererRows);
+      // The two faces end on one row only if their tails are fitted to each
+      // other (ui-review F-055).
+      const unfit = fitPlanTerminalTails(frame, panel, rendererRows);
+      unwind = () => {
+        unfit();
+        unlink();
+      };
+    };
+    install();
+    const watch = new MutationObserver(install);
+    watch.observe(column, { childList: true, subtree: true });
+    return () => {
+      watch.disconnect();
+      unwind();
+    };
+  }, [ganttOpen, renderer, chartRead.generation, frameRef, ganttColumn, rendererRows]);
 
   /**
    * Keeps {@link ganttRoomPx} on what the column really has, so a remembered

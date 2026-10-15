@@ -313,7 +313,7 @@ export function TeamsPanel({
                     : `At most ${String(team.stated)} of ${team.name} are at work at once on this plan.`
                 }
                 value={shown(team)}
-                disabled={section.busy}
+                readOnly={section.busy}
                 onChange={(event) => {
                   const draft = event.currentTarget.value;
                   setTyped((current) => ({ ...current, [team.id]: draft }));

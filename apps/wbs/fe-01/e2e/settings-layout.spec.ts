@@ -329,3 +329,112 @@ test.describe('one commit model (F-060, decision D7)', () => {
     }
   });
 });
+
+/**
+ * Holds every write the settings sections send for `ms` before letting it
+ * through, so a case can look at the modal while the write travels.
+ */
+async function delaySettingsWrites(page: Page, ms: number): Promise<void> {
+  await page.route('**/api/projects/*/commands', async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, ms));
+    await route.continue();
+  });
+}
+
+test.describe('the settings flow while a write travels (round 3)', () => {
+  test('Enter in a band keeps the caret in the box while the ladder travels (F-066)', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const dialog = await openSettings(page);
+    await dialog.getByRole('tab', { name: 'Priorities' }).click();
+    const band = dialog.getByLabel('Name of band 1');
+    await band.fill('Blocker');
+    await delaySettingsWrites(page, 1500);
+    await band.press('Enter');
+    // Proof: on 2026-10-14, against 85849d1f3 (the boxes `disabled` while the
+    // write travels), this failed on `expect(locator).toBeFocused() failed` —
+    // the disabled box gave the focus to the dialog, whose ring was drawn.
+    await expect(band).toBeFocused();
+    await expect(band).toHaveJSProperty('readOnly', true);
+    await expect(dialog.getByRole('tabpanel', { name: 'Priorities' })).toHaveAttribute(
+      'aria-busy',
+      'true',
+    );
+    await expect(dialog.getByText('The ladder is applied.')).toBeVisible();
+    await expect(band).toHaveJSProperty('readOnly', false);
+    await expect(band).toBeFocused();
+    await expect(band).toHaveValue('Blocker');
+  });
+
+  test('the closing line moves neither the title nor the tabs (453 review nit)', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const dialog = await openSettings(page);
+    await dialog.getByRole('tab', { name: 'Priorities' }).click();
+    await dialog.getByLabel('Name of band 1').fill('Blocker');
+    const tabs = dialog.getByRole('tablist', { name: 'Project settings sections' });
+    const before = await tabs.boundingBox();
+    await delaySettingsWrites(page, 2000);
+    await dialog.getByRole('tab', { name: 'Timezone' }).click();
+    await dialog.getByRole('button', { name: 'Close' }).click();
+    const saying = dialog.getByRole('status').filter({ hasText: 'Saving Priorities' });
+    await expect(saying).toBeVisible();
+    const during = await tabs.boundingBox();
+    if (before === null || during === null) throw new Error('the tab list has no box');
+    // Proof: on 2026-10-14, against 85849d1f3 (the line between the description
+    // and the body), this failed on `Expected: 150 … Received: 186` — the tab
+    // list pushed down a line for as long as the write travelled.
+    expect(Math.round(during.y)).toBe(Math.round(before.y));
+    await expect(dialog).toBeHidden();
+  });
+
+  test('on a phone the settings fill the screen, with no sheet showing under them (F-054)', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    const dialog = await openSettings(page);
+    const box = await dialog.boundingBox();
+    if (box === null) throw new Error('the settings have no box');
+    // What a finger at the bottom of the screen lands on: the settings, not the
+    // dimmed Plan actions sheet they were opened from.
+    const underFinger = await page.evaluate(() => {
+      const hit = document.elementFromPoint(187, 800);
+      return hit?.closest('[role="dialog"]')?.getAttribute('aria-labelledby') ?? null;
+    });
+    const settingsTitle = await dialog.getAttribute('aria-labelledby');
+    // Proof: on 2026-10-14, against 85849d1f3 (the modal as tall as its
+    // section, 5vh from the top), this failed on `{ top: 41, bottom: 455 }`
+    // against `{ top: 0, bottom: 812 }`: the Plan actions sheet showed below.
+    expect({ top: Math.round(box.y), bottom: Math.round(box.y + box.height) }).toEqual({
+      top: 0,
+      bottom: 812,
+    });
+    expect(underFinger).toBe(settingsTitle);
+  });
+
+  test('a zone typed while the list loads applies once it lands (F-069)', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route('**/api/timezones', async (route) => {
+      await held;
+      await route.continue();
+    });
+    const dialog = await openSettings(page);
+    await dialog.getByRole('tab', { name: 'Timezone' }).click();
+    const zone = dialog.locator('#project-timezone');
+    // Proof: on 2026-10-14, against 85849d1f3 (the box disabled while the zones
+    // load), this failed on `locator.fill: Test timeout of 60000ms exceeded`
+    // with `element is not enabled` in its log.
+    await zone.fill('Europe/Kyiv');
+    await zone.press('Enter');
+    await expect(dialog.getByText(/applies once they are read/)).toBeVisible();
+    release();
+    await expect(dialog.getByText('Saved as Europe/Kyiv.')).toBeVisible();
+    await expect(dialog.getByRole('tab', { name: 'Timezone', exact: true })).toBeVisible();
+  });
+});

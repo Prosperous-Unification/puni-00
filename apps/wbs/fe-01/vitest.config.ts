@@ -147,6 +147,13 @@ export default defineConfig({
         __dirname,
         '../../../libs/wbs/domain/domain/src/node-reading.ts',
       ),
+      // And a seventh, for Saved plans: `saved-plan-default-name.ts` is the one
+      // function be-01 names an unnamed save with, imports nothing, and is how
+      // the shelf tells a name somebody typed from a time be-01 wrote (F-067).
+      '@wbs/domain/saved-plan-default-name': resolve(
+        __dirname,
+        '../../../libs/wbs/domain/domain/src/saved-plan-default-name.ts',
+      ),
     },
   },
   test: {

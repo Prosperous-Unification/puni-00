@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { login, type Session } from '@/lib/api';
 import { failureMessage, unreachable } from '@/lib/http';
+import { cn } from '@/lib/utils';
 
 import { type AuthMethodsState, useAuthMethods } from './auth-methods';
 
@@ -160,6 +161,9 @@ export function SignInCard({ onSignedIn }: Pick<AuthFormProps, 'onSignedIn'>) {
 /** Offers the local password session beside the server-side Authorization Code flow. */
 export function AuthForm({ methods, onSignedIn }: AuthFormProps) {
   const [error, setError] = useState('');
+  // Bumped with every reply that sets `error`: it keys the sentence's node so
+  // an identical second refusal is a new node the live region announces.
+  const [replies, setReplies] = useState(0);
   const [busy, setBusy] = useState(false);
   const [passwordShown, setPasswordShown] = useState(false);
   /*
@@ -180,7 +184,10 @@ export function AuthForm({ methods, onSignedIn }: AuthFormProps) {
     const username = values.get('username');
     const password = values.get('password');
     setBusy(true);
-    setError('');
+    // The last refusal stays until the reply replaces it: every branch below
+    // sets `error` or signs in. Clearing it here shut the refusal row the
+    // moment a retry was pressed and reopened it when the answer came, so the
+    // form jumped twice per attempt (review of PR #466).
     try {
       const reply = await login(
         typeof username === 'string' ? username : '',
@@ -192,22 +199,25 @@ export function AuthForm({ methods, onSignedIn }: AuthFormProps) {
           break;
         case 'refusal':
           setError(refusalMessage(reply.body));
+          setReplies((count) => count + 1);
           break;
         case 'failure':
           setError(failureMessage(reply.failure));
+          setReplies((count) => count + 1);
           break;
         default:
           unreachable(reply);
       }
     } catch {
       setError('Password sign-in could not start. Reload and try again.');
+      setReplies((count) => count + 1);
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <Card className="w-full max-w-sm">
+    <Card data-sign-in-card className="w-full max-w-sm">
       <CardHeader>
         <CardTitle>Sign in</CardTitle>
       </CardHeader>
@@ -265,18 +275,52 @@ export function AuthForm({ methods, onSignedIn }: AuthFormProps) {
               {passwordShown ? 'Hide' : 'Show'}
             </button>
           </div>
-          <p className="text-destructive min-h-5 text-sm" role="status" aria-live="polite">
-            {error}
-          </p>
-          <Button className="h-11 w-full" type="submit" disabled={busy}>
-            Sign in with password
-          </Button>
+          {/*
+           * The refusal's line opens only when there is something to say (UI
+           * review F-052): it was a reserved `min-h-5` row between two form gaps,
+           * so an ordinary visit had 52px of nothing between Password and its
+           * button. The row animates from `0fr` to `1fr` rather than appearing,
+           * so the button slides down instead of jumping; the live region itself
+           * is always in the document, which is what makes a screen reader
+           * announce text put into it. It shares a box with the button so the
+           * form's gap is spent once when the line is shut.
+           */}
+          <div className="grid">
+            <div
+              data-refusal-row
+              className={cn(
+                'grid transition-[grid-template-rows] duration-150 ease-out motion-reduce:transition-none',
+                error === '' ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]',
+              )}
+            >
+              <p
+                className="text-destructive min-h-0 overflow-hidden text-sm not-empty:pb-3"
+                role="status"
+                aria-live="polite"
+              >
+                {/*
+                 * Keyed per reply (F-098): the same sentence twice is no change
+                 * to a live region, so a retry with the same wrong password was
+                 * silent. A new node is announced; the `<p>` and its row stay,
+                 * so nothing moves. Absent while empty, for `not-empty:`.
+                 *
+                 * Proof, watched 2026-10-15 with `{error}` unkeyed: `announces
+                 * an identical second refusal as a new line` failed on
+                 * `expected Text{ …(1) } not to be Text{ …(1) }`.
+                 */}
+                {error !== '' && <span key={replies}>{error}</span>}
+              </p>
+            </div>
+            <Button className="h-11 w-full" type="submit" disabled={busy}>
+              Sign in with password
+            </Button>
+          </div>
         </form>
         <div className="grid gap-3">
           <div className="text-muted-foreground text-center text-sm">or</div>
           {/*
-           * Conditional, not height-reserved. The password slot above carries
-           * `min-h-5` so its form does not jump as an error comes and goes; this
+           * Conditional, not height-reserved. The password slot above opens its
+           * row with a transition so its form does not jump as an error comes; this
            * one is shown once on arrival and never changes, so reserving a line
            * for it would leave a permanently empty message slot under the SSO
            * button on every ordinary visit.

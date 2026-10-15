@@ -2,6 +2,7 @@ import { expect, type Page, test } from '@playwright/test';
 
 import type { PlanOptimizationView, PlanRead } from '../src/lib/wbs-api';
 import { createProject } from './create-project';
+import { countToolbarControls } from './toolbar-controls';
 
 /**
  * The schedule cue, in the only oracle that can say anything about it.
@@ -42,6 +43,13 @@ import { createProject } from './create-project';
 // redo and keyboard buttons −18, the schedule group ±0). Measured 1629.890625; `rows`
 // is still 2.
 const LAID_OUT_WITH_THE_CUE_AT_1280 = 1630;
+
+/**
+ * The controls the cue's plan puts on the toolbar, counted by role
+ * (`countToolbarControls`), measured 2026-10-14 on the cue's plan at 1280.
+ * Pinned, not read off the bar, for the reason the width is.
+ */
+const CONTROLS_WITH_THE_CUE = 19;
 
 /** How far a measured edge may be from a pinned figure, in CSS px — `project-settings.spec.ts`'s. */
 const NEARLY = 2;
@@ -161,12 +169,17 @@ test.describe('the schedule cue, in a browser', () => {
       if (!Number.isFinite(gap)) throw new Error('the toolbar has no column gap to read');
       return {
         laidOut: boxes.reduce((total, box) => total + box.width, 0) + gap * (boxes.length - 1),
-        controls: boxes.length,
         rows: new Set(boxes.map((box) => Math.round(box.y))).size,
       };
     });
-    // A bar that lost controls would flatter the budget below.
-    expect(measured.controls, 'the toolbar lost controls').toBeGreaterThanOrEqual(16);
+    // A bar that lost controls would flatter the budget below. Counted by role
+    // since the bar's end became one flex item (F-056).
+    // Proof, watched 2026-10-14: Redo taken off the bar failed on `the toolbar
+    // lost controls · Expected: >= 19 · Received: 18` (the grouped bar has 14
+    // children, so the old `>= 16` children premise could not stay).
+    expect(await countToolbarControls(page), 'the toolbar lost controls').toBeGreaterThanOrEqual(
+      CONTROLS_WITH_THE_CUE,
+    );
     // Proof: the cue's fixed width widened from 11.5rem to 44rem, and this
     // failed on `2086px of controls to lay out, against the 1566px this change
     // left · Expected: <= 1568 · Received: 2085.875`. Watched 2026-09-10 after
@@ -333,7 +346,10 @@ test.describe('the schedule cue, in a browser', () => {
         };
       });
     const before = await shapeOf();
-    expect(before.children.length).toBeGreaterThanOrEqual(16);
+    // Every control still there, counted by role (F-056): the bar's children
+    // are groups now, and their number says how it wraps. Proof, watched
+    // 2026-10-14: Redo taken off the bar failed here on `Received: 18`.
+    expect(await countToolbarControls(page)).toBeGreaterThanOrEqual(CONTROLS_WITH_THE_CUE);
 
     // The switch, all the way through: the menu item asks be-01, the next plan
     // read says Pri is displayed, and the pill loses its saving and changes its

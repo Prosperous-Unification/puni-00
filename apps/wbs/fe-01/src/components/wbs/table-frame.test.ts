@@ -821,7 +821,9 @@ describe('the frame the table scrolls inside', () => {
   it('leaves room under the last row for a picker to open into', () => {
     // The dep and assignee lists are absolutely positioned at `top: 100%` and
     // 200px tall, and a scroll container clips to its padding box.
-    expect(TABLE_FRAME.paddingBottom).toBe('13rem');
+    // The fitted tail when the chart is open (`plan-terminal-tail.ts`), with
+    // the picker room as the value before any fitting.
+    expect(TABLE_FRAME.paddingBottom).toBe('var(--plan-table-tail, 13rem)');
   });
 });
 

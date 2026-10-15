@@ -103,6 +103,78 @@ describe('the detail switch, over the runtime the page publishes', () => {
     expect(localStorage.getItem(GANTT_DETAIL_KEY)).toBeNull();
   });
 
+  /**
+   * The never-said default is decided against the plan's links, so it waits
+   * until they are known (`null` until the first plan read lands) instead of
+   * being taken from whatever the chart held at mount — the same plan opened
+   * with Detail on or off depending on which arrived first (ui-review F-065).
+   *
+   * Proof: with the hook taking `hasDependencyEdges` at mount as before (the
+   * unknown links read as "no links"), this failed on `expected false to be
+   * true` at the first `rerender`. Watched 2026-10-14.
+   */
+  itDom('waits for the links to be known before taking the never-said default', async () => {
+    const unpublished = renderHook(({ edges }) => useGanttDetail(edges), {
+      wrapper: wrapperFor(emptySlot()),
+      initialProps: { edges: null as boolean | null },
+    });
+    expect(unpublished.result.current.shown).toBe(false);
+    unpublished.rerender({ edges: true });
+    expect(unpublished.result.current.shown).toBe(true);
+
+    const slot = emptySlot();
+    await publishOver(slot, fakeBrowserStorage({}));
+    const live = renderHook(({ edges }) => useGanttDetail(edges), {
+      wrapper: wrapperFor(slot),
+      initialProps: { edges: null as boolean | null },
+    });
+    expect(live.result.current.shown).toBe(false);
+    live.rerender({ edges: true });
+    expect(live.result.current.shown).toBe(true);
+    expect(live.result.current.persists).toBe(true);
+  });
+
+  // Proof: with `shown` following the live links (`said ?? hasDependencyEdges
+  // === true`, no latch), this failed on `expected true to be false`. Watched
+  // 2026-10-15.
+  itDom('keeps the default it decided once the links were known', () => {
+    const held = renderHook(({ edges }) => useGanttDetail(edges), {
+      wrapper: wrapperFor(emptySlot()),
+      initialProps: { edges: null as boolean | null },
+    });
+    held.rerender({ edges: false });
+    expect(held.result.current.shown).toBe(false);
+    // A first link drawn later in the session does not turn the brackets and
+    // arrows on under a reader who opened the plan without them.
+    held.rerender({ edges: true });
+    expect(held.result.current.shown).toBe(false);
+  });
+
+  // Proof: with `shown` held off until the links are known (`opening === null
+  // ? false : …`), this failed on `expected false to be true`. Watched
+  // 2026-10-15.
+  itDom('shows a remembered answer without waiting for the links', async () => {
+    const slot = emptySlot();
+    await publishOver(slot, fakeBrowserStorage({ [GANTT_DETAIL_KEY]: 'true' }));
+    const held = renderHook(() => useGanttDetail(null), { wrapper: wrapperFor(slot) });
+    expect(held.result.current.shown).toBe(true);
+  });
+
+  // Proof: with the latched links ranked above the reader's answer (`opening
+  // ?? said ?? false`), this failed on `expected true to be false`. Watched
+  // 2026-10-15.
+  itDom('does not let late links overrule what the reader asked for', () => {
+    const held = renderHook(({ edges }) => useGanttDetail(edges), {
+      wrapper: wrapperFor(emptySlot()),
+      initialProps: { edges: null as boolean | null },
+    });
+    act(() => {
+      held.result.current.ask(false);
+    });
+    held.rerender({ edges: true });
+    expect(held.result.current.shown).toBe(false);
+  });
+
   itDom(
     'returns to the never-said default and stops remembering once withdrawn, without waiting for disposal',
     async () => {

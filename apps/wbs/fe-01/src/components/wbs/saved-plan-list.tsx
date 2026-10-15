@@ -1,3 +1,4 @@
+import { defaultSavedPlanName } from '@wbs/domain/saved-plan-default-name';
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -5,9 +6,33 @@ import { Input } from '@/components/ui/input';
 
 import type { SavedPlanListEntryView } from '../../lib/saved-plan-api';
 import type { SavedPlanListState } from '../../modules/saved-plans/contract';
+import { longInstant } from './short-date';
 
 /** 6.4's sentence, in one place so the test and the surface cannot drift apart. */
 export const SAVED_PLANS_UNAVAILABLE = 'Saved plans are not available on this node yet.';
+
+/**
+ * Whether be-01 named this saved plan after its own time, because the save
+ * came with no name (assumption A-1) and nobody has renamed it since.
+ *
+ * Asked of be-01's own naming function rather than of a pattern, so a name a
+ * reader typed that only looks like a timestamp stays theirs.
+ */
+export function isNamedByTime(saved: { name: string; createdAt: number }): boolean {
+  return saved.name === defaultSavedPlanName(saved.createdAt / 1000);
+}
+
+/**
+ * A saved plan's name as the shelf shows it: the name somebody gave it, or
+ * for a plan be-01 named after its time, that time in the app's words
+ * (`14 Oct 2026, 06:41`) rather than be-01's `2026-10-14 06:41:50 UTC`.
+ *
+ * One spelling of one instant (UI review F-067): the status line, the row, its
+ * meta line and the comparison's pickers all said the same moment three ways.
+ */
+export function savedPlanTitle(saved: { name: string; createdAt: number }): string {
+  return isNamedByTime(saved) ? longInstant(saved.createdAt) : saved.name;
+}
 
 /**
  * What a row says about its schedule.
@@ -65,19 +90,23 @@ function SavedPlanName({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft === null]);
 
+  const title = savedPlanTitle(row);
   const commit = () => {
     if (draft === null) return;
     const typed = draft.trim();
     setDraft(null);
-    if (typed === '' || typed === row.name) return;
+    // The words the field opened with are a cancel too: a row named by its
+    // time opens on `14 Oct 2026, 06:41`, and leaving it as it opened is not
+    // a request to store those words over be-01's name.
+    if (typed === '' || typed === row.name || typed === title) return;
     onRename(row.id, typed);
   };
 
   if (draft === null) {
     return (
       <span className="flex min-w-0 items-center gap-1">
-        <span className="saved-plan-list__name truncate font-medium" data-fact={row.name}>
-          {row.name}
+        <span className="saved-plan-list__name truncate font-medium" data-fact={title}>
+          {title}
         </span>{' '}
         <Button
           variant="ghost"
@@ -87,9 +116,9 @@ function SavedPlanName({
           // Named for the plan it renames, because a shelf renders one of these
           // per row and `Rename` alone would give a screen reader a list of
           // identical controls.
-          aria-label={`Rename ${row.name}`}
+          aria-label={`Rename ${title}`}
           onClick={() => {
-            setDraft(row.name);
+            setDraft(title);
           }}
         >
           <span aria-hidden="true">✎</span>
@@ -241,23 +270,28 @@ function SavedPlanRow({
     <li className="saved-plan-list__row flex items-center gap-1 border-b py-1.5 text-xs last:border-b-0">
       <div className="flex min-w-0 flex-1 flex-col">
         {onRename === undefined ? (
-          <span className="saved-plan-list__name truncate font-medium">{row.name}</span>
+          <span className="saved-plan-list__name truncate font-medium">{savedPlanTitle(row)}</span>
         ) : (
           <SavedPlanName row={row} onRename={onRename} />
         )}
         <span className="text-muted-foreground truncate">
           {/*
-            The machine-readable instant is the assertion, and the visible text
-            is `toLocaleString`'s — deliberately. A saved plan's timestamp is
-            be-01's clock, and the reader is entitled to see it in their own zone
-            and their own conventions; a fixed English rendering would be the
-            same wrong string for everybody outside one locale. So the fact goes
-            in `dateTime` where a case can hold it steady, and the words are the
-            browser's.
+            The time in the app's words and the reader's own zone (F-067), the
+            instant itself in `dateTime` for a machine. Left out for a row whose
+            name already is the time: the same moment twice in two lines was
+            the defect. (Until 2026-10-14 the words were `toLocaleString`'s, so
+            one shelf spelt one instant three ways.)
           */}
-          <time className="saved-plan-list__when" dateTime={new Date(row.createdAt).toISOString()}>
-            {new Date(row.createdAt).toLocaleString()}
-          </time>{' '}
+          {!isNamedByTime(row) && (
+            <>
+              <time
+                className="saved-plan-list__when"
+                dateTime={new Date(row.createdAt).toISOString()}
+              >
+                {longInstant(row.createdAt)}
+              </time>{' '}
+            </>
+          )}
           <span className="saved-plan-list__who">saved by {row.createdBy}</span>{' '}
           <span className="saved-plan-list__schedule">{scheduleWords(row)}</span>
         </span>
@@ -295,7 +329,7 @@ function SavedPlanRow({
               size="sm"
               type="button"
               className="px-2"
-              aria-label={`Compare ${row.name} with the current plan`}
+              aria-label={`Compare ${savedPlanTitle(row)} with the current plan`}
               onClick={() => {
                 onCompare(row.id);
               }}
@@ -309,7 +343,7 @@ function SavedPlanRow({
               variant="ghost"
               size="square"
               type="button"
-              aria-label={`Delete saved plan ${row.name}`}
+              aria-label={`Delete saved plan ${savedPlanTitle(row)}`}
               data-hint="Delete this saved plan. The plan itself is untouched."
               onClick={() => {
                 setConfirming(true);

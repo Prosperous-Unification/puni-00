@@ -28,25 +28,25 @@ const itDom = hasDom ? it : it.skip;
 describe('the presence panel', () => {
   afterEach(cleanup);
 
-  itDom('names itself Online or Offline, never by the channel’s state (F-018)', () => {
+  itDom('names the live link, Live or Reconnecting, never Online (D9, F-078)', () => {
     const view = render(<PresencePanel me="kat" users={[]} connected={false} />);
 
-    // Proof: on 2026-10-13, against the old `Online (open)` / `Online (closed)` heading this
-    // failed on `Unable to find an accessible element with the role "heading" and name
-    // "Offline"`.
-    expect(screen.getByRole('heading', { name: 'Offline' })).toBeDefined();
+    // Proof: on 5b65fd5ae (`Online` / `Offline`, which read as "the server is up"
+    // beside a write the server could not complete) this failed on `Unable to find an
+    // accessible element with the role "heading" and name "Reconnecting"`.
+    expect(screen.getByRole('heading', { name: 'Reconnecting' })).toBeDefined();
 
     view.rerender(<PresencePanel me="kat" users={[]} connected />);
 
-    expect(screen.getByRole('heading', { name: 'Online' })).toBeDefined();
-    expect(screen.queryByText(/\(open\)|\(closed\)/)).toBeNull();
+    expect(screen.getByRole('heading', { name: 'Live' })).toBeDefined();
+    expect(screen.queryByText(/Online|Offline|\(open\)|\(closed\)/)).toBeNull();
   });
 
   itDom('carries the whole roster in its fact card, for the collapsed dot and count', () => {
     render(<PresencePanel me="kat" users={['kat', 'sam']} connected />);
 
-    const panel = screen.getByRole('region', { name: 'Online' });
-    expect(panel.getAttribute('data-fact')).toBe('Online: kat (you), sam');
+    const panel = screen.getByRole('region', { name: 'Live' });
+    expect(panel.getAttribute('data-fact')).toBe('Live: kat (you), sam');
     expect(panel.querySelector('[data-presence-count]')?.textContent).toBe('2');
   });
 
@@ -66,16 +66,29 @@ describe('the presence panel', () => {
     ]);
   });
 
-  itDom('keeps the roster it was given while the connection is down', () => {
-    // The old panel pinned this as a caveat it could not fix — its socket did
-    // not reconnect, so a drop froze the roster and only a reload started
-    // another. It is still what a reader sees *while* the socket is down, and
-    // it is no longer where the story ends: the stream reconnects,
-    // resubscribes and asks again. `reopens after a close it did not ask for`
-    // and `asks who is there again on a reconnect` are the stream's.
-    render(<PresencePanel me="kat" users={['kat', 'sam']} connected={false} />);
+  /*
+   * While the link is down nobody's presence can be known: the roster is not
+   * shown (not even the last one heard, which may already be wrong), no count is
+   * drawn, and the panel says presence is unknown instead of "Nobody yet." The
+   * stream reconnects, resubscribes and asks again (`reopens after a close it did
+   * not ask for` and `asks who is there again on a reconnect` are the stream's).
+   */
+  itDom.each([
+    ['nobody heard yet', [] as string[]],
+    ['a roster heard before the drop', ['kat', 'sam']],
+  ])('claims no roster while reconnecting, with %s (F-077)', (_, users) => {
+    render(<PresencePanel me="kat" users={users} connected={false} />);
 
-    expect(screen.getByRole('heading', { name: 'Offline' })).toBeDefined();
-    expect(screen.getAllByRole('listitem')).toHaveLength(2);
+    const panel = screen.getByRole('region', { name: 'Reconnecting' });
+    // Proof: with the roster drawn while reconnecting again (5b65fd5ae's branches under
+    // the new names) this failed on `expected <p …(1)></p> to be null` ("Nobody yet.")
+    // for the empty roster and on `expected <ul …(1)>…` to be null for the heard one.
+    expect(screen.queryByText('Nobody yet.')).toBeNull();
+    expect(screen.queryByRole('list')).toBeNull();
+    expect(panel.querySelector('[data-presence-count]')).toBeNull();
+    expect(screen.getByText('Who else is here is not known until the link is back.')).toBeDefined();
+    expect(panel.getAttribute('data-fact')).toBe(
+      'Reconnecting: who else is here is not known until the link is back.',
+    );
   });
 });

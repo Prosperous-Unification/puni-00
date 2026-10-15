@@ -278,40 +278,85 @@ test.describe('the toolbar popovers', () => {
 });
 
 test.describe('the toolbar rows', () => {
-  // 1440 only: at 1024 the action controls alone need ~1130px of a 992px row, so the keyboard
-  // button and Export / Import wrap to row two whatever the grouping does — there they sit at
-  // its left and the schedule group at its right (lane record, F-005).
-  test('keeps the schedule controls together on a row of their own at 1440 (F-005)', async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await openPlan(page);
-    // A hidden column is what offers Reset layout.
-    await summaryOf(page, 'Columns').click();
-    await page.locator('[data-columns]').getByLabel('Tags').uncheck();
-    await summaryOf(page, 'Columns').click();
-    const reset = page.getByRole('button', { name: 'Reset layout' });
-    await expect(reset).toBeVisible();
-    const top = async (control: Locator): Promise<number> =>
-      Math.round((await control.boundingBox())?.y ?? Number.NaN);
-    const starts = await top(page.getByLabel('Project start date'));
-    const planWith = await top(page.getByLabel('Final estimate'));
-    const resetTop = await top(reset);
-    const resetRight = Math.round(
-      await reset.evaluate((node) => node.getBoundingClientRect().right),
-    );
-    const toolbarRight = Math.round(
-      await page.locator('[data-toolbar]').evaluate((node) => node.getBoundingClientRect().right),
-    );
-    // Proof: on 2026-10-13, before the group, this failed with Starts at 49 and `planWith: 85,
-    // resetTop: 85` — Plan with and Reset layout alone on row two.
-    expect({ planWith, resetTop }).toEqual({ planWith: starts, resetTop: starts });
-    // The group ends the bar on whichever row it is on.
-    expect(resetRight).toBe(toolbarRight);
-    // Wide enough for every action on the first row: the second is the schedule's alone.
-    const exportTop = await top(summaryOf(page, 'Export / Import'));
-    expect(exportTop, 'an action control was laid out on the schedule row').toBeLessThan(starts);
-  });
+  for (const width of [1024, 1280, 1440]) {
+    test(`ends the bar with one group, never split across rows, at ${String(width)} (F-005, F-056)`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await openPlan(page);
+      // A hidden column is what offers Reset layout.
+      await summaryOf(page, 'Columns').click();
+      await page.locator('[data-columns]').getByLabel('Tags').uncheck();
+      await summaryOf(page, 'Columns').click();
+      const reset = page.getByRole('button', { name: 'Reset layout' });
+      await expect(reset).toBeVisible();
+      const top = async (control: Locator): Promise<number> =>
+        Math.round((await control.boundingBox())?.y ?? Number.NaN);
+      // The end group's controls, by role and name, each on the row Starts is on.
+      const end = {
+        undo: await top(page.getByRole('button', { name: 'Undo' })),
+        redo: await top(page.getByRole('button', { name: 'Redo' })),
+        shortcuts: await top(page.getByRole('button', { name: 'Keyboard shortcuts' })),
+        transfer: await top(summaryOf(page, 'Export / Import')),
+        planWith: await top(page.getByLabel('Final estimate')),
+        reset: await top(reset),
+      };
+      const starts = await top(page.getByLabel('Project start date'));
+      // Proof, watched 2026-10-14 on the code before this change (Undo, Redo,
+      // Keyboard shortcuts and Export / Import loose on the bar, the schedule
+      // group alone with `ml-auto`): at 1024 it failed on Undo, Redo and Keyboard
+      // shortcuts at `49` on row one while Starts, Plan with and Export / Import
+      // stood at `85` on row two; at 1280 and 1440 on all four icon controls at
+      // `49` above Starts.
+      expect(end).toEqual({
+        undo: starts,
+        redo: starts,
+        shortcuts: starts,
+        transfer: starts,
+        planWith: starts,
+        reset: starts,
+      });
+      // One group, not two islands on one row: Export / Import stands one gap
+      // from Starts. Proof, watched 2026-10-14: the end group made `grow` and its
+      // `ml-auto` moved onto the schedule group inside it (two islands in one
+      // row) failed on `Export / Import and Starts are apart · Received: 319.5`
+      // at 1024, 575.5 at 1280 and 735.5 at 1440.
+      const gap = await page.evaluate(() => {
+        const transfer = document.querySelector('[data-toolbar] details[data-export]');
+        const schedule = document.querySelector('[data-toolbar] [data-schedule]');
+        if (transfer === null || schedule === null) throw new Error('the bar lost its end');
+        return schedule.getBoundingClientRect().left - transfer.getBoundingClientRect().right;
+      });
+      expect(gap, 'Export / Import and Starts are apart').toBeLessThanOrEqual(7);
+      // The group ends the bar on whichever row it is on.
+      const resetRight = Math.round(
+        await reset.evaluate((node) => node.getBoundingClientRect().right),
+      );
+      const toolbarRight = Math.round(
+        await page.locator('[data-toolbar]').evaluate((node) => node.getBoundingClientRect().right),
+      );
+      expect(resetRight).toBe(toolbarRight);
+      // Row two, where there is one, is the end group's alone: no other control
+      // stands on the row the group is on unless that row is the first.
+      // Proof, watched 2026-10-14 with the right-edge assertion above disabled:
+      // Columns moved after the group failed on `a control outside the end group
+      // shares its row · Received: ["Columns"]` at 1024 and 1280.
+      const strays = await page.locator('[data-toolbar]').evaluate((toolbar, row) => {
+        const first = Math.min(
+          ...[...toolbar.children].map((child) => Math.round(child.getBoundingClientRect().y)),
+        );
+        return [...toolbar.querySelectorAll('button, input, select, summary')]
+          .filter((control) => control.closest('[data-toolbar-end]') === null)
+          .filter((control) => control.getBoundingClientRect().width > 0)
+          .filter((control) => {
+            const at = Math.round(control.getBoundingClientRect().y);
+            return Math.abs(row - first) > 4 && Math.abs(at - row) <= 4;
+          })
+          .map((control) => control.getAttribute('aria-label') ?? control.textContent.trim());
+      }, starts);
+      expect(strays, 'a control outside the end group shares its row').toEqual([]);
+    });
+  }
 
   test('the Find count does not move the controls beside it (F-016)', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });

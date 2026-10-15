@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import type { RememberedPreferences } from '@/modules/preferences/contract';
 import {
@@ -55,8 +55,8 @@ import {
  * reason: the alternative is a chart nobody can open until they clear storage by
  * hand, over a preference about a mark.
  */
-function rememberedDetail(remembered: RememberedPreferences, hasEdges: boolean): boolean {
-  const answer = readDetail(remembered, hasEdges);
+function rememberedDetail(remembered: RememberedPreferences): boolean | null {
+  const answer = readDetail(remembered);
   /**
    * The key the arrows-only switch wrote, for one day, between `gantt-declutter`
    * and `declutter-one-button`.
@@ -114,21 +114,21 @@ function rememberedDetail(remembered: RememberedPreferences, hasEdges: boolean):
  * `DETAIL_KEY` drop only ever fires on a stored value this panel refuses. It is
  * a rule kept, not a defect fixed. Cross-review, 2026-08-12.
  */
-function readDetail(remembered: RememberedPreferences, hasEdges: boolean): boolean {
+function readDetail(remembered: RememberedPreferences): boolean | null {
   const claimed = remembered.ganttDetail.claim();
   if (claimed.status === 'held') return claimed.value;
-  // Nothing stored: the chart opens with the detail on for a plan that has
-  // dependency edges — a first-time reader sees the arrows without hunting for
-  // the toggle — and off for a plan with nothing to hide. A **refused** answer
+  // Nothing stored is `null`: the never-said default, which
+  // {@link useGanttDetail} decides off the plan's links. A **refused** answer
   // is not the same state and does not read as one: somebody has said
   // something here, and it is not "show me the arrows". That is the third
   // state {@link Claim} exists for.
   //
-  // Proof: the two collapsed into `return hasEdges`, watched failing on
-  // `expected 'true' to be 'false'` in `refuses a stored answer that is not a
-  // boolean, and drops the key` and in `refuses storage that is not JSON at
-  // all, and drops the key` — `2 failed | 159 passed`. Observed 2026-09-02.
-  return claimed.status === 'absent' ? hasEdges : false;
+  // Proof: the two collapsed into `return hasEdges` (the absent arm's answer
+  // until F-065), watched failing on `expected 'true' to be 'false'` in
+  // `refuses a stored answer that is not a boolean, and drops the key` and in
+  // `refuses storage that is not JSON at all, and drops the key` — `2 failed |
+  // 159 passed`. Observed 2026-09-02; re-watched as `return null` 2026-10-14.
+  return claimed.status === 'absent' ? null : false;
 }
 
 /**
@@ -144,6 +144,13 @@ function readDetail(remembered: RememberedPreferences, hasEdges: boolean): boole
  * edges opens with the detail on, so a first-time reader sees the arrows a WBS
  * Gantt exists to show rather than a toggle they have to find (TASK-38). A
  * stored answer always wins — turning the detail off is a remembered choice.
+ *
+ * `null` while the plan's links are not known yet (the chart mounted before
+ * the first plan read landed). The never-said default **waits** for them and
+ * is then decided once, against the first links known; until then the marks
+ * it gates have nothing to draw. Before 2026-10-14 the default was taken at
+ * mount, so an empty, unread plan decided "off" and the same plan opened with
+ * Detail on or off depending on which arrived first (ui-review F-065).
  */
 export interface GanttDetail {
   /** Whether the three families of mark are drawn. */
@@ -169,8 +176,9 @@ export interface GanttDetail {
  * machine `lib/theme.ts`'s `useTheme` records, for a second answer the page
  * keeps on screen.
  *
- * - **No runtime yet**: the never-said default (`hasDependencyEdges`), not
- *   remembered; `ask` still turns the marks on and off.
+ * - **No runtime yet**: the never-said default (decided off the first known
+ *   `hasDependencyEdges`), not remembered; `ask` still turns the marks on and
+ *   off.
  * - **Live**: the stored answer, remembered; `ask` writes it first and shows it
  *   second, so a store that refuses the write for a reason of its own
  *   propagates, by identity, before anything on screen has moved.
@@ -189,22 +197,27 @@ export interface GanttDetail {
  * runtime the same way, for the same reason: a passive effect runs after every
  * layout effect of its commit, and a layout effect can retire the slot first.
  */
-export function useGanttDetail(hasDependencyEdges: boolean): GanttDetail {
+export function useGanttDetail(hasDependencyEdges: boolean | null): GanttDetail {
   const services = useApplicationServicesState();
   const readServices = useApplicationServicesReader();
   const rendered = services.status === 'live' ? services.remembered : null;
-  const [shown, setShown] = useState(() =>
-    rendered === null ? hasDependencyEdges : readDetail(rendered, hasDependencyEdges),
-  );
-  const [persists, setPersists] = useState(() => rendered !== null);
   /**
-   * The never-said default as it stands now, for the effect below — which
-   * re-runs when the published runtime changes, not when the plan's edges do:
-   * a plan whose edges arrive after the chart opened keeps the answer it opened
-   * on, as it always has.
+   * What somebody has said: the remembered answer or the reader's own ask.
+   * `null` is "never said", which shows {@link opening}.
    */
-  const hasEdges = useRef(hasDependencyEdges);
-  hasEdges.current = hasDependencyEdges;
+  const [said, setSaid] = useState<boolean | null>(() =>
+    rendered === null ? null : readDetail(rendered),
+  );
+  /**
+   * The links as first known, latched: the never-said default is decided once,
+   * when they arrive, and a plan whose first link is drawn later keeps the
+   * answer it opened on. Set during render (React's "adjust state while
+   * rendering" pattern) rather than in an effect, so the read that brings the
+   * links paints the marks in the same frame instead of one frame later.
+   */
+  const [opening, setOpening] = useState<boolean | null>(hasDependencyEdges);
+  if (opening === null && hasDependencyEdges !== null) setOpening(hasDependencyEdges);
+  const [persists, setPersists] = useState(() => rendered !== null);
 
   // On mount, on withdrawal and on every newly published runtime: resync to the
   // runtime live **now**, and drop the keys it refuses. The write half of the
@@ -219,16 +232,24 @@ export function useGanttDetail(hasDependencyEdges: boolean): GanttDetail {
     // the never-said default and stops remembering once withdrawn, without
     // waiting for disposal` on `expected false to be true`.
     if (now.status !== 'live') {
-      setShown(hasEdges.current);
+      setSaid(null);
       setPersists(false);
       return;
     }
     // Proof: on 2026-09-24, dropping the keys without adopting the answer failed
     // `adopts a replacement runtime’s own remembered answer, and drops what it
     // refuses` on `expected false to be true`.
-    setShown(rememberedDetail(now.remembered, hasEdges.current));
+    setSaid(rememberedDetail(now.remembered));
     setPersists(true);
   }, [rendered, readServices]);
+
+  // Proof: with `opening` replaced by the mount-time `hasDependencyEdges`
+  // (the pre-F-065 rule), `gantt-detail.test.tsx` `waits for the links to be
+  // known before taking the never-said default` failed on `expected false to
+  // be true`, and `gantt-panel.test.tsx` `decides the never-said detail on the
+  // first read, not on the chart mounted before it` on `expected 'false' to be
+  // 'true'`. Watched 2026-10-14.
+  const shown = said ?? opening === true;
 
   return {
     shown,
@@ -245,7 +266,7 @@ export function useGanttDetail(hasDependencyEdges: boolean): GanttDetail {
       // between a withdrawal and the next render` on `expected true to be false`.
       if (live !== null && live !== rendered) return;
       if (live === null) {
-        setShown(next);
+        setSaid(next);
         // Proof: on 2026-09-24, answering `true` here failed `opens on the
         // never-said default and remembers nothing when no runtime is live` on
         // `expected true to be false`.
@@ -268,7 +289,7 @@ export function useGanttDetail(hasDependencyEdges: boolean): GanttDetail {
       // a swallowing `try` failed the same test on `expected null to be Error:
       // write denied`.
       live.ganttDetail.write(next);
-      setShown(next);
+      setSaid(next);
       setPersists(true);
     },
   };

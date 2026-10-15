@@ -484,7 +484,15 @@ export function ProjectSettingsModal({
         // and the tabs where they were clicked and lets each section be its own
         // height. Only the section scrolls (below), never the title or the ✕.
         // Wider than `2xl` so the Steps grid has a readable name column (F-020).
-        className="top-[5vh] translate-y-0 overflow-y-hidden sm:max-w-3xl"
+        //
+        // The whole screen on a phone (F-054): as tall as its section, the
+        // surface left the dimmed Plan actions sheet it is opened from showing
+        // under it, a dialog stacked on a dialog. The sheet cannot close
+        // instead, because this modal is mounted inside it. Proof: on
+        // 2026-10-14, without the `max-md:` half, `on a phone the settings fill
+        // the screen` (settings-layout.spec.ts) failed on `{ top: 41, bottom:
+        // 455 }` against `{ top: 0, bottom: 812 }`.
+        className="top-[5vh] translate-y-0 overflow-y-hidden max-md:inset-0 max-md:h-dvh max-md:max-h-dvh max-md:translate-x-0 max-md:rounded-none max-md:border-0 sm:max-w-3xl"
         // Radix performs the dismissal itself unless the event is prevented, so
         // a refused close has to be said here and not only in `onOpenChange`.
         //
@@ -515,17 +523,6 @@ export function ProjectSettingsModal({
             each applies as you leave its field.
           </ModalDescription>
         </ModalHeader>
-
-        {travelling.length > 0 && (
-          <p role="status" className="text-muted-foreground text-sm">
-            Saving {travelling.join(' and ')}. The window closes when it lands.
-          </p>
-        )}
-        {holdingLabel !== undefined && (
-          <p role="alert" className="text-destructive text-sm">
-            {holdingLabel} has an unsaved edit. Finish it or cancel it before closing.
-          </p>
-        )}
 
         <div className="flex min-h-0 flex-1 flex-col gap-4 sm:flex-row">
           {/*
@@ -574,6 +571,7 @@ export function ProjectSettingsModal({
               role="tabpanel"
               id={panelId('teams')}
               aria-labelledby={tabId('teams')}
+              aria-busy={busySections.includes('teams')}
               hidden={shown !== 'teams'}
             >
               <TeamsPanel
@@ -586,6 +584,7 @@ export function ProjectSettingsModal({
               role="tabpanel"
               id={panelId('priorities')}
               aria-labelledby={tabId('priorities')}
+              aria-busy={busySections.includes('priorities')}
               hidden={shown !== 'priorities'}
             >
               <PrioritiesPanel
@@ -598,6 +597,7 @@ export function ProjectSettingsModal({
               role="tabpanel"
               id={panelId('steps')}
               aria-labelledby={tabId('steps')}
+              aria-busy={busySections.includes('steps')}
               hidden={shown !== 'steps'}
             >
               <StepsPanel
@@ -610,6 +610,7 @@ export function ProjectSettingsModal({
               role="tabpanel"
               id={panelId('estimating')}
               aria-labelledby={tabId('estimating')}
+              aria-busy={busySections.includes('estimating')}
               hidden={shown !== 'estimating'}
             >
               <EstimatingPanel
@@ -622,6 +623,7 @@ export function ProjectSettingsModal({
               role="tabpanel"
               id={panelId('optimization')}
               aria-labelledby={tabId('optimization')}
+              aria-busy={busySections.includes('optimization')}
               hidden={shown !== 'optimization'}
             >
               {optimization === undefined ? (
@@ -640,6 +642,7 @@ export function ProjectSettingsModal({
               role="tabpanel"
               id={panelId('timezone')}
               aria-labelledby={tabId('timezone')}
+              aria-busy={busySections.includes('timezone')}
               hidden={shown !== 'timezone'}
             >
               <TimezonePanel
@@ -650,6 +653,26 @@ export function ProjectSettingsModal({
             </div>
           </div>
         </div>
+
+        {/*
+          Why the modal has not closed yet, at its foot: the surface is anchored
+          at the top and grows downwards, so a line here moves neither the title
+          nor the tabs. Between the description and the tabs it pushed both down
+          36px for as long as a write travelled (Fable review of #453, the
+          36 px shift). Proof: on 2026-10-14, with the lines back above the tabs,
+          `the closing line moves neither the title nor the tabs`
+          (settings-layout.spec.ts) failed on `Expected: 150, Received: 186`.
+        */}
+        {travelling.length > 0 && (
+          <p role="status" data-settings-closing="" className="text-muted-foreground text-sm">
+            Saving {travelling.join(' and ')}. The window closes when it lands.
+          </p>
+        )}
+        {holdingLabel !== undefined && (
+          <p role="alert" data-settings-closing="" className="text-destructive text-sm">
+            {holdingLabel} has an unsaved edit. Finish it or cancel it before closing.
+          </p>
+        )}
       </ModalContent>
     </Modal>
   );

@@ -132,7 +132,7 @@ export function usePlanExportActions({
     // is what makes the check below a real one rather than dead code.
     const clipboard = navigator.clipboard as Clipboard | undefined;
     if (clipboard === undefined) {
-      pushToast({ kind: 'error', text: NO_CLIPBOARD });
+      pushToast({ kind: 'error', text: noClipboard('markdown') });
       return;
     }
     void clipboard.writeText(markdown).then(
@@ -142,7 +142,7 @@ export function usePlanExportActions({
       () => {
         // The browser's reason is not shown: it is a permission decision the
         // reader did not make and cannot act on beyond using the other button.
-        pushToast({ kind: 'error', text: CLIPBOARD_REFUSED });
+        pushToast({ kind: 'error', text: clipboardRefused('markdown') });
       },
     );
   }, [planForExport, pushToast]);
@@ -163,7 +163,7 @@ export function usePlanExportActions({
     }
     const clipboard = navigator.clipboard as Clipboard | undefined;
     if (clipboard === undefined) {
-      pushToast({ kind: 'error', text: NO_CLIPBOARD });
+      pushToast({ kind: 'error', text: noClipboard('mermaid') });
       return;
     }
     void clipboard.writeText(diagram.text).then(
@@ -171,7 +171,7 @@ export function usePlanExportActions({
         pushToast({ kind: 'info', text: 'Copied as Mermaid.' });
       },
       () => {
-        pushToast({ kind: 'error', text: CLIPBOARD_REFUSED });
+        pushToast({ kind: 'error', text: clipboardRefused('mermaid') });
       },
     );
   }, [mermaidSectionMode, planForExport, pushToast]);
@@ -364,15 +364,30 @@ export function usePlanOnScreenExport({
  */
 export const UNNAMED_PROJECT = 'Untitled plan';
 
+/** The copy actions on the Export menu, each of which has a download that saves the same content. */
+export type CopyKind = 'markdown' | 'mermaid';
+
 /**
- * What a page with no clipboard says.
+ * The menu item that saves what each copy would have copied, as a sentence.
+ *
+ * Both name "Download as Markdown": that file holds the Markdown table and the
+ * Mermaid gantt together (`downloadMermaidDocument`). The CSV the sentence
+ * used to name holds neither the table's Markdown nor any chart.
+ */
+const WAY_OUT: Readonly<Record<CopyKind, string>> = {
+  markdown: 'Use Download as Markdown instead.',
+  mermaid: 'Download as Markdown saves the same Mermaid chart.',
+};
+
+/**
+ * What a page with no clipboard says, for one copy action.
  *
  * `navigator.clipboard` is absent entirely on an insecure origin — the dev
  * deployment is one — so this is a condition to report, not a failure to
- * throw on. It names the way out, which is the CSV beside it.
+ * throw on. It names the way out: the download that saves the same content.
  */
-export const NO_CLIPBOARD =
-  'This page has no clipboard — that needs an https address. Download the CSV instead.';
+export const noClipboard = (kind: CopyKind): string =>
+  `This page has no clipboard — that needs an https address. ${WAY_OUT[kind]}`;
 
 /**
  * What the Export menu says when it is asked for a chart nobody is looking at.
@@ -386,9 +401,15 @@ export const NO_CLIPBOARD =
 export const NO_CHART_TO_DOWNLOAD =
   'There is no chart on screen to download. Open the Gantt and try again.';
 
-/** What a clipboard that refused the write says. The permission is the browser's to give. */
-export const CLIPBOARD_REFUSED =
-  'The browser refused the clipboard, so nothing was copied. Download the CSV instead.';
+/**
+ * The opening of what a clipboard that refused the write says. The permission
+ * is the browser's to give, so the reason is never shown; each surface adds
+ * its own way out.
+ */
+export const CLIPBOARD_REFUSED = 'The browser refused the clipboard, so nothing was copied.';
+
+/** What a refused write says for one copy action, naming the download that saves the same content. */
+export const clipboardRefused = (kind: CopyKind): string => `${CLIPBOARD_REFUSED} ${WAY_OUT[kind]}`;
 
 /**
  * The byte-order mark the downloaded CSV starts with.

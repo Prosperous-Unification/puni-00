@@ -412,7 +412,7 @@ test.describe('the header bar, measured by a browser', () => {
     await expect(bar.getByRole('link', { name: 'Plan' })).toBeVisible();
     await expect(bar.getByRole('link', { name: 'Directory' })).toBeVisible();
     await expect(bar.getByRole('combobox', { name: 'Project' })).toBeVisible();
-    await expect(bar.getByRole('heading', { name: 'Online', exact: true })).toBeVisible();
+    await expect(bar.getByRole('heading', { name: 'Live', exact: true })).toBeVisible();
 
     await bar.getByRole('button', { name: signedInAs }).click();
     await expect(page.getByRole('menu', { name: `Signed in as ${signedInAs}` })).toBeVisible();
@@ -463,7 +463,7 @@ test.describe('the header bar, read by eye and measured', () => {
     // The roster: the section that carries the roster as its fact card. Not `header section`
     // alone — the Saved plans shelf is a section too, and comes first.
     const roster = page.getByRole('banner').locator('section[data-fact]');
-    await expect(roster).toHaveAttribute('data-fact', /^Online: .*local-dev \(you\)/);
+    await expect(roster).toHaveAttribute('data-fact', /^Live: .*local-dev \(you\)/);
     const read: string[] = [];
     for (const width of [1440, 1280, 1024, 900]) {
       await page.setViewportSize({ width, height: 800 });

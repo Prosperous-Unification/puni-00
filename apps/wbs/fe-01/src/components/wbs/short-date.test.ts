@@ -4,7 +4,13 @@ import { resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { longIsoDate, MalformedDayError, shortInstant, shortIsoDate } from './short-date';
+import {
+  longInstant,
+  longIsoDate,
+  MalformedDayError,
+  shortInstant,
+  shortIsoDate,
+} from './short-date';
 
 /** Somebody's today, in 2026. */
 const IN_2026 = new Date(2026, 6, 15);
@@ -154,5 +160,16 @@ describe('an instant, printed in the browser’s own zone', () => {
 
   it('refuses an epoch that is not a time', () => {
     expect(() => shortInstant(Number.NaN, IN_2026)).toThrow(MalformedDayError);
+  });
+});
+
+describe('a moment named on its own', () => {
+  it('reads as day, month, year and a 24-hour minute, in the reader’s zone (F-067)', () => {
+    expect(longInstant(new Date(2026, 9, 14, 6, 41, 50).getTime())).toBe('14 Oct 2026, 06:41');
+    expect(longInstant(new Date(2027, 0, 2, 18, 5).getTime())).toBe('2 Jan 2027, 18:05');
+  });
+
+  it('refuses an epoch that is not a time at all', () => {
+    expect(() => longInstant(Number.NaN)).toThrow(MalformedDayError);
   });
 });
