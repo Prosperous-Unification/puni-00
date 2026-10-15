@@ -259,6 +259,29 @@ Secret, runner and egress policy, so it carries the backend's admitted identity 
 backup, the release coordinator moves its image with every backend rollout, and
 `tool-fleet:check` compares those fields.
 
+`bunx nx run tool-deploy:test:backup` rehearses the shipped backup and verification CronJobs
+with the real backend image on disposable k3d. Verification Jobs retain the CronJob's command,
+credentials and admitted identity; isolated object prefixes carry damaged snapshot bytes, a
+changed migration report and an absent backup. The lab requires each failed Job to name its
+specific cause. [The verification evidence](../../openspec/changes/sqlite-verification-cronjob-lab/verify.md)
+records the runner and API proofs. The lab builds its PUNI-owned local object-store
+image from the authenticated release inputs in `infra/versions/object-store.json`,
+requires the manifest in `toolchain.json`, imports the archive, and verifies its
+containerd digest alias before applying the local server and bucket Job.
+`MINISIGN` may name an authenticated minisign executable; Docker must expose the
+locked Buildx client. [The image evidence](../../openspec/changes/local-object-store-image/verify.md)
+records the build, distribution and runtime proofs.
+
+For a manually created local cluster, build with
+`bunx nx run tool-fleet:object-store-image`, then import
+`dist/tool-fleet/object-store.oci` using `k3d image import --mode direct`.
+Call `importObjectStore` for every node to inspect the release tag and register
+the exact repository digest alias in its `k8s.io` containerd namespace before
+applying `infra/platform/backup/local/object-store.yaml`. The local consumers
+use `imagePullPolicy: Never`; a successful archive import alone does not prove
+digest resolution. Production uses provider object storage and excludes this
+local server.
+
 `bunx nx run tool-fleet:health -- --cluster <id> --kubeconfig <k> --kubectl <path>` is
 read-only (any kubectl verb but `get` throws) and exits 1 on a critical finding. Rules: target
 marker, node Ready, etcd voter, newest ready `s3://` etcd snapshot within 7 h (node-local `file://` snapshots do not count), Flux objects Ready (suspended

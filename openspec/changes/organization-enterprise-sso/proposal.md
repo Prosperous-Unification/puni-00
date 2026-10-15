@@ -1,10 +1,11 @@
 ## Why
 
-A company cannot require its own identity provider for WBS, provision or remove members from its directory, or bound session length; `organization-ownership-and-access` deferred all three. A leaver keeps WBS access until someone removes them by hand.
+A company cannot require its identity provider for WBS, manage directory membership, or bound sessions; `organization-ownership-and-access` deferred all three. Leavers retain access until manually removed.
 
 ## What Changes
 
 - A super-admin records an **enterprise connection** on a verified domain: the Auth0 connection name, strategy `samlp` or `oidc`, a login slug and an enforced flag.
+- The Company sign-in browser panel supports scoped editing and confirmed removal with authoritative server state.
 - Login with `?organization=<slug>`, or with an email on that verified domain, sends `connection=<name>` to Auth0.
 - **Enforced SSO**: WBS issues and resolves the organization's context only for an identity whose `sub` starts with the connection's subject prefix. Others get typed `403 sso_required` with the SSO link; their other organizations are unaffected.
 - WBS serves SCIM 2.0 `Users` for each organization under a provisioning token that a super-admin issues, rotates and revokes, storing only a digest of it. POST creates a **pending membership**, which the first SSO login activates. Deactivation or DELETE removes the membership and ends that user's access to the organization in one transaction.
@@ -13,7 +14,7 @@ A company cannot require its own identity provider for WBS, provision or remove 
 
 ## Non-Goals
 
-Runtime code; Auth0 tenant changes; Auth0 Organizations; JIT organizations; mapping groups to roles; SCIM `Groups`; per-connection role defaults; unlinking identities.
+Auth0 tenant changes; Auth0 Organizations; JIT organizations; mapping groups to roles; SCIM `Groups`; per-connection role defaults; unlinking identities.
 
 ## Constraints
 

@@ -1,0 +1,51 @@
+errexit
+bun test v1.4.2 (744846f84)
+
+tools/tool-fleet/src/object-store-buckets.test.ts:
+50 | }
+51 |
+52 | describe('shipped bucket initializer dependency faults', () => {
+53 |   it('fails the Job when mc refuses versioning', async () => {
+54 |     const initialization = await initializeBuckets('version');
+55 |     expect(initialization.exitCode).toBe(42);
+                                         ^
+error: expect(received).toBe(expected)
+
+Expected: 42
+Received: 0
+
+      at <anonymous> (/tmp/puni-minio-repack-sol/tools/tool-fleet/src/object-store-buckets.test.ts:55:37)
+(fail) shipped bucket initializer dependency faults > fails the Job when mc refuses versioning [28.31ms]
+(pass) shipped bucket initializer dependency faults > fails the Job when lifecycle readback lacks the retained-version rule [11.46ms]
+(pass) shipped bucket initializer dependency faults > completes when mc accepts the bucket contract [17.28ms]
+
+ 2 pass
+ 1 fail
+ 4 expect() calls
+Ran 3 tests across 1 file. [93.00ms]
+
+lifecycle readback
+bun test v1.4.2 (744846f84)
+
+tools/tool-fleet/src/object-store-buckets.test.ts:
+(pass) shipped bucket initializer dependency faults > fails the Job when mc refuses versioning [20.45ms]
+55 |     expect(initialization.exitCode).toBe(42);
+56 |     expect(initialization.stderr.toString()).toContain('injected mc version failure');
+57 |   });
+58 |   it('fails the Job when lifecycle readback lacks the retained-version rule', async () => {
+59 |     const initialization = await initializeBuckets('lifecycle');
+60 |     expect(initialization.exitCode).toBe(1);
+                                         ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/tmp/puni-minio-repack-sol/tools/tool-fleet/src/object-store-buckets.test.ts:60:37)
+(fail) shipped bucket initializer dependency faults > fails the Job when lifecycle readback lacks the retained-version rule [21.15ms]
+(pass) shipped bucket initializer dependency faults > completes when mc accepts the bucket contract [22.02ms]
+
+ 2 pass
+ 1 fail
+ 4 expect() calls
+Ran 3 tests across 1 file. [104.00ms]

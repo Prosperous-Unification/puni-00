@@ -125,6 +125,8 @@ async function answerAsSuperAdmin(
             lastPrefixMismatchAt: 2,
           },
         });
+      case 'DELETE /api/organization/sso-connections/connection-b':
+        return json({ error: 'provisioning_active' }, 409);
       case 'POST /api/auth/link/auth0':
         if (mode === 'held') {
           await new Promise<void>((resolve) => {
@@ -255,6 +257,63 @@ for (const width of [1280, 375]) {
       ).toBeVisible();
     });
 
+    test('edits configuration and confirms removal with accessible phone-safe controls', async ({
+      page,
+    }) => {
+      await answerAsSuperAdmin(page);
+      await page.goto('/organization');
+      await page.getByRole('button', { name: 'Edit connection for other.example' }).click();
+      const editor = page.getByRole('form', { name: 'Edit connection for other.example' });
+      await expect(editor.getByLabel('Auth0 connection name')).toHaveValue('other-company-oidc');
+      await expect(editor.getByLabel('Strategy', { exact: true })).toHaveValue('oidc');
+      await expect(editor.getByLabel('Login slug')).toHaveValue('other-company-login');
+      await expect(editor).toContainText(
+        'Changing the Auth0 name or strategy clears proof and enforcement',
+      );
+      expect(
+        await page.locator('main').evaluate((main) => main.scrollWidth - main.clientWidth),
+      ).toBe(0);
+      await editor.getByLabel('Login slug').fill('edited-company-login');
+      const patched = page.waitForRequest(
+        (request) =>
+          request.method() === 'PATCH' && request.url().endsWith('/sso-connections/connection-b'),
+      );
+      await editor.getByRole('button', { name: 'Save connection for other.example' }).click();
+      expect((await patched).postDataJSON()).toEqual({
+        auth0Connection: 'other-company-oidc',
+        strategy: 'oidc',
+        loginSlug: 'edited-company-login',
+      });
+      await expect(editor).toHaveCount(0);
+      let deletions = 0;
+      page.on('request', (request) => {
+        if (
+          request.method() === 'DELETE' &&
+          request.url().endsWith('/sso-connections/connection-b')
+        )
+          deletions += 1;
+      });
+      await page.getByRole('button', { name: 'Remove connection for other.example' }).click();
+      const confirmation = page.getByRole('group', { name: 'Remove connection for other.example' });
+      await expect(confirmation).toContainText('other.example through other-company-oidc');
+      expect(
+        await page.locator('main').evaluate((main) => main.scrollWidth - main.clientWidth),
+      ).toBe(0);
+      await confirmation.getByRole('button', { name: 'Cancel removal of other.example' }).click();
+      expect(deletions).toBe(0);
+      await page.getByRole('button', { name: 'Remove connection for other.example' }).click();
+      const removed = page.waitForRequest(
+        (request) =>
+          request.method() === 'DELETE' && request.url().endsWith('/sso-connections/connection-b'),
+      );
+      await confirmation.getByRole('button', { name: 'Confirm removal of other.example' }).click();
+      await removed;
+      await expect(page.getByRole('status')).toContainText('live provisioning');
+      await expect(
+        page.getByRole('button', { name: 'Remove connection for other.example' }),
+      ).toBeEnabled();
+    });
+
     test('holds the routed proof on one connection', async ({ page }) => {
       await answerAsSuperAdmin(page, 'held');
       await page.goto('/organization');
@@ -304,6 +363,7 @@ for (const width of [1280, 375]) {
 
       await page.getByRole('button', { name: 'Start proof for other.example' }).click();
       await page.getByLabel('How did you sign in to WBS?').selectOption('password');
+      await page.getByRole('button', { name: 'Edit connection for other.example' }).click();
       await page.getByRole('heading', { name: 'Organization', exact: true }).click();
       const expected = await page
         .locator('main')

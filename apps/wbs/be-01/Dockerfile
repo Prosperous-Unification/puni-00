@@ -29,7 +29,10 @@ RUN python3 -m pip install --no-cache-dir --no-deps .
 # ctypes needs libffi and the solve imports native OR-Tools wheels. OR-Tools
 # publishes cp314 manylinux wheels, not musllinux wheels, so the prior Alpine
 # runtime could not install the locked solver at all.
+FROM busybox:1.37.0-musl@sha256:5cec3fc171c87218698e85a52af7087de727372aae264a787b8112901a5b0092 AS audit
+
 FROM solver AS runtime
+COPY --from=audit /bin/busybox /bin/busybox
 ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=deps /usr/local/bin/bun /usr/local/bin/bun

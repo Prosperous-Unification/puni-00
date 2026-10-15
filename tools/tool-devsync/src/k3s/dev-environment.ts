@@ -14,6 +14,13 @@ import {
   updateForgeAdmission,
 } from './forge-admission';
 import { claimLease, claimLeaseNames, decodeClaimLease, requireOwnClaim } from './forge-claims';
+import {
+  createNamespace,
+  deleteNamespace,
+  environmentNamespace,
+  namespaceAccess,
+  readNamespace,
+} from './forge-namespace';
 import { INSTALL_REQUIRED } from './forge-supervisor';
 
 type DevEnvironmentAction = 'up' | 'down' | 'status';
@@ -67,6 +74,7 @@ export interface WorktreeInspection {
 
 /** The identity a running environment carries in its labels and annotations. */
 export interface RunningEnvironment {
+  readonly namespace: string;
   readonly slug: string;
   readonly worktree: string;
   readonly worktreeNodePath: string;
@@ -258,6 +266,22 @@ export function requireOwnedWorktree(
   return `${WORKTREE_NODE_ROOT}/${relation.split(sep).join('/')}`;
 }
 
+/** Refuse a shared-namespace Pod during the early uniqueness check. */
+export function requireMigratedEnvironment(
+  slug: string,
+  running: readonly RunningEnvironment[],
+): void {
+  for (const environment of running) {
+    // Proof: removing this refusal fails the legacy shared-namespace duplicate negative in
+    // dev-environment.test.ts; command entry also scans legacy resources independently of Pods.
+    if (environment.namespace === FORGE_NAMESPACE && environment.slug === slug) {
+      throw new Error(
+        'Legacy shared-namespace environment exists; run down with the prior revision before upgrading (its database is deleted)',
+      );
+    }
+  }
+}
+
 /**
  * One worktree, one slug, checked against running Pods for an early, readable refusal. It is a
  * check, not a lock: the claim Leases (`forge-claims.ts`) are what two racing `up`s contend on.
@@ -267,6 +291,7 @@ export function requireUniqueEnvironment(
   worktree: string,
   running: readonly RunningEnvironment[],
 ): void {
+  requireMigratedEnvironment(slug, running);
   for (const environment of running) {
     if (environment.slug === slug && environment.worktree !== worktree) {
       // Proof: disabling this check failed `refuses a duplicate slug for another worktree`. The
@@ -362,6 +387,9 @@ export function bindEnvironment(
         `dev overlay object ${String(metadata['name'])} is not in ${FORGE_NAMESPACE}`,
       );
     }
+    // Proof: omitting this binding fails the committed-overlay namespace assertion; live,
+    // alpha and beta occupied different namespaces and only alpha disappeared on its down.
+    metadata['namespace'] = environmentNamespace(binding.slug);
     metadata['name'] = object['kind'] === 'PersistentVolumeClaim' ? `${name}-data` : name;
     metadata['labels'] = { ...(isRecord(metadata['labels']) ? metadata['labels'] : {}), ...labels };
     metadata['annotations'] = {
@@ -493,6 +521,7 @@ export function decodeRunningEnvironments(text: string): readonly RunningEnviron
   const items = field(list, 'items');
   if (!Array.isArray(items)) throw new Error('kubectl pod list has no items');
   return items.map((item) => {
+    const namespace = field(item, 'metadata', 'namespace');
     const slug = field(item, 'metadata', 'labels', SLUG_LABEL);
     const worktree = field(item, 'metadata', 'annotations', WORKTREE_ANNOTATION);
     const containers = field(item, 'spec', 'containers');
@@ -504,6 +533,7 @@ export function decodeRunningEnvironments(text: string): readonly RunningEnviron
       : undefined;
     const worktreeNodePath = field(worktreeVolume, 'hostPath', 'path');
     if (
+      typeof namespace !== 'string' ||
       typeof slug !== 'string' ||
       typeof worktree !== 'string' ||
       typeof image !== 'string' ||
@@ -513,7 +543,7 @@ export function decodeRunningEnvironments(text: string): readonly RunningEnviron
         `forge Pod ${String(field(item, 'metadata', 'name'))} lacks its environment identity`,
       );
     }
-    return { slug, worktree, worktreeNodePath, image };
+    return { namespace, slug, worktree, worktreeNodePath, image };
   });
 }
 
@@ -689,14 +719,40 @@ async function connect(root: string, clusterName: string): Promise<Cluster> {
   };
 }
 
+/** Refuse surviving shared-namespace workloads even after their Pod disappeared. */
+async function requireNoLegacyResources(cluster: Cluster, slug: string): Promise<void> {
+  const resources: unknown = JSON.parse(
+    await cluster.kubectl([
+      'get',
+      'pods,services,ingresses,networkpolicies,persistentvolumeclaims',
+      `--namespace=${FORGE_NAMESPACE}`,
+      '-l',
+      `${SLUG_LABEL}=${slug}`,
+      '-o',
+      'json',
+    ]),
+  );
+  const members = field(resources, 'items');
+  // Proof: removing this shape check makes the production down malformed-list negative
+  // release admission and Leases in dev-environment-lifecycle.test.ts.
+  if (!Array.isArray(members)) throw new Error('kubectl returned a malformed legacy workload list');
+  // Proof: removing this refusal fails all twelve no-Pod legacy PVC/Service/Ingress/NetworkPolicy
+  // production up/status/down negatives; down otherwise releases ownership behind the old DB.
+  if (members.length > 0) {
+    throw new Error(
+      'Legacy shared-namespace resources exist; run down with the prior revision before upgrading (its database is deleted)',
+    );
+  }
+}
+
 async function runningEnvironments(cluster: Cluster): Promise<readonly RunningEnvironment[]> {
   return decodeRunningEnvironments(
     await cluster.kubectl([
       'get',
       'pods',
-      `--namespace=${FORGE_NAMESPACE}`,
+      '--all-namespaces',
       '-l',
-      SLUG_LABEL,
+      `${SLUG_LABEL},${LAB_LABEL}=${cluster.record.labId}`,
       '-o',
       'json',
     ]),
@@ -836,6 +892,7 @@ export function requireMountedRoot(recorded: string, observed: string, root: str
 async function up(root: string, request: DevEnvironmentRequest): Promise<void> {
   if (request.worktree === undefined) throw new Error('dev-env up requires --worktree');
   const cluster = await connect(root, request.cluster);
+  await requireNoLegacyResources(cluster, request.slug);
   const uid = process.getuid?.();
   if (uid === undefined)
     throw new Error('dev-env needs a POSIX user ID to check worktree ownership');
@@ -853,8 +910,11 @@ async function up(root: string, request: DevEnvironmentRequest): Promise<void> {
   const worktree = inspection.realpath;
   requireUniqueEnvironment(request.slug, worktree, await runningEnvironments(cluster));
   await requireSeededWorktree(worktree);
+  const owner = { slug: request.slug, labId: cluster.record.labId, worktree };
+  await readNamespace(cluster, owner);
   // The claim is the lock: nothing below runs for a pair another environment holds.
   await claimEnvironment(cluster, request.slug, worktree);
+  await createNamespace(cluster, owner);
 
   const recreateInputs = await readRecreateInputs(worktree);
   const image = await publishForgeImage(worktree, cluster, request.slug);
@@ -878,7 +938,10 @@ async function up(root: string, request: DevEnvironmentRequest): Promise<void> {
   });
   const pod = bound.find((object) => object['kind'] === 'Pod');
   if (pod === undefined) throw new Error('bound dev overlay has no Pod');
-  const others = bound.filter((object) => object !== pod);
+  const others = [
+    ...namespaceAccess(request.slug, cluster.record.labId),
+    ...bound.filter((object) => object !== pod),
+  ];
 
   const store = admissionStore(cluster);
   const { before } = await updateForgeAdmission(store, cluster.record.labId, {
@@ -897,7 +960,7 @@ async function up(root: string, request: DevEnvironmentRequest): Promise<void> {
       await cluster.kubectl([
         'get',
         'pods',
-        `--namespace=${FORGE_NAMESPACE}`,
+        `--namespace=${environmentNamespace(request.slug)}`,
         '-l',
         `${SLUG_LABEL}=${request.slug}`,
         '-o',
@@ -912,7 +975,7 @@ async function up(root: string, request: DevEnvironmentRequest): Promise<void> {
         'delete',
         'pod',
         podName,
-        `--namespace=${FORGE_NAMESPACE}`,
+        `--namespace=${environmentNamespace(request.slug)}`,
         '--as',
         FORGE_CONTROLLER,
         '--wait=true',
@@ -940,7 +1003,7 @@ async function up(root: string, request: DevEnvironmentRequest): Promise<void> {
       'wait',
       '--for=condition=Ready',
       `pod/${podName}`,
-      `--namespace=${FORGE_NAMESPACE}`,
+      `--namespace=${environmentNamespace(request.slug)}`,
       '--timeout=600s',
     ],
     { timeoutMs: 11 * 60 * 1000 },
@@ -955,6 +1018,7 @@ async function up(root: string, request: DevEnvironmentRequest): Promise<void> {
 
 async function down(root: string, request: DevEnvironmentRequest): Promise<void> {
   const cluster = await connect(root, request.cluster);
+  await requireNoLegacyResources(cluster, request.slug);
   const store = admissionStore(cluster);
   // Ownership of the parameters is checked before anything is deleted, so a refused teardown
   // leaves the environment whole rather than its roots admitted behind it.
@@ -963,25 +1027,12 @@ async function down(root: string, request: DevEnvironmentRequest): Promise<void>
   await store.read().then((configMap) => {
     decodeForgeAdmission(configMap, cluster.record.labId);
   });
+  const namespace = await readNamespace(cluster, {
+    slug: request.slug,
+    labId: cluster.record.labId,
+  });
   const selector = `${SLUG_LABEL}=${request.slug},${LAB_LABEL}=${cluster.record.labId}`;
-  await cluster.kubectl([
-    'delete',
-    'pods',
-    `--namespace=${FORGE_NAMESPACE}`,
-    '-l',
-    selector,
-    '--as',
-    FORGE_CONTROLLER,
-    '--wait=true',
-  ]);
-  await cluster.kubectl([
-    'delete',
-    'ingress,service,networkpolicy,persistentvolumeclaim',
-    `--namespace=${FORGE_NAMESPACE}`,
-    '-l',
-    selector,
-    '--wait=true',
-  ]);
+  if (namespace !== undefined) await deleteNamespace(cluster, namespace);
   // Released by slug, so a root stays admitted only while its environment's claim exists, even
   // when the Pod was already gone.
   // Proof: with the release gated on a running Pod, a live `down` after dev-beta's Pod was deleted
@@ -999,18 +1050,27 @@ async function down(root: string, request: DevEnvironmentRequest): Promise<void>
     '--ignore-not-found',
   ]);
   console.log(
-    `[dev-env] ${request.slug}: deleted its Pod, Service, Ingress, NetworkPolicy, database ` +
+    `[dev-env] ${request.slug}: deleted its namespace, Pod, Service, Ingress, NetworkPolicy, database ` +
       'volume and claim, and released its admitted root',
   );
 }
 
 async function status(root: string, request: DevEnvironmentRequest): Promise<void> {
   const cluster = await connect(root, request.cluster);
+  await requireNoLegacyResources(cluster, request.slug);
+  const namespace = await readNamespace(cluster, {
+    slug: request.slug,
+    labId: cluster.record.labId,
+  });
+  if (namespace === undefined) {
+    console.log(`[dev-env] ${request.slug}: not running on ${request.cluster}`);
+    return;
+  }
   const pods: unknown = JSON.parse(
     await cluster.kubectl([
       'get',
       'pods',
-      `--namespace=${FORGE_NAMESPACE}`,
+      `--namespace=${environmentNamespace(request.slug)}`,
       '-l',
       `${SLUG_LABEL}=${request.slug}`,
       '-o',

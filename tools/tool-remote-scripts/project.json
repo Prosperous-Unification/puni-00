@@ -44,10 +44,15 @@
       "inputs": [
         "default",
         "^production",
+        "{workspaceRoot}/apps/wbs/be-01/**/*",
+        "{workspaceRoot}/libs/wbs/**/*",
+        "{workspaceRoot}/libs/shared/**/*",
         "{workspaceRoot}/apps/wbs/be-01/src/config.ts",
         "{workspaceRoot}/apps/wbs/be-01/src/step-blockage-replay-kinds-cli.ts",
         "{workspaceRoot}/apps/wbs/be-01/src/controller/oidc-options.ts",
         "{workspaceRoot}/apps/wbs/be-01/Dockerfile",
+        "{workspaceRoot}/libs/wbs/adapters/observability/src/index.ts",
+        "{workspaceRoot}/libs/wbs/adapters/store-sqlite/src/source.ts",
         "{workspaceRoot}/apps/wbs/gw-01/src/config.ts",
         "{workspaceRoot}/apps/wbs/gw-01/src/service/jwt-auth.ts",
         "{workspaceRoot}/apps/wbs/gw-01/Dockerfile",
@@ -68,13 +73,13 @@
     "lint": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "bunx eslint tools/tool-remote-scripts/src tools/tool-remote-scripts/caddy"
+        "command": "bunx eslint tools/tool-remote-scripts/src tools/tool-remote-scripts/caddy tools/tool-remote-scripts/test"
       }
     },
     "lint:fast": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "bunx eslint tools/tool-remote-scripts/src tools/tool-remote-scripts/caddy --cache --cache-location .nx/eslintcache-tool-remote-scripts"
+        "command": "bunx eslint tools/tool-remote-scripts/src tools/tool-remote-scripts/caddy tools/tool-remote-scripts/test --cache --cache-location .nx/eslintcache-tool-remote-scripts"
       }
     },
     "typecheck": {
@@ -88,6 +93,13 @@
       "cache": false,
       "options": {
         "command": "bun run tools/tool-remote-scripts/caddy/run.ts"
+      }
+    },
+    "test:backend-recreation": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun run tools/tool-remote-scripts/test/backend-recreation.ts"
       }
     }
   }

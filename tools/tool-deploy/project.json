@@ -57,12 +57,14 @@
         "^production",
         "{workspaceRoot}/bin/assert-no-prod-release.sh",
         "{workspaceRoot}/apps/wbs/be-01/**/*",
+        "{workspaceRoot}/deploy/k8s/wbs/base/**/*",
         "{workspaceRoot}/deploy/k8s/wbs/overlays/**/*",
         "{workspaceRoot}/deploy/k8s/wbs/lab/**/*",
         "{workspaceRoot}/.github/workflows/ci.yml",
         "{workspaceRoot}/.github/workflows/deploy-k3s.yml",
         "{workspaceRoot}/.github/workflows/infra-check.yml",
         "{workspaceRoot}/tools/tool-devsync/src/burokrat-consumer.ts",
+        "{workspaceRoot}/tools/tool-fleet/src/backup-sqlite.ts",
         "{workspaceRoot}/infra/ci/deploy-runner/**/*"
       ],
       "options": {
@@ -119,7 +121,14 @@
       "{projectRoot}/**/*",
       "{workspaceRoot}/deploy/k8s/**/*",
       "{workspaceRoot}/tools/tool-devsync/src/burokrat-consumer.ts",
-      "sharedGlobals"
+      "sharedGlobals",
+      "{workspaceRoot}/tools/tool-fleet/src/object-store*.ts",
+      "{workspaceRoot}/tools/tool-fleet/src/controller.ts",
+      "{workspaceRoot}/tools/tool-fleet/src/contracts.ts",
+      "{workspaceRoot}/infra/local/object-store/**/*",
+      "{workspaceRoot}/infra/versions/object-store.json",
+      "{workspaceRoot}/infra/versions/toolchain.json",
+      "{workspaceRoot}/infra/platform/backup/local/**/*"
     ],
     "production": [
       "default",

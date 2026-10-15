@@ -359,7 +359,7 @@ export interface TierEnvSources {
 }
 
 /** `KEY=VALUE` lines keyed by name, with `envKeysOf`'s skip rules; a later line wins, as in `env_file`. */
-function envValuesOf(envText: string): Map<string, string> {
+export function envValuesOf(envText: string): Map<string, string> {
   const values = new Map<string, string>();
   for (const rawLine of envText.split('\n')) {
     const line = rawLine.trim();
@@ -635,6 +635,7 @@ export function tierComposeContext(
     CONTAINER: containerName(tier, color, layout),
     NETWORK: layout.network,
     IMAGE: assertDigestPinnedRef(image, tier),
+    INIT: tier === 'be' ? '    init: true\n' : '',
     ENV_FILES: envFilesBlock(tier, layout),
     // Proof: omitting the template carrier made the rendered-environment backend
     // startup probe exit1 instead of0 (docker.test.ts).

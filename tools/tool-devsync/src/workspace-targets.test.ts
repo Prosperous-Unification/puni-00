@@ -821,6 +821,43 @@ describe('every cached target declares what it reads', () => {
     expect(required.filter((path) => !files.includes(path))).toEqual([]);
   });
 
+  it('hashes the maintenance boot subprocess dependency closure', async () => {
+    const nxJson = JSON.parse(
+      await readFile(new URL('nx.json', WORKSPACE), 'utf8'),
+    ) as NxJsonConfiguration;
+    const projectGraph = await createProjectGraphAsync({ exitOnError: true });
+    const { rustReferences } = getFileMap();
+    if (rustReferences === null) throw new Error('Nx did not hydrate its workspace file map');
+    const task = {
+      id: 'tool-remote-scripts:test',
+      target: { project: 'tool-remote-scripts', target: 'test' },
+      overrides: {},
+      outputs: [],
+      cache: true,
+    };
+    const taskGraph = {
+      roots: [task.id],
+      tasks: { [task.id]: task },
+      dependencies: { [task.id]: [] },
+      continuousDependencies: {},
+    };
+    const hasher = new InProcessTaskHasher(projectGraph, nxJson, rustReferences, {});
+    const hash = await hasher.hashTask(task, taskGraph, process.env, WORKSPACE.pathname, true);
+    if (hash.inputs === undefined) throw new Error('Nx did not collect task hash inputs');
+    const required = [
+      'apps/wbs/be-01/src/boot.ts',
+      'apps/wbs/be-01/src/repository/health-probe.ts',
+      'libs/wbs/adapters/observability/src/logger.ts',
+      'libs/wbs/adapters/store-sqlite/src/enterprise-connection.ts',
+      'libs/wbs/application/core/src/index.ts',
+    ];
+    const files = hash.inputs.files;
+    // Proof: removing the test workspace-tree inputs omitted all five files.
+    // With them declared, independent health-probe, logger, SQLite and shared validation
+    // edits changed the native hash; each restoration recovered its baseline (2026-10-15).
+    expect(required.filter((path) => !files.includes(path))).toEqual([]);
+  });
+
   it('names every file a suite reads from outside its own project', async () => {
     const nxJson = JSON.parse(
       await readFile(new URL('nx.json', WORKSPACE), 'utf8'),
@@ -872,6 +909,8 @@ describe('every cached target declares what it reads', () => {
     // the real Nx task hash ignored a CLI edit with the input omitted and changed with it declared (2026-10-14).
     // Proof: omitting Burokrat's Navigator source input failed this production oracle on
     // entrypoint.ts, the fixtures directory and plan-export.v8.json (2026-10-14).
+    // Proof: omitting the maintenance boot imports failed this scan naming
+    // tool-remote-scripts and observability/src/index.ts plus store-sqlite/src/source.ts.
     expect(undeclared).toBeEmpty();
   });
 });
