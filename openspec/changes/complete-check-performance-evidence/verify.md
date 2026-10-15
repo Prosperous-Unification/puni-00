@@ -1,0 +1,38 @@
+## Scope
+
+Base: remote main `b773e5f64`. This is a non-certifying CLI change. No external activation is provisioned and no WBS completion is claimed. The complete fixture intentionally reports unrelated unevaluated rules while proving PERF-THRESHOLD evaluates bound evidence.
+
+## Commands and observations
+
+- `bun install --frozen-lockfile`: passed, 1292 packages installed; replaced an unusable stale shared dependency directory.
+- Focused `bun test .../evidence/performance.test.ts --test-name-pattern 'complete check Performance' --timeout=120000`: RED rejected `--performance-evidence` as a complete-check flag. GREEN: 1 pass, 0 fail, 59 assertions, 54.87 seconds; includes source and freshly built executable.
+- `NX_DAEMON=false bunx nx run twilight-burokrat:typecheck`: passed, 2.3 seconds. Nx fell back from sandbox-denied worker sockets to its main process.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run twilight-burokrat:lint`: exited 0 but reports `status: inactive`, `certified: false`, external activation root not provisioned. This does not prove activated policy validation.
+- `bunx @fission-ai/openspec@1.12.0 validate --all --json`: 201 passed, 0 failed (183 changes, 18 specs).
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx format:check --all`: exit 0, no differing files. Follow-up changed files also pass Prettier.
+- Source ESLint: passed (Nx lint:source, 48.8 seconds). Focused Performance + rule regression suite: 86 pass, 0 fail, 798 assertions, 111.97 seconds. Follow-up actual consumer installation with `bun add --ignore-scripts` and installed `node_modules/.bin/twib`, including help: 1 pass, 0 fail, 62 assertions, 62.78 seconds.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run twilight-burokrat:test`: passed, 1,358 tests across 73 files, 0 failures, 10,239 assertions, 1665.75 seconds (27m46s target), cache 0/1. The final source + installed-executable complete-check case also passed within this run (60,737ms).
+- First project test run overlapped deliberate mutation and reported validator artifact digest mismatches; it is invalid as final evidence. A concurrent rerun was refused by Nx's recursive-task detector. Both are superseded by the clean run above.
+- Read-only Astra high review of checkpoint `22e8b816e`: PASS, no P1/P2 findings. Optional design.md skipped because this changes an existing flag parser with no new technical boundary.
+- Follow-up test file ESLint and TypeScript build: passed.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run twilight-burokrat:test:package`: passed after the project suite, with local registry socket access enabled; 47 tests across 8 files, 0 failures, 338 assertions, 207.20 seconds (3m34s with build/pack prerequisites), cache 0/6.
+- Package test first attempt failed because sandbox denied local registry listen (`EPERM`), then was stopped; superseded by the socket-enabled run above.
+- Normal commit hooks passed on both implementation and installed-test checkpoints (format, ESLint, secret scan, nesting check and inactive policy lint).
+- Full monorepo test/lint/typecheck/build and exact-SHA h2puni gate: not run here; the supervising agent schedules the separate gate and final review. Exact-main diagnostic evaluation has not started.
+
+## Failure proofs
+
+All injected mutations were restored. Each ran the complete-check production CLI test and exited 1 with an observed assertion failure.
+
+| Fault injected                       | Observed failure                                              | Outcome  |
+| ------------------------------------ | ------------------------------------------------------------- | -------- |
+| Remove CLI evidence forwarding       | PERF-THRESHOLD unexpectedly unevaluated: missing run evidence | Detected |
+| Disable candidate identity guard     | Missing candidate identity mismatch in verdict                | Detected |
+| Disable policy identity guard        | Missing policy identity mismatch in verdict                   | Detected |
+| Disable declaration identity guard   | Missing declaration identity mismatch in verdict              | Detected |
+| Disable selected-rule evidence guard | Missing refusal for evidence with MOD-INDEX                   | Detected |
+| Permit duplicate evidence flag       | Missing check-flag diagnostic                                 | Detected |
+| Permit duplicate rule flag           | Missing check-flag diagnostic                                 | Detected |
+| Bypass unknown-flag refusal          | Missing check-flag refusal                                    | Detected |
+
+Existing binding guards retain their adjacent Proof comments; changed parsing and evidence forwarding carry adjacent comments naming this production-path proof.

@@ -6,23 +6,24 @@ Ansible installs k3s and bootstraps Flux. Flux then owns every long-lived
 platform object through one ordered graph per cluster. Do not apply the platform
 manifests from Ansible or by hand. Platform clusters reconcile these stages:
 
-| Stage           | Path under `infra/platform/`       | Waits for        |
-| --------------- | ---------------------------------- | ---------------- |
-| `target`        | `target` (applies nothing)         | none             |
-| `controllers`   | `networking`                       | target           |
-| `storage`       | `storage/<environment>`            | controllers      |
-| `policy`        | `policy` (namespaces, admission)   | controllers      |
-| `secrets`       | `secrets/<cluster-id>` (SOPS only) | policy           |
-| `platform`      | `registry/<environment>`           | storage, secrets |
-| `observability` | `observability/<environment>`      | platform         |
-| `alerts`        | `alerts/<environment>`             | observability    |
-| `backup`        | `backup/<environment>`             | alerts           |
+| Stage           | Path under `infra/platform/`          | Waits for              |
+| --------------- | ------------------------------------- | ---------------------- |
+| `target`        | `target` (applies nothing)            | none                   |
+| `controllers`   | `networking`                          | target                 |
+| `storage`       | `storage/<environment>`               | controllers            |
+| `policy`        | `policy` (namespaces, admission)      | controllers            |
+| `secrets`       | `secrets/<cluster-id>` (SOPS only)    | policy                 |
+| `certificates`  | `certificates/platform/<environment>` | controllers, secrets   |
+| `platform`      | `registry/<environment>`              | storage, secrets       |
+| `observability` | `observability/<environment>`         | platform, certificates |
+| `alerts`        | `alerts/<environment>`                | observability          |
+| `backup`        | `backup/<environment>`                | alerts                 |
 
 Workers clusters carry only `control-plane` and `execution` nodes, so they reconcile
-`target`, `storage` and `policy` (both after target), `secrets`, and `telemetry`
-(`telemetry/<environment>`, after storage and secrets). The telemetry agent is an
+`target`, cert-manager-only `controllers` (`certificates/controllers`), `storage` and `policy` (both after target), `secrets`, `certificates` (after controllers and secrets), and `telemetry`
+(`telemetry/<environment>`, after storage, secrets and certificates). The telemetry agent is an
 OTel DaemonSet that reads pod logs and host metrics and ships them over OTLP to the
-platform cluster's `otel-gateway` NodePort (30417); workers run no
+platform cluster's authenticated canary `otel-gateway` NodePort (30419); plaintext 30417 is temporary rollback state pending the [mTLS cutover proofs](otlp-mtls.md). Workers run no
 Elasticsearch, Kibana, Prometheus, ingress, registry or Velero. `tool-fleet:check`
 rejects any stage whose workloads select a capability the cluster purpose's nodes
 cannot carry.
@@ -380,3 +381,5 @@ bumping the pinned image, rerun the 60 s hung-connection drill from the
 [log-failure-records verify record](../../openspec/changes/log-failure-records/verify.md),
 recapture the exposition, and keep the old version unless the drill shows zero
 loss and every k3d negative still passes.
+
+Cross-cluster OTLP certificate ownership, renewal and staged cutover: [mTLS runbook](otlp-mtls.md).

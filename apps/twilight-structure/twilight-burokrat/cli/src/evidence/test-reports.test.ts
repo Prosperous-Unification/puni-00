@@ -15,6 +15,7 @@ import { afterEach, expect, test } from 'bun:test';
 
 import { readCandidate } from '../inventory/read-candidate';
 import { invokeCli } from '../invoke-cli';
+import { buildPackage } from '../packaging/build';
 import { registeredRules } from '../rules/registry';
 import { hashCanonical } from './content-manifest';
 
@@ -650,3 +651,202 @@ mock.module(${JSON.stringify(browserModule)}, () => ({
     'test report Browser candidate differs from selected source',
   );
 });
+
+async function writeMembershipAuthority(setup: ReturnType<typeof fixture>) {
+  const report = await observation(setup);
+  const authority = {
+    schemaVersion: 1,
+    revision: setup.revision,
+    candidate: report['candidate'],
+    mode,
+    reportObservationDigest: report['observationDigest'],
+    memberships: [
+      { level: 'manual', kind: 'unknown' },
+      { level: 'conformance', kind: 'reviewed-empty' },
+      { level: 'architecture', kind: 'unknown' },
+      { level: 'performance', kind: 'reviewed-empty' },
+    ],
+  };
+  const authorityPath = join(setup.policyPath, '..', 'membership-authority.json');
+  writeFileSync(authorityPath, JSON.stringify(authority));
+  return { report, authority, authorityPath };
+}
+
+async function inspectMemberships(setup: ReturnType<typeof fixture>, authorityPath: string) {
+  return invokeCli([
+    'inspect-browser-memberships',
+    setup.root,
+    setup.revision,
+    setup.policyPath,
+    mode,
+    authorityPath,
+  ]);
+}
+
+test('[TEST-AXES-093] Browser memberships preserve review states and complete real report bindings', async () => {
+  const setup = fixture();
+  publishCases(setup, [
+    { title, status: 'failed' },
+    { title: 'opted out', status: 'skipped' },
+  ]);
+  const { report, authority, authorityPath } = await writeMembershipAuthority(setup);
+  const call = await inspectMemberships(setup, authorityPath);
+  expect(call.exitCode, call.stderr).toBe(0);
+  const facts = JSON.parse(call.stdout) as Record<string, unknown>;
+  expect(facts['schemaVersion']).toBe(1);
+  expect(facts['kind']).toBe('browser-memberships');
+  expect(facts['report']).toEqual(report);
+  expect(facts['collection']).toEqual([file]);
+  expect(facts['memberships']).toEqual(
+    [...authority.memberships].sort((left, right) => left.level.localeCompare(right.level)),
+  );
+  expect(facts['authorityDigest']).toBe(digestEvidenceBytes(readFileSync(authorityPath)));
+  expect(facts['authentication']).toEqual({ kind: 'absent' });
+  expect(facts['certifies']).toBe(false);
+  for (const credit of ['level', 'classification', 'isolation', 'coverage', 'admission'])
+    expect(Object.hasOwn(facts, credit)).toBe(false);
+  const { observationDigest, ...payload } = facts;
+  expect(observationDigest).toBe(hashCanonical(payload));
+  authority.memberships.reverse();
+  writeFileSync(authorityPath, JSON.stringify(authority));
+  const reversed = await inspectMemberships(setup, authorityPath);
+  expect(reversed.exitCode, reversed.stderr).toBe(0);
+  expect((JSON.parse(reversed.stdout) as Record<string, unknown>)['memberships']).toEqual(
+    facts['memberships'],
+  );
+  authority.memberships[0] = { level: 'performance', kind: 'unknown' };
+  writeFileSync(authorityPath, JSON.stringify(authority));
+  const changed = await inspectMemberships(setup, authorityPath);
+  expect(changed.exitCode, changed.stderr).toBe(0);
+  expect((JSON.parse(changed.stdout) as Record<string, unknown>)['observationDigest']).not.toBe(
+    observationDigest,
+  );
+});
+
+test('[TEST-AXES-094] Browser membership authority refuses absent unreadable malformed and unsupported input', async () => {
+  const setup = fixture();
+  const { authority, authorityPath } = await writeMembershipAuthority(setup);
+  const refuse = async (expected: string) => {
+    const call = await inspectMemberships(setup, authorityPath);
+    expect(call.exitCode, call.stdout).toBe(1);
+    expect(call.stdout).toBe('');
+    expect(call.stderr).toContain(expected);
+  };
+  rmSync(authorityPath);
+  await refuse('ENOENT');
+  mkdirSync(authorityPath);
+  await refuse('EISDIR');
+  rmSync(authorityPath, { recursive: true });
+  writeFileSync(authorityPath, new Uint8Array([0xff]));
+  await refuse('Browser membership authority is not UTF-8');
+  writeFileSync(authorityPath, '{');
+  await refuse('Browser membership authority JSON is malformed');
+  for (const altered of [
+    { ...authority, schemaVersion: 2 },
+    { ...authority, extra: true },
+    { ...authority, memberships: [...authority.memberships, { level: 'api', kind: 'unknown' }] },
+    { ...authority, memberships: [...authority.memberships.slice(1), authority.memberships[1]] },
+    { ...authority, memberships: authority.memberships.slice(1) },
+    {
+      ...authority,
+      memberships: [...authority.memberships.slice(1), { level: 'manual', kind: 'empty' }],
+    },
+    {
+      ...authority,
+      memberships: [
+        ...authority.memberships.slice(1),
+        { level: 'manual', kind: 'unknown', files: [] },
+      ],
+    },
+  ]) {
+    writeFileSync(authorityPath, JSON.stringify(altered));
+    await refuse('Browser membership authority');
+  }
+  for (const [key, value, expected] of [
+    ['candidate', '0'.repeat(64), 'candidate'],
+    ['revision', '0'.repeat(40), 'revision'],
+    ['mode', 'portable', 'mode'],
+    ['reportObservationDigest', '0'.repeat(64), 'report digest'],
+  ]) {
+    writeFileSync(authorityPath, JSON.stringify({ ...authority, [key]: value }));
+    await refuse(`Browser membership authority ${expected} differs from report`);
+  }
+});
+
+test('[TEST-AXES-095] Browser memberships preserve upstream refusal and reject unsupported operands', async () => {
+  const setup = fixture();
+  const { authorityPath } = await writeMembershipAuthority(setup);
+  for (const args of [
+    ['inspect-browser-memberships'],
+    [
+      'inspect-browser-memberships',
+      setup.root,
+      setup.revision,
+      setup.policyPath,
+      'other',
+      authorityPath,
+    ],
+    [
+      'inspect-browser-memberships',
+      setup.root,
+      setup.revision,
+      setup.policyPath,
+      mode,
+      authorityPath,
+      'extra',
+    ],
+  ]) {
+    const call = await invokeCli(args);
+    expect(call.exitCode).toBe(1);
+    expect(call.stdout).toBe('');
+    expect(call.stderr).toContain('usage: twilight-burokrat inspect-browser-memberships');
+  }
+  const symbolic = await invokeCli([
+    'inspect-browser-memberships',
+    setup.root,
+    'HEAD',
+    setup.policyPath,
+    mode,
+    authorityPath,
+  ]);
+  expect(symbolic.exitCode).toBe(1);
+  expect(symbolic.stdout).toBe('');
+  expect(symbolic.stderr).toContain('test report selection requires a full committed SHA');
+  writeFileSync(join(setup.bundle, 'report.xml'), 'broken');
+  const broken = await inspectMemberships(setup, authorityPath);
+  expect(broken.exitCode).toBe(1);
+  expect(broken.stdout).toBe('');
+  expect(broken.stderr).toContain('Browser normalized report digest or path differs');
+});
+
+test('[TEST-AXES-095] installed Browser memberships dispatches exact report and named usage', async () => {
+  const setup = fixture();
+  const { report, authorityPath } = await writeMembershipAuthority(setup);
+  const packageRoot = mkdtempSync(join(tmpdir(), 'browser-memberships-package-'));
+  scratch.push(packageRoot);
+  await buildPackage(packageRoot);
+  const executable = join(packageRoot, 'dist/bin.mjs');
+  const call = Bun.spawnSync(
+    [
+      process.execPath,
+      executable,
+      'inspect-browser-memberships',
+      setup.root,
+      setup.revision,
+      setup.policyPath,
+      mode,
+      authorityPath,
+    ],
+    { stdout: 'pipe', stderr: 'pipe' },
+  );
+  expect(call.exitCode, call.stderr.toString()).toBe(0);
+  expect((JSON.parse(call.stdout.toString()) as Record<string, unknown>)['report']).toEqual(report);
+  const unsupported = Bun.spawnSync([process.execPath, executable, 'inspect-browser-memberships'], {
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  expect(unsupported.exitCode).toBe(1);
+  expect(unsupported.stderr.toString()).toContain(
+    'usage: twilight-burokrat inspect-browser-memberships',
+  );
+}, 120_000);

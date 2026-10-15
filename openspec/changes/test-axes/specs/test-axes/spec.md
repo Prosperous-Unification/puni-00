@@ -744,3 +744,25 @@ The six existing find-based Memory Unit/Conformance, SQLite API/Unit/Conformance
 - **THEN** it succeeds without executing a decoy and writes fresh JUnit containing exactly the selected canonical passing identities
 - **AND** Unit and API select two files, Conformance selects its source filename, and Memory Unit excludes its Conformance fixture
 - **AND** removing exactly one leading `./` preserves canonical collection identities without stripping a second prefix
+
+### Requirement: Browser membership review facts preserve unknown earlier rows
+
+The `inspect-browser-memberships` diagnostic SHALL consume the real Browser report inspector and strict external version-1 authority pinned to its exact committed revision, candidate, mode and report observation digest. The authority SHALL name each earlier Manual, Conformance, Architecture and Performance row exactly once, with either `unknown` or `reviewed-empty` state. Missing, duplicate or unsupported rows and states SHALL refuse. These are explicit external review assertions over the complete recorded Browser fixture collection, not discovered membership, authenticated reviews or classification authority. The observation SHALL retain complete source-bound report cases, sorted unique collection paths, all review states, both upstream authority/report identities, authentication absent, certifies false and a full-payload digest. It SHALL provide no classification, isolation, T1/T2 or coverage claim.
+
+#### Scenario: [TEST-AXES-093] Browser review states bind the exact real recorded collection
+
+- **GIVEN** a real immutable Browser bundle and an exact-bound external review authority with both unknown and reviewed-empty earlier rows
+- **WHEN** source or installed Browser membership inspection runs
+- **THEN** it preserves both states, all source-bound case identities and outcomes, the complete sorted collection and full-envelope digest without classifying tests or awarding credit
+
+#### Scenario: [TEST-AXES-094] Browser membership authority refuses incomplete or inconsistent review facts
+
+- **GIVEN** absent, unreadable, malformed or invalid authority, changed candidate, revision, mode or report digest, or missing, duplicate or unsupported membership row or state
+- **WHEN** the production diagnostic runs
+- **THEN** it refuses without success JSON at the responsible boundary
+
+#### Scenario: [TEST-AXES-095] Browser membership inspection preserves upstream refusals and bounded dispatch
+
+- **GIVEN** unsupported CLI operands, invalid committed selection or broken Browser evidence
+- **WHEN** source or installed Browser membership dispatch runs
+- **THEN** it preserves named usage and upstream refusals without JSON or promotion
