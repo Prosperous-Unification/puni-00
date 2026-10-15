@@ -7,6 +7,19 @@ for (const organization of ['org-a', 'org-b']) {
   backend.organization(organization);
   backend.member(organization, 'ada', 'super_admin');
 }
+await backend.register('token-admin');
+backend.organization('org-tokens');
+backend.member('org-tokens', 'token-admin', 'super_admin');
+backend.sqlite.run(
+  `INSERT INTO organization_domain_claim (id, organization_id, domain, status, proof_digest, last_success_at, created_at)
+   VALUES ('claim-tokens', 'org-tokens', 'tokens.test', 'verified', ?, 1, 1)`,
+  ['a'.repeat(64)],
+);
+backend.sqlite.run(
+  `INSERT INTO organization_sso_connection (id, organization_id, domain_claim_id, auth0_connection, strategy, login_slug, proven_at, proven_by, created_at)
+   VALUES ('conn-tokens', 'org-tokens', 'claim-tokens', 'tokens-saml', 'samlp', 'tokens', 1, ?, 1)`,
+  [backend.userId('token-admin')],
+);
 backend.activate();
 const server = Bun.serve({
   port: 7300,
