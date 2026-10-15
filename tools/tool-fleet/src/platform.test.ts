@@ -972,3 +972,35 @@ describe('OTLP client trust reload', () => {
     expect(validatePlatform(root)).rejects.toThrow(/OTLP/);
   });
 });
+
+describe('OTLP effective queue and destination', () => {
+  for (const [name, before, after] of [
+    ['empty persistent host path', 'path: /var/lib/puni-otelcol', "path: ''"],
+    [
+      'disconnected state mount',
+      '{ name: state, mountPath: /var/lib/otelcol }',
+      '{ name: state, mountPath: /var/lib/otelcol-other }',
+    ],
+    [
+      'read-only state mount',
+      '{ name: state, mountPath: /var/lib/otelcol }',
+      '{ name: state, mountPath: /var/lib/otelcol, readOnly: true }',
+    ],
+    [
+      'disconnected exporter endpoint',
+      'endpoint: ${env:PUNI_TELEMETRY_UPSTREAM}',
+      'endpoint: otel-gateway.puni.internal:30417',
+    ],
+    [
+      'checkpoint consumer using queue storage',
+      'storage: file_storage/checkpoints',
+      'storage: file_storage/queue',
+    ],
+  ] as const) {
+    it(`rejects ${name}`, async () => {
+      const root = await mutablePlatform();
+      await replaceManifestText(root, 'infra/platform/telemetry/agent/agent.yaml', before, after);
+      expect(validatePlatform(root)).rejects.toThrow(/OTLP/);
+    });
+  }
+});

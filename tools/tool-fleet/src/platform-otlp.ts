@@ -26,9 +26,15 @@ const ServerTls = type({
 });
 // Proof: bypassing assertOtlpTransport made all five runtime wiring negatives resolve on 2026-10-15.
 const RuntimeMounts = {
-  extraVolumes: type({ name: 'string', 'secret?': { secretName: 'string' } }).array(),
+  extraVolumes: type({
+    name: 'string',
+    'secret?': { secretName: 'string' },
+    'hostPath?': { path: 'string', type: 'string' },
+  }).array(),
   extraVolumeMounts: type({ name: 'string', mountPath: 'string', 'readOnly?': 'boolean' }).array(),
 };
+// Proof: bypassing assertOtlpTransport made endpoint, checkpoint-consumer and persistent-state
+// mutations resolve in the five OTLP effective queue/destination tests on 2026-10-15.
 const Agent = type({
   spec: {
     values: {
@@ -38,12 +44,14 @@ const Agent = type({
         valueFrom: { configMapKeyRef: { name: 'string', key: 'string' } },
       }).array(),
       alternateConfig: {
+        receivers: { filelog: { storage: "'file_storage/checkpoints'" } },
         extensions: {
           'file_storage/queue': { directory: "'/var/lib/otelcol/queue'" },
           'file_storage/checkpoints': { directory: "'/var/lib/otelcol/checkpoints'" },
         },
         exporters: {
           otlp: {
+            endpoint: "'${env:PUNI_TELEMETRY_UPSTREAM}'",
             tls: ClientTls,
             sending_queue: { enabled: 'true', storage: "'file_storage/queue'", queue_size: '5000' },
           },
@@ -268,6 +276,18 @@ function assertRuntimeMounts(
   role: string,
   peer: string,
 ): void {
+  const states = runtime.extraVolumes.filter(
+    (volume) =>
+      volume.name === 'state' &&
+      volume.hostPath?.path === '/var/lib/puni-otelcol' &&
+      volume.hostPath.type === 'DirectoryOrCreate',
+  );
+  const mounts = runtime.extraVolumeMounts.filter(
+    (mount) =>
+      mount.name === 'state' && mount.mountPath === '/var/lib/otelcol' && mount.readOnly !== true,
+  );
+  if (states.length !== 1 || mounts.length !== 1)
+    throw new Error('OTLP runtime must preserve writable persistent host state');
   if (runtime.extraVolumes.some((volume) => volume.secret?.secretName.endsWith('-ca'))) {
     throw new Error('OTLP runtime cannot mount a signing key');
   }
