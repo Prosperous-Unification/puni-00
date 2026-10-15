@@ -305,13 +305,16 @@ function createKindedCandidate(sources: Record<string, string>): {
  */
 function createTrustedModules(): string {
   const modules = scratch('twilight-rules-modules-');
-  // Proof: the former outside-root symlink made the scoped React CLI case refuse with
-  // 'trusted TypeScript compiler identity is unreadable' instead of reporting its F1 finding.
-  cpSync(
-    join(import.meta.dir, '..', '..', '..', '..', '..', '..', 'node_modules', 'typescript'),
-    join(modules, 'typescript'),
-    { recursive: true, dereference: true },
-  );
+  // Proof: copying only the compiler wrapper made the scoped React CLI case refuse with
+  // ENOENT for @typescript/old/package.json instead of reporting its F1 finding (2026-10-15).
+  for (const name of ['typescript', '@typescript/old']) {
+    mkdirSync(dirname(join(modules, name)), { recursive: true });
+    cpSync(
+      join(import.meta.dir, '..', '..', '..', '..', '..', '..', 'node_modules', name),
+      join(modules, name),
+      { recursive: true, dereference: true },
+    );
+  }
   mkdirSync(join(modules, '@tanstack', 'react-query'), { recursive: true });
   writeFileSync(
     join(modules, '@tanstack', 'react-query', 'package.json'),

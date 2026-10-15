@@ -1,5 +1,5 @@
 import { cpSync, lstatSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 
 import { hashBytes } from '../evidence/content-manifest';
 import { RelocationRefusal } from './relocation-refusal';
@@ -9,64 +9,186 @@ import { RelocationRefusal } from './relocation-refusal';
  * @throws {@link RelocationRefusal} `R19` naming the path.
  */
 export function packageDirectory(modulesRoot: string, name: string): string {
-  const path = join(modulesRoot, ...name.split('/'));
-  let stats: ReturnType<typeof lstatSync>;
-  try {
-    stats = lstatSync(path);
-  } catch (cause) {
-    // Proof: rethrowing this `lstat` failure unwrapped let the absent-module negative observe
-    // `ENOENT: no such file or directory, lstat '<candidate>/node_modules/typescript'` instead of
-    // the named refusal, so the operator was sent to Node's message and not to the missing install.
-    throw new RelocationRefusal('R19', `trusted node module is absent or a symlink: ${path}`, {
-      cause,
-    });
-  }
-  // Proof: forcing this refusal false let the archive copy symlinked packages out of the
-  // candidate's installed tree; the R19 negative expected exit 1 and received 0 with a complete
-  // archive.
-  if (!stats.isDirectory()) {
-    throw new RelocationRefusal('R19', `trusted node module is absent or a symlink: ${path}`);
+  let path = modulesRoot;
+  for (const segment of name.split('/')) {
+    path = join(path, segment);
+    let stats: ReturnType<typeof lstatSync>;
+    try {
+      stats = lstatSync(path);
+    } catch (cause) {
+      // Proof: rethrowing this lstat failure unwrapped lost the R19 missing-install diagnostic
+      // in the relocation absent-module production negative.
+      throw new RelocationRefusal('R19', `trusted node module is absent or a symlink: ${path}`, {
+        cause,
+      });
+    }
+    // Proof: inspecting only the final directory admitted vendor/node_modules and scoped-parent
+    // symlinks to ambient packages; both trusted-modules production-path negatives returned names.
+    if (!stats.isDirectory()) {
+      throw new RelocationRefusal('R19', `trusted node module is absent or a symlink: ${path}`);
+    }
   }
   return path;
 }
 
 /**
- * The transitive `dependencies` closure of `typescript` as the tree installed it, sorted.
- *
- * This closure is a role a relocation activation and a toolkit release both derive from an
- * installed tree, and both must derive it identically: a toolkit's `trusted-node-modules` and a
- * relocation archive's are the same role, and a consumer's launcher cannot tell them apart.
- * {@link hashTrustedModules} is what pins the bytes once they are copied.
- * @throws {@link RelocationRefusal} `R19` for a member that is absent or not a directory.
+ * Release-owned declaration roots. Package, toolkit and relocation builds derive the same
+ * installed dependency instances from these roots; candidate imports never extend this list.
+ * Reviewed against the 21 TypeScript configs in the WBS diagnostic policy at 7e160ba6911504d8.
+ * Includes recursively reached testing helpers and explicit declaration peers @sinclair/typebox,
+ * openapi-types and @testing-library/dom; optional peer dependencies never widen the roots.
+ */
+export const trustedDeclarationRoots = [
+  '@ark/schema',
+  '@modelcontextprotocol/sdk',
+  '@noble/hashes',
+  '@opentelemetry/api',
+  '@opentelemetry/exporter-prometheus',
+  '@opentelemetry/sdk-metrics',
+  '@radix-ui/react-dialog',
+  '@sinclair/typebox',
+  '@tanstack/react-router',
+  '@tanstack/react-table',
+  '@tanstack/table-core',
+  '@testing-library/dom',
+  '@testing-library/react',
+  '@types/hast',
+  '@types/react',
+  '@types/react-dom',
+  'ajv',
+  'application-exception',
+  'arktype',
+  'bun-types',
+  'class-variance-authority',
+  'clsx',
+  'di-bag',
+  'drizzle-orm',
+  'elysia',
+  'jose',
+  'openapi-types',
+  'openid-client',
+  'pino',
+  'react',
+  'react-dom',
+  'react-markdown',
+  'remark-gfm',
+  'saxes',
+  'tailwind-merge',
+  'tldts',
+  'typescript',
+  'vite',
+  'vitest',
+  'zod',
+] as const;
+
+/**
+ * Finds a dependency using Node's ancestor lookup, bounded by the trusted installation.
+ * Nested instances keep their installed path so declaration imports resolve to the same version.
+ */
+function resolveDependency(modulesRoot: string, importer: string, dependency: string): string {
+  let directory = importer;
+  while (directory !== modulesRoot) {
+    if (!directory.endsWith('/node_modules')) {
+      const path = join(directory, 'node_modules', dependency);
+      try {
+        lstatSync(path);
+      } catch (cause) {
+        if (!(cause instanceof Error) || !('code' in cause) || cause.code !== 'ENOENT') throw cause;
+        directory = dirname(directory);
+        continue;
+      }
+      return relative(modulesRoot, packageDirectory(join(directory, 'node_modules'), dependency));
+    }
+    directory = dirname(directory);
+  }
+  return relative(modulesRoot, packageDirectory(modulesRoot, dependency));
+}
+
+/**
+ * Sorted package paths for the transitive `dependencies` closure of
+ * {@link trustedDeclarationRoots}, resolving each dependency from its installed importer.
+ * Paths include nested `node_modules` segments where the lockfile installed another instance.
+ * {@link hashTrustedModules} pins the copied bytes for every producer and consumer.
+ * @throws {@link RelocationRefusal} `R19` for an absent or non-directory package.
+ * @throws Error for unreadable or malformed installed manifests.
  */
 export function trustedModuleNames(modulesRoot: string): string[] {
   const names = new Set<string>();
-  const pending = ['typescript'];
-  while (pending.length > 0) {
-    const name = pending.pop();
-    if (name === undefined || names.has(name)) continue;
+  // Check the compiler first so a missing installation keeps the established compiler refusal.
+  const pending: string[] = [
+    'typescript',
+    ...trustedDeclarationRoots.filter((name) => name !== 'typescript'),
+  ];
+  for (const name of pending) {
+    if (names.has(name)) continue;
     names.add(name);
-    // The installed manifest is the tree's own lockfile-pinned bytes; only its dependency names
-    // are read, and an absent or malformed file throws rather than widening the closure.
-    const manifest = JSON.parse(
-      readFileSync(join(packageDirectory(modulesRoot, name), 'package.json'), 'utf8'),
-    ) as { dependencies?: Record<string, string> };
-    for (const dependency of Object.keys(manifest.dependencies ?? {})) pending.push(dependency);
+    const directory = packageDirectory(modulesRoot, name);
+    // Installed package manifests are a package-manager boundary. Only `dependencies` is
+    // consumed; JSON shape and dependency names are checked before they become filesystem paths.
+    const manifest: unknown = JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8'));
+    // Proof: bypassing manifest shape admitted [] and lost the named null refusal in
+    // trusted-modules.test.ts; both malformed-manifest negatives failed.
+    if (typeof manifest !== 'object' || manifest === null || Array.isArray(manifest)) {
+      throw new Error(`trusted node module manifest is malformed: ${name}`);
+    }
+    if (!('dependencies' in manifest)) continue;
+    const dependencies = manifest.dependencies;
+    // Proof: bypassing dependency-map shape admitted [] and lost the named null refusal;
+    // the malformed dependency-map production-path negatives failed.
+    if (typeof dependencies !== 'object' || dependencies === null || Array.isArray(dependencies)) {
+      throw new Error(`trusted node module dependencies are malformed: ${name}`);
+    }
+    for (const [dependency, version] of Object.entries(dependencies)) {
+      // Proof: bypassing this boundary lost the named refusal for ../../escape and a numeric
+      // version in the malformed-dependency production-path negatives.
+      if (
+        !/^(?:@[a-z0-9_.-]+\/)?[a-z0-9_][a-z0-9_.-]*$/i.test(dependency) ||
+        typeof version !== 'string'
+      ) {
+        throw new Error(`trusted node module dependency is malformed: ${name}: ${dependency}`);
+      }
+      pending.push(resolveDependency(modulesRoot, directory, dependency));
+    }
   }
   return [...names].sort();
 }
 
-/** Copies the named packages under `destination`, preserving symlinks rather than following them. */
+/** Installed metadata paths that Bun pack always omits; these are never compiler/runtime inputs. */
+const omittedPackageMetadata = new Set([
+  'elysia/bunfig.toml',
+  'exact-mirror/bunfig.toml',
+  'memoirist/bunfig.toml',
+  'isexe/.npmignore',
+  'stackback/.npmignore',
+]);
+
+/**
+ * Copies only named package instances, preserving installed topology. Nested `node_modules`
+ * are copied from the explicit closure entries so unrelated nested packages cannot enter it.
+ * Only {@link omittedPackageMetadata} is excluded before hashing to match Bun pack's transport;
+ * declarations and runtime assets retain their installed bytes.
+ */
 export function copyTrustedModules(
   destination: string,
   modulesRoot: string,
   names: readonly string[],
 ): void {
   mkdirSync(destination, { recursive: true });
-  for (const name of names) {
+  for (const name of [...names].sort()) {
+    const source = packageDirectory(modulesRoot, name);
     const target = join(destination, ...name.split('/'));
     mkdirSync(dirname(target), { recursive: true });
-    cpSync(packageDirectory(modulesRoot, name), target, { dereference: false, recursive: true });
+    cpSync(source, target, {
+      dereference: false,
+      recursive: true,
+      // Proof: copying nested node_modules wholesale admitted unrelated; the topology
+      // production-path test failed its expected missing unrelated/package.json assertion.
+      filter: (path) =>
+        !relative(source, path).split('/').includes('node_modules') &&
+        // Proof: retaining Bun-only metadata broke the packed-command closure digest; the
+        // canonical-copy test first failed because elysia/bunfig.toml remained present.
+        !omittedPackageMetadata.has(relative(modulesRoot, path)),
+    });
   }
 }
 

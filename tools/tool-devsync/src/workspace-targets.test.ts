@@ -12,6 +12,7 @@ import {
   InProcessTaskHasher,
 } from 'nx/src/hasher/task-hasher';
 import { getFileMap } from 'nx/src/project-graph/build-project-graph';
+import { createTaskGraph } from 'nx/src/tasks-runner/create-task-graph';
 import ts from 'typescript';
 
 import { readProjects } from '../workspace-projects.mjs';
@@ -774,6 +775,20 @@ describe('every Vitest command states its own time budgets', () => {
 });
 
 describe('every cached target declares what it reads', () => {
+  it('never caches Burokrat checks of installed trusted package bytes', async () => {
+    const projectGraph = await createProjectGraphAsync({ exitOnError: true });
+    const taskGraph = createTaskGraph(
+      projectGraph,
+      {},
+      ['twilight-burokrat'],
+      ['test'],
+      undefined,
+      {},
+    );
+    // Proof: restoring cache:true made Nx's native task graph report true here (2026-10-15).
+    expect(taskGraph.tasks['twilight-burokrat:test'].cache).toBe(false);
+  });
+
   it('hashes Navigator subprocess contract dependencies in Burokrat tests', async () => {
     const nxJson = JSON.parse(
       await readFile(new URL('nx.json', WORKSPACE), 'utf8'),
@@ -879,6 +894,9 @@ describe('every cached target declares what it reads', () => {
 
     const undeclared: string[] = [];
     for (const { dir, config } of await projectsOnDisk()) {
+      // Installed trusted package bytes are outside Nx's tracked file map. Explicitly
+      // uncached suites always execute; the native task-graph check above pins that choice.
+      if (config.targets['test']?.cache === false) continue;
       const reads = await outsideReads(dir);
       if (reads.length === 0) continue;
       const declared = [...(config.targets['test']?.inputs ?? []), ...(shared ?? [])]
