@@ -8,6 +8,7 @@ import {
   rmSync,
 } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { stripVTControlCharacters } from 'node:util';
 
 import { storedStepBlockageReplayKindsCommand } from '@tools/docker';
 import { Database } from 'bun:sqlite';
@@ -16,11 +17,25 @@ import { afterEach, expect, it } from 'bun:test';
 import { buildReplayInventoryCommand } from './replay-capability';
 
 function diagnostics(stderr: string): string {
-  return stderr
+  // Proof: FORCE_COLOR=1 made the real missing-marker child emit ANSI and this parser return empty; stripping formatting restored its named diagnostic.
+  return stripVTControlCharacters(stderr)
     .split('\n')
     .filter((line) => /^(?:SQLiteError|error): /.test(line))
     .join('\n');
 }
+
+it('extracts colored diagnostics without accepting source excerpts', () => {
+  const escape = String.fromCharCode(27);
+  const stderr = [
+    `1 | throw new Error('source-only witness');`,
+    `${escape}[31merror${escape}[0m: missing-marker witness`,
+    `${escape}[31mSQLiteError${escape}[0m: unreadable witness`,
+    'at source-only witness (fixture.ts:1:1)',
+  ].join('\n');
+  expect(diagnostics(stderr)).toBe(
+    'error: missing-marker witness\nSQLiteError: unreadable witness',
+  );
+});
 
 const backend = resolve(import.meta.dir, '../../../../apps/wbs/be-01');
 const migrations = join(backend, 'drizzle');
@@ -83,7 +98,7 @@ for (const [name, command] of [
     db.close();
     const child = Bun.spawnSync({
       cmd: [...command()],
-      env: { ...process.env, DB_PATH: path },
+      env: { ...process.env, DB_PATH: path, FORCE_COLOR: '1' },
       stdout: 'pipe',
       stderr: 'pipe',
     });
@@ -166,7 +181,7 @@ for (const [name, command] of [
       db.close();
       const child = Bun.spawnSync({
         cmd: [...command()],
-        env: { ...process.env, DB_PATH: path },
+        env: { ...process.env, DB_PATH: path, FORCE_COLOR: '1' },
         stdout: 'pipe',
         stderr: 'pipe',
       });
@@ -221,7 +236,7 @@ for (const [name, command] of [
     db.close();
     const child = Bun.spawnSync({
       cmd: [...command()],
-      env: { ...process.env, DB_PATH: path },
+      env: { ...process.env, DB_PATH: path, FORCE_COLOR: '1' },
       stdout: 'pipe',
       stderr: 'pipe',
     });
@@ -238,7 +253,7 @@ for (const [name, command] of [
     const before = readFileSync(path);
     const child = Bun.spawnSync({
       cmd: [...command()],
-      env: { ...process.env, DB_PATH: path },
+      env: { ...process.env, DB_PATH: path, FORCE_COLOR: '1' },
       stdout: 'pipe',
       stderr: 'pipe',
     });
@@ -290,7 +305,7 @@ for (const [name, command] of [
       db.close();
       const child = Bun.spawnSync({
         cmd: [...command()],
-        env: { ...process.env, DB_PATH: path },
+        env: { ...process.env, DB_PATH: path, FORCE_COLOR: '1' },
         stdout: 'pipe',
         stderr: 'pipe',
       });
@@ -326,7 +341,7 @@ for (const [name, command] of [
       try {
         const child = Bun.spawnSync({
           cmd: [...command()],
-          env: { ...process.env, DB_PATH: path },
+          env: { ...process.env, DB_PATH: path, FORCE_COLOR: '1' },
           stdout: 'pipe',
           stderr: 'pipe',
         });
@@ -365,7 +380,7 @@ for (const [name, command] of [
       const before = readFileSync(path);
       const child = Bun.spawnSync({
         cmd: [...command()],
-        env: { ...process.env, DB_PATH: path },
+        env: { ...process.env, DB_PATH: path, FORCE_COLOR: '1' },
         stdout: 'pipe',
         stderr: 'pipe',
       });
@@ -414,7 +429,7 @@ for (const [name, command] of [
       db.close();
       const child = Bun.spawnSync({
         cmd: [...command()],
-        env: { ...process.env, DB_PATH: path },
+        env: { ...process.env, DB_PATH: path, FORCE_COLOR: '1' },
         stdout: 'pipe',
         stderr: 'pipe',
       });
@@ -438,7 +453,7 @@ for (const [name, command] of [
     db.close();
     const child = Bun.spawnSync({
       cmd: [...command()],
-      env: { ...process.env, DB_PATH: path },
+      env: { ...process.env, DB_PATH: path, FORCE_COLOR: '1' },
       stdout: 'pipe',
       stderr: 'pipe',
     });
@@ -463,7 +478,7 @@ for (const [name, command] of [
     db.close();
     const child = Bun.spawnSync({
       cmd: [...command()],
-      env: { ...process.env, DB_PATH: path },
+      env: { ...process.env, DB_PATH: path, FORCE_COLOR: '1' },
       stdout: 'pipe',
       stderr: 'pipe',
     });
@@ -484,7 +499,7 @@ for (const [name, command] of [
     db.close();
     const child = Bun.spawnSync({
       cmd: [...command()],
-      env: { ...process.env, DB_PATH: path },
+      env: { ...process.env, DB_PATH: path, FORCE_COLOR: '1' },
       stdout: 'pipe',
       stderr: 'pipe',
     });
