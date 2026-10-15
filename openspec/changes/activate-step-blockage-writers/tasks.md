@@ -4,6 +4,8 @@
 - [x] 1.2 Add atomic exact receipt transition and inspect — test: receipt DB suite; negative: receipt insert failure rolls back marker, changed authority and conflicting retry refuse.
 - [x] 1.3 Add strict existing-file image-local CLI — test: activation CLI suite; negative: absent DB_PATH, missing database, malformed receipt and unexpected arguments refuse; inspect leaves file bytes unchanged.
 
+- [x] 1.4 Validate exact receipt schema before accepting even empty authority — test: malformed empty receipt schema DB and CLI suites; negative: removing schema validation admits inspect/activation despite missing or weakened constraints.
+
 ## 2. Deployment admission
 
 - [ ] 2.1 Add step_blockage_activation_v1 image capability and independent enabled-empty inventory for Compose/Kubernetes — test: candidate/rollback incompatibility negatives and empty ENABLED inventory.

@@ -4,6 +4,8 @@ import type { Drizzle } from './db';
 import { readStepBlockageActivation } from './step-blockage-activation';
 
 const MIGRATION = '20261015100000_add_step_blockage_activation_receipt';
+const SCHEMA =
+  'CREATE TABLE step_blockage_activation_receipt ( id INTEGER PRIMARY KEY NOT NULL CHECK (id = 1), receipt TEXT NOT NULL CHECK (json_valid(receipt)) )';
 const IMAGE = /^[^\s@]+@sha256:[0-9a-f]{64}$/;
 const KEYS = [
   'protocol',
@@ -74,6 +76,7 @@ export function parseStepBlockageReceipt(receipt: unknown): StepBlockageReceipt 
 
 /**
  * Reads validated authority without writes. Legacy ENABLED without a receipt is ambiguous and throws.
+ * Checks the exact constrained receipt table before reading even an empty table.
  * Missing/unreadable migration, marker, trigger or receipt authority throws.
  */
 export function inspectStepBlockageReceipt(db: Drizzle): StepBlockageReceiptInspection {
@@ -81,6 +84,17 @@ export function inspectStepBlockageReceipt(db: Drizzle): StepBlockageReceiptInsp
   const ledger = db.all(sql`SELECT name FROM __drizzle_migrations WHERE name = ${MIGRATION}`);
   // Proof: omitting the ledger check admitted missing-receipt-ledger authority through inspect.
   if (ledger.length !== 1) throw new Error('missing step blockage receipt migration');
+  const schemas = db.all<{ sql: unknown }>(
+    "SELECT sql FROM sqlite_master WHERE type='table' AND name='step_blockage_activation_receipt'",
+  );
+  const definition = schemas.at(0)?.sql;
+  // Proof: removing this check admitted 13 empty-table/view DB and CLI negatives, including activation committing ENABLED with no constraints (2026-10-15).
+  if (
+    schemas.length !== 1 ||
+    typeof definition !== 'string' ||
+    definition.replace(/\s+/g, ' ').trim() !== SCHEMA
+  )
+    throw new Error('invalid step blockage receipt schema');
   const receipts = db.all<{ id: unknown; receipt: unknown }>(
     'SELECT id,receipt FROM step_blockage_activation_receipt',
   );

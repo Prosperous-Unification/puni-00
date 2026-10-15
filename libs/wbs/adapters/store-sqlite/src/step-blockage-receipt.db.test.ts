@@ -214,7 +214,9 @@ for (const fault of ['duplicate', 'wrong-id', 'nonstring'] as const) {
         );
       if (fault === 'nonstring')
         connection.db.run('UPDATE step_blockage_activation_receipt SET receipt=17');
-      expect(() => activateStepBlockages(connection.db, receipt)).toThrow('no exact receipt');
+      expect(() => activateStepBlockages(connection.db, receipt)).toThrow(
+        'invalid step blockage receipt schema',
+      );
     } finally {
       connection.close();
     }
@@ -268,6 +270,58 @@ it('compares receipt identity independently of object property insertion order',
     };
     expect(activateStepBlockages(connection.db, reordered)).toEqual({ state: 'ENABLED', receipt });
     expect(activateStepBlockages(connection.db, receipt)).toEqual({ state: 'ENABLED', receipt });
+  } finally {
+    connection.close();
+  }
+});
+
+for (const schema of [
+  'CREATE TABLE step_blockage_activation_receipt (id, receipt)',
+  'CREATE TABLE step_blockage_activation_receipt (id INTEGER NOT NULL CHECK (id = 1), receipt TEXT NOT NULL CHECK (json_valid(receipt)))',
+  'CREATE TABLE step_blockage_activation_receipt (id INTEGER PRIMARY KEY CHECK (id = 1), receipt TEXT NOT NULL CHECK (json_valid(receipt)))',
+  'CREATE TABLE step_blockage_activation_receipt (id INTEGER PRIMARY KEY NOT NULL, receipt TEXT NOT NULL CHECK (json_valid(receipt)))',
+  'CREATE TABLE step_blockage_activation_receipt (id INTEGER PRIMARY KEY NOT NULL CHECK (id = 2), receipt TEXT NOT NULL CHECK (json_valid(receipt)))',
+  'CREATE TABLE step_blockage_activation_receipt (id INTEGER PRIMARY KEY NOT NULL CHECK (id = 1), receipt TEXT CHECK (json_valid(receipt)))',
+  'CREATE TABLE step_blockage_activation_receipt (id INTEGER PRIMARY KEY NOT NULL CHECK (id = 1), receipt TEXT NOT NULL)',
+  'CREATE TABLE step_blockage_activation_receipt (id INTEGER PRIMARY KEY NOT NULL CHECK (id = 1), receipt TEXT NOT NULL CHECK (1))',
+  'CREATE TABLE step_blockage_activation_receipt (id INTEGER PRIMARY KEY NOT NULL CHECK (id = 1), receipt TEXT NOT NULL CHECK (json_valid(receipt)), extra TEXT)',
+  "CREATE VIEW step_blockage_activation_receipt AS SELECT 1 AS id, '{}' AS receipt WHERE 0",
+]) {
+  it(`refuses malformed empty receipt schema: ${schema}`, () => {
+    const connection = openConnection(path);
+    try {
+      connection.db.run('DROP TABLE step_blockage_activation_receipt');
+      connection.db.run(schema);
+      const markers = connection.db.all('SELECT * FROM step_blockage_activation');
+      const ledger = connection.db.all('SELECT * FROM __drizzle_migrations');
+      expect(() => inspectStepBlockageReceipt(connection.db)).toThrow(
+        'invalid step blockage receipt schema',
+      );
+      expect(() => activateStepBlockages(connection.db, receipt)).toThrow(
+        'invalid step blockage receipt schema',
+      );
+      expect(connection.db.all('SELECT * FROM step_blockage_activation')).toEqual(markers);
+      expect(connection.db.all('SELECT * FROM __drizzle_migrations')).toEqual(ledger);
+      expect(connection.db.all('SELECT * FROM step_blockage_activation_receipt')).toEqual([]);
+    } finally {
+      connection.close();
+    }
+  });
+}
+
+it('refuses activation on an unconstrained empty receipt table without changing authority', () => {
+  const connection = openConnection(path);
+  try {
+    connection.db.run('DROP TABLE step_blockage_activation_receipt');
+    connection.db.run('CREATE TABLE step_blockage_activation_receipt (id, receipt)');
+    const markers = connection.db.all('SELECT * FROM step_blockage_activation');
+    const ledger = connection.db.all('SELECT * FROM __drizzle_migrations');
+    expect(() => activateStepBlockages(connection.db, receipt)).toThrow(
+      'invalid step blockage receipt schema',
+    );
+    expect(connection.db.all('SELECT * FROM step_blockage_activation')).toEqual(markers);
+    expect(connection.db.all('SELECT * FROM __drizzle_migrations')).toEqual(ledger);
+    expect(connection.db.all('SELECT * FROM step_blockage_activation_receipt')).toEqual([]);
   } finally {
     connection.close();
   }

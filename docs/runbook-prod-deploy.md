@@ -598,7 +598,7 @@ enabled; the persistence checkpoint alone is not a deployable feature.
 
 ## Step blockage writer activation
 
-Migration `20261015100000_add_step_blockage_activation_receipt` adds receipt authority without enabling writers. Its down migration refuses an ENABLED marker, any retained receipt, or malformed marker authority, including an enabled database with no facts. A disabled database with no receipt can reverse this migration. Never disable the marker or delete a receipt to bypass rollback admission.
+Migration `20261015100000_add_step_blockage_activation_receipt` adds receipt authority without enabling writers. Its down migration refuses an ENABLED marker, any retained receipt, or malformed marker authority, including an enabled database with no facts. A disabled database with no receipt can reverse this migration. Image-local inspection and activation also require the exact constrained receipt table, even when it is empty; a matching ledger does not admit a missing, weakened or view-substituted schema. Never disable the marker or delete a receipt to bypass rollback admission.
 
 Activation requires two separate releases/windows. First deploy a capable release in preserve-only mode and prove the routed image and a retained rollback release both understand `step_blockage_activation_v1`. Later perform attended activation with those independently observed immutable images. An empty blockage table does not remove an ENABLED database's capability obligation. Kubernetes first-start must still observe DISABLED; it does not activate on startup.
 

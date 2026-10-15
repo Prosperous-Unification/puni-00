@@ -2,7 +2,7 @@ import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { openReadOnlyConnection } from '@wbs/store-sqlite/db';
+import { openExistingConnection, openReadOnlyConnection } from '@wbs/store-sqlite/db';
 import { runMigrations } from '@wbs/store-sqlite/migrate';
 import { afterEach, beforeEach, expect, setDefaultTimeout, test } from 'bun:test';
 
@@ -176,3 +176,19 @@ mock.module('@wbs/store-sqlite/step-blockage-receipt', () => ({
   expect(inspected.stderr.toString()).toContain('readonly');
   expect(state()).toEqual([{ id: 1, state: 'DISABLED' }]);
 });
+
+for (const command of ['inspect', 'activate'] as const) {
+  test(`CLI ${command} refuses malformed empty receipt schema without enabling writers`, () => {
+    const connection = openExistingConnection(path);
+    try {
+      connection.db.run('DROP TABLE step_blockage_activation_receipt');
+      connection.db.run('CREATE TABLE step_blockage_activation_receipt (id, receipt)');
+    } finally {
+      connection.close();
+    }
+    const refused = run(command === 'inspect' ? [command] : [command, file]);
+    expect(refused.exitCode).not.toBe(0);
+    expect(refused.stderr.toString()).toContain('invalid step blockage receipt schema');
+    expect(state()).toEqual([{ id: 1, state: 'DISABLED' }]);
+  });
+}

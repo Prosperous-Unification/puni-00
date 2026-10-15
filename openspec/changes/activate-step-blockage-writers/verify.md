@@ -1,7 +1,7 @@
 # Verification Report
 
 **Change:** `activate-step-blockage-writers`
-**Verified at:** `2026-10-15 17:13 UTC`
+**Verified at:** `2026-10-15 17:35 UTC`
 **Status:** Image-local prerequisite only; overall change incomplete and blocked from archive/release activation.
 
 ## 1. Structural Validation
@@ -14,7 +14,7 @@
 
 ## 2. Task Completion
 
-Tasks 1.1–1.3 are implemented. Tasks 2.1–2.3 remain unchecked and block activation and archive: independent enabled-empty capability inventories, candidate/rollback admission, explicit Compose activation/inspect orchestration, durable intent and uncertainty barriers, and Kubernetes admission while retaining first-start DISABLED.
+Tasks 1.1–1.4 are implemented. Tasks 2.1–2.3 remain unchecked and block activation and archive: independent enabled-empty capability inventories, candidate/rollback admission, explicit Compose activation/inspect orchestration, durable intent and uncertainty barriers, and Kubernetes admission while retaining first-start DISABLED.
 
 The runbook documents the two-stage prerequisite and identifies the missing host operation explicitly. No production activation, deployment, push or PR occurred.
 
@@ -60,7 +60,7 @@ Missing and unreadable database/receipt files have separate CLI cases. A reverse
 
 A chmod-only read-only fixture did not detect writable connection substitution; it is filesystem behavior coverage, not the read-only proof. The injected-write case above independently detected that substitution.
 
-## 5. Commands and Output
+## 5. Original Prerequisite Commands and Output (6093b326)
 
 Fresh scoped checks:
 
@@ -95,3 +95,26 @@ Base: `5c228a6a70b43faf225a0a49e5a511266f5dc058`. Isolated clone: `/tmp/puni-ste
 ## Decision
 
 The image-local prerequisite is reviewable. The full change is incomplete; retain tasks 2.1–2.3 and obtain Astra review before any integration, push, release or activation.
+
+## 7. Astra Review Correction: Empty Receipt Schema
+
+Review of `6093b326c73e5218fe511089b9e1bce9d08576f7` found that an intact ledger and empty replacement receipt table could pass inspection and activation without the table's constraints. The initial production-path regression reproduced 11 failures: ten malformed table/view definitions and image-local inspection. Independent direct activation and image-local activation cases were then added so an inspection assertion cannot mask activation behavior.
+
+Inspection now reads the physical table definition from `sqlite_master` before reading receipts or accepting DISABLED. It requires the migration's exact table definition with whitespace normalized, including INTEGER primary key, both NOT NULL constraints, the id=1 check and json_valid check. Missing, altered, unconstrained and view-substituted schemas refuse. The migration SQL and checksums were preserved.
+
+| Check                                                  | Fault injected                                                                  | Production-path observation                                                                         | Result                                                                                  |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Exact constrained receipt table before empty authority | Removed the new schema validation after installing malformed empty tables/views | Ten schema variants, independent direct activation, and separate image-local inspect/activate cases | All 13 negatives failed with the check removed; guard restored before regression checks |
+
+The earlier row-count/id/type mutation record describes the original `6093b326` implementation. Its deliberately unconstrained row fixtures now refuse at the schema boundary before row validation; their expected diagnostic was updated accordingly. Existing row guards remain in place.
+
+Fresh typecheck, ESLint, migration lint and OpenSpec validation each exited 0. The full affected-file regression exited 0:
+
+```text
+667 pass
+0 fail
+2358 expect() calls
+Ran 667 tests across 35 files. [303.07s]
+```
+
+Scoped formatting of every changed file passed (exit 0). Exact regression argv, output and exit status are retained at `/tmp/blockage-schema-affected-command.json`, `/tmp/blockage-schema-affected.log` and `/tmp/blockage-schema-affected-exit.json`. Static exits are `[0,0,0,0]` in `/tmp/blockage-schema-static-exit.json`. The full h2puni gate and image build remain unrun. Host/Kubernetes activation remains unimplemented and no production activation or push occurred.

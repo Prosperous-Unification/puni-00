@@ -29,6 +29,11 @@ The image-local command SHALL transition DISABLED to ENABLED and persist one val
 - **WHEN** the marker, trigger definitions, migration ledger, receipt schema or receipt content is missing or malformed
 - **THEN** activation refuses without changing authority
 
+#### Scenario: Empty malformed receipt schema
+
+- **WHEN** the migration ledger is intact and the receipt relation is empty but its required table constraints are missing or altered, or a view replaces the table
+- **THEN** both inspect and activate refuse without changing the activation marker, receipt rows or migration ledger
+
 ### Requirement: Guard receipt rollback
 
 The receipt migration SHALL preserve schema and ledger when activation is ENABLED or any receipt remains, including an enabled database containing zero facts.
