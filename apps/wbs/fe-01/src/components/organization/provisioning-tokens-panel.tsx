@@ -58,9 +58,9 @@ export function ProvisioningTokensPanel({
   const [confirmation, setConfirmation] = useState('');
   const [message, setMessage] = useState('');
   const [fault, setFault] = useState<Error | null>(null);
-  const pending = useRef(false);
+  const isPending = useRef(false);
   const generation = useRef(0);
-  const [sending, setSending] = useState(false);
+  const [isSending, setIsSending] = useState(false);
 
   const processRefusal = useCallback(
     (refusal: Refusal) => {
@@ -142,19 +142,19 @@ export function ProvisioningTokensPanel({
     [tokens, processRefusal],
   );
   const refresh = useCallback(async () => {
-    if (pending.current) return;
+    if (isPending.current) return;
     // Proof: omitting secret clearing failed `discards an issued secret on refresh` (2026-10-15).
     setSecret(null);
     setMessage('');
     setConfirmation('');
     setView({ kind: 'loading' });
     // Proof: removing this admission allowed the same-render Refresh→Issue test to post (2026-10-15).
-    pending.current = true;
+    isPending.current = true;
     const version = ++generation.current;
     try {
       await read(version);
     } finally {
-      if (version === generation.current) pending.current = false;
+      if (version === generation.current) isPending.current = false;
     }
   }, [read]);
   useEffect(() => {
@@ -164,17 +164,17 @@ export function ProvisioningTokensPanel({
     const version = generation;
     return () => {
       version.current++;
-      pending.current = false;
+      isPending.current = false;
     };
   }, [refresh]);
   if (fault !== null) throw fault;
 
   async function mutate(mutation: Mutation) {
     // Proof: removing pending admission here and in the form sent two held DELETEs in the forced-submit test (2026-10-15).
-    if (pending.current || view.kind !== 'ready') return;
-    pending.current = true;
+    if (isPending.current || view.kind !== 'ready') return;
+    isPending.current = true;
     const version = ++generation.current;
-    setSending(true);
+    setIsSending(true);
     // Proof: retaining the old secret failed the held-write withdrawal test before its reply (2026-10-15).
     setSecret(null);
     setMessage('');
@@ -226,8 +226,8 @@ export function ProvisioningTokensPanel({
         setFault(new Error('Unexpected provisioning token mutation failure', { cause }));
     } finally {
       if (version === generation.current) {
-        pending.current = false;
-        setSending(false);
+        isPending.current = false;
+        setIsSending(false);
       }
     }
   }
@@ -237,7 +237,7 @@ export function ProvisioningTokensPanel({
         type="button"
         variant="outline"
         className={`self-start ${CONTROL_HEIGHT}`}
-        disabled={sending || view.kind === 'loading'}
+        disabled={isSending || view.kind === 'loading'}
         onClick={() => {
           void refresh().catch((cause: unknown) => {
             setFault(new Error('Unexpected provisioning token refresh failure', { cause }));
@@ -261,7 +261,7 @@ export function ProvisioningTokensPanel({
           <Button
             type="button"
             className={`self-start ${CONTROL_HEIGHT}`}
-            disabled={sending}
+            disabled={isSending}
             onClick={() => void mutate({ kind: 'issue' })}
           >
             Issue provisioning token
@@ -280,14 +280,19 @@ export function ProvisioningTokensPanel({
                       : `Expires: ${new Date(token.expiresAt).toISOString()}`}
                   </p>
                   {token.revokedAt !== null ? (
-                    <p className={STATUS_CLASS}>Revoked</p>
+                    <>
+                      <p className={STATUS_CLASS}>Revoked</p>
+                      <p className={STATUS_CLASS}>
+                        Revoked at: {new Date(token.revokedAt).toISOString()}
+                      </p>
+                    </>
                   ) : (
                     <>
                       <Button
                         type="button"
                         variant="outline"
                         className={`self-start ${CONTROL_HEIGHT}`}
-                        disabled={sending}
+                        disabled={isSending}
                         aria-label={`Rotate ${token.id}`}
                         onClick={() => void mutate({ kind: 'rotate', id: token.id })}
                       >
@@ -297,7 +302,7 @@ export function ProvisioningTokensPanel({
                         className="flex flex-col gap-2"
                         onSubmit={(event) => {
                           event.preventDefault();
-                          if (pending.current) return;
+                          if (isPending.current) return;
                           // Proof: bypassing the exact comparison sent the wrong-confirmation DELETE instead of showing its error (2026-10-15).
                           if (confirmation !== token.id) {
                             setMessage('Enter the exact token ID to revoke it.');
@@ -310,7 +315,7 @@ export function ProvisioningTokensPanel({
                         <Input
                           id={`revoke-${token.id}`}
                           value={confirmation}
-                          disabled={sending}
+                          disabled={isSending}
                           onChange={(event) => {
                             setConfirmation(event.target.value);
                           }}
@@ -320,7 +325,7 @@ export function ProvisioningTokensPanel({
                           aria-label={`Revoke ${token.id}`}
                           variant="destructive"
                           className={`self-start ${CONTROL_HEIGHT}`}
-                          disabled={sending}
+                          disabled={isSending}
                         >
                           Revoke token
                         </Button>

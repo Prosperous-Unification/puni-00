@@ -353,3 +353,15 @@ Watched production-path faults (each restored):
 Two false-green test harness conditions were corrected before accepting the proofs: the duplicate test initially counted only the first mocked fetch, and the withdrawn-reply test initially withdrew before the async client reached fetch. The corrected tests count every write and wait until the request is held at fetch before withdrawing authority. The first unscoped fault rebuilt the client every render and did not terminate; it was cancelled, restored, and replaced with removal of the captured scope at the existing memoized client boundary.
 
 The first real browser attempt was unavailable because the sandbox denied the localhost listener (`EPERM listen`); it is rerun with socket access. Final browser, lint, typecheck and exact-SHA gate evidence follows after those runs.
+
+Final focused evidence:
+
+- `bunx vitest run src/components/organization/provisioning-tokens-panel.test.tsx src/components/organization/organization-page.test.tsx --maxWorkers=1` (from fe-01): 39 passed, zero failed.
+- `bun test apps/wbs/be-01/src/controller/provisioning-token.controller.db.test.ts`: nine passed, zero failed, 78 assertions.
+- `bunx tsc --build --force apps/wbs/fe-01/tsconfig.json`: exit 0.
+- Normal commit hooks on checkpoint `1023ef5388cb4c722ae74cfd6a57fd4710b36116`: format, staged lint, secrets, private nesting and tool-wiki command passed. Tool-wiki explicitly reported inactive external activation, not certified. No migration hook applied because no SQL changed.
+- Socket-enabled `bunx playwright test --config apps/wbs/fe-01/playwright.organization.config.ts -g 'browser provisioning'`: one passed. The first socket-enabled attempt correctly showed the fixture must explicitly select its organization; after adding that selection it passed in 11.8 seconds. The real mounted production boot answered `provisioning_active` while tokens lived and 204 after browser revocation of both tokens; metadata and the rotation expiry came from the backend. At 375px the document had no horizontal overflow.
+
+The pending aggregate #467 and source #463 were still open at this checkpoint. This slice proves connection deletion through the existing API, without claiming the pending Company sign-in deletion controls have merged. The canonical h2puni gate on the final SHA and review remain separate required checks; no gate pass is claimed here.
+
+Final fixture expansion: the complete organization Playwright config passed both tests (23.4 seconds), including keyboard focus and secret absence after reload. Whole-store OpenSpec validation passed 200 entries: 182 changes and 18 specs. After a mounted red for absent revocation-time metadata, rows also display the server revocation timestamp.

@@ -163,6 +163,9 @@ test('browser provisioning token lifecycle releases the connection deletion bloc
   await page.getByRole('button', { name: 'Choose org-tokens' }).click();
   const panel = page.getByRole('region', { name: 'Provisioning tokens' });
   await expect(panel.getByText('No provisioning tokens.')).toBeVisible();
+  await panel.getByRole('button', { name: 'Refresh provisioning tokens' }).focus();
+  await page.keyboard.press('Tab');
+  await expect(panel.getByRole('button', { name: 'Issue provisioning token' })).toBeFocused();
   await panel.getByRole('button', { name: 'Issue provisioning token' }).click();
   await expect(panel.getByText(/^wbs_scim_[A-Za-z0-9_-]{43}$/)).toBeVisible();
   const issued = await context.request.get('/api/organization/provisioning-tokens', { headers });
@@ -197,6 +200,9 @@ test('browser provisioning token lifecycle releases the connection deletion bloc
     true,
   );
   await panel.getByRole('button', { name: 'Refresh provisioning tokens' }).click();
+  await expect(panel.getByText(/^wbs_scim_/)).toHaveCount(0);
+  await page.reload();
+  await expect(panel.getByRole('listitem')).toHaveCount(2);
   await expect(panel.getByText(/^wbs_scim_/)).toHaveCount(0);
   for (const token of successor.tokens) {
     const row = panel

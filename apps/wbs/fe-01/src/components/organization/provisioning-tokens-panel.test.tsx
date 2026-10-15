@@ -63,6 +63,7 @@ describe('provisioning token administration', () => {
     fireEvent.change(confirmation, { target: { value: 'token-a' } });
     fireEvent.submit(confirmation.closest('form')!);
     await screen.findByText('Revoked');
+    expect(screen.getByText('Revoked at: 1970-01-01T00:00:05.000Z')).toBeDefined();
     expect(sent.filter((request) => request.route.startsWith('DELETE'))).toHaveLength(1);
   });
   it('serializes forced submissions while a revoke is held', async () => {
@@ -229,7 +230,9 @@ describe('one-time provisioning secrets', () => {
     );
     fireEvent.click(screen.getByRole('button', { name: 'Issue provisioning token' }));
     expect(screen.queryByText('prior-secret')).toBeNull();
-    await waitFor(() => expect(release).toBeTypeOf('function'));
+    await waitFor(() => {
+      expect(release).toBeTypeOf('function');
+    });
     current = false;
     await act(async () => {
       await Promise.resolve();
@@ -308,7 +311,9 @@ it('discards a held secret response after unmount and remount', async () => {
       }),
   );
   fireEvent.click(screen.getByRole('button', { name: 'Issue provisioning token' }));
-  await waitFor(() => expect(release).toBeTypeOf('function'));
+  await waitFor(() => {
+    expect(release).toBeTypeOf('function');
+  });
   mounted.unmount();
   mount();
   await screen.findByText('No provisioning tokens.');
