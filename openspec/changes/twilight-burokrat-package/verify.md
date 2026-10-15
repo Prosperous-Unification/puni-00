@@ -179,3 +179,49 @@ overlay refusals are preserved; this is not a successful WBS admission or comple
 Final `openspec validate --all --json` using pinned 1.12.0 passed all 206 entries
 (188 changes and 18 specs). The raw survey streams and full identity payload remain only in
 `/tmp`; they are not included in this PR.
+
+### Hosted CI fixture and cache repair (2026-10-15)
+
+Run `38698464552` on `bad12a7c83ac9de48c4b9fe51b73e7145dddbe20` exposed two test
+integration failures. The downloaded Twilight gate artifact records F1 exiting 1 because
+`node_modules/@typescript/old/package.json` was absent from its isolated compiler fixture;
+its expected exit was 0. The workspace shard reported
+`twilight-burokrat:test does not declare node_modules`. Both reproduced before repair in
+an isolated checkout of that exact revision.
+
+The scoped React fixture now copies both the pinned TypeScript wrapper and its
+`@typescript/old` implementation, matching the existing relationship vendor fixture.
+The production declaration roots, closure traversal, policy and refusal behavior are unchanged.
+
+Burokrat's normal test target is explicitly uncached because these tests inspect installed
+package bytes outside Nx's tracked file map. The outside-read oracle now limits itself to
+cacheable targets. An ignored `node_modules` glob would not prove that installed byte changes
+invalidate the cache. The tradeoff is that the full Burokrat source suite executes each time.
+A regression checks Nx's native task graph, rather than only inspecting project JSON.
+
+Watched negatives:
+
+- Before the fixture repair, the scoped React production CLI case failed with the same
+  missing `@typescript/old/package.json` refusal as hosted CI; afterward it passed (1 test,
+  9 assertions).
+- Before setting `cache:false`, the new native task-graph oracle failed with expected false,
+  received true. Restoring `cache:true` after repair made that oracle fail again and restored
+  the original outside-read refusal (2 passed, 2 failed). The mutation was restored.
+
+Fresh checks after restoring the injected cache fault:
+
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bun test tools/tool-devsync/src/workspace-targets.test.ts --timeout=60000`:
+  25 passed, zero failed, 86 assertions (final repetition: 5.23 seconds).
+- `TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/node_modules bun test --preload ./tools/test/scratch/preload.ts apps/twilight-structure/twilight-burokrat/cli/src/rules/rules.test.ts apps/twilight-structure/twilight-burokrat/cli/src/policy/trusted-modules.test.ts --timeout=60000`:
+  78 passed, zero failed, 597 assertions, 43.25 seconds.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bun nx run twilight-burokrat:lint:source --skip-nx-cache`
+  and `bun nx run tool-devsync:lint --skip-nx-cache` with the same environment: exit 0.
+- `bun node_modules/.bin/tsc --build --force tools/tool-devsync/tsconfig.json`: exit 0.
+- Changed-file Prettier check and `git diff --check`: exit 0.
+- Isolated pinned OpenSpec 1.12.0 installation: `validate twilight-burokrat-package --json`
+  passed one change with zero issues; `validate --all --json` passed all 206 entries
+  (188 changes, 18 specs). Initial direct cache invocation was unavailable because
+  its package dependencies were absent; the isolated installation resolved that tool failure.
+
+The full source suite, packaging suite and h2puni host gate were not rerun for this fixture/cache
+repair. No release artifact was rebuilt, published or deployed.

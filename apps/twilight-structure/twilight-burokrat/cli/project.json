@@ -6,6 +6,7 @@
   "tags": ["scope:app", "type:app", "runtime:bun", "ring:adapter", "product:twilight-burokrat"],
   "targets": {
     "test": {
+      "cache": false,
       "executor": "nx:run-commands",
       "inputs": [
         "default",
