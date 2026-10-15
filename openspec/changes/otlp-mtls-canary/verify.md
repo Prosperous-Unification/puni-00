@@ -74,6 +74,16 @@ Outgoing native leaf reload and direct queue restart recovery are now proved; th
 
 ## Architect review repair
 
-At checkpoint 8586d5cf2, Astra reproduced three real validator omissions: an empty state hostPath, a hard-coded exporter endpoint 30417, and filelog using queue storage for checkpoints could pass. Added those three production-path mutations plus disconnected/read-only state mounts. All five initially resolved (5 failed tests), then rejected after requiring the effective upstream environment endpoint, hostPath `/var/lib/puni-otelcol` with `DirectoryOrCreate`, writable mount `/var/lib/otelcol`, and filelog consumer `file_storage/checkpoints`. Removing the OTLP production enforcement call again made all five tests fail with resolved promises. Enforcement was restored; final checks follow.
+At checkpoint 8586d5cf2, Astra identified unbound effective endpoint, persistent host backing and checkpoint-consumer invariants. Added production-path mutations plus disconnected/read-only state mounts, then required the upstream environment endpoint, hostPath `/var/lib/puni-otelcol` with `DirectoryOrCreate`, writable mount `/var/lib/otelcol`, and filelog consumer `file_storage/checkpoints`.
 
-After the review repair, the final scoped test command passed **86 tests, 0 failed** (84 platform and 2 budget tests). Scoped ESLint passed with no diagnostics, `tool-fleet:typecheck` passed, pinned OpenSpec validation reported valid/no issues, and `git diff --check` passed. The five reviewed safety mutations were watched failing with enforcement removed and passing after restoration.
+The original empty-string hostPath mutation did **not** isolate the new guard: after transport enforcement was removed, the existing `OtelValues` nonempty-path guard still rejected it. The earlier claim that all five unsafe graphs resolved was inaccurate; that case failed on different error text instead of resolving. The runtime guard was sound, but that proof was not.
+
+Replaced the fault with the nonempty path `/var/lib/puni-otelcol-empty`. Fresh corrected proof:
+
+1. With transport enforcement present, all five focused negatives passed, including the changed host path rejected with an OTLP error.
+2. Removed only `await assertOtlpTransport(root)` from the production `validatePlatform` call path. All five cases failed specifically with **“Received promise that resolved”**, including the nonempty changed host path, proving the unsafe graph was otherwise accepted.
+3. Restored enforcement and reran the focused command; all five negatives passed again.
+
+Command: `bun test --preload ./tools/test/scratch/preload.ts tools/tool-fleet/src/platform.test.ts --test-name-pattern 'OTLP effective queue'`. Temporary logs: `/tmp/otlp-proof-correction-guard.log`, `/tmp/otlp-proof-correction-removed.log`, `/tmp/otlp-proof-correction-restored.log`. No runtime code changed in this correction.
+
+After the review repair, the final scoped test command passed **86 tests, 0 failed** (84 platform and 2 budget tests). Scoped ESLint passed with no diagnostics, `tool-fleet:typecheck` passed, pinned OpenSpec validation reported valid/no issues, and `git diff --check` passed. The corrected focused mutation run above isolates the five reviewed safety checks; the original empty-string proof is superseded.

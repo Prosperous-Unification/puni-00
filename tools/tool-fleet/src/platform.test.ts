@@ -975,7 +975,11 @@ describe('OTLP client trust reload', () => {
 
 describe('OTLP effective queue and destination', () => {
   for (const [name, before, after] of [
-    ['empty persistent host path', 'path: /var/lib/puni-otelcol', "path: ''"],
+    [
+      'different persistent host path',
+      'path: /var/lib/puni-otelcol',
+      'path: /var/lib/puni-otelcol-empty',
+    ],
     [
       'disconnected state mount',
       '{ name: state, mountPath: /var/lib/otelcol }',
