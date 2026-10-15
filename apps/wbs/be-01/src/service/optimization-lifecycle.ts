@@ -1,9 +1,10 @@
-import type { UnitOfWork, WriteStamp } from '@wbs/core';
-import {
-  type CommittedFanoutDelivery,
-  type CommittedProjectEvent,
-  recordCommittedFanout,
-} from '@wbs/core/service/committed-fanout';
+import type {
+  CommittedFanoutDelivery,
+  CommittedProjectEvent,
+} from '@wbs/core/ports/committed-fanout';
+import type { UnitOfWork } from '@wbs/core/ports/unit-of-work';
+import type { WriteStamp } from '@wbs/core/ports/write-stamp';
+import { recordCommittedFanout } from '@wbs/core/service/committed-fanout';
 import {
   beginOptimizationDrain,
   finishOptimizationDrain,
@@ -11,8 +12,8 @@ import {
   releaseSolverSlot,
   type SolverSlotRelease,
   type SolverSlotReleaseOutcome,
-  type SqliteSource,
-} from '@wbs/store-sqlite';
+} from '@wbs/store-sqlite/optimization-drain';
+import type { SqliteSource } from '@wbs/store-sqlite/source';
 
 /** Installed source-bound direct drain owner; raw borrowed drain operations remain synchronous. */
 export interface OptimizationLifecycle {
