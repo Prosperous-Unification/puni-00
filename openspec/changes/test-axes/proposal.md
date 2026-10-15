@@ -82,3 +82,7 @@ Problem: six find-based Bun level commands emit bare substring filters, allowing
 ## 4.1b.8 intent
 
 Problem: Browser report observations bind real cases and sources but provide no explicit earlier-row review state. Outcome: a facts-only Browser membership adapter binds a strict external authority to one exact report observation, retaining unknown versus reviewed-empty assertions for Manual, Conformance, Architecture and Performance across the complete recorded fixture collection. Constraints: exact revision/candidate/mode/report digest joins, complete unique row inventory, inherited publication/source refusals, absent authentication, false certification and full-envelope digest. Non-goals: discovered membership, committed earlier-row extraction, classification, isolation, T1/T2, coverage, receipts, admission or source reconciliation.
+
+## 4.1b.9 intent
+
+Problem: the isolated Performance observation has no bounded join from passing declared cases to effective adopted B3 scenarios. Outcome: a diagnostic lists every adopted scenario in one requested capability with selected passing case IDs or `unobserved-in-selection`, after whole-tree B3 validation. Invalid terminal citations produce separate findings and nonzero exit. Constraints: reuse the exact validated context; require isolated Performance and external pinned predecessor; preserve unrelated debt and existing level output. Non-goals: global uncovered status, certified coverage, Browser classification, admission, receipts and source synchronization.

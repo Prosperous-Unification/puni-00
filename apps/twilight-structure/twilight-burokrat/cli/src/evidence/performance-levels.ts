@@ -20,7 +20,7 @@ type Isolation =
  * Only the earlier table rows are resolved; source ownership and coverage remain separate.
  * @throws when any committed selection, source, declaration or recorded collection join differs.
  */
-export function inspectPerformanceLevels(
+export function inspectPerformanceSelection(
   repository: string,
   revision: string,
   authorityPath: string,
@@ -163,5 +163,21 @@ export function inspectPerformanceLevels(
     certifies: false as const,
   };
   // Proof: hashing an empty payload failed [TEST-AXES-087]'s independent full-payload digest.
-  return { ...observation, observationDigest: hashCanonical(observation) };
+  return {
+    root,
+    selected,
+    declaration,
+    publication,
+    levels: { ...observation, observationDigest: hashCanonical(observation) },
+  };
+}
+
+/** Preserves the version-1 level observation while sharing the validated selection context. */
+export function inspectPerformanceLevels(
+  repository: string,
+  revision: string,
+  authorityPath: string,
+  policyPath: string,
+) {
+  return inspectPerformanceSelection(repository, revision, authorityPath, policyPath).levels;
 }

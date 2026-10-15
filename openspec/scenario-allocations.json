@@ -858,6 +858,30 @@
       "id": "TEST-AXES-095",
       "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
       "title": "Browser membership inspection preserves upstream refusals and bounded dispatch"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-096",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Complete Performance scenario rows retain selection limits"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-097",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Terminal Performance citations diagnose invalid identities"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-098",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Whole-tree B3 authority precedes capability filtering"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-099",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Performance scenario dispatch preserves source and authority refusals"
     }
   ]
 }

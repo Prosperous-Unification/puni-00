@@ -43,6 +43,8 @@ const validatorCommands = new Set([
   'inspect-level-facts',
   // Proof: removing this registration failed [TEST-AXES-090]'s packaged executable success.
   'inspect-performance-levels',
+  // Proof: removing this route failed TEST-AXES-099's real installed scenario dispatch.
+  'inspect-performance-scenarios',
   // Proof: removing this registration failed TEST-AXES-095's real installed executable success.
   'inspect-browser-memberships',
   'template',
@@ -60,6 +62,7 @@ commands:
   twilight-burokrat inspect-spec-sources <repository> <committed-sha>
   twilight-burokrat inspect-browser-memberships <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <external-authority>
   twilight-burokrat inspect-performance-levels <repository> <committed-sha> <external-facts-authority> <external-rule-policy>
+  twilight-burokrat inspect-performance-scenarios <repository> <committed-sha> <external-rule-policy> <external-level-authority> <capability>
   twilight-burokrat inspect-level-facts <repository> <committed-sha> <external-authority>
   twilight-burokrat inspect-manual <repository> <committed-sha> <external-rule-policy> <report-path> --now <UTC instant>
   twilight-burokrat inspect-manual-observation <repository> <committed-sha> <external-rule-policy> <report-path> --now <UTC instant>
