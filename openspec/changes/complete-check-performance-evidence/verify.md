@@ -11,11 +11,14 @@ Base: remote main `b773e5f64`. This is a non-certifying CLI change. No external 
 - `bunx @fission-ai/openspec@1.12.0 validate --all --json`: 201 passed, 0 failed (183 changes, 18 specs).
 - `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx format:check --all`: exit 0, no differing files. Follow-up changed files also pass Prettier.
 - Source ESLint: passed (Nx lint:source, 48.8 seconds). Focused Performance + rule regression suite: 86 pass, 0 fail, 798 assertions, 111.97 seconds. Follow-up actual consumer installation with `bun add --ignore-scripts` and installed `node_modules/.bin/twib`, including help: 1 pass, 0 fail, 62 assertions, 62.78 seconds.
-- First project test run overlapped deliberate mutation and reported validator artifact digest mismatches; it is invalid as final evidence. A concurrent rerun was refused by Nx's recursive-task detector. A clean serialized rerun is required after outstanding runs finish.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run twilight-burokrat:test`: passed, 1,358 tests across 73 files, 0 failures, 10,239 assertions, 1665.75 seconds (27m46s target), cache 0/1. The final source + installed-executable complete-check case also passed within this run (60,737ms).
+- First project test run overlapped deliberate mutation and reported validator artifact digest mismatches; it is invalid as final evidence. A concurrent rerun was refused by Nx's recursive-task detector. Both are superseded by the clean run above.
 - Read-only Astra high review of checkpoint `22e8b816e`: PASS, no P1/P2 findings. Optional design.md skipped because this changes an existing flag parser with no new technical boundary.
 - Follow-up test file ESLint and TypeScript build: passed.
-- Package test first attempt failed because sandbox denied local registry listen (`EPERM`), then was stopped; rerun with local socket access is pending.
-- Full monorepo test/lint/typecheck/build and h2puni gate: not run.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run twilight-burokrat:test:package`: passed after the project suite, with local registry socket access enabled; 47 tests across 8 files, 0 failures, 338 assertions, 207.20 seconds (3m34s with build/pack prerequisites), cache 0/6.
+- Package test first attempt failed because sandbox denied local registry listen (`EPERM`), then was stopped; superseded by the socket-enabled run above.
+- Normal commit hooks passed on both implementation and installed-test checkpoints (format, ESLint, secret scan, nesting check and inactive policy lint).
+- Full monorepo test/lint/typecheck/build and exact-SHA h2puni gate: not run here; the supervising agent schedules the separate gate and final review. Exact-main diagnostic evaluation has not started.
 
 ## Failure proofs
 

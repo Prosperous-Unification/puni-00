@@ -28,7 +28,7 @@ The CLI SHALL preserve existing complete and selected-rule forms, accept each re
 #### Scenario: Duplicate or unknown flags
 
 - **WHEN** a flag is repeated or an unknown flag is supplied
-- **THEN** the command fails with a flag diagnostic
+- **THEN** the command fails
 
 #### Scenario: Evidence for an unrelated selected rule
 
