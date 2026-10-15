@@ -137,6 +137,31 @@ run_case() {
     bash "$dev_sh" "$@" >"$tmp/stdout" 2>"$tmp/stderr"
 }
 
+# A dead FIFO opener must fail within a bound, and a regressed wait must not
+# leave its blocked reader behind. The children are this fixture's processes.
+run_capture_bounded() {
+  local dir=$1 search_path=$2 dev_pid child_pid waited=0 status=0
+  PATH="$search_path" TMPDIR="$dir" WBS_DEV_LOG="$dir/dev.log" WBS_DEV_PORTS="$free_pair" \
+    bash "$dev_sh" >"$dir/stdout" 2>"$dir/stderr" &
+  dev_pid=$!
+  printf '%s\n' "$dev_pid" >>"$live_pids"
+  while kill -0 "$dev_pid" 2>/dev/null; do
+    waited=$((waited + 1))
+    if ((waited > 50)); then
+      ps -e -o pid= -o ppid= | awk -v parent="$dev_pid" '$2 == parent { print $1 }' >"$dir/children"
+      while read -r child_pid; do
+        kill -9 "$child_pid" 2>/dev/null || :
+      done <"$dir/children"
+      kill -9 "$dev_pid" 2>/dev/null || :
+      wait "$dev_pid" 2>/dev/null || :
+      return 124
+    fi
+    sleep 0.1
+  done
+  wait "$dev_pid" || status=$?
+  return "$status"
+}
+
 # The nx target the fake was actually asked for.
 asked_target() {
   sed -E 's/.*run-many -t ([^ ]+).*/\1/' "$1/bin/argv"
@@ -172,6 +197,41 @@ chmod +x "$tmp/bin/awk"
 failed=0
 run_case "$tmp" 0 "$tmp/dev.log" || failed=$?
 check 'a failed capture writer exits non-zero' '7' "$failed"
+rm -rf "$tmp"
+
+# tee can fail before opening the FIFO, including when it is not installed.
+tmp=$(mktemp -d)
+make_fake_bunx "$tmp/bin" 0
+printf '#!/usr/bin/env bash\nexit 7\n' >"$tmp/bin/tee"
+chmod +x "$tmp/bin/tee"
+failed=0
+run_capture_bounded "$tmp" "$tmp/bin:$PATH" || failed=$?
+check 'tee failure before opening capture exits without hanging' '7' "$failed"
+rm -rf "$tmp"
+
+tmp=$(mktemp -d)
+make_fake_bunx "$tmp/bin" 0
+for tool in bash dirname mkdir mktemp mkfifo awk rm; do
+  ln -s "$(command -v "$tool")" "$tmp/bin/$tool"
+done
+failed=0
+run_capture_bounded "$tmp" "$tmp/bin" || failed=$?
+check 'missing tee exits without hanging' '127' "$failed"
+rm -rf "$tmp"
+
+# A writer may fail before a slow tee attempts to open the capture stream.
+tmp=$(mktemp -d)
+make_fake_bunx "$tmp/bin" 0
+printf '#!/usr/bin/env bash\nexit 7\n' >"$tmp/bin/awk"
+cat >"$tmp/bin/tee" <<FAKE
+#!/usr/bin/env bash
+sleep 1
+exec "$(command -v tee)" "\$@"
+FAKE
+chmod +x "$tmp/bin/awk" "$tmp/bin/tee"
+failed=0
+run_capture_bounded "$tmp" "$tmp/bin:$PATH" || failed=$?
+check 'a failed writer with a delayed tee exits without hanging' '7' "$failed"
 rm -rf "$tmp"
 
 # 2. Colour reaches the terminal and never reaches the file.

@@ -104,7 +104,29 @@ trap 'rm -rf "$capture_dir"' EXIT
 mkfifo "$capture_dir/stream"
 awk "$strip_csi" <"$capture_dir/stream" >"$WBS_DEV_LOG" &
 capture_pid=$!
-nx_status=0
-bunx nx "${args[@]}" 2>&1 | tee "$capture_dir/stream" || nx_status=$?
+pipeline_status=(0 0)
+bunx nx "${args[@]}" 2>&1 | tee "$capture_dir/stream" || pipeline_status=("${PIPESTATUS[@]}")
+# A tee that never opens the FIFO leaves the reader blocked in open(), so
+# cancel that child before waiting. If it already exited, wait preserves its
+# failure; otherwise cancellation exits 143, or 1 when Bash 3.2's blocked
+# open reports EINTR. In those cases tee's failure wins.
+# The FIFO read-open precedes awk's execution, so a failed writer cannot leave
+# tee waiting for a reader that exited before tee opened its write end.
+#
+# Proof: without this branch, PATH-injected tee exit 7 and absent tee both
+# timed out (124) in bin/dev.test.sh under Bash 3.2 instead of exiting 7/127.
+# A writer exiting 7 with a delayed real tee still exits 7 without hanging.
+if ((pipeline_status[1] != 0)); then
+  # This direct child may finish between the pipeline and cancellation.
+  if ! kill -TERM "$capture_pid" 2>/dev/null; then
+    wait "$capture_pid"
+  fi
+  capture_status=0
+  wait "$capture_pid" || capture_status=$?
+  if ((capture_status != 0 && capture_status != 1 && capture_status != 143)); then
+    exit "$capture_status"
+  fi
+  exit "${pipeline_status[1]}"
+fi
 wait "$capture_pid"
-exit "$nx_status"
+exit "${pipeline_status[0]}"
