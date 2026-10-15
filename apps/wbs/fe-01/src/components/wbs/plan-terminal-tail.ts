@@ -92,6 +92,13 @@ export function terminalTails(
   };
 }
 
+/** Sets one tail in whole pixels, and only when it changes. */
+function writeTail(box: HTMLElement, property: string, px: number): void {
+  const value = `${String(px)}px`;
+  if (box.style.getPropertyValue(property) === value) return;
+  box.style.setProperty(property, value);
+}
+
 /** The custom property the table frame's bottom padding reads. */
 export const TABLE_TAIL_PROPERTY = '--plan-table-tail';
 /** The custom property the chart's terminal allowance reads. */
@@ -107,11 +114,21 @@ export const CHART_TAIL_PROPERTY = '--plan-chart-tail';
  * it never writes over them.
  *
  * Re-fitted on every resize of either box or of either face's rows, which is
- * everything the arithmetic reads. The writes cannot feed back: a box that
- * scrolls is held at its height by its column, so a longer tail changes its
- * `scrollHeight` and nothing an observer here watches. A face whose rows fit
- * without a tail does not scroll and may grow with its padding, so it is left
- * on its stylesheet tail and nothing is written.
+ * everything the arithmetic reads. The frame and the panel are observed by
+ * their **border box**: the table's tail is the frame's `padding-bottom`, and
+ * under border-box sizing a padding write moves the content box, so a
+ * content-box observer re-fired on every write — an observer loop every frame
+ * with a chart dragged short (PR #472 review: 79 `ResizeObserver loop`
+ * errors per 2 s), and after a window resize a fit taken on the transient
+ * layout that no later content-box change ever corrected, leaving the table's
+ * end blank. The border box is what the column gives the frame, so the write
+ * cannot re-trigger the observer; it still sees the frame settle after a
+ * resize. The tails are whole pixels and an unchanged value is not written,
+ * so a refit on the same layout is a no-op, and the table's tail never
+ * exceeds its viewport less the last row, so its end always shows a row.
+ *
+ * A face whose rows fit without a tail does not scroll and may grow with its
+ * padding, so it is left on its stylesheet tail and nothing is written.
  *
  * Does nothing while the chart draws no terminal allowance (a short plan, or
  * full screen): the chart then does not end on a row of its own.
@@ -127,6 +144,10 @@ export function fitPlanTerminalTails(
   const heading = frame.querySelector('thead th');
   if (heading === null) {
     throw new Error('the plan frame has no heading cell to measure its viewport from');
+  }
+  const table = heading.closest('table');
+  if (table === null) {
+    throw new Error('the plan frame has a heading cell outside any table');
   }
   const axis = panel.querySelector('[data-gantt-axis]');
   if (axis === null) {
@@ -148,9 +169,12 @@ export function fitPlanTerminalTails(
 
     // What sits below the last row besides the tail itself, read off the
     // laid-out boxes so a footer either face grows later is accounted for.
-    const tableTailNow = Number.parseFloat(getComputedStyle(frame).paddingBottom);
+    // The table's from the table box, not from `scrollHeight`: that is an
+    // integer holding the fractional padding being written, and mixing the two
+    // drifted the answer by a fraction of a pixel on every refit.
     const tableRowsEnd = headingPx + lastRow.startPx + lastRow.sizePx;
-    const tableExtra = frame.scrollHeight - tableRowsEnd - tableTailNow;
+    const tableExtra =
+      table.getBoundingClientRect().bottom - frameTop + frame.scrollTop - tableRowsEnd;
     const chartTailNow = allowance.getBoundingClientRect().height;
     const chartRowsEnd = lastLabel.getBoundingClientRect().bottom - panelTop + panel.scrollTop;
     const chartExtra = panel.scrollHeight - chartRowsEnd - chartTailNow;
@@ -160,10 +184,11 @@ export function fitPlanTerminalTails(
     if (tableRowsEnd + tableExtra <= frame.clientHeight) return;
     if (chartRowsEnd + chartExtra <= panel.clientHeight) return;
 
+    const tableViewportPx = frame.clientHeight - headingPx - tableExtra;
     const tails = terminalTails(
       {
         heights: logicalRows.map(({ sizePx }) => sizePx),
-        viewportPx: frame.clientHeight - headingPx - tableExtra,
+        viewportPx: tableViewportPx,
         // The picker room in pixels, off the root font size the `rem` means.
         floorPx:
           PLAN_TERMINAL_ALLOWANCE_REM *
@@ -176,8 +201,11 @@ export function fitPlanTerminalTails(
       },
     );
     if (tails === null) return;
-    frame.style.setProperty(TABLE_TAIL_PROPERTY, `${String(tails.tablePx)}px`);
-    panel.style.setProperty(CHART_TAIL_PROPERTY, `${String(tails.chartPx)}px`);
+    // Below the viewport less the last row: a tail as tall as the viewport is
+    // a table whose end shows no row at all.
+    const tablePx = Math.round(Math.min(tails.tablePx, tableViewportPx - lastRow.sizePx));
+    writeTail(frame, TABLE_TAIL_PROPERTY, Math.max(0, tablePx));
+    writeTail(panel, CHART_TAIL_PROPERTY, Math.round(tails.chartPx));
   };
 
   fit();
@@ -187,14 +215,31 @@ export function fitPlanTerminalTails(
       panel.style.removeProperty(CHART_TAIL_PROPERTY);
     };
   }
-  const watch = new ResizeObserver(fit);
-  watch.observe(frame);
-  watch.observe(panel);
+  // The refit runs in the next frame, coalesced, never inside the observer's
+  // own delivery: a padding write there can resize a box another observer on
+  // the page watches (the column's room observer), and Chromium reports that
+  // as a `ResizeObserver loop` error on `window`.
+  //
+  // Proof: with `fit` called straight from the observer, `scroll-stability.e2e.ts`
+  // `the faces end together with a chart dragged short, and the fit settles`
+  // failed on `ResizeObserver loop errors` (`Expected: 0, Received: 2`) across
+  // the 1100→700 resize. Watched 2026-10-15.
+  let pending = 0;
+  const watch = new ResizeObserver(() => {
+    if (pending !== 0) return;
+    pending = requestAnimationFrame(() => {
+      pending = 0;
+      fit();
+    });
+  });
+  watch.observe(frame, { box: 'border-box' });
+  watch.observe(panel, { box: 'border-box' });
   const tableBody = frame.querySelector('tbody');
   if (tableBody !== null) watch.observe(tableBody);
   const chartContent = panel.firstElementChild;
   if (chartContent !== null) watch.observe(chartContent);
   return () => {
+    cancelAnimationFrame(pending);
     watch.disconnect();
     frame.style.removeProperty(TABLE_TAIL_PROPERTY);
     panel.style.removeProperty(CHART_TAIL_PROPERTY);

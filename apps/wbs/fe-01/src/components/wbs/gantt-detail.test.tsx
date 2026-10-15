@@ -134,6 +134,9 @@ describe('the detail switch, over the runtime the page publishes', () => {
     expect(live.result.current.persists).toBe(true);
   });
 
+  // Proof: with `shown` following the live links (`said ?? hasDependencyEdges
+  // === true`, no latch), this failed on `expected true to be false`. Watched
+  // 2026-10-15.
   itDom('keeps the default it decided once the links were known', () => {
     const held = renderHook(({ edges }) => useGanttDetail(edges), {
       wrapper: wrapperFor(emptySlot()),
@@ -147,6 +150,9 @@ describe('the detail switch, over the runtime the page publishes', () => {
     expect(held.result.current.shown).toBe(false);
   });
 
+  // Proof: with `shown` held off until the links are known (`opening === null
+  // ? false : …`), this failed on `expected false to be true`. Watched
+  // 2026-10-15.
   itDom('shows a remembered answer without waiting for the links', async () => {
     const slot = emptySlot();
     await publishOver(slot, fakeBrowserStorage({ [GANTT_DETAIL_KEY]: 'true' }));
@@ -154,6 +160,9 @@ describe('the detail switch, over the runtime the page publishes', () => {
     expect(held.result.current.shown).toBe(true);
   });
 
+  // Proof: with the latched links ranked above the reader's answer (`opening
+  // ?? said ?? false`), this failed on `expected true to be false`. Watched
+  // 2026-10-15.
   itDom('does not let late links overrule what the reader asked for', () => {
     const held = renderHook(({ edges }) => useGanttDetail(edges), {
       wrapper: wrapperFor(emptySlot()),
