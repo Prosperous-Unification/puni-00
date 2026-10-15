@@ -906,6 +906,30 @@
       "id": "TEST-AXES-103",
       "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
       "title": "Browser Conformance preserves canonical identity and bounded dispatch"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-104",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Ledger enumerates effective scenarios despite missing obligations"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-105",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Ledger validates exact closed authority and upstream identity"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-106",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Ledger preserves upstream debt and diagnostic identity"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-107",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Ledger joins real Manual observations"
     }
   ]
 }
