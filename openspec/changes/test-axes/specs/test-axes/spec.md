@@ -831,3 +831,31 @@ The observation SHALL retain the complete report, raw authority digest, project 
 - **WHEN** source and installed executable dispatch inspect the input
 - **THEN** canonical arrays are sorted and deduplicated, distinct cases remain intact, the complete envelope digest reflects all identity changes, and unsupported operands or inherited report failures refuse
 - **AND** removing source validation, pin joins, collection completeness, digest binding or noncertifying output invariants makes its named production-path assertion fail
+
+### Requirement: Capability scenario ledger remains a diagnostic
+
+`inspect-scenario-ledger` SHALL enumerate every adopted effective scenario of the requested capability from the complete isolated Performance scenario observation. The external version-1 ledger authority SHALL pin exact committed revision, candidate, capability and Performance observation digest and contain unique obligations. Omitted obligations SHALL remain named unassigned debt. Foreign, retired, duplicate, malformed and conflicting obligations SHALL refuse without partial JSON.
+
+An automated obligation SHALL name its lowest sufficient level explicitly. Performance SHALL require a passing cited case in the selected isolated publication; other levels SHALL remain unsupported-level debt. Inapplicability SHALL have a nonblank reason. Manual SHALL call the existing Manual observation inspector on an external report and join exact scenario, revision, candidate, policy, evaluation instant and observation digest. Current, stale, failed and overdue verdicts SHALL remain typed observations.
+
+The ledger SHALL preserve the full upstream B3 report, citation findings and unidentified debt, normalize obligation order, digest the complete payload, emit absent authentication and `certifies:false`, and exit nonzero for diagnostic debt. Malformed authority, unreadable evidence and join failures SHALL emit no partial JSON. This command SHALL register no coverage rule, admission or certification.
+
+#### Scenario: [TEST-AXES-104] Ledger enumerates effective scenarios despite missing obligations
+
+- **WHEN** one adopted scenario has a passing automated obligation and another has no obligation
+- **THEN** the second scenario is named unassigned debt and the command exits nonzero
+
+#### Scenario: [TEST-AXES-105] Ledger validates exact closed authority and upstream identity
+
+- **WHEN** authority shape, obligation identity, external file or candidate publication pins differ
+- **THEN** the command refuses without partial JSON
+
+#### Scenario: [TEST-AXES-106] Ledger preserves upstream debt and diagnostic identity
+
+- **WHEN** a publication loses a citation or has unrelated unidentified B3 debt
+- **THEN** the complete upstream observation and debt remain in the noncertifying ledger
+
+#### Scenario: [TEST-AXES-107] Ledger joins real Manual observations
+
+- **WHEN** an obligation references a current, stale, failed or overdue external Manual observation
+- **THEN** the exact joined typed verdict is retained and noncurrent observations remain debt
