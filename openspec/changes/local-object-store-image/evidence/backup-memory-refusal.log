@@ -1,0 +1,39 @@
+heavy lock: waited 0s behind 0 tickets
+INFO[0000] Deleting cluster 'puni-minio-repack'
+INFO[0000] Deleting cluster network 'k3d-puni-minio-repack'
+INFO[0000] Deleting 1 attached volumes...
+INFO[0000] Removing cluster details from default kubeconfig...
+INFO[0000] Removing standalone kubeconfig file (if there is one)...
+INFO[0000] Successfully deleted cluster puni-minio-repack!
+
+> nx run tool-deploy:"test:backup"
+
+> bun tools/tool-deploy/src/k8s/backup-lab.ts
+
+62 |
+63 | function assertMemory(): void {
+64 |   const meminfo = readFileSync('/proc/meminfo', 'utf8');
+65 |   const available = Number(/^MemAvailable:\s+(\d+) kB$/m.exec(meminfo)?.[1] ?? Number.NaN) * 1024;
+66 |   if (!(available >= 3.5 * 1024 ** 3)) {
+67 |     throw new Error(
+                   ^
+error: only 3180 MiB available; need 3.5 GiB
+      at assertMemory (/tmp/puni-minio-repack-sol/tools/tool-deploy/src/k8s/backup-lab.ts:67:15)
+      at main (/tmp/puni-minio-repack-sol/tools/tool-deploy/src/k8s/backup-lab.ts:380:3)
+      at /tmp/puni-minio-repack-sol/tools/tool-deploy/src/k8s/backup-lab.ts:712:29
+
+Bun v1.4.2 (Linux x64)
+Warning: command "bun tools/tool-deploy/src/k8s/backup-lab.ts" exited with non-zero status code
+
+
+ NX   Running target test:backup for project tool-deploy failed
+
+Failed tasks:
+
+- tool-deploy:test:backup
+
+Hint: run the command with --verbose for more details.
+
+  Run duration:      259ms
+  Critical path:     247ms (1 task)
+  Recoverable time:  <1ms

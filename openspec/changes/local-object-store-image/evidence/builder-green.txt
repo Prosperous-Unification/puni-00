@@ -1,0 +1,17 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-fleet/src/object-store-image.test.ts:
+(pass) object store production build boundary > refuses altered upstream bytes before signature verification [1.11ms]
+(pass) object store production build boundary > refuses a rejected upstream signature through the builder [2.07ms]
+(pass) object store production build boundary > refuses a failed Docker build [1.75ms]
+(pass) object store production build boundary > refuses a different emitted manifest [1.47ms]
+(pass) object store trusted input boundaries > requires a readable lock [1.53ms]
+(pass) object store trusted input boundaries > rejects malformed and incomplete locks [1.12ms]
+(pass) object store trusted input boundaries > rejects a failed upstream download [0.36ms]
+(pass) object store trusted input boundaries > requires readable and structured OCI manifest state [3.09ms]
+(pass) object store trusted input boundaries > returns the verified archive after a successful build [1.01ms]
+
+ 9 pass
+ 0 fail
+ 13 expect() calls
+Ran 9 tests across 1 file. [146.00ms]

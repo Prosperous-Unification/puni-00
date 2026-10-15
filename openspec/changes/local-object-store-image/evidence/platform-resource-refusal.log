@@ -1,0 +1,49 @@
+heavy lock: waited 0s behind 0 tickets
+
+> nx run tool-fleet:lab up --id minio-platform --profile platform --worktree-root /tmp/puni-minio-repack-sol
+
+> bun tools/tool-fleet/src/k3d-lab.ts up --id minio-platform --profile platform --worktree-root /tmp/puni-minio-repack-sol
+
+257 |   ];
+258 |   if (shortfalls.length === 0) return;
+259 |   const smaller = SMALLER[profile];
+260 |   // Proof: returning unconditionally failed `refuses a short host and names the next smaller
+261 |   // profile`. The live platform and fleet refusals are in the k3s-platform verify.md, F9.
+262 |   throw new Error(
+                  ^
+error: k3d lab profile platform refused: 14264 MiB memory available, 16384 MiB required. Use --profile app, or free resources and retry.
+      at requireProfileResources (/tmp/puni-minio-repack-sol/tools/tool-fleet/src/k3d-lab.ts:262:13)
+      at upLab (/tmp/puni-minio-repack-sol/tools/tool-fleet/src/k3d-lab.ts:693:3)
+      at async runLab (/tmp/puni-minio-repack-sol/tools/tool-fleet/src/k3d-lab.ts:910:13)
+
+Bun v1.4.2 (Linux x64)
+Warning: command "bun tools/tool-fleet/src/k3d-lab.ts up --id minio-platform --profile platform --worktree-root /tmp/puni-minio-repack-sol" exited with non-zero status code
+
+
+ NX   Running target lab for project tool-fleet failed
+
+Failed tasks:
+
+- tool-fleet:lab
+
+Hint: run the command with --verbose for more details.
+
+  Run duration:      689ms
+  Critical path:     677ms (1 task)
+  Recoverable time:  <1ms
+
+> nx run tool-fleet:lab down --id minio-platform --profile platform
+
+> bun tools/tool-fleet/src/k3d-lab.ts down --id minio-platform --profile platform
+
+k3d lab minio-platform: deleted no clusters
+
+
+
+ NX   Successfully ran target lab for project tool-fleet
+
+
+  Run duration:      440ms
+  Cache:             0/1 hit (0%)
+  Critical path:     430ms (1 task)
+  Recoverable time:  <1ms

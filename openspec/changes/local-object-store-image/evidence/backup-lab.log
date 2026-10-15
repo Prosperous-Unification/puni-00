@@ -1,0 +1,92 @@
+heavy lock: waited 1s behind 0 tickets
+INFO[0000] No nodes found for cluster 'puni-minio-repack', nothing to delete.
+INFO[0000] No clusters found
+
+> nx run tool-deploy:"test:backup"
+
+> bun tools/tool-deploy/src/k8s/backup-lab.ts
+
+[backup-lab 11:20:35] memory available: 7928 MiB
+[backup-lab 11:20:47] build and register the authenticated local object-store digest
+[backup-lab 11:21:56] release {"sourceSha":"56041540718015fa579c920b2afe6d42c1d729bc","images":{"backend":"k3d-puni-f11-backup-registry:5000/wbs-be-01@sha256:8d516af08bd1cafd6a5d37cefa7de410ce13be402b0d0c80c7936edf00b01bab","gateway":"k3d-puni-f11-backup-registry:5000/wbs-gw-01@sha256:84c6a90a6c7d6e257033610debe02b7fed3df51908db6cc1f8a72a1a91e35486","frontend":"k3d-puni-f11-backup-registry:5000/wbs-fe-01@sha256:30b5267ea0d8e4431488acb55456d491932f476f84bad6cc62a907d6ee30b39d","mcp":"k3d-puni-f11-backup-registry:5000/wbs-mcp-01@sha256:0d2dfeb81896f09e6aeac4aed6716b88a634526f4df1ff891a4daf156badf7dc"}}
+[backup-lab 11:21:57] local object store (infra/platform/backup/local/object-store.yaml) with lab-only credentials
+[backup-lab 11:22:13] WBS local overlay with the writer at zero, then a migrated empty database
+[backup-lab 11:22:15] assert ok: the rendered backup CronJob runs the release backend digest
+[backup-lab 11:22:52] assert ok: known row f11-backup-known-row written through the backend API
+[backup-lab 11:22:52] F6 admission of the backup job pod: the old bun image is denied, the backend image is not
+[backup-lab 11:22:53] assert ok: sqlite-backup: the old bun-alpine image is denied by F6 admission
+[backup-lab 11:22:53] assert ok: sqlite-backup: the backend-image pod is admitted
+[backup-lab 11:22:53] assert ok: sqlite-backup-verify: the old bun-alpine image is denied by F6 admission
+[backup-lab 11:22:53] assert ok: sqlite-backup-verify: the backend-image pod is admitted
+[backup-lab 11:22:53] run the CronJob once
+[backup-lab 11:22:57] 0_add_enterprise_sso_records","hash":"86bc171961fef9b5698faacc2256879d754fb9e51c1fbbac2e3da4eadb2836b2"},{"name":"20261012090100_add_browser_auth_times","hash":"b090df8f4d9ccbb5042e3d3cd324e6fca6037c35c61cef37358c21e37bf2f192"},{"name":"20261012090200_widen_organization_audit","hash":"87d5cd7e214f7614850e94cb86fddc6436223c88b0e10dc581bb336b4642022c"},{"name":"20261012120000_add_step_node_attempts","hash":"03622184aab08a28d2aea905e53ed56a94836c52c306b083cc73c57540d776a8"},{"name":"20261012130000_add_step_estimate_unit","hash":"4e9193392175077ee74d53864a8f7f11f7b33720c026352a96cf8912e8b44348"}]}
+[backup-lab 11:22:57] assert ok: the backup Job succeeded with the backend image
+[backup-lab 11:22:57] assert ok: the report names the release source from wbs-release/sourceSha
+[backup-lab 11:22:57] assert ok: versioned object sqlite/wbs/20261014T112254142Z.db with 69 migrations
+[backup-lab 11:22:57] restore into a fresh volume and read the known row back
+[backup-lab 11:23:06] assert ok: restore mode verified SHA-256, integrity and migrations and wrote /restore/wbs.sqlite
+[backup-lab 11:23:10] assert ok: the restored database opens
+[backup-lab 11:23:10] assert ok: known row f11-backup-known-row is in the restored database
+[backup-lab 11:23:10] assert ok: restored bytes equal the reported snapshot
+[backup-lab 11:23:10] assert ok: restored database passes integrity and foreign-key checks
+[backup-lab 11:23:10] assert ok: restored migration set equals the report
+[backup-lab 11:23:10] run the shipped verification CronJob against the known migrated snapshot
+[backup-lab 11:23:14] f10-verify-known: succeeded
+937e25"},{"name":"20261005110000_add_shared_people","hash":"5d73daa66c8320b178e3c079107f3cc1320dd765a0ea38b8a30ce013c5d04075"},{"name":"20261011120000_add_browser_auth_lifecycle","hash":"baa890bbbe2fd947486664fc5f5e27a4b621df6a2c9a7987b7f006a72674742c"},{"name":"20261011200000_add_shared_people_audit","hash":"7af8a3768f56222ada1eb233ad0a2484437177622e27ae401a6a37d6e23024dc"},{"name":"20261012090000_add_enterprise_sso_records","hash":"86bc171961fef9b5698faacc2256879d754fb9e51c1fbbac2e3da4eadb2836b2"},{"name":"20261012090100_add_browser_auth_times","hash":"b090df8f4d9ccbb5042e3d3cd324e6fca6037c35c61cef37358c21e37bf2f192"},{"name":"20261012090200_widen_organization_audit","hash":"87d5cd7e214f7614850e94cb86fddc6436223c88b0e10dc581bb336b4642022c"},{"name":"20261012120000_add_step_node_attempts","hash":"03622184aab08a28d2aea905e53ed56a94836c52c306b083cc73c57540d776a8"},{"name":"20261012130000_add_step_estimate_unit","hash":"4e9193392175077ee74d53864a8f7f11f7b33720c026352a96cf8912e8b44348"}]}
+[backup-lab 11:23:14] assert ok: scheduled verification returns the known snapshot digest and complete migration set
+[backup-lab 11:23:21] f10-verify-absent: failed
+252 |   const reports = (await options.store.list(`${options.prefix}/${options.database}/`))
+253 |     .filter((key) => key.endsWith('.db.report.json'))
+254 |     .sort();
+255 |   const newest = reports.at(-1);
+256 |   if (newest === undefined) {
+257 |     throw new Error(`No SQLite backup report under ${options.prefix}/${options.database}/`);
+                    ^
+error: No SQLite backup report under f10-absent/wbs/
+      at verifyLatestBackup (/runner/..2026_10_14_11_23_16.3227600448/backup-sqlite.ts:257:15)
+
+Bun v1.4.2 (Linux x64)
+[backup-lab 11:23:25] assert ok: f10-inject-snapshot uploaded the isolated fault fixture
+[backup-lab 11:23:30] f10-verify-snapshot: failed
+216 |   const partialPath = join(dirname(options.targetPath), `.${basename(options.targetPath)}.partial`);
+217 |   await writeFile(partialPath, await options.store.get(report.objectKey));
+218 |   try {
+219 |     const restored = await verifySqlite(partialPath);
+220 |     if (restored.sha256 !== report.sha256) {
+221 |       throw new Error(`${report.objectKey} bytes differ from its report`);
+                      ^
+error: f10-snapshot/wbs/20261014T112254142Z.db bytes differ from its report
+      at restoreSqlite (/runner/..2026_10_14_11_23_26.3022101024/backup-sqlite.ts:221:17)
+      at async verifyLatestBackup (/runner/..2026_10_14_11_23_26.3022101024/backup-sqlite.ts:259:24)
+
+Bun v1.4.2 (Linux x64)
+[backup-lab 11:23:36] assert ok: f10-inject-report uploaded the isolated fault fixture
+[backup-lab 11:23:40] f10-verify-report: failed
+219 |     const restored = await verifySqlite(partialPath);
+220 |     if (restored.sha256 !== report.sha256) {
+221 |       throw new Error(`${report.objectKey} bytes differ from its report`);
+222 |     }
+223 |     if (!sameMigrations(restored.migrations, report.migrations)) {
+224 |       throw new Error(`${report.objectKey} migration set differs from its report`);
+                      ^
+error: f10-report/wbs/20261014T112254142Z.db migration set differs from its report
+      at restoreSqlite (/runner/..2026_10_14_11_23_37.2253750405/backup-sqlite.ts:224:17)
+      at async verifyLatestBackup (/runner/..2026_10_14_11_23_37.2253750405/backup-sqlite.ts:259:24)
+
+Bun v1.4.2 (Linux x64)
+[backup-lab 11:23:40] all backup lab assertions passed
+
+
+
+ NX   Successfully ran target test:backup for project tool-deploy
+
+
+  Run duration:      3m 9s
+  Cache:             0/1 hit (0%)
+  Critical path:     3m 9s (1 task)
+  Recoverable time:  <1ms
+
+  Recommendations:
+    - Drastically reduce your run duration by sharing a cache across your team and CI → https://cloud.nx.app/get-started?utm_source=nx-cli&utm_medium=cli&utm_campaign=performance-report&utm_content=remote-cache.
+    - Speed up or split the longest tasks on the critical path:
+        tool-deploy:test:backup    3m 9s

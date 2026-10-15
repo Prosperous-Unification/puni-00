@@ -16,6 +16,7 @@ import { join, resolve } from 'node:path';
 import { type } from 'arktype';
 
 import { readToolchain } from './contracts';
+import { buildObjectStore, importObjectStore, readObjectStoreLock } from './object-store-image';
 
 type K3dLabAction = 'up' | 'down' | 'status';
 export type K3dProfile = 'app' | 'platform' | 'fleet';
@@ -616,6 +617,54 @@ async function bootstrapCluster(
 }
 
 /**
+ * Prepare authenticated local object storage before any Flux controller can schedule consumers.
+ * Both platform and fleet profiles pass their clusters here; the app profile needs no
+ * object store. Preparation refusal propagates before bootstrap and ordinary up teardown runs.
+ * @throws When the source lock, build or per-node digest distribution fails.
+ */
+export async function bootstrapLab(
+  root: string,
+  tools: LabTools,
+  labId: string,
+  clusters: K3dLabRecord['clusters'],
+  flux: boolean,
+  prepare: typeof preparePlatformObjectStore = preparePlatformObjectStore,
+  bootstrap: typeof bootstrapCluster = bootstrapCluster,
+): Promise<void> {
+  // Proof: absent/wrong-digest and failed-import caller negatives bootstrapped Flux when this prerequisite was removed.
+  if (flux) await prepare(root, tools, clusters);
+  for (const cluster of clusters) await bootstrap(root, tools, labId, cluster, flux);
+}
+
+async function preparePlatformObjectStore(
+  root: string,
+  tools: LabTools,
+  clusters: K3dLabRecord['clusters'],
+): Promise<void> {
+  const toolchain = await readToolchain(join(root, 'infra/versions/toolchain.json'));
+  const lock = await readObjectStoreLock(
+    join(root, 'infra/versions/object-store.json'),
+    toolchain.runtimeImages.objectStore,
+  );
+  const archive = await buildObjectStore(root, lock);
+  for (const cluster of clusters) {
+    for (const node of objectStoreNodes(cluster)) {
+      importObjectStore(archive, lock, cluster.name, node, tools.k3d);
+    }
+  }
+}
+
+/** Containerd nodes in the committed one-server platform and one-server/two-agent worker templates. */
+export function objectStoreNodes(cluster: K3dLabRecord['clusters'][number]): readonly string[] {
+  return [
+    `k3d-${cluster.name}-server-0`,
+    ...(cluster.role === 'workers'
+      ? [`k3d-${cluster.name}-agent-0`, `k3d-${cluster.name}-agent-1`]
+      : []),
+  ];
+}
+
+/**
  * Wait until k3s's bundled Traefik serves, so the URLs `up` prints answer. k3s creates the
  * Deployment from a Helm job some seconds after the node is Ready, so absence is retried until a
  * deadline and then refused.
@@ -762,9 +811,7 @@ async function upLab(root: string, request: K3dLabRequest, tools: LabTools): Pro
         apiPort,
       });
     }
-    for (const cluster of clusters) {
-      await bootstrapCluster(root, tools, request.labId, cluster, profile.flux);
-    }
+    await bootstrapLab(root, tools, request.labId, clusters, profile.flux);
     const record: K3dLabRecord = {
       schemaVersion: 1,
       labId: request.labId,
