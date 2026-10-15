@@ -88,7 +88,7 @@ test('downloads and imports a complete plan through the real chooser', async ({ 
 
   const picker = page.getByRole('combobox', { name: 'Project' });
   await expect(picker).toHaveValue(importedName);
-  const summary = `Imported ${String(ROWS)} work items. Created 1 tag (${tagName}). Solution reference: none.`;
+  const summary = `Imported “${importedName}” with ${String(ROWS)} work items. Added 1 tag (${tagName}).`;
   await expect(page.locator('[data-toast-text]')).toHaveCount(1);
   await expect(page.locator('[data-toast-text]')).toHaveText(summary);
   await picker.click();
@@ -111,11 +111,59 @@ test('keeps the project and count when a dangling dependency is refused', async 
 
   await expect(page.locator('[data-toast-text]')).toHaveCount(1);
   await expect(page.locator('[data-toast-text]')).toHaveText(
-    'Plan JSON import refused: unknown_ref at workItems[12].dependsOn[0].',
+    'This plan export refers to something it does not contain (workItems[12].dependsOn[0]).',
   );
   await expect(page.getByRole('combobox', { name: 'Project' })).toHaveValue(seeded.projectName);
   await expect.poll(() => projectCount(page)).toBe(before);
   // Proof: bypassing `firstDependencyRefusal` made this receive the generic
-  // `Plan JSON import failed (http_500).` instead of the exact typed path.
+  // `Plan JSON import failed (http_500).` instead of the exact typed path
+  // (the sentence then read that way; it is now `The server could not import
+  // the plan. Try again.`).
   // Observed 2026-09-14 with the isolated browser stack.
+});
+
+test('words a broken file, then names and dates the re-import that replaces it', async ({
+  page,
+}) => {
+  const seeded = await seededPlan(page, 'Plan import toasts');
+  const downloaded = await validatedPlan(await downloadPlan(page));
+  const toasts = page.locator('[data-toast-text]');
+  const chooser = page.getByLabel('Import JSON');
+
+  await chooser.setInputFiles({
+    name: 'broken.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from('{"broken"'),
+  });
+  await expect(toasts).toHaveText(['This file is not JSON.']);
+  await expect(page.getByRole('alert')).toHaveCount(1);
+
+  await chooser.setInputFiles({
+    name: 'other.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from('[1, 2, 3]'),
+  });
+  // One refusal at a time: the second attempt's sentence replaces the first.
+  await expect(toasts).toHaveText(['This JSON is not a plan export.']);
+  // Proof: with the old `Plan JSON import failed (${code}).` sentences back, the
+  // first toast read `Plan JSON import failed (invalid_json).`; with the
+  // previous attempt's dismissal removed, this read both refusals, `This file
+  // is not JSON.` still standing. Observed 2026-10-15.
+
+  // The same plan again, under the name the account already uses.
+  await importFile(page, downloaded);
+
+  const dated = new RegExp(
+    `^${escaped(seeded.projectName)} \\(imported \\d{1,2} [A-Z][a-z]{2}\\)$`,
+  );
+  const picker = page.getByRole('combobox', { name: 'Project' });
+  await expect(picker).toHaveValue(dated);
+  const importedName = await picker.inputValue();
+  await expect(toasts).toHaveText([
+    `Imported “${importedName}” with ${String(downloaded.workItems.length)} work items.`,
+  ]);
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  // Proof: with `distinctImportName` bypassed, the picker held the source's
+  // own name, `Plan import toasts [<run>/w0/…]` with no `(imported …)`, a
+  // second entry the list could not tell apart. Observed 2026-10-15.
 });

@@ -969,10 +969,12 @@ export function ProjectPage({
   const planImport = usePlanImport({
     catalog,
     selectedProjectId: selected,
+    projects,
     fetchProjects,
     installProjects,
     openProject: choose,
     pushToast: toastApi.pushToast,
+    dismissToast: toastApi.dismissToast,
   });
 
   /** Moves the picker highlight by `delta` over what is on offer, clamped. */

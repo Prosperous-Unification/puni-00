@@ -28,8 +28,8 @@ export interface ImportWithAiHelpProps {
 type CopyOutcome = 'idle' | 'copied' | 'no-clipboard' | 'refused';
 
 /**
- * Said when the page has no clipboard. Not `NO_CLIPBOARD`: that one points at the CSV,
- * and the way out here is the guide, which carries the same text.
+ * Said when the page has no clipboard. Not the Export menu's `noClipboard`: that one points
+ * at a download, and the way out here is the guide, which carries the same text.
  */
 const NO_CLIPBOARD_HERE =
   'This page has no clipboard — that needs an https address. Copy it from the guide instead.';
@@ -37,7 +37,7 @@ const NO_CLIPBOARD_HERE =
 const OUTCOME_TEXT: Record<Exclude<CopyOutcome, 'idle'>, string> = {
   copied: 'Copied.',
   'no-clipboard': NO_CLIPBOARD_HERE,
-  refused: CLIPBOARD_REFUSED,
+  refused: `${CLIPBOARD_REFUSED} Copy it from the guide instead.`,
 };
 
 /**

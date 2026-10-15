@@ -48,6 +48,7 @@ import { refusingApi } from '@/testing/refusing-api';
 import { planRead } from '@/testing/views';
 
 import { forgetRefusedDrafts } from './live-editing';
+import { distinctImportName } from './plan-import-words';
 import { ProjectPage, recallLastProject, rememberLastProject } from './project-page';
 import { INFO_TOAST_MS } from './toasts';
 
@@ -516,7 +517,7 @@ describe('opening an imported project', () => {
       expect(document.getElementById('project-option-p3')).not.toBeNull();
       expect(document.querySelectorAll('[data-toasts]')).toHaveLength(1);
       expect(toastTexts()).toEqual([
-        'Imported 40 work items. Created 1 tag (Needs review). Solution reference: none.',
+        'Imported “Imported exact” with 40 work items. Added 1 tag (Needs review).',
       ]);
       // Proof: moving import reporting back into the keyed `WbsTable` made this
       // receive no toast after `choose` remounted the table. Observed 2026-09-14;
@@ -608,7 +609,7 @@ describe('opening an imported project', () => {
 
     await waitFor(() => {
       expect(toastTexts()).toEqual([
-        'Imported 40 work items. Created 1 tag (Needs review). Solution reference: none.',
+        'Imported “Imported exact” with 40 work items. Added 1 tag (Needs review).',
       ]);
     });
     expect(picker()).toHaveValue('Paint the fence');
@@ -794,7 +795,7 @@ describe('opening an imported project', () => {
 
     await waitFor(() => {
       expect(toastTexts()).toEqual([
-        'Plan JSON import refused: invalid_body at workItems[0].priority (workItems[0].priority must be a number or null (was a string)).',
+        'This plan export has a value the app cannot read: workItems[0].priority must be a number or null (was a string).',
       ]);
     });
     expect(importPlan).not.toHaveBeenCalled();
@@ -816,7 +817,9 @@ describe('opening an imported project', () => {
       importFile();
 
       await waitFor(() => {
-        expect(toastTexts()).toEqual(['Plan JSON import failed (imported_project_missing).']);
+        expect(toastTexts()).toEqual([
+          'The plan was imported, but the new project is not in your list yet. Reload to see it.',
+        ]);
       });
       expect(picker()).toHaveValue('Rewire the shed');
       expect(localStorage.getItem('wbs.project')).toBe('p1');
@@ -849,10 +852,26 @@ describe('opening an imported project', () => {
     importFile('{"broken"');
 
     await waitFor(() => {
-      expect(toastTexts()).toEqual(['Plan JSON import failed (invalid_json).']);
+      expect(toastTexts()).toEqual(['This file is not JSON.']);
     });
     expect(importPlan).not.toHaveBeenCalled();
     expect(picker()).toHaveValue('Rewire the shed');
+  });
+
+  itDom('says JSON that is not a plan export is not one', async () => {
+    const api = fakeProjects(TWO);
+    const importPlan = vi.fn(() => Promise.resolve(IMPORTED));
+    api.importPlan = importPlan;
+    pageWith(api);
+    await selectProject('p1');
+    await screen.findByLabelText('Import JSON');
+
+    importFile([1, 2, 3]);
+
+    await waitFor(() => {
+      expect(toastTexts()).toEqual(['This JSON is not a plan export.']);
+    });
+    expect(importPlan).not.toHaveBeenCalled();
   });
 
   itDom('reports an asynchronous file read failure without submitting', async () => {
@@ -871,7 +890,7 @@ describe('opening an imported project', () => {
     importFile();
 
     await waitFor(() => {
-      expect(toastTexts()).toEqual(['Plan JSON import failed (file_read_failed).']);
+      expect(toastTexts()).toEqual(['The file could not be read. Choose it again.']);
     });
     expect(importPlan).not.toHaveBeenCalled();
   });
@@ -896,13 +915,67 @@ describe('opening an imported project', () => {
 
     await waitFor(() => {
       expect(toastTexts()).toEqual([
-        'Plan JSON import refused: unknown_ref at workItems[12].dependsOn[0] (missing work item file-row-9).',
+        'This plan export refers to something it does not contain (workItems[12].dependsOn[0]: missing work item file-row-9).',
       ]);
     });
     expect(picker()).toHaveValue('Rewire the shed');
     expect(localStorage.getItem('wbs.project')).toBe('p1');
     // Proof: routing request rejection through `openProject` selected another
     // id; this exact prior selection assertion failed. Observed 2026-09-14.
+  });
+
+  itDom('takes a stale refusal off when a later import succeeds', async () => {
+    const api = fakeProjects(TWO);
+    api.importPlan = async () => {
+      const project = await api.createProject('Imported exact');
+      return { ...IMPORTED, projectId: project.id };
+    };
+    pageWith(api);
+    await selectProject('p1');
+    await screen.findByLabelText('Import JSON');
+
+    importFile('{"broken"');
+    await waitFor(() => {
+      expect(toastTexts()).toEqual(['This file is not JSON.']);
+    });
+    importFile();
+
+    await untilDocumentShows(() =>
+      toastTexts().some((text) => text.startsWith('Imported “Imported exact”')),
+    );
+    expect(toastTexts()).toEqual([
+      'Imported “Imported exact” with 40 work items. Added 1 tag (Needs review).',
+    ]);
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  itDom('dates an import whose name a project in the list already has', async () => {
+    const api = fakeProjects(TWO);
+    const sent: string[] = [];
+    api.importPlan = async (document) => {
+      sent.push(document.settings.name);
+      const project = await api.createProject(document.settings.name);
+      return { ...IMPORTED, projectId: project.id };
+    };
+    pageWith(api);
+    await selectProject('p1');
+    await screen.findByLabelText('Import JSON');
+    const datedName = distinctImportName('Rewire the shed', ['Rewire the shed'], new Date());
+    expect(datedName).toMatch(/^Rewire the shed \(imported \d{1,2} [A-Z][a-z]{2}\)$/);
+
+    importFile({
+      ...IMPORTABLE_PLAN,
+      settings: { ...IMPORTABLE_PLAN.settings, name: 'Rewire the shed' },
+    });
+
+    await untilDocumentShows(() => toastTexts().some((text) => text.startsWith('Imported')));
+    expect(sent).toEqual([datedName]);
+    expect(toastTexts()).toEqual([
+      `Imported “${datedName}” with 40 work items. Added 1 tag (Needs review).`,
+    ]);
+    // Proof: sending the file's name unchanged made this receive
+    // `["Rewire the shed"]`, a second project the list could not tell apart.
+    // Observed 2026-10-15.
   });
 
   itDom('clears the file control so the same file can complete twice', async () => {
