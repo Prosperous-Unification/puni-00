@@ -112,3 +112,8 @@ concrete design before Sol implements it. Existing 2.1/2.2a/2.2/4.1 obligations 
 - [x] 4.1b.11b Implement exact report/candidate/source joins, strict external authority and manifest/policy pins, complete mapped-source validation through existing Architecture validators, runner-compatible immediate discovery, explicit reviewed-empty contradictions and complete noncertifying output. Watch each changed safety check fail its production-path assertion under guard or dependency faults and add adjacent Proof comments.
 - [ ] 4.1b.11c Run the focused five-file suite, scoped lint/typecheck/build, installed dispatch, changed-file format, scenario provenance and pinned strict/all OpenSpec validation; record actual output and limits in verify.md. Obtain independent Astra review before push.
 - [ ] 4.1b.11d Coordinator only: integrate reviewed candidate, rerun affected checks after restack, obtain exact-head CI and host gate evidence, and advance WBS. Parent Tasks 2.1/2.2a/2.2/4.1 remain open.
+
+- [x] 4.1b.12a Record approved Browser Performance contract and allocate scenarios through production allocator preserving journal prefix.
+- [x] 4.1b.12b Observe actual invokeCli unknown-command RED; implement complete committed Browser Performance membership with shared decoder/digest, full selected-source validation, source and installed dispatch, negative guards and watched proofs; run focused/scoped acceptance.
+- [ ] 4.1b.12c Obtain independent Astra review of exact committed candidate.
+- [ ] 4.1b.12d Coordinator restacks onto #496 lineage and performs release/CI/host acceptance.
