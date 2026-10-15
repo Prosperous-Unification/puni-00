@@ -3297,3 +3297,36 @@ Mutation logs are `/tmp/scenarios-mutant-*.log`; full-tree fault was a changed `
 Scoped validation: `bun test .../evidence/performance-scenarios.test.ts`; `bun node_modules/.bin/tsc --noEmit -p apps/twilight-structure/twilight-burokrat/cli/tsconfig.lib.json`; ESLint on all five changed TypeScript files; Prettier on changed code/artifacts; pinned OpenSpec 1.12.0 `validate test-axes --type change --strict --json`. Final scenario suite: 17 passed, zero failed. Library and spec TypeScript compilation exited zero; scoped ESLint exited zero; strict OpenSpec validation reported one valid change and zero issues. Prettier and `git diff --check` exited zero. ESLint exits zero but reports its Nx module-boundary rule skipped because this isolated checkout has no cached project graph; that check remains unverified here. Dependencies use the aggregate checkout's existing node_modules via an untracked symlink. No full Nx gate was run; the coordinator owns the exact-commit host gate, required frozen install, broader CI checks and merge decision.
 
 This diagnostic grants no global coverage, authenticated evidence, certification, receipt or admission. Existing Tasks 2.1/2.2a/2.2/4.1 remain open; this task closes only the bounded Performance-to-B3 table slice.
+
+## 4.1b.10 design preparation — 2026-10-15
+
+Artifacts only, prepared in an isolated clone of exact #488 integration head
+`f7f982cae8c633779f10f4f786da389dc1138be8`. The coordinator requested a concrete packet for
+independent review before Sol implementation. No new human interview or implementation approval
+is claimed. Existing test-axes terms are preserved; no glossary or ADR change is needed.
+
+The production scenario allocator was run before applying its proposed spec/journal output:
+
+```sh
+bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts scenario allocate . openspec/changes/test-axes/specs/test-axes/spec.md
+bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts scenario validate . openspec/changes/test-axes/specs/test-axes/spec.md
+```
+
+Allocation exited 0 and proposed exactly TEST-AXES-100..103. Provenance validation exited 0 with
+`{"unidentified":[]}`. Existing events were retained; no identifiers were handwritten or reused.
+
+Pinned `OPENSPEC_TELEMETRY=0 bunx --bun @fission-ai/openspec@1.12.0 status --change test-axes --json`
+identified the existing `sdd-lean` repo-local change and its artifact paths. Targeted
+`validate test-axes --strict --json` passed 1/1 with zero issues; `validate --all --json` passed
+210/210 (192 changes, 18 specs). Changed-artifact Prettier and `git diff --check` passed.
+The initial direct invocation of the cached CLI failed first with sandbox EROFS and then missing
+`chalk` resolution; using the pinned Bun package runner resolved the CLI dependencies and produced
+the successful outputs above. Those initial failures are not validation passes.
+
+Validation used the existing workspace dependency tree through a local ignored `node_modules`
+symlink; a new frozen dependency installation was not performed. No production implementation,
+new runtime tests, R5 mutation proof, affected build/lint/typecheck, browser run, installed-command
+execution, host gate, CI, push, merge or deployment was performed for this design-only packet.
+All 4.1b.10 implementation/review/release boxes and parent 2.1/2.2a/2.2/4.1 remain unchecked.
+The proposed R5 pairs in tasks.md are obligations, not observed proofs. Independent artifact
+review and the coordinator's implementation handoff remain pending.

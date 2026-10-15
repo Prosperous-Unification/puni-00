@@ -284,3 +284,109 @@ Sort row names and derive sorted unique collection paths from the real report ca
 Extract the existing level inspector's validated context into `inspectPerformanceSelection`; its wrapper returns the same version-1 level envelope. The scenario adapter reuses that snapshot, decoded declaration, publication and level observation, requires isolation and compares its external policy reload with the publication policy digest. Evaluate `evaluateSpecifications` over the entire selected tree and pinned predecessor before capability filtering. Keep the full B3 report, including unrelated unidentified debt, in the observation. Require adopted identities for every requested scenario.
 
 Read citations only from the terminal declaration title, using a leading bracketed uppercase capability ID with at least three ordinal digits and a following literal space. Earlier suite titles provide no citations. Missing and malformed prefixes yield distinct findings; unknown and retired identities share the `inactive` finding because neither belongs to effective active B3. Sort cases and scenario IDs. Every requested scenario has passing selected case IDs or `unobserved-in-selection`. Citation findings yield diagnostic JSON and nonzero exit; source, authority, B3 and isolation failures yield no JSON. Bind complete selection, policy ID/digest, declaration, publication, level and B3 identities, absent authentication and false certification in the full-envelope digest. No global coverage inference follows from an unobserved row.
+
+### 4.1b.10 Browser committed Conformance facts
+
+This bounded design extends the existing test-axes change. Its base is integration candidate
+`f7f982cae8c633779f10f4f786da389dc1138be8` (#488); the coordinator requested artifacts under the
+standing delegation, with independent review before implementation. This records no new human
+interview. The existing vocabulary suffices: a declared selection is neither test execution nor
+level classification; an intersection is neither coverage nor module ownership. No new glossary
+term or hard-to-reverse decision is introduced.
+
+#### Boundary and authority
+
+`inspect-browser-conformance <repository> <full-committed-sha> <external-rule-policy> <ordinary|packaged|portable> <external-authority>`
+adds a separate command. `inspect-browser-memberships`, `inspect-level-facts` and the Performance
+observations retain their version-1 contracts and refusal behavior. The new command neither
+consumes nor upgrades the earlier Browser review assertions.
+
+The strict external version-1 authority has exactly these fields:
+
+```json
+{
+  "schemaVersion": 1,
+  "revision": "<full lowercase 40-or-64-hex commit SHA>",
+  "candidate": "<64-hex candidate digest>",
+  "mode": "ordinary",
+  "reportObservationDigest": "<64-hex real report observation digest>",
+  "projectRoot": "<canonical workspace-relative directory>",
+  "projectManifest": {
+    "path": "<projectRoot>/project.json",
+    "digest": "<64-hex selected manifest byte digest>"
+  }
+}
+```
+
+The angle-bracket strings explain field formats; implementations accept validated values only.
+Use the existing relative-path boundary, strict external-artifact reader, fatal UTF-8/JSON
+parsing and closed schemas. Missing, unreadable, malformed, escaping or unsupported authority
+refuses. There is no caller-provided collection or observation body. The manifest path must equal
+`projectRoot + '/project.json'`; the project root is an explicit external scope assertion and
+makes no claim about nearest module ownership or every Nx project in the repository.
+
+Capture one exact committed candidate with the existing Git reader, refusing symbolic selections
+and annotated tag objects that peel to another SHA. Call the real `inspectTestReports` for the
+requested mode and require its revision and complete candidate digest to equal that capture.
+Then compare all authority pins with that report. Derive sorted unique collection paths from
+its cases; require a nonempty collection and every path to begin with `projectRoot + '/'`,
+using the validated canonical paths. Do not filter away out-of-scope report cases. For every
+reported file, compare its report source mode and content digest with the captured selected
+regular blob; distinct cases sharing a source must agree with that same tuple. Working files
+cannot repair or replace selected blobs. Inherited publication and exact-case refusals propagate.
+
+#### Complete committed selection
+
+Read and pin the selected regular manifest. A missing `test:conformance` target refuses, even if
+its apparent intersection would be empty. Reuse the exact bounded target/command interpretation
+from `inspectLevelFacts`: closed `nx:run-commands` envelope, exact cwd, forwarding false, optional
+cache false and only the existing reviewed input tuples. The third drizzle input is admitted only
+at `libs/wbs/adapters/store-sqlite`, remains dependency metadata and selects no tests. Admit only
+literal `bun test ./<safe.test.ts>... --timeout=<positive decimal>` with the current safe path
+alphabet, one ASCII space between operands and a true end constraint. Refuse bare substring
+filters, shell syntax, globs, traversal, duplicates, extra flags, dependencies and configuration
+or environment overrides. Do not widen the grammar to accommodate another repository target.
+
+Extract the existing Conformance target decoder into a small evidence-local module shared by
+both callers. Keep Performance error text, validation order and output unchanged; the extraction
+must not move unrelated Architecture, authority or publication logic. Both callers validate every
+selected path as a readable regular Git blob before any intersection, including files outside
+the Browser/Performance collection. Bind manifest and all selected test tuples once, sorted by
+canonical path. The Browser output intersection may be empty; that means the complete declared
+selection has no shared file, not that Conformance is globally absent or independently executed.
+
+#### Observation and CLI
+
+The version-1 output has `kind:'browser-conformance'`, the complete nested real `report`,
+`authorityDigest`, `projectRoot`, pinned `projectManifest`, sorted unique `collection`, sorted
+unique `sources`, and `memberships`. `sources` is the union of the manifest, every Browser source
+and every selected Conformance source, each `{path,mode,contentDigest}` exactly once. Any same-path
+tuple disagreement refuses. `memberships.conformance` is
+`{kind:'committed',target:'test:conformance',selectedFiles,files}`: `selectedFiles` contains the
+entire canonical declared selection; `files` is its sorted intersection with `collection`.
+`memberships.manual`, `.architecture` and `.performance` are each `{kind:'unknown'}`. Preserve
+all report outcomes and duplicate-source case identities without inventing a level per case.
+
+Always emit `authentication:{kind:'absent'}` and `certifies:false`. `observationDigest` hashes
+the entire normalized envelope except itself using existing canonical hashing. The raw authority
+byte digest remains sensitive to byte changes even if normalized field order is unchanged.
+Valid observations exit zero, including empty intersections and admitted failed/skipped Browser
+cases. Refusals exit nonzero with named stderr and no JSON. No candidate code, runner, B3 selector,
+coverage rule, policy registration or admission runs in this diagnostic.
+
+#### Implementation and review seam
+
+Create `evidence/browser-conformance.ts` and its production CLI test file, plus the narrow shared
+Conformance decoder consumed by `level-facts.ts`. Thin routing belongs in `cli.ts` and `bin.ts`;
+update owning exports/README only where required. Reuse real report fixtures from
+`evidence/test-reports.test.ts`; any fixture extraction must preserve existing cases. Regress
+`level-facts.test.ts`, `performance-levels.test.ts`, `performance-scenarios.test.ts` and existing
+Browser report/membership tests. Source and installed executable dispatch must both be observed.
+
+Tests use committed scratch repositories and real immutable Browser publications; success there
+is not a claim that the current full repository has supported Conformance targets or complete
+coverage. No change to Nx targets, package dependencies or frozen policy is planned. If new test
+inputs are required, update both committed relationship facts with the manifest in the same
+slice and prove cache invalidation through the production hasher. Keep the scenario allocation
+journal and test-axes shared artifacts serialized with other lanes. Rebase only onto an accepted
+descendant of the pinned integration base, preserving 4.1b.9 and existing scenario reservations.
