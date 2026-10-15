@@ -162,6 +162,26 @@ export function shortInstant(epochMs: number, now: Date): string {
 }
 
 /**
+ * A moment with its year and its minute: `14 Oct 2026, 06:41`, in the
+ * browser's own zone for {@link shortInstant}'s stated reason.
+ *
+ * For a moment named on its own, where nothing beside it says the year or
+ * tells two saves of one morning apart: a saved plan (UI review F-067). The
+ * day-month words are {@link longIsoDate}'s; the clock is 24-hour, as an
+ * attempt's is.
+ *
+ * @throws {MalformedDayError} for an epoch that is not a time at all.
+ */
+export function longInstant(epochMs: number): string {
+  const at = new Date(epochMs);
+  const year = at.getFullYear();
+  if (Number.isNaN(year)) throw new MalformedDayError(String(epochMs));
+  const month = monthNamed(at.getMonth() + 1, String(epochMs));
+  const clock = `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
+  return `${String(at.getDate())} ${month} ${String(year)}, ${clock}`;
+}
+
+/**
  * One end of a work item's span as a renderer prints it, and the fuller fact
  * behind what is printed.
  *

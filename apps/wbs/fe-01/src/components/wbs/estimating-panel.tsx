@@ -219,6 +219,8 @@ export function EstimatingPanel({
     if (await write({ pertWeights: previous })) {
       setDraft(draftOfWeights(previous));
       setReplaced(null);
+      // Put back hides itself once used; the focus goes to the weights it put back.
+      weightsRow.current?.querySelector('input')?.focus();
     }
   }
 
@@ -256,7 +258,7 @@ export function EstimatingPanel({
 
       <SectionProblem problem={section.problem} />
 
-      <fieldset className="flex flex-col gap-2" disabled={section.busy}>
+      <fieldset className="flex flex-col gap-2">
         <legend className="text-sm font-medium">PERT weights</legend>
         <p className="text-muted-foreground text-sm">
           {weighed
@@ -274,6 +276,7 @@ export function EstimatingPanel({
                 className="h-8"
                 inputMode="decimal"
                 value={draft[point]}
+                readOnly={section.busy}
                 onBlur={onWeightsBlur}
                 onKeyDown={onWeightsKey}
                 onChange={(event) => {

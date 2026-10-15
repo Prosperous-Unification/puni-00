@@ -199,7 +199,7 @@ describe('the estimating panel', () => {
     // Proof: on 2026-10-14, against the panel with its Save weights button, this failed on
     // `Unable to find an accessible element with the role "button" and name "Undo the
     // weights"`.
-    fireEvent.click(screen.getByRole('button', { name: 'Undo the weights' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Put back the previous weights' }));
     await settle();
 
     expect(sent.at(-1)).toEqual({ pertWeights: DEFAULT_WEIGHTS });

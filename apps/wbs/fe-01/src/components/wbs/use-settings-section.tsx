@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { type RefusalWords, sentenceForRefusal } from '@/lib/refusal';
@@ -6,7 +6,15 @@ import { type RefusalWords, sentenceForRefusal } from '@/lib/refusal';
 import { failureText } from './plan-refusal';
 
 export interface SettingsSection {
-  /** Whether a write this section asked for is still in the air. */
+  /**
+   * Whether a write this section asked for is still in the air.
+   *
+   * A section's **text boxes** go `readOnly` while it is, never `disabled`: a
+   * disabled box loses the focus, so Enter — the commit under the modal's one
+   * commit model (D7) — dropped the caret onto the dialog on every write (UI
+   * review F-066). Buttons, radios and tick boxes may still be disabled; the
+   * hook hands the focus back to whichever of them started the write.
+   */
   busy: boolean;
   /** What refused the last attempt, in this section's own words, or null. */
   problem: string | null;
@@ -75,6 +83,8 @@ export function useSettingsSection(options: SettingsSectionOptions): SettingsSec
   const { words, dirty, onDirtyChange, onBusyChange, onChanged, onRefused } = options;
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /** The control that had the focus as the write in the air was sent. */
+  const sentFrom = useRef<HTMLElement | null>(null);
 
   // `busy` counts as unfinished, which is why no panel has to remember to put
   // it in its own `dirty`: a write in the air is a thing the modal must not
@@ -108,6 +118,24 @@ export function useSettingsSection(options: SettingsSectionOptions): SettingsSec
     [onBusyChange],
   );
 
+  // A control disabled while its write travelled lost the focus to the page or
+  // the dialog's own frame; once the write is over and it is enabled again, the
+  // focus goes back to it. Only from there: a reader who has since put the
+  // focus anywhere else keeps it, and a control that is gone (Put back hides
+  // itself once used) has nothing to take it.
+  // Proof: on 2026-10-14, the `focus()` below never called, `gets the focus
+  // back once the write is over` (settings-busy.test.tsx) failed on `expected
+  // <body> to be <button>`.
+  useEffect(() => {
+    if (busy) return;
+    const from = sentFrom.current;
+    sentFrom.current = null;
+    if (!from?.isConnected) return;
+    const now = document.activeElement;
+    const dropped = now === null || now === document.body || now.getAttribute('role') === 'dialog';
+    if (dropped) from.focus();
+  }, [busy]);
+
   return {
     busy,
     problem,
@@ -118,6 +146,8 @@ export function useSettingsSection(options: SettingsSectionOptions): SettingsSec
       setProblem(null);
     },
     attempt: async (change, onLanded = onChanged) => {
+      const focused = document.activeElement;
+      sentFrom.current = focused instanceof HTMLElement ? focused : null;
       setBusy(true);
       setProblem(null);
       try {
@@ -157,10 +187,16 @@ export function SectionProblem({ problem }: { problem: string | null }): ReactNo
  * the priority ladder and the PERT weights — and the way back.
  *
  * The settings modal has one commit model (UI review D7, F-060): a field applies
- * as it is left, and nothing waits for a Save. A single box needs no undo — the
- * old number is one retype away, as in the table — but a group is five or three
- * values typed together, so the group that landed offers to send back the one it
- * replaced. Shown only while the boxes say what landed: a new edit hides it.
+ * as it is left, and nothing waits for a Save. A single box needs no way back —
+ * the old number is one retype away, as in the table — but a group is five or
+ * three values typed together, so the group that landed offers to send back the
+ * one it replaced. Shown only while the boxes say what landed: a new edit hides it.
+ *
+ * **Put back, not Undo** (UI review D8, F-068). The toolbar's ↶ is be-01's
+ * command journal, and project settings are not journalled, so a second control
+ * called Undo on the same screen would promise a reach the first one does not
+ * have. This one sends the replaced values as a new write; its hint says the ↶
+ * does not reach it.
  */
 export function AppliedLine({
   what,
@@ -175,6 +211,7 @@ export function AppliedLine({
   onUndo: () => void;
 }): ReactNode {
   if (!undoable) return null;
+  const group = what.replace(/^The /, '');
   return (
     <div className="flex items-center gap-2 text-sm">
       <p role="status" className="text-muted-foreground">
@@ -184,11 +221,12 @@ export function AppliedLine({
         variant="outline"
         size="sm"
         type="button"
-        aria-label={`Undo ${what.toLowerCase()}`}
+        aria-label={`Put back the previous ${group}`}
+        data-hint={`Sends back the ${group} this one replaced. Project settings are not on the toolbar’s undo.`}
         disabled={busy}
         onClick={onUndo}
       >
-        Undo
+        Put back
       </Button>
     </div>
   );

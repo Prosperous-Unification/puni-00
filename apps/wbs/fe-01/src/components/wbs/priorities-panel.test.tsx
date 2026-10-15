@@ -303,13 +303,13 @@ describe('the priorities section', () => {
     // undefined to be 'Blocker'` — Enter in a box sent nothing.
     expect(sent.at(-1)?.at(0)?.label).toBe('Blocker');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Undo the ladder' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Put back the previous ladder' }));
     await settle();
 
     expect(sent).toHaveLength(2);
     expect(sent.at(-1)).toEqual(DEFAULT_PRIORITY_BANDS);
     expect(screen.getByLabelText<HTMLInputElement>('Name of band 1').value).toBe('Critical');
-    expect(screen.queryByRole('button', { name: 'Undo the ladder' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Put back the previous ladder' })).toBeNull();
   });
 
   itDom('Escape puts the ladder back and sends nothing', async () => {

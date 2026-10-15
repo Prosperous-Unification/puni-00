@@ -16,7 +16,7 @@ import { saveOf, useSavedPlanSave } from '../../lib/saved-plan-save';
 import type { SavedPlans } from '../../modules/saved-plans/contract';
 import type { SavedPlanComparisonState } from './saved-plan-compare';
 import { SavedPlanComparison, SavedPlanSidePicker } from './saved-plan-compare';
-import { SavedPlanList } from './saved-plan-list';
+import { isNamedByTime, SavedPlanList, savedPlanTitle } from './saved-plan-list';
 
 /** One frozen empty shelf, so "no rows" has a stable identity. */
 const EMPTY_ROWS: readonly SavedPlanListEntryView[] = [];
@@ -39,7 +39,10 @@ export function saveWords(state: SavedPlanSaveState): string | null {
     // where the record's name came from. Rendered from the response rather than
     // re-read from the shelf — the answer is already in hand, and a confirmation
     // that waits for a second request is a slower one for no new fact.
-    return `Saved ${state.savedPlan.name} at ${new Date(state.savedPlan.createdAt).toLocaleString()}.`;
+    // One spelling of the instant (F-067): the name the row now carries, or
+    // for a save be-01 named after its time, that time in the app's words.
+    const saved = state.savedPlan;
+    return isNamedByTime(saved) ? `Saved ${savedPlanTitle(saved)}.` : `Saved “${saved.name}”.`;
   }
   if (state.kind === 'busy') return SAVE_BUSY;
   // Named rather than retried: `quota` carries be-01's sentence about the limit

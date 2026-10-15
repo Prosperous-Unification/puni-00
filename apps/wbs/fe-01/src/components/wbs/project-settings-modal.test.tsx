@@ -783,15 +783,16 @@ describe('the project timezone (step-node-attempts D3)', () => {
     fireEvent.click(tab('Timezone'));
     const box = screen.getByRole('combobox', { name: 'Timezone' });
     expect(box).toHaveValue('UTC');
+    // Waits for the list itself: the box takes typing while the zones load
+    // (F-069), so its being enabled no longer says the list has landed.
     await waitFor(() => {
-      expect(box).toBeEnabled();
+      expect(
+        [...document.querySelectorAll('#project-timezone-zones option')].map((each) =>
+          each.getAttribute('value'),
+        ),
+      ).toEqual(['America/New_York', 'Europe/Kyiv', 'UTC']);
     });
     expect(listTimezones).toHaveBeenCalledTimes(1);
-    expect(
-      [...document.querySelectorAll('#project-timezone-zones option')].map((each) =>
-        each.getAttribute('value'),
-      ),
-    ).toEqual(['America/New_York', 'Europe/Kyiv', 'UTC']);
     fireEvent.change(box, { target: { value: 'Europe/Kyiv' } });
     // Applied as the box is left (D7, F-060), not by a Save timezone button.
     fireEvent.blur(box);
@@ -809,7 +810,7 @@ describe('the project timezone (step-node-attempts D3)', () => {
     fireEvent.click(tab('Timezone'));
     const box = screen.getByRole('combobox', { name: 'Timezone' });
     await waitFor(() => {
-      expect(box).toBeEnabled();
+      expect(document.querySelectorAll('#project-timezone-zones option').length).toBeGreaterThan(0);
     });
     fireEvent.change(box, { target: { value: 'Kyiv' } });
     fireEvent.blur(box);
@@ -839,8 +840,9 @@ describe('the project timezone (step-node-attempts D3)', () => {
     );
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
     await waitFor(() => {
-      expect(screen.getByRole('combobox', { name: 'Timezone' })).toBeEnabled();
+      expect(screen.queryByText(/could not be read/)).toBeNull();
     });
+    expect(document.querySelectorAll('#project-timezone-zones option')).toHaveLength(1);
     expect(listTimezones).toHaveBeenCalledTimes(2);
   });
 

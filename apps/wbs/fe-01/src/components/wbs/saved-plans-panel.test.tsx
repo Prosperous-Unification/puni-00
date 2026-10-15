@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { defaultSavedPlanName } from '@wbs/domain/saved-plan-default-name';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type {
@@ -153,13 +154,18 @@ const COMPARE_PICKER = /^Compare(?! .* with the current plan$)/;
 const flush = () => act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
 
 describe('what the save status line says', () => {
-  it('confirms with the record’s own name and be-01’s timestamp', () => {
+  it('confirms with the record’s own name, or be-01’s timestamp in the app’s words', () => {
     // AC #1: the authoritative timestamp, which only the server knows and which
     // arrived in the response. `toLocaleString` is the browser's, so the
     // assertion holds the two facts around it rather than the rendered date.
-    const words = saveWords({ kind: 'saved', savedPlan: ROW });
-    expect(words).toContain(ROW.name);
-    expect(words).toContain(new Date(ROW.createdAt).toLocaleString());
+    // One spelling of one instant (F-067): the name the row will carry, and for
+    // a save be-01 named after its own time, that time in the app's words.
+    // Proof: on 2026-10-14, against 85849d1f3, this failed on `expected 'Saved
+    // before the re-plan at 9/4/2026, 6:00:00 AM.' to be 'Saved “before the
+    // re-plan”.'`.
+    expect(saveWords({ kind: 'saved', savedPlan: ROW })).toBe('Saved “before the re-plan”.');
+    const stamped = { ...ROW, name: defaultSavedPlanName(ROW.createdAt / 1000) };
+    expect(saveWords({ kind: 'saved', savedPlan: stamped })).toBe('Saved 4 Sep 2026, 06:00.');
   });
 
   it('says the two refusals in their own words, and neither in the other’s', () => {

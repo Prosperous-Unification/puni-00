@@ -12,6 +12,7 @@ import {
   groupByCategory,
   sideScheduleWords,
 } from '../../lib/saved-plan-compare';
+import { savedPlanTitle } from './saved-plan-list';
 
 /** The value a picker holds, as a `<select>` can carry it. */
 export const CURRENT_OPTION = 'current';
@@ -27,7 +28,8 @@ export const valueOf = (side: SavedPlanSideRef): string =>
 /** How a side is named in a heading. `current` has no row and no name of its own. */
 export function sideLabel(side: SavedPlanSideRef, rows: readonly SavedPlanListEntryView[]): string {
   if (side === 'current') return 'the current plan';
-  return rows.find((row) => row.id === side.saved)?.name ?? side.saved;
+  const row = rows.find((each) => each.id === side.saved);
+  return row === undefined ? side.saved : savedPlanTitle(row);
 }
 
 /**
@@ -62,7 +64,7 @@ export function SavedPlanSidePicker({
         <option value={CURRENT_OPTION}>the current plan</option>
         {rows.map((row) => (
           <option key={row.id} value={row.id}>
-            {row.name}
+            {savedPlanTitle(row)}
           </option>
         ))}
       </select>
