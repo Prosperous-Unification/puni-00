@@ -83,3 +83,7 @@
 
 - [x] 6.4.18 Repair merged predecessor boot refusal with hash-pinned inert maintenance, exact-ID backup/capture/migrate, durable maintenance/migration receipts and stopped proof before app exposure; preserve the boot admission check and disabled activation.
 - [x] 6.4.19 Complete authentic predecessor/interruption, snapshot/identity/configuration and watched guard proofs, scoped verification, reviewed BusyBox integration and exact-image rehearsal; obtain combined independent review before publication.
+
+## WBS080.25 Navigator v9 read and receipt
+
+- [x] Accept strict external v9 direct facts without blockage commands; validate narrow archival references, preserve original bytes/version and native schema-2 tasks, retain historical versions, verify both consistency commands and receipt conversion including re-digested v9/schema1 and future v10 refusal, and exercise packaged external use. Evidence: ../read-current-plan-exports-in-navigator/verify.md.

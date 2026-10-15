@@ -183,11 +183,6 @@ test('browser provisioning token lifecycle releases the connection deletion bloc
   await expect(secret).toBeFocused();
   await page.keyboard.press('ControlOrMeta+C');
   expect(await page.evaluate(async () => navigator.clipboard.readText())).toBe(issuedSecret);
-  const blocked = await context.request.delete('/api/organization/sso-connections/conn-tokens', {
-    headers,
-  });
-  expect(blocked.status()).toBe(409);
-  expect(await blocked.json()).toEqual({ error: 'provisioning_active' });
   await panel.getByRole('button', { name: 'Dismiss secret' }).click();
   await panel.getByRole('button', { name: `Rotate ${first.id}`, exact: true }).click();
   await expect(secret).toHaveValue(/^wbs_scim_[A-Za-z0-9_-]{43}$/);
@@ -218,6 +213,38 @@ test('browser provisioning token lifecycle releases the connection deletion bloc
   await page.reload();
   await expect(panel.getByRole('listitem')).toHaveCount(2);
   await expect(secret).toHaveCount(0);
+  const signIn = page.getByRole('region', { name: 'Company sign-in' });
+  const removal = signIn.getByRole('group', { name: 'Remove connection for tokens.test' });
+  const instruction =
+    'Removal was blocked by live provisioning tokens. Revoke all live tokens in Provisioning tokens, then try removing the connection again.';
+  async function confirmRemoval(status: 204 | 409) {
+    await signIn.getByRole('button', { name: 'Remove connection for tokens.test' }).click();
+    await expect(removal).toContainText('tokens-saml');
+    const reply = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'DELETE' &&
+        new URL(response.url()).pathname === '/api/organization/sso-connections/conn-tokens',
+    );
+    await removal.getByRole('button', { name: 'Confirm removal of tokens.test' }).click();
+    const response = await reply;
+    expect(response.request().headers()['x-wbs-expected-organization']).toBe('org-tokens');
+    expect(response.status()).toBe(status);
+    if (status === 409) {
+      expect(await response.json()).toEqual({ error: 'provisioning_active' });
+      await expect(signIn.getByRole('status')).toHaveText(instruction);
+      await expect(signIn.getByText('tokens-saml', { exact: true })).toBeVisible();
+    }
+    await expect(removal).toHaveCount(0);
+  }
+  // Both overlap tokens remain live: the server must refuse the browser's confirmed removal.
+  await confirmRemoval(409);
+  for (const token of successor.tokens) {
+    const row = panel
+      .getByRole('listitem')
+      .filter({ has: page.getByText(token.id, { exact: true }) });
+    await expect(row.getByText('Revoked', { exact: true })).toHaveCount(0);
+  }
+  let revoked = 0;
   for (const token of successor.tokens) {
     const row = panel
       .getByRole('listitem')
@@ -225,9 +252,15 @@ test('browser provisioning token lifecycle releases the connection deletion bloc
     await row.getByLabel('Token ID to revoke').fill(token.id);
     await row.getByRole('button', { name: `Revoke ${token.id}`, exact: true }).click();
     await expect(row.getByText('Revoked', { exact: true })).toBeVisible();
+    ++revoked;
+    if (revoked === 1) await confirmRemoval(409);
   }
-  const deleted = await context.request.delete('/api/organization/sso-connections/conn-tokens', {
-    headers,
-  });
-  expect(deleted.status()).toBe(204);
+  await expect(signIn.getByText('tokens-saml', { exact: true })).toBeVisible();
+  await expect(removal).toHaveCount(0);
+  await confirmRemoval(204);
+  await expect(
+    signIn.getByRole('button', { name: 'Remove connection for tokens.test' }),
+  ).toHaveCount(0);
+  await expect(signIn.getByRole('option', { name: 'tokens.test' })).toHaveCount(1);
+  await expect(signIn.getByRole('status')).toHaveText('Connection removed.');
 });

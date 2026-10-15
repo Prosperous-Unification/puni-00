@@ -1,0 +1,567 @@
+{
+  "project": {
+    "id": "00000000-0000-4000-8000-000000000001",
+    "name": "Navigator fixture",
+    "ownerId": "owner",
+    "restricted": false,
+    "estimateMethod": "pert",
+    "depReach": "whole-item",
+    "pertWeights": {
+      "optimistic": 1,
+      "realistic": 4,
+      "pessimistic": 1
+    },
+    "estimateRounding": "ceil",
+    "startDate": null,
+    "solutionRef": null,
+    "revision": 0,
+    "createdAt": 1791709200000,
+    "optimizationEnabled": false,
+    "scheduleEngine": "fast",
+    "scheduleObjective": "pri",
+    "timezone": "UTC"
+  },
+  "workItems": [
+    {
+      "id": "00000000-0000-4000-8000-000000000004",
+      "projectId": "00000000-0000-4000-8000-000000000001",
+      "parentId": null,
+      "position": 10,
+      "name": "Navigator CLI",
+      "notes": "",
+      "frozenNumber": null,
+      "startNoEarlierThan": null,
+      "startNoEarlierThanReason": null,
+      "deadline": null,
+      "factStart": null,
+      "factEnd": null,
+      "readiness": null,
+      "hold": null,
+      "priority": 50,
+      "serviceTeamId": null,
+      "serviceId": null,
+      "maxParallel": 1,
+      "revision": 0,
+      "teamIds": [],
+      "tagIds": [],
+      "serviceIds": [],
+      "typeIds": [],
+      "externalRefs": [],
+      "number": "010",
+      "estimates": {
+        "00000000-0000-4000-8000-000000000002": {
+          "optimistic": 3,
+          "realistic": 5,
+          "pessimistic": 9
+        },
+        "00000000-0000-4000-8000-000000000003": {
+          "optimistic": 30,
+          "realistic": 60,
+          "pessimistic": 120
+        }
+      },
+      "actuals": {},
+      "measures": {},
+      "progress": {},
+      "status": "unknown",
+      "finalDays": {
+        "00000000-0000-4000-8000-000000000002": 7,
+        "00000000-0000-4000-8000-000000000003": 7
+      },
+      "finalTotal": 14,
+      "rolledUp": true,
+      "dependsOn": [],
+      "assignees": {},
+      "doesEveryStep": null,
+      "schedule": {
+        "duration": 0,
+        "estimated": true,
+        "earliestStart": 0,
+        "earliestFinish": 14,
+        "latestStart": 0,
+        "latestFinish": 14,
+        "float": 0,
+        "critical": true
+      },
+      "dates": null,
+      "charged": {}
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000007",
+      "projectId": "00000000-0000-4000-8000-000000000001",
+      "parentId": "00000000-0000-4000-8000-000000000004",
+      "position": 10,
+      "name": "Record kinds",
+      "notes": "",
+      "frozenNumber": null,
+      "startNoEarlierThan": null,
+      "startNoEarlierThanReason": null,
+      "deadline": null,
+      "factStart": null,
+      "factEnd": null,
+      "readiness": null,
+      "hold": null,
+      "priority": 50,
+      "serviceTeamId": null,
+      "serviceId": null,
+      "maxParallel": 1,
+      "revision": 0,
+      "teamIds": [],
+      "tagIds": [],
+      "serviceIds": [],
+      "typeIds": [],
+      "externalRefs": [],
+      "number": "010.1",
+      "estimates": {
+        "00000000-0000-4000-8000-000000000002": {
+          "optimistic": 1,
+          "realistic": 2,
+          "pessimistic": 4
+        },
+        "00000000-0000-4000-8000-000000000003": {
+          "optimistic": 30,
+          "realistic": 60,
+          "pessimistic": 120
+        }
+      },
+      "actuals": {},
+      "measures": {},
+      "progress": {
+        "00000000-0000-4000-8000-000000000002": "done"
+      },
+      "status": "unknown",
+      "finalDays": {
+        "00000000-0000-4000-8000-000000000002": 3,
+        "00000000-0000-4000-8000-000000000003": 3
+      },
+      "finalTotal": 6,
+      "rolledUp": false,
+      "dependsOn": [],
+      "assignees": {},
+      "doesEveryStep": null,
+      "schedule": {
+        "duration": 6,
+        "estimated": true,
+        "earliestStart": 0,
+        "earliestFinish": 6,
+        "latestStart": 0,
+        "latestFinish": 6,
+        "float": 0,
+        "critical": true
+      },
+      "dates": null,
+      "charged": {}
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000010",
+      "projectId": "00000000-0000-4000-8000-000000000001",
+      "parentId": "00000000-0000-4000-8000-000000000004",
+      "position": 20,
+      "name": "plan-reference command",
+      "notes": "",
+      "frozenNumber": null,
+      "startNoEarlierThan": null,
+      "startNoEarlierThanReason": null,
+      "deadline": null,
+      "factStart": null,
+      "factEnd": null,
+      "readiness": null,
+      "hold": null,
+      "priority": 50,
+      "serviceTeamId": null,
+      "serviceId": null,
+      "maxParallel": 1,
+      "revision": 0,
+      "teamIds": [],
+      "tagIds": [],
+      "serviceIds": [],
+      "typeIds": [],
+      "externalRefs": [],
+      "number": "010.2",
+      "estimates": {
+        "00000000-0000-4000-8000-000000000002": {
+          "optimistic": 2,
+          "realistic": 3,
+          "pessimistic": 5
+        },
+        "00000000-0000-4000-8000-000000000003": {
+          "optimistic": 30,
+          "realistic": 60,
+          "pessimistic": 120
+        }
+      },
+      "actuals": {},
+      "measures": {},
+      "progress": {},
+      "status": "unknown",
+      "finalDays": {
+        "00000000-0000-4000-8000-000000000002": 4,
+        "00000000-0000-4000-8000-000000000003": 4
+      },
+      "finalTotal": 8,
+      "rolledUp": false,
+      "dependsOn": [],
+      "assignees": {},
+      "doesEveryStep": null,
+      "schedule": {
+        "duration": 8,
+        "estimated": true,
+        "earliestStart": 6,
+        "earliestFinish": 14,
+        "latestStart": 6,
+        "latestFinish": 14,
+        "float": 0,
+        "critical": true
+      },
+      "dates": null,
+      "charged": {}
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000013",
+      "projectId": "00000000-0000-4000-8000-000000000001",
+      "parentId": null,
+      "position": 20,
+      "name": "Documentation",
+      "notes": "",
+      "frozenNumber": null,
+      "startNoEarlierThan": null,
+      "startNoEarlierThanReason": null,
+      "deadline": null,
+      "factStart": null,
+      "factEnd": null,
+      "readiness": null,
+      "hold": null,
+      "priority": 50,
+      "serviceTeamId": null,
+      "serviceId": null,
+      "maxParallel": 1,
+      "revision": 0,
+      "teamIds": [],
+      "tagIds": [],
+      "serviceIds": [],
+      "typeIds": [],
+      "externalRefs": [],
+      "number": "020",
+      "estimates": {
+        "00000000-0000-4000-8000-000000000002": {
+          "optimistic": 0.5,
+          "realistic": 1,
+          "pessimistic": 2
+        },
+        "00000000-0000-4000-8000-000000000003": {
+          "optimistic": 30,
+          "realistic": 60,
+          "pessimistic": 120
+        }
+      },
+      "actuals": {},
+      "measures": {},
+      "progress": {},
+      "status": "unknown",
+      "finalDays": {
+        "00000000-0000-4000-8000-000000000002": 2,
+        "00000000-0000-4000-8000-000000000003": 2
+      },
+      "finalTotal": 4,
+      "rolledUp": false,
+      "dependsOn": ["00000000-0000-4000-8000-000000000010"],
+      "assignees": {},
+      "doesEveryStep": null,
+      "schedule": {
+        "duration": 4,
+        "estimated": true,
+        "earliestStart": 14,
+        "earliestFinish": 18,
+        "latestStart": 14,
+        "latestFinish": 18,
+        "float": 0,
+        "critical": true
+      },
+      "dates": null,
+      "charged": {}
+    }
+  ],
+  "typedDependencies": [
+    {
+      "id": "00000000-0000-4000-8000-000000000028",
+      "predecessor": {
+        "scope": "whole",
+        "workItem": "00000000-0000-4000-8000-000000000007"
+      },
+      "successor": {
+        "scope": "whole",
+        "workItem": "00000000-0000-4000-8000-000000000010"
+      },
+      "type": "FS"
+    }
+  ],
+  "seq": 11,
+  "scheduleError": null,
+  "waitingForPerson": 0,
+  "waitingForCapacity": 0,
+  "slices": [
+    {
+      "id": "00000000-0000-4000-8000-000000000007\u000000000000-0000-4000-8000-000000000002",
+      "workItemId": "00000000-0000-4000-8000-000000000007",
+      "stepId": "00000000-0000-4000-8000-000000000002",
+      "duration": 3,
+      "effort": 3,
+      "width": 1,
+      "estimated": true,
+      "earliestStart": 0,
+      "earliestFinish": 3,
+      "latestStart": 0,
+      "latestFinish": 3,
+      "float": 0,
+      "critical": true,
+      "personId": null,
+      "boundBy": "projectStart",
+      "resourcePredecessorId": null,
+      "capacityPredecessorIds": [],
+      "capacityTeamId": null,
+      "lateBy": null
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000007\u000000000000-0000-4000-8000-000000000003",
+      "workItemId": "00000000-0000-4000-8000-000000000007",
+      "stepId": "00000000-0000-4000-8000-000000000003",
+      "duration": 3,
+      "effort": 3,
+      "width": 1,
+      "estimated": true,
+      "earliestStart": 3,
+      "earliestFinish": 6,
+      "latestStart": 3,
+      "latestFinish": 6,
+      "float": 0,
+      "critical": true,
+      "personId": null,
+      "boundBy": "stepOrder",
+      "resourcePredecessorId": null,
+      "capacityPredecessorIds": [],
+      "capacityTeamId": null,
+      "lateBy": null
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000010\u000000000000-0000-4000-8000-000000000002",
+      "workItemId": "00000000-0000-4000-8000-000000000010",
+      "stepId": "00000000-0000-4000-8000-000000000002",
+      "duration": 4,
+      "effort": 4,
+      "width": 1,
+      "estimated": true,
+      "earliestStart": 6,
+      "earliestFinish": 10,
+      "latestStart": 6,
+      "latestFinish": 10,
+      "float": 0,
+      "critical": true,
+      "personId": null,
+      "boundBy": "predecessor",
+      "resourcePredecessorId": null,
+      "capacityPredecessorIds": [],
+      "capacityTeamId": null,
+      "lateBy": null
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000010\u000000000000-0000-4000-8000-000000000003",
+      "workItemId": "00000000-0000-4000-8000-000000000010",
+      "stepId": "00000000-0000-4000-8000-000000000003",
+      "duration": 4,
+      "effort": 4,
+      "width": 1,
+      "estimated": true,
+      "earliestStart": 10,
+      "earliestFinish": 14,
+      "latestStart": 10,
+      "latestFinish": 14,
+      "float": 0,
+      "critical": true,
+      "personId": null,
+      "boundBy": "stepOrder",
+      "resourcePredecessorId": null,
+      "capacityPredecessorIds": [],
+      "capacityTeamId": null,
+      "lateBy": null
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000013\u000000000000-0000-4000-8000-000000000002",
+      "workItemId": "00000000-0000-4000-8000-000000000013",
+      "stepId": "00000000-0000-4000-8000-000000000002",
+      "duration": 2,
+      "effort": 2,
+      "width": 1,
+      "estimated": true,
+      "earliestStart": 14,
+      "earliestFinish": 16,
+      "latestStart": 14,
+      "latestFinish": 16,
+      "float": 0,
+      "critical": true,
+      "personId": null,
+      "boundBy": "predecessor",
+      "resourcePredecessorId": null,
+      "capacityPredecessorIds": [],
+      "capacityTeamId": null,
+      "lateBy": null
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000013\u000000000000-0000-4000-8000-000000000003",
+      "workItemId": "00000000-0000-4000-8000-000000000013",
+      "stepId": "00000000-0000-4000-8000-000000000003",
+      "duration": 2,
+      "effort": 2,
+      "width": 1,
+      "estimated": true,
+      "earliestStart": 16,
+      "earliestFinish": 18,
+      "latestStart": 16,
+      "latestFinish": 18,
+      "float": 0,
+      "critical": true,
+      "personId": null,
+      "boundBy": "stepOrder",
+      "resourcePredecessorId": null,
+      "capacityPredecessorIds": [],
+      "capacityTeamId": null,
+      "lateBy": null
+    }
+  ],
+  "steps": [
+    {
+      "id": "00000000-0000-4000-8000-000000000002",
+      "projectId": "00000000-0000-4000-8000-000000000001",
+      "name": "Dev",
+      "position": 10,
+      "code": "dev",
+      "allowancePercent": 0,
+      "estimateUnit": "workdays"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000003",
+      "projectId": "00000000-0000-4000-8000-000000000001",
+      "name": "QA",
+      "position": 20,
+      "code": "qa",
+      "allowancePercent": 0,
+      "estimateUnit": "minutes"
+    }
+  ],
+  "assignedPeople": [],
+  "teamCapacities": [],
+  "priorityBands": [
+    {
+      "startsAt": 1,
+      "label": "Critical",
+      "defaultValue": 10
+    },
+    {
+      "startsAt": 21,
+      "label": "High",
+      "defaultValue": 30
+    },
+    {
+      "startsAt": 41,
+      "label": "Medium",
+      "defaultValue": 50
+    },
+    {
+      "startsAt": 61,
+      "label": "Low",
+      "defaultValue": 70
+    },
+    {
+      "startsAt": 81,
+      "label": "Lowest",
+      "defaultValue": 90
+    }
+  ],
+  "estimateMethod": "pert",
+  "pertWeights": {
+    "optimistic": 1,
+    "realistic": 4,
+    "pessimistic": 1
+  },
+  "estimateRounding": "ceil",
+  "depReach": "whole-item",
+  "startDate": null,
+  "projectRevision": 0,
+  "capacity": [],
+  "stepBlockages": [
+    {
+      "workItemId": "00000000-0000-4000-8000-000000000007",
+      "stepId": "00000000-0000-4000-8000-000000000002",
+      "blockedAt": -1
+    }
+  ],
+  "stepNodes": [
+    {
+      "id": "sn1.00000000-0000-4000-8000-000000000007.00000000-0000-4000-8000-000000000002",
+      "workItemId": "00000000-0000-4000-8000-000000000007",
+      "stepId": "00000000-0000-4000-8000-000000000002",
+      "reference": "010.1.s1-dev"
+    },
+    {
+      "id": "sn1.00000000-0000-4000-8000-000000000007.00000000-0000-4000-8000-000000000003",
+      "workItemId": "00000000-0000-4000-8000-000000000007",
+      "stepId": "00000000-0000-4000-8000-000000000003",
+      "reference": "010.1.s2-qa"
+    },
+    {
+      "id": "sn1.00000000-0000-4000-8000-000000000010.00000000-0000-4000-8000-000000000002",
+      "workItemId": "00000000-0000-4000-8000-000000000010",
+      "stepId": "00000000-0000-4000-8000-000000000002",
+      "reference": "010.2.s1-dev"
+    },
+    {
+      "id": "sn1.00000000-0000-4000-8000-000000000010.00000000-0000-4000-8000-000000000003",
+      "workItemId": "00000000-0000-4000-8000-000000000010",
+      "stepId": "00000000-0000-4000-8000-000000000003",
+      "reference": "010.2.s2-qa"
+    },
+    {
+      "id": "sn1.00000000-0000-4000-8000-000000000013.00000000-0000-4000-8000-000000000002",
+      "workItemId": "00000000-0000-4000-8000-000000000013",
+      "stepId": "00000000-0000-4000-8000-000000000002",
+      "reference": "020.s1-dev"
+    },
+    {
+      "id": "sn1.00000000-0000-4000-8000-000000000013.00000000-0000-4000-8000-000000000003",
+      "workItemId": "00000000-0000-4000-8000-000000000013",
+      "stepId": "00000000-0000-4000-8000-000000000003",
+      "reference": "020.s2-qa"
+    }
+  ],
+  "document": {
+    "format": "wbs-plan",
+    "version": 9,
+    "exportedAt": "2026-10-11T09:00:00.000Z"
+  },
+  "settings": {
+    "name": "Navigator fixture",
+    "restricted": false,
+    "estimateMethod": "pert",
+    "depReach": "whole-item",
+    "pertWeights": {
+      "optimistic": 1,
+      "realistic": 4,
+      "pessimistic": 1
+    },
+    "estimateRounding": "ceil",
+    "startDate": null,
+    "solutionRef": null,
+    "optimizationEnabled": false,
+    "scheduleEngine": "fast",
+    "scheduleObjective": "pri",
+    "timezone": "UTC"
+  },
+  "calendarMarkers": [],
+  "directory": {
+    "teams": [],
+    "people": [],
+    "tags": [],
+    "services": [],
+    "types": [],
+    "externalSystems": []
+  }
+}

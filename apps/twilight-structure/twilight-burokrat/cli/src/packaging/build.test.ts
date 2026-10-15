@@ -4,6 +4,7 @@ import { join, resolve } from 'node:path';
 
 import { afterEach, describe, expect, test } from 'bun:test';
 
+import { digestOf } from '../contracts/canonical';
 import { hashBytes } from '../evidence/content-manifest';
 import { buildPackage } from './build';
 
@@ -115,7 +116,7 @@ describe('buildPackage', () => {
         '--export',
         join(
           import.meta.dir,
-          '../../../../twilight-navigator/cli/src/fixtures/plan-export.v8.json',
+          '../../../../twilight-navigator/cli/src/fixtures/plan-export.v9.json',
         ),
         '--repository',
         'repo',
@@ -145,6 +146,49 @@ describe('buildPackage', () => {
       scope: 'plan-task-consistency',
       taskCount: 3,
     });
+    const reference = JSON.parse(await readFile(referencePath, 'utf8')) as { planRef: object };
+    const receiptBody = {
+      schemaVersion: 1,
+      kind: 'progress-receipt',
+      planRef: reference.planRef,
+      entries: [
+        {
+          taskId: '00000000-0000-4000-8000-000000000007',
+          stepCode: 'dev',
+          status: 'done',
+          observedAt: '2026-10-11T10:00:00.000Z',
+          evidence: 'verify.md',
+        },
+      ],
+    };
+    const receiptPath = join(planDirectory, 'receipt.json');
+    await writeFile(
+      receiptPath,
+      JSON.stringify({ ...receiptBody, receiptDigest: digestOf(receiptBody) }),
+    );
+    const receiptValidation = invoke(
+      executable,
+      ['validate-progress-receipt', receiptPath, referencePath, tasksPath],
+      externalRoot,
+    );
+    expect(receiptValidation.exitCode, receiptValidation.stderr.toString()).toBe(0);
+    expect(JSON.parse(receiptValidation.stdout.toString())).toMatchObject({
+      scope: 'progress-receipt-consistency',
+      entryCount: 1,
+    });
+    receiptBody.entries[0].taskId = 'absent';
+    await writeFile(
+      receiptPath,
+      JSON.stringify({ ...receiptBody, receiptDigest: digestOf(receiptBody) }),
+    );
+    const receiptRefusal = invoke(
+      executable,
+      ['validate-progress-receipt', receiptPath, referencePath, tasksPath],
+      externalRoot,
+    );
+    expect(receiptRefusal.exitCode).toBe(1);
+    expect(receiptRefusal.stdout.toString()).toBe('');
+    expect(receiptRefusal.stderr.toString()).toContain('names task absent');
     const tasks = JSON.parse(await readFile(tasksPath, 'utf8')) as { tasks: { name: string }[] };
     tasks.tasks[0].name = 'tampered';
     await writeFile(tasksPath, JSON.stringify(tasks));
@@ -165,6 +209,10 @@ describe('buildPackage', () => {
     expect(ruleHelp.stdout.toString()).toContain('twilight-burokrat explain <rule-id>');
     expect(ruleHelp.stdout.toString()).toContain(
       'twilight-burokrat validate-plan-tasks <plan-reference.json> <tasks.json>',
+    );
+
+    expect(ruleHelp.stdout.toString()).toContain(
+      'twilight-burokrat validate-progress-receipt <receipt.json> <plan-reference.json> <tasks.json>',
     );
 
     const templateHelp = invoke(executable, ['--help'], externalRoot);

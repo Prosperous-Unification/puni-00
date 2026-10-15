@@ -8,6 +8,8 @@ import { prepareRelocationActivation } from './policy/prepare-relocation-activat
 const validatorCommands = new Set([
   'validate',
   'validate-record',
+  // Proof: omitting this route failed the installed receipt report in packaging/build.test.ts (2026-10-15).
+  'validate-progress-receipt',
   // Proof: removing this route made built executable plan validation exit 1 with unknown
   // command instead of a consistency report (packaging/build.test.ts, 2026-10-13).
   'validate-plan-tasks',
@@ -53,6 +55,7 @@ const help = `usage: twilight-burokrat <command> ...
 
 commands:
   twilight-burokrat validate-record <kind> <json>
+  twilight-burokrat validate-progress-receipt <receipt.json> <plan-reference.json> <tasks.json>
   twilight-burokrat validate-plan-tasks <plan-reference.json> <tasks.json>
   twilight-burokrat check <committed|staged|working> <repository> <revision-or-base> <rule-policy-json> [--rule <rule-id>] [--performance-evidence <json>]
   twilight-burokrat inspect-performance <repository> <committed-sha> <external-rule-policy>

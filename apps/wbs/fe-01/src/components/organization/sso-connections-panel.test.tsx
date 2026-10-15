@@ -17,6 +17,7 @@ import {
 import { answerJson as answer, stubServer } from '@/testing/stub-server';
 
 import { type AccessLoss } from './organization-access';
+import { ProvisioningTokensPanel } from './provisioning-tokens-panel';
 import { SsoConnectionsPanel } from './sso-connections-panel';
 
 function holdFirstRoute(path: string, method?: string): (response: Response) => void {
@@ -328,6 +329,91 @@ describe('company sign-in connection removal', () => {
     });
     expect(screen.getByRole('status').textContent).toContain(copy);
     expect(screen.queryByRole('button', { name: /token/i })).toBeNull();
+  });
+
+  it('explains every live token must be revoked and requires a newly confirmed scoped retry', async () => {
+    const sent = stubPanel({
+      'GET /api/organization/sso-connections': [
+        () => answer(200, { connections: [connection('two')] }),
+        () => answer(200, { connections: [connection('two')] }),
+        () => answer(200, { connections: [] }),
+      ],
+      'GET /api/organization/provisioning-tokens': [
+        () =>
+          answer(200, {
+            tokens: [
+              { id: 'token-a', createdAt: 1, expiresAt: 5000, revokedAt: null },
+              { id: 'token-b', createdAt: 2, expiresAt: null, revokedAt: null },
+            ],
+          }),
+      ],
+      'DELETE /api/organization/sso-connections/connection-two': [
+        () => answer(409, { error: 'provisioning_active' }),
+        () => new Response(null, { status: 204 }),
+      ],
+    });
+    render(
+      <OrganizationResourcesProvider
+        scope={{
+          organization: { kind: 'active', organizationId: 'org-a' },
+          isCurrent: () => true,
+          refuse: () => undefined,
+        }}
+      >
+        <SsoConnectionsPanel onAccessLost={() => undefined} />
+        <ProvisioningTokensPanel onAccessLost={() => undefined} />
+      </OrganizationResourcesProvider>,
+    );
+    await screen.findByText('token-a');
+    await screen.findByText('token-b');
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove connection for two.test' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm removal of two.test' }));
+    await screen.findByText(
+      'Removal was blocked by live provisioning tokens. Revoke all live tokens in Provisioning tokens, then try removing the connection again.',
+    );
+    await waitFor(() => {
+      expect(screen.queryByRole('group', { name: 'Remove connection for two.test' })).toBeNull();
+    });
+    expect(screen.getByText('two-saml')).toBeDefined();
+    expect(sent.filter((request) => request.route.startsWith('DELETE'))).toHaveLength(1);
+    expect(screen.getByText('token-a')).toBeDefined();
+    expect(screen.getByText('token-b')).toBeDefined();
+    expect(screen.queryByText('Revoked', { exact: true })).toBeNull();
+    expect(sent.filter((request) => request.route.includes('provisioning-tokens'))).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Remove connection for two.test' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm removal of two.test' }));
+    await waitFor(() => {
+      expect(screen.queryByText('two-saml')).toBeNull();
+    });
+    const deletes = vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === 'DELETE');
+    expect(deletes).toHaveLength(2);
+    for (const [url, init] of deletes) {
+      expect(url).toBe('/api/organization/sso-connections/connection-two');
+      expect(new Headers(init?.headers).get('X-WBS-Expected-Organization')).toBe('org-a');
+    }
+    expect(screen.queryByRole('group', { name: 'Remove connection for two.test' })).toBeNull();
+  });
+
+  it('renders failed reconciliation after a provisioning conflict without claiming a refresh', async () => {
+    const sent = stubPanel({
+      'GET /api/organization/sso-connections': [
+        () => answer(200, { connections: [connection('two')] }),
+        () => answer(503, { error: 'unavailable' }),
+      ],
+      'DELETE /api/organization/sso-connections/connection-two': [
+        () => answer(409, { error: 'provisioning_active' }),
+      ],
+    });
+    renderPanel();
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove connection for two.test' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm removal of two.test' }));
+    await screen.findByRole('alert');
+    expect(screen.getByRole('status').textContent).toBe(
+      'Removal was blocked by live provisioning tokens. Revoke all live tokens in Provisioning tokens, then try removing the connection again.',
+    );
+    expect(screen.getByRole('status').textContent).not.toContain('refreshed');
+    expect(screen.queryByRole('button', { name: 'Remove connection for two.test' })).toBeNull();
+    expect(sent.filter((request) => request.route.startsWith('DELETE'))).toHaveLength(1);
   });
 
   it.each(['edit', 'remove'] as const)(

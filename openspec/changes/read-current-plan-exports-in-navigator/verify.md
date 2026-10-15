@@ -63,3 +63,66 @@ The full `bin/h2puni-gate.sh <sha>` is **not run** in this worker packet; the ma
 Base: `0ea6a1166242edf694294d1ed6e715fb7e1aed60`. The isolated clone's final commit and clean status are reported in the worker handoff. Hook installation is enabled for that commit; required checks are not bypassed.
 
 **Decision**: focused implementation ready for independent review; release gate and archival sync pending manager coordination.
+
+## WBS080.25 strict v9 reader and receipt amendment — 2026-10-15
+
+Base: `3b80e0d9fce1c35ade3ffe32d84ae31a02cfba01`; isolated checkout `/tmp/puni-wbs080-25`.
+
+The v9 fixture was generated with `PlanDocumentService.exportCaptured` using the historical
+mixed-unit tree, fixed original export clock, reconstructed tree dependency endpoints,
+and a leaf's dev blockage at `blockedAt: -1` with dev progress `done`. The export was asserted
+against `planDocument` before saving. The fixture has one actual direct fact; empty facts
+are a separate case. No domain import or product fence was added to Navigator.
+
+Focused commands:
+
+```sh
+bun test --timeout=30000 --preload ./tools/test/scratch/preload.ts ./apps/twilight-structure/twilight-navigator/cli/src ./apps/twilight-structure/twilight-burokrat/cli/src/contracts/navigator-records.test.ts ./apps/twilight-structure/twilight-burokrat/cli/src/contracts/plan-tasks.test.ts ./apps/twilight-structure/twilight-burokrat/cli/src/contracts/progress-receipt.test.ts
+bun test --timeout=180000 --preload ./tools/test/scratch/preload.ts ./apps/twilight-structure/twilight-burokrat/cli/src/packaging/build.test.ts
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t typecheck -p twilight-navigator twilight-burokrat --skip-nx-cache
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run twilight-navigator:lint --skip-nx-cache
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run twilight-burokrat:lint:source --skip-nx-cache
+bun /tmp/bunx-1000-@fission-ai/openspec@1.12.0/node_modules/@fission-ai/openspec/bin/openspec.js validate --all --json
+```
+
+Packaged external consumer: **2 passed, 0 failed, 68 assertions**. It generates a v9
+reference through Navigator and invokes both consistency commands on the canonical executable
+from outside the repository, then exercises tampering and unknown membership refusal.
+Both project typechecks and source lints pass. OpenSpec 1.12.0 validates all 207 items
+(189 changes and 18 specs), with zero failures. Changed files are formatted with Prettier,
+and `git diff --check` passes. **Final focused suite: 184 passed, 0 failed, 708 assertions across 6 files.**
+The first focused invocation hit default five-second setup timeouts. The second run exposed
+an EEXIST test setup error for the v8 matrix member; the corrected setup reuses the already
+created v8 directory. Test JSON values were given precise fixture types after source lint
+reported unsafe JSON access. These issues were corrected before final verification.
+
+Watched production mutation proofs (every injected change was restored immediately):
+
+| Boundary               | Injected fault                     | Observed production test failure                          |
+| ---------------------- | ---------------------------------- | --------------------------------------------------------- |
+| Owner                  | Remove owner membership            | `refuses v9 owner` exits 0; 1 failing test                |
+| Leaf                   | Remove leaf ownership              | `refuses v9 parent` exits 0; 1 failing test               |
+| Step                   | Remove step membership             | `refuses v9 step` exits 0; 1 failing test                 |
+| Timestamp bound        | Remove Number.isSafeInteger        | `refuses v9 unsafe time` exits 0; 1 failing test          |
+| Integer time           | Truncate fact time before decoding | `refuses v9 fractional time` exits 0; 1 failing test      |
+| Pair uniqueness        | Remove pair guard                  | `refuses v9 duplicate` exits 0; 1 failing test            |
+| Required collection    | Invent empty facts before decoding | `refuses v9 missing facts` exits 0; 1 failing test        |
+| Strict shape           | Remove deep unknown-key rejection  | `refuses v9 unknown nested key` exits 0; 1 failing test   |
+| Version admission      | Restore v7/v8 header pin           | Both v9 positives fail; 2 failing tests                   |
+| Future version         | Bypass header version guard        | v10 refusal diagnostic fails; 1 failing test              |
+| Raw export identity    | Hash decoded canonical document    | Both raw-byte assertions fail; 2 failing tests            |
+| Version/schema pairing | Remove shared pairing guard        | Re-digested v9/schema1 conversion exits 0; 1 failing test |
+| Burokrat versions      | Admit v10 literal                  | Future-version decoder refusal fails; 1 failing test      |
+
+The initial TDD RED run showed 14 failures before v9 support was added. Production dispatch
+negatives assert no output files and empty success stdout. Final regression coverage retains
+v7/schema1, v8/schema2, historical v6 references, both consistency commands, re-digested
+v9/schema1 refusals, and v10 refusals. The blockedAt-only test asserts equal tasks/tasksDigest
+and distinct exportDigest/referenceDigest. Receipts still bind the six-field PlanRef and do
+not certify blockage freshness.
+
+Full canonical h2puni gate, complete repository tests, trusted whole-tree wiki lint and
+release activation are **not run by this worker**. The installed pre-commit tool-wiki hook
+returned `inactive`, `certified: false`, because the external activation root is not provisioned;
+this is not a trusted wiki validation result. Other installed hooks passed. The parent coordinates the exact-SHA gate
+and independent review. No push, merge or deploy is performed before that review.
