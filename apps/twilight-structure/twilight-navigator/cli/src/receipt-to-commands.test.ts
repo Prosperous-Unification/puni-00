@@ -126,7 +126,7 @@ describe('twin receipt-to-commands', () => {
     const batch = JSON.parse(readFileSync(output, 'utf8')) as { id: string; commands: unknown[] };
     expect(run.stdout).toBe(`${digestOf(batch)}\n`);
     expect(statSync(output).mode & 0o777).toBe(0o600);
-    expect(batch).toEqual({
+    const expectedBatch = {
       id: '00000000-0000-4000-8000-000000000001',
       commands: [
         { kind: 'setProgress', workItemId: RECORDS_TASK, stepId: DEV_STEP, state: 'done' },
@@ -146,7 +146,9 @@ describe('twin receipt-to-commands', () => {
         },
         { kind: 'setProgress', workItemId: DOCS_TASK, stepId: QA_STEP, state: 'in_progress' },
       ],
-    });
+    };
+    expect(batch).toEqual(expectedBatch);
+    expect(readFileSync(output, 'utf8')).toBe(`${JSON.stringify(expectedBatch, null, 2)}\n`);
   });
 
   test.each([6, 7] as const)(

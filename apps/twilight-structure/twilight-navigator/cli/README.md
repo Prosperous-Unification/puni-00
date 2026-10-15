@@ -41,6 +41,12 @@ The plan reference is prepared, not applied: nothing is sent to WBS or Dash.
 
 ## `twin receipt-to-commands`
 
+Before constructing commands, Navigator uses Burokrat's
+[`checkProgressReceiptConsistency`](../../twilight-burokrat/cli/src/contracts/validate-progress-receipt.ts).
+The same consistency can be checked independently with
+`twib validate-progress-receipt <receipt.json> <plan-reference.json> <tasks.json>`; the report
+covers the supplied documents only and grants no authority to write current WBS state.
+
 ```sh
 bun apps/twilight-structure/twilight-navigator/cli/src/entrypoint.ts receipt-to-commands \
   --receipt /path/to/progress-receipt.json \
