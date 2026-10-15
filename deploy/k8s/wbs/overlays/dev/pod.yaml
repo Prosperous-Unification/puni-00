@@ -34,9 +34,12 @@ spec:
         - { name: mcp, containerPort: 3300 }
       env:
         - { name: NODE_ENV, value: development }
-        # Nx keeps daemon state under .nx/ in the worktree; a recreated Pod would wait on the
-        # dead daemon's locks (`deploy/dev-src/compose.yml`).
+        # Disabling the daemon does not disable Nx's continuous-task ownership database.
         - { name: NX_DAEMON, value: 'false' }
+        # The container layer resets on restart; worktree state and emptyDir survive it.
+        # Proof: the real Nx ownership fixture stalls with this setting removed.
+        - name: NX_WORKSPACE_DATA_DIRECTORY
+          value: /tmp/puni-forge-nx/workspace-data
         # Writable for any owner UID dev-env binds; the image's /home/bun belongs to UID 1000.
         - { name: HOME, value: /tmp }
         # The environment's own database on its own volume, never the worktree's local.db.
