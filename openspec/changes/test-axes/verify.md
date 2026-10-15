@@ -3607,3 +3607,95 @@ No host gate, full repository gate, exact-head CI, secrets scan, migration lint,
 integration or deployment was performed by this worker. Independent implementation review and
 coordinator release acceptance remain pending. This diagnostic does not close the global ledgers,
 source reconciliation, T2 or certification.
+
+## 4.1b.11 Browser Architecture membership — 2026-10-15
+
+Implementation starts from exact `c000efb37750cb3095f3c2d6f88a684d058b149b` in isolated
+worktree `/tmp/wbs-browser-architecture-sol-20261015`, owned by clone
+`/tmp/wbs-scenario-ledger-sol-20261015`. No root checkout or parallel Step Nodes path changed.
+The existing dependency installation is linked from that clone; no dependency/target/test-input
+or relationship fact changed.
+
+The real production allocator proposed TEST-AXES-108..111
+(`/tmp/browser-architecture-allocation.json`); its emitted Markdown and journal were applied only
+after checking exact equality of the entire prior event prefix. Production provenance returned
+`{"unidentified":[]}` (`/tmp/browser-architecture-provenance.json`). The first positive actual
+`invokeCli` assertion failed for `unknown command: inspect-browser-architecture`
+(`/tmp/browser-architecture-red.log`). An earlier test invocation matched zero tests because its
+append used an incorrect relative path; that invocation is not RED evidence. The first adapter
+run had 10 passing tests and one installed unknown-command failure, which exposed the separate
+`src/bin.ts` allowlist and was fixed before the expanded 18-test run passed. A later multi-file
+fixture expected insertion order instead of lexical path order; the assertion was corrected to
+require canonical sorting, then both additional tests passed. Initial lint found only import
+sorting, fixed with the existing lint rule. Initial scoped typecheck passed.
+
+The command independently captures exact committed identity before invoking the real report
+inspector, validates strict external authority and all report/source/pin joins, reuses the existing
+Architecture policy/mapping/discovery validators, checks complete mapped selected regular blobs
+before intersection, and retains complete sorted membership and source union. The output includes
+the complete report, authority and byte digest, unknown Manual/Conformance/Performance, absent
+authentication, false certification and a digest of the entire payload. Explicit reviewed-empty
+refuses fixed policy, descendants and declared `test:architecture:level`. Immediate suffix-directory
+children refuse; ordinary nested files are ignored. Candidate code and Browser execution are never
+invoked by this adapter.
+
+Watched faults: `/tmp/browser-architecture-mutations.log` records 51 caught mutations;
+`/tmp/browser-architecture-mutations-extra.log` records five additional caught mutations. Every
+entry has nonzero test status and a real failed production-path assertion, with its complete
+output in `/tmp/browser-architecture-fault-<name>.log`. Sources were restored after each mutation;
+adjacent `Proof:` comments were added only after observing the failures.
+
+| Injected guard, output or dependency fault                                                       | Observed production assertion                                                                                                     |
+| ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| Remove full-SHA, committed-kind or exact requested revision guard                                | TEST-AXES-109/111 loses the local symbolic, staged-reader or annotated-tag refusal                                                |
+| Independently remove report revision, candidate or mode joins                                    | TEST-AXES-109 accepts coherent changed report/authority identity                                                                  |
+| Independently remove authority revision, candidate, mode or report digest joins                  | TEST-AXES-109 accepts changed authority pin                                                                                       |
+| Drop manifest/root agreement or collection containment                                           | TEST-AXES-109 loses the exact foreign-scope refusal                                                                               |
+| Disable fatal decoding, substitute empty JSON record, bypass closed authority schema             | TEST-AXES-109 loses invalid-UTF-8, malformed-JSON or unsupported-version/key refusal                                              |
+| Remove nonempty collection guard                                                                 | TEST-AXES-109 accepts empty report dependency                                                                                     |
+| Remove selected-regular guard or complete mapped-source reads                                    | TEST-AXES-110 loses missing/nonregular disjoint-source refusal despite working repairs                                            |
+| Inject unreadable selected manifest, policy or disjoint mapped blob reader                       | TEST-AXES-110 emits named cannot-read-selected-blob refusal; these are reader dependency faults, not filesystem permission claims |
+| Independently omit report source mode or digest equality                                         | TEST-AXES-109 accepts substituted upstream source tuple                                                                           |
+| Remove same-path digest or mode agreement                                                        | TEST-AXES-111 accepts later selected-byte or mode substitution on a shared path                                                   |
+| Remove manifest digest pin or complete structure/targets-array validation                        | TEST-AXES-109/110 accepts wrong byte pin or loses named malformed-manifest refusal                                                |
+| Independently drop reviewed-empty policy, descendant or target detection                         | TEST-AXES-110 accepts the corresponding contradictory committed state                                                             |
+| Remove fixed policy path or digest pin                                                           | TEST-AXES-110 accepts foreign policy path or changed policy digest                                                                |
+| Bypass shared policy decoding or omit shared mapping validation                                  | TEST-AXES-110 accepts unsupported policy schema or loses exact mapping diagnosis                                                  |
+| Omit shared discovery, remove immediate-child projection or widen suffix discovery               | TEST-AXES-110 accepts unmapped suffix file/directory child or rejects ordinary nested source                                      |
+| Remove selected-file ordering/completeness or intersection                                       | TEST-AXES-108 emits incomplete/unsorted selection or populated disjoint intersection                                              |
+| Reverse, duplicate or truncate collection; reverse, duplicate or omit manifest from source union | TEST-AXES-108/111 fails exact complete canonical collection/source assertions                                                     |
+| Replace complete report/authority, zero authority digest, promote any unknown membership         | TEST-AXES-108 fails exact complete envelope assertions                                                                            |
+| Promote authentication or certification, hash empty payload                                      | TEST-AXES-108 fails explicit noncertifying invariant or independently computed full-payload digest                                |
+| Independently remove CLI arity/mode guard or installed registration                              | TEST-AXES-111 loses named usage refusal or real built executable dispatch                                                         |
+
+No global classification, scenario join, coverage/admission, source reconciliation, StepBlockage,
+receipt, push, integration, deployment, host gate or full repository acceptance is claimed. Parent
+Tasks 2.1/2.2a/2.2/4.1 remain open. Independent Astra review and coordinator release checks remain
+separate from these synthetic bounded adapter fixtures.
+
+Final scoped acceptance (Bun 1.4.2):
+
+```sh
+cd apps/twilight-structure/twilight-burokrat/cli
+bun test --preload ../../../../tools/test/scratch/preload.ts ./src/evidence/browser-architecture.test.ts ./src/evidence/browser-conformance.test.ts ./src/evidence/test-reports.test.ts ./src/evidence/level-facts.test.ts ./src/architecture-level.test.ts --timeout=120000
+```
+
+Exit 0: **109 pass, 0 fail, 1,319 assertions across five files**, 149.89 seconds
+(`/tmp/browser-architecture-focused-final.log`). This includes all 20 new Browser Architecture
+cases and real built installed dispatch. After this run the nested discovery fixture was strengthened
+from `nested/ordinary.test.ts` to `nested/ordinary.architecture.test.ts`: the affected production
+case passed again (1 pass, 0 fail, 14 assertions;
+`/tmp/browser-architecture-nested-suffix-final.log`), explicitly proving that a nested suffix file
+is outside immediate-child discovery. Production behavior did not change after acceptance.
+
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run twilight-burokrat:lint:source --skip-nx-cache --output-style=static`: exit 0, target successfully ran uncached (`/tmp/browser-architecture-lint-final.log`).
+- The corresponding scoped `twilight-burokrat:typecheck` target: exit 0, successfully ran uncached (`/tmp/browser-architecture-typecheck-final.log`).
+- The corresponding scoped `twilight-burokrat:build` target: exit 0, Burokrat and its three dependencies successfully ran uncached (`/tmp/browser-architecture-build-final.log`).
+- Changed-file `bunx prettier --check` and `git diff --check`: exit 0 (`/tmp/browser-architecture-format-check-final.log`).
+- Final production `scenario validate . openspec/changes/test-axes/specs/test-axes/spec.md`: exit 0, `{"unidentified":[]}` (`/tmp/browser-architecture-provenance-final.json`). A fresh committed-base comparison confirms all 155 previous journal events unchanged and only TEST-AXES-108..111 appended.
+- `OPENSPEC_TELEMETRY=0 BUN_TMPDIR=/tmp/browser-architecture-bun-tmp bunx --bun @fission-ai/openspec@1.12.0 validate test-axes --strict --json`: exit 0, 1/1 valid, zero issues (`/tmp/browser-architecture-openspec-strict-final.json`).
+- The same pinned runner's `validate --all --json`: exit 0, 213/213 valid (195 changes, 18 specs), zero failures (`/tmp/browser-architecture-openspec-all-final.json`).
+
+Task 4.1b.11b is implemented. Task 4.1b.11c remains unchecked pending independent Astra review;
+all coordinator-only integration, exact-head CI and host-gate checks in 4.1b.11d are unperformed.
+No release or repository-wide acceptance follows from this bounded synthetic test evidence.
