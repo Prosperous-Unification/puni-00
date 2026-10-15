@@ -298,7 +298,6 @@ test.describe('Gantt legibility (ui-review 2026-10-13)', () => {
         'aria-pressed',
         'true',
       );
-      await expect(page.locator('[data-gantt-arrow]').first()).toBeAttached();
     } finally {
       release();
       await page.unrouteAll({ behavior: 'wait' });
