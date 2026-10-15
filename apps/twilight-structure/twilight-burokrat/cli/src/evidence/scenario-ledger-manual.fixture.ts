@@ -194,7 +194,7 @@ export function createLedgerManualFixture(
     digest: hashBytes(Buffer.from(evidenceBytes)),
   };
   writeFileSync(join(setup.bundle, 'manifest.json'), JSON.stringify(setup.manifest));
-  const performance = inspectPerformanceScenarios(
+  const scenarioReport = inspectPerformanceScenarios(
     setup.root,
     setup.revision,
     setup.policyPath,
@@ -213,9 +213,9 @@ export function createLedgerManualFixture(
   const authority = {
     schemaVersion: 1,
     revision: setup.revision,
-    candidate: performance.candidate,
+    candidate: scenarioReport.candidate,
     capability: 'example',
-    performanceObservationDigest: performance.observationDigest,
+    performanceObservationDigest: scenarioReport.observationDigest,
     obligations: [
       {
         scenarioId: 'EXAMPLE-001',
@@ -232,5 +232,14 @@ export function createLedgerManualFixture(
     ],
   };
   writeFileSync(ledgerPath, JSON.stringify(authority));
-  return { ...setup, performance, ledgerPath, authority, observation, reportPath, policy, now };
+  return {
+    ...setup,
+    performance: scenarioReport,
+    ledgerPath,
+    authority,
+    observation,
+    reportPath,
+    policy,
+    now,
+  };
 }

@@ -108,7 +108,7 @@ export function inspectScenarioLedger(
   evaluatedAt: Date,
 ) {
   const evaluatedInstant = readEvaluationInstant(evaluatedAt.toISOString()).toISOString();
-  const performance = inspectPerformanceScenarios(
+  const scenarioReport = inspectPerformanceScenarios(
     repository,
     revision,
     policyPath,
@@ -116,26 +116,26 @@ export function inspectScenarioLedger(
     capability,
   );
   // Proof: broken Performance digest and substituted scope/boundaries failed TEST-AXES-105 CLI assertions when guards were removed.
-  assertDigest(performance, 'Performance');
+  assertDigest(scenarioReport, 'Performance');
   if (
-    performance.revision !== revision ||
-    performance.capability !== capability ||
-    !isDiagnostic(performance)
+    scenarioReport.revision !== revision ||
+    scenarioReport.capability !== capability ||
+    !isDiagnostic(scenarioReport)
   )
     throw new Error('scenario ledger Performance scope or diagnostic boundary differs');
   const authority = readAuthority(resolveCandidateRoot(repository), ledgerAuthorityPath);
   // Proof: removing these joins accepted TEST-AXES-105's exact revision/candidate/capability substitutions.
   for (const field of ['revision', 'candidate', 'capability'] as const)
-    if (authority[field] !== performance[field])
+    if (authority[field] !== scenarioReport[field])
       throw new Error(`scenario ledger authority ${field} differs`);
   // Proof: removing this join accepted TEST-AXES-105's foreign Performance observation pin.
-  if (authority.performanceObservationDigest !== performance.observationDigest)
+  if (authority.performanceObservationDigest !== scenarioReport.observationDigest)
     throw new Error('scenario ledger authority performanceObservationDigest differs');
   // Proof: disabling the comparator failed TEST-AXES-106's complete-envelope reorder assertion.
   const obligations = [...authority.obligations].sort((left, right) =>
     compareCanonicalText(left.scenarioId, right.scenarioId),
   );
-  const active = new Set(performance.scenarios.map((scenario) => scenario.id));
+  const active = new Set(scenarioReport.scenarios.map((scenario) => scenario.id));
   const assigned = new Map<string, (typeof obligations)[number]['disposition']>();
   for (const obligation of obligations) {
     // Proof: removing membership refusal accepted TEST-AXES-105's foreign and retired obligation IDs.
@@ -153,7 +153,7 @@ export function inspectScenarioLedger(
     assigned.set(obligation.scenarioId, obligation.disposition);
   }
   const debt: Debt[] = [];
-  const scenarios = performance.scenarios.map((scenario) => {
+  const scenarios = scenarioReport.scenarios.map((scenario) => {
     const disposition = assigned.get(scenario.id);
     let verdict: Verdict;
     // Proof: replacing unassigned with inapplicable failed TEST-AXES-104's missing obligation despite another passing row.
@@ -180,9 +180,9 @@ export function inspectScenarioLedger(
       if (
         observation.revision !== revision ||
         observation.manual.revision !== revision ||
-        observation.candidate !== performance.candidate ||
+        observation.candidate !== scenarioReport.candidate ||
         observation.evaluatedAt !== evaluatedInstant ||
-        observation.manual.policyDigest !== performance.policyDigest ||
+        observation.manual.policyDigest !== scenarioReport.policyDigest ||
         observation.manual.scenarioId !== scenario.id ||
         observation.manual.selectedScenario.id !== scenario.id ||
         observation.manual.selectedScenario.title !== scenario.title ||
@@ -208,21 +208,21 @@ export function inspectScenarioLedger(
     return { id: scenario.id, title: scenario.title, verdict };
   });
   // Proof: dropping citation or unidentified debt failed TEST-AXES-106's lost-citation/unrelated-B3 assertions.
-  for (const finding of performance.citationFindings)
+  for (const finding of scenarioReport.citationFindings)
     debt.push({ kind: 'citation', caseId: finding.caseId, finding: finding.kind });
-  for (const finding of performance.specifications.unidentified)
+  for (const finding of scenarioReport.specifications.unidentified)
     debt.push({ kind: 'unidentified', ...finding });
   const observation = {
     schemaVersion: 1 as const,
     kind: 'scenario-ledger' as const,
     revision,
-    candidate: performance.candidate,
+    candidate: scenarioReport.candidate,
     capability,
     evaluatedAt: evaluatedInstant,
     authority: { ...authority, obligations },
     authorityDigest: hashCanonical({ ...authority, obligations }),
     // Proof: dropping the upstream report or its B3 specifications failed TEST-AXES-106's complete-report assertion.
-    performance,
+    performance: scenarioReport,
     scenarios,
     debt,
     // Proof: changing authentication or certification failed TEST-AXES-106's complete-envelope CLI assertions.
