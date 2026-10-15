@@ -3330,3 +3330,108 @@ execution, host gate, CI, push, merge or deployment was performed for this desig
 All 4.1b.10 implementation/review/release boxes and parent 2.1/2.2a/2.2/4.1 remain unchecked.
 The proposed R5 pairs in tasks.md are obligations, not observed proofs. Independent artifact
 review and the coordinator's implementation handoff remain pending.
+
+## 4.1b.10 implementation — Browser committed Conformance facts (2026-10-15)
+
+Base: committed design `1238c36fce57d856a633d3db94b1ffa23cb07349`, directly above
+accepted #488 `f7f982cae8c633779f10f4f786da389dc1138be8`. Implementation lives in isolated
+clone `/tmp/puni-browser-conformance-implementation`; the coordinator and design checkouts were
+not edited. Frozen `bun install --frozen-lockfile` passed with Bun 1.4.2 (1,573 installs checked,
+1,447 packages, no changes), using task-specific writable `BUN_TMPDIR` and cache paths after the
+default temporary directory refused with EROFS. This clone has its own dependency directory.
+Pinned OpenSpec 1.12.0 `status`/`instructions apply` selected repo-local `test-axes` (`sdd-lean`).
+The existing TEST-AXES-100..103 allocations are preserved; no further allocation was needed.
+
+The adapter independently captures exact committed identity, compares the real report's revision,
+candidate and requested mode, then checks the closed external authority and selected manifest.
+The mode comparison was clarified directly with the independent Astra design reviewer: coherent
+changes to both report and authority must not replace the requested mode. Only the existing strict
+Conformance envelope/command decoder moved out of `level-facts.ts`; its refusal text and validation
+order are preserved. Every selected regular blob is read before intersection. Output retains all
+real report cases/outcomes, complete selected files, sorted intersection and source union, other
+memberships unknown, absent authentication and false certification.
+
+RED: `/tmp/browser-conformance-red.log` records seven production CLI failures for unknown
+`inspect-browser-conformance`. An earlier fixture preparation failure used full workspace paths
+in raw Playwright JUnit; its basename requirement was fixed before observing that RED and is not
+implementation evidence. The 37-test existing `level-facts.test.ts` baseline/regression run passed (`/tmp/browser-conformance-performance-baseline.log`). The first extended Browser run
+passed 15 tests/307 assertions after correcting the inherited external-artifact diagnostic in one
+expectation. Subsequent real multi-file and SQLite-only publication cases also passed individually.
+The final acceptance run and counts are recorded below.
+
+Watched production faults (each named mutation log contains a failing production-path assertion;
+all source restored immediately, and `Proof:` comments added only after observation):
+
+| Injected fault                                                                                                                                | Observed assertion                                                                                                                                    |
+| --------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Remove full-SHA, committed-kind or exact requested-revision guard                                                                             | Symbolic, broken-reader staged and annotated tag-object selections lose the adapter's named refusal (101/103)                                         |
+| Independently remove report revision, candidate or requested-mode join                                                                        | Coherently changed report plus authority is accepted instead of refusing the independently captured identity (101)                                    |
+| Independently remove authority revision, candidate, mode, report digest or manifest/root join                                                 | A substituted pin loses its named refusal or emits JSON (101)                                                                                         |
+| Disable fatal UTF-8, replace JSON parsing with an empty record or bypass authority schema                                                     | Invalid bytes, malformed JSON or unsupported version/keys lose the responsible refusal (101)                                                          |
+| Remove nonempty collection or project-root containment                                                                                        | Broken report dependency's empty collection or coherent foreign-root authority is accepted (101)                                                      |
+| Remove selected-regular check or complete Conformance-source loop                                                                             | Missing/nonregular/disjoint selected sources, including working repairs, lose their named refusal (102)                                               |
+| Break selected-blob reads for manifest and disjoint selected test                                                                             | Explicit unreadable-object dependency faults refuse on the production path (102); these are dependency faults, not filesystem-permission observations |
+| Independently omit source mode or digest equality                                                                                             | A broken report inspector's source tuples are accepted (101)                                                                                          |
+| Remove same-path tuple agreement                                                                                                              | A later selected-byte read substitutes different content for a shared path (103)                                                                      |
+| Remove manifest digest or targets-array check                                                                                                 | Substituted byte pin or malformed selected manifest loses its named refusal (101/102)                                                                 |
+| Disable target schema, exact cwd, SQLite-only input root, command grammar, duplicate guard, literal-prefix normalization or selector ordering | Unsupported envelopes/commands are accepted or lose their named refusal; canonical complete selection differs (100/102)                               |
+| Remove the command's true end constraint                                                                                                      | Trailing newline/suffix command is accepted (102)                                                                                                     |
+| Reverse, duplicate or truncate collection                                                                                                     | Multi-file collection order/completeness or duplicate-source case deduplication differs (103)                                                         |
+| Reverse, duplicate or omit manifest from source union; omit complete selectedFiles or nested report                                           | Exact complete output assertions fail (100/103)                                                                                                       |
+| Return all selected files as the intersection                                                                                                 | Disjoint membership is falsely populated (100)                                                                                                        |
+| Change any unknown membership to reviewed-empty                                                                                               | Exact earlier-row facts differ (100)                                                                                                                  |
+| Independently promote authentication/certification; zero raw-authority digest; hash an empty envelope                                         | Explicit noncertifying invariants, independent byte digest or full-envelope digest differ (100)                                                       |
+| Remove CLI arity/mode check or installed registration                                                                                         | Named source usage refusal or real built executable success fails (103)                                                                               |
+
+Logs: `/tmp/browser-conformance-mutations.log` has 39 caught faults;
+`/tmp/browser-conformance-mutations-envelope.log` has seven additional caught output faults before
+a mutation-script matching error; `/tmp/browser-conformance-mutations-final.log` has the final four
+caught faults (50 total). The script matching error made no production change. A preliminary `$`
+replacement retained refusal in Bun and is not claimed as a caught fault; removing the end
+constraint entirely produced the watched failing assertion. The requested-revision mutation first
+survived because a broad substring also matched the inherited inspector's refusal; the assertion
+was tightened to the Browser Conformance adapter's complete named refusal and then failed under
+that mutation. Logs are external scratch evidence, not committed receipt or authentication.
+
+The initial Nx invocation was denied daemon/plugin sockets and printed no target execution;
+that output is not a typecheck pass. Scoped Nx commands use `NX_DAEMON=false
+NX_ISOLATE_PLUGINS=false` and `--skip-nx-cache`. Initial lint/compiler attempts exposed fixture
+imports, basename template types, redundant test guards and an overly narrow assertion type;
+these were fixed before the final checks. No production behavior was relaxed for those failures.
+
+No target/dependency/test-input manifest or relationship fact changed. No candidate code, Browser
+runner, B3 join, classification, isolation, coverage, receipt or admission was introduced.
+Synthetic publications prove only the bounded adapter. Full repository acceptance, host gate,
+exact-head CI, push, PR, integration and deployment belong to the coordinator; none was run here.
+Tasks 2.1/2.2a/2.2/4.1 and coordinator-only 4.1b.10e remain open.
+
+Scoped checks (actual successful output):
+
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run twilight-burokrat:lint:source --skip-nx-cache --output-style=static`: exit 0, target successfully ran, uncached (`/tmp/browser-conformance-lint-final2.log`).
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run twilight-burokrat:typecheck --skip-nx-cache --output-style=static`: exit 0, target successfully ran, uncached (`/tmp/browser-conformance-typecheck-final2.log`).
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run twilight-burokrat:build --skip-nx-cache`: exit 0, Burokrat and its three dependent tasks successfully ran, uncached (`/tmp/browser-conformance-build-final.log`).
+- Changed-file `bunx prettier --check` and `git diff --check`: exit 0.
+- Production `scenario validate . openspec/changes/test-axes/specs/test-axes/spec.md`: exit 0, `{"unidentified":[]}` (`/tmp/browser-conformance-provenance.json`).
+- `OPENSPEC_TELEMETRY=0 BUN_TMPDIR=/tmp/puni-browser-bun-tmp bunx --bun @fission-ai/openspec@1.12.0 validate test-axes --strict --json`: exit 0, 1/1 valid with zero issues (`/tmp/browser-conformance-openspec-strict-final.json`).
+- The same pinned runner's `validate --all --json`: exit 0, 210/210 valid (192 changes, 18 specs), zero failures (`/tmp/browser-conformance-openspec-all-final.json`).
+
+Final requested acceptance, from `apps/twilight-structure/twilight-burokrat/cli`:
+
+```sh
+bun test --preload ../../../../tools/test/scratch/preload.ts ./src/evidence/browser-conformance.test.ts ./src/evidence/test-reports.test.ts ./src/evidence/level-facts.test.ts ./src/evidence/performance-levels.test.ts ./src/evidence/performance-scenarios.test.ts --timeout=120000
+```
+
+Exit 0: **125 passed, zero failed, 1,140 assertions across five files** (198.56 seconds;
+`/tmp/browser-conformance-scoped-tests-final.log`). This includes all 17 new Browser cases,
+source and actual built installed executable dispatch, existing Browser report/membership
+identities, shared Performance Conformance envelope/SQLite grammar and both Performance
+level/scenario regressions. Per-case 120-second package deadlines were retained. The preceding
+combined run had 124 passing tests and one missing-import failure in the new SQLite fixture;
+that fixture was corrected and the entire command above rerun, not waived.
+
+Implementation tasks 4.1b.10a/b/c are complete. Task 4.1b.10d remains open solely for independent
+Astra implementation review: the design reviewer clarified the requested-mode join, but worker
+messages to that earlier idle agent did not constitute a triggered implementation review.
+The coordinator has the concrete checkout and is responsible for routing the exact commit for
+review. Task 4.1b.10e and all parent ledgers stay open. No host gate, full repository test gate,
+CI, secret scan, migration lint, push, PR, integration or deployment was run by this worker.
