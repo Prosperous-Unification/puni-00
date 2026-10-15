@@ -1993,3 +1993,130 @@ for (const fault of ['missing', 'unreadable', 'version'] as const) {
     }
   }, 20_000);
 }
+
+/** Config roots distinguish the provider from programs that emit it through imports. */
+function writeOwnershipConfigs(repository: string): void {
+  for (const [name, root] of [
+    ['provider', '../packages/provider/src/index.ts'],
+    ['consumer-a', '../packages/apps/consumer/src/use.ts'],
+    ['consumer-b', '../packages/apps/consumer/src/use.ts'],
+  ]) {
+    write(
+      repository,
+      `config/${name}.json`,
+      JSON.stringify({
+        extends: '../tsconfig.json',
+        files: [root],
+        include: [],
+      }),
+    );
+  }
+}
+
+test('selects the unique explicit public root among importing programs and retains its closure', async () => {
+  const repository = createRepository();
+  writeOwnershipConfigs(repository);
+  const revision = commitAll(repository, 'explicit provider and importing programs');
+  const provider = report(
+    await invoke(repository, revision, writeRequest(repository, ['config/provider.json'])),
+  );
+  const configs = ['config/consumer-b.json', 'config/provider.json', 'config/consumer-a.json'];
+  const initial = report(await invoke(repository, revision, writeRequest(repository, configs)));
+  const declaration = initial.typescript.publicDeclarations[0];
+  expect(declaration.configPath).toBe('config/provider.json');
+  expect(declaration.configurationIdentity).toBe(
+    provider.typescript.publicDeclarations[0].configurationIdentity,
+  );
+  expect(declaration.identity).toBe(provider.typescript.publicDeclarations[0].identity);
+  expect(declaration.declarations.map(({ sourcePath }) => sourcePath)).toEqual([
+    'packages/provider/src/globals.d.ts',
+    'packages/provider/src/hidden.ts',
+    'packages/provider/src/index.ts',
+    'packages/provider/src/public.ts',
+    'packages/provider/src/shapes.d.ts',
+  ]);
+  const reordered = report(
+    await invoke(repository, revision, writeRequest(repository, configs.toReversed())),
+  );
+  expect(reordered.typescript.publicDeclarations).toEqual(initial.typescript.publicDeclarations);
+  write(
+    repository,
+    'packages/provider/src/globals.d.ts',
+    'interface GlobalHidden { code: number }\n',
+  );
+  const changed = report(
+    await invoke(
+      repository,
+      commitAll(repository, 'change transitive declaration'),
+      writeRequest(repository, configs),
+    ),
+  );
+  expect(changed.typescript.publicDeclarations[0].identity).not.toBe(declaration.identity);
+  expect(changed.typescript.publicDeclarations[0].configurationIdentity).toBe(
+    declaration.configurationIdentity,
+  );
+});
+
+test('refuses multiple explicit public roots with the conflicting config paths', async () => {
+  const repository = createRepository();
+  writeOwnershipConfigs(repository);
+  write(repository, 'config/second-provider.json', JSON.stringify({ extends: './provider.json' }));
+  const revision = commitAll(repository, 'two explicit providers');
+  const invocation = await invoke(
+    repository,
+    revision,
+    writeRequest(repository, [
+      'config/second-provider.json',
+      'config/provider.json',
+      'config/consumer-a.json',
+    ]),
+  );
+  expect(invocation.exitCode, output(invocation)).toBe(1);
+  expect(output(invocation)).toContain('2 explicit root configs');
+  expect(output(invocation)).toContain('config/provider.json, config/second-provider.json');
+});
+
+test('refuses shared public emissions without an explicit root with the emitting config paths', async () => {
+  const repository = createRepository();
+  writeOwnershipConfigs(repository);
+  const revision = commitAll(repository, 'importers without provider');
+  const invocation = await invoke(
+    repository,
+    revision,
+    writeRequest(repository, ['config/consumer-b.json', 'config/consumer-a.json']),
+  );
+  expect(invocation.exitCode, output(invocation)).toBe(1);
+  expect(output(invocation)).toContain('0 explicit root configs');
+  expect(output(invocation)).toContain('config/consumer-a.json, config/consumer-b.json');
+});
+
+test('preserves a single emitter whose public entrypoint is only transitively imported', async () => {
+  const repository = createRepository();
+  writeOwnershipConfigs(repository);
+  const revision = commitAll(repository, 'single transitive emitter');
+  const extracted = report(
+    await invoke(repository, revision, writeRequest(repository, ['config/consumer-a.json'])),
+  );
+  expect(extracted.typescript.publicDeclarations[0].configPath).toBe('config/consumer-a.json');
+  expect(
+    extracted.typescript.publicDeclarations[0].declarations.some(
+      ({ sourcePath }) => sourcePath === 'packages/provider/src/hidden.ts',
+    ),
+  ).toBe(true);
+});
+
+test('refuses a public entrypoint that no configured program emits', async () => {
+  const repository = createRepository();
+  writeOwnershipConfigs(repository);
+  const revision = commitAll(repository, 'absent entrypoint');
+  const request = writeRequestInput(repository, {
+    schemaVersion: 1,
+    typescript: {
+      configPaths: ['config/provider.json'],
+      publicEntrypoints: ['packages/provider/src/absent.ts'],
+    },
+  });
+  const invocation = await invoke(repository, revision, request);
+  expect(invocation.exitCode, output(invocation)).toBe(1);
+  expect(output(invocation)).toContain('packages/provider/src/absent.ts resolved by 0 configs');
+});

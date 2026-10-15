@@ -715,6 +715,45 @@ function semanticDeclarationDependencies(
   return [...paths].sort(compareText);
 }
 
+/**
+ * Keeps sole-emitter compatibility; shared emissions belong only to the unique emitting
+ * program whose parsed compiler roots include the entrypoint. Imports do not establish
+ * ownership. Refuses missing emissions or ambiguous roots with configuration provenance.
+ */
+function selectDeclarationOwner(
+  workspace: string,
+  entrypoint: string,
+  projects: ParsedProject[],
+): ParsedProject {
+  const emitters = projects.filter((project) => project.declarations.has(entrypoint));
+  if (emitters.length === 1) return emitters[0];
+  // Proof: removing this branch lost the missing-entrypoint CLI diagnostic to the shared-root
+  // refusal; `refuses a public entrypoint that no configured program emits` failed.
+  if (emitters.length === 0) {
+    throw new Error(
+      `TypeScript public entrypoint ${entrypoint} resolved by 0 configs; expected exactly one emitting owner`,
+    );
+  }
+  // Proof: restoring the emitter-count refusal made the unique-provider production CLI test
+  // fail with three emitting configs, before provider identity and transitive closure assertions.
+  const roots = emitters.filter((project) =>
+    project.program
+      .getRootFileNames()
+      .some((path) => workspacePath(workspace, path) === entrypoint),
+  );
+  // Proof: removing this guard made two explicit roots exit 0; the shared-emissions negative
+  // also lost its zero-root provenance to an undefined-owner error. Both CLI tests failed.
+  if (roots.length !== 1) {
+    const configPaths = (roots.length === 0 ? emitters : roots)
+      .map((project) => project.configPath)
+      .sort(compareText);
+    throw new Error(
+      `TypeScript public entrypoint ${entrypoint} resolved by ${String(emitters.length)} emitting configs with ${String(roots.length)} explicit root configs; expected exactly one: ${configPaths.join(', ')}`,
+    );
+  }
+  return roots[0];
+}
+
 function publicDeclaration(
   workspace: string,
   entrypoint: string,
@@ -855,13 +894,7 @@ export function extractTypeScriptRelationships(
 
   const publicDeclarations = request.publicEntrypoints
     .map((entrypoint) => {
-      const owners = projects.filter((project) => project.declarations.has(entrypoint));
-      if (owners.length !== 1) {
-        throw new Error(
-          `TypeScript public entrypoint ${entrypoint} resolved by ${String(owners.length)} configs; expected exactly one`,
-        );
-      }
-      const owner = owners[0];
+      const owner = selectDeclarationOwner(workspace, entrypoint, projects);
       return publicDeclaration(workspace, entrypoint, owner, extractor);
     })
     .sort((left, right) => compareText(left.entrypoint, right.entrypoint));
