@@ -181,7 +181,11 @@ export function AuthForm({ methods, onSignedIn }: AuthFormProps) {
     const username = values.get('username');
     const password = values.get('password');
     setBusy(true);
-    setError('');
+    // The last refusal stays until the reply replaces it: every branch below
+    // sets `error` or signs in. Clearing it here shut the refusal row the
+    // moment a retry was pressed and reopened it when the answer came, so the
+    // form jumped twice per attempt (review of PR #466). The cost: a repeated
+    // identical sentence is not announced a second time by the live region.
     try {
       const reply = await login(
         typeof username === 'string' ? username : '',

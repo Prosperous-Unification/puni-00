@@ -288,11 +288,18 @@ function AppContent({
       // 'sans-serif'` inline — the browser's generic sans, whatever that was on
       // the machine. `font-sans` is the named stack `styles.css` declares, and
       // the two colour tokens are what a dark set would re-point.
-      <main className="bg-background text-foreground grid min-h-full place-items-center p-4 font-sans sm:p-8">
+      <main className="bg-background text-foreground grid min-h-full items-start justify-items-center px-4 pt-[max(1rem,calc(50dvh-15.5rem))] pb-4 font-sans sm:px-8">
         {/*
          * One centred column (UI review F-052): the word mark, one line saying
          * what the product is, and the sign-in panel. It sat top-left under a
          * bare word mark, 500px from the middle of a 1440 window.
+         *
+         * Anchored by its top rather than centred (F-090, the D3 rule that
+         * surfaces grow downward): a centred column re-centred when the refusal
+         * line opened, lifting the heading 16px. The top sits 15.5rem above the
+         * window's middle, half the resting column (about 31rem at 1440 and
+         * 375), so at rest it reads as centred; a refusal or a longer list of
+         * sign-in methods only adds below.
          *
          * The heading is the tracer for the Tailwind integration, and still the
          * assertion `e2e/tailwind.spec.ts` reads the computed letter-spacing off.

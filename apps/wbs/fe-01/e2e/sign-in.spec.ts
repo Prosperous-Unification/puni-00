@@ -74,10 +74,14 @@ test.describe('the sign-in page (F-052)', () => {
       // At least the phone's 16px gutter on both sides.
       expect(measured.card.left).toBeGreaterThanOrEqual(16);
       expect(measured.viewport.width - measured.card.right).toBeGreaterThanOrEqual(16);
-      // Upright too, where the column is shorter than the window.
+      // Upright too: anchored by its top near the middle of the window (F-090),
+      // so it reads as centred at rest and grows downward. Inside the window,
+      // and within 48px of true centring where the window has room.
       const above = measured.column.top;
       const below = measured.viewport.height - measured.column.bottom;
-      if (above > 16 && below > 16) expect(Math.abs(above - below)).toBeLessThanOrEqual(1);
+      expect(above).toBeGreaterThanOrEqual(16);
+      expect(below).toBeGreaterThanOrEqual(0);
+      expect(Math.abs(above - below)).toBeLessThanOrEqual(48);
       // One form gap, not a reserved blank line between two of them.
       expect(measured.passwordToSubmit).toBeLessThanOrEqual(16.5);
     });
@@ -114,6 +118,10 @@ test.describe('the sign-in page (F-052)', () => {
         body: JSON.stringify({ error: 'invalid_credentials' }),
       }),
     );
+    const heading = page.getByRole('heading', { level: 1, name: 'WBS tool v2' });
+    const headingTop = (): Promise<number> =>
+      heading.evaluate((node) => node.getBoundingClientRect().top);
+    const restingTop = await headingTop();
     await page.getByLabel('Username').fill('someone');
     await page.getByLabel('Password').fill('wrong');
     await page.getByRole('button', { name: 'Sign in with password' }).click();
@@ -140,5 +148,11 @@ test.describe('the sign-in page (F-052)', () => {
     });
     expect(placed.afterField).toBeGreaterThanOrEqual(0);
     expect(placed.beforeButton).toBeGreaterThanOrEqual(0);
+    // The panel grows downward and nothing above the field moves (F-090, the D3
+    // rule). Proof, watched 2026-10-15 on the vertically centred column:
+    // failed on `the heading moved · Expected: <= 0.5 · Received: 16`.
+    expect(Math.abs((await headingTop()) - restingTop), 'the heading moved').toBeLessThanOrEqual(
+      0.5,
+    );
   });
 });

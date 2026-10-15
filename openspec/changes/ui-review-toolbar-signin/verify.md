@@ -26,3 +26,10 @@ Branch `ui-review/toolbar-signin` from `ui-review/integration-2` @ `85849d1f3`, 
 | same                                                             | count in `--quiet-ink`, placeholders unchanged            | `the search word on the band · Received: 2.652…` (light), `4.158…` (dark)                                   |
 
 After the fix, on a banded row (2× pixel method): `+1` and `search` both 5.652:1 light, 7.495:1 dark.
+
+## Review round 1 (PR #466, 2026-10-15)
+
+| Check                                                                    | Injected fault                                            | Observed                                                                         |
+| ------------------------------------------------------------------------ | --------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Vitest `keeps the last refusal open while a second attempt is in flight` | `setError('')` at the top of `submit` (the reviewed code) | `expected 'grid transition-[grid-template-rows] …' to contain 'grid-rows-[1fr]'` |
+| e2e `opens a refused sign-in's message …`, heading still                 | the vertically centred column (the reviewed code)         | `the heading moved · Expected: <= 0.5 · Received: 16`                            |

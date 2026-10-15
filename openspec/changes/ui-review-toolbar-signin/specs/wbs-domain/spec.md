@@ -5,9 +5,11 @@
 The signed-out page SHALL centre one column holding the `WBS tool v2` heading,
 one line saying the product plans work breakdown structures, and the sign-in
 panel, at every width from 375px up, with at least 16px on either side and no
-sideways scroll. The password form's refusal line SHALL take no space while it
-is empty and SHALL open between the password field and its button when a
-refusal is shown.
+sideways scroll. The column SHALL be anchored by its top near the window's
+middle, so that what opens inside it grows downward and the heading does not
+move. The password form's refusal line SHALL take no space while it is empty,
+SHALL open between the password field and its button when a refusal is shown,
+and SHALL stay open with its sentence while a further attempt is in flight.
 
 #### Scenario: a wide window
 
@@ -17,7 +19,12 @@ refusal is shown.
 #### Scenario: a refused password
 
 - **WHEN** the server refuses the username and password
-- **THEN** the message is drawn whole between the password field and the button
+- **THEN** the message is drawn whole between the password field and the button, and the heading does not move
+
+#### Scenario: a second attempt after a refusal
+
+- **WHEN** the reader submits again while the refusal is shown
+- **THEN** the refusal line stays open with its sentence until the reply replaces it
 
 ### Requirement: The plan toolbar ends in one group
 

@@ -172,6 +172,53 @@ describe('the signed-out screen', () => {
     expect(row?.className).toContain('grid-rows-[1fr]');
     expect(screen.getByLabelText<HTMLInputElement>('Username').value).toBe('ada');
   });
+  itDom('keeps the last refusal open while a second attempt is in flight', async () => {
+    // Review of PR #466: clearing the line at the top of `submit` shut the row
+    // the instant the button was pressed and reopened it when the next refusal
+    // landed, so the form jumped twice on every retry.
+    let answerSecond = (): void => {
+      throw new Error('the second login was never asked');
+    };
+    const fetch = vi
+      .fn()
+      .mockImplementationOnce(() =>
+        Promise.resolve(response(401, { error: 'invalid_credentials' })),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise<Response>((resolve) => {
+            answerSecond = () => {
+              resolve(response(401, { error: 'invalid_credentials' }));
+            };
+          }),
+      );
+    vi.stubGlobal('fetch', fetch);
+    render(<AuthForm methods={NO_METHODS} onSignedIn={() => undefined} />);
+    const error = screen.getByRole('status');
+    const row = error.closest('[data-refusal-row]');
+    const form = screen.getByRole('button', { name: 'Sign in with password' }).closest('form')!;
+    fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'ada' } });
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'wrong' } });
+    fireEvent.submit(form);
+    await waitFor(() => {
+      expect(error.textContent).toBe('Username or password is incorrect.');
+    });
+
+    fireEvent.submit(form);
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledTimes(2);
+    });
+    // Proof, watched 2026-10-15 with `setError('')` still at the top of
+    // `submit`: failed on `expected 'grid transition-[grid-template-rows] …'
+    // to contain 'grid-rows-[1fr]'`.
+    expect(row?.className).toContain('grid-rows-[1fr]');
+    expect(error.textContent).toBe('Username or password is incorrect.');
+    answerSecond();
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Sign in with password' })).toBeEnabled();
+    });
+    expect(row?.className).toContain('grid-rows-[1fr]');
+  });
   itDom(
     'explains a refused predecessor instead of treating it as invalid credentials',
     async () => {
