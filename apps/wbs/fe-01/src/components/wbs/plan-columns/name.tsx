@@ -1,6 +1,5 @@
 import { useRef } from 'react';
 
-import { useCardOpenOn } from '../cell-card-store';
 import { CellInput } from '../cell-input';
 import { cellKey } from '../editable-grid';
 import { HoverPreview } from '../hover-preview';
@@ -10,6 +9,7 @@ import { MATCH_TINT } from '../plan-cell-props';
 import { useFilterReading } from '../plan-cell-reading-context';
 import type { PlanLive } from '../plan-live';
 import { hierarchyIndentFor, numberIndentFor } from '../table-frame';
+import { useCardOpenOn } from '../use-card-open-on';
 import { WrittenNotesPanel } from '../written-notes-panel';
 import { column } from './column';
 
