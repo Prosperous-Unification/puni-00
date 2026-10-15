@@ -1912,3 +1912,15 @@ _Avoid_: restore log, retry token
 The durable link between a completed restore operation and one personally issued organization
 approval used by that recovery.
 _Avoid_: operator attestation, approval deletion
+
+### Forge recovery rehearsal
+
+**Cold startup**:
+The first startup of a forge environment from a fresh worktree, before any automatic
+container replacement or manual retry.
+_Avoid_: warm recovery, eventual readiness
+
+**PID1 recovery**:
+Automatic readiness after abrupt termination of a forge container's initial process,
+within the same Pod and with a new container identity and increased restart count.
+_Avoid_: Pod recreation, cold startup

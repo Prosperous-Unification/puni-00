@@ -248,3 +248,24 @@ bunx nx run tool-devsync:dev-env -- up --slug main --worktree ~/puni-worktrees/p
 bunx nx run tool-devsync:dev-env -- down --slug main --cluster puni-walk-platform
 bunx nx run tool-fleet:lab -- down --id walk --profile app
 ```
+
+### Bounded first-attempt forge diagnostics
+
+Automatic lab creation and teardown in `forge-recovery-lab.ts` are **disabled**. The command
+exits nonzero before any mutation with `tool-fleet creation receipts required`.
+A read-only inventory cannot authorize deleting resources that appear after that snapshot,
+and the current lab owner returns no per-resource creation receipts for partial startup.
+Do not use this packet as a reusable automatic lab provisioner.
+
+The retained components are the independent-verdict coordinator (`forge-recovery-check.ts`),
+first-container memory/parser checks, read-only inventory and cleanup verification, guarded
+node PID1 command boundary, browser trace preload, and a process runner with finite process-group
+SIGKILL deadlines (`forge-recovery-process.ts`). Killing a Docker client does not kill its
+remote process. Any future node sampler therefore needs its own verified remote hard deadline,
+as well as receipt-backed teardown of the owned node. Current code does not launch a sampler.
+
+The one historical 2026-10-16 run used candidate `9c5828e43879059ec5708df4a381d4fa5cdbb36c`.
+Its original cold OOM and restored-checker failures remain in the immutable external evidence
+listed in [verification](../../openspec/changes/forge-restart-state/verify.md#one-instrumented-fresh-worktree-lab).
+No later lab or warm retry replaces them. The CLI will remain unavailable until the lab owner's
+creation-receipt contract is designed and proven, including partial creation and name races.
