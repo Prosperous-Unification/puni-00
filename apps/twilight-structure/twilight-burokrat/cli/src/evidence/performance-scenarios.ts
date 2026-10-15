@@ -3,7 +3,8 @@ import { evaluateSpecifications } from '../rules/specifications';
 import { compareCanonicalText, hashCanonical } from './content-manifest';
 import { inspectPerformanceSelection } from './performance-levels';
 
-interface CitationFinding {
+/** A terminal Performance test citation that cannot identify an adopted active scenario. */
+export interface CitationFinding {
   caseId: string;
   kind: 'missing' | 'malformed' | 'inactive';
   title: string;
