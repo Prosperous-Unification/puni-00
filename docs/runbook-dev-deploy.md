@@ -144,6 +144,30 @@ The config records a full `devSourceSha`; `tool-devsync` also diffs the solver c
 paths between that commit and the requested commit, so a changed solver package cannot silently
 run under an older image.
 
+### Accept a locally available solver artifact
+
+To check an already published immutable backend image without publishing or installing a binding,
+run from a clean checkout with locked Bun dependencies and Docker access:
+
+```sh
+bash apps/wbs/be-01/scripts/solver-image-smoke.sh \
+  --image=REGISTRY/BE@sha256:FULL_64_LOWERCASE_HEX_DIGEST
+```
+
+Supply the exact digest reference already present in the local Docker daemon. This command refuses
+a missing image or an inspect failure; it never pulls, builds, publishes, retags or removes that
+image. Tags, duplicate/unknown arguments and malformed references fail before Docker.
+`WBS_RUN_SOLVER_ORPHAN_PROC` must be unset or `0`: its derivative-build proof belongs to the
+no-argument build smoke.
+
+The command starts an invocation-owned temporary supervisor and runs the packaged authenticated
+baseline and shared-person clients against that exact digest. The shared request retains Ana's
+higher-ranked booking `[0, 1.01)`, and both responses must be feasible and revalidated against the
+sent request. Cleanup removes only the temporary runtime and invocation-owned containers; a
+cleanup refusal fails the command. This proves artifact acceptance through a temporary supervisor.
+Installed source-to-digest binding, persistent supervisor readiness and live deploy acceptance
+still require ADR 0025's preparation, installer and preflight evidence.
+
 ### Durable poller recovery
 
 The poller and its managed interpreter live outside the reset checkout. The installed helper is a
