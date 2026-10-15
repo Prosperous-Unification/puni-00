@@ -3435,3 +3435,39 @@ messages to that earlier idle agent did not constitute a triggered implementatio
 The coordinator has the concrete checkout and is responsible for routing the exact commit for
 review. Task 4.1b.10e and all parent ledgers stay open. No host gate, full repository test gate,
 CI, secret scan, migration lint, push, PR, integration or deployment was run by this worker.
+
+## Browser Conformance restack onto repaired #488 (2026-10-15)
+
+The reviewed design `1238c36fce57d856a633d3db94b1ffa23cb07349` and implementation
+`c1de962e3bc04e55222f1ee236d2388281ebdeb0` were cherry-picked without conflicts onto
+repaired #488 `fca16386e8c993c35f169ebf57d07b04da0170a9` in isolated clone
+`/tmp/puni-490-browser-restack-sol`. The resulting design is
+`e81e354375b594d07881a7777aec3d9b4748f771`, followed by implementation
+`477afc7cee0aa4674a8840586ae78f6dcd6d720d`. Exact ancestry and Git blob comparisons
+confirmed all 13 packet paths identical to the reviewed source and both repaired-parent
+paths identical to #488, with no overlapping paths. This subsequent record changes only
+verification evidence; reviewed production and test blobs remain identical.
+
+Fresh checks on the restacked implementation:
+
+- Frozen Bun 1.4.2 install: exit 0; 1,573 installs checked across 1,447 packages, no changes.
+- The five-file acceptance command recorded above: exit 0; 125 passed, zero failed,
+  1,140 assertions, 190.96 seconds (`/tmp/browser-restack-scoped-tests.log`).
+- Uncached scoped Nx `twilight-burokrat:lint:source`, `:typecheck`, and `:build`:
+  exit 0; each target reported success (`/tmp/browser-restack-{lint,typecheck,build}.log`).
+- Changed-file Prettier and `git diff --check`: exit 0.
+- Built `dist/bin.mjs scenario validate . openspec/changes/test-axes/specs/test-axes/spec.md`:
+  exit 0; `{"unidentified":[]}` (`/tmp/browser-restack-provenance.json`).
+- Pinned OpenSpec 1.12.0 strict validation: exit 0, 1/1 valid, zero issues;
+  all validation: exit 0, 210/210 valid, zero failures
+  (`/tmp/browser-restack-openspec-{strict,all}.json`).
+
+An initial install used an empty task cache and failed DNS resolution; another temporary
+path attempt failed EROFS. The successful frozen installation used the existing default
+Bun cache and a fresh writable task temporary directory. Direct execution of source
+`bin.ts` refused its missing installed package manifest; provenance was then checked
+successfully through the built executable. None of those refused attempts is a pass.
+
+No production guard changed, and the source packet's documented mutation proofs were not
+rerun. This worker ran no full host gate, full repository gate, exact-head CI, push, PR,
+merge, or deploy. Coordinator release acceptance and parent ledgers remain open.
