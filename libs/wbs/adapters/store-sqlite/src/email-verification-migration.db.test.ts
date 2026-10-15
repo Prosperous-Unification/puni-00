@@ -49,6 +49,7 @@ describe('email verification migration', () => {
 
   it('rolls down before activation without evidence', () => {
     expect(rollbackTo(path, FOLDER, PREVIOUS)).toEqual([
+      '20261015100000_add_step_blockage_activation_receipt',
       '20261014140000_add_step_blockage_activation',
       '20261014130000_add_shared_people_restore_receipts',
       '20261014120000_add_shared_people_restore_approvals',

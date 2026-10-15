@@ -629,6 +629,10 @@ impediment. Independent of progress, work-item holds and forecasts; absence mean
 direct blockage.
 _Avoid_: step hold, step status, failed attempt
 
+**Step blockage activation receipt**:
+The durable identity of the attended decision that admitted direct step blockage writers.
+_Avoid_: Activation acknowledgment, enable flag
+
 **Waiting**:
 A node reading: a node with no statement and no running attempt whose every predecessor
 node in the step graph reads done, and which has at least one. Work handed to it and not
