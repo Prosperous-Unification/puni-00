@@ -199,6 +199,82 @@ Documents: ADR 0050 (0048 and 0049 were taken), the pointer line in ADR 0021, `n
 bullet, `LLM_README.md` line (139 lines), and three `CONTEXT.md` terms (Generation, Publication
 marker, Authority bootstrap). Dash README lists five commands.
 
+## 2026-10-14: lifecycle fixture contention budget
+
+PR #460 (`6586e69ae96d36b1326bf1af79e52be4b069e333`) changed no Twilight code,
+dependencies or CI workflow. CI run `38541110423` failed the lifecycle property in both
+attempts on exhaustion of the existing 50-attempt, 5 ms worker budget. Attempt 2 reached the
+three-overlapping-acquisitions case after 60.77 seconds; the isolated property passed in
+16.06 seconds. A single-CPU baseline passed in 52.68 seconds; adding competing CPU work on
+that CPU passed in 75.90 seconds. These timings support scheduling pressure, but the CI logs
+do not identify the particular lock holder's stall.
+
+The deterministic reproducer holds a real SQLite reserved writer lock until all three
+contenders have opened the authority and announced their acquisition attempt, then releases
+it after 600 ms. With the old fixture budget, two observed runs failed: all contenders returned
+`untyped: authority database remained busy after 50 attempts`, rather than one winner and two
+overlap refusals. The explicit fixture options now use the production-supported ceilings of
+100 attempts and 50 ms delay: at most 99 sleeps, or 4.95 seconds, per retry loop. Production
+defaults, option validation, overlap checks and all six model invariants are unchanged.
+
+This restores the existing model's eventual-linearization intent within a deliberate finite
+fixture budget; no new observable production behavior or OpenSpec delta is introduced. It does
+not promise progress under unlimited lock retention or unlimited operating-system starvation.
+
+| Check or injected fault                                                                                                                                          | Observed outcome                                                                                                  |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `bun test --preload ./tools/test/scratch/preload.ts ./apps/twilight-structure/twilight-dash/cli/src/authority/authority-lifecycle.model.test.ts --timeout=60000` | 3 pass, 0 fail, 106 assertions, 25.75 s; existing property 17.41 s                                                |
+| Real writer held 600 ms, then released                                                                                                                           | Exactly generation 1 acquired, two overlap refusals; one persisted owner and next generation 2                    |
+| Real writer kept locked                                                                                                                                          | Worker exhausted 100 attempts; test 5.82 s, no owner persisted and next generation remained 1                     |
+| Production `pathsOverlap` replaced with `false`, then restored                                                                                                   | Stalled-writer regression failed: three acquired owners at generations 1, 2 and 3 instead of two overlap refusals |
+| `bunx tsc --build --force apps/twilight-structure/twilight-dash/cli/tsconfig.json`                                                                               | Exit 0                                                                                                            |
+
+Two whole-file repetitions used `taskset -c 0` for the test runner (inherited by its workers)
+and a competing Python CPU loop with a 190-second deadline on the same CPU. Both passed all
+three tests and 106 assertions in 96.61 and 92.51 seconds; the existing property took 81.16
+and 77.42 seconds. The other CPUs were available to unrelated host work.
+
+Additional scoped checks:
+
+- The same Bun test command against `claims.db.test.ts` with `-t 'bounds|retries'`: 3 pass,
+  0 fail, 10 assertions (write-lock convergence, reader-blocked commit convergence and bounded
+  rollback); with `-t 'finite authority budget'`: 1 pass, 0 fail, 2 assertions.
+- `bunx eslint apps/twilight-structure/twilight-dash/cli/src/authority/authority-lifecycle.model.test.ts`:
+  exit 0 after `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx graph --file=/tmp/twilight-contention-graph.json`
+  populated the cached graph; no skipped rules. The first direct lint attempt warned that no
+  cached graph existed and skipped module boundaries, so it was repeated after graph creation.
+- Prettier check on the changed test and this record, and `git diff --check`: exit 0.
+
+The two added regression cases account for approximately 7.5 seconds of the isolated file's
+duration. Existing claim/database suites already prove attempt and delay validation and
+whole-transaction retry; this fix changes only the model fixture's options and its tests.
+The full host gate and CI rerun belong to the integration owner; neither is claimed by these
+scoped checks.
+
+### Review correction: measure no retry duration in the parent
+
+The parent observed the worker's attempt marker before starting its stopwatch. A parent paused
+while the child retries can observe that marker late, so its elapsed time cannot establish the
+child's retry duration. Both parent duration assertions have been removed. Exact 100-attempt
+exhaustion, the finite 60-second test timeout, no persisted claims and the separate production
+transaction-delay tests remain; all model outcomes and delayed-writer overlap assertions are
+unchanged.
+
+A temporary diagnostic paused only the test parent with `SIGSTOP` immediately after writing the
+start barrier. A Python observer waited for the child's attempt marker, allowed the child one
+second of retry time, then resumed the parent with `SIGCONT`. Before the correction, the exact
+exhaustion assertion passed but the timing assertion failed: 4161.44 ms observed versus a
+4500 ms minimum. After removing the timing assertions, the same parent pause passed: 1 test,
+4 assertions, 0 failures; no owner was persisted and the next generation remained 1. The pause
+instrumentation was then removed. Reproducer and logs are `/tmp/twilight-parent-pause.py`,
+`/tmp/twilight-parent-paused-red.log` and `/tmp/twilight-parent-paused-green.log`.
+
+After restoring the ordinary runner, the whole lifecycle file passed: 3 tests, 104 assertions,
+0 failures in 28.25 seconds (existing property 19.67 seconds). The scoped production contention
+checks passed again: 3 tests, 10 assertions, 0 failures in 2.07 seconds. Typecheck, ESLint with
+the cached graph, Prettier and `git diff --check` all exited 0. The full host gate and CI remain
+the integration owner's checks.
+
 ## Finite contention lifecycle correction (2026-10-14)
 
 PR #408 head `3d1e3b9b158a598293f80bafc3403ee51dd37f6e`, Twilight CI run
@@ -455,3 +531,60 @@ Logs live at `/tmp/stabilization-{claims,ci,sqlite-elevated,sqlite-mutant,sqlite
 The canonical h2puni gate, whole-project tests, builds, hosted CI, standalone secrets
 scan and migration lint remain unrun here. This worker did not push, open a PR,
 merge remotely or queue a gate; the parent owns review and exact-SHA host validation.
+
+## F9 reconciliation after release #458 (2026-10-14)
+
+Merged main `50f5c2b8d286849557e3dace27418d62cff00cde` into reviewed #460 head
+`61176c12111429731730f2c240913496b1f50a5f` in `/tmp/puni-forge-namespaces`.
+Only the lifecycle model test and this evidence file conflicted. Both prior evidence
+histories and the released typed contention classifier, exact persisted session/claim
+assertions, and one-attempt bootstrap override are retained. The worker carries per-job
+options; only the two deliberate stalled-writer tests select the larger finite retry
+budget. Their acquisition-attempt handshake remains, and exhaustion reports typed
+`contended`. There is no production authority delta against merged main.
+
+Observed on `pop-os` with Bun 1.4.2 and existing local dependencies:
+
+- RED: restoring the global `options: CONCURRENT_BUSY_OPTIONS` assignment after
+  `...job` timed out the typed-classifier regression with `--timeout=3000`.
+  GREEN: preserving its one-attempt override passed, 1 test / 5 assertions in 1151 ms.
+  A preliminary 1000 ms limit also timed out the restored fixture during worker startup;
+  that preliminary limit did not distinguish the fault and is not counted as proof.
+- RED: removing per-job options from the stalled-writer fixture yielded three typed
+  `contended` outcomes instead of one generation-1 winner and two overlap refusals,
+  0 pass / 1 fail. GREEN after restoration: 1 pass / 0 fail / 6 assertions (4.99 s).
+  Fault log: `/tmp/forge-reconcile-budget-red.log`. All injected faults were removed.
+- Lifecycle file with the project preload and `--timeout=60000`: 5 pass / 0 fail,
+  129 assertions (125.89 s under concurrent lint/typecheck load).
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_TUI=false bunx nx run-many
+-t lint typecheck -p twilight-dash --skip-nx-cache --output-style=stream`:
+  both targets passed, uncached.
+- Namespace composition: `bun test --preload ./tools/test/scratch/preload.ts
+./tools/tool-devsync/src/k3s/forge-namespace.test.ts
+./tools/tool-devsync/src/k3s/dev-environment.test.ts
+./tools/tool-devsync/src/k3s/dev-environment-lifecycle.test.ts --timeout=30000`:
+  62 pass / 0 fail, 210 assertions (5.32 s). Log: `/tmp/forge-reconcile-namespace.log`.
+- Pinned OpenSpec validation `BUN_TMPDIR=/tmp bunx @fission-ai/openspec@1.12.0
+validate --all --json`: 198/198 valid (180 changes, 18 main specs).
+- Initial complete authority command from the repo root omitted `./` before its source
+  path. Bun substring discovery also collected `dist/out-tsc` emitted by the concurrent
+  typecheck: 163 source tests passed, 11 generated-copy errors failed unresolved judge
+  aliases. This contaminated run is not counted as a passing complete suite.
+  Log: `/tmp/forge-reconcile-authority.log`.
+- Complete authority suite from the target's cwd: `env -u CLAUDECODE
+-u CLAUDE_CODE_ENTRYPOINT
+TOOL_WIKI_TRUSTED_NODE_MODULES=/tmp/puni-forge-namespaces/node_modules
+bun test --preload ../../../../tools/test/scratch/preload.ts ./src/authority
+--timeout=60000`: 163 pass / 0 fail, 807 assertions across 11 files (157.22 s).
+  Log: `/tmp/forge-reconcile-authority-scoped.log`.
+- Prettier check on both reconciled files and `git diff --check`: passed.
+
+Normal merge commit hooks passed format, plaintext secrets, private nesting,
+migration lint and doc caps. Tool Wiki reported `inactive`, `certified: false` because
+its external activation root is not provisioned. The first ESLint hook process
+exhausted Node's default 4 GB heap while checking all main-imported staged paths;
+the commit was retried with `NODE_OPTIONS=--max-old-space-size=8192`.
+
+The parent owns the canonical exact-SHA h2puni gate and review. Whole-project tests,
+standalone build, secrets scan and migration lint were not run independently here.
+No PR merge or deployment was performed.
