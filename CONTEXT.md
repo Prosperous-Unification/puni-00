@@ -1924,3 +1924,15 @@ _Avoid_: warm recovery, eventual readiness
 Automatic readiness after abrupt termination of a forge container's initial process,
 within the same Pod and with a new container identity and increased restart count.
 _Avoid_: Pod recreation, cold startup
+
+### Local fleet creation
+
+**Creation attempt**:
+One invocation that tries to create a local fleet lab, identified independently of later invocations
+and bound to one Docker daemon.
+_Avoid_: lab generation, recovery session
+
+**Creation journal**:
+The durable lifecycle record of one creation attempt. Its completion describes the attempt's
+outcome and does not establish ownership of individual resources.
+_Avoid_: ownership receipt, deletion authority

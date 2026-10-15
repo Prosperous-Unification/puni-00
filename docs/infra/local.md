@@ -269,3 +269,19 @@ Its original cold OOM and restored-checker failures remain in the immutable exte
 listed in [verification](../../openspec/changes/forge-restart-state/verify.md#one-instrumented-fresh-worktree-lab).
 No later lab or warm retry replaces them. The CLI will remain unavailable until the lab owner's
 creation-receipt contract is designed and proven, including partial creation and name races.
+
+### Creation attempts and manual recovery
+
+Each k3d `up` durably reserves a distinct creation journal before creating resources, then
+records ready or failed. Journals are owner-only files under
+`.puni/fleet-labs/k3d/.attempts/<lab-id>/<attempt-id>.json`; ordinary `down` preserves them.
+They record the creation attempt and Docker daemon identity, not ownership of individual
+containers, networks or volumes.
+
+A failed `up` reports its attempt and journal path. Its resource inventory is unknown: resources
+may remain, and the journal does not identify them. `up` disables k3d v5.9.0 automatic failure
+rollback with `--no-rollback`; the wrapper never starts cleanup. Inspect exact resource identities
+manually before cleanup. Ordinary `down` still derives its targets from names and
+labels; a journal does not make that teardown safe for recovery or prove which attempt created
+an object. The separate journal-consuming lifecycle refuses deletion, and the F9 recovery CLI
+remains disabled pending creation ownership receipts and an identity-safe executor.
