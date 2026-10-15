@@ -3,6 +3,7 @@
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "tools/tool-remote-scripts/src",
   "projectType": "library",
+  "implicitDependencies": ["wbs-be-01", "wbs-observability", "wbs-store-sqlite"],
   "tags": ["scope:infra", "type:scripts", "runtime:bun", "ring:adapter"],
   "targets": {
     "build": {
