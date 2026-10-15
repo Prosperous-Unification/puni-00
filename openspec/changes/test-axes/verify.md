@@ -3696,3 +3696,274 @@ The installed K6 binding for the committed repaired SHA is recorded separately i
 and `/tmp/wave5-restack-evidence/` after commit. No canonical h2puni gate, full repository
 gate, browser/pixels, merge to main or deployment ran in this repair worker. Fresh exact-head review and hosted
 acceptance remain coordinator work.
+
+## 4.1b.11 Browser Architecture membership — 2026-10-15
+
+Implementation starts from exact `c000efb37750cb3095f3c2d6f88a684d058b149b` in isolated
+worktree `/tmp/wbs-browser-architecture-sol-20261015`, owned by clone
+`/tmp/wbs-scenario-ledger-sol-20261015`. No root checkout or parallel Step Nodes path changed.
+The existing dependency installation is linked from that clone; no dependency/target/test-input
+or relationship fact changed.
+
+The real production allocator proposed TEST-AXES-108..111
+(`/tmp/browser-architecture-allocation.json`); its emitted Markdown and journal were applied only
+after checking exact equality of the entire prior event prefix. Production provenance returned
+`{"unidentified":[]}` (`/tmp/browser-architecture-provenance.json`). The first positive actual
+`invokeCli` assertion failed for `unknown command: inspect-browser-architecture`
+(`/tmp/browser-architecture-red.log`). An earlier test invocation matched zero tests because its
+append used an incorrect relative path; that invocation is not RED evidence. The first adapter
+run had 10 passing tests and one installed unknown-command failure, which exposed the separate
+`src/bin.ts` allowlist and was fixed before the expanded 18-test run passed. A later multi-file
+fixture expected insertion order instead of lexical path order; the assertion was corrected to
+require canonical sorting, then both additional tests passed. Initial lint found only import
+sorting, fixed with the existing lint rule. Initial scoped typecheck passed.
+
+The command independently captures exact committed identity before invoking the real report
+inspector, validates strict external authority and all report/source/pin joins, reuses the existing
+Architecture policy/mapping/discovery validators, checks complete mapped selected regular blobs
+before intersection, and retains complete sorted membership and source union. The output includes
+the complete report, authority and byte digest, unknown Manual/Conformance/Performance, absent
+authentication, false certification and a digest of the entire payload. Explicit reviewed-empty
+refuses fixed policy, descendants and declared `test:architecture:level`. Immediate suffix-directory
+children refuse; ordinary nested files are ignored. Candidate code and Browser execution are never
+invoked by this adapter.
+
+Watched faults: `/tmp/browser-architecture-mutations.log` records 51 caught mutations;
+`/tmp/browser-architecture-mutations-extra.log` records five additional caught mutations. Every
+entry has nonzero test status and a real failed production-path assertion, with its complete
+output in `/tmp/browser-architecture-fault-<name>.log`. Sources were restored after each mutation;
+adjacent `Proof:` comments were added only after observing the failures.
+
+| Injected guard, output or dependency fault                                                       | Observed production assertion                                                                                                     |
+| ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| Remove full-SHA, committed-kind or exact requested revision guard                                | TEST-AXES-109/111 loses the local symbolic, staged-reader or annotated-tag refusal                                                |
+| Independently remove report revision, candidate or mode joins                                    | TEST-AXES-109 accepts coherent changed report/authority identity                                                                  |
+| Independently remove authority revision, candidate, mode or report digest joins                  | TEST-AXES-109 accepts changed authority pin                                                                                       |
+| Drop manifest/root agreement or collection containment                                           | TEST-AXES-109 loses the exact foreign-scope refusal                                                                               |
+| Disable fatal decoding, substitute empty JSON record, bypass closed authority schema             | TEST-AXES-109 loses invalid-UTF-8, malformed-JSON or unsupported-version/key refusal                                              |
+| Remove nonempty collection guard                                                                 | TEST-AXES-109 accepts empty report dependency                                                                                     |
+| Remove selected-regular guard or complete mapped-source reads                                    | TEST-AXES-110 loses missing/nonregular disjoint-source refusal despite working repairs                                            |
+| Inject unreadable selected manifest, policy or disjoint mapped blob reader                       | TEST-AXES-110 emits named cannot-read-selected-blob refusal; these are reader dependency faults, not filesystem permission claims |
+| Independently omit report source mode or digest equality                                         | TEST-AXES-109 accepts substituted upstream source tuple                                                                           |
+| Remove same-path digest or mode agreement                                                        | TEST-AXES-111 accepts later selected-byte or mode substitution on a shared path                                                   |
+| Remove manifest digest pin or complete structure/targets-array validation                        | TEST-AXES-109/110 accepts wrong byte pin or loses named malformed-manifest refusal                                                |
+| Independently drop reviewed-empty policy, descendant or target detection                         | TEST-AXES-110 accepts the corresponding contradictory committed state                                                             |
+| Remove fixed policy path or digest pin                                                           | TEST-AXES-110 accepts foreign policy path or changed policy digest                                                                |
+| Bypass shared policy decoding or omit shared mapping validation                                  | TEST-AXES-110 accepts unsupported policy schema or loses exact mapping diagnosis                                                  |
+| Omit shared discovery, remove immediate-child projection or widen suffix discovery               | TEST-AXES-110 accepts unmapped suffix file/directory child or rejects ordinary nested source                                      |
+| Remove selected-file ordering/completeness or intersection                                       | TEST-AXES-108 emits incomplete/unsorted selection or populated disjoint intersection                                              |
+| Reverse, duplicate or truncate collection; reverse, duplicate or omit manifest from source union | TEST-AXES-108/111 fails exact complete canonical collection/source assertions                                                     |
+| Replace complete report/authority, zero authority digest, promote any unknown membership         | TEST-AXES-108 fails exact complete envelope assertions                                                                            |
+| Promote authentication or certification, hash empty payload                                      | TEST-AXES-108 fails explicit noncertifying invariant or independently computed full-payload digest                                |
+| Independently remove CLI arity/mode guard or installed registration                              | TEST-AXES-111 loses named usage refusal or real built executable dispatch                                                         |
+
+No global classification, scenario join, coverage/admission, source reconciliation, StepBlockage,
+receipt, push, integration, deployment, host gate or full repository acceptance is claimed. Parent
+Tasks 2.1/2.2a/2.2/4.1 remain open. Independent Astra review and coordinator release checks remain
+separate from these synthetic bounded adapter fixtures.
+
+Final scoped acceptance (Bun 1.4.2):
+
+```sh
+cd apps/twilight-structure/twilight-burokrat/cli
+bun test --preload ../../../../tools/test/scratch/preload.ts ./src/evidence/browser-architecture.test.ts ./src/evidence/browser-conformance.test.ts ./src/evidence/test-reports.test.ts ./src/evidence/level-facts.test.ts ./src/architecture-level.test.ts --timeout=120000
+```
+
+Exit 0: **109 pass, 0 fail, 1,319 assertions across five files**, 149.89 seconds
+(`/tmp/browser-architecture-focused-final.log`). This includes all 20 new Browser Architecture
+cases and real built installed dispatch. After this run the nested discovery fixture was strengthened
+from `nested/ordinary.test.ts` to `nested/ordinary.architecture.test.ts`: the affected production
+case passed again (1 pass, 0 fail, 14 assertions;
+`/tmp/browser-architecture-nested-suffix-final.log`), explicitly proving that a nested suffix file
+is outside immediate-child discovery. Production behavior did not change after acceptance.
+
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run twilight-burokrat:lint:source --skip-nx-cache --output-style=static`: exit 0, target successfully ran uncached (`/tmp/browser-architecture-lint-final.log`).
+- The corresponding scoped `twilight-burokrat:typecheck` target: exit 0, successfully ran uncached (`/tmp/browser-architecture-typecheck-final.log`).
+- The corresponding scoped `twilight-burokrat:build` target: exit 0, Burokrat and its three dependencies successfully ran uncached (`/tmp/browser-architecture-build-final.log`).
+- Changed-file `bunx prettier --check` and `git diff --check`: exit 0 (`/tmp/browser-architecture-format-check-final.log`).
+- Final production `scenario validate . openspec/changes/test-axes/specs/test-axes/spec.md`: exit 0, `{"unidentified":[]}` (`/tmp/browser-architecture-provenance-final.json`). A fresh committed-base comparison confirms all 155 previous journal events unchanged and only TEST-AXES-108..111 appended.
+- `OPENSPEC_TELEMETRY=0 BUN_TMPDIR=/tmp/browser-architecture-bun-tmp bunx --bun @fission-ai/openspec@1.12.0 validate test-axes --strict --json`: exit 0, 1/1 valid, zero issues (`/tmp/browser-architecture-openspec-strict-final.json`).
+- The same pinned runner's `validate --all --json`: exit 0, 213/213 valid (195 changes, 18 specs), zero failures (`/tmp/browser-architecture-openspec-all-final.json`).
+
+Task 4.1b.11b is implemented. Task 4.1b.11c remains unchecked pending independent Astra review;
+all coordinator-only integration, exact-head CI and host-gate checks in 4.1b.11d are unperformed.
+No release or repository-wide acceptance follows from this bounded synthetic test evidence.
+
+## 4.1b.12 Browser Performance membership — 2026-10-15
+
+Base: exact Browser Architecture APPROVED commit
+`742b8aeb32d7fc2bb07ab68a5aac8481e01c5c28`, isolated worktree
+`/tmp/wbs-browser-performance-sol-20261015` created from the existing isolated clone.
+No root checkout edits, push, release restack, host gate or integration were performed.
+Dependencies are linked from the approved Browser Architecture worktree.
+
+The real production allocator command
+`bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts scenario allocate . openspec/changes/test-axes/specs/test-axes/spec.md`
+issued TEST-AXES-112..115 (`/tmp/browser-performance-allocation.json`). All 159 prior
+journal events were compared equal to the emitted prefix before applying its journal/spec;
+only the four new allocation events were appended. Production provenance returned
+`{"unidentified":[]}` (`/tmp/browser-performance-provenance.json`).
+
+The first positive actual `invokeCli` assertion failed with
+`unknown command: inspect-browser-performance` (`/tmp/browser-performance-red.log`).
+The first adapter run had 10 passing tests and two incorrect expected diagnostic strings:
+config disagreement is reported before an independently changed authority config path can
+reach containment, and the shared decoder says `duplicate Performance case ID`.
+Those expectations were corrected and a coherent outside-root config negative was added.
+The complete new suite then passed 14 tests, 386 assertions
+(`/tmp/browser-performance-green3.log`). A subsequent Prettier invocation used a root-relative
+path from the CLI directory and matched no file; rerunning it from the repository root passed.
+No acceptance is attributed to that failed format invocation.
+
+The command captures exact immutable Git identity before joining the complete real Browser
+report and closed v1 external authority. It reads the pinned project manifest, Performance
+declaration/config and every declared fixture from selected regular blobs within projectRoot.
+All manifest/declaration/config pins are distinct; manifest is exactly projectRoot/project.json.
+It uses `decodePerformanceCases` and `digestPerformanceDeclaration`, requires matching
+Performance config/project and nonempty fixtures, and validates disjoint sources before
+intersection. Browser config/project remain independent. It retains complete report outcomes,
+parsed authority/raw digest, complete decoded declaration/semantic digest, sorted unique
+Browser collection, full fixture set, intersection and agreeing deduplicated source tuples.
+Manual/Conformance/Architecture remain unknown; authentication is absent and certification false.
+The full canonical payload is digested. No runner, reviewed-empty shortcut, classification,
+isolation, coverage, admission or scenario-join credit is introduced.
+
+Watched faults: `/tmp/browser-performance-mutations.json` and
+`/tmp/browser-performance-mutations-extra.json` record **55 caught mutations**, each with
+nonzero test status and a real failed production assertion. Full outputs are
+`/tmp/browser-performance-fault-<name>.log`; summary logs are
+`/tmp/browser-performance-mutations.log` and `/tmp/browser-performance-mutations-extra.log`.
+Sources were restored after every fault; adjacent `Proof:` comments were added afterward.
+
+| Injected fault                                                                                                                                            | Observed production assertion                                                                                                                                       |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Remove each of the 25 SHA, selection, report/authority, scope, pin, selected-source, agreement, manifest, config/project and nonempty guards individually | TEST-AXES-113/114/115 loses its named refusal, including coherent upstream identity substitution, annotated tags and disjoint fixtures despite working-tree repairs |
+| Nonfatal UTF-8, empty JSON substitution or bypassed closed authority decoder                                                                              | TEST-AXES-113 loses the exact malformed authority refusal                                                                                                           |
+| Bypass shared declaration decoder                                                                                                                         | TEST-AXES-114 loses malformed declaration refusal                                                                                                                   |
+| Omit all declared fixture reads                                                                                                                           | TEST-AXES-114 accepts a missing disjoint committed fixture despite working repair                                                                                   |
+| Inject unreadable selected manifest, declaration, config or fixture dependency                                                                            | TEST-AXES-114 observes named cannot-read-selected-blob refusals separately from absence; these are reader faults, not filesystem permission claims                  |
+| Delete authority or replace it with directory                                                                                                             | TEST-AXES-113 observes distinct ENOENT and EISDIR refusals                                                                                                          |
+| Omit same-path mode/digest agreement or upstream source mode/digest equality independently                                                                | TEST-AXES-113/115 accepts the substituted tuple or later shared-path bytes/mode                                                                                     |
+| Replace semantic digest, reverse or duplicate fixture selection, omit complete declaration, return all fixtures as intersection                           | TEST-AXES-112 fails exact complete membership or disjoint-intersection assertions                                                                                   |
+| Reverse/truncate Browser collection, duplicate source tuples or reverse source union                                                                      | TEST-AXES-112/115 fails complete sorted unique collection/source assertions                                                                                         |
+| Replace complete report/authority or raw authority digest                                                                                                 | TEST-AXES-112 fails exact upstream and authority identity assertions                                                                                                |
+| Promote any unknown membership, authentication or certification; digest an empty payload                                                                  | TEST-AXES-112 fails explicit noncertifying or independently recomputed full-envelope assertions                                                                     |
+| Omit CLI arity/mode guards independently or remove installed registration                                                                                 | TEST-AXES-115 loses named usage refusal or built executable dispatch                                                                                                |
+
+Parent Tasks 2.1/2.2a/2.2/4.1 remain open. Independent Astra review of the exact candidate
+and coordinator restack onto #496 lineage, release/CI and host acceptance remain unperformed.
+
+Final scoped acceptance (Bun 1.4.2):
+
+```sh
+cd apps/twilight-structure/twilight-burokrat/cli
+bun test --preload ../../../../tools/test/scratch/preload.ts ./src/evidence/browser-performance.test.ts ./src/evidence/browser-architecture.test.ts ./src/evidence/browser-conformance.test.ts ./src/evidence/test-reports.test.ts ./src/evidence/level-facts.test.ts ./src/architecture-level.test.ts --timeout=120000
+```
+
+Exit 0: **123 pass, 0 fail, 1,705 assertions across six files**, 205.88 seconds
+(`/tmp/browser-performance-focused-final.log`), including source and built installed dispatch.
+Only proof/JSDoc comments and verification/task prose were adjusted during/after that run;
+no production behavior changed after the restored-source acceptance began.
+
+- `bun test libs/shared/domain/test-evidence/src --timeout=120000`: exit 0, 12 pass, 0 fail, 49 assertions (`/tmp/browser-performance-domain.log`).
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run twilight-burokrat:lint:source --skip-nx-cache --output-style=static`: exit 0, successful uncached target output (`/tmp/browser-performance-lint-final.log`). The initial parallel invocation temporarily yielded no target output; lint was rerun independently until fresh successful execution output was captured, with no acceptance based on an empty log.
+- Corresponding scoped `twilight-burokrat:typecheck`: exit 0, successful uncached target output (`/tmp/browser-performance-typecheck-final.log`).
+- Corresponding scoped `twilight-burokrat:build`: exit 0, successful uncached Burokrat build and three dependency tasks (`/tmp/browser-performance-build-final.log`).
+- Pinned OpenSpec strict/all, final provenance, changed-file format, whitespace and journal-prefix confirmation are recorded below after the final prose update.
+
+Task 4.1b.12b is implemented; 4.1b.12c/d remain open. No independent review, release,
+exact-head CI, full repository gate or host acceptance is claimed.
+
+- Final pinned `@fission-ai/openspec@1.12.0 validate test-axes --strict --json`: exit 0, 1/1 valid, zero issues (`/tmp/browser-performance-openspec-strict-final.json`).
+- The same pinned runner's `validate --all --json`: exit 0, 213/213 valid (195 changes, 18 specs), zero failures (`/tmp/browser-performance-openspec-all-final.json`).
+- Final production `scenario validate . openspec/changes/test-axes/specs/test-axes/spec.md`: exit 0, `{"unidentified":[]}` (`/tmp/browser-performance-provenance-final.json`). Fresh comparison to the exact approved base preserved all 159 prior journal events and appended only TEST-AXES-112..115.
+- Final changed-file Prettier and `git diff --check`: exit 0 (`/tmp/browser-performance-format-final.log`).
+
+### Browser Performance clock-name review repair — 2026-10-15
+
+Candidate `dc5ac746b690dafc0fe2500a20c869dc8be6c826` on parent
+`742b8aeb32d7fc2bb07ab68a5aac8481e01c5c28` introduced a local `performance`
+binding. The required package clock detector treats that identifier as a clock
+reference. Renamed the binding to `performanceMembership` and retained the explicit
+`memberships.performance` output key. This is a mechanical naming correction;
+no safety guard, schema or serialized value changed.
+
+- File-local production `findClockReads` comparison of the original committed file
+  and corrected working file: original references at lines 214 and 243; corrected
+  references `[]`, exit 0 (`/tmp/browser-performance-rename-clock-proof.json`).
+  This before/after observation supplies the relevant breakability evidence for
+  the naming correction; existing safety guards retain their prior mutation proofs.
+- Required `no-ambient-clock.test.ts`: exit 1, 0 pass / 1 fail. Exactly 19 inherited
+  references remain in `evidence/scenario-ledger.ts` and
+  `evidence/scenario-ledger-manual.fixture.ts`; none remain in Browser Performance
+  (`/tmp/browser-performance-rename-clock.log`). This suite is not green.
+- Scoped uncached `twilight-burokrat:lint:source` and `twilight-burokrat:typecheck`:
+  exit 0 with successful Nx target output (34.1s and 2.2s respectively).
+- Shared test-evidence plus tool-devsync workspace-projects and ESLint-boundaries:
+  exit 0, 55 pass / 0 fail, 222 assertions across three files (26.19s), including
+  the effective production/test package boundary assertions
+  (`/tmp/browser-performance-rename-separation.log`).
+- Pinned OpenSpec 1.12.0 strict `test-axes`: 1/1 valid, zero issues; all validation:
+  213/213 valid, zero failures (`/tmp/browser-performance-rename-openspec-{strict,all}.json`).
+- Focused six-file Browser Performance/Architecture/Conformance, report, level-facts
+  and architecture-level regression command recorded above: exit 0, 123 pass /
+  0 fail, 1,705 assertions (203.45s), including built installed executables
+  (`/tmp/browser-performance-rename-focused.log`).
+- Scoped uncached `twilight-burokrat:build`: exit 0, successful target and three
+  dependency tasks (4.4s; `/tmp/browser-performance-rename-build.log`).
+- Final source and verification Markdown Prettier plus `git diff --check`: exit 0.
+
+Exact-SHA Astra rereview, inherited Scenario Ledger repair/restack, release, CI,
+host gate and deployment remain coordinator work. No push or host gate ran here.
+
+## Sixth-wave aggregate verification — 2026-10-16
+
+Isolated clone `/tmp/puni-wave6-aggregate-20261016`, stacked on exact fifth-wave
+`a3ee6e19c7931eb844dd273f607de5eee3640b8e` (#496). Applied reviewed source packets
+Browser Architecture `742b8aeb32d7fc2bb07ab68a5aac8481e01c5c28` (#497), Browser
+Performance `dc5ac746b690dafc0fe2500a20c869dc8be6c826` plus corrected tip
+`d710677f4eb14a0a090067ab75518cd2426078e7` (#498), and F9 restart state
+`173c68ec10d9ef672426c6287280160b2245d3c7` (#499). The only conflict was this
+append-only verification log; both inherited and source sections were preserved.
+No production behavior was added during aggregation.
+
+Evidence lives in `/tmp/puni-wave6-evidence/`:
+
+- Frozen Bun 1.4.2 install passed: 1,573 installs across 1,447 packages, no changes.
+  The initial invocation failed because its default temporary directory was read-only;
+  `BUN_TMPDIR=/tmp/puni-wave6-bun-tmp` succeeded.
+- The complete `src/no-ambient-clock.test.ts` detector passed: 1 test, 0 failures,
+  2 assertions (`no-ambient-clock.log`). The inherited fifth-wave Scenario Ledger
+  rename and reviewed Browser Performance correction coexist without clock findings.
+- Focused F9 `dev-environment.test.ts` passed: 33 tests, 0 failures, 81 assertions,
+  including installed Nx shared-ownership blocking, independent private-state launch,
+  and preservation of original database bytes and ownership (`f9-focused.log`).
+- Shared test-evidence, workspace-projects and ESLint-boundaries passed: 55 tests,
+  0 failures, 222 assertions (`separation.log`).
+- Uncached scoped Nx `lint:source`, `lint`, `typecheck` and `build` for
+  `twilight-burokrat,tool-devsync` passed in 35 seconds (`scoped-static.log`).
+  Burokrat's additional `lint` invocation explicitly reported inactive external
+  activation; that invocation grants no installed K6 or certification credit.
+- Pinned OpenSpec 1.12.0 strict validation passed for `test-axes` and
+  `forge-restart-state`; all validation passed 215/215 (197 changes, 18 specs),
+  zero failures (`openspec-{test-axes,forge,all}.json`). Production scenario
+  provenance returned `{"unidentified":[]}` (`provenance.json`).
+- The exact source union contains 21 paths. Every non-log blob equals its last
+  reviewed source packet; the log preserves the base and complete source append.
+  The entire prior scenario-allocation journal prefix is unchanged
+  (`path-blob-union.json`). Scoped Prettier and whitespace checks passed.
+
+F9 full `tool-devsync:test`, disposable runtime acceptance, cold OOM resolution and
+F9 acceptance remain unverified. No full repository gate, h2puni gate, merge or
+deployment ran in this aggregate worker. Source mutation proofs remain attached to
+the original packet verification sections; no new safety guard was introduced.
+
+- Focused Browser Performance/Architecture/Conformance, test-report, level-facts,
+  architecture-level and package clock suites passed: 124 tests, 0 failures,
+  1,707 assertions across seven files, 201.04 seconds (`browser-focused.log`),
+  including built installed command dispatch. Command: `bun test --preload
+../../../../tools/test/scratch/preload.ts ./src/evidence/browser-performance.test.ts
+./src/evidence/browser-architecture.test.ts ./src/evidence/browser-conformance.test.ts
+./src/evidence/test-reports.test.ts ./src/evidence/level-facts.test.ts
+./src/architecture-level.test.ts ./src/no-ambient-clock.test.ts --timeout=120000`
+  from the Burokrat CLI directory.

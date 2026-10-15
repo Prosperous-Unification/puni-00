@@ -859,3 +859,53 @@ The ledger SHALL preserve the full upstream B3 report, citation findings and uni
 
 - **WHEN** an obligation references a current, stale, failed or overdue external Manual observation
 - **THEN** the exact joined typed verdict is retained and noncurrent observations remain debt
+
+### Requirement: Browser Architecture membership observations
+
+Twilight Burokrat SHALL expose `inspect-browser-architecture <repository> <full-committed-sha> <external-rule-policy> <ordinary|packaged|portable> <external-authority>` as a noncertifying observation over one real complete Browser report and one project. A closed version-1 external authority SHALL pin revision, candidate, mode, report observation digest, project root, project manifest path and digest, and an explicit Architecture `reviewed-empty` or committed fixed policy path and digest. The inspector SHALL read exact selected regular Git blobs, validate the complete mapped Architecture selection through the existing rule mapping and immediate-child discovery validators before Browser intersection, and refuse contradictory empty assertions. It SHALL retain complete report and raw authority, raw authority digest, sorted complete Browser collection, sorted selected files and intersection, and the sorted deduplicated source union with same-path mode and digest agreement. Manual, Conformance and Performance SHALL remain unknown; authentication SHALL be absent and certification false. The observation digest SHALL bind the complete payload. Invalid inputs SHALL produce named stderr, nonzero exit and no partial JSON.
+
+#### Scenario: [TEST-AXES-108] Committed Browser Architecture complete overlap and disjoint observations
+
+- **WHEN** a complete real Browser report and exact external authority select committed Architecture fixtures overlapping or disjoint from the Browser collection
+- **THEN** the observation preserves all report outcomes, selected fixtures and source tuples, emits the exact sorted intersection and complete payload digest, and grants no classification or coverage
+
+#### Scenario: [TEST-AXES-109] Browser Architecture authority and source joins refuse substitution
+
+- **WHEN** authority is absent, unreadable, malformed, unsupported, escaping or wrongly pinned, or upstream capture or source tuples disagree
+- **THEN** the production command refuses with a named diagnostic and no observation
+
+#### Scenario: [TEST-AXES-110] Browser Architecture complete committed policy and empty assertions are checked
+
+- **WHEN** any mapped fixture or manifest or policy is missing, nonregular, unreadable or invalid, any immediate Architecture suffix child is unmapped, or reviewed-empty contradicts a fixed policy, its descendants or the declared Architecture target
+- **THEN** the production command refuses even for disjoint fixtures and working-tree repairs, preserving the runner's immediate-child discovery boundary
+
+#### Scenario: [TEST-AXES-111] Browser Architecture deterministic identity and installed dispatch
+
+- **WHEN** source or installed command inspects exact committed inputs with canonical collection and source ordering or receives unsupported arguments or selection
+- **THEN** output preserves complete deterministic identity and raw authority sensitivity, while symbolic and annotated tag selection and invalid CLI usage refuse before publication inspection
+
+### Requirement: Browser Performance membership observations
+
+Twilight Burokrat SHALL expose `inspect-browser-performance <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <external-authority>`. Its closed version-1 external authority SHALL pin revision, candidate, mode, reportObservationDigest, projectRoot, projectManifest `{path,digest}`, declaration `{path,digest}`, config `{path,digest}` and project. It SHALL capture exact immutable Git selection and the complete real Browser report, require the manifest at `${projectRoot}/project.json`, a nonempty complete Browser collection within the project root, and distinct manifest, declaration and config paths. It SHALL read all selected regular manifest, declaration, config, Browser and declared fixture blobs inside the root before computing intersection, including disjoint fixtures. It SHALL use the shared Performance decoder and semantic digest, require nonempty fixtures and exact declaration config/project agreement with authority. Browser config/project MAY differ from Performance.
+
+The observation SHALL retain the complete Browser report and outcomes, parsed authority and raw digest, complete decoded declaration and semantic digest, sorted unique Browser collection, complete sorted unique fixtures and intersection, and sorted deduplicated source tuples with same-path mode/digest agreement. Manual, Conformance and Architecture SHALL remain unknown, authentication absent, certification false; the complete canonical observation digest SHALL bind every field except itself. Disjoint declarations SHALL produce a valid empty intersection. Refusals SHALL emit named stderr, nonzero exit and no JSON. This diagnostic SHALL grant no classification, runner, isolation, admission, or reviewed-empty shortcut.
+
+#### Scenario: [TEST-AXES-112] Browser Performance preserves complete overlapping disjoint and shared fixture observations
+
+- **WHEN** exact Browser reports and external authority select a complete nonempty Performance declaration
+- **THEN** the complete decoded declaration, semantic digest, fixture set, intersection, source union and report outcomes remain bound, including shared fixtures and different Browser config/project
+
+#### Scenario: [TEST-AXES-113] Browser Performance refuses authority report and selected source substitutions
+
+- **WHEN** authority or pins are missing, unreadable, malformed, unsupported, escaping or mismatched, or exact immutable selection and upstream report or source tuples disagree
+- **THEN** source and installed commands refuse by name without partial JSON
+
+#### Scenario: [TEST-AXES-114] Browser Performance validates every declared source before intersection
+
+- **WHEN** manifest, declaration, config or any fixture is missing, nonregular, unreadable, malformed, outside root, wrongly pinned or semantically invalid even if disjoint
+- **THEN** inspection refuses despite working-tree repairs and cannot bypass shared declaration decoding, config/project agreement or nonempty fixtures
+
+#### Scenario: [TEST-AXES-115] Browser Performance binds canonical identity and installed dispatch
+
+- **WHEN** complete report cases, shared fixtures, authority bytes, selected bytes, outcomes or bounded command arguments change
+- **THEN** complete canonical observation identity and sorted unique arrays reflect all relevant changes, and source and installed dispatch preserve named refusals and noncertifying output

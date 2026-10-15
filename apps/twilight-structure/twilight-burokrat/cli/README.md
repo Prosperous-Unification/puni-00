@@ -87,6 +87,18 @@ sorted intersection and source union. Manual, Architecture and Performance remai
 Authentication is absent and `certifies:false`; no classification, isolation, execution,
 coverage or admission claim follows. Failed and skipped Browser outcomes remain observations.
 
+`inspect-browser-architecture <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <external-authority>`
+binds the complete report to one project's explicit reviewed-empty assertion or complete committed
+Architecture selection. Its closed version-1 authority pins `revision`, `candidate`, `mode`,
+`reportObservationDigest`, `projectRoot`, `projectManifest:{path,digest}` and
+`architecture:{kind:'reviewed-empty'}` or `{kind:'committed',path,digest}`. The manifest is the
+root's `project.json`; the policy is its `src/architecture-fixtures.json`. All mapped selected
+regular blobs are checked before intersection through the existing rule and immediate-child
+discovery validators. Reviewed-empty refuses a fixed policy, any policy descendant or a declared
+`test:architecture:level`. Output includes the complete report, authority and raw-byte digest,
+sorted collection, complete selection, intersection and deduplicated source union. Manual,
+Conformance and Performance remain unknown, authentication absent and `certifies:false`.
+
 `inspect-test-sources <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable>`
 joins those observed Browser case files to their exact validated module indexes in the same
 selected commit. It reports the source owner, source and index identities, index review debt, and
