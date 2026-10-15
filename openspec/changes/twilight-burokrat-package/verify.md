@@ -225,3 +225,45 @@ Fresh checks after restoring the injected cache fault:
 
 The full source suite, packaging suite and h2puni host gate were not rerun for this fixture/cache
 repair. No release artifact was rebuilt, published or deployed.
+
+### 2026-10-15 — synchronize the uncached source suite's authority facts
+
+Hosted Twilight run `38776546533`, job `116565763477`, ran PR #480 head
+`689fbf50a244a9c57f567c0a456bf8ee73e6eb2c` and exposed three failures after the
+source-suite target became uncached. Both committed `check.wiki-cli.test` facts still
+expected `cache:true`; the static comparisons and the production pilot therefore refused
+the actual `cache:false` target. The repair changes that field in both declarations.
+It preserves all target inputs, the static extractor, policy selectors, frozen baseline
+revisions, module mappings and external binding construction. The pilot computes policy,
+mapping and validator digests from external copies; there is no literal digest to repin.
+
+Watched negative: before the repair, the two static declaration comparisons and the
+production `pins exact pre-index tuples and passes observe lint from external trust`
+case failed together (zero passed, three failed, 78 assertions, 30.58 seconds). The
+pilot named `fact check.wiki-cli.test authority-selector mismatch` with expected
+`cache:true` and actual `cache:false`. Existing assertions remain intact; adjacent
+`Proof:` comments record this fault. No safety check was added or changed.
+
+This restores the existing exact-target authority contract and needs no delta spec.
+
+Fresh scoped checks in an isolated clone at that head, using the existing locked
+`/tmp/puni-burokrat-dependency-closure-sol/node_modules` through a read-only dependency
+symlink:
+
+- `bun test apps/twilight-structure/twilight-burokrat/cli/src/relationships/committed-target-facts.test.ts`:
+  two passed, zero failed, 24 assertions (1.45 seconds).
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bun nx run twilight-burokrat:lint:source --skip-nx-cache`:
+  exit 0 (1 minute 23 seconds).
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bun nx format:check --files=<changed files>`:
+  exit 0 before this verification entry; repeated below for the final file set.
+- Isolated OpenSpec 1.12.0 `validate twilight-burokrat-package --json`: one change
+  passed with zero issues. `validate --all --json`: 206 entries passed, zero failed
+  (188 changes, 18 specs).
+- `TOOL_WIKI_TRUSTED_NODE_MODULES=/tmp/puni-burokrat-dependency-closure-sol/node_modules bun test apps/twilight-structure/twilight-burokrat/cli/src/relationships/committed-target-facts.test.ts apps/twilight-structure/twilight-burokrat/cli/src/policy/pilot-policy.test.ts --timeout=240000`:
+  25 passed, zero failed, 440 assertions (294.24 seconds). This includes the production
+  observe success and external trust, predecessor, baseline and creation-revision refusals.
+- Final changed-file Nx formatting and `git diff --check`: exit 0.
+
+The full Burokrat source suite, packaging suite, typecheck, build and h2puni host gate
+were not rerun for these two authority-fact corrections and proof comments. No archive,
+release, activation or externally selected trust state was changed or published.
