@@ -3,7 +3,6 @@
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "tools/tool-remote-scripts/src",
   "projectType": "library",
-  "implicitDependencies": ["wbs-be-01", "wbs-observability", "wbs-store-sqlite"],
   "tags": ["scope:infra", "type:scripts", "runtime:bun", "ring:adapter"],
   "targets": {
     "build": {
@@ -45,6 +44,9 @@
       "inputs": [
         "default",
         "^production",
+        "{workspaceRoot}/apps/wbs/be-01/**/*",
+        "{workspaceRoot}/libs/wbs/**/*",
+        "{workspaceRoot}/libs/shared/**/*",
         "{workspaceRoot}/apps/wbs/be-01/src/config.ts",
         "{workspaceRoot}/apps/wbs/be-01/src/step-blockage-replay-kinds-cli.ts",
         "{workspaceRoot}/apps/wbs/be-01/src/controller/oidc-options.ts",
