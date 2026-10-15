@@ -872,6 +872,8 @@ describe('every cached target declares what it reads', () => {
     // the real Nx task hash ignored a CLI edit with the input omitted and changed with it declared (2026-10-14).
     // Proof: omitting Burokrat's Navigator source input failed this production oracle on
     // entrypoint.ts, the fixtures directory and plan-export.v8.json (2026-10-14).
+    // Proof: omitting the maintenance boot imports failed this scan naming
+    // tool-remote-scripts and observability/src/index.ts plus store-sqlite/src/source.ts.
     expect(undeclared).toBeEmpty();
   });
 });

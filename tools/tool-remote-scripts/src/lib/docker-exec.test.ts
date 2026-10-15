@@ -1,6 +1,6 @@
 import { chmod, mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 
 import { expect, test } from 'bun:test';
 
@@ -93,8 +93,8 @@ test('production streaming exec hard abort terminates its exact stalled subproce
     const executable = join(root, 'bin/docker');
     await Bun.write(executable, '#!/bin/sh\nprintf "%s" "$$" > "$PID_FILE"\nexec /bin/sleep 60\n');
     await chmod(executable, 0o700);
-    const deadlineModule = resolve('tools/tool-remote-scripts/src/lib/docker-deadline.ts');
-    const execModule = resolve('tools/tool-remote-scripts/src/lib/docker-exec.ts');
+    const deadlineModule = new URL('./docker-deadline.ts', import.meta.url).pathname;
+    const execModule = new URL('./docker-exec.ts', import.meta.url).pathname;
     const child = Bun.spawn(
       [
         process.execPath,

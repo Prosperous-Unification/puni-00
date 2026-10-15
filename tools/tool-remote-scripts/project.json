@@ -48,6 +48,8 @@
         "{workspaceRoot}/apps/wbs/be-01/src/step-blockage-replay-kinds-cli.ts",
         "{workspaceRoot}/apps/wbs/be-01/src/controller/oidc-options.ts",
         "{workspaceRoot}/apps/wbs/be-01/Dockerfile",
+        "{workspaceRoot}/libs/wbs/adapters/observability/src/index.ts",
+        "{workspaceRoot}/libs/wbs/adapters/store-sqlite/src/source.ts",
         "{workspaceRoot}/apps/wbs/gw-01/src/config.ts",
         "{workspaceRoot}/apps/wbs/gw-01/src/service/jwt-auth.ts",
         "{workspaceRoot}/apps/wbs/gw-01/Dockerfile",
