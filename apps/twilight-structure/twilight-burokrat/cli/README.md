@@ -156,7 +156,17 @@ and any declared Gitlink that is still inaccessible is retained in the coverage 
 acceptance. These commands validate a proposed sweep record. They do not run reviews, activate
 policy, or certify the still-pending operational sweep.
 
-## Plan task consistency
+## Plan and progress receipt consistency
+
+`twib validate-progress-receipt <receipt.json> <plan-reference.json> <tasks.json>` strictly
+checks three supplied documents with [`validateProgressReceipt`](src/contracts/validate-progress-receipt.ts).
+Its deterministic `progress-receipt-consistency` JSON names their digests, plan and entry count.
+It checks existing plan/task consistency, the complete plan reference and each receipt entry's
+leaf task ID and step code membership. Navigator reuses `checkProgressReceiptConsistency` before
+constructing commands. The report grants no certification, authorship, freshness, evidence
+authority, approval, admission or authority over current WBS state. Historical v6/v7/v8 references
+remain supported; v9 remains refused. Missing, unreadable, malformed and inconsistent inputs fail
+with no success stdout. This command reads files only.
 
 `twib validate-plan-tasks <plan-reference.json> <tasks.json>` strictly checks the two supplied
 documents using [`validatePlanTasks`](src/contracts/validate-plan-tasks.ts). Its deterministic
