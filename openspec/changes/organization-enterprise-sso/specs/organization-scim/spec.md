@@ -130,3 +130,29 @@ PATCH SHALL support `replace` of `active`, `externalId` and `userName`, with `us
 - **GIVEN** former admin carol's record in A is inactive and bound
 - **WHEN** T PATCHes `active=true`
 - **THEN** carol has a pending membership only, and after her next SSO sign-in she is a `member`
+
+### Requirement: Browser provisioning token administration
+
+The organization page SHALL compose a separate Provisioning tokens panel using the captured organization resource client. It SHALL render loading, empty, metadata, transport failure and modeled refusal states. Only successful reads permit writes. Revoke SHALL require the exact selected token ID. All writes and refresh SHALL serialize. Old reads, unmounted replies and withdrawn runtime replies SHALL NOT restore rows, controls or secrets. Shared credential or membership loss SHALL withdraw the page; forbidden and insufficient scope SHALL remove controls.
+
+Issue and rotate SHALL display the returned secret only in ephemeral component state, with a dismiss action and a warning to copy it now. Refresh, a subsequent mutation, refusal and unmount SHALL discard that secret. Listing SHALL never reconstruct a secret. Rotation SHALL display the server previousExpiresAt, never a browser-computed overlap.
+
+#### Scenario: Exact confirmation and serialized revoke
+
+- **GIVEN** a listed token T
+- **WHEN** a super-admin enters a different ID, or submits twice while revoke is pending
+- **THEN** the wrong ID sends no request and the duplicate submission sends only one request
+- **AND** a successful revoke refreshes server metadata
+
+#### Scenario: One-time secret and withdrawal
+
+- **GIVEN** an issue or rotation returned a secret
+- **WHEN** the user dismisses it, refreshes, starts another mutation, loses authority or leaves the runtime
+- **THEN** the secret disappears and no late response republishes it
+
+#### Scenario: Rotation overlap and modeled refusals
+
+- **GIVEN** a live token
+- **WHEN** rotation succeeds
+- **THEN** its prior expiry is displayed exactly from previousExpiresAt and the successor secret is shown once
+- **AND** token_limit, sso_connection_unproven and not_found explain the refusal without inventing success

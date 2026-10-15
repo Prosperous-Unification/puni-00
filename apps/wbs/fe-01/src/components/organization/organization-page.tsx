@@ -12,6 +12,7 @@ import { InvitationsPanel } from './invitations-panel';
 import { JoinRequestsPanel } from './join-requests-panel';
 import { MembersPanel } from './members-panel';
 import { type AccessLoss, lossCopy } from './organization-access';
+import { ProvisioningTokensPanel } from './provisioning-tokens-panel';
 import { SessionPolicyPanel } from './session-policy-panel';
 import { SharingPanel } from './sharing-panel';
 import { SsoConnectionsPanel } from './sso-connections-panel';
@@ -63,6 +64,8 @@ export function OrganizationPage({
               <SsoConnectionsPanel onAccessLost={setLoss} />
               {/* Proof: omitting this panel failed the session-policy composition test (2026-10-13). */}
               <SessionPolicyPanel onAccessLost={setLoss} />
+              {/* Proof: omitted composition failed the mounted provisioning-token composition test (2026-10-15). */}
+              <ProvisioningTokensPanel onAccessLost={setLoss} />
               {/*
                * Proof: 2026-10-11, leaving this panel out failed `shows whether
                * the organization shares its people`.

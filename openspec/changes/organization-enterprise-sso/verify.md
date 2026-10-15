@@ -329,3 +329,27 @@ Review of `c47aa8429da4a7c45b7c013040b43d2bb1da9319` found that an already-open 
 Astra's standalone Vite browser fixture (`bunx playwright test --config /tmp/sso-review-c47aa/playwright.config.ts`) passed **12/12** organization page checks at 1280px and 375px, including pending enforcement, proof flow, keyboard traversal and horizontal layout. This fixture stubs API routes; the ordinary three-tier browser runner still could not start its backend because locked solver setup required unavailable PyPI DNS.
 
 Final restored-source review checks: mounted `CompanySignInLink`, `SsoConnectionsPanel` and organization-page suites passed **77/77**; frontend TypeScript build, full `wbs-fe-01:lint`, `nx format:check --all`, touched-file Prettier and `git diff --check` passed; OpenSpec validation passed **187/187**. The two new mounted cases and the 12 browser checks ran on the repaired source. The exact head will be committed locally with normal hooks; push and host gate remain with the integration owner.
+
+## Browser provisioning tokens — 2026-10-15
+
+Tasks 6.1–6.3 add a separate organization panel. The fixture seeds a proven connection in a disposable database; it does not establish Auth0 entitlement, configure an upstream provider or prove a customer IdP accepts SCIM.
+
+Initial red: the empty component scaffold failed all nine initial mounted tests. Before composition, `composes provisioning token administration on the organization page` failed because the region was absent. The implementation then passed the mounted panel/page suite (39 tests). The mounted backend token suite passed nine tests with 78 assertions. `bunx @fission-ai/openspec@1.12.0 validate organization-enterprise-sso --json` reported valid with no issues.
+
+Watched production-path faults (each restored):
+
+| Injected fault                                                           | Observed negative                                                                       |
+| ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
+| Bypass exact token-ID comparison                                         | Wrong-confirmation test failed because DELETE occurred without its error.               |
+| Remove pending guards in form and mutation                               | Forced held-form submission observed two DELETEs, expected one.                         |
+| Remove list generation fence                                             | Held StrictMode GET restored `token-a` after issue; stale-read test failed.             |
+| Remove the captured scope from `useResourceClient`'s client construction | Scoped read/write test observed a missing expected-organization header.                 |
+| Omit secret clearing                                                     | Refresh test retained `ephemeral-secret`; test failed.                                  |
+| Break the shared client's currentness fences                             | Held issued reply published `withdrawn-secret` after authority withdrawal; test failed. |
+| Replace returned `previousExpiresAt` with zero                           | Rotation test failed to find the server's exact expiry.                                 |
+| Remove refresh pending admission                                         | Same-render Refresh→Issue test observed a POST, expected none.                          |
+| Omit page composition                                                    | Mounted page test failed to find the Provisioning tokens region.                        |
+
+Two false-green test harness conditions were corrected before accepting the proofs: the duplicate test initially counted only the first mocked fetch, and the withdrawn-reply test initially withdrew before the async client reached fetch. The corrected tests count every write and wait until the request is held at fetch before withdrawing authority. The first unscoped fault rebuilt the client every render and did not terminate; it was cancelled, restored, and replaced with removal of the captured scope at the existing memoized client boundary.
+
+The first real browser attempt was unavailable because the sandbox denied the localhost listener (`EPERM listen`); it is rerun with socket access. Final browser, lint, typecheck and exact-SHA gate evidence follows after those runs.

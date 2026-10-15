@@ -134,3 +134,9 @@
   Red: panel import absent, then focused mounted cases for validation, authority, pending, scoping, reconciliation and late response.
 
   Fault: relax the minimum, drop authority withdrawal, remove both pending admission guards, change the expected-organization header, and trust the submitted value. On review, hold an older same-runtime GET across a PUT and inject broken read/effect versioning, then remove mutation admission; separately break inline field naming and association. Each observed failure and restoration is recorded in `verify.md`.
+
+## 6. Browser provisioning token administration
+
+- [ ] 6.1 Compose a separate scoped provisioning-token panel with list/revoke, explicit states, exact ID confirmation, serialized mutations, stale-read fencing and shared authority withdrawal. Watch production-path negatives for wrong ID, missing scoped client, duplicate writes, stale reads and omitted composition.
+- [ ] 6.2 Add issue/rotate with ephemeral dismissible secrets, server previousExpiresAt and modeled refusals. Watch production-path negatives for retained secrets and late secret publication after runtime withdrawal.
+- [ ] 6.3 After connection deletion lands, prove issue/list/rotate/revoke and deletion blocker release against the mounted browser/API fixture. No real IdP acceptance is claimed.

@@ -135,3 +135,79 @@ test('two tabs cannot redirect an A mutation into B', async ({ context, page }) 
   await expect(page.getByText('Organization: org-a', { exact: true })).toHaveCount(0);
   expect(mutations).toBe(1);
 });
+
+/** Fixture proof uses a seeded proven connection; no upstream IdP is contacted. */
+test('browser provisioning token lifecycle releases the connection deletion blocker', async ({
+  context,
+  page,
+}) => {
+  const headers = { origin: 'http://localhost:7400', 'X-WBS-Expected-Organization': 'org-tokens' };
+  const login = await context.request.post('/api/auth/login', {
+    headers,
+    data: { username: 'token-admin', password: 'correct-horse' },
+  });
+  expect(login.status()).toBe(200);
+  const credential = (await login.json()) as { token: string };
+  await context.addCookies([
+    {
+      name: '__Host-wbs_access',
+      value: credential.token,
+      domain: 'localhost',
+      path: '/',
+      secure: true,
+      httpOnly: true,
+      sameSite: 'Lax',
+    },
+  ]);
+  await page.goto('/organization');
+  await page.getByRole('button', { name: 'Choose org-tokens' }).click();
+  const panel = page.getByRole('region', { name: 'Provisioning tokens' });
+  await expect(panel.getByText('No provisioning tokens.')).toBeVisible();
+  await panel.getByRole('button', { name: 'Issue provisioning token' }).click();
+  await expect(panel.getByText(/^wbs_scim_[A-Za-z0-9_-]{43}$/)).toBeVisible();
+  const issued = await context.request.get('/api/organization/provisioning-tokens', { headers });
+  expect(issued.status()).toBe(200);
+  const listed = (await issued.json()) as { tokens: { id: string; expiresAt: number | null }[] };
+  expect(listed.tokens).toHaveLength(1);
+  const first = listed.tokens.at(0);
+  if (first === undefined) throw new Error('Issued provisioning token is absent');
+  expect(JSON.stringify(listed)).not.toContain('wbs_scim_');
+  const blocked = await context.request.delete('/api/organization/sso-connections/conn-tokens', {
+    headers,
+  });
+  expect(blocked.status()).toBe(409);
+  expect(await blocked.json()).toEqual({ error: 'provisioning_active' });
+  await panel.getByRole('button', { name: 'Dismiss secret' }).click();
+  await panel.getByRole('button', { name: `Rotate ${first.id}`, exact: true }).click();
+  await expect(panel.getByText(/^wbs_scim_[A-Za-z0-9_-]{43}$/)).toBeVisible();
+  const rotated = await context.request.get('/api/organization/provisioning-tokens', { headers });
+  expect(rotated.status()).toBe(200);
+  const successor = (await rotated.json()) as {
+    tokens: { id: string; expiresAt: number | null }[];
+  };
+  expect(successor.tokens).toHaveLength(2);
+  const previous = successor.tokens.find((token) => token.id === first.id);
+  if (previous?.expiresAt === null || previous?.expiresAt === undefined)
+    throw new Error('Rotation omitted previous expiry');
+  await expect(
+    panel.getByText(`Previous token expires: ${new Date(previous.expiresAt).toISOString()}`),
+  ).toBeVisible();
+  await page.setViewportSize({ width: 375, height: 812 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  );
+  await panel.getByRole('button', { name: 'Refresh provisioning tokens' }).click();
+  await expect(panel.getByText(/^wbs_scim_/)).toHaveCount(0);
+  for (const token of successor.tokens) {
+    const row = panel
+      .getByRole('listitem')
+      .filter({ has: page.getByText(token.id, { exact: true }) });
+    await row.getByLabel('Token ID to revoke').fill(token.id);
+    await row.getByRole('button', { name: `Revoke ${token.id}`, exact: true }).click();
+    await expect(row.getByText('Revoked', { exact: true })).toBeVisible();
+  }
+  const deleted = await context.request.delete('/api/organization/sso-connections/conn-tokens', {
+    headers,
+  });
+  expect(deleted.status()).toBe(204);
+});
