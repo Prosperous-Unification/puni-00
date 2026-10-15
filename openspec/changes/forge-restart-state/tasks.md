@@ -23,3 +23,5 @@
 - [x] 4.3 Exercise real command fixtures for foreign node UID, PID zero/one, non-PID1, every surviving cleanup resource and kubeconfig mutation. Continue all independent verifications after a failure; watch each guard removal fail.
 - [ ] 4.4 Design and implement creation receipts in the owning tool-fleet lifecycle before re-enabling 3.2. This is an explicit follow-up architecture boundary, outside this bounded diagnostic packet.
 - [ ] 4.5 Record final focused/static/OpenSpec checks and an exact committed full tool-devsync:test run if feasible; preserve original failed live outcomes.
+
+- [x] 4.6 Replace existsSync absence inference with lstat and ENOENT-only absence; prove unreadable state directory failure and continued kubeconfig verification with a chmod-000 command-boundary fixture and a watched swallowed-error mutation.

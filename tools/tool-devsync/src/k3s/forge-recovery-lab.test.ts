@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, lstat, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -345,3 +345,28 @@ for (const timeoutMs of [0, -1, Infinity, NaN]) {
     expect(await Bun.file(join(path, 'stdout')).exists()).toBe(false);
   });
 }
+
+test('unreadable lab state fails cleanup and later kubeconfig verification still runs', async () => {
+  const boundary = await fixture();
+  await mkdir(boundary.cleanup.statePath);
+  await writeFile(join(boundary.cleanup.statePath, 'lab.json'), '{}');
+  await writeFile(boundary.cleanup.kubeGlobal, 'mutated');
+  await chmod(boundary.cleanup.statePath, 0o000);
+  try {
+    const fault = await lstat(join(boundary.cleanup.statePath, 'lab.json')).then(
+      () => undefined,
+      (failure: unknown) => failure,
+    );
+    expect(fault).toBeInstanceOf(Error);
+    expect(String(fault)).toContain('EACCES');
+    const failure = await verifyRecoveryCleanup(boundary.command, boundary.cleanup).then(
+      () => undefined,
+      (cause: unknown) => cause,
+    );
+    expect(failure).toBeInstanceOf(Error);
+    expect(String(failure)).toContain('EACCES');
+    expect(String(failure)).toContain('global kubeconfig changed');
+  } finally {
+    await chmod(boundary.cleanup.statePath, 0o700);
+  }
+});

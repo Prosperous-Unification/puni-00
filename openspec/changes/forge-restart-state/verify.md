@@ -230,3 +230,37 @@ tools/tool-devsync/src/k3s/forge-recovery-check.test.ts`: **41 pass, 0 fail, 118
   substitute for this run. No corrected full-target success is claimed here.
 
 No canonical gate, push, PR, live lab or deployment accompanies this corrected packet.
+
+## Final Astra correction: unreadable lab state
+
+Review of `73896960753ee28331be078e188f0854421e355f` demonstrated that `existsSync` returns
+false when `lab.json` cannot be inspected through an unreadable state directory. The correction
+is isolated in `/tmp/puni-f9-unreadable-20261016`, cloned from that exact commit; the previous
+full target checkout remains unchanged so its result retains its original attribution.
+
+`verifyRecoveryCleanup` now uses `lstat`. Only ENOENT means absent; EACCES and every other
+filesystem error are retained in the aggregate cleanup failure. Existing absent-state and
+surviving-state fixtures still pass. The new consuming fixture writes `lab.json`, changes its
+parent directory to mode 000, directly observes EACCES, and invokes the production cleanup
+verifier through the real Docker/kubectl command fixture. It also changes global kubeconfig to
+prove the later verification still runs. Directory permissions are restored in finally.
+
+- RED with existsSync: the unreadable-state assertion fails because the aggregate contains only
+  the later kubeconfig mutation, `/tmp/puni-f9-unreadable-red.log`.
+- GREEN: 42 pass, 0 fail, 123 assertions across both recovery suites,
+  `/tmp/puni-f9-unreadable-green.log`.
+- Watched fault: change the ENOENT-only recovery condition to accept every filesystem error.
+  The consuming unreadable-state regression fails again, exit 1; mutation restored. Receipt:
+  `/tmp/puni-f9-unreadable-receipt.log`, `/tmp/puni-f9-unreadable-mutation.stderr`.
+  The Proof comment is adjacent to that modeled filesystem recovery.
+
+The CLI remains disabled, and this correction creates/deletes no lab resources. The original
+cold OOM and restored-positive failures remain immutable. No lab rerun or push occurred.
+The full target started from unchanged `738969` is reported separately; it does not certify this
+additional unreadable-state regression.
+
+Final correction checks: scoped Nx lint/typecheck/build plus six dependencies passed in 16.1s
+(`/tmp/puni-f9-unreadable-compile.log`); Prettier and Git whitespace passed; all OpenSpec validation
+passed 197 changes and 18 specs (`/tmp/puni-f9-unreadable-openspec.log`). The old checkout's
+full-target log `/tmp/puni-f9-review-full-test.log` was still running without a final exit-status
+file at this handoff. No full-target success is attributed to this new correction.

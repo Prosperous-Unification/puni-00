@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
+import { lstat, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import type { PodObservation } from './forge-recovery-check';
@@ -126,7 +125,8 @@ export interface CleanupObservation {
 
 /**
  * Verify operator-performed cleanup without deleting anything. Every independent verification
- * runs after earlier failures, then all failures are thrown together. Creation receipts must be
+ * runs after earlier failures, then all failures are thrown together. Only ENOENT establishes
+ * absent lab state; every other filesystem error is retained as a cleanup failure. Creation receipts must be
  * implemented by tool-fleet before this module can safely automate destructive lab teardown.
  */
 export async function verifyRecoveryCleanup(
@@ -177,9 +177,18 @@ export async function verifyRecoveryCleanup(
     });
   }
   await attempt(async () => {
-    await Promise.resolve();
-    // Proof: surviving lab.json fixture fails after all Docker probes execute.
-    if (existsSync(join(request.statePath, 'lab.json'))) throw new Error('lab state remains');
+    let isPresent = true;
+    try {
+      await lstat(join(request.statePath, 'lab.json'));
+    } catch (failure) {
+      // Proof: chmod 000 on the fixture state directory produces EACCES; swallowing it loses
+      // the unreadable-state refusal while the later kubeconfig mutation remains reported.
+      if (failure instanceof Error && 'code' in failure && failure.code === 'ENOENT')
+        isPresent = false;
+      else throw failure;
+    }
+    // Proof: surviving lab.json fixture fails after all Docker probes execute; absent state passes.
+    if (isPresent) throw new Error('lab state remains');
   });
   await attempt(async () => {
     const digest = createHash('sha256')

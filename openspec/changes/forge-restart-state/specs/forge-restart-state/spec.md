@@ -74,3 +74,8 @@ Until tool-fleet exposes resource creation receipts, the automatic recovery-lab 
 
 - **WHEN** a namespace, Lease, resource, lab state or changed global kubeconfig survives cleanup
 - **THEN** verification fails and still runs all subsequent independent probes
+
+#### Scenario: Lab state cannot be inspected
+
+- **WHEN** cleanup cannot inspect `lab.json` because its state directory is unreadable
+- **THEN** cleanup verification fails on that filesystem error, treats only ENOENT as absence, and still runs later kubeconfig verification
