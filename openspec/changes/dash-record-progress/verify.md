@@ -125,3 +125,53 @@ Delta spec sync and archive are pending the coordinating workflow. No full repos
 gate, canonical exact-SHA h2puni gate, hosted CI, push, PR, deployment or release acceptance
 was performed or claimed. The requested deliverable is an isolated local implementation
 commit, with `fc352e7d3..HEAD` as its implementation range.
+
+## Restack on repaired #488 (2026-10-15)
+
+The coordinating agent supplied Astra's approval of exact implementation
+`d30e983225e76c94527af08f5fda4f359e3772c9`. This restack preserves that reviewed
+production/test scope and its bounded operator assertions; it adds no certification or
+current WBS authority claim.
+
+An isolated clone at `/tmp/navigator-progress-restack-sol` starts at repaired #488
+`fca16386e8c993c35f169ebf57d07b04da0170a9`. Cherry-picking the reviewed design and
+implementation required no conflict resolution and produced:
+
+- Design: `3f226b1312280fefc7aa4ae8b8fb509c39ed0719`.
+- Implementation: `cc0e6e2f33149c666ab7e675860f0cf834142c56`.
+- Implementation tree: `2d045e1048bf801701c064afd3f3b405491bbbed`.
+
+Fresh `git merge-base --is-ancestor` confirmed the repaired base. Comparing all 15
+paths touched by the reviewed design/implementation against the implementation commit
+above returned no differences. The complete tree difference from the reviewed source
+was exactly the two-file #488 DB_PATH repair. This evidence section is the only
+subsequent content change.
+
+The isolated checkout copied the reviewed checkout's independently installed locked
+dependencies into its own node_modules tree. Fresh commands used uid 1000,
+`BUN_TMPDIR=/tmp TMPDIR=/tmp`, and `NX_DAEMON=false NX_ISOLATE_PLUGINS=false` for Nx
+and graph checks. The commands listed above were repeated on the combined tree:
+
+- Dash production/dispatcher/clock: 95 pass, 0 fail, 490 assertions (175.33s).
+- Navigator/Burokrat receipts: 87 pass, 0 fail, 311 assertions (38.65s).
+- Effective policy/project graph/native cache oracle: 69 pass, 0 fail, 264 assertions
+  (31.29s), after graph initialization as described below.
+- Relationship/declaration suites: 55 pass, 0 fail, 695 assertions (197.57s).
+- Uncached Dash Nx lint/typecheck/build: all three passed (31.2s).
+- ESLint on both changed tool-devsync test files: exit 0, no diagnostics.
+- OpenSpec `validate --all --json`: 211/211 valid, 193 changes + 18 specs, 0 failed.
+- Full `bunx nx format:check --all`: exit 0, no diagnostics.
+- `git diff --check`: exit 0.
+
+The first direct policy run on the fresh clone reported 59 pass and 10 fail. Each
+failure expected an Nx module-boundary diagnostic while Nx printed `No cached
+ProjectGraph is available. The rule will be skipped.` The scoped Nx command populated
+the graph; repeating the unchanged three-file policy command then passed all 69 cases,
+including the new exact Dash import allowance. No check or reviewed blob was weakened.
+This records a setup failure followed by a graph-backed passing run, not an initial
+passing run.
+
+The existing mutation proofs above were not repeated during this mechanical restack;
+their production/test blobs are preserved. No new safety check was added. The canonical
+exact-SHA h2puni gate, hosted CI, push, PR, specification sync/archive, deployment and
+release acceptance remain with the coordinating workflow and were not performed here.
