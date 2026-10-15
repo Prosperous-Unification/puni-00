@@ -526,7 +526,7 @@ Direct facts remain readable and exportable, but insert, update and delete,
 including nonempty document v9 import and blockage-aware undo or redo, refuse
 `step_blockage_inactive`. Empty import remains usable. Boot and readiness require
 valid marker state, the admission migration and all three exact writer triggers.
-This slice supplies no production activation command or API.
+The image-local receipt boundary is described under [Step blockage writer activation](#step-blockage-writer-activation); activation remains an attended host operation.
 
 The admission migration's `down.sql` refuses retained facts and relevant nested
 forward/inverse journal history or `moveProgress` preconditions, including empty
@@ -595,6 +595,18 @@ Drain incompatible writers before enabling blockage writes: older structural wri
 can invalidate node ownership during a blue/green overlap. New blockage command
 history must also be covered by rollback compatibility when that command family is
 enabled; the persistence checkpoint alone is not a deployable feature.
+
+## Step blockage writer activation
+
+Migration `20261015100000_add_step_blockage_activation_receipt` adds receipt authority without enabling writers. Its down migration refuses an ENABLED marker, any retained receipt, or malformed marker authority, including an enabled database with no facts. A disabled database with no receipt can reverse this migration. Never disable the marker or delete a receipt to bypass rollback admission.
+
+Activation requires two separate releases/windows. First deploy a capable release in preserve-only mode and prove the routed image and a retained rollback release both understand `step_blockage_activation_v1`. Later perform attended activation with those independently observed immutable images. An empty blockage table does not remove an ENABLED database's capability obligation. Kubernetes first-start must still observe DISABLED; it does not activate on startup.
+
+The image contains `src/step-blockage-activation-cli.ts`. Its `inspect` command opens an existing database read-only and reports `{state,receipt}`. Its `activate <receipt.json>` command is a primitive for the fenced host coordinator. It neither establishes stopped writers nor proves the supplied image/database identities. The Compose operator flag, durable host intent and capability admission are still tracked in `openspec/changes/activate-step-blockage-writers/tasks.md`; this primitive alone is not an attended activation procedure.
+
+A version-1 receipt has exactly these fields: `protocol` (`step-blockage-activation`), `version` (`1`), nonempty `activationId`, immutable `candidateImage` and `rollbackImage` digest references, nonempty canonical host `databaseIdentity`, and nonnegative safe integer `activatedAt` milliseconds. The host creates this identity after fencing and validation, durably records it before invocation, and requires exact readback before any application exposure. Persisting the receipt and changing DISABLED to ENABLED share one IMMEDIATE transaction. Identical retries return the existing receipt; conflicting retries refuse. Legacy ENABLED without a receipt cannot be attributed to an attempt and refuses inspection/activation through this boundary.
+
+A failed command or missing/malformed readback leaves completion uncertain. Preserve all host intents, pinned image/database/container identities, snapshots and current database bytes. Keep writers stopped and automation paused until an attended recovery decides how to reconcile the exact receipt. Never infer DISABLED from a transport failure, restart an incompatible writer, or automatically reverse the migration after an activation attempt.
 
 ## Backend writer barrier recovery
 

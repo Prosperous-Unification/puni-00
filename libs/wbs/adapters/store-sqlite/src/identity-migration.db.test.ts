@@ -132,6 +132,7 @@ function tempDb(): { path: string; cleanup: () => void } {
 function beforeIdentity(dbPath: string): void {
   runMigrations(dbPath, FOLDER);
   expect(rollbackTo(dbPath, FOLDER, PERSON_KIND)).toEqual([
+    '20261015100000_add_step_blockage_activation_receipt',
     '20261014140000_add_step_blockage_activation',
     '20261014130000_add_shared_people_restore_receipts',
     '20261014120000_add_shared_people_restore_approvals',
@@ -262,6 +263,7 @@ describe('the OIDC identity migration', () => {
       beforeIdentity(db.path);
       runMigrations(db.path, FOLDER);
       expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([
+        '20261015100000_add_step_blockage_activation_receipt',
         '20261014140000_add_step_blockage_activation',
         '20261014130000_add_shared_people_restore_receipts',
         '20261014120000_add_shared_people_restore_approvals',
@@ -357,6 +359,7 @@ describe('the OIDC identity migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([
+        '20261015100000_add_step_blockage_activation_receipt',
         '20261014140000_add_step_blockage_activation',
         '20261014130000_add_shared_people_restore_receipts',
         '20261014120000_add_shared_people_restore_approvals',
