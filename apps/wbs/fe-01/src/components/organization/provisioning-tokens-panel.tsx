@@ -43,7 +43,10 @@ type Mutation = { kind: 'issue' } | { kind: 'rotate' | 'revoke'; id: string };
 /**
  * Administers provisioning tokens in the owning organization runtime. Secrets live
  * only in this component until dismissal, refresh, another mutation or unmount.
- * Server metadata is reread after every successful write; no local expiry grants authority.
+ * Server metadata is reread after every successful write; a failed reconciliation
+ * preserves the new secret for keyboard retrieval in its selectable read-only field.
+ * A server expiry marks an already rotated predecessor, which remains revocable.
+ * No local expiry grants authority.
  */
 export function ProvisioningTokensPanel({
   onAccessLost,
@@ -64,6 +67,7 @@ export function ProvisioningTokensPanel({
 
   const processRefusal = useCallback(
     (refusal: Refusal) => {
+      // Proof: omitting this clearing retained authority-secret after post-issue forbidden, read-only and membership refusals (2026-10-15).
       setSecret(null);
       switch (refusal.error) {
         case 'unauthenticated':
@@ -102,7 +106,9 @@ export function ProvisioningTokensPanel({
           );
           return;
         case 'not_found':
-          setMessage('This provisioning token is no longer live. Refresh the token list.');
+          setMessage(
+            'This provisioning token is not available for this action. Refresh the token list.',
+          );
           return;
         case 'invalid_origin':
         case 'invalid_params':
@@ -128,7 +134,8 @@ export function ProvisioningTokensPanel({
           return;
         case 'failure':
           if (reply.failure.code !== 'cancelled') {
-            setSecret(null);
+            // Proof: clearing the issued secret here failed both post-write reconciliation tests (2026-10-15).
+            // The successful write cannot return its secret a second time; metadata failure preserves it for retrieval.
             setView({ kind: 'failure', message: failureMessage(reply.failure) });
           }
           return;
@@ -288,16 +295,19 @@ export function ProvisioningTokensPanel({
                     </>
                   ) : (
                     <>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className={`self-start ${CONTROL_HEIGHT}`}
-                        disabled={isSending}
-                        aria-label={`Rotate ${token.id}`}
-                        onClick={() => void mutate({ kind: 'rotate', id: token.id })}
-                      >
-                        Rotate token
-                      </Button>
+                      {/* Proof: rendering Rotate for non-null expiresAt failed the overlap predecessor test while Revoke remained available (2026-10-15). */}
+                      {token.expiresAt === null && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className={`self-start ${CONTROL_HEIGHT}`}
+                          disabled={isSending}
+                          aria-label={`Rotate ${token.id}`}
+                          onClick={() => void mutate({ kind: 'rotate', id: token.id })}
+                        >
+                          Rotate token
+                        </Button>
+                      )}
                       <form
                         className="flex flex-col gap-2"
                         onSubmit={(event) => {
@@ -341,7 +351,20 @@ export function ProvisioningTokensPanel({
       {secret !== null && (
         <div role="status" className="flex min-w-0 flex-col gap-2 rounded-md border p-3">
           <p>Copy this secret now. It will not be shown again.</p>
-          <code className="break-all">{secret.token}</code>
+          <label htmlFor="provisioning-secret">Provisioning token secret</label>
+          {/* Proof: code-only display and removing focus selection each failed the mounted keyboard retrieval test (2026-10-15). */}
+          <Input
+            id="provisioning-secret"
+            value={secret.token}
+            readOnly
+            className={CONTROL_HEIGHT}
+            onFocus={(event) => {
+              event.currentTarget.select();
+            }}
+          />
+          <p className={STATUS_CLASS}>
+            Tab to the secret to select it, then copy with your keyboard.
+          </p>
           {secret.previousExpiresAt !== undefined && (
             <p>Previous token expires: {new Date(secret.previousExpiresAt).toISOString()}</p>
           )}

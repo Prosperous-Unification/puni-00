@@ -355,9 +355,9 @@ it('withdraws an issued provisioning secret with the organization page', async (
   renderPage();
   await screen.findByText('No provisioning tokens.');
   fireEvent.click(screen.getByRole('button', { name: 'Issue provisioning token' }));
-  await screen.findByText('page-secret');
+  await screen.findByDisplayValue('page-secret');
   fireEvent.click(screen.getByRole('button', { name: 'Refresh provisioning tokens' }));
   await screen.findByText('You no longer have access to this organization.');
-  expect(screen.queryByText('page-secret')).toBeNull();
+  expect(screen.queryByDisplayValue('page-secret')).toBeNull();
   expect(screen.queryByRole('region', { name: 'Provisioning tokens' })).toBeNull();
 });

@@ -135,7 +135,7 @@ PATCH SHALL support `replace` of `active`, `externalId` and `userName`, with `us
 
 The organization page SHALL compose a separate Provisioning tokens panel using the captured organization resource client. It SHALL render loading, empty, metadata, transport failure and modeled refusal states. Only successful reads permit writes. Revoke SHALL require the exact selected token ID. All writes and refresh SHALL serialize. Old reads, unmounted replies and withdrawn runtime replies SHALL NOT restore rows, controls or secrets. Shared credential or membership loss SHALL withdraw the page; forbidden and insufficient scope SHALL remove controls.
 
-Issue and rotate SHALL display the returned secret only in ephemeral component state, with a dismiss action and a warning to copy it now. Refresh, a subsequent mutation, refusal and unmount SHALL discard that secret. Listing SHALL never reconstruct a secret. Rotation SHALL display the server previousExpiresAt, never a browser-computed overlap.
+Issue and rotate SHALL display the returned secret only in ephemeral component state, with a dismiss action and a warning to copy it now. Refresh, a subsequent mutation, refusal and unmount SHALL discard that secret. Listing SHALL never reconstruct a secret. A metadata transport or response failure after a successful issue or rotation SHALL preserve that returned secret for retrieval while rendering the metadata failure. The secret SHALL be available in a read-only keyboard-focusable field whose complete value can be selected and copied. Rotation SHALL display the server previousExpiresAt, never a browser-computed overlap. Rows with non-null expiresAt SHALL retain revoke but offer no further rotation; a not_found refusal SHALL describe unavailability for the requested action without asserting that the token stopped authenticating.
 
 #### Scenario: Exact confirmation and serialized revoke
 
@@ -156,3 +156,17 @@ Issue and rotate SHALL display the returned secret only in ephemeral component s
 - **WHEN** rotation succeeds
 - **THEN** its prior expiry is displayed exactly from previousExpiresAt and the successor secret is shown once
 - **AND** token_limit, sso_connection_unproven and not_found explain the refusal without inventing success
+
+#### Scenario: Post-write metadata failure preserves the returned secret
+
+- **GIVEN** issue or rotation successfully returned a new secret
+- **WHEN** the subsequent metadata GET fails over the network or returns an invalid response
+- **THEN** the metadata failure is rendered and the new secret remains retrievable by keyboard
+- **AND** explicit refresh, another mutation, authority refusal, dismissal and unmount still discard it
+
+#### Scenario: An overlap predecessor remains revocable
+
+- **GIVEN** a listed unrevoked predecessor with a server expiry
+- **WHEN** a super-admin reads its controls
+- **THEN** revoke is available and rotation is absent
+- **AND** a not_found response for a stale action does not claim the token is no longer live

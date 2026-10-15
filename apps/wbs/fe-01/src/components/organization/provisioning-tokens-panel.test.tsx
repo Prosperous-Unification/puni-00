@@ -124,7 +124,7 @@ describe('provisioning token administration', () => {
     mount(scope());
     await screen.findByText('No provisioning tokens.');
     fireEvent.click(screen.getByRole('button', { name: 'Issue provisioning token' }));
-    await screen.findByText('one-time-secret');
+    await screen.findByDisplayValue('one-time-secret');
     for (const [, init] of vi.mocked(fetch).mock.calls)
       expect(new Headers(init?.headers).get('X-WBS-Expected-Organization')).toBe('org-a');
   });
@@ -151,13 +151,13 @@ describe('provisioning token administration', () => {
     );
     await screen.findByText('No provisioning tokens.');
     fireEvent.click(screen.getByRole('button', { name: 'Issue provisioning token' }));
-    await screen.findByText('fresh-secret');
+    await screen.findByDisplayValue('fresh-secret');
     await act(async () => {
       await Promise.resolve();
       release?.(answer(200, { tokens: [token] }));
     });
     expect(screen.queryByText('token-a')).toBeNull();
-    expect(screen.getByText('fresh-secret')).toBeDefined();
+    expect(screen.getByDisplayValue('fresh-secret')).toBeDefined();
   });
 });
 
@@ -178,7 +178,7 @@ describe('one-time provisioning secrets', () => {
     });
     mount();
     fireEvent.click(await screen.findByRole('button', { name: 'Rotate token-a' }));
-    await screen.findByText('rotated-secret');
+    await screen.findByDisplayValue('rotated-secret');
     expect(
       screen.getByText(`Previous token expires: ${new Date(expiresAt).toISOString()}`),
     ).toBeDefined();
@@ -186,10 +186,10 @@ describe('one-time provisioning secrets', () => {
       { route: 'POST /api/organization/provisioning-tokens/token-a/rotate', body: undefined },
     ]);
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss secret' }));
-    expect(screen.queryByText('rotated-secret')).toBeNull();
+    expect(screen.queryByDisplayValue('rotated-secret')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Refresh provisioning tokens' }));
     await screen.findByText('token-a');
-    expect(screen.queryByText('rotated-secret')).toBeNull();
+    expect(screen.queryByDisplayValue('rotated-secret')).toBeNull();
   });
   it('discards an issued secret on refresh, without writing browser storage', async () => {
     const local = vi.spyOn(Storage.prototype, 'setItem');
@@ -202,10 +202,10 @@ describe('one-time provisioning secrets', () => {
     mount();
     await screen.findByText('No provisioning tokens.');
     fireEvent.click(screen.getByRole('button', { name: 'Issue provisioning token' }));
-    await screen.findByText('ephemeral-secret');
+    await screen.findByDisplayValue('ephemeral-secret');
     fireEvent.click(screen.getByRole('button', { name: 'Refresh provisioning tokens' }));
     await screen.findByText('No provisioning tokens.');
-    expect(screen.queryByText('ephemeral-secret')).toBeNull();
+    expect(screen.queryByDisplayValue('ephemeral-secret')).toBeNull();
     expect(local).not.toHaveBeenCalled();
     local.mockRestore();
   });
@@ -220,7 +220,7 @@ describe('one-time provisioning secrets', () => {
     mount(scope(() => current));
     await screen.findByText('No provisioning tokens.');
     fireEvent.click(screen.getByRole('button', { name: 'Issue provisioning token' }));
-    await screen.findByText('prior-secret');
+    await screen.findByDisplayValue('prior-secret');
     let release: ((response: Response) => void) | undefined;
     vi.mocked(fetch).mockImplementationOnce(
       () =>
@@ -229,7 +229,7 @@ describe('one-time provisioning secrets', () => {
         }),
     );
     fireEvent.click(screen.getByRole('button', { name: 'Issue provisioning token' }));
-    expect(screen.queryByText('prior-secret')).toBeNull();
+    expect(screen.queryByDisplayValue('prior-secret')).toBeNull();
     await waitFor(() => {
       expect(release).toBeTypeOf('function');
     });
@@ -241,7 +241,7 @@ describe('one-time provisioning secrets', () => {
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'Issue provisioning token' })).not.toBeDisabled(),
     );
-    expect(screen.queryByText('withdrawn-secret')).toBeNull();
+    expect(screen.queryByDisplayValue('withdrawn-secret')).toBeNull();
   });
   it('discards secrets and controls on forbidden mutation', async () => {
     stubServer({
@@ -254,10 +254,10 @@ describe('one-time provisioning secrets', () => {
     mount();
     await screen.findByText('No provisioning tokens.');
     fireEvent.click(screen.getByRole('button', { name: 'Issue provisioning token' }));
-    await screen.findByText('prior-secret');
+    await screen.findByDisplayValue('prior-secret');
     fireEvent.click(screen.getByRole('button', { name: 'Issue provisioning token' }));
     await screen.findByText('Only a super-admin can manage provisioning tokens.');
-    expect(screen.queryByText('prior-secret')).toBeNull();
+    expect(screen.queryByDisplayValue('prior-secret')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Issue provisioning token' })).toBeNull();
   });
   it.each([
@@ -266,7 +266,10 @@ describe('one-time provisioning secrets', () => {
       'sso_connection_unproven',
       'Prove a company sign-in connection before issuing provisioning tokens.',
     ],
-    ['not_found', 'This provisioning token is no longer live. Refresh the token list.'],
+    [
+      'not_found',
+      'This provisioning token is not available for this action. Refresh the token list.',
+    ],
   ])('renders %s without displaying a secret', async (error, message) => {
     stubServer({
       'GET /api/organization/provisioning-tokens': [() => answer(200, { tokens: [token] })],
@@ -321,5 +324,125 @@ it('discards a held secret response after unmount and remount', async () => {
     await Promise.resolve();
     release?.(answer(201, { id: 'late', token: 'unmounted-secret', createdAt: 3000 }));
   });
-  expect(screen.queryByText('unmounted-secret')).toBeNull();
+  expect(screen.queryByDisplayValue('unmounted-secret')).toBeNull();
 });
+
+it.each([
+  ['issue', 'response'],
+  ['rotate', 'response'],
+  ['issue', 'network'],
+  ['rotate', 'network'],
+] as const)(
+  'preserves the %s secret when its metadata reconciliation fails (%s)',
+  async (operation, failure) => {
+    stubServer({
+      'GET /api/organization/provisioning-tokens': [
+        () => answer(200, { tokens: [token] }),
+        () => {
+          if (failure === 'network') throw new Error('fixture network disconnected');
+          return answer(503, {});
+        },
+        () => answer(200, { tokens: [token] }),
+      ],
+      [operation === 'issue'
+        ? 'POST /api/organization/provisioning-tokens'
+        : 'POST /api/organization/provisioning-tokens/token-a/rotate']: [
+        () =>
+          answer(201, {
+            id: 'successor',
+            token: 'recoverable-secret',
+            createdAt: 2000,
+            ...(operation === 'rotate' ? { previousExpiresAt: 3000 } : {}),
+          }),
+      ],
+    });
+    mount();
+    await screen.findByText('token-a');
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: operation === 'issue' ? 'Issue provisioning token' : 'Rotate token-a',
+      }),
+    );
+    await screen.findByText(
+      failure === 'network'
+        ? 'Could not reach the server. Try again.'
+        : 'The server returned an unexpected response. Try again.',
+    );
+    expect(screen.getByDisplayValue('recoverable-secret')).toBeDefined();
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh provisioning tokens' }));
+    expect(screen.queryByDisplayValue('recoverable-secret')).toBeNull();
+    await screen.findByText('token-a');
+  },
+);
+
+it('offers the complete one-time secret as a read-only keyboard selection', async () => {
+  stubServer({
+    'GET /api/organization/provisioning-tokens': [() => answer(200, { tokens: [] })],
+    'POST /api/organization/provisioning-tokens': [
+      () => answer(201, { id: 'new', token: 'keyboard-secret', createdAt: 2000 }),
+    ],
+  });
+  mount();
+  await screen.findByText('No provisioning tokens.');
+  fireEvent.click(screen.getByRole('button', { name: 'Issue provisioning token' }));
+  const secret = await screen.findByRole('textbox', { name: 'Provisioning token secret' });
+  if (!(secret instanceof HTMLInputElement)) throw new Error('Secret control is not an input');
+  act(() => {
+    secret.focus();
+  });
+  expect(secret).toHaveAttribute('readonly');
+  expect(secret).toHaveFocus();
+  expect(secret.value).toBe('keyboard-secret');
+  expect(secret.selectionStart).toBe(0);
+  expect(secret.selectionEnd).toBe(secret.value.length);
+});
+
+it('keeps an overlap predecessor revocable without offering another rotation', async () => {
+  stubServer({
+    'GET /api/organization/provisioning-tokens': [
+      () =>
+        answer(200, {
+          tokens: [
+            { ...token, expiresAt: 1712345678901 },
+            { ...token, id: 'successor' },
+          ],
+        }),
+    ],
+  });
+  mount();
+  await screen.findByText('token-a');
+  expect(screen.queryByRole('button', { name: 'Rotate token-a' })).toBeNull();
+  expect(screen.getByRole('button', { name: 'Revoke token-a' })).toBeEnabled();
+  expect(screen.getByRole('button', { name: 'Rotate successor' })).toBeEnabled();
+});
+
+it.each(['forbidden', 'insufficient_scope', 'not_a_member'] as const)(
+  'discards a newly issued secret when metadata reconciliation answers %s',
+  async (error) => {
+    stubServer({
+      'GET /api/organization/provisioning-tokens': [
+        () => answer(200, { tokens: [] }),
+        () => answer(403, { error }),
+      ],
+      'POST /api/organization/provisioning-tokens': [
+        () => answer(201, { id: 'new', token: 'authority-secret', createdAt: 2000 }),
+      ],
+    });
+    const lost = vi.fn();
+    mount(undefined, lost);
+    await screen.findByText('No provisioning tokens.');
+    fireEvent.click(screen.getByRole('button', { name: 'Issue provisioning token' }));
+    if (error === 'not_a_member') {
+      await waitFor(() => {
+        expect(lost).toHaveBeenCalledWith('removed');
+      });
+    } else {
+      await screen.findByText(
+        error === 'forbidden'
+          ? 'Only a super-admin can manage provisioning tokens.'
+          : 'This sign-in is read-only here. Sign in to WBS again to make changes.',
+      );
+    }
+    expect(screen.queryByDisplayValue('authority-secret')).toBeNull();
+  },
+);

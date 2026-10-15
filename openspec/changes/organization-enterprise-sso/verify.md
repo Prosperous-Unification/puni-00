@@ -365,3 +365,30 @@ Final focused evidence:
 The pending aggregate #467 and source #463 were still open at this checkpoint. This slice proves connection deletion through the existing API, without claiming the pending Company sign-in deletion controls have merged. The canonical h2puni gate on the final SHA and review remain separate required checks; no gate pass is claimed here.
 
 Final fixture expansion: the complete organization Playwright config passed both tests (23.4 seconds), including keyboard focus and secret absence after reload. Whole-store OpenSpec validation passed 200 entries: 182 changes and 18 specs. After a mounted red for absent revocation-time metadata, rows also display the server revocation timestamp.
+
+## Review repairs — 2026-10-15
+
+Independent review of `1e280fe47922678b641d9ebc87a9bb94517f035a` found three P2 issues: a successful write's secret was discarded when its metadata read failed; code-only display lacked keyboard retrieval; overlap predecessors incorrectly offered rotation and the not_found wording asserted they were no longer live.
+
+The secret now survives metadata transport and response failures, alongside the rendered failure. Explicit refresh, another mutation, authority refusal, dismissal and unmount still discard it. A labeled read-only input selects its full value on focus; the application needs no clipboard API. A non-null server expiry hides Rotate while retaining Revoke, and not_found now describes unavailability for the action.
+
+Red evidence: both issue and rotate metadata-failure tests failed before secret preservation; the keyboard field test failed before the focusable field existed; the overlap-control and corrected-refusal tests failed against the previous implementation.
+
+Watched production negatives, restored before final checks:
+
+| Fault                                    | Observed failure                                                                        |
+| ---------------------------------------- | --------------------------------------------------------------------------------------- |
+| Reintroduce clearing on metadata failure | Four issue/rotate network/503 cases lost recoverable-secret.                            |
+| Remove input focus selection             | Keyboard test selected an empty range instead of the whole secret.                      |
+| Render Rotate despite non-null expiry    | Overlap predecessor test found the prohibited Rotate button; Revoke remained available. |
+| Omit authority-refusal secret clearing   | Three post-issue metadata refusals retained authority-secret.                           |
+
+The real browser fixture performed native keyboard copy from the selected field and verified the actual clipboard value. No upstream IdP was contacted. Final focused suite, browser suite, lint, typecheck, hooks and OpenSpec evidence are recorded after their final runs. The root coordinator owns the h2puni gate; this worker did not run it.
+
+Final review-repair checks:
+
+- Mounted panel and page suite: 48 passed, zero failed (30.91 seconds).
+- Complete real organization browser/API fixture: two passed (40.9 seconds), including native keyboard copy verified through the actual clipboard, hidden overlap rotation, retained revoke, 375px layout, reload secret absence and deletion-blocker release.
+- Changed frontend files: ESLint exit 0; full frontend TypeScript build exit 0 after removing unsupported Testing Library `exact` options from three new queries (string names are already exact).
+- OpenSpec `validate --all --json`: 200 passed, zero failed (182 changes and 18 specs).
+- No backend production changes or migrations were made for these review repairs. The previously recorded mounted backend result remains the backend evidence; it was not rerun for this browser-only repair.

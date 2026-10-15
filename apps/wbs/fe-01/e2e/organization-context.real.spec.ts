@@ -167,7 +167,8 @@ test('browser provisioning token lifecycle releases the connection deletion bloc
   await page.keyboard.press('Tab');
   await expect(panel.getByRole('button', { name: 'Issue provisioning token' })).toBeFocused();
   await panel.getByRole('button', { name: 'Issue provisioning token' }).click();
-  await expect(panel.getByText(/^wbs_scim_[A-Za-z0-9_-]{43}$/)).toBeVisible();
+  const secret = panel.getByRole('textbox', { name: 'Provisioning token secret' });
+  await expect(secret).toHaveValue(/^wbs_scim_[A-Za-z0-9_-]{43}$/);
   const issued = await context.request.get('/api/organization/provisioning-tokens', { headers });
   expect(issued.status()).toBe(200);
   const listed = (await issued.json()) as { tokens: { id: string; expiresAt: number | null }[] };
@@ -175,6 +176,13 @@ test('browser provisioning token lifecycle releases the connection deletion bloc
   const first = listed.tokens.at(0);
   if (first === undefined) throw new Error('Issued provisioning token is absent');
   expect(JSON.stringify(listed)).not.toContain('wbs_scim_');
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  const issuedSecret = await secret.inputValue();
+  await panel.getByRole('button', { name: `Revoke ${first.id}`, exact: true }).focus();
+  await page.keyboard.press('Tab');
+  await expect(secret).toBeFocused();
+  await page.keyboard.press('ControlOrMeta+C');
+  expect(await page.evaluate(async () => navigator.clipboard.readText())).toBe(issuedSecret);
   const blocked = await context.request.delete('/api/organization/sso-connections/conn-tokens', {
     headers,
   });
@@ -182,7 +190,7 @@ test('browser provisioning token lifecycle releases the connection deletion bloc
   expect(await blocked.json()).toEqual({ error: 'provisioning_active' });
   await panel.getByRole('button', { name: 'Dismiss secret' }).click();
   await panel.getByRole('button', { name: `Rotate ${first.id}`, exact: true }).click();
-  await expect(panel.getByText(/^wbs_scim_[A-Za-z0-9_-]{43}$/)).toBeVisible();
+  await expect(secret).toHaveValue(/^wbs_scim_[A-Za-z0-9_-]{43}$/);
   const rotated = await context.request.get('/api/organization/provisioning-tokens', { headers });
   expect(rotated.status()).toBe(200);
   const successor = (await rotated.json()) as {
@@ -195,15 +203,21 @@ test('browser provisioning token lifecycle releases the connection deletion bloc
   await expect(
     panel.getByText(`Previous token expires: ${new Date(previous.expiresAt).toISOString()}`),
   ).toBeVisible();
+  await expect(panel.getByRole('button', { name: `Rotate ${first.id}`, exact: true })).toHaveCount(
+    0,
+  );
+  await expect(
+    panel.getByRole('button', { name: `Revoke ${first.id}`, exact: true }),
+  ).toBeEnabled();
   await page.setViewportSize({ width: 375, height: 812 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );
   await panel.getByRole('button', { name: 'Refresh provisioning tokens' }).click();
-  await expect(panel.getByText(/^wbs_scim_/)).toHaveCount(0);
+  await expect(secret).toHaveCount(0);
   await page.reload();
   await expect(panel.getByRole('listitem')).toHaveCount(2);
-  await expect(panel.getByText(/^wbs_scim_/)).toHaveCount(0);
+  await expect(secret).toHaveCount(0);
   for (const token of successor.tokens) {
     const row = panel
       .getByRole('listitem')
