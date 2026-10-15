@@ -440,6 +440,19 @@ export function runCli(argv: readonly string[]): Promise<void> | void {
       );
     });
   }
+  if (args[0] === 'inspect-performance-scenarios') {
+    // Proof: removing arity validation accepted TEST-AXES-099's extra operand.
+    if (args.length !== 6)
+      throw new Error(
+        'usage: twilight-burokrat inspect-performance-scenarios <repository> <committed-sha> <external-rule-policy> <external-level-authority> <capability>',
+      );
+    return import('./evidence/performance-scenarios').then(({ inspectPerformanceScenarios }) => {
+      const observation = inspectPerformanceScenarios(args[1], args[2], args[3], args[4], args[5]);
+      process.stdout.write(`${JSON.stringify(observation)}\n`);
+      // Proof: removing this mapping made TEST-AXES-097's invalid citations exit zero.
+      if (observation.citationFindings.length !== 0) process.exitCode = 1;
+    });
+  }
   if (args[0] === 'inspect-performance-levels') {
     // Proof: removing arity refusal accepted [TEST-AXES-090]'s extra CLI operand.
     if (args.length !== 5)
@@ -593,7 +606,7 @@ export function runCli(argv: readonly string[]): Promise<void> | void {
   // re-adding its route above failed `submit-admission is an unknown command` (cli.test.ts) and
   // `the validator bundle carries no authority store` (packaging/bundle.test.ts) (2026-10-11).
   throw new Error(
-    `unknown command: ${args[0] ?? '<missing>'}\nusage: twilight-burokrat <validate-progress-receipt|validate-plan-tasks|validate-record|read-candidate|candidate-identity|inspect-performance|inspect-performance-sources|inspect-performance-levels|inspect-browser-memberships|inspect-browser|inspect-test-reports|inspect-test-sources|inspect-spec-sources|inspect-manual|inspect-manual-observation|classify-candidate|content-manifest|validate-artifacts|extract-relationships|check-indexes|check-root-migration|validate-review-provenance|freeze-exhaustive|verify-exhaustive|evaluate-exhaustive-coverage|lint-local|lint-ci|check|explain|scenario|template|validate-policy-activation> ...`,
+    `unknown command: ${args[0] ?? '<missing>'}\nusage: twilight-burokrat <validate-progress-receipt|validate-plan-tasks|validate-record|read-candidate|candidate-identity|inspect-performance|inspect-performance-sources|inspect-performance-levels|inspect-performance-scenarios|inspect-browser-memberships|inspect-browser|inspect-test-reports|inspect-test-sources|inspect-spec-sources|inspect-manual|inspect-manual-observation|classify-candidate|content-manifest|validate-artifacts|extract-relationships|check-indexes|check-root-migration|validate-review-provenance|freeze-exhaustive|verify-exhaustive|evaluate-exhaustive-coverage|lint-local|lint-ci|check|explain|scenario|template|validate-policy-activation> ...`,
   );
 }
 

@@ -186,3 +186,5 @@ documents using [`validatePlanTasks`](src/contracts/validate-plan-tasks.ts). Its
 count. It checks historical/current schema pairing and unique task IDs and step IDs/codes.
 This report grants no approval, admission, certification, requirements validation or composite
 dependency closure.
+
+`twilight-burokrat inspect-performance-scenarios <repository> <committed-sha> <external-rule-policy> <external-level-authority> <capability>` joins the validated isolated Performance publication to the entire selected B3 active tree under the external policy's pinned predecessor. Each adopted requested scenario lists passing selected case IDs or `unobserved-in-selection`. Only terminal test-title `[CAPABILITY-001] ` prefixes cite scenarios. Missing/malformed prefixes and unknown/retired identities produce separate citation findings and exit 1; source, policy, isolation or B3 refusals emit no JSON. The full observation preserves unrelated B3 debt and binds all upstream identities. It remains unauthenticated and noncertifying; an unobserved row says nothing about tests outside this selection.
