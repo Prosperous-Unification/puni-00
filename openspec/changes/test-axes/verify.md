@@ -3877,3 +3877,40 @@ exact-head CI, full repository gate or host acceptance is claimed.
 - The same pinned runner's `validate --all --json`: exit 0, 213/213 valid (195 changes, 18 specs), zero failures (`/tmp/browser-performance-openspec-all-final.json`).
 - Final production `scenario validate . openspec/changes/test-axes/specs/test-axes/spec.md`: exit 0, `{"unidentified":[]}` (`/tmp/browser-performance-provenance-final.json`). Fresh comparison to the exact approved base preserved all 159 prior journal events and appended only TEST-AXES-112..115.
 - Final changed-file Prettier and `git diff --check`: exit 0 (`/tmp/browser-performance-format-final.log`).
+
+### Browser Performance clock-name review repair — 2026-10-15
+
+Candidate `dc5ac746b690dafc0fe2500a20c869dc8be6c826` on parent
+`742b8aeb32d7fc2bb07ab68a5aac8481e01c5c28` introduced a local `performance`
+binding. The required package clock detector treats that identifier as a clock
+reference. Renamed the binding to `performanceMembership` and retained the explicit
+`memberships.performance` output key. This is a mechanical naming correction;
+no safety guard, schema or serialized value changed.
+
+- File-local production `findClockReads` comparison of the original committed file
+  and corrected working file: original references at lines 214 and 243; corrected
+  references `[]`, exit 0 (`/tmp/browser-performance-rename-clock-proof.json`).
+  This before/after observation supplies the relevant breakability evidence for
+  the naming correction; existing safety guards retain their prior mutation proofs.
+- Required `no-ambient-clock.test.ts`: exit 1, 0 pass / 1 fail. Exactly 19 inherited
+  references remain in `evidence/scenario-ledger.ts` and
+  `evidence/scenario-ledger-manual.fixture.ts`; none remain in Browser Performance
+  (`/tmp/browser-performance-rename-clock.log`). This suite is not green.
+- Scoped uncached `twilight-burokrat:lint:source` and `twilight-burokrat:typecheck`:
+  exit 0 with successful Nx target output (34.1s and 2.2s respectively).
+- Shared test-evidence plus tool-devsync workspace-projects and ESLint-boundaries:
+  exit 0, 55 pass / 0 fail, 222 assertions across three files (26.19s), including
+  the effective production/test package boundary assertions
+  (`/tmp/browser-performance-rename-separation.log`).
+- Pinned OpenSpec 1.12.0 strict `test-axes`: 1/1 valid, zero issues; all validation:
+  213/213 valid, zero failures (`/tmp/browser-performance-rename-openspec-{strict,all}.json`).
+- Focused six-file Browser Performance/Architecture/Conformance, report, level-facts
+  and architecture-level regression command recorded above: exit 0, 123 pass /
+  0 fail, 1,705 assertions (203.45s), including built installed executables
+  (`/tmp/browser-performance-rename-focused.log`).
+- Scoped uncached `twilight-burokrat:build`: exit 0, successful target and three
+  dependency tasks (4.4s; `/tmp/browser-performance-rename-build.log`).
+- Final source and verification Markdown Prettier plus `git diff --check`: exit 0.
+
+Exact-SHA Astra rereview, inherited Scenario Ledger repair/restack, release, CI,
+host gate and deployment remain coordinator work. No push or host gate ran here.
