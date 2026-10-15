@@ -6,4 +6,6 @@ metadata:
 data:
   cluster: workers-production
   # The platform-production cluster's otel-gateway NodePort.
-  upstream: otel-gateway.puni.internal:30417
+  upstream: otel-gateway.puni.internal:30419
+  serverName: otel-gateway.puni.internal
+  transport: mtls-canary

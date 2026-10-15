@@ -370,6 +370,14 @@ const OtelValues = type({
   // production validator's host-port negative rejected it on 2026-09-18.
   ports: {
     otlp: { enabled: 'boolean', hostPort: '0', '+': 'reject' },
+    'otlp-mtls?': {
+      enabled: 'true',
+      containerPort: '14317',
+      servicePort: '14317',
+      protocol: "'TCP'",
+      hostPort: '0',
+      '+': 'reject',
+    },
     'otlp-http': { enabled: 'boolean', hostPort: '0', '+': 'reject' },
     'jaeger-compact': { enabled: 'false', '+': 'reject' },
     'jaeger-thrift': { enabled: 'false', '+': 'reject' },

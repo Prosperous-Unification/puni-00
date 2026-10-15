@@ -607,7 +607,15 @@ describe('validatePlatform', () => {
     const root = await mutablePlatform();
     await writeFile(
       join(root, 'infra/platform/secrets/workers-local/externally-provided.json'),
-      JSON.stringify([{ namespace: 'wbs', name: 'sqlite-backup-s3', source: 'rehearsal' }]),
+      JSON.stringify([
+        ...(JSON.parse(
+          await readFile(
+            join(root, 'infra/platform/secrets/workers-local/externally-provided.json'),
+            'utf8',
+          ),
+        ) as unknown[]),
+        { namespace: 'wbs', name: 'sqlite-backup-s3', source: 'rehearsal' },
+      ]),
     );
     expect(validatePlatform(root)).rejects.toThrow(
       /workers-local provides Secret wbs\/sqlite-backup-s3, which nothing consumes/,
@@ -815,4 +823,98 @@ describe('validatePlatform', () => {
       expect.arrayContaining(['https://dev.puni.dev/', 'https://dev.app.puni.dev/']),
     );
   });
+});
+
+describe('cross-cluster OTLP topology', () => {
+  for (const [name, path, before, after] of [
+    [
+      'plaintext exporter',
+      'infra/platform/telemetry/agent/agent.yaml',
+      'ca_file: /etc/otel/server-trust/ca.crt',
+      'insecure: true',
+    ],
+    [
+      'server identity bypass',
+      'infra/platform/telemetry/agent/agent.yaml',
+      'server_name_override: ${env:PUNI_TELEMETRY_SERVER_NAME}',
+      'insecure_skip_verify: true',
+    ],
+    [
+      'missing client authentication',
+      'infra/platform/observability/otel/collector.yaml',
+      'client_ca_file: /etc/otel/client-trust/ca.crt',
+      'client_ca_file: ""',
+    ],
+    [
+      'unbounded sessions',
+      'infra/platform/observability/otel/collector.yaml',
+      'max_connection_age: 5m',
+      'max_connection_age: 0s',
+    ],
+    [
+      'queue identity change',
+      'infra/platform/telemetry/agent/agent.yaml',
+      'storage: file_storage/queue',
+      'storage: file_storage/replaced',
+    ],
+    [
+      'canary plaintext target',
+      'infra/platform/observability/production/otlp-ingress.yaml',
+      'targetPort: 14317',
+      'targetPort: 4317',
+    ],
+    [
+      'signing key mount',
+      'infra/platform/telemetry/agent/agent.yaml',
+      'secretName: otel-client-tls',
+      'secretName: otel-client-ca',
+    ],
+  ] as const) {
+    it(`rejects ${name}`, async () => {
+      const root = await mutablePlatform();
+      await replaceManifestText(root, path, before, after);
+      expect(validatePlatform(root)).rejects.toThrow(/OTLP/);
+    });
+  }
+});
+
+describe('OTLP certificate lifecycle', () => {
+  for (const [name, path, before, after] of [
+    [
+      'server-only client usage',
+      'infra/platform/certificates/workers/production/certificate.yaml',
+      'client auth',
+      'server auth',
+    ],
+    [
+      'shared server signing authority',
+      'infra/platform/certificates/workers/local/certificate.yaml',
+      'secretName: otel-client-ca',
+      'secretName: otel-server-ca',
+    ],
+    [
+      'stale certificate readiness',
+      'infra/clusters/workers/production/certificates.yaml',
+      ' && c.observedGeneration == metadata.generation',
+      '',
+    ],
+    [
+      'missing certificate dependency',
+      'infra/clusters/workers/local/telemetry.yaml',
+      '    - name: certificates\n',
+      '',
+    ],
+    [
+      'disabled rotation',
+      'infra/platform/certificates/platform/production/certificate.yaml',
+      'rotationPolicy: Always',
+      'rotationPolicy: Never',
+    ],
+  ] as const) {
+    it(`rejects ${name}`, async () => {
+      const root = await mutablePlatform();
+      await replaceManifestText(root, path, before, after);
+      expect(validatePlatform(root)).rejects.toThrow(/OTLP|dependency order/);
+    });
+  }
 });

@@ -20,6 +20,7 @@ import {
   readStageManifests,
   referencedSecrets,
 } from './platform-manifests';
+import { assertOtlpTransport } from './platform-otlp';
 import { platformReleases } from './platform-releases';
 
 const PlatformIdentity = type({
@@ -55,6 +56,15 @@ const FluxStage = type({
       kind: "'ConfigMap'",
       name: 'string>0',
       namespace: "'kube-system'",
+      '+': 'reject',
+    })
+      .array()
+      .exactlyLength(1),
+    'healthCheckExprs?': type({
+      apiVersion: "'cert-manager.io/v1'",
+      kind: "'Certificate'",
+      failed: 'string>0',
+      current: 'string>0',
       '+': 'reject',
     })
       .array()
@@ -153,6 +163,19 @@ const platformKustomizations: readonly (readonly [
   ConfigMapGenerators?,
 ])[] = [
   ['target/kustomization.yaml', []],
+  [
+    'certificates/controllers/kustomization.yaml',
+    ['namespace.yaml', '../../networking/cert-manager.yaml'],
+  ],
+  ...(['platform', 'workers'] as const).flatMap((purpose) =>
+    (['local', 'production'] as const).map(
+      (environment) =>
+        [
+          `certificates/${purpose}/${environment}/kustomization.yaml`,
+          ['certificate.yaml'],
+        ] as const,
+    ),
+  ),
   ['networking/kustomization.yaml', ['namespaces.yaml', 'cert-manager.yaml', 'traefik.yaml']],
   [
     'policy/kustomization.yaml',
@@ -269,18 +292,21 @@ const stageDependencies = {
     storage: 'controllers',
     policy: 'controllers',
     secrets: 'policy',
+    certificates: 'controllers,secrets',
     platform: 'storage,secrets',
-    observability: 'platform',
+    observability: 'platform,certificates',
     // Rules and probes need the monitoring CRDs that the observability stage installs.
     alerts: 'observability',
     backup: 'alerts',
   },
   workers: {
     target: '',
+    controllers: 'target',
     storage: 'target',
     policy: 'target',
     secrets: 'policy',
-    telemetry: 'storage,secrets',
+    certificates: 'controllers,secrets',
+    telemetry: 'storage,secrets,certificates',
   },
 } as const satisfies Record<'platform' | 'workers', Record<string, string>>;
 
@@ -293,7 +319,12 @@ const stageDependencies = {
  */
 function platformStagePath(stageName: string, cluster: string, environment: string): string {
   if (stageName === 'target') return './infra/platform/target';
-  if (stageName === 'controllers') return './infra/platform/networking';
+  if (stageName === 'controllers')
+    return cluster.startsWith('workers-')
+      ? './infra/platform/certificates/controllers'
+      : './infra/platform/networking';
+  if (stageName === 'certificates')
+    return `./infra/platform/certificates/${cluster.startsWith('workers-') ? 'workers' : 'platform'}/${environment}`;
   // Proof: matching no cluster here made the platform-production hcloud-storage negative in
   // platform.test.ts resolve instead of reject on 2026-10-07.
   if (stageName === 'storage' && cluster === 'platform-production') {
@@ -323,6 +354,7 @@ export async function validatePlatform(root: string): Promise<{
   readonly workloadImages: number;
   readonly secrets: number;
 }> {
+  await assertOtlpTransport(root);
   const toolchain = await readToolchain(join(root, 'infra/versions/toolchain.json'));
   for (const [index, [cluster, environment]] of clusterPaths.entries()) {
     const expectedCluster = clusters[index];
