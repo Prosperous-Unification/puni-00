@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { type } from 'arktype';
-import { parse } from 'yaml';
+import { parse, parseDocument, stringify } from 'yaml';
 
 import { purposeCapabilities, readToolchain } from './contracts';
 import {
@@ -100,6 +100,7 @@ const NativeKustomization = type({
   apiVersion: "'kustomize.config.k8s.io/v1beta1'",
   kind: "'Kustomization'",
   resources: type('string>0').array(),
+  'patches?': 'object[]',
   // A generator may only turn files beside the kustomization into one hash-named ConfigMap: no
   // literals, behaviour or options, so the name hash that makes a Job rerun cannot be disabled.
   // Proof: changing this generator's unknown-key policy to delete made "rejects a generator that
@@ -218,10 +219,16 @@ function requireNativeResources(
   source: unknown,
   expectedResources: readonly string[],
   expectedGenerators: ConfigMapGenerators = [],
+  expectedPatches?: readonly object[],
 ) {
   const kustomization = NativeKustomization(source);
   if (kustomization instanceof type.errors) {
     throw new Error(`${path} native Kustomization is invalid: ${kustomization.summary}`);
+  }
+  if (JSON.stringify(kustomization.patches) !== JSON.stringify(expectedPatches)) {
+    // Proof: removing this comparison admitted wrong-cluster production patches and the
+    // unrelated networking patch in platform.test.ts on 2026-10-14.
+    throw new Error(`${path} native Kustomization patches differ from the locked graph`);
   }
   if (kustomization.resources.join('\n') !== expectedResources.join('\n')) {
     // Proof: removing this comparison made a substituted networking resource list resolve instead
@@ -394,7 +401,64 @@ export async function validatePlatform(root: string): Promise<{
 
   for (const [relativePath, resources, generators] of platformKustomizations) {
     const path = join(root, 'infra/platform', relativePath);
-    requireNativeResources(path, await readYaml(path), resources, generators);
+    let expectedPatches: readonly object[] | undefined;
+    if (relativePath === 'observability/production/kustomization.yaml') {
+      expectedPatches = [
+        {
+          target: { kind: 'HelmRelease', name: 'kube-prometheus-stack' },
+          patch:
+            '- op: replace\n  path: /spec/values/kube-state-metrics/prometheus/monitor/metricRelabelings/0/replacement\n  value: platform-production',
+        },
+      ];
+    }
+    if (relativePath === 'alerts/production/kustomization.yaml') {
+      const rules = parseDocument(
+        await readFile(join(root, 'infra/platform/alerts/base/rules.yaml'), 'utf8'),
+      );
+      const expression: unknown = rules.getIn(['spec', 'groups', 3, 'rules', 1, 'expr']);
+      if (typeof expression !== 'string')
+        throw new Error('Snapshot freshness expression is absent');
+      expectedPatches = [
+        {
+          target: { kind: 'PrometheusRule', name: 'puni-platform' },
+          patch: stringify([
+            {
+              op: 'replace',
+              path: '/spec/groups/3/rules/0/expr',
+              value:
+                'absent(system_memory_usage_bytes{puni_cluster="workers-production",k8s_namespace_name="observability"})',
+            },
+            {
+              op: 'replace',
+              path: '/spec/groups/3/rules/1/expr',
+              value: expression.replaceAll('platform-local', 'platform-production'),
+            },
+          ]),
+        },
+      ];
+    }
+    const source = NativeKustomization(await readYaml(path));
+    if (source instanceof type.errors)
+      throw new Error(`${path} native Kustomization is invalid: ${source.summary}`);
+    // Compare parsed patch operations so YAML wrapping does not change the contract.
+    const normalizePatches = (patches: readonly object[] | undefined) =>
+      patches?.map((patch) => {
+        const decoded = type({ target: 'object', patch: 'string', '+': 'reject' })(patch);
+        if (decoded instanceof type.errors)
+          throw new Error(`${path} native Kustomization patches are invalid`);
+        const operations: unknown = parse(decoded.patch);
+        return { target: decoded.target, patch: operations };
+      });
+    requireNativeResources(
+      path,
+      {
+        ...source,
+        ...(source.patches === undefined ? {} : { patches: normalizePatches(source.patches) }),
+      },
+      resources,
+      generators,
+      normalizePatches(expectedPatches),
+    );
   }
 
   const releaseNames: string[] = [];
