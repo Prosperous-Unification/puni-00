@@ -918,3 +918,57 @@ describe('OTLP certificate lifecycle', () => {
     });
   }
 });
+
+describe('OTLP runtime wiring', () => {
+  for (const [name, path, before, after] of [
+    [
+      'receiver detached from logs',
+      'infra/platform/observability/otel/collector.yaml',
+      'receivers: [filelog, otlp, otlp/mtls]',
+      'receivers: [filelog, otlp]',
+    ],
+    [
+      'wrong trust mount',
+      'infra/platform/observability/otel/collector.yaml',
+      'mountPath: /etc/otel/client-trust',
+      'mountPath: /etc/otel/unused-trust',
+    ],
+    [
+      'server signing key exposure',
+      'infra/platform/observability/otel/collector.yaml',
+      'secretName: otel-server-tls',
+      'secretName: otel-server-ca',
+    ],
+    [
+      'wrong upstream environment',
+      'infra/platform/telemetry/agent/agent.yaml',
+      'name: puni-telemetry, key: upstream',
+      'name: puni-telemetry, key: cluster',
+    ],
+    [
+      'queue directory change',
+      'infra/platform/telemetry/agent/agent.yaml',
+      'directory: /var/lib/otelcol/queue',
+      'directory: /var/lib/otelcol/another-queue',
+    ],
+  ] as const) {
+    it(`rejects ${name}`, async () => {
+      const root = await mutablePlatform();
+      await replaceManifestText(root, path, before, after);
+      expect(validatePlatform(root)).rejects.toThrow(/OTLP/);
+    });
+  }
+});
+
+describe('OTLP client trust reload', () => {
+  it('rejects a receiver that pins retired client trust until restart', async () => {
+    const root = await mutablePlatform();
+    await replaceManifestText(
+      root,
+      'infra/platform/observability/otel/collector.yaml',
+      'client_ca_file_reload: true',
+      'client_ca_file_reload: false',
+    );
+    expect(validatePlatform(root)).rejects.toThrow(/OTLP/);
+  });
+});

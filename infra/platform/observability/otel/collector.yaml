@@ -180,6 +180,9 @@ spec:
                 cert_file: /etc/otel/server/tls.crt
                 key_file: /etc/otel/server/tls.key
                 client_ca_file: /etc/otel/client-trust/ca.crt
+                # Proof: without this, the live 0.160.0 receiver rejected a newly trusted CA
+                # after an overlap update; the fixed run is in otlp-mtls-canary/verify.md.
+                client_ca_file_reload: true
                 min_version: '1.3'
                 reload_interval: 1m
               keepalive:

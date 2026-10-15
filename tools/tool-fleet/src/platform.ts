@@ -401,6 +401,8 @@ export async function validatePlatform(root: string): Promise<{
         throw new Error(`${expectedCluster} SOPS decryption must use sops-age`);
       }
       const dependencies = (stage.spec.dependsOn ?? []).map(({ name }) => name).join(',');
+      // Proof: bypassing this comparison made the missing-certificate-dependency negative
+      // resolve in platform.test.ts on 2026-10-15.
       if (dependencies !== expectedDependencies) {
         throw new Error(`${expectedCluster} ${stageName} dependency order is invalid`);
       }

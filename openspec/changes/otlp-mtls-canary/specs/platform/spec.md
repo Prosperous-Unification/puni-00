@@ -25,7 +25,7 @@ The canary SHALL use receiver 14317 and NodePort 30419 while preserving exporter
 
 ### Requirement: Certificate lifecycle gates telemetry
 
-Flux SHALL install cert-manager on workers and gate telemetry on current-generation Ready leaves. Leaves SHALL renew before expiry with rotated keys. Server sessions SHALL expire within five minutes plus 30s grace. Outgoing trust changes SHALL require agent rollout.
+Flux SHALL install cert-manager on workers and gate telemetry on current-generation Ready leaves. Leaves SHALL renew before expiry with rotated keys. Server sessions SHALL use five-minute maximum age and 30s grace, with a conservative six-minute forced-close bound including grpc-go ±10% jitter. Outgoing trust changes SHALL require agent rollout.
 
 #### Scenario: Required material unavailable
 

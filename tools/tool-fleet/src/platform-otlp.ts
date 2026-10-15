@@ -19,15 +19,29 @@ const ServerTls = type({
   cert_file: "'/etc/otel/server/tls.crt'",
   key_file: "'/etc/otel/server/tls.key'",
   client_ca_file: "'/etc/otel/client-trust/ca.crt'",
+  client_ca_file_reload: 'true',
   min_version: "'1.3'",
   reload_interval: "'1m'",
   '+': 'reject',
 });
+// Proof: bypassing assertOtlpTransport made all five runtime wiring negatives resolve on 2026-10-15.
+const RuntimeMounts = {
+  extraVolumes: type({ name: 'string', 'secret?': { secretName: 'string' } }).array(),
+  extraVolumeMounts: type({ name: 'string', mountPath: 'string', 'readOnly?': 'boolean' }).array(),
+};
 const Agent = type({
   spec: {
     values: {
-      extraVolumes: type({ name: 'string', 'secret?': { secretName: 'string' } }).array(),
+      ...RuntimeMounts,
+      extraEnvs: type({
+        name: 'string',
+        valueFrom: { configMapKeyRef: { name: 'string', key: 'string' } },
+      }).array(),
       alternateConfig: {
+        extensions: {
+          'file_storage/queue': { directory: "'/var/lib/otelcol/queue'" },
+          'file_storage/checkpoints': { directory: "'/var/lib/otelcol/checkpoints'" },
+        },
         exporters: {
           otlp: {
             tls: ClientTls,
@@ -47,7 +61,11 @@ const Agent = type({
 const Collector = type({
   spec: {
     values: {
+      ...RuntimeMounts,
       alternateConfig: {
+        service: {
+          pipelines: { logs: { receivers: 'string[]' }, metrics: { receivers: 'string[]' } },
+        },
         receivers: {
           'otlp/mtls': {
             protocols: {
@@ -92,34 +110,38 @@ async function readManifest(root: string, path: string): Promise<unknown> {
  * Enforce the authenticated canary topology. Plaintext 30417 remains an explicit rollback
  * listener until the two-cluster cutover drill closes it; workers always use TLS 30419.
  * Throws on missing manifests, TLS bypasses, signing-key mounts or changed queue identity.
+ * Certificate ownership and activation: {@link ../../../docs/infra/otlp-mtls.md}.
  */
 export async function assertOtlpTransport(root: string): Promise<void> {
   await assertCertificates(root);
   const agent = Agent(await readManifest(root, 'infra/platform/telemetry/agent/agent.yaml'));
   if (agent instanceof type.errors)
     throw new Error(`OTLP agent transport invalid: ${agent.summary}`);
-  for (const [name, secretName] of [
-    ['otel-client-tls', 'otel-client-tls'],
-    ['otel-server-trust', 'otel-server-trust'],
+  assertRuntimeMounts(agent.spec.values, 'client', 'server');
+  for (const [name, key] of [
+    ['PUNI_TELEMETRY_SERVER_NAME', 'serverName'],
+    ['PUNI_TELEMETRY_UPSTREAM', 'upstream'],
+    ['PUNI_CLUSTER_ID', 'cluster'],
   ] as const) {
+    const sources = agent.spec.values.extraEnvs.filter((environment) => environment.name === name);
     if (
-      !agent.spec.values.extraVolumes.some(
-        (volume) => volume.name === name && volume.secret?.secretName === secretName,
-      )
+      sources.length !== 1 ||
+      sources[0].valueFrom.configMapKeyRef.name !== 'puni-telemetry' ||
+      sources[0].valueFrom.configMapKeyRef.key !== key
     ) {
-      throw new Error(`OTLP agent must mount ${secretName}`);
+      throw new Error(`OTLP agent must read ${name} from puni-telemetry/${key}`);
     }
-  }
-  if (
-    agent.spec.values.extraVolumes.some((volume) => volume.secret?.secretName === 'otel-client-ca')
-  ) {
-    throw new Error('OTLP agent cannot mount a signing key');
   }
   const collector = Collector(
     await readManifest(root, 'infra/platform/observability/otel/collector.yaml'),
   );
   if (collector instanceof type.errors)
     throw new Error(`OTLP gateway transport invalid: ${collector.summary}`);
+  assertRuntimeMounts(collector.spec.values, 'server', 'client');
+  for (const pipeline of Object.values(collector.spec.values.alternateConfig.service.pipelines)) {
+    if (!pipeline.receivers.includes('otlp/mtls'))
+      throw new Error('OTLP TLS receiver must feed both pipelines');
+  }
   for (const environment of ['local', 'production']) {
     const path = join(root, `infra/platform/observability/${environment}/otlp-ingress.yaml`);
     const gateways = parseAllDocuments(await readFile(path, 'utf8')).flatMap((document) => {
@@ -237,5 +259,29 @@ async function assertCertificates(root: string): Promise<void> {
         );
       }
     }
+  }
+}
+
+/** Require leaf and public trust volumes at their TLS paths, with no signing-key volume. */
+function assertRuntimeMounts(
+  runtime: Pick<(typeof Agent.infer)['spec']['values'], 'extraVolumes' | 'extraVolumeMounts'>,
+  role: string,
+  peer: string,
+): void {
+  if (runtime.extraVolumes.some((volume) => volume.secret?.secretName.endsWith('-ca'))) {
+    throw new Error('OTLP runtime cannot mount a signing key');
+  }
+  for (const [name, path] of [
+    [`otel-${role}-tls`, `/etc/otel/${role}`],
+    [`otel-${peer}-trust`, `/etc/otel/${peer}-trust`],
+  ]) {
+    const volumes = runtime.extraVolumes.filter(
+      (volume) => volume.name === name && volume.secret?.secretName === name,
+    );
+    const mounts = runtime.extraVolumeMounts.filter(
+      (mount) => mount.name === name && mount.mountPath === path && mount.readOnly === true,
+    );
+    if (volumes.length !== 1 || mounts.length !== 1)
+      throw new Error(`OTLP runtime must mount ${name} read-only at ${path}`);
   }
 }
