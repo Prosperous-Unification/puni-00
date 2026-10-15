@@ -27,3 +27,120 @@ The first scoped run used Nx's native command runner, found fixture lint issues,
 ## Limits
 
 This change addresses restart ownership only. The baseline's first cold container OOMKilled at 2Gi remains unresolved; original live evidence is `/tmp/puni-f9-acceptance-20261015/REPORT.md`. No cold OOM fix, full F9 pass or h2puni gate is claimed. Disposable runtime recovery acceptance is scheduled against this exact committed candidate with evidence kept outside the checkout. Broad host gates are not run; the full tool-devsync test target remains unverified after its bounded timeout.
+
+## Bounded diagnostic extension — 2026-10-16
+
+Reviewed aggregate parent `7a13fd0033b9067f0b9cfb980139efb20c4bde56`; isolated development clone
+`/tmp/puni-f9-sol-20261016`. Executed lab candidate `9c5828e43879059ec5708df4a381d4fa5cdbb36c`,
+tree `859413db67d99a0d04a9826e4d29d37fc1901c18`, fresh served clone
+`/tmp/puni-f9-sol-fresh-20261016/puni-00`. No push, PR, shared deployment or canonical host gate.
+
+### Fresh checks
+
+- `BUN_TMPDIR=/tmp/puni-f9-sol-bun-tmp bun install --frozen-lockfile`: passed; 1573 installs
+  across 1447 packages, no changes. Initial default temporary-directory attempt failed EROFS;
+  the explicitly writable temporary directory succeeded.
+- `bun test tools/tool-devsync/src/k3s/forge-recovery-check.test.ts`: 18 pass, 0 fail,
+  33 assertions; `/tmp/puni-f9-sol-green-final.log`.
+- Separate `timeout 1800s env NX_DAEMON=false NX_ISOLATE_PLUGINS=false
+NX_NATIVE_COMMAND_RUNNER=false NX_TUI=false BUN_TMPDIR=/tmp/puni-f9-sol-bun-tmp
+bunx nx run tool-devsync:test --skip-nx-cache --outputStyle=stream`: exit 0,
+  **637 pass, 0 fail, 38 files, 813.73s**, Nx 13m34s;
+  `/tmp/puni-f9-sol-full-test.log`. This command began before the lab diagnostic corrections;
+  its later recovery suite explicitly ran and passed the captured API and deliberate SIGKILL
+  regressions against corrected production code. The final test-only method binding needed
+  by ESLint was applied after those cases loaded; the focused suite was rerun afterwards. The final first-source-memory evidence guard and its two tests were added after this full run; those pass in the focused suite and accept the real captured first-container samples. This full-run receipt is not attributed to an unexecuted final 639-case run.
+- Scoped Nx lint/typecheck/build plus six dependencies: passed, 16.1s;
+  `/tmp/puni-f9-sol-compile-final.log`. After the captured-fault fixtures were added, a repeat
+  exposed one unbound-method lint issue in the new test; fixed with `.bind(driver)`.
+  Final scoped Nx lint/typecheck/build passed on the final source (`/tmp/puni-f9-sol-compile-accepted.log`); direct ESLint and TypeScript build also passed; logs
+  `/tmp/puni-f9-sol-eslint-final.log`, `/tmp/puni-f9-sol-tsc-final.log`.
+- Scoped Prettier and Git whitespace checks passed. All OpenSpec validation passed:
+  **197 changes and 18 specs, 0 failed**; `/tmp/puni-f9-sol-openspec-all.log`.
+  Focused `forge-restart-state` validation also passed.
+
+### Watched production-path fault receipts
+
+Mutations ran isolated copies of the exact production coordinator/parser plus its consuming
+suite in `/tmp/puni-f9-sol-faults`; original and copied production sources were restored after
+all injections. The development and served checkouts were never mutated by these runs.
+
+| Check                        | Injected fault                                | Observed failure                                    |
+| ---------------------------- | --------------------------------------------- | --------------------------------------------------- |
+| Cold outcome retained        | Force cold pass after OOM/restart             | `preserves first OOM…` / cold restart tests; exit 1 |
+| Pod UID                      | Remove foreign UID refusal                    | First PID1 recovery assertion; exit 1               |
+| Container identity/count     | Remove replacement identity/count requirement | First PID1 recovery assertions; exit 1              |
+| Ingress negative             | Invert required checker exit status           | Missing-denial / MCP assertions; exit 1             |
+| Exact policy restoration     | Force restoration pass despite mismatch       | Restoration assertion; exit 1                       |
+| First-container OOM snapshot | Ignore current termination                    | Current OOM parser assertion; exit 1                |
+| Ingress attribution          | Remove preceding-positive requirement         | Failed positive cannot credit negative; exit 1      |
+| API edge denial              | Remove captured API failure from classifier   | Captured API denial assertion; exit 1               |
+| SIGKILL classification       | Treat all exit 137 as OOM                     | Deliberate Error/137 assertion; exit 1              |
+| First-source memory          | Remove source cgroup evidence refusal         | Platform-only and missing-peak assertions; exit 1   |
+
+Receipts: `/tmp/puni-f9-sol-fault-receipts.log`,
+`/tmp/puni-f9-sol-fault-extra-receipts.log`, `/tmp/puni-f9-sol-fault-memory-receipt.log`, per-fault `.stderr` files. The final evidence guard also accepts the actual immutable first-container sample file: `/tmp/puni-f9-sol-memory-real.log`.
+Initial mutation auditing found that the foreign-UID test only asserted any recovery failure,
+so a later timeout could mask the missing first-recovery guard. Changed it to assert failure
+of the first replacement; the removed-UID mutation then failed as required. The initial RED
+suite failed all 10 coordinator tests, the current-termination regression failed 1 of 13,
+SIGKILL classification failed 1 of 15, and captured API denial failed 1 of 16 before fixes.
+
+### One instrumented fresh-worktree lab
+
+Raw evidence is immutable at `/tmp/puni-f9-sol-live-20261016`: `report.json`, `events.json`,
+command stdout/stderr, raw Pod/policy responses, `node-memory-rss.log`, first and ingress-positive
+browser JSONL/ZIP files. Derived `identity-summary.json` and `memory-diagnosis.json` aid reading.
+
+Lab `f9diag1016`, app profile, origin `http://alpha.localhost:36719`.
+Preflight proved ~22GiB available memory, no existing resources for this lab, and only the
+unrelated BuildKit container `52a96e3da92e`. Docker access required approved escalation;
+there was no automatic approval denial. The sampler started at 21:29:28Z, before dev up.
+Pod UID stayed `56a8a230-9752-41c8-9158-7a9c238a7189` throughout.
+
+| Stage                                   | Observed outcome                                                                                                          |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| First cold container                    | **FAIL**: `a7848e…`, restarts 0, started by 21:29:52Z; OOMKilled before 21:29:59Z                                         |
+| Automatic replacement                   | Ready 21:30:06Z, `c4d983…`, restarts 1; does not erase cold failure                                                       |
+| PID1 kill one                           | 21:30:06Z → ready 21:30:26Z, `783554…`, restarts 2, same Pod UID                                                          |
+| PID1 kill two                           | 21:30:26Z → ready 21:31:03Z, `a7a66c8ab4127725bf2484b74277708c4800c6964ddb9d29c17a9b0217a1b35e`, restarts 3, same Pod UID |
+| First full checker                      | Exit 0, completed 21:31:28Z; first browser trace retained; HMR document-retention passed                                  |
+| Distinct ingress positive               | Exit 0, completed 21:31:46Z                                                                                               |
+| Denied full checker                     | Exit 1 at API edge-proxy write, 21:31:48Z, after index passed                                                             |
+| Exact saved policy restoration/readback | Passed 21:31:48Z                                                                                                          |
+| Restored full positive                  | **FAIL**, exit 1 at index.html, 21:31:48Z; cause unknown                                                                  |
+| Owned cleanup                           | Passed 21:32:26Z; namespace/Leases/lab-labelled resources and lab state absent                                            |
+
+The original lab driver's narrow classifier omitted the API edge route and reported its
+negative as failed. Preserve that original verdict: the captured denial is valid ingress
+failure evidence after the distinct full positive, and the corrected classifier now has a
+RED/GREEN regression. The immediate restored checker remains failed. Exact API policy readback
+does not certify dataplane convergence. No bounded convergence probe or extra lab was run;
+network-policy propagation and tier restart timing are unproven hypotheses.
+
+The executed candidate also labeled Error/137 from deliberate PID1 kills as `oom` in later
+observations. Raw Pod terminations and cgroup facts distinguish them. The corrected parser
+uses `reason: OOMKilled`; its SIGKILL regression is watched. Initial cold OOM classification
+was valid independently: Kubernetes reported OOMKilled and the pod cgroup recorded
+`memory.peak=2147483648`, `max=217`, `oom=1`, `oom_kill=8`, `oom_group_kill=1`.
+The largest sampled first-container allocation was `memory.current=2026127360` and
+`memory.peak=2026405888` shortly before termination; the persistent Pod cgroup retained the
+exact 2Gi peak after that container disappeared. A `MainThread` process had 1,042,280KiB RSS;
+three Bun processes had 290,912 / 297,224 / 324,160KiB RSS in that sample. RSS includes shared
+pages and these reads are sequential, so they must not be summed as an allocation proof.
+The first container log starts all four Nx serve tasks and reports Vite ready. Cgroup memory
+exhaustion is proven; precise allocation/command attribution remains unknown because this
+sampler captured process status, not child command lines or allocator stacks.
+
+Image digest stayed
+`sha256:489266ae593e1099a4abc28928f353175727648e53199b97fe142678038f5f4d`;
+2Gi limit, 768Mi/250m requests, exact original three mounts and Restricted security remained.
+No runtime limit, startup behavior, production checker or worktree Nx ownership was repaired.
+The global kubeconfig digest remained
+`026ef3ce3b62233d2f908e061e935374543810ca2ed0e0d0185db9702775721a`.
+Docker after cleanup again contained only the original BuildKit container. Source trees
+remained tracked-clean; no shared Docker prune or cleanup was used.
+
+Overall F9 acceptance remains **failed**, independently for cold startup and restored positive.
+No canonical h2puni gate, hosted CI, secrets/migration gate, complete repository gate,
+production deployment, VM or full platform/fleet certification is claimed.

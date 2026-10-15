@@ -44,10 +44,8 @@ export function observePod(value: unknown): PodObservation | null {
     container: readText(source['containerID']),
     restarts: readCount(source['restartCount']),
     ready: source['ready'],
-    // Proof: current first-container OOM snapshot fails the parser regression when ignored.
-    oom: terminated.some(
-      (termination) => termination['reason'] === 'OOMKilled' || termination['exitCode'] === 137,
-    ),
+    // Proof: ignoring current OOM fails its snapshot test; treating Error/137 as OOM fails the deliberate SIGKILL test.
+    oom: terminated.some((termination) => termination['reason'] === 'OOMKilled'),
   };
 }
 
@@ -97,6 +95,7 @@ export async function runRecoveryLab(arguments_: readonly string[]): Promise<voi
     await writeFile(join(evidence, 'events.json'), JSON.stringify(events, null, 2));
   };
   let sequence = 0;
+  let firstContainer: PodObservation | undefined;
   const terminations = new Set<string>();
   const invoke = async (command: readonly string[], name: string, timeout = 60_000) => {
     const logPath = join(evidence, `${name}-${String(sequence++)}.log`);
@@ -195,6 +194,7 @@ export async function runRecoveryLab(arguments_: readonly string[]): Promise<voi
       if (raw.trim() === '') return null;
       const observed = observePod(JSON.parse(raw));
       await event('pod-observation', observed);
+      if (observed !== null && firstContainer === undefined) firstContainer = observed;
       if (observed?.oom === true && !terminations.has(observed.container)) {
         terminations.add(observed.container);
         await invoke(kube('-n', namespace, 'logs', podName, '--previous'), 'cold-previous-logs');
@@ -302,14 +302,9 @@ export async function runRecoveryLab(arguments_: readonly string[]): Promise<voi
           await requireCommand(['docker', 'exec', node, 'touch', stop], 'sampler-stop');
           const code = await sampler.exited;
           const samples = await readFile(join(evidence, 'node-memory-rss.log'), 'utf8');
-          if (
-            !samples.includes('memory.current') ||
-            !samples.includes('memory.peak') ||
-            !samples.includes('memory.events') ||
-            !samples.includes('VmRSS:')
-          ) {
-            throw new Error('required node cgroup memory/RSS samples absent');
-          }
+          if (firstContainer === undefined)
+            throw new Error('first source container identity absent');
+          requireMemoryEvidence(samples, firstContainer);
           if (code !== 0) throw new Error(`memory sampler exited ${String(code)}`);
         }
       });
@@ -455,3 +450,22 @@ export async function runRecoveryLab(arguments_: readonly string[]): Promise<voi
 }
 
 if (import.meta.main) await runRecoveryLab(process.argv.slice(2));
+
+/** Refuses unrelated platform samples as evidence about the first observed forge container. */
+export function requireMemoryEvidence(samples: string, pod: PodObservation): void {
+  const source = samples
+    .split('/sys/fs/cgroup/')
+    .filter((sample) =>
+      sample.split('\n')[0]?.includes(`pod${pod.uid}/${pod.container.slice(13)}`),
+    );
+  // Proof: platform-only and missing-peak samples fail their first-source evidence tests.
+  if (
+    !source.some((sample) =>
+      ['memory.current', 'memory.peak', 'memory.events', 'VmRSS:'].every((metric) =>
+        sample.includes(metric),
+      ),
+    )
+  ) {
+    throw new Error('first source container memory/RSS evidence absent');
+  }
+}

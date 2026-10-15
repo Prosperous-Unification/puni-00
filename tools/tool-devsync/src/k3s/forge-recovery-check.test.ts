@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 
 import { type PodObservation, type RecoveryDriver, rehearseRecovery } from './forge-recovery-check';
-import { observePod } from './forge-recovery-lab';
+import { observePod, requireMemoryEvidence } from './forge-recovery-lab';
 
 const initial: PodObservation = {
   uid: 'owned-pod',
@@ -186,4 +186,61 @@ test('does not credit ingress negative when preceding positive checker failed', 
     );
   const report = await rehearseRecovery(driver, 50);
   expect(report.ingressNegative).toBe('fail');
+});
+
+test('does not label a deliberate SIGKILL exit 137 as an OOM', () => {
+  expect(
+    observePod({
+      metadata: { uid: 'owned' },
+      status: {
+        containerStatuses: [
+          {
+            name: 'source',
+            containerID: 'containerd://replacement',
+            ready: true,
+            restartCount: 2,
+            state: { running: {} },
+            lastState: { terminated: { reason: 'Error', exitCode: 137 } },
+          },
+        ],
+      },
+    })?.oom,
+  ).toBe(false);
+});
+
+test('accepts captured API edge-proxy denial after an immediately preceding full positive', async () => {
+  const { driver, checks } = fixture();
+  const runCheck = driver.check.bind(driver);
+  driver.check = (phase) =>
+    phase === 'ingress-denied'
+      ? Promise.resolve({
+          exitCode: 1,
+          output:
+            'ok: web serves index.html\nerror: CHECK FAILED: API through the edge proxy writes as the local-auth identity',
+        })
+      : runCheck(phase);
+  const report = await rehearseRecovery(driver, 50);
+  expect(report.ingressNegative).toBe('pass');
+  expect(report.policyRestored).toBe('pass');
+  expect(checks).toContain('restored');
+});
+
+test('refuses platform-only memory samples as first forge-container evidence', () => {
+  expect(() => {
+    requireMemoryEvidence(
+      '/sys/fs/cgroup/kubepods/platform\nmemory.current\n1\nmemory.peak\n2\nmemory.events\noom 0\nVmRSS: 1 kB',
+      initial,
+    );
+  }).toThrow('first source container memory/RSS evidence absent');
+});
+
+test('requires memory current, peak, events and RSS in the first source cgroup', () => {
+  const sample =
+    '/sys/fs/cgroup/kubepods/podowned-pod/first\nmemory.current\n1\nmemory.peak\n2\nmemory.events\noom 0\nVmRSS: 1 kB';
+  expect(() => {
+    requireMemoryEvidence(sample, initial);
+  }).not.toThrow();
+  expect(() => {
+    requireMemoryEvidence(sample.replace('memory.peak', 'omitted'), initial);
+  }).toThrow();
 });
