@@ -68,3 +68,16 @@ Exact-head review of `a6531e6db7064645ce4bebf770864325ca886d71` identified that 
 - Pinned OpenSpec validation: exit 0, valid true, no issues. Scoped Prettier check: exit 0.
 - All P2 RED/GREEN/mutation/restoration and final checks ran sequentially. Initial MemAvailable was 20,610 MiB, swap use zero; no memory pressure was observed. No full gate, browser, build or survey was run.
 - Prior normal commit hooks succeeded with Tool Wiki inactive/uncertified (external activation root absent) and the module-boundary rule unavailable. These remain verification limits, without a trusted-admission claim.
+
+## Hosted CLI help regression repair (2026-10-16)
+
+Base: PR #538 head `d3ca2fa6becb10b224af4f9346118ad30a3cec95`. Hosted workspace job `116848745678` in run `38862719235` exposed the stale two-command help expectation. The existing admission spec requires `admit-progress`; the production registry already lists it first. Only the expected list and its adjacent proof comment changed; command behavior is unchanged.
+
+- Reproduction: `bun test --preload ./tools/test/scratch/preload.ts ./apps/twilight-structure/twilight-navigator/cli/src/cli.test.ts --test-name-pattern 'help lists exactly'` exited 1: `0 pass`, `9 filtered out`, `1 fail`, `3 expect() calls`; the diff showed `+ "admit-progress"` before the two historical commands.
+- Updated expectation: the same focused command exited 0: `1 pass`, `9 filtered out`, `0 fail`, `7 expect() calls`.
+- R5 injected fault: removed only `'admit-progress': ADMIT_PROGRESS_FLAGS` from the production `COMMAND_FLAGS` registry, retaining its dispatcher. The same help test exited 1: `0 pass`, `9 filtered out`, `1 fail`, `3 expect() calls`, with `- "admit-progress"`, `Expected - 1`, `Received + 0`. Log: `/tmp/wbs08025-help-registry-omission.log`. The mutation runner restored the original source in `finally`; the final diff contains no production changes.
+- Restored regression: `bun test --preload ./tools/test/scratch/preload.ts ./apps/twilight-structure/twilight-navigator/cli/src/cli.test.ts --timeout=30000` exited 0: `10 pass`, `0 fail`, `79 expect() calls`, `3.93s`.
+- Scoped typecheck: `bun /home/df/wd/puni/puni-00/node_modules/.bin/tsc --build --force apps/twilight-structure/twilight-navigator/cli/tsconfig.json` exited 0. An initial attempt using `node_modules/typescript/bin/tsc` failed because this workspace provides the compiler under `@typescript/native`; no dependency installation was needed.
+- Scoped formatting: `bun /home/df/wd/puni/puni-00/node_modules/.bin/prettier --check apps/twilight-structure/twilight-navigator/cli/src/cli.test.ts openspec/changes/admit-progress-against-selected-reference/verify.md` exited 0 with `All matched files use Prettier code style!`. `git diff --check` exited 0.
+
+Checks ran sequentially within the requested RAM constraint. Full Nx, browser, Burokrat and h2puni gates remain unrun for this repair. This evidence supports only the CLI help regression repair and retains the local caller-selected reference scope; it grants no live authority.
