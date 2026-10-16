@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/forge-http-observation.test.ts:
+309 |     if (origin === undefined || failure === undefined) throw new Error('fixture case missing');
+310 |     const checker = await runFailedChecker(origin);
+311 |     expect(checker.exitCode).not.toBe(0);
+312 |     expect(checker.output).toContain(`"failure":"${failure}"`);
+313 |     const verdict = await judgeDeniedChecker(checker);
+314 |     expect(verdict.ingressNegative).toBe('fail');
+                                          ^
+error: expect(received).toBe(expected)
+
+Expected: "fail"
+Received: "pass"
+
+      at <anonymous> (/tmp/f9-diagnostic-sol-oct16/tools/tool-devsync/src/k3s/forge-http-observation.test.ts:314:37)
+(fail) production checker transport deadline and body-limit failures never earn ingress credit [888.34ms]
+
+ 0 pass
+ 16 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [935.00ms]
