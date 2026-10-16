@@ -1,0 +1,5 @@
+{
+  "encoding": "utf-8",
+  "sha256": "2accaf82ec425538bfafa22bff2f477583b796ef5224f69c34243b86f0f83f5b",
+  "combinedOutput": "bun test v1.4.2 (744846f84)\n\ntools/tool-devsync/feasibility/source-memory-relay/relay.test.ts:\n90 | \n91 | \n92 | test('cleanup preserves a foreign replacement at its private socket path', async () => {\n93 |   const observed = await observe('replace-private');\n94 |   expect(observed.exit).not.toBe(0);\n95 |   expect(observed.foreignPreserved).toBe(true);\n                                         ^\nerror: expect(received).toBe(expected)\n\nExpected: true\nReceived: false\n\n      at <anonymous> (/tmp/f9-native-relay-feasibility-sol/tools/tool-devsync/feasibility/source-memory-relay/relay.test.ts:95:37)\n(fail) cleanup preserves a foreign replacement at its private socket path [1613.47ms]\n\n 0 pass\n 8 filtered out\n 1 fail\n 4 expect() calls\nRan 1 test across 1 file. [1.75s]\n"
+}

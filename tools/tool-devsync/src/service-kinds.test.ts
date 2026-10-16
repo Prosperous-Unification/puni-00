@@ -237,6 +237,8 @@ test('every backend service file with no kind suffix is classified exactly once'
   // with their exact paths before the policy was repaired (2026-10-07).
   // Proof: omitting optimization-observation.ts on 6k.d failed here with that
   // exact candidate path; adding its feature entry restored this inventory.
+  // Proof (2026-10-16): wave11 CI and the focused inventory test named omitted
+  // command-fields.ts and compensating-command.ts before their support entries were restored.
   expect(classified).toEqual([...(await listServiceCandidates(WORKSPACE))]);
 });
 
