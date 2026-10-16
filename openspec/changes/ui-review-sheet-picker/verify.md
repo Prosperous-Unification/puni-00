@@ -90,3 +90,54 @@ Commit `89b1b62e` records the following observed failures on `102a2e098` on
 - OpenSpec validation is **unavailable locally**: the cached 1.12.0 CLI has no dependency tree. Direct Bun execution tried its read-only auto-install cache and exited `EROFS`; `bun --no-install` identified missing `commander`, and supplying the workspace dependency path then identified missing `diff`. No dependency installation was attempted after the host OOM.
 - No local unit/component suite, browser suite, mutation run, lint, typecheck, build, full Nx gate or h2puni gate ran for this candidate. Hosted CI must verify those checks; the adapted mouse paint probe especially needs a fresh positive and a negative with the card layer restored to 20.
 - This local review candidate has not been pushed, merged, archived or deployed. It requires architect review before publication.
+
+### Hosted exact-source mouse paint proof, 2026-10-16
+
+Source: `15202bdf5c2c6cb26b7e1dd70dd5d23c7eda2047`; tree:
+`8adc72f3b706a4703f9ad956b2a428d68fef266c`. This source corrects the mouse
+fixture to search the unassigned `seeded.tags[2]` consistently. The seed assigns
+the first two tags to row 010, and its picker excludes assigned entries.
+
+[Hosted CI run 38859293390](https://github.com/Prosperous-Unification/puni-00/actions/runs/38859293390)
+passed all four browser shards and the `pixels` aggregate. Shard 3 artifact
+`12028529973` (`wbs-table-screenshot-3-1`) records the exact Chromium test
+`390x844 reference sheets with a mouse › an option fact card is painted above its reference sheet`
+at `reference-cells.spec.ts:703`: passed, retry 0, no errors, 4.787s.
+
+[Isolated proof run 38863950723](https://github.com/Prosperous-Unification/puni-00/actions/runs/38863950723)
+passed using proof workflow commit `c73a65bb42414432c0837631bb48c76bbed41505`.
+Its checkout pins the source SHA above, grants only `contents: read`, and does
+not persist checkout credentials. Each phase invokes the same production test
+with the production Playwright config, one Chromium worker and `--retries=0`:
+
+```sh
+bunx playwright test --config apps/wbs/fe-01/playwright.config.ts reference-cells.spec.ts --project=chromium --grep 'an option fact card is painted above its reference sheet$' --workers=1 --retries=0
+```
+
+| Phase    | Named JUnit outcome | Exit | Duration |
+| -------- | ------------------- | ---- | -------- |
+| Baseline | 1 passed, 0 failed  | 0    | 5.285s   |
+| Fault    | 0 passed, 1 failed  | 1    | 5.614s   |
+| Restored | 1 passed, 0 failed  | 0    | 5.409s   |
+
+The sole injected source change in `hover-card.tsx` was
+`zIndex: portalled ? 'var(--layer-card)' : 20` → `zIndex: 20`. The fault failed
+the paint assertion at `reference-cells.spec.ts:731`: `Expected: true`,
+`Received: false`, with `the fact card is painted under <div role="dialog" …`.
+The diagnostic's 80-character bound cuts the covering element's final
+attribute at `data-modal-surface="botto`; the checker requires the named paint
+failure, modal-surface attribute and expected/received values. The first proof
+run `38863422208` observed this same negative but rejected its truncated
+diagnostic; the corrected run above completed all three phases.
+
+[Receipt artifact 12030645931](https://github.com/Prosperous-Unification/puni-00/actions/runs/38863950723/artifacts/12030645931)
+(`ui536-paint-proof-38863950723-1`) contains per-phase logs, JUnit, HTML reports,
+the negative screenshot and trace, the one-line fault diff, and source/restored
+SHA and tree receipts. The restored SHA and tree match the source above;
+tracked diffs were empty before injection and after restoration. Runner setup
+did not dirty tracked source.
+
+This hosted proof closes the mouse paint evidence gap above. No local browser,
+Nx or full gate ran for this documentation update. The source CI workspace
+gate was still running when this receipt was recorded; aggregate gates remain
+required before merge. No merge, archive or deploy is recorded here.
