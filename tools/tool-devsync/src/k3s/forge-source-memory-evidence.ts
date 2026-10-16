@@ -33,7 +33,9 @@ export function validateSourceMemory(
   first: PodObservation,
   source: SourceBinding,
 ): SourceMemoryEvidence {
-  // Proof: source-binding guard removal fails foreign/replacement/warm container and malformed binding tests.
+  // Proof: source-binding guard removal RETURNS EVIDENCE for co-mutated malformed binding/expected
+  // identity negatives. Init shape is redundant with complete-process validation: removing BOTH
+  // guards RETURNS EVIDENCE for co-mutated malformed init enforcement-path negatives.
   if (
     source.uid.length === 0 ||
     source.uid !== first.uid ||

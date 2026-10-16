@@ -63,9 +63,59 @@ for (const [label, changed] of [
   ['invalid inode', { inode: 'bad' }],
 ] as const) {
   test(`refuses binding ${label}`, () => {
-    expect(() => requireMemoryEvidence([sample], first, { ...binding, ...changed })).toThrow(
-      'source binding',
-    );
+    expect(() => requireMemoryEvidence([sample], first, { ...binding, ...changed })).toThrow();
+  });
+}
+
+function observeValidation(
+  samples: readonly CgroupObservation[],
+  expected: PodObservation,
+  source: SourceBinding,
+) {
+  try {
+    return { rejected: false, evidence: requireMemoryEvidence(samples, expected, source) };
+  } catch {
+    return { rejected: true };
+  }
+}
+
+for (const [label, changed] of [
+  ['root cgroup', { cgroup: '/' }],
+  ['dot cgroup', { cgroup: '/kubepods/../source' }],
+  ['relative cgroup', { cgroup: 'kubepods/source' }],
+  ['empty segment cgroup', { cgroup: '/kubepods//source' }],
+  ['invalid device', { device: '' }],
+  ['invalid inode', { inode: 'bad' }],
+] as const) {
+  test(`refuses co-mutated malformed binding ${label}`, () => {
+    expect(
+      observeValidation([{ ...sample, ...changed }], first, { ...binding, ...changed }),
+    ).toEqual({ rejected: true });
+  });
+}
+
+for (const changed of [
+  { uid: '' },
+  { container: 'containerd://aaaa' },
+  { container: `docker://${'a'.repeat(64)}` },
+]) {
+  test(`refuses co-mutated malformed expected identity ${JSON.stringify(changed)}`, () => {
+    expect(
+      observeValidation([sample], { ...first, ...changed }, { ...binding, ...changed }),
+    ).toEqual({ rejected: true });
+  });
+}
+
+for (const init of [
+  { pid: 0, starttime: '1234' },
+  { pid: Number.MAX_SAFE_INTEGER + 1, starttime: '1234' },
+  { pid: 42, starttime: 'bad' },
+]) {
+  test(`refuses co-mutated malformed init across enforcement path ${JSON.stringify(init)}`, () => {
+    const processes = sample.processes.map((process) => ({ ...process, ...init }));
+    expect(observeValidation([{ ...sample, processes }], first, { ...binding, init })).toEqual({
+      rejected: true,
+    });
   });
 }
 

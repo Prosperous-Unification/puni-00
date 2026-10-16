@@ -1,0 +1,558 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:
+88 |   ['invalid inode', { inode: 'bad' }],
+89 | ] as const) {
+90 |   test(`refuses co-mutated malformed binding ${label}`, () => {
+91 |     expect(
+92 |       observeValidation([{ ...sample, ...changed }], first, { ...binding, ...changed }),
+93 |     ).toEqual({ rejected: true });
+           ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "rejected": true,
++   "evidence": {
++     "samples": [
++       {
++         "cgroup": "/",
++         "device": "29",
++         "elapsedMs": 5,
++         "inode": "200",
++         "memory": {
++           "current": "2000",
++           "events": {
++             "oom": "1",
++             "oom_kill": "1",
++           },
++           "max": "2147483648",
++           "peak": "3000",
++         },
++         "processes": [
++           {
++             "executable": "bun",
++             "pid": 42,
++             "ppid": 1,
++             "role": "unknown",
++             "rssKiB": 2,
++             "starttime": "1234",
++             "threads": 1,
++           },
++         ],
++         "sampledAt": "2026-10-16T00:00:00.000Z",
++       },
++     ],
++     "source": {
++       "cgroup": "/",
++       "container": "containerd://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
++       "device": "29",
++       "init": {
++         "pid": 42,
++         "starttime": "1234",
++       },
++       "inode": "200",
++       "uid": "owned-pod",
++     },
++   },
++   "rejected": false,
+  }
+
+- Expected  - 1
++ Received  + 43
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:93:7)
+(fail) refuses co-mutated malformed binding root cgroup [4.57ms]
+88 |   ['invalid inode', { inode: 'bad' }],
+89 | ] as const) {
+90 |   test(`refuses co-mutated malformed binding ${label}`, () => {
+91 |     expect(
+92 |       observeValidation([{ ...sample, ...changed }], first, { ...binding, ...changed }),
+93 |     ).toEqual({ rejected: true });
+           ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "rejected": true,
++   "evidence": {
++     "samples": [
++       {
++         "cgroup": "/kubepods/../source",
++         "device": "29",
++         "elapsedMs": 5,
++         "inode": "200",
++         "memory": {
++           "current": "2000",
++           "events": {
++             "oom": "1",
++             "oom_kill": "1",
++           },
++           "max": "2147483648",
++           "peak": "3000",
++         },
++         "processes": [
++           {
++             "executable": "bun",
++             "pid": 42,
++             "ppid": 1,
++             "role": "unknown",
++             "rssKiB": 2,
++             "starttime": "1234",
++             "threads": 1,
++           },
++         ],
++         "sampledAt": "2026-10-16T00:00:00.000Z",
++       },
++     ],
++     "source": {
++       "cgroup": "/kubepods/../source",
++       "container": "containerd://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
++       "device": "29",
++       "init": {
++         "pid": 42,
++         "starttime": "1234",
++       },
++       "inode": "200",
++       "uid": "owned-pod",
++     },
++   },
++   "rejected": false,
+  }
+
+- Expected  - 1
++ Received  + 43
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:93:7)
+(fail) refuses co-mutated malformed binding dot cgroup [0.35ms]
+88 |   ['invalid inode', { inode: 'bad' }],
+89 | ] as const) {
+90 |   test(`refuses co-mutated malformed binding ${label}`, () => {
+91 |     expect(
+92 |       observeValidation([{ ...sample, ...changed }], first, { ...binding, ...changed }),
+93 |     ).toEqual({ rejected: true });
+           ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "rejected": true,
++   "evidence": {
++     "samples": [
++       {
++         "cgroup": "kubepods/source",
++         "device": "29",
++         "elapsedMs": 5,
++         "inode": "200",
++         "memory": {
++           "current": "2000",
++           "events": {
++             "oom": "1",
++             "oom_kill": "1",
++           },
++           "max": "2147483648",
++           "peak": "3000",
++         },
++         "processes": [
++           {
++             "executable": "bun",
++             "pid": 42,
++             "ppid": 1,
++             "role": "unknown",
++             "rssKiB": 2,
++             "starttime": "1234",
++             "threads": 1,
++           },
++         ],
++         "sampledAt": "2026-10-16T00:00:00.000Z",
++       },
++     ],
++     "source": {
++       "cgroup": "kubepods/source",
++       "container": "containerd://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
++       "device": "29",
++       "init": {
++         "pid": 42,
++         "starttime": "1234",
++       },
++       "inode": "200",
++       "uid": "owned-pod",
++     },
++   },
++   "rejected": false,
+  }
+
+- Expected  - 1
++ Received  + 43
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:93:7)
+(fail) refuses co-mutated malformed binding relative cgroup [0.14ms]
+88 |   ['invalid inode', { inode: 'bad' }],
+89 | ] as const) {
+90 |   test(`refuses co-mutated malformed binding ${label}`, () => {
+91 |     expect(
+92 |       observeValidation([{ ...sample, ...changed }], first, { ...binding, ...changed }),
+93 |     ).toEqual({ rejected: true });
+           ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "rejected": true,
++   "evidence": {
++     "samples": [
++       {
++         "cgroup": "/kubepods//source",
++         "device": "29",
++         "elapsedMs": 5,
++         "inode": "200",
++         "memory": {
++           "current": "2000",
++           "events": {
++             "oom": "1",
++             "oom_kill": "1",
++           },
++           "max": "2147483648",
++           "peak": "3000",
++         },
++         "processes": [
++           {
++             "executable": "bun",
++             "pid": 42,
++             "ppid": 1,
++             "role": "unknown",
++             "rssKiB": 2,
++             "starttime": "1234",
++             "threads": 1,
++           },
++         ],
++         "sampledAt": "2026-10-16T00:00:00.000Z",
++       },
++     ],
++     "source": {
++       "cgroup": "/kubepods//source",
++       "container": "containerd://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
++       "device": "29",
++       "init": {
++         "pid": 42,
++         "starttime": "1234",
++       },
++       "inode": "200",
++       "uid": "owned-pod",
++     },
++   },
++   "rejected": false,
+  }
+
+- Expected  - 1
++ Received  + 43
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:93:7)
+(fail) refuses co-mutated malformed binding empty segment cgroup [0.10ms]
+88 |   ['invalid inode', { inode: 'bad' }],
+89 | ] as const) {
+90 |   test(`refuses co-mutated malformed binding ${label}`, () => {
+91 |     expect(
+92 |       observeValidation([{ ...sample, ...changed }], first, { ...binding, ...changed }),
+93 |     ).toEqual({ rejected: true });
+           ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "rejected": true,
++   "evidence": {
++     "samples": [
++       {
++         "cgroup": "/kubepods/podowned-pod/source",
++         "device": "",
++         "elapsedMs": 5,
++         "inode": "200",
++         "memory": {
++           "current": "2000",
++           "events": {
++             "oom": "1",
++             "oom_kill": "1",
++           },
++           "max": "2147483648",
++           "peak": "3000",
++         },
++         "processes": [
++           {
++             "executable": "bun",
++             "pid": 42,
++             "ppid": 1,
++             "role": "unknown",
++             "rssKiB": 2,
++             "starttime": "1234",
++             "threads": 1,
++           },
++         ],
++         "sampledAt": "2026-10-16T00:00:00.000Z",
++       },
++     ],
++     "source": {
++       "cgroup": "/kubepods/podowned-pod/source",
++       "container": "containerd://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
++       "device": "",
++       "init": {
++         "pid": 42,
++         "starttime": "1234",
++       },
++       "inode": "200",
++       "uid": "owned-pod",
++     },
++   },
++   "rejected": false,
+  }
+
+- Expected  - 1
++ Received  + 43
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:93:7)
+(fail) refuses co-mutated malformed binding invalid device [0.10ms]
+88 |   ['invalid inode', { inode: 'bad' }],
+89 | ] as const) {
+90 |   test(`refuses co-mutated malformed binding ${label}`, () => {
+91 |     expect(
+92 |       observeValidation([{ ...sample, ...changed }], first, { ...binding, ...changed }),
+93 |     ).toEqual({ rejected: true });
+           ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "rejected": true,
++   "evidence": {
++     "samples": [
++       {
++         "cgroup": "/kubepods/podowned-pod/source",
++         "device": "29",
++         "elapsedMs": 5,
++         "inode": "bad",
++         "memory": {
++           "current": "2000",
++           "events": {
++             "oom": "1",
++             "oom_kill": "1",
++           },
++           "max": "2147483648",
++           "peak": "3000",
++         },
++         "processes": [
++           {
++             "executable": "bun",
++             "pid": 42,
++             "ppid": 1,
++             "role": "unknown",
++             "rssKiB": 2,
++             "starttime": "1234",
++             "threads": 1,
++           },
++         ],
++         "sampledAt": "2026-10-16T00:00:00.000Z",
++       },
++     ],
++     "source": {
++       "cgroup": "/kubepods/podowned-pod/source",
++       "container": "containerd://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
++       "device": "29",
++       "init": {
++         "pid": 42,
++         "starttime": "1234",
++       },
++       "inode": "bad",
++       "uid": "owned-pod",
++     },
++   },
++   "rejected": false,
+  }
+
+- Expected  - 1
++ Received  + 43
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:93:7)
+(fail) refuses co-mutated malformed binding invalid inode [0.10ms]
+100 |   { container: `docker://${'a'.repeat(64)}` },
+101 | ]) {
+102 |   test(`refuses co-mutated malformed expected identity ${JSON.stringify(changed)}`, () => {
+103 |     expect(
+104 |       observeValidation([sample], { ...first, ...changed }, { ...binding, ...changed }),
+105 |     ).toEqual({ rejected: true });
+            ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "rejected": true,
++   "evidence": {
++     "samples": [
++       {
++         "cgroup": "/kubepods/podowned-pod/source",
++         "device": "29",
++         "elapsedMs": 5,
++         "inode": "200",
++         "memory": {
++           "current": "2000",
++           "events": {
++             "oom": "1",
++             "oom_kill": "1",
++           },
++           "max": "2147483648",
++           "peak": "3000",
++         },
++         "processes": [
++           {
++             "executable": "bun",
++             "pid": 42,
++             "ppid": 1,
++             "role": "unknown",
++             "rssKiB": 2,
++             "starttime": "1234",
++             "threads": 1,
++           },
++         ],
++         "sampledAt": "2026-10-16T00:00:00.000Z",
++       },
++     ],
++     "source": {
++       "cgroup": "/kubepods/podowned-pod/source",
++       "container": "containerd://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
++       "device": "29",
++       "init": {
++         "pid": 42,
++         "starttime": "1234",
++       },
++       "inode": "200",
++       "uid": "",
++     },
++   },
++   "rejected": false,
+  }
+
+- Expected  - 1
++ Received  + 43
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:105:7)
+(fail) refuses co-mutated malformed expected identity {"uid":""} [0.26ms]
+100 |   { container: `docker://${'a'.repeat(64)}` },
+101 | ]) {
+102 |   test(`refuses co-mutated malformed expected identity ${JSON.stringify(changed)}`, () => {
+103 |     expect(
+104 |       observeValidation([sample], { ...first, ...changed }, { ...binding, ...changed }),
+105 |     ).toEqual({ rejected: true });
+            ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "rejected": true,
++   "evidence": {
++     "samples": [
++       {
++         "cgroup": "/kubepods/podowned-pod/source",
++         "device": "29",
++         "elapsedMs": 5,
++         "inode": "200",
++         "memory": {
++           "current": "2000",
++           "events": {
++             "oom": "1",
++             "oom_kill": "1",
++           },
++           "max": "2147483648",
++           "peak": "3000",
++         },
++         "processes": [
++           {
++             "executable": "bun",
++             "pid": 42,
++             "ppid": 1,
++             "role": "unknown",
++             "rssKiB": 2,
++             "starttime": "1234",
++             "threads": 1,
++           },
++         ],
++         "sampledAt": "2026-10-16T00:00:00.000Z",
++       },
++     ],
++     "source": {
++       "cgroup": "/kubepods/podowned-pod/source",
++       "container": "containerd://aaaa",
++       "device": "29",
++       "init": {
++         "pid": 42,
++         "starttime": "1234",
++       },
++       "inode": "200",
++       "uid": "owned-pod",
++     },
++   },
++   "rejected": false,
+  }
+
+- Expected  - 1
++ Received  + 43
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:105:7)
+(fail) refuses co-mutated malformed expected identity {"container":"containerd://aaaa"} [0.10ms]
+100 |   { container: `docker://${'a'.repeat(64)}` },
+101 | ]) {
+102 |   test(`refuses co-mutated malformed expected identity ${JSON.stringify(changed)}`, () => {
+103 |     expect(
+104 |       observeValidation([sample], { ...first, ...changed }, { ...binding, ...changed }),
+105 |     ).toEqual({ rejected: true });
+            ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "rejected": true,
++   "evidence": {
++     "samples": [
++       {
++         "cgroup": "/kubepods/podowned-pod/source",
++         "device": "29",
++         "elapsedMs": 5,
++         "inode": "200",
++         "memory": {
++           "current": "2000",
++           "events": {
++             "oom": "1",
++             "oom_kill": "1",
++           },
++           "max": "2147483648",
++           "peak": "3000",
++         },
++         "processes": [
++           {
++             "executable": "bun",
++             "pid": 42,
++             "ppid": 1,
++             "role": "unknown",
++             "rssKiB": 2,
++             "starttime": "1234",
++             "threads": 1,
++           },
++         ],
++         "sampledAt": "2026-10-16T00:00:00.000Z",
++       },
++     ],
++     "source": {
++       "cgroup": "/kubepods/podowned-pod/source",
++       "container": "docker://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
++       "device": "29",
++       "init": {
++         "pid": 42,
++         "starttime": "1234",
++       },
++       "inode": "200",
++       "uid": "owned-pod",
++     },
++   },
++   "rejected": false,
+  }
+
+- Expected  - 1
++ Received  + 43
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:105:7)
+(fail) refuses co-mutated malformed expected identity {"container":"docker://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"} [0.27ms]
+
+ 0 pass
+ 51 filtered out
+ 9 fail
+ 9 expect() calls
+Ran 9 tests across 1 file. [70.00ms]

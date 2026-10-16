@@ -1,0 +1,68 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:
+(pass) returns complete first-container evidence without readiness or OOM verdicts [0.83ms]
+(pass) refuses binding foreign Pod [0.07ms]
+(pass) refuses binding replacement container [0.01ms]
+(pass) refuses binding warm container
+(pass) refuses binding container prefix
+(pass) refuses binding empty Pod UID
+(pass) refuses binding invalid init PID
+(pass) refuses binding invalid init starttime
+(pass) refuses binding unsafe init PID [0.01ms]
+(pass) refuses binding root cgroup [0.02ms]
+(pass) refuses binding dot cgroup [0.01ms]
+(pass) refuses binding relative cgroup
+(pass) refuses binding invalid device
+(pass) refuses binding invalid inode
+(pass) refuses co-mutated malformed binding root cgroup [0.08ms]
+(pass) refuses co-mutated malformed binding dot cgroup
+(pass) refuses co-mutated malformed binding relative cgroup
+(pass) refuses co-mutated malformed binding empty segment cgroup
+(pass) refuses co-mutated malformed binding invalid device
+(pass) refuses co-mutated malformed binding invalid inode
+(pass) refuses co-mutated malformed expected identity {"uid":""} [0.02ms]
+(pass) refuses co-mutated malformed expected identity {"container":"containerd://aaaa"}
+(pass) refuses co-mutated malformed expected identity {"container":"docker://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+(pass) refuses co-mutated malformed init across enforcement path {"pid":0,"starttime":"1234"} [0.05ms]
+(pass) refuses co-mutated malformed init across enforcement path {"pid":9007199254740992,"starttime":"1234"}
+(pass) refuses co-mutated malformed init across enforcement path {"pid":42,"starttime":"bad"}
+(pass) refuses sample sibling cgroup [0.07ms]
+(pass) refuses sample prefix cgroup
+(pass) refuses sample device [0.03ms]
+(pass) refuses sample inode [0.18ms]
+(pass) refuses absent or reused init [] [0.09ms]
+(pass) refuses absent or reused init [{"pid":43,"starttime":"1234","ppid":1,"executable":"bun","role":"unknown","rssKiB":2,"threads":1}] [0.03ms]
+(pass) refuses absent or reused init [{"pid":42,"starttime":"5678","ppid":1,"executable":"bun","role":"unknown","rssKiB":2,"threads":1}]
+(pass) refuses invalid memory.max undefined [0.04ms]
+(pass) refuses invalid memory.max max
+(pass) refuses invalid memory.max
+(pass) refuses invalid memory.max -1 [0.01ms]
+(pass) refuses invalid memory.max 2Gi [0.01ms]
+(pass) refuses invalid memory.max 2147483649 [0.01ms]
+(pass) refuses invalid memory.max 02147483648 [0.02ms]
+(pass) refuses empty samples [0.05ms]
+(pass) refuses incomplete current [0.09ms]
+(pass) refuses incomplete peak [0.01ms]
+(pass) refuses incomplete missing oom [0.01ms]
+(pass) refuses incomplete events
+(pass) refuses incomplete event count [0.02ms]
+(pass) refuses incomplete RSS [0.01ms]
+(pass) refuses incomplete threads [0.02ms]
+(pass) refuses incomplete PPID [0.01ms]
+(pass) refuses incomplete PID [0.01ms]
+(pass) refuses incomplete starttime [0.02ms]
+(pass) refuses incomplete executable [0.01ms]
+(pass) refuses incomplete role [0.01ms]
+(pass) refuses incomplete duplicate PID [0.02ms]
+(pass) refuses incomplete event name [0.01ms]
+(pass) refuses incomplete timestamp
+(pass) refuses incomplete elapsed [0.01ms]
+(pass) refuses incomplete negative elapsed
+(pass) refuses an incomplete later sample instead of crediting one complete sample [0.08ms]
+(pass) omits credential argv and injected restored success from returned evidence [0.21ms]
+
+ 60 pass
+ 0 fail
+ 65 expect() calls
+Ran 60 tests across 1 file. [49.00ms]
