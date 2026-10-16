@@ -1,0 +1,193 @@
+{
+  "candidate": "4f098bfe2bf64343b8f503b5bdebd6e1a6fa34f4",
+  "tree": "d0b4d71f9ffa2ad8534eed6521165092f83b0882",
+  "installedPackage": "/tmp/burokrat-closure-exact-consumer/node_modules/twilight-burokrat/dist",
+  "packageManifest": {
+    "packageVersion": "0.1.0",
+    "schemaVersion": 1,
+    "sourceRevision": "1ae4142bd34d37fa15678fabeb8fc6b34242c14f",
+    "toolkitIdentity": "cfd378dd3831400215fe0818178a331fdccdb162d6cb1747598f73babf1e2b95"
+  },
+  "packageManifestSha256": "7e0fe3caf6c5d821d4e6a3dc96483c805837db40446c3ea63cc6112ab15aebaa",
+  "executableSha256": "cc7b935e2f204f0f3d89d71a960012760dcd974c4ee2b475f1729a4634d984ed",
+  "toolkitSha256": "cfd378dd3831400215fe0818178a331fdccdb162d6cb1747598f73babf1e2b95",
+  "policy": {
+    "path": "/tmp/infra-coverage-sol-raw/infra-diagnostic-policy.json",
+    "sha256": "17bf1c19d87a2fb0f2c5ae09065c8bc751fae12645f19599aab61106631a4cea",
+    "bytes": "{\n  \"schemaVersion\": 1,\n  \"policyId\": \"diagnostic.infra-coverage.2026-10-16\",\n  \"ruleModes\": [\n    {\n      \"ruleId\": \"F1\",\n      \"mode\": \"observe\"\n    },\n    {\n      \"ruleId\": \"F7\",\n      \"mode\": \"observe\"\n    },\n    {\n      \"ruleId\": \"INV-CLASSIFY\",\n      \"mode\": \"observe\"\n    },\n    {\n      \"ruleId\": \"K2\",\n      \"mode\": \"observe\"\n    },\n    {\n      \"ruleId\": \"K3\",\n      \"mode\": \"observe\"\n    },\n    {\n      \"ruleId\": \"K4\",\n      \"mode\": \"observe\"\n    },\n    {\n      \"ruleId\": \"K5\",\n      \"mode\": \"observe\"\n    },\n    {\n      \"ruleId\": \"K6\",\n      \"mode\": \"observe\"\n    },\n    {\n      \"ruleId\": \"MOD-DIRECT-ENTRIES\",\n      \"mode\": \"observe\"\n    },\n    {\n      \"ruleId\": \"MOD-INDEX\",\n      \"mode\": \"observe\"\n    },\n    {\n      \"ruleId\": \"MOD-LAYOUT\",\n      \"mode\": \"observe\"\n    },\n    {\n      \"ruleId\": \"PERF-THRESHOLD\",\n      \"mode\": \"observe\"\n    },\n    {\n      \"ruleId\": \"REL-EXTRACT\",\n      \"mode\": \"observe\"\n    },\n    {\n      \"ruleId\": \"SPEC-SCENARIOS\",\n      \"mode\": \"observe\"\n    }\n  ],\n  \"kindInventory\": {\n    \"path\": \"docs/code-organization/kinds.json\"\n  },\n  \"performance\": {\n    \"acceptedDeclarationSchema\": 1,\n    \"declarationPath\": \"apps/wbs/fe-01/playwright.performance.cases.json\",\n    \"config\": \"apps/wbs/fe-01/playwright.performance.config.ts\",\n    \"configDigest\": \"718a6078b785047f0f315fbb247ff724b261bae9f8ccad0a5eda16eba0f15ae4\",\n    \"project\": \"chromium\",\n    \"runnerVersion\": \"1.63.0\",\n    \"reviewedCases\": []\n  },\n  \"scenarios\": {\n    \"baseRevision\": \"53a87a60dd7a7da80ad929c44f36a9739e75e5bf\"\n  },\n  \"classificationPolicy\": {\n    \"schemaVersion\": 1,\n    \"policyId\": \"classification.puni-00.v1\",\n    \"selectorVersion\": 1,\n    \"contentClasses\": [\n      \"source\",\n      \"test\",\n      \"config\",\n      \"script\",\n      \"migration\",\n      \"fixture\",\n      \"generated\",\n      \"vendored\",\n      \"placeholder\",\n      \"document\",\n      \"openspec\"\n    ],\n    \"contentRules\": [\n      {\n        \"contentClass\": \"test\",\n        \"include\": [\n          {\n            \"kind\": \"suffix\",\n            \"value\": \".test.ts\"\n          },\n          {\n            \"kind\": \"suffix\",\n            \"value\": \".spec.ts\"\n          },\n          {\n            \"kind\": \"suffix\",\n            \"value\": \".test.tsx\"\n          },\n          {\n            \"kind\": \"suffix\",\n            \"value\": \".spec.tsx\"\n          },\n          {\n            \"kind\": \"suffix\",\n            \"value\": \".test.sh\"\n          },\n          {\n            \"kind\": \"segment\",\n            \"value\": \"e2e\"\n          },\n          {\n            \"kind\": \"segment\",\n            \"value\": \"test\"\n          },\n          {\n            \"kind\": \"segment\",\n            \"value\": \"tests\"\n          }\n        ],\n        \"exclude\": []\n      },\n      {\n        \"contentClass\": \"generated\",\n        \"include\": [\n          {\n            \"kind\": \"segment\",\n            \"value\": \"generated\"\n          }\n        ],\n        \"exclude\": []\n      },\n      {\n        \"contentClass\": \"vendored\",\n        \"include\": [\n          {\n            \"kind\": \"segment\",\n            \"value\": \"vendor\"\n          },\n          {\n            \"kind\": \"segment\",\n            \"value\": \"third-party\"\n          }\n        ],\n        \"exclude\": []\n      },\n      {\n        \"contentClass\": \"fixture\",\n        \"include\": [\n          {\n            \"kind\": \"segment\",\n            \"value\": \"fixtures\"\n          },\n          {\n            \"kind\": \"segment\",\n            \"value\": \"__fixtures__\"\n          }\n        ],\n        \"exclude\": []\n      },\n      {\n        \"contentClass\": \"migration\",\n        \"include\": [\n          {\n            \"kind\": \"segment\",\n            \"value\": \"migrations\"\n          },\n          {\n            \"kind\": \"segment\",\n            \"value\": \"drizzle\"\n          }\n        ],\n        \"exclude\": []\n      },\n      {\n        \"contentClass\": \"openspec\",\n        \"include\": [\n          {\n            \"kind\": \"prefix\",\n            \"value\": \"openspec\"\n          }\n        ],\n        \"exclude\": []\n      },\n      {\n        \"contentClass\": \"placeholder\",\n        \"include\": [\n          {\n            \"kind\": \"name\",\n            \"value\": \".gitkeep\"\n          },\n          {\n            \"kind\": \"name\",\n            \"value\": \".keep\"\n          }\n        ],\n        \"exclude\": []\n      },\n      {\n        \"contentClass\": \"script\",\n        \"include\": [\n          {\n            \"kind\": \"suffix\",\n            \"value\": \".sh\"\n          },\n          {\n            \"kind\": \"prefix\",\n            \"value\": \"bin\"\n          },\n          {\n            \"kind\": \"path\",\n            \"value\": \"ops/agent-trailer/prepare-commit-msg\"\n          },\n          {\n            \"kind\": \"path\",\n            \"value\": \"infra/ansible/roles/solver/files/puni-cri-peer\"\n          }\n        ],\n        \"exclude\": [\n          {\n            \"kind\": \"suffix\",\n            \"value\": \".test.sh\"\n          }\n        ]\n      },\n      {\n        \"contentClass\": \"config\",\n        \"include\": [\n          {\n            \"kind\": \"suffix\",\n            \"value\": \".json\"\n          },\n          {\n            \"kind\": \"suffix\",\n            \"value\": \".yaml\"\n          },\n          {\n            \"kind\": \"suffix\",\n            \"value\": \".yml\"\n          },\n          {\n            \"kind\": \"suffix\",\n            \"value\": \".toml\"\n          },\n          {\n            \"kind\": \"suffix\",\n            \"value\": \".ndjson\"\n          },\n          {\n            \"kind\": \"suffix\",\n            \"value\": \".config.ts\"\n          },\n          {\n            \"kind\": \"suffix\",\n            \"value\": \".lock\"\n          },\n          {\n            \"kind\": \"suffix\",\n            \"value\": \".example\"\n          },\n          {\n            \"kind\": \"suffix\",\n            \"value\": \".sops\"\n          },\n          {\n            \"kind\": \"suffix\",\n            \"value\": \".service\"\n          },\n          {\n            \"kind\": \"suffix\",\n            \"value\": \".caddy\"\n          },\n          {\n            \"kind\": \"suffix\",\n            \"value\": \".candidate\"\n          },\n          {\n            \"kind\": \"suffix\",\n            \"value\": \".bootstrap\"\n          },\n          {\n            \"kind\": \"suffix\",\n            \"value\": \".tmpl\"\n          },\n          {\n            \"kind\": \"suffix\",\n            \"value\": \".Dockerfile\"\n          },\n          {\n            \"kind\": \"name\",\n            \"value\": \"Dockerfile\"\n          },\n          {\n            \"kind\": \"name\",\n            \"value\": \"Caddyfile\"\n          },\n          {\n            \"kind\": \"name\",\n            \"value\": \".bun-version\"\n          },\n          {\n            \"kind\": \"name\",\n            \"value\": \".dockerignore\"\n          },\n          {\n            \"kind\": \"name\",\n            \"value\": \".editorconfig\"\n          },\n          {\n            \"kind\": \"name\",\n            \"value\": \".gitignore\"\n          },\n          {\n            \"kind\": \"name\",\n            \"value\": \".nxignore\"\n          },\n          {\n            \"kind\": \"name\",\n            \"value\": \".prettierignore\"\n          },\n          {\n            \"kind\": \"path\",\n            \"value\": \".agents/skills/.openspec-target\"\n          },\n          {\n            \"kind\": \"name\",\n            \"value\": \"Containerfile\"\n          },\n          {\n            \"kind\": \"suffix\",\n            \"value\": \".cfg\"\n          },\n          {\n            \"kind\": \"suffix\",\n            \"value\": \".j2\"\n          },\n          {\n            \"kind\": \"suffix\",\n            \"value\": \".hcl\"\n          },\n          {\n            \"kind\": \"suffix\",\n            \"value\": \".tf\"\n          }\n        ],\n        \"exclude\": [\n          {\n            \"kind\": \"segment\",\n            \"value\": \"fixtures\"\n          },\n          {\n            \"kind\": \"segment\",\n            \"value\": \"drizzle\"\n          },\n          {\n            \"kind\": \"segment\",\n            \"value\": \"migrations\"\n          },\n          {\n            \"kind\": \"prefix\",\n            \"value\": \"openspec\"\n          },\n          {\n            \"kind\": \"segment\",\n            \"value\": \"e2e\"\n          },\n          {\n            \"kind\": \"segment\",\n            \"value\": \"test\"\n          },\n          {\n            \"kind\": \"segment\",\n            \"value\": \"tests\"\n          },\n          {\n            \"kind\": \"prefix\",\n            \"value\": \"docs/review-evidence\"\n          },\n          {\n            \"kind\": \"prefix\",\n            \"value\": \"docs/experiment-evidence\"\n          }\n        ]\n      },\n      {\n        \"contentClass\": \"source\",\n        \"include\": [\n          {\n            \"kind\": \"suffix\",\n            \"value\": \".ts\"\n          },\n          {\n            \"kind\": \"suffix\",\n            \"value\": \".tsx\"\n          },\n          {\n            \"kind\": \"suffix\",\n            \"value\": \".js\"\n          },\n          {\n            \"kind\": \"suffix\",\n            \"value\": \".mjs\"\n          },\n          {\n            \"kind\": \"suffix\",\n            \"value\": \".py\"\n          },\n          {\n            \"kind\": \"suffix\",\n            \"value\": \".css\"\n          },\n          {\n            \"kind\": \"suffix\",\n            \"value\": \".html\"\n          },\n          {\n            \"kind\": \"suffix\",\n            \"value\": \".svg\"\n          }\n        ],\n        \"exclude\": [\n          {\n            \"kind\": \"suffix\",\n            \"value\": \".test.ts\"\n          },\n          {\n            \"kind\": \"suffix\",\n            \"value\": \".spec.ts\"\n          },\n          {\n            \"kind\": \"suffix\",\n            \"value\": \".test.tsx\"\n          },\n          {\n            \"kind\": \"suffix\",\n            \"value\": \".spec.tsx\"\n          },\n          {\n            \"kind\": \"suffix\",\n            \"value\": \".config.ts\"\n          },\n          {\n            \"kind\": \"segment\",\n            \"value\": \"e2e\"\n          },\n          {\n            \"kind\": \"segment\",\n            \"value\": \"test\"\n          },\n          {\n            \"kind\": \"segment\",\n            \"value\": \"tests\"\n          },\n          {\n            \"kind\": \"segment\",\n            \"value\": \"fixtures\"\n          },\n          {\n            \"kind\": \"segment\",\n            \"value\": \"generated\"\n          },\n          {\n            \"kind\": \"segment\",\n            \"value\": \"vendor\"\n          }\n        ]\n      },\n      {\n        \"contentClass\": \"document\",\n        \"include\": [\n          {\n            \"kind\": \"suffix\",\n            \"value\": \".md\"\n          },\n          {\n            \"kind\": \"suffix\",\n            \"value\": \".txt\"\n          },\n          {\n            \"kind\": \"name\",\n            \"value\": \"NOTICE\"\n          },\n          {\n            \"kind\": \"name\",\n            \"value\": \"LICENSE\"\n          }\n        ],\n        \"exclude\": [\n          {\n            \"kind\": \"prefix\",\n            \"value\": \"openspec\"\n          },\n          {\n            \"kind\": \"segment\",\n            \"value\": \"fixtures\"\n          }\n        ]\n      }\n    ],\n    \"evidenceRoots\": [\n      {\n        \"path\": \"docs/review-evidence\",\n        \"allowedRecordKinds\": [\n          \"review-receipt\",\n          \"opaque-transcript\"\n        ]\n      },\n      {\n        \"path\": \"docs/experiment-evidence\",\n        \"allowedRecordKinds\": [\n          \"benchmark-corpus\",\n          \"candidate-inventory\",\n          \"experiment-manifest\"\n        ]\n      }\n    ],\n    \"binaryDeclarations\": [\n      {\n        \"path\": \"apps/twilight-structure/twilight-dash/cli/fixtures/activation/pre-relocation-activation.tar\",\n        \"format\": \"application/x-tar\",\n        \"consumer\": \"apps/twilight-structure/twilight-dash/cli/src/activation/rollback.db.test.ts\",\n        \"regenerationAuthority\": {\n          \"kind\": \"source\",\n          \"path\": \"apps/twilight-structure/twilight-dash/cli/fixtures/activation/README.md\"\n        }\n      },\n      {\n        \"path\": \"apps/twilight-structure/twilight-dash/cli/fixtures/authority/pre-relocation-burokrat.tar\",\n        \"format\": \"application/x-tar\",\n        \"consumer\": \"apps/twilight-structure/twilight-dash/cli/src/authority/integration-races.test.ts\",\n        \"regenerationAuthority\": {\n          \"kind\": \"source\",\n          \"path\": \"apps/twilight-structure/twilight-dash/cli/fixtures/authority/README.md\"\n        }\n      },\n      {\n        \"path\": \"docs/assistant/work-view-prototype-A.png\",\n        \"format\": \"image/png\",\n        \"consumer\": \"docs/assistant/work-view-prototype.md\",\n        \"regenerationAuthority\": {\n          \"kind\": \"source\",\n          \"path\": \"docs/assistant/work-view-prototype.html\"\n        }\n      },\n      {\n        \"path\": \"docs/assistant/work-view-prototype-B.png\",\n        \"format\": \"image/png\",\n        \"consumer\": \"docs/assistant/work-view-prototype.md\",\n        \"regenerationAuthority\": {\n          \"kind\": \"source\",\n          \"path\": \"docs/assistant/work-view-prototype.html\"\n        }\n      },\n      {\n        \"path\": \"docs/assistant/work-view-prototype-C.png\",\n        \"format\": \"image/png\",\n        \"consumer\": \"docs/assistant/work-view-prototype.md\",\n        \"regenerationAuthority\": {\n          \"kind\": \"source\",\n          \"path\": \"docs/assistant/work-view-prototype.html\"\n        }\n      },\n      {\n        \"path\": \"experiments/r6b-timeline/evidence/ambiguity-1440.png\",\n        \"format\": \"image/png\",\n        \"consumer\": \"docs/wbs/research/2026-10-05-day-to-minute-gantt-experiment.md\",\n        \"regenerationAuthority\": {\n          \"kind\": \"source\",\n          \"path\": \"experiments/r6b-timeline/browser.ts\"\n        }\n      },\n      {\n        \"path\": \"experiments/r6b-timeline/evidence/ambiguity-390.png\",\n        \"format\": \"image/png\",\n        \"consumer\": \"docs/wbs/research/2026-10-05-day-to-minute-gantt-experiment.md\",\n        \"regenerationAuthority\": {\n          \"kind\": \"source\",\n          \"path\": \"experiments/r6b-timeline/browser.ts\"\n        }\n      },\n      {\n        \"path\": \"experiments/r6b-timeline/evidence/batch-1440.png\",\n        \"format\": \"image/png\",\n        \"consumer\": \"docs/wbs/research/2026-10-05-day-to-minute-gantt-experiment.md\",\n        \"regenerationAuthority\": {\n          \"kind\": \"source\",\n          \"path\": \"experiments/r6b-timeline/browser.ts\"\n        }\n      },\n      {\n        \"path\": \"experiments/r6b-timeline/evidence/batch-390.png\",\n        \"format\": \"image/png\",\n        \"consumer\": \"docs/wbs/research/2026-10-05-day-to-minute-gantt-experiment.md\",\n        \"regenerationAuthority\": {\n          \"kind\": \"source\",\n          \"path\": \"experiments/r6b-timeline/browser.ts\"\n        }\n      },\n      {\n        \"path\": \"infra/platform/charts/cert-manager-v1.21.2.tgz\",\n        \"format\": \"application/gzip\",\n        \"consumer\": \"infra/platform/networking/cert-manager/release.yaml\",\n        \"regenerationAuthority\": {\n          \"kind\": \"source\",\n          \"path\": \"infra/versions/toolchain.json\"\n        }\n      },\n      {\n        \"path\": \"infra/platform/charts/eck-elasticsearch-0.20.0.tgz\",\n        \"format\": \"application/gzip\",\n        \"consumer\": \"infra/platform/observability/elastic/local/elasticsearch.yaml\",\n        \"regenerationAuthority\": {\n          \"kind\": \"source\",\n          \"path\": \"infra/versions/toolchain.json\"\n        }\n      },\n      {\n        \"path\": \"infra/platform/charts/eck-kibana-0.20.0.tgz\",\n        \"format\": \"application/gzip\",\n        \"consumer\": \"infra/platform/observability/kibana/kibana.yaml\",\n        \"regenerationAuthority\": {\n          \"kind\": \"source\",\n          \"path\": \"infra/versions/toolchain.json\"\n        }\n      },\n      {\n        \"path\": \"infra/platform/charts/eck-operator-3.5.0.tgz\",\n        \"format\": \"application/gzip\",\n        \"consumer\": \"infra/platform/observability/eck/eck-operator.yaml\",\n        \"regenerationAuthority\": {\n          \"kind\": \"source\",\n          \"path\": \"infra/versions/toolchain.json\"\n        }\n      },\n      {\n        \"path\": \"infra/platform/charts/hcloud-cloud-controller-manager-1.37.0.tgz\",\n        \"format\": \"application/gzip\",\n        \"consumer\": \"infra/platform/storage/production/hcloud-ccm.yaml\",\n        \"regenerationAuthority\": {\n          \"kind\": \"source\",\n          \"path\": \"infra/versions/toolchain.json\"\n        }\n      },\n      {\n        \"path\": \"infra/platform/charts/hcloud-csi-2.23.0.tgz\",\n        \"format\": \"application/gzip\",\n        \"consumer\": \"infra/platform/storage/production/hcloud-csi.yaml\",\n        \"regenerationAuthority\": {\n          \"kind\": \"source\",\n          \"path\": \"infra/versions/toolchain.json\"\n        }\n      },\n      {\n        \"path\": \"infra/platform/charts/kube-prometheus-stack-91.4.1.tgz\",\n        \"format\": \"application/gzip\",\n        \"consumer\": \"infra/platform/observability/prometheus/kube-prometheus-stack.yaml\",\n        \"regenerationAuthority\": {\n          \"kind\": \"source\",\n          \"path\": \"infra/versions/toolchain.json\"\n        }\n      },\n      {\n        \"path\": \"infra/platform/charts/opentelemetry-collector-0.173.1.tgz\",\n        \"format\": \"application/gzip\",\n        \"consumer\": \"infra/platform/observability/otel/collector.yaml\",\n        \"regenerationAuthority\": {\n          \"kind\": \"source\",\n          \"path\": \"infra/versions/toolchain.json\"\n        }\n      },\n      {\n        \"path\": \"infra/platform/charts/traefik-41.6.0.tgz\",\n        \"format\": \"application/gzip\",\n        \"consumer\": \"infra/platform/networking/traefik.yaml\",\n        \"regenerationAuthority\": {\n          \"kind\": \"source\",\n          \"path\": \"infra/versions/toolchain.json\"\n        }\n      },\n      {\n        \"path\": \"infra/platform/charts/velero-12.2.0.tgz\",\n        \"format\": \"application/gzip\",\n        \"consumer\": \"infra/platform/backup/velero/local/velero.yaml\",\n        \"regenerationAuthority\": {\n          \"kind\": \"source\",\n          \"path\": \"infra/versions/toolchain.json\"\n        }\n      },\n      {\n        \"path\": \"apps/website/fe-01/public/apple-touch-icon.png\",\n        \"format\": \"image/png\",\n        \"consumer\": \"apps/website/fe-01/index.html\",\n        \"regenerationAuthority\": {\n          \"kind\": \"source\",\n          \"path\": \"docs/website/app-icons.md\"\n        }\n      },\n      {\n        \"path\": \"apps/website/fe-01/public/favicon-32.png\",\n        \"format\": \"image/png\",\n        \"consumer\": \"apps/website/fe-01/index.html\",\n        \"regenerationAuthority\": {\n          \"kind\": \"source\",\n          \"path\": \"docs/website/app-icons.md\"\n        }\n      },\n      {\n        \"path\": \"apps/website/fe-01/public/favicon.ico\",\n        \"format\": \"image/vnd.microsoft.icon\",\n        \"consumer\": \"apps/website/fe-01/index.html\",\n        \"regenerationAuthority\": {\n          \"kind\": \"source\",\n          \"path\": \"docs/website/app-icons.md\"\n        }\n      },\n      {\n        \"path\": \"apps/website/fe-01/src/assets/fonts/Geist-variable.ttf\",\n        \"format\": \"font/ttf\",\n        \"consumer\": \"apps/website/fe-01/src/style.css\",\n        \"regenerationAuthority\": {\n          \"kind\": \"source\",\n          \"path\": \"apps/website/fe-01/src/assets/fonts/README.md\"\n        }\n      },\n      {\n        \"path\": \"apps/website/fe-01/src/assets/fonts/InterTight-variable.ttf\",\n        \"format\": \"font/ttf\",\n        \"consumer\": \"apps/website/fe-01/src/style.css\",\n        \"regenerationAuthority\": {\n          \"kind\": \"source\",\n          \"path\": \"apps/website/fe-01/src/assets/fonts/README.md\"\n        }\n      }\n    ],\n    \"gitlinkBoundaries\": [],\n    \"symlinks\": \"inventory-only\",\n    \"gitlinks\": \"declared-external-boundary\"\n  },\n  \"relationshipRequest\": {\n    \"schemaVersion\": 1,\n    \"typescript\": {\n      \"configPaths\": [\n        \"tools/tool-fleet/tsconfig.lib.json\"\n      ],\n      \"publicEntrypoints\": [\n        \"tools/tool-fleet/src/check-provision.ts\"\n      ]\n    }\n  },\n  \"plainTypeScriptPaths\": [\n    {\n      \"kind\": \"path\",\n      \"value\": \"infra/local/vm-lab.ts\"\n    },\n    {\n      \"kind\": \"path\",\n      \"value\": \"tools/tool-fleet/src/api-forward.ts\"\n    },\n    {\n      \"kind\": \"path\",\n      \"value\": \"tools/tool-fleet/src/apply.ts\"\n    },\n    {\n      \"kind\": \"path\",\n      \"value\": \"tools/tool-fleet/src/backup-sqlite.ts\"\n    },\n    {\n      \"kind\": \"path\",\n      \"value\": \"tools/tool-fleet/src/check-backup.ts\"\n    },\n    {\n      \"kind\": \"path\",\n      \"value\": \"tools/tool-fleet/src/check-cli.ts\"\n    },\n    {\n      \"kind\": \"path\",\n      \"value\": \"tools/tool-fleet/src/check-faults.ts\"\n    },\n    {\n      \"kind\": \"path\",\n      \"value\": \"tools/tool-fleet/src/check-provision.ts\"\n    },\n    {\n      \"kind\": \"path\",\n      \"value\": \"tools/tool-fleet/src/check.ts\"\n    },\n    {\n      \"kind\": \"path\",\n      \"value\": \"tools/tool-fleet/src/cli.ts\"\n    },\n    {\n      \"kind\": \"path\",\n      \"value\": \"tools/tool-fleet/src/contracts.ts\"\n    },\n    {\n      \"kind\": \"path\",\n      \"value\": \"tools/tool-fleet/src/controller.ts\"\n    },\n    {\n      \"kind\": \"path\",\n      \"value\": \"tools/tool-fleet/src/discover.ts\"\n    },\n    {\n      \"kind\": \"path\",\n      \"value\": \"tools/tool-fleet/src/drain-rehearsal.ts\"\n    },\n    {\n      \"kind\": \"path\",\n      \"value\": \"tools/tool-fleet/src/entrypoint.ts\"\n    },\n    {\n      \"kind\": \"path\",\n      \"value\": \"tools/tool-fleet/src/health.ts\"\n    },\n    {\n      \"kind\": \"path\",\n      \"value\": \"tools/tool-fleet/src/journal.ts\"\n    },\n    {\n      \"kind\": \"path\",\n      \"value\": \"tools/tool-fleet/src/k3d-lab.ts\"\n    },\n    {\n      \"kind\": \"path\",\n      \"value\": \"tools/tool-fleet/src/lab-hub.ts\"\n    },\n    {\n      \"kind\": \"path\",\n      \"value\": \"tools/tool-fleet/src/lab-provider.ts\"\n    },\n    {\n      \"kind\": \"path\",\n      \"value\": \"tools/tool-fleet/src/lab-qemu.ts\"\n    },\n    {\n      \"kind\": \"path\",\n      \"value\": \"tools/tool-fleet/src/lab.ts\"\n    },\n    {\n      \"kind\": \"path\",\n      \"value\": \"tools/tool-fleet/src/maintenance-workers.ts\"\n    },\n    {\n      \"kind\": \"path\",\n      \"value\": \"tools/tool-fleet/src/maintenance.ts\"\n    },\n    {\n      \"kind\": \"path\",\n      \"value\": \"tools/tool-fleet/src/object-store-image-cli.ts\"\n    },\n    {\n      \"kind\": \"path\",\n      \"value\": \"tools/tool-fleet/src/object-store-image.ts\"\n    },\n    {\n      \"kind\": \"path\",\n      \"value\": \"tools/tool-fleet/src/object-store-import-cli.ts\"\n    },\n    {\n      \"kind\": \"path\",\n      \"value\": \"tools/tool-fleet/src/observation.ts\"\n    },\n    {\n      \"kind\": \"path\",\n      \"value\": \"tools/tool-fleet/src/plan-facade.ts\"\n    },\n    {\n      \"kind\": \"path\",\n      \"value\": \"tools/tool-fleet/src/plan.ts\"\n    },\n    {\n      \"kind\": \"path\",\n      \"value\": \"tools/tool-fleet/src/platform-alerts.ts\"\n    },\n    {\n      \"kind\": \"path\",\n      \"value\": \"tools/tool-fleet/src/platform-dns.ts\"\n    },\n    {\n      \"kind\": \"path\",\n      \"value\": \"tools/tool-fleet/src/platform-manifests.ts\"\n    },\n    {\n      \"kind\": \"path\",\n      \"value\": \"tools/tool-fleet/src/platform-otlp.ts\"\n    },\n    {\n      \"kind\": \"path\",\n      \"value\": \"tools/tool-fleet/src/platform-registry.ts\"\n    },\n    {\n      \"kind\": \"path\",\n      \"value\": \"tools/tool-fleet/src/platform-releases.ts\"\n    },\n    {\n      \"kind\": \"path\",\n      \"value\": \"tools/tool-fleet/src/platform.ts\"\n    },\n    {\n      \"kind\": \"path\",\n      \"value\": \"tools/tool-fleet/src/production-apply.ts\"\n    },\n    {\n      \"kind\": \"path\",\n      \"value\": \"tools/tool-fleet/src/recover.ts\"\n    },\n    {\n      \"kind\": \"path\",\n      \"value\": \"tools/tool-fleet/src/replace.ts\"\n    },\n    {\n      \"kind\": \"path\",\n      \"value\": \"tools/tool-fleet/src/retire.ts\"\n    },\n    {\n      \"kind\": \"path\",\n      \"value\": \"tools/tool-fleet/src/ssh-transport.ts\"\n    },\n    {\n      \"kind\": \"path\",\n      \"value\": \"tools/tool-fleet/src/terraform.ts\"\n    },\n    {\n      \"kind\": \"path\",\n      \"value\": \"tools/tool-fleet/src/terragrunt.ts\"\n    },\n    {\n      \"kind\": \"path\",\n      \"value\": \"tools/tool-fleet/src/testing/fleet.ts\"\n    },\n    {\n      \"kind\": \"path\",\n      \"value\": \"tools/tool-fleet/src/traefik-rehearsal.ts\"\n    },\n    {\n      \"kind\": \"path\",\n      \"value\": \"tools/tool-fleet/src/upgrade.ts\"\n    }\n  ],\n  \"sizeCeilings\": {\n    \"ceiling\": 800,\n    \"roots\": [\n      \"infra\",\n      \"tools/tool-fleet\"\n    ],\n    \"pinned\": []\n  },\n  \"adoptedSet\": {\n    \"adoptedPrefixes\": []\n  }\n}\n"
+  },
+  "registry": [
+    {
+      "id": "F1",
+      "family": "code-shape",
+      "statement": "A service, store or geometry module is plain TypeScript and never imports a React package.",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-services-are-plain-typescript",
+      "inputs": [
+        "candidate.entries",
+        "policy.plainTypeScriptPaths",
+        "policy.relationshipRequest"
+      ]
+    },
+    {
+      "id": "F7",
+      "family": "code-shape",
+      "statement": "A production source file does not grow past the size ceiling, and a file already above it only shrinks.",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-source-file-size-is-ratcheted",
+      "inputs": [
+        "candidate.entries",
+        "policy.sizeCeilings"
+      ]
+    },
+    {
+      "id": "INV-CLASSIFY",
+      "family": "inventory",
+      "statement": "Every tracked entry is classified by exactly one rule of the classification policy.",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-inventory-classification",
+      "inputs": [
+        "candidate.entries",
+        "policy.classificationPolicy"
+      ]
+    },
+    {
+      "id": "K2",
+      "family": "relationships",
+      "statement": "Delivery imports feature-services and never a resource-service or a repository.",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "inputs": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ]
+    },
+    {
+      "id": "K3",
+      "family": "relationships",
+      "statement": "A feature-service imports resource-services and never a repository or delivery, through a barrel or directly.",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "inputs": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ]
+    },
+    {
+      "id": "K4",
+      "family": "relationships",
+      "statement": "A resource-service imports repository ports and never a feature-service or delivery.",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "inputs": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ]
+    },
+    {
+      "id": "K5",
+      "family": "relationships",
+      "statement": "A repository adapter imports nothing above it: no resource-service, no feature-service and no delivery.",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "inputs": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ]
+    },
+    {
+      "id": "K6",
+      "family": "relationships",
+      "statement": "No kind imports a sibling of the same kind from another module.",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "inputs": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ]
+    },
+    {
+      "id": "MOD-DIRECT-ENTRIES",
+      "family": "modules",
+      "statement": "A module index declares no more direct entries than the reviewed limit.",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-module-index-direct-entry-limit",
+      "inputs": [
+        "candidate.entries"
+      ]
+    },
+    {
+      "id": "MOD-INDEX",
+      "family": "modules",
+      "statement": "Each module index declares exactly the candidate files nearest to it, and every Markdown reference and anchor it states resolves inside the candidate.",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-module-index-declarations",
+      "inputs": [
+        "candidate.entries"
+      ]
+    },
+    {
+      "id": "MOD-LAYOUT",
+      "family": "modules",
+      "statement": "A module directory declares the wiki index and the contract the module layout names.",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-module-layout",
+      "inputs": [
+        "candidate.entries"
+      ]
+    },
+    {
+      "id": "PERF-THRESHOLD",
+      "family": "test-evidence",
+      "statement": "Every declared Performance case has reviewed thresholds and current measured evidence.",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "inputs": [
+        "candidate.entries",
+        "policy.performance"
+      ]
+    },
+    {
+      "id": "REL-EXTRACT",
+      "family": "relationships",
+      "statement": "Every declared relationship of the candidate resolves to an extracted selector.",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-relationship-resolution",
+      "inputs": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ]
+    },
+    {
+      "id": "SPEC-SCENARIOS",
+      "family": "specifications",
+      "statement": "Scenario identifiers retain an append-only reviewed lineage across the selected candidate and its pinned base.",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "inputs": [
+        "candidate.entries",
+        "policy.scenarios"
+      ]
+    }
+  ],
+  "adoptedSet": {
+    "adoptedPrefixes": []
+  },
+  "allowed": false,
+  "certifies": false,
+  "installedPackageFiles": {
+    "count": 18002,
+    "manifestPath": "/tmp/infra-coverage-sol-raw/installed-package-files.json",
+    "manifestSha256": "8ff2a14b5306c223406add6620ffc904b7f1f95636bab686dace8b330cbdc078"
+  },
+  "candidateDigest": "fdd5cf83c5ef387a2c0696cfce4ea30eb624c58fc841e10f7bfb6a0618186656",
+  "registryIds": [
+    "F1",
+    "F7",
+    "INV-CLASSIFY",
+    "K2",
+    "K3",
+    "K4",
+    "K5",
+    "K6",
+    "MOD-DIRECT-ENTRIES",
+    "MOD-INDEX",
+    "MOD-LAYOUT",
+    "PERF-THRESHOLD",
+    "REL-EXTRACT",
+    "SPEC-SCENARIOS"
+  ],
+  "wbs": {
+    "row": 120,
+    "id": "5baae55e-1869-4473-8161-680b861dca90",
+    "state": "blocked_by_proxy",
+    "source": "parent task WBS read; no independent live WBS call in this research clone",
+    "certificationDependency": "030.6"
+  }
+}

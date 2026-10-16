@@ -1,0 +1,3368 @@
+{
+  "allowed": false,
+  "certifies": false,
+  "states": [
+    "evaluated",
+    "unevaluated",
+    "refused",
+    "not-applicable"
+  ],
+  "interpretation": "Subject-family statuses are explicit research judgments against installed explain contracts and pinned source; the CLI reports whole-rule outcomes, not this matrix. Evaluated structural rules are not semantic health claims. Refused represents command/authority or research-oracle rejection, separate from debt.",
+  "families": [
+    "ansible-yaml",
+    "archive",
+    "containerfile",
+    "extensionless",
+    "hcl",
+    "jinja",
+    "other",
+    "python",
+    "shell",
+    "terraform",
+    "typescript",
+    "yaml",
+    "support-typescript",
+    "nx-deploy-yaml",
+    "nx-workflow-yaml",
+    "provision-support-typescript"
+  ],
+  "ledger": [
+    {
+      "ruleId": "F1",
+      "subjectFamily": "ansible-yaml",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.plainTypeScriptPaths",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-services-are-plain-typescript",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "F1",
+      "subjectFamily": "archive",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.plainTypeScriptPaths",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-services-are-plain-typescript",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "F1",
+      "subjectFamily": "containerfile",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.plainTypeScriptPaths",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-services-are-plain-typescript",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "F1",
+      "subjectFamily": "extensionless",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.plainTypeScriptPaths",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-services-are-plain-typescript",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "F1",
+      "subjectFamily": "hcl",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.plainTypeScriptPaths",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-services-are-plain-typescript",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "F1",
+      "subjectFamily": "jinja",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.plainTypeScriptPaths",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-services-are-plain-typescript",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "F1",
+      "subjectFamily": "other",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.plainTypeScriptPaths",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-services-are-plain-typescript",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "F1",
+      "subjectFamily": "python",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.plainTypeScriptPaths",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-services-are-plain-typescript",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "F1",
+      "subjectFamily": "shell",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.plainTypeScriptPaths",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-services-are-plain-typescript",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "F1",
+      "subjectFamily": "terraform",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.plainTypeScriptPaths",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-services-are-plain-typescript",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "F1",
+      "subjectFamily": "typescript",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.plainTypeScriptPaths",
+        "policy.relationshipRequest"
+      ],
+      "reason": "TypeScript import unresolved: tools/tool-fleet/src/platform-manifests.ts -> 'yaml'",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-services-are-plain-typescript",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "F1",
+      "subjectFamily": "yaml",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.plainTypeScriptPaths",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-services-are-plain-typescript",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "F1",
+      "subjectFamily": "support-typescript",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.plainTypeScriptPaths",
+        "policy.relationshipRequest"
+      ],
+      "reason": "TypeScript import unresolved: tools/tool-fleet/src/platform-manifests.ts -> 'yaml'",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-services-are-plain-typescript",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "F1",
+      "subjectFamily": "nx-deploy-yaml",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.plainTypeScriptPaths",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-services-are-plain-typescript",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "F1",
+      "subjectFamily": "nx-workflow-yaml",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.plainTypeScriptPaths",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-services-are-plain-typescript",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "F1",
+      "subjectFamily": "provision-support-typescript",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.plainTypeScriptPaths",
+        "policy.relationshipRequest"
+      ],
+      "reason": "TypeScript import unresolved: tools/tool-fleet/src/platform-manifests.ts -> 'yaml'",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-services-are-plain-typescript",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "F7",
+      "subjectFamily": "ansible-yaml",
+      "status": "not-applicable",
+      "inputContract": [
+        "candidate.entries",
+        "policy.sizeCeilings"
+      ],
+      "reason": "measurement contract admits production .ts/.tsx only; excludes tests and declarations; roots infra and tools/tool-fleet",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-source-file-size-is-ratcheted",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "F7",
+      "subjectFamily": "archive",
+      "status": "not-applicable",
+      "inputContract": [
+        "candidate.entries",
+        "policy.sizeCeilings"
+      ],
+      "reason": "measurement contract admits production .ts/.tsx only; excludes tests and declarations; roots infra and tools/tool-fleet",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-source-file-size-is-ratcheted",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "F7",
+      "subjectFamily": "containerfile",
+      "status": "not-applicable",
+      "inputContract": [
+        "candidate.entries",
+        "policy.sizeCeilings"
+      ],
+      "reason": "measurement contract admits production .ts/.tsx only; excludes tests and declarations; roots infra and tools/tool-fleet",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-source-file-size-is-ratcheted",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "F7",
+      "subjectFamily": "extensionless",
+      "status": "not-applicable",
+      "inputContract": [
+        "candidate.entries",
+        "policy.sizeCeilings"
+      ],
+      "reason": "measurement contract admits production .ts/.tsx only; excludes tests and declarations; roots infra and tools/tool-fleet",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-source-file-size-is-ratcheted",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "F7",
+      "subjectFamily": "hcl",
+      "status": "not-applicable",
+      "inputContract": [
+        "candidate.entries",
+        "policy.sizeCeilings"
+      ],
+      "reason": "measurement contract admits production .ts/.tsx only; excludes tests and declarations; roots infra and tools/tool-fleet",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-source-file-size-is-ratcheted",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "F7",
+      "subjectFamily": "jinja",
+      "status": "not-applicable",
+      "inputContract": [
+        "candidate.entries",
+        "policy.sizeCeilings"
+      ],
+      "reason": "measurement contract admits production .ts/.tsx only; excludes tests and declarations; roots infra and tools/tool-fleet",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-source-file-size-is-ratcheted",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "F7",
+      "subjectFamily": "other",
+      "status": "not-applicable",
+      "inputContract": [
+        "candidate.entries",
+        "policy.sizeCeilings"
+      ],
+      "reason": "measurement contract admits production .ts/.tsx only; excludes tests and declarations; roots infra and tools/tool-fleet",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-source-file-size-is-ratcheted",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "F7",
+      "subjectFamily": "python",
+      "status": "not-applicable",
+      "inputContract": [
+        "candidate.entries",
+        "policy.sizeCeilings"
+      ],
+      "reason": "measurement contract admits production .ts/.tsx only; excludes tests and declarations; roots infra and tools/tool-fleet",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-source-file-size-is-ratcheted",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "F7",
+      "subjectFamily": "shell",
+      "status": "not-applicable",
+      "inputContract": [
+        "candidate.entries",
+        "policy.sizeCeilings"
+      ],
+      "reason": "measurement contract admits production .ts/.tsx only; excludes tests and declarations; roots infra and tools/tool-fleet",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-source-file-size-is-ratcheted",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "F7",
+      "subjectFamily": "terraform",
+      "status": "not-applicable",
+      "inputContract": [
+        "candidate.entries",
+        "policy.sizeCeilings"
+      ],
+      "reason": "measurement contract admits production .ts/.tsx only; excludes tests and declarations; roots infra and tools/tool-fleet",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-source-file-size-is-ratcheted",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "F7",
+      "subjectFamily": "typescript",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.sizeCeilings"
+      ],
+      "reason": "measurement contract admits production .ts/.tsx only; excludes tests and declarations; roots infra and tools/tool-fleet",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-source-file-size-is-ratcheted",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "F7",
+      "subjectFamily": "yaml",
+      "status": "not-applicable",
+      "inputContract": [
+        "candidate.entries",
+        "policy.sizeCeilings"
+      ],
+      "reason": "measurement contract admits production .ts/.tsx only; excludes tests and declarations; roots infra and tools/tool-fleet",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-source-file-size-is-ratcheted",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "F7",
+      "subjectFamily": "support-typescript",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.sizeCeilings"
+      ],
+      "reason": "measurement contract admits production .ts/.tsx only; excludes tests and declarations; roots infra and tools/tool-fleet",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-source-file-size-is-ratcheted",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "F7",
+      "subjectFamily": "nx-deploy-yaml",
+      "status": "not-applicable",
+      "inputContract": [
+        "candidate.entries",
+        "policy.sizeCeilings"
+      ],
+      "reason": "measurement contract admits production .ts/.tsx only; excludes tests and declarations; roots infra and tools/tool-fleet",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-source-file-size-is-ratcheted",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "F7",
+      "subjectFamily": "nx-workflow-yaml",
+      "status": "not-applicable",
+      "inputContract": [
+        "candidate.entries",
+        "policy.sizeCeilings"
+      ],
+      "reason": "measurement contract admits production .ts/.tsx only; excludes tests and declarations; roots infra and tools/tool-fleet",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-source-file-size-is-ratcheted",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "F7",
+      "subjectFamily": "provision-support-typescript",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.sizeCeilings"
+      ],
+      "reason": "measurement contract admits production .ts/.tsx only; excludes tests and declarations; roots infra and tools/tool-fleet",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-source-file-size-is-ratcheted",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "INV-CLASSIFY",
+      "subjectFamily": "ansible-yaml",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.classificationPolicy"
+      ],
+      "reason": "exact candidate path/mode/blob classification; source parsing is outside contract",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-inventory-classification",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "INV-CLASSIFY",
+      "subjectFamily": "archive",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.classificationPolicy"
+      ],
+      "reason": "exact candidate path/mode/blob classification; source parsing is outside contract",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-inventory-classification",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "INV-CLASSIFY",
+      "subjectFamily": "containerfile",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.classificationPolicy"
+      ],
+      "reason": "exact candidate path/mode/blob classification; source parsing is outside contract",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-inventory-classification",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "INV-CLASSIFY",
+      "subjectFamily": "extensionless",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.classificationPolicy"
+      ],
+      "reason": "exact candidate path/mode/blob classification; source parsing is outside contract",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-inventory-classification",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "INV-CLASSIFY",
+      "subjectFamily": "hcl",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.classificationPolicy"
+      ],
+      "reason": "exact candidate path/mode/blob classification; source parsing is outside contract",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-inventory-classification",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "INV-CLASSIFY",
+      "subjectFamily": "jinja",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.classificationPolicy"
+      ],
+      "reason": "exact candidate path/mode/blob classification; source parsing is outside contract",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-inventory-classification",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "INV-CLASSIFY",
+      "subjectFamily": "other",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.classificationPolicy"
+      ],
+      "reason": "exact candidate path/mode/blob classification; source parsing is outside contract",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-inventory-classification",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "INV-CLASSIFY",
+      "subjectFamily": "python",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.classificationPolicy"
+      ],
+      "reason": "exact candidate path/mode/blob classification; source parsing is outside contract",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-inventory-classification",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "INV-CLASSIFY",
+      "subjectFamily": "shell",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.classificationPolicy"
+      ],
+      "reason": "exact candidate path/mode/blob classification; source parsing is outside contract",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-inventory-classification",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "INV-CLASSIFY",
+      "subjectFamily": "terraform",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.classificationPolicy"
+      ],
+      "reason": "exact candidate path/mode/blob classification; source parsing is outside contract",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-inventory-classification",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "INV-CLASSIFY",
+      "subjectFamily": "typescript",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.classificationPolicy"
+      ],
+      "reason": "exact candidate path/mode/blob classification; source parsing is outside contract",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-inventory-classification",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "INV-CLASSIFY",
+      "subjectFamily": "yaml",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.classificationPolicy"
+      ],
+      "reason": "exact candidate path/mode/blob classification; source parsing is outside contract",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-inventory-classification",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "INV-CLASSIFY",
+      "subjectFamily": "support-typescript",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.classificationPolicy"
+      ],
+      "reason": "exact candidate path/mode/blob classification; source parsing is outside contract",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-inventory-classification",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "INV-CLASSIFY",
+      "subjectFamily": "nx-deploy-yaml",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.classificationPolicy"
+      ],
+      "reason": "exact candidate path/mode/blob classification; source parsing is outside contract",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-inventory-classification",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "INV-CLASSIFY",
+      "subjectFamily": "nx-workflow-yaml",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.classificationPolicy"
+      ],
+      "reason": "exact candidate path/mode/blob classification; source parsing is outside contract",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-inventory-classification",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "INV-CLASSIFY",
+      "subjectFamily": "provision-support-typescript",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.classificationPolicy"
+      ],
+      "reason": "exact candidate path/mode/blob classification; source parsing is outside contract",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-inventory-classification",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K2",
+      "subjectFamily": "ansible-yaml",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K2",
+      "subjectFamily": "archive",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K2",
+      "subjectFamily": "containerfile",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K2",
+      "subjectFamily": "extensionless",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K2",
+      "subjectFamily": "hcl",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K2",
+      "subjectFamily": "jinja",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K2",
+      "subjectFamily": "other",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K2",
+      "subjectFamily": "python",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K2",
+      "subjectFamily": "shell",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K2",
+      "subjectFamily": "terraform",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K2",
+      "subjectFamily": "typescript",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "TypeScript import unresolved: tools/tool-fleet/src/platform-manifests.ts -> 'yaml'",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K2",
+      "subjectFamily": "yaml",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K2",
+      "subjectFamily": "support-typescript",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "TypeScript import unresolved: tools/tool-fleet/src/platform-manifests.ts -> 'yaml'",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K2",
+      "subjectFamily": "nx-deploy-yaml",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K2",
+      "subjectFamily": "nx-workflow-yaml",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K2",
+      "subjectFamily": "provision-support-typescript",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "TypeScript import unresolved: tools/tool-fleet/src/platform-manifests.ts -> 'yaml'",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K3",
+      "subjectFamily": "ansible-yaml",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K3",
+      "subjectFamily": "archive",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K3",
+      "subjectFamily": "containerfile",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K3",
+      "subjectFamily": "extensionless",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K3",
+      "subjectFamily": "hcl",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K3",
+      "subjectFamily": "jinja",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K3",
+      "subjectFamily": "other",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K3",
+      "subjectFamily": "python",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K3",
+      "subjectFamily": "shell",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K3",
+      "subjectFamily": "terraform",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K3",
+      "subjectFamily": "typescript",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "TypeScript import unresolved: tools/tool-fleet/src/platform-manifests.ts -> 'yaml'",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K3",
+      "subjectFamily": "yaml",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K3",
+      "subjectFamily": "support-typescript",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "TypeScript import unresolved: tools/tool-fleet/src/platform-manifests.ts -> 'yaml'",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K3",
+      "subjectFamily": "nx-deploy-yaml",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K3",
+      "subjectFamily": "nx-workflow-yaml",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K3",
+      "subjectFamily": "provision-support-typescript",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "TypeScript import unresolved: tools/tool-fleet/src/platform-manifests.ts -> 'yaml'",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K4",
+      "subjectFamily": "ansible-yaml",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K4",
+      "subjectFamily": "archive",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K4",
+      "subjectFamily": "containerfile",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K4",
+      "subjectFamily": "extensionless",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K4",
+      "subjectFamily": "hcl",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K4",
+      "subjectFamily": "jinja",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K4",
+      "subjectFamily": "other",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K4",
+      "subjectFamily": "python",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K4",
+      "subjectFamily": "shell",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K4",
+      "subjectFamily": "terraform",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K4",
+      "subjectFamily": "typescript",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "TypeScript import unresolved: tools/tool-fleet/src/platform-manifests.ts -> 'yaml'",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K4",
+      "subjectFamily": "yaml",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K4",
+      "subjectFamily": "support-typescript",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "TypeScript import unresolved: tools/tool-fleet/src/platform-manifests.ts -> 'yaml'",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K4",
+      "subjectFamily": "nx-deploy-yaml",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K4",
+      "subjectFamily": "nx-workflow-yaml",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K4",
+      "subjectFamily": "provision-support-typescript",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "TypeScript import unresolved: tools/tool-fleet/src/platform-manifests.ts -> 'yaml'",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K5",
+      "subjectFamily": "ansible-yaml",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K5",
+      "subjectFamily": "archive",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K5",
+      "subjectFamily": "containerfile",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K5",
+      "subjectFamily": "extensionless",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K5",
+      "subjectFamily": "hcl",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K5",
+      "subjectFamily": "jinja",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K5",
+      "subjectFamily": "other",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K5",
+      "subjectFamily": "python",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K5",
+      "subjectFamily": "shell",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K5",
+      "subjectFamily": "terraform",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K5",
+      "subjectFamily": "typescript",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "TypeScript import unresolved: tools/tool-fleet/src/platform-manifests.ts -> 'yaml'",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K5",
+      "subjectFamily": "yaml",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K5",
+      "subjectFamily": "support-typescript",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "TypeScript import unresolved: tools/tool-fleet/src/platform-manifests.ts -> 'yaml'",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K5",
+      "subjectFamily": "nx-deploy-yaml",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K5",
+      "subjectFamily": "nx-workflow-yaml",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K5",
+      "subjectFamily": "provision-support-typescript",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "TypeScript import unresolved: tools/tool-fleet/src/platform-manifests.ts -> 'yaml'",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K6",
+      "subjectFamily": "ansible-yaml",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K6",
+      "subjectFamily": "archive",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K6",
+      "subjectFamily": "containerfile",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K6",
+      "subjectFamily": "extensionless",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K6",
+      "subjectFamily": "hcl",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K6",
+      "subjectFamily": "jinja",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K6",
+      "subjectFamily": "other",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K6",
+      "subjectFamily": "python",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K6",
+      "subjectFamily": "shell",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K6",
+      "subjectFamily": "terraform",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K6",
+      "subjectFamily": "typescript",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "TypeScript import unresolved: tools/tool-fleet/src/platform-manifests.ts -> 'yaml'",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K6",
+      "subjectFamily": "yaml",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K6",
+      "subjectFamily": "support-typescript",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "TypeScript import unresolved: tools/tool-fleet/src/platform-manifests.ts -> 'yaml'",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K6",
+      "subjectFamily": "nx-deploy-yaml",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K6",
+      "subjectFamily": "nx-workflow-yaml",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "K6",
+      "subjectFamily": "provision-support-typescript",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "TypeScript import unresolved: tools/tool-fleet/src/platform-manifests.ts -> 'yaml'",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-DIRECT-ENTRIES",
+      "subjectFamily": "ansible-yaml",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-module-index-direct-entry-limit",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-DIRECT-ENTRIES",
+      "subjectFamily": "archive",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-module-index-direct-entry-limit",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-DIRECT-ENTRIES",
+      "subjectFamily": "containerfile",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-module-index-direct-entry-limit",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-DIRECT-ENTRIES",
+      "subjectFamily": "extensionless",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-module-index-direct-entry-limit",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-DIRECT-ENTRIES",
+      "subjectFamily": "hcl",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-module-index-direct-entry-limit",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-DIRECT-ENTRIES",
+      "subjectFamily": "jinja",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-module-index-direct-entry-limit",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-DIRECT-ENTRIES",
+      "subjectFamily": "other",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-module-index-direct-entry-limit",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-DIRECT-ENTRIES",
+      "subjectFamily": "python",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-module-index-direct-entry-limit",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-DIRECT-ENTRIES",
+      "subjectFamily": "shell",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-module-index-direct-entry-limit",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-DIRECT-ENTRIES",
+      "subjectFamily": "terraform",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-module-index-direct-entry-limit",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-DIRECT-ENTRIES",
+      "subjectFamily": "typescript",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-module-index-direct-entry-limit",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-DIRECT-ENTRIES",
+      "subjectFamily": "yaml",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-module-index-direct-entry-limit",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-DIRECT-ENTRIES",
+      "subjectFamily": "support-typescript",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-module-index-direct-entry-limit",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-DIRECT-ENTRIES",
+      "subjectFamily": "nx-deploy-yaml",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-module-index-direct-entry-limit",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-DIRECT-ENTRIES",
+      "subjectFamily": "nx-workflow-yaml",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-module-index-direct-entry-limit",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-DIRECT-ENTRIES",
+      "subjectFamily": "provision-support-typescript",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-module-index-direct-entry-limit",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-INDEX",
+      "subjectFamily": "ansible-yaml",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-module-index-declarations",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-INDEX",
+      "subjectFamily": "archive",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-module-index-declarations",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-INDEX",
+      "subjectFamily": "containerfile",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-module-index-declarations",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-INDEX",
+      "subjectFamily": "extensionless",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-module-index-declarations",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-INDEX",
+      "subjectFamily": "hcl",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-module-index-declarations",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-INDEX",
+      "subjectFamily": "jinja",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-module-index-declarations",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-INDEX",
+      "subjectFamily": "other",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-module-index-declarations",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-INDEX",
+      "subjectFamily": "python",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-module-index-declarations",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-INDEX",
+      "subjectFamily": "shell",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-module-index-declarations",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-INDEX",
+      "subjectFamily": "terraform",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-module-index-declarations",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-INDEX",
+      "subjectFamily": "typescript",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-module-index-declarations",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-INDEX",
+      "subjectFamily": "yaml",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-module-index-declarations",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-INDEX",
+      "subjectFamily": "support-typescript",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-module-index-declarations",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-INDEX",
+      "subjectFamily": "nx-deploy-yaml",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-module-index-declarations",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-INDEX",
+      "subjectFamily": "nx-workflow-yaml",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-module-index-declarations",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-INDEX",
+      "subjectFamily": "provision-support-typescript",
+      "status": "evaluated",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-module-index-declarations",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-LAYOUT",
+      "subjectFamily": "ansible-yaml",
+      "status": "not-applicable",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "family has no reviewed service-kind module layout authority; whole-tree run finds WBS module debt",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-module-layout",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-LAYOUT",
+      "subjectFamily": "archive",
+      "status": "not-applicable",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "family has no reviewed service-kind module layout authority; whole-tree run finds WBS module debt",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-module-layout",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-LAYOUT",
+      "subjectFamily": "containerfile",
+      "status": "not-applicable",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "family has no reviewed service-kind module layout authority; whole-tree run finds WBS module debt",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-module-layout",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-LAYOUT",
+      "subjectFamily": "extensionless",
+      "status": "not-applicable",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "family has no reviewed service-kind module layout authority; whole-tree run finds WBS module debt",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-module-layout",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-LAYOUT",
+      "subjectFamily": "hcl",
+      "status": "not-applicable",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "family has no reviewed service-kind module layout authority; whole-tree run finds WBS module debt",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-module-layout",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-LAYOUT",
+      "subjectFamily": "jinja",
+      "status": "not-applicable",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "family has no reviewed service-kind module layout authority; whole-tree run finds WBS module debt",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-module-layout",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-LAYOUT",
+      "subjectFamily": "other",
+      "status": "not-applicable",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "family has no reviewed service-kind module layout authority; whole-tree run finds WBS module debt",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-module-layout",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-LAYOUT",
+      "subjectFamily": "python",
+      "status": "not-applicable",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "family has no reviewed service-kind module layout authority; whole-tree run finds WBS module debt",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-module-layout",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-LAYOUT",
+      "subjectFamily": "shell",
+      "status": "not-applicable",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "family has no reviewed service-kind module layout authority; whole-tree run finds WBS module debt",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-module-layout",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-LAYOUT",
+      "subjectFamily": "terraform",
+      "status": "not-applicable",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "family has no reviewed service-kind module layout authority; whole-tree run finds WBS module debt",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-module-layout",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-LAYOUT",
+      "subjectFamily": "typescript",
+      "status": "not-applicable",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "family has no reviewed service-kind module layout authority; whole-tree run finds WBS module debt",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-module-layout",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-LAYOUT",
+      "subjectFamily": "yaml",
+      "status": "not-applicable",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "family has no reviewed service-kind module layout authority; whole-tree run finds WBS module debt",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-module-layout",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-LAYOUT",
+      "subjectFamily": "support-typescript",
+      "status": "not-applicable",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "family has no reviewed service-kind module layout authority; whole-tree run finds WBS module debt",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-module-layout",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-LAYOUT",
+      "subjectFamily": "nx-deploy-yaml",
+      "status": "not-applicable",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "family has no reviewed service-kind module layout authority; whole-tree run finds WBS module debt",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-module-layout",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-LAYOUT",
+      "subjectFamily": "nx-workflow-yaml",
+      "status": "not-applicable",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "family has no reviewed service-kind module layout authority; whole-tree run finds WBS module debt",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-module-layout",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "MOD-LAYOUT",
+      "subjectFamily": "provision-support-typescript",
+      "status": "not-applicable",
+      "inputContract": [
+        "candidate.entries"
+      ],
+      "reason": "family has no reviewed service-kind module layout authority; whole-tree run finds WBS module debt",
+      "installedWholeTreeStatus": "evaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-module-layout",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "PERF-THRESHOLD",
+      "subjectFamily": "ansible-yaml",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.performance"
+      ],
+      "reason": "Performance config content differs from reviewed authority; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "PERF-THRESHOLD",
+      "subjectFamily": "archive",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.performance"
+      ],
+      "reason": "Performance config content differs from reviewed authority; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "PERF-THRESHOLD",
+      "subjectFamily": "containerfile",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.performance"
+      ],
+      "reason": "Performance config content differs from reviewed authority; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "PERF-THRESHOLD",
+      "subjectFamily": "extensionless",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.performance"
+      ],
+      "reason": "Performance config content differs from reviewed authority; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "PERF-THRESHOLD",
+      "subjectFamily": "hcl",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.performance"
+      ],
+      "reason": "Performance config content differs from reviewed authority; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "PERF-THRESHOLD",
+      "subjectFamily": "jinja",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.performance"
+      ],
+      "reason": "Performance config content differs from reviewed authority; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "PERF-THRESHOLD",
+      "subjectFamily": "other",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.performance"
+      ],
+      "reason": "Performance config content differs from reviewed authority; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "PERF-THRESHOLD",
+      "subjectFamily": "python",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.performance"
+      ],
+      "reason": "Performance config content differs from reviewed authority; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "PERF-THRESHOLD",
+      "subjectFamily": "shell",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.performance"
+      ],
+      "reason": "Performance config content differs from reviewed authority; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "PERF-THRESHOLD",
+      "subjectFamily": "terraform",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.performance"
+      ],
+      "reason": "Performance config content differs from reviewed authority; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "PERF-THRESHOLD",
+      "subjectFamily": "typescript",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.performance"
+      ],
+      "reason": "Performance config content differs from reviewed authority; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "PERF-THRESHOLD",
+      "subjectFamily": "yaml",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.performance"
+      ],
+      "reason": "Performance config content differs from reviewed authority; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "PERF-THRESHOLD",
+      "subjectFamily": "support-typescript",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.performance"
+      ],
+      "reason": "Performance config content differs from reviewed authority; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "PERF-THRESHOLD",
+      "subjectFamily": "nx-deploy-yaml",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.performance"
+      ],
+      "reason": "Performance config content differs from reviewed authority; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "PERF-THRESHOLD",
+      "subjectFamily": "nx-workflow-yaml",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.performance"
+      ],
+      "reason": "Performance config content differs from reviewed authority; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "PERF-THRESHOLD",
+      "subjectFamily": "provision-support-typescript",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.performance"
+      ],
+      "reason": "Performance config content differs from reviewed authority; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "REL-EXTRACT",
+      "subjectFamily": "ansible-yaml",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-relationship-resolution",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "REL-EXTRACT",
+      "subjectFamily": "archive",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-relationship-resolution",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "REL-EXTRACT",
+      "subjectFamily": "containerfile",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-relationship-resolution",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "REL-EXTRACT",
+      "subjectFamily": "extensionless",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-relationship-resolution",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "REL-EXTRACT",
+      "subjectFamily": "hcl",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-relationship-resolution",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "REL-EXTRACT",
+      "subjectFamily": "jinja",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-relationship-resolution",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "REL-EXTRACT",
+      "subjectFamily": "other",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-relationship-resolution",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "REL-EXTRACT",
+      "subjectFamily": "python",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-relationship-resolution",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "REL-EXTRACT",
+      "subjectFamily": "shell",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-relationship-resolution",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "REL-EXTRACT",
+      "subjectFamily": "terraform",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-relationship-resolution",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "REL-EXTRACT",
+      "subjectFamily": "typescript",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "TypeScript import unresolved: tools/tool-fleet/src/platform-manifests.ts -> 'yaml'",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-relationship-resolution",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "REL-EXTRACT",
+      "subjectFamily": "yaml",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-relationship-resolution",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "REL-EXTRACT",
+      "subjectFamily": "support-typescript",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "TypeScript import unresolved: tools/tool-fleet/src/platform-manifests.ts -> 'yaml'",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-relationship-resolution",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "REL-EXTRACT",
+      "subjectFamily": "nx-deploy-yaml",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-relationship-resolution",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "REL-EXTRACT",
+      "subjectFamily": "nx-workflow-yaml",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-relationship-resolution",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "REL-EXTRACT",
+      "subjectFamily": "provision-support-typescript",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.relationshipRequest"
+      ],
+      "reason": "TypeScript import unresolved: tools/tool-fleet/src/platform-manifests.ts -> 'yaml'",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-relationship-resolution",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "SPEC-SCENARIOS",
+      "subjectFamily": "ansible-yaml",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.scenarios"
+      ],
+      "reason": "competing overlay operation: wbs-domain: A leaf's status folds its progress, hold, readiness and predecessors; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "SPEC-SCENARIOS",
+      "subjectFamily": "archive",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.scenarios"
+      ],
+      "reason": "competing overlay operation: wbs-domain: A leaf's status folds its progress, hold, readiness and predecessors; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "SPEC-SCENARIOS",
+      "subjectFamily": "containerfile",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.scenarios"
+      ],
+      "reason": "competing overlay operation: wbs-domain: A leaf's status folds its progress, hold, readiness and predecessors; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "SPEC-SCENARIOS",
+      "subjectFamily": "extensionless",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.scenarios"
+      ],
+      "reason": "competing overlay operation: wbs-domain: A leaf's status folds its progress, hold, readiness and predecessors; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "SPEC-SCENARIOS",
+      "subjectFamily": "hcl",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.scenarios"
+      ],
+      "reason": "competing overlay operation: wbs-domain: A leaf's status folds its progress, hold, readiness and predecessors; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "SPEC-SCENARIOS",
+      "subjectFamily": "jinja",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.scenarios"
+      ],
+      "reason": "competing overlay operation: wbs-domain: A leaf's status folds its progress, hold, readiness and predecessors; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "SPEC-SCENARIOS",
+      "subjectFamily": "other",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.scenarios"
+      ],
+      "reason": "competing overlay operation: wbs-domain: A leaf's status folds its progress, hold, readiness and predecessors; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "SPEC-SCENARIOS",
+      "subjectFamily": "python",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.scenarios"
+      ],
+      "reason": "competing overlay operation: wbs-domain: A leaf's status folds its progress, hold, readiness and predecessors; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "SPEC-SCENARIOS",
+      "subjectFamily": "shell",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.scenarios"
+      ],
+      "reason": "competing overlay operation: wbs-domain: A leaf's status folds its progress, hold, readiness and predecessors; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "SPEC-SCENARIOS",
+      "subjectFamily": "terraform",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.scenarios"
+      ],
+      "reason": "competing overlay operation: wbs-domain: A leaf's status folds its progress, hold, readiness and predecessors; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "SPEC-SCENARIOS",
+      "subjectFamily": "typescript",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.scenarios"
+      ],
+      "reason": "competing overlay operation: wbs-domain: A leaf's status folds its progress, hold, readiness and predecessors; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "SPEC-SCENARIOS",
+      "subjectFamily": "yaml",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.scenarios"
+      ],
+      "reason": "competing overlay operation: wbs-domain: A leaf's status folds its progress, hold, readiness and predecessors; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "SPEC-SCENARIOS",
+      "subjectFamily": "support-typescript",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.scenarios"
+      ],
+      "reason": "competing overlay operation: wbs-domain: A leaf's status folds its progress, hold, readiness and predecessors; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "SPEC-SCENARIOS",
+      "subjectFamily": "nx-deploy-yaml",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.scenarios"
+      ],
+      "reason": "competing overlay operation: wbs-domain: A leaf's status folds its progress, hold, readiness and predecessors; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "SPEC-SCENARIOS",
+      "subjectFamily": "nx-workflow-yaml",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.scenarios"
+      ],
+      "reason": "competing overlay operation: wbs-domain: A leaf's status folds its progress, hold, readiness and predecessors; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    },
+    {
+      "ruleId": "SPEC-SCENARIOS",
+      "subjectFamily": "provision-support-typescript",
+      "status": "unevaluated",
+      "inputContract": [
+        "candidate.entries",
+        "policy.scenarios"
+      ],
+      "reason": "competing overlay operation: wbs-domain: A leaf's status folds its progress, hold, readiness and predecessors; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
+      "installedWholeTreeStatus": "unevaluated",
+      "executionReceipt": "full",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "scope": "structural or evidence contract only; no infrastructure operational verdict"
+    }
+  ],
+  "fullVerdict": {
+    "schemaVersion": 1,
+    "candidate": "fdd5cf83c5ef387a2c0696cfce4ea30eb624c58fc841e10f7bfb6a0618186656",
+    "policy": "diagnostic.infra-coverage.2026-10-16",
+    "allowed": false,
+    "ruleIds": [
+      "F1",
+      "F7",
+      "INV-CLASSIFY",
+      "K2",
+      "K3",
+      "K4",
+      "K5",
+      "K6",
+      "MOD-DIRECT-ENTRIES",
+      "MOD-INDEX",
+      "MOD-LAYOUT",
+      "PERF-THRESHOLD",
+      "REL-EXTRACT",
+      "SPEC-SCENARIOS"
+    ],
+    "findings": [
+      {
+        "ruleId": "F7",
+        "path": "tools/tool-fleet/src/cli.ts",
+        "message": "890 lines exceeds the ceiling 800",
+        "effect": "debt"
+      },
+      {
+        "ruleId": "F7",
+        "path": "tools/tool-fleet/src/discover.ts",
+        "message": "1316 lines exceeds the ceiling 800",
+        "effect": "debt"
+      },
+      {
+        "ruleId": "F7",
+        "path": "tools/tool-fleet/src/drain-rehearsal.ts",
+        "message": "1000 lines exceeds the ceiling 800",
+        "effect": "debt"
+      },
+      {
+        "ruleId": "F7",
+        "path": "tools/tool-fleet/src/k3d-lab.ts",
+        "message": "935 lines exceeds the ceiling 800",
+        "effect": "debt"
+      },
+      {
+        "ruleId": "F7",
+        "path": "tools/tool-fleet/src/lab.ts",
+        "message": "1274 lines exceeds the ceiling 800",
+        "effect": "debt"
+      },
+      {
+        "ruleId": "F7",
+        "path": "tools/tool-fleet/src/production-apply.ts",
+        "message": "2933 lines exceeds the ceiling 800",
+        "effect": "debt"
+      },
+      {
+        "ruleId": "F7",
+        "path": "tools/tool-fleet/src/recover.ts",
+        "message": "876 lines exceeds the ceiling 800",
+        "effect": "debt"
+      },
+      {
+        "ruleId": "MOD-LAYOUT",
+        "path": "apps/wbs/be-01/src/service",
+        "message": "module directory declares no wiki index",
+        "effect": "debt"
+      },
+      {
+        "ruleId": "MOD-LAYOUT",
+        "path": "apps/wbs/be-01/src/service",
+        "message": "module directory declares no contract file",
+        "effect": "debt"
+      },
+      {
+        "ruleId": "MOD-LAYOUT",
+        "path": "libs/wbs/application/core/src/service",
+        "message": "module directory declares no wiki index",
+        "effect": "debt"
+      },
+      {
+        "ruleId": "MOD-LAYOUT",
+        "path": "libs/wbs/application/core/src/service",
+        "message": "module directory declares no contract file",
+        "effect": "debt"
+      }
+    ],
+    "unevaluated": [
+      {
+        "ruleId": "F1",
+        "reason": "TypeScript import unresolved: tools/tool-fleet/src/platform-manifests.ts -> 'yaml'"
+      },
+      {
+        "ruleId": "K2",
+        "reason": "TypeScript import unresolved: tools/tool-fleet/src/platform-manifests.ts -> 'yaml'"
+      },
+      {
+        "ruleId": "K3",
+        "reason": "TypeScript import unresolved: tools/tool-fleet/src/platform-manifests.ts -> 'yaml'"
+      },
+      {
+        "ruleId": "K4",
+        "reason": "TypeScript import unresolved: tools/tool-fleet/src/platform-manifests.ts -> 'yaml'"
+      },
+      {
+        "ruleId": "K5",
+        "reason": "TypeScript import unresolved: tools/tool-fleet/src/platform-manifests.ts -> 'yaml'"
+      },
+      {
+        "ruleId": "K6",
+        "reason": "TypeScript import unresolved: tools/tool-fleet/src/platform-manifests.ts -> 'yaml'"
+      },
+      {
+        "ruleId": "PERF-THRESHOLD",
+        "reason": "Performance config content differs from reviewed authority"
+      },
+      {
+        "ruleId": "REL-EXTRACT",
+        "reason": "TypeScript import unresolved: tools/tool-fleet/src/platform-manifests.ts -> 'yaml'"
+      },
+      {
+        "ruleId": "SPEC-SCENARIOS",
+        "reason": "competing overlay operation: wbs-domain: A leaf's status folds its progress, hold, readiness and predecessors"
+      }
+    ],
+    "certifies": false
+  },
+  "negativeOracle": {
+    "fixtureRevision": "87db10edcd0775dd37fa84641d614124ef0dab94",
+    "checks": [
+      {
+        "fault": "missing-policy",
+        "outcome": "refused",
+        "exitCode": 1,
+        "diagnostic": "cannot open rule policy /tmp/infra-coverage-sol-raw/absent-policy.json: ENOENT: no such file or directory, open '/tmp/infra-coverage-sol-raw/absent-policy.json'\nTwilight Burokrat validator exited 1"
+      },
+      {
+        "fault": "unreadable-policy",
+        "outcome": "refused",
+        "exitCode": 1,
+        "diagnostic": "cannot open rule policy /tmp/infra-coverage-sol-raw/unreadable-policy.json: EACCES: permission denied, open '/tmp/infra-coverage-sol-raw/unreadable-policy.json'\nTwilight Burokrat validator exited 1"
+      },
+      {
+        "fault": "malformed-policy",
+        "outcome": "refused",
+        "exitCode": 1,
+        "diagnostic": "malformed rule policy JSON /tmp/infra-coverage-sol-raw/malformed-policy.json: JSON Parse error: Expected '}'\nTwilight Burokrat validator exited 1"
+      },
+      {
+        "fault": "removed-mode",
+        "outcome": "refused",
+        "exitCode": 1,
+        "diagnostic": "rule policy states no mode for INV-CLASSIFY\nTwilight Burokrat validator exited 1"
+      },
+      {
+        "fault": "yaml-public-entrypoint",
+        "outcome": "unevaluated",
+        "verdict": {
+          "schemaVersion": 1,
+          "candidate": "13bc0a49fd26dc8c6ef484b9d4b8e892d7c6647ffb1531cc4a7a7035f8ca3a99",
+          "policy": "diagnostic.infra-coverage.2026-10-16",
+          "allowed": false,
+          "ruleIds": [
+            "REL-EXTRACT"
+          ],
+          "findings": [],
+          "unevaluated": [
+            {
+              "ruleId": "REL-EXTRACT",
+              "reason": "TypeScript config malformed: tsconfig.json: No inputs were found in config file '/tmp/tool-wiki-candidate-UW0BRW/tsconfig.json'. Specified 'include' paths were '[\"infra/**/*\"]' and 'exclude' paths were '[]'."
+            }
+          ],
+          "certifies": false
+        }
+      },
+      {
+        "fault": "omitted-inventory-subject",
+        "path": "infra/omitted.yaml",
+        "outcome": "refused",
+        "oracle": "research exact path/mode/blob equality",
+        "diagnostic": "inventory omits infra/omitted.yaml"
+      },
+      {
+        "fault": "omitted-inventory-subject",
+        "path": "infra/extensionless",
+        "outcome": "refused",
+        "oracle": "research exact path/mode/blob equality",
+        "diagnostic": "inventory omits infra/extensionless"
+      },
+      {
+        "fault": "wrong-candidate-identity",
+        "outcome": "refused",
+        "oracle": "research pinned identity equality",
+        "expected": "4f098bfe2bf64343b8f503b5bdebd6e1a6fa34f4",
+        "observed": "87db10edcd0775dd37fa84641d614124ef0dab94",
+        "diagnostic": "wrong-candidate-identity mismatch"
+      },
+      {
+        "fault": "wrong-policy-identity",
+        "outcome": "refused",
+        "oracle": "research pinned identity equality",
+        "expected": "17bf1c19d87a2fb0f2c5ae09065c8bc751fae12645f19599aab61106631a4cea",
+        "observed": "d2ba5457240218e3d9d33a12130a2e04bd09e8a5208390744dda2d0fd947e66a",
+        "diagnostic": "wrong-policy-identity mismatch"
+      }
+    ]
+  },
+  "baselinePolicyRefusal": "rule F1 needs policy.plainTypeScriptPaths, which the rule policy omits\nTwilight Burokrat validator exited 1\n",
+  "knownUnavailableCommand": {
+    "command": "candidate-identity",
+    "exitCode": 1,
+    "diagnostic": "unknown command: candidate-identity\nusage: twilight-burokrat <command> ...\n\ncommands:\n  twilight-burokrat validate-record <kind> <json>\n  twilight-burokrat validate-plan-tasks <plan-reference.json> <tasks.json>\n  twilight-burokrat check <committed|staged|working> <repository> <revision-or-base> <rule-policy-json> [--rule <rule-id>] [--performance-evidence <json>]\n  twilight-burokrat inspect-performance <repository> <committed-sha> <external-rule-policy>\n  twilight-burokrat inspect-performance-sources <repository> <committed-sha> <external-rule-policy>\n  twilight-burokrat inspect-spec-sources <repository> <committed-sha>\n  twilight-burokrat inspect-browser-memberships <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <external-authority>\n  twilight-burokrat inspect-performance-levels <repository> <committed-sha> <external-facts-authority> <external-rule-policy>\n  twilight-burokrat inspect-level-facts <repository> <committed-sha> <external-authority>\n  twilight-burokrat inspect-manual <repository> <committed-sha> <external-rule-policy> <report-path> --now <UTC instant>\n  twilight-burokrat inspect-manual-observation <repository> <committed-sha> <external-rule-policy> <report-path> --now <UTC instant>\n  twilight-burokrat explain <rule-id> [<repository> <rule-policy-json>]\n  twilight-burokrat scenario <import|allocate|validate> <repository> <openspec-spec-path> [--predecessor <id>]\n  twilight-burokrat template <list|show <id>|verify <id> <committed|staged|working> <repository> <revision-or-base> <subject>>\n  twilight-burokrat lint <committed|staged|working> <repository> <revision-or-base>\n  twilight-burokrat prepare-activation <flags>\n  twilight-burokrat prepare-relocation-activation <flags>\n\n"
+  },
+  "nativeInfraChecks": {
+    "status": "not-run",
+    "source": "tools/tool-fleet/src/check.ts",
+    "families": [
+      "schema",
+      "yaml",
+      "ansible-syntax",
+      "ansible-inventory",
+      "kustomize",
+      "wbs-backup",
+      "helm",
+      "shellcheck",
+      "workflows",
+      "executables"
+    ],
+    "provisionSource": "tools/tool-fleet/src/check-provision.ts",
+    "reason": "Native checker provisions locked tools and depends on a controller image; research scope excludes provisioning. No native verdict is inferred from Burokrat."
+  }
+}
