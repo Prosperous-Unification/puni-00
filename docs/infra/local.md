@@ -156,6 +156,41 @@ are recorded in
 [`forge-restart-state/verify.md`](../../openspec/changes/forge-restart-state/verify.md).
 Cold-start reliability remains an open F9 acceptance gap.
 
+### Local process observations
+
+For an attended diagnostic on Linux, explicitly select the exact cgroup-v2 directory
+in the same namespace as `/proc`, then run:
+
+```sh
+bun tools/tool-devsync/src/k3s/forge-process-observation.ts /sys/fs/cgroup/<exact-cgroup>
+```
+
+The command emits one JSON line per completed observation, at most 30 samples with
+one-second pauses inside a 30-second local deadline. Redirect stdout to a private evidence
+file outside the checkout. Required files must be readable. A missing, unreadable,
+malformed, oversized or changing identity fails the command; previous completed lines remain.
+Exit zero proves only that these observations completed.
+
+Each line records UTC time, elapsed time, the cgroup path/device/inode, memory current/peak/max/events, and exact
+`cgroup.procs` members with PID/start-time, PPID, executable basename, RSS in KiB, threads
+and a launcher role hint. Known second-argument Vite/Nx launcher paths yield `vite`/`nx`;
+other commands remain `unknown`. Raw argv, environment and command argument basenames
+are omitted. The hint is observational and cannot authenticate what code a process runs.
+
+The collector checks process identity, command/executable and exact membership around
+inspection and cgroup directory identity before emitting. Samples are sequential observations,
+not atomic snapshots. It does not enumerate descendant cgroups; their charges can appear in
+memory counters without appearing in the exact member list. Summed RSS is not cgroup usage.
+Use retained container identity and termination evidence separately when interpreting OOM.
+
+This command neither discovers nor launches a remote sampler and performs no lab lifecycle,
+restart, capacity or acceptance operation. Its deadline is local, subject to scheduler tolerance;
+it does not prove termination of a remote process or kernel uninterruptible IO. Do not place
+it behind `docker exec` or SSH and claim a remote hard deadline from the local exit.
+Offline fixtures and watched negatives are recorded in
+[`f9-local-process-observation/verify.md`](../../openspec/changes/f9-local-process-observation/verify.md).
+The historical first cold-start OOM and complete F9 acceptance remain unresolved.
+
 ### Forge namespace admission prerequisite
 
 Admission reserves `puni-forge` and `puni-forge-<slug>`. The suffix uses the existing

@@ -1,0 +1,64 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/forge-process-observation.test.ts:
+(pass) records stable Vite identity and memory without raw arguments or verdicts [25.50ms]
+(pass) unknown launcher arguments cannot impersonate the Vite launcher [5.09ms]
+(pass) refuses absent and unreadable required memory state [3.66ms]
+(pass) refuses malformed counters, PID identity, status and cgroup membership [20.56ms]
+(pass) refuses oversized files and more than 256 exact members [4.68ms]
+(pass) refuses foreign directories and symlink escapes [3.93ms]
+(pass) refuses invalid bounds before inspecting filesystem [0.80ms]
+(pass) deadline refuses an interval exceeding remaining budget [41.95ms]
+(pass) CLI rejects extra lifecycle arguments before reading files [30.55ms]
+(pass) refuses identity and membership changes after command inspection [83.82ms]
+(pass) CLI local watchdog exits during a stalled required read [68.31ms]
+(pass) refuses unsafe executable text instead of logging it [2.89ms]
+(pass) refuses cgroup directory replacement during process inspection [40.64ms]
+(pass) library deadline rejects a stalled read and leaves no long pause running [142.05ms]
+(pass) refuses exec changes within the same PID start time [34.42ms]
+(pass) refuses unreadable required state independently from absent state [2.51ms]
+345 |     ['status', 'Pid: 42\nPPid: 1\nVmRSS: bad kB\nThreads: 87\n', /malformed process number/],
+346 |   ] as const;
+347 |   for (const [file, text, failure] of cases) {
+348 |     const { cgroup, proc, roots } = await fixture();
+349 |     await writeFile(join(file.startsWith('memory') ? cgroup : proc, file), text);
+350 |     await rejects(
+                ^
+AssertionError: The input did not match the regular expression /malformed memory events/. Input:
+
+'Error: required memory events absent'
+
+ generatedMessage: true,
+   expected: /malformed memory events/,
+   operator: "rejects",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at expectedException (node:assert:327:33)
+      at expectsError (node:assert:395:20)
+      at assert.rejects (node:assert:434:17)
+      at /tmp/f9-process-sampler-e7201df/tools/tool-devsync/src/k3s/forge-process-observation.test.ts:350:11
+
+72 |       void 0;
+73 |     events[name] = count;
+74 |   }
+75 |   // Proof: missing-events fixture retains valid low counter but omits required OOM counters.
+76 |   if (!Object.hasOwn(events, 'oom') || !Object.hasOwn(events, 'oom_kill'))
+77 |     throw new Error('required memory events absent');
+                   ^
+error: required memory events absent
+      at parseEvents (/tmp/f9-process-sampler-e7201df/tools/tool-devsync/src/k3s/forge-process-observation.ts:77:15)
+      at <anonymous> (/tmp/f9-process-sampler-e7201df/tools/tool-devsync/src/k3s/forge-process-observation.ts:177:22)
+      at async observeProcesses (/tmp/f9-process-sampler-e7201df/tools/tool-devsync/src/k3s/forge-process-observation.ts:252:26)
+      at async waitForActual (node:assert:359:24)
+      at async assert.rejects (node:assert:434:77)
+      at async <anonymous> (/tmp/f9-process-sampler-e7201df/tools/tool-devsync/src/k3s/forge-process-observation.test.ts:350:11)
+(fail) refuses missing required event counters and malformed process fields [33.33ms]
+(pass) refuses nonregular required state [3.56ms]
+(pass) rejects a FIFO required file without leaving a blocked reader [31.67ms]
+(pass) refuses a nondirectory cgroup path before reading member files [1.91ms]
+
+ 19 pass
+ 1 fail
+ 34 expect() calls
+Ran 20 tests across 1 file. [634.00ms]

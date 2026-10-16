@@ -1,0 +1,153 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/forge-process-observation.test.ts:
+1 | export async function observeProcesses(..._arguments: unknown[]): Promise<unknown[]> {
+2 |   throw new Error('process observation not implemented');
+                ^
+error: process observation not implemented
+      at observeProcesses (/tmp/f9-process-sampler-e7201df/tools/tool-devsync/src/k3s/forge-process-observation.ts:2:13)
+      at <anonymous> (/tmp/f9-process-sampler-e7201df/tools/tool-devsync/src/k3s/forge-process-observation.test.ts:43:25)
+(fail) records stable Vite identity and memory without raw arguments or verdicts [4.14ms]
+1 | export async function observeProcesses(..._arguments: unknown[]): Promise<unknown[]> {
+2 |   throw new Error('process observation not implemented');
+                ^
+error: process observation not implemented
+      at observeProcesses (/tmp/f9-process-sampler-e7201df/tools/tool-devsync/src/k3s/forge-process-observation.ts:2:13)
+      at <anonymous> (/tmp/f9-process-sampler-e7201df/tools/tool-devsync/src/k3s/forge-process-observation.test.ts:55:17)
+(fail) unknown launcher arguments cannot impersonate the Vite launcher [1.79ms]
+(pass) refuses absent and unreadable required memory state [2.42ms]
+(pass) refuses malformed counters, PID identity, status and cgroup membership [6.46ms]
+75 | });
+76 |
+77 | test('refuses oversized files and more than 256 exact members', async () => {
+78 |   const { cgroup, proc, roots } = await fixture();
+79 |   await writeFile(join(proc, 'cmdline'), 'x'.repeat(65537));
+80 |   await rejects(observeProcesses({ cgroup, samples: 1, intervalMs: 0, windowMs: 1000 }, roots), /byte limit/);
+             ^
+AssertionError: The input did not match the regular expression /byte limit/. Input:
+
+'Error: process observation not implemented'
+
+ generatedMessage: true,
+   expected: /byte limit/,
+   operator: "rejects",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at expectedException (node:assert:327:33)
+      at expectsError (node:assert:395:20)
+      at assert.rejects (node:assert:434:17)
+      at /tmp/f9-process-sampler-e7201df/tools/tool-devsync/src/k3s/forge-process-observation.test.ts:80:9
+
+1 | export async function observeProcesses(..._arguments: unknown[]): Promise<unknown[]> {
+2 |   throw new Error('process observation not implemented');
+                ^
+error: process observation not implemented
+      at observeProcesses (/tmp/f9-process-sampler-e7201df/tools/tool-devsync/src/k3s/forge-process-observation.ts:2:13)
+      at <anonymous> (/tmp/f9-process-sampler-e7201df/tools/tool-devsync/src/k3s/forge-process-observation.test.ts:80:17)
+(fail) refuses oversized files and more than 256 exact members [20.14ms]
+82 |   await rejects(observeProcesses({ cgroup, samples: 1, intervalMs: 0, windowMs: 1000 }, roots), /process limit/);
+83 | });
+84 |
+85 | test('refuses foreign directories and symlink escapes', async () => {
+86 |   const { cgroup, proc, roots } = await fixture();
+87 |   await rejects(observeProcesses({ cgroup: proc, samples: 1, intervalMs: 0, windowMs: 1000 }, roots), /cgroup directory/);
+             ^
+AssertionError: The input did not match the regular expression /cgroup directory/. Input:
+
+'Error: process observation not implemented'
+
+ generatedMessage: true,
+   expected: /cgroup directory/,
+   operator: "rejects",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at expectedException (node:assert:327:33)
+      at expectsError (node:assert:395:20)
+      at assert.rejects (node:assert:434:17)
+      at /tmp/f9-process-sampler-e7201df/tools/tool-devsync/src/k3s/forge-process-observation.test.ts:87:9
+
+1 | export async function observeProcesses(..._arguments: unknown[]): Promise<unknown[]> {
+2 |   throw new Error('process observation not implemented');
+                ^
+error: process observation not implemented
+      at observeProcesses (/tmp/f9-process-sampler-e7201df/tools/tool-devsync/src/k3s/forge-process-observation.ts:2:13)
+      at <anonymous> (/tmp/f9-process-sampler-e7201df/tools/tool-devsync/src/k3s/forge-process-observation.test.ts:87:17)
+(fail) refuses foreign directories and symlink escapes [2.24ms]
+93 |   await rejects(observeProcesses({ cgroup, samples: 1, intervalMs: 0, windowMs: 1000 }, roots));
+94 | });
+95 |
+96 | test('refuses invalid bounds before inspecting filesystem', async () => {
+97 |   for (const bounds of [{ samples: 0 }, { samples: 31 }, { samples: 1.5 }, { intervalMs: -1 }, { intervalMs: 1001 }, { windowMs: 0 }, { windowMs: Infinity }, { windowMs: NaN }, { windowMs: 30001 }]) {
+98 |     await rejects(observeProcesses({ cgroup: '/missing', samples: 1, intervalMs: 0, windowMs: 1000, ...bounds }), /bounds/);
+               ^
+AssertionError: The input did not match the regular expression /bounds/. Input:
+
+'Error: process observation not implemented'
+
+ generatedMessage: true,
+   expected: /bounds/,
+   operator: "rejects",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at expectedException (node:assert:327:33)
+      at expectsError (node:assert:395:20)
+      at assert.rejects (node:assert:434:17)
+      at /tmp/f9-process-sampler-e7201df/tools/tool-devsync/src/k3s/forge-process-observation.test.ts:98:11
+
+1 | export async function observeProcesses(..._arguments: unknown[]): Promise<unknown[]> {
+2 |   throw new Error('process observation not implemented');
+                ^
+error: process observation not implemented
+      at observeProcesses (/tmp/f9-process-sampler-e7201df/tools/tool-devsync/src/k3s/forge-process-observation.ts:2:13)
+      at <anonymous> (/tmp/f9-process-sampler-e7201df/tools/tool-devsync/src/k3s/forge-process-observation.test.ts:98:19)
+(fail) refuses invalid bounds before inspecting filesystem [0.58ms]
+100 | });
+101 |
+102 | test('deadline refuses an interval exceeding remaining budget', async () => {
+103 |   const { cgroup, roots } = await fixture();
+104 |   const started = performance.now();
+105 |   await rejects(observeProcesses({ cgroup, samples: 2, intervalMs: 1000, windowMs: 40 }, roots), /deadline/);
+              ^
+AssertionError: The input did not match the regular expression /deadline/. Input:
+
+'Error: process observation not implemented'
+
+ generatedMessage: true,
+   expected: /deadline/,
+   operator: "rejects",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at expectedException (node:assert:327:33)
+      at expectsError (node:assert:395:20)
+      at assert.rejects (node:assert:434:17)
+      at /tmp/f9-process-sampler-e7201df/tools/tool-devsync/src/k3s/forge-process-observation.test.ts:105:9
+
+1 | export async function observeProcesses(..._arguments: unknown[]): Promise<unknown[]> {
+2 |   throw new Error('process observation not implemented');
+                ^
+error: process observation not implemented
+      at observeProcesses (/tmp/f9-process-sampler-e7201df/tools/tool-devsync/src/k3s/forge-process-observation.ts:2:13)
+      at <anonymous> (/tmp/f9-process-sampler-e7201df/tools/tool-devsync/src/k3s/forge-process-observation.test.ts:105:17)
+(fail) deadline refuses an interval exceeding remaining budget [1.94ms]
+106 |   expect(performance.now() - started).toBeLessThan(500);
+107 | });
+108 |
+109 | test('CLI rejects extra lifecycle arguments before reading files', async () => {
+110 |   const child = Bun.spawn([process.execPath, join(import.meta.dir, 'forge-process-observation.ts'), '/missing', 'up'], { stdout: 'pipe', stderr: 'pipe' });
+111 |   expect(await child.exited).not.toBe(0);
+                                       ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/tmp/f9-process-sampler-e7201df/tools/tool-devsync/src/k3s/forge-process-observation.test.ts:111:34)
+(fail) CLI rejects extra lifecycle arguments before reading files [11.55ms]
+
+ 2 pass
+ 7 fail
+ 1 expect() calls
+Ran 9 tests across 1 file. [85.00ms]
