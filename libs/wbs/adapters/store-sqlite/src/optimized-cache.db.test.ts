@@ -452,29 +452,32 @@ describe('a payload the decoder refuses', () => {
    * throw here would wedge the plan read for **both** objectives on one bad
    * row, which is the outcome `corrupt` exists to prevent.
    */
-  it('reads an ok row with no payload as corrupt rather than throwing', () => {
-    const db = tempDb();
-    try {
-      const generation = prepared(db.path);
-      const raw = openDatabase(db.path);
+  it.each(['ok', 'plan-infeasible'] as const)(
+    'reads a %s row with no payload as corrupt rather than throwing',
+    (status) => {
+      const db = tempDb();
       try {
-        raw.run('PRAGMA ignore_check_constraints = ON');
-        raw.run(
-          `INSERT INTO optimized_schedule_cache
+        const generation = prepared(db.path);
+        const raw = openDatabase(db.path);
+        try {
+          raw.run('PRAGMA ignore_check_constraints = ON');
+          raw.run(
+            `INSERT INTO optimized_schedule_cache
              (project_id, input_hash, objective, contract_version, budget_ms,
               generation, status, result_json, failure_reason, created_at)
            VALUES ('p-1', '${HASH}', 'pri', '${CONTRACT}', ${String(BUDGET)}, ${String(generation)},
-                   'ok', NULL, NULL, 7)`,
-        );
-      } finally {
-        raw.close();
-      }
+                   '${status}', NULL, NULL, 7)`,
+          );
+        } finally {
+          raw.close();
+        }
 
-      survives(db.path, read(db.path).pri, /no result_json/);
-    } finally {
-      db.cleanup();
-    }
-  });
+        survives(db.path, read(db.path).pri, /no result_json/);
+      } finally {
+        db.cleanup();
+      }
+    },
+  );
 });
 
 describe('a plan-infeasible row, decoded by its own codec', () => {
@@ -716,6 +719,20 @@ describe('the 3.8 boundary still throws on the read path', () => {
       expect(() => read(db.path)).toThrow(
         /optimized_schedule_cache\.failure_reason.*ran-out-of-patience/,
       );
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('reads a failed row with no reason as corrupt and keeps it', () => {
+    const db = tempDb();
+    try {
+      injectUnchecked(db.path, { status: 'failed', failureReason: null });
+      const outcome = read(db.path).pri;
+      expect(outcome.kind).toBe('corrupt');
+      if (outcome.kind !== 'corrupt') throw new Error('unreachable');
+      expect(outcome.reason).toMatch(/no failure_reason/);
+      expect(storedRowCount(db.path)).toBe(1);
     } finally {
       db.cleanup();
     }
