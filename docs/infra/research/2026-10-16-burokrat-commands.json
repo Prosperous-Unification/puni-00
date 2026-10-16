@@ -1,0 +1,1657 @@
+{
+  "receipts": [
+    {
+      "label": "inventory-infra",
+      "argv": ["git", "ls-tree", "-rz", "4f098bfe2bf64343b8f503b5bdebd6e1a6fa34f4", "--", "infra"],
+      "cwd": "/tmp/infra-coverage-research-sol",
+      "exitCode": 0,
+      "seconds": 0.004,
+      "streams": [
+        {
+          "path": "/tmp/infra-coverage-sol-raw/inventory-infra.stdout",
+          "sha256": "80e5b5005e5e93f1a7989bd97dcc4ac3a5818bb07e45a62987ac21acef437802",
+          "bytes": 26772
+        },
+        {
+          "path": "/tmp/infra-coverage-sol-raw/inventory-infra.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ]
+    },
+    {
+      "label": "inventory-tools-tool-fleet",
+      "argv": [
+        "git",
+        "ls-tree",
+        "-rz",
+        "4f098bfe2bf64343b8f503b5bdebd6e1a6fa34f4",
+        "--",
+        "tools/tool-fleet"
+      ],
+      "cwd": "/tmp/infra-coverage-research-sol",
+      "exitCode": 0,
+      "seconds": 0.004,
+      "streams": [
+        {
+          "path": "/tmp/infra-coverage-sol-raw/inventory-tools-tool-fleet.stdout",
+          "sha256": "cbff304166ff0957a9a0d9cf0c98b19dee3e0a16a8bb6252aa779c348570c6ed",
+          "bytes": 8564
+        },
+        {
+          "path": "/tmp/infra-coverage-sol-raw/inventory-tools-tool-fleet.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ]
+    },
+    {
+      "label": "inventory-deploy-k8s",
+      "argv": [
+        "git",
+        "ls-tree",
+        "-rz",
+        "4f098bfe2bf64343b8f503b5bdebd6e1a6fa34f4",
+        "--",
+        "deploy/k8s"
+      ],
+      "cwd": "/tmp/infra-coverage-research-sol",
+      "exitCode": 0,
+      "seconds": 0.005,
+      "streams": [
+        {
+          "path": "/tmp/infra-coverage-sol-raw/inventory-deploy-k8s.stdout",
+          "sha256": "384cb67fb90ccd3931f40a1b5e02e2cab4ca44ce0cfd82e3a36c819d14b3f088",
+          "bytes": 3753
+        },
+        {
+          "path": "/tmp/infra-coverage-sol-raw/inventory-deploy-k8s.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ]
+    },
+    {
+      "label": "explain-F1",
+      "argv": ["/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib", "explain", "F1"],
+      "cwd": "/tmp/infra-coverage-research-sol",
+      "exitCode": 0,
+      "seconds": 3.67,
+      "streams": [
+        {
+          "path": "/tmp/infra-coverage-sol-raw/explain-F1.stdout",
+          "sha256": "e1eea8223428a6775eda770e0fa6d0f6ecfbc837cb324e9b7ffe41b1f78c75b9",
+          "bytes": 357
+        },
+        {
+          "path": "/tmp/infra-coverage-sol-raw/explain-F1.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ]
+    },
+    {
+      "label": "explain-F7",
+      "argv": ["/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib", "explain", "F7"],
+      "cwd": "/tmp/infra-coverage-research-sol",
+      "exitCode": 0,
+      "seconds": 3.639,
+      "streams": [
+        {
+          "path": "/tmp/infra-coverage-sol-raw/explain-F7.stdout",
+          "sha256": "357fbf6e7b2e9f3a40066f91e4486782ec53134b57b6e6592d3bf8dd5f166d7e",
+          "bytes": 333
+        },
+        {
+          "path": "/tmp/infra-coverage-sol-raw/explain-F7.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ]
+    },
+    {
+      "label": "explain-INV-CLASSIFY",
+      "argv": [
+        "/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib",
+        "explain",
+        "INV-CLASSIFY"
+      ],
+      "cwd": "/tmp/infra-coverage-research-sol",
+      "exitCode": 0,
+      "seconds": 3.823,
+      "streams": [
+        {
+          "path": "/tmp/infra-coverage-sol-raw/explain-INV-CLASSIFY.stdout",
+          "sha256": "3394c2c62f029d79718f95ee896d7f6f2b57e8fded725016323c7f9f9d0f8db3",
+          "bytes": 325
+        },
+        {
+          "path": "/tmp/infra-coverage-sol-raw/explain-INV-CLASSIFY.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ]
+    },
+    {
+      "label": "explain-K2",
+      "argv": ["/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib", "explain", "K2"],
+      "cwd": "/tmp/infra-coverage-research-sol",
+      "exitCode": 0,
+      "seconds": 3.647,
+      "streams": [
+        {
+          "path": "/tmp/infra-coverage-sol-raw/explain-K2.stdout",
+          "sha256": "4a0505d47bdf3fb2368c3543a4a90cbabe63004b805e1271bbfcb0635ca4addd",
+          "bytes": 326
+        },
+        {
+          "path": "/tmp/infra-coverage-sol-raw/explain-K2.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ]
+    },
+    {
+      "label": "explain-K3",
+      "argv": ["/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib", "explain", "K3"],
+      "cwd": "/tmp/infra-coverage-research-sol",
+      "exitCode": 0,
+      "seconds": 3.669,
+      "streams": [
+        {
+          "path": "/tmp/infra-coverage-sol-raw/explain-K3.stdout",
+          "sha256": "44fa05db5c9f357de966ea474b0630d41894954b3507731b63a08296dc6f6710",
+          "bytes": 356
+        },
+        {
+          "path": "/tmp/infra-coverage-sol-raw/explain-K3.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ]
+    },
+    {
+      "label": "explain-K4",
+      "argv": ["/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib", "explain", "K4"],
+      "cwd": "/tmp/infra-coverage-research-sol",
+      "exitCode": 0,
+      "seconds": 3.683,
+      "streams": [
+        {
+          "path": "/tmp/infra-coverage-sol-raw/explain-K4.stdout",
+          "sha256": "b11e97755ec89a2b258db5822098421cabaffec4c7e25480564dd97b4d12625f",
+          "bytes": 331
+        },
+        {
+          "path": "/tmp/infra-coverage-sol-raw/explain-K4.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ]
+    },
+    {
+      "label": "explain-K5",
+      "argv": ["/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib", "explain", "K5"],
+      "cwd": "/tmp/infra-coverage-research-sol",
+      "exitCode": 0,
+      "seconds": 3.66,
+      "streams": [
+        {
+          "path": "/tmp/infra-coverage-sol-raw/explain-K5.stdout",
+          "sha256": "20c4c8f2b73493be1a05ec79167a559d3f8c609936188b83681851af53d59861",
+          "bytes": 350
+        },
+        {
+          "path": "/tmp/infra-coverage-sol-raw/explain-K5.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ]
+    },
+    {
+      "label": "explain-K6",
+      "argv": ["/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib", "explain", "K6"],
+      "cwd": "/tmp/infra-coverage-research-sol",
+      "exitCode": 0,
+      "seconds": 3.705,
+      "streams": [
+        {
+          "path": "/tmp/infra-coverage-sol-raw/explain-K6.stdout",
+          "sha256": "3d96e9a05e774596d3c7a3fe3f99122a5b962c38d31818d95bd9705112c682b8",
+          "bytes": 310
+        },
+        {
+          "path": "/tmp/infra-coverage-sol-raw/explain-K6.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ]
+    },
+    {
+      "label": "explain-MOD-DIRECT-ENTRIES",
+      "argv": [
+        "/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib",
+        "explain",
+        "MOD-DIRECT-ENTRIES"
+      ],
+      "cwd": "/tmp/infra-coverage-research-sol",
+      "exitCode": 0,
+      "seconds": 3.677,
+      "streams": [
+        {
+          "path": "/tmp/infra-coverage-sol-raw/explain-MOD-DIRECT-ENTRIES.stdout",
+          "sha256": "f768ebd34d4dcdc29fb4b839c05f63f01ba0e08598a61fd44b655eaf59a9383d",
+          "bytes": 294
+        },
+        {
+          "path": "/tmp/infra-coverage-sol-raw/explain-MOD-DIRECT-ENTRIES.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ]
+    },
+    {
+      "label": "explain-MOD-INDEX",
+      "argv": [
+        "/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib",
+        "explain",
+        "MOD-INDEX"
+      ],
+      "cwd": "/tmp/infra-coverage-research-sol",
+      "exitCode": 0,
+      "seconds": 3.703,
+      "streams": [
+        {
+          "path": "/tmp/infra-coverage-sol-raw/explain-MOD-INDEX.stdout",
+          "sha256": "fae98d9d740a405481f6d8352d3ef756f4c40096cbb86c24a0489b7510f149d2",
+          "bytes": 358
+        },
+        {
+          "path": "/tmp/infra-coverage-sol-raw/explain-MOD-INDEX.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ]
+    },
+    {
+      "label": "explain-MOD-LAYOUT",
+      "argv": [
+        "/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib",
+        "explain",
+        "MOD-LAYOUT"
+      ],
+      "cwd": "/tmp/infra-coverage-research-sol",
+      "exitCode": 0,
+      "seconds": 7.857,
+      "streams": [
+        {
+          "path": "/tmp/infra-coverage-sol-raw/explain-MOD-LAYOUT.stdout",
+          "sha256": "66ef4928ce5424c10e11cd6f5537e3143a3e898aa4181a837724ce23b63bea01",
+          "bytes": 281
+        },
+        {
+          "path": "/tmp/infra-coverage-sol-raw/explain-MOD-LAYOUT.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ]
+    },
+    {
+      "label": "explain-PERF-THRESHOLD",
+      "argv": [
+        "/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib",
+        "explain",
+        "PERF-THRESHOLD"
+      ],
+      "cwd": "/tmp/infra-coverage-research-sol",
+      "exitCode": 0,
+      "seconds": 11.41,
+      "streams": [
+        {
+          "path": "/tmp/infra-coverage-sol-raw/explain-PERF-THRESHOLD.stdout",
+          "sha256": "5fbfdc421c91c454b41ff02d1d7ef02afb22ea50a6b3dba4b15e2bb2fc89e31b",
+          "bytes": 264
+        },
+        {
+          "path": "/tmp/infra-coverage-sol-raw/explain-PERF-THRESHOLD.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ]
+    },
+    {
+      "label": "explain-REL-EXTRACT",
+      "argv": [
+        "/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib",
+        "explain",
+        "REL-EXTRACT"
+      ],
+      "cwd": "/tmp/infra-coverage-research-sol",
+      "exitCode": 0,
+      "seconds": 6.972,
+      "streams": [
+        {
+          "path": "/tmp/infra-coverage-sol-raw/explain-REL-EXTRACT.stdout",
+          "sha256": "2449caed7374e842835b184ad9eb85bcbf8cdbb7cc83f7ad58275afa6c0f3b59",
+          "bytes": 322
+        },
+        {
+          "path": "/tmp/infra-coverage-sol-raw/explain-REL-EXTRACT.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ]
+    },
+    {
+      "label": "explain-SPEC-SCENARIOS",
+      "argv": [
+        "/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib",
+        "explain",
+        "SPEC-SCENARIOS"
+      ],
+      "cwd": "/tmp/infra-coverage-research-sol",
+      "exitCode": 0,
+      "seconds": 5.186,
+      "streams": [
+        {
+          "path": "/tmp/infra-coverage-sol-raw/explain-SPEC-SCENARIOS.stdout",
+          "sha256": "ee253db3edffa7c53ca51e90ab56a150bb3b07eb1818504bce1053e3ca15345f",
+          "bytes": 287
+        },
+        {
+          "path": "/tmp/infra-coverage-sol-raw/explain-SPEC-SCENARIOS.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ]
+    },
+    {
+      "label": "identity",
+      "argv": [
+        "/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib",
+        "candidate-identity",
+        "committed",
+        "/tmp/infra-coverage-research-sol",
+        "4f098bfe2bf64343b8f503b5bdebd6e1a6fa34f4"
+      ],
+      "cwd": "/tmp/infra-coverage-research-sol",
+      "exitCode": 1,
+      "seconds": 1.815,
+      "streams": [
+        {
+          "path": "/tmp/infra-coverage-sol-raw/identity.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        {
+          "path": "/tmp/infra-coverage-sol-raw/identity.stderr",
+          "sha256": "6d0cbbff9db289924dcbcda38533aba67cbe30d354679e23a3380dd70c650e56",
+          "bytes": 1748
+        }
+      ]
+    },
+    {
+      "label": "full",
+      "argv": [
+        "/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib",
+        "check",
+        "committed",
+        "/tmp/infra-coverage-research-sol",
+        "4f098bfe2bf64343b8f503b5bdebd6e1a6fa34f4",
+        "/tmp/infra-coverage-sol-raw/infra-diagnostic-policy.json"
+      ],
+      "cwd": "/tmp/infra-coverage-research-sol",
+      "exitCode": 1,
+      "seconds": 15.273,
+      "streams": [
+        {
+          "path": "/tmp/infra-coverage-sol-raw/full.stdout",
+          "sha256": "8072c2e54bd4acb200eaded87e00bf2f926b388ffc35c9b3b3d9e316c069702c",
+          "bytes": 2779
+        },
+        {
+          "path": "/tmp/infra-coverage-sol-raw/full.stderr",
+          "sha256": "f5de1594610591e05b93b1baccd7637642cb4e3f720bdd78a9fbc68f1129646c",
+          "bytes": 37
+        }
+      ]
+    },
+    {
+      "label": "rule-F1",
+      "argv": [
+        "/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib",
+        "check",
+        "committed",
+        "/tmp/infra-coverage-research-sol",
+        "4f098bfe2bf64343b8f503b5bdebd6e1a6fa34f4",
+        "/tmp/infra-coverage-sol-raw/infra-diagnostic-policy.json",
+        "--rule",
+        "F1"
+      ],
+      "cwd": "/tmp/infra-coverage-research-sol",
+      "exitCode": 1,
+      "seconds": 13.752,
+      "streams": [
+        {
+          "path": "/tmp/infra-coverage-sol-raw/rule-F1.stdout",
+          "sha256": "972543bd42d611fac04f3b11e9d6b3fe70635bf01412cd9a6b90504948d70581",
+          "bytes": 338
+        },
+        {
+          "path": "/tmp/infra-coverage-sol-raw/rule-F1.stderr",
+          "sha256": "f5de1594610591e05b93b1baccd7637642cb4e3f720bdd78a9fbc68f1129646c",
+          "bytes": 37
+        }
+      ]
+    },
+    {
+      "label": "rule-F7",
+      "argv": [
+        "/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib",
+        "check",
+        "committed",
+        "/tmp/infra-coverage-research-sol",
+        "4f098bfe2bf64343b8f503b5bdebd6e1a6fa34f4",
+        "/tmp/infra-coverage-sol-raw/infra-diagnostic-policy.json",
+        "--rule",
+        "F7"
+      ],
+      "cwd": "/tmp/infra-coverage-research-sol",
+      "exitCode": 0,
+      "seconds": 6.954,
+      "streams": [
+        {
+          "path": "/tmp/infra-coverage-sol-raw/rule-F7.stdout",
+          "sha256": "0a5e7910b459d03980421f3ed1871465a52268fa05662b3df2e87a0b0bd52462",
+          "bytes": 1074
+        },
+        {
+          "path": "/tmp/infra-coverage-sol-raw/rule-F7.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ]
+    },
+    {
+      "label": "rule-INV-CLASSIFY",
+      "argv": [
+        "/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib",
+        "check",
+        "committed",
+        "/tmp/infra-coverage-research-sol",
+        "4f098bfe2bf64343b8f503b5bdebd6e1a6fa34f4",
+        "/tmp/infra-coverage-sol-raw/infra-diagnostic-policy.json",
+        "--rule",
+        "INV-CLASSIFY"
+      ],
+      "cwd": "/tmp/infra-coverage-research-sol",
+      "exitCode": 0,
+      "seconds": 8.034,
+      "streams": [
+        {
+          "path": "/tmp/infra-coverage-sol-raw/rule-INV-CLASSIFY.stdout",
+          "sha256": "57feb191d320133cdaa6eaa9086780d0c795c419120c487be42d25aab00e69fa",
+          "bytes": 238
+        },
+        {
+          "path": "/tmp/infra-coverage-sol-raw/rule-INV-CLASSIFY.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ]
+    },
+    {
+      "label": "rule-K2",
+      "argv": [
+        "/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib",
+        "check",
+        "committed",
+        "/tmp/infra-coverage-research-sol",
+        "4f098bfe2bf64343b8f503b5bdebd6e1a6fa34f4",
+        "/tmp/infra-coverage-sol-raw/infra-diagnostic-policy.json",
+        "--rule",
+        "K2"
+      ],
+      "cwd": "/tmp/infra-coverage-research-sol",
+      "exitCode": 1,
+      "seconds": 8.614,
+      "streams": [
+        {
+          "path": "/tmp/infra-coverage-sol-raw/rule-K2.stdout",
+          "sha256": "ab9a9ca11e979f4cb8d47a53543272102501427065d2f0cb99b7822f980f4686",
+          "bytes": 338
+        },
+        {
+          "path": "/tmp/infra-coverage-sol-raw/rule-K2.stderr",
+          "sha256": "f5de1594610591e05b93b1baccd7637642cb4e3f720bdd78a9fbc68f1129646c",
+          "bytes": 37
+        }
+      ]
+    },
+    {
+      "label": "rule-K3",
+      "argv": [
+        "/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib",
+        "check",
+        "committed",
+        "/tmp/infra-coverage-research-sol",
+        "4f098bfe2bf64343b8f503b5bdebd6e1a6fa34f4",
+        "/tmp/infra-coverage-sol-raw/infra-diagnostic-policy.json",
+        "--rule",
+        "K3"
+      ],
+      "cwd": "/tmp/infra-coverage-research-sol",
+      "exitCode": 1,
+      "seconds": 8.739,
+      "streams": [
+        {
+          "path": "/tmp/infra-coverage-sol-raw/rule-K3.stdout",
+          "sha256": "de024ca663f7c4a473e3eab822a4bdc8abc7842d259edda029d96ce0c014291c",
+          "bytes": 338
+        },
+        {
+          "path": "/tmp/infra-coverage-sol-raw/rule-K3.stderr",
+          "sha256": "f5de1594610591e05b93b1baccd7637642cb4e3f720bdd78a9fbc68f1129646c",
+          "bytes": 37
+        }
+      ]
+    },
+    {
+      "label": "rule-K4",
+      "argv": [
+        "/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib",
+        "check",
+        "committed",
+        "/tmp/infra-coverage-research-sol",
+        "4f098bfe2bf64343b8f503b5bdebd6e1a6fa34f4",
+        "/tmp/infra-coverage-sol-raw/infra-diagnostic-policy.json",
+        "--rule",
+        "K4"
+      ],
+      "cwd": "/tmp/infra-coverage-research-sol",
+      "exitCode": 1,
+      "seconds": 9.066,
+      "streams": [
+        {
+          "path": "/tmp/infra-coverage-sol-raw/rule-K4.stdout",
+          "sha256": "60f350954b32bb6360713bbe1d7f1f6dc0b66c1366c9a84f4e68f6031eb0b8b4",
+          "bytes": 338
+        },
+        {
+          "path": "/tmp/infra-coverage-sol-raw/rule-K4.stderr",
+          "sha256": "f5de1594610591e05b93b1baccd7637642cb4e3f720bdd78a9fbc68f1129646c",
+          "bytes": 37
+        }
+      ]
+    },
+    {
+      "label": "rule-K5",
+      "argv": [
+        "/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib",
+        "check",
+        "committed",
+        "/tmp/infra-coverage-research-sol",
+        "4f098bfe2bf64343b8f503b5bdebd6e1a6fa34f4",
+        "/tmp/infra-coverage-sol-raw/infra-diagnostic-policy.json",
+        "--rule",
+        "K5"
+      ],
+      "cwd": "/tmp/infra-coverage-research-sol",
+      "exitCode": 1,
+      "seconds": 8.758,
+      "streams": [
+        {
+          "path": "/tmp/infra-coverage-sol-raw/rule-K5.stdout",
+          "sha256": "e1f320e41f799814e14ad498573391a038524550c2aa44a3c71163c149a18d92",
+          "bytes": 338
+        },
+        {
+          "path": "/tmp/infra-coverage-sol-raw/rule-K5.stderr",
+          "sha256": "f5de1594610591e05b93b1baccd7637642cb4e3f720bdd78a9fbc68f1129646c",
+          "bytes": 37
+        }
+      ]
+    },
+    {
+      "label": "rule-K6",
+      "argv": [
+        "/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib",
+        "check",
+        "committed",
+        "/tmp/infra-coverage-research-sol",
+        "4f098bfe2bf64343b8f503b5bdebd6e1a6fa34f4",
+        "/tmp/infra-coverage-sol-raw/infra-diagnostic-policy.json",
+        "--rule",
+        "K6"
+      ],
+      "cwd": "/tmp/infra-coverage-research-sol",
+      "exitCode": 1,
+      "seconds": 8.964,
+      "streams": [
+        {
+          "path": "/tmp/infra-coverage-sol-raw/rule-K6.stdout",
+          "sha256": "855801b0e917c328bc92328184005ed19824b2b3832b1695f37c5744ae9e49d9",
+          "bytes": 338
+        },
+        {
+          "path": "/tmp/infra-coverage-sol-raw/rule-K6.stderr",
+          "sha256": "f5de1594610591e05b93b1baccd7637642cb4e3f720bdd78a9fbc68f1129646c",
+          "bytes": 37
+        }
+      ]
+    },
+    {
+      "label": "rule-MOD-DIRECT-ENTRIES",
+      "argv": [
+        "/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib",
+        "check",
+        "committed",
+        "/tmp/infra-coverage-research-sol",
+        "4f098bfe2bf64343b8f503b5bdebd6e1a6fa34f4",
+        "/tmp/infra-coverage-sol-raw/infra-diagnostic-policy.json",
+        "--rule",
+        "MOD-DIRECT-ENTRIES"
+      ],
+      "cwd": "/tmp/infra-coverage-research-sol",
+      "exitCode": 0,
+      "seconds": 6.948,
+      "streams": [
+        {
+          "path": "/tmp/infra-coverage-sol-raw/rule-MOD-DIRECT-ENTRIES.stdout",
+          "sha256": "08e3f598be69cedd2988119adda438b4e4b3432519ae517222012e221ef8365a",
+          "bytes": 244
+        },
+        {
+          "path": "/tmp/infra-coverage-sol-raw/rule-MOD-DIRECT-ENTRIES.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ]
+    },
+    {
+      "label": "rule-MOD-INDEX",
+      "argv": [
+        "/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib",
+        "check",
+        "committed",
+        "/tmp/infra-coverage-research-sol",
+        "4f098bfe2bf64343b8f503b5bdebd6e1a6fa34f4",
+        "/tmp/infra-coverage-sol-raw/infra-diagnostic-policy.json",
+        "--rule",
+        "MOD-INDEX"
+      ],
+      "cwd": "/tmp/infra-coverage-research-sol",
+      "exitCode": 0,
+      "seconds": 7.026,
+      "streams": [
+        {
+          "path": "/tmp/infra-coverage-sol-raw/rule-MOD-INDEX.stdout",
+          "sha256": "2c7bdb24d65b6d607b0411aff83903e67f0bc219a7218fbf41bd3d40fecf3e0a",
+          "bytes": 235
+        },
+        {
+          "path": "/tmp/infra-coverage-sol-raw/rule-MOD-INDEX.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ]
+    },
+    {
+      "label": "rule-MOD-LAYOUT",
+      "argv": [
+        "/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib",
+        "check",
+        "committed",
+        "/tmp/infra-coverage-research-sol",
+        "4f098bfe2bf64343b8f503b5bdebd6e1a6fa34f4",
+        "/tmp/infra-coverage-sol-raw/infra-diagnostic-policy.json",
+        "--rule",
+        "MOD-LAYOUT"
+      ],
+      "cwd": "/tmp/infra-coverage-research-sol",
+      "exitCode": 0,
+      "seconds": 7.224,
+      "streams": [
+        {
+          "path": "/tmp/infra-coverage-sol-raw/rule-MOD-LAYOUT.stdout",
+          "sha256": "6cf0d30f32455bd9b088cc21b9f0efd3f412aebc2cbc877911726110663bac5b",
+          "bytes": 775
+        },
+        {
+          "path": "/tmp/infra-coverage-sol-raw/rule-MOD-LAYOUT.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ]
+    },
+    {
+      "label": "rule-PERF-THRESHOLD",
+      "argv": [
+        "/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib",
+        "check",
+        "committed",
+        "/tmp/infra-coverage-research-sol",
+        "4f098bfe2bf64343b8f503b5bdebd6e1a6fa34f4",
+        "/tmp/infra-coverage-sol-raw/infra-diagnostic-policy.json",
+        "--rule",
+        "PERF-THRESHOLD"
+      ],
+      "cwd": "/tmp/infra-coverage-research-sol",
+      "exitCode": 1,
+      "seconds": 7.095,
+      "streams": [
+        {
+          "path": "/tmp/infra-coverage-sol-raw/rule-PERF-THRESHOLD.stdout",
+          "sha256": "039b1ae2d39d5dfa94adec2b69232cf650c3cbd4a7262fc01a388d4d7c995cc0",
+          "bytes": 338
+        },
+        {
+          "path": "/tmp/infra-coverage-sol-raw/rule-PERF-THRESHOLD.stderr",
+          "sha256": "f5de1594610591e05b93b1baccd7637642cb4e3f720bdd78a9fbc68f1129646c",
+          "bytes": 37
+        }
+      ]
+    },
+    {
+      "label": "rule-REL-EXTRACT",
+      "argv": [
+        "/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib",
+        "check",
+        "committed",
+        "/tmp/infra-coverage-research-sol",
+        "4f098bfe2bf64343b8f503b5bdebd6e1a6fa34f4",
+        "/tmp/infra-coverage-sol-raw/infra-diagnostic-policy.json",
+        "--rule",
+        "REL-EXTRACT"
+      ],
+      "cwd": "/tmp/infra-coverage-research-sol",
+      "exitCode": 1,
+      "seconds": 8.799,
+      "streams": [
+        {
+          "path": "/tmp/infra-coverage-sol-raw/rule-REL-EXTRACT.stdout",
+          "sha256": "e4a768fede4146cb25d95d0d6ae7ae35bfaff18fbbf377a130c7782fa319eb51",
+          "bytes": 356
+        },
+        {
+          "path": "/tmp/infra-coverage-sol-raw/rule-REL-EXTRACT.stderr",
+          "sha256": "f5de1594610591e05b93b1baccd7637642cb4e3f720bdd78a9fbc68f1129646c",
+          "bytes": 37
+        }
+      ]
+    },
+    {
+      "label": "rule-SPEC-SCENARIOS",
+      "argv": [
+        "/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib",
+        "check",
+        "committed",
+        "/tmp/infra-coverage-research-sol",
+        "4f098bfe2bf64343b8f503b5bdebd6e1a6fa34f4",
+        "/tmp/infra-coverage-sol-raw/infra-diagnostic-policy.json",
+        "--rule",
+        "SPEC-SCENARIOS"
+      ],
+      "cwd": "/tmp/infra-coverage-research-sol",
+      "exitCode": 1,
+      "seconds": 11.534,
+      "streams": [
+        {
+          "path": "/tmp/infra-coverage-sol-raw/rule-SPEC-SCENARIOS.stdout",
+          "sha256": "d77d099a5ce23af684ca73b9685b63804a4c649aaf6352c969828aa31f3dc3f8",
+          "bytes": 389
+        },
+        {
+          "path": "/tmp/infra-coverage-sol-raw/rule-SPEC-SCENARIOS.stderr",
+          "sha256": "f5de1594610591e05b93b1baccd7637642cb4e3f720bdd78a9fbc68f1129646c",
+          "bytes": 37
+        }
+      ]
+    },
+    {
+      "label": "fixture-init-0",
+      "argv": ["git", "init"],
+      "cwd": "/tmp/infra-coverage-sol-raw/fixture",
+      "exitCode": 0,
+      "seconds": 0.004,
+      "streams": [
+        {
+          "path": "/tmp/infra-coverage-sol-raw/fixture-init-0.stdout",
+          "sha256": "3b177102d96393f9b5ba95806418eaf20ab82f177f48f89fe12a16c2d2cc51a8",
+          "bytes": 78
+        },
+        {
+          "path": "/tmp/infra-coverage-sol-raw/fixture-init-0.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ]
+    },
+    {
+      "label": "fixture-config-1",
+      "argv": ["git", "config", "user.name", "Coverage fixture"],
+      "cwd": "/tmp/infra-coverage-sol-raw/fixture",
+      "exitCode": 0,
+      "seconds": 0.003,
+      "streams": [
+        {
+          "path": "/tmp/infra-coverage-sol-raw/fixture-config-1.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        {
+          "path": "/tmp/infra-coverage-sol-raw/fixture-config-1.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ]
+    },
+    {
+      "label": "fixture-config-2",
+      "argv": ["git", "config", "user.email", "fixture@example.invalid"],
+      "cwd": "/tmp/infra-coverage-sol-raw/fixture",
+      "exitCode": 0,
+      "seconds": 0.003,
+      "streams": [
+        {
+          "path": "/tmp/infra-coverage-sol-raw/fixture-config-2.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        {
+          "path": "/tmp/infra-coverage-sol-raw/fixture-config-2.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ]
+    },
+    {
+      "label": "fixture-add",
+      "argv": ["git", "add", "."],
+      "cwd": "/tmp/infra-coverage-sol-raw/fixture",
+      "exitCode": 0,
+      "seconds": 0.004,
+      "streams": [
+        {
+          "path": "/tmp/infra-coverage-sol-raw/fixture-add.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        {
+          "path": "/tmp/infra-coverage-sol-raw/fixture-add.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ]
+    },
+    {
+      "label": "fixture-commit",
+      "argv": ["git", "commit", "-m", "Coverage negative fixtures"],
+      "cwd": "/tmp/infra-coverage-sol-raw/fixture",
+      "exitCode": 0,
+      "seconds": 0.008,
+      "streams": [
+        {
+          "path": "/tmp/infra-coverage-sol-raw/fixture-commit.stdout",
+          "sha256": "9f7d3292bebbf0308edff3ebd027cbebde79039e23d47fb26f7a6b860ac8709e",
+          "bytes": 203
+        },
+        {
+          "path": "/tmp/infra-coverage-sol-raw/fixture-commit.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ]
+    },
+    {
+      "label": "missing-policy",
+      "argv": [
+        "/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib",
+        "check",
+        "committed",
+        "/tmp/infra-coverage-sol-raw/fixture",
+        "87db10edcd0775dd37fa84641d614124ef0dab94",
+        "/tmp/infra-coverage-sol-raw/absent-policy.json",
+        "--rule",
+        "INV-CLASSIFY"
+      ],
+      "cwd": "/tmp/infra-coverage-sol-raw/fixture",
+      "exitCode": 1,
+      "seconds": 8.502,
+      "streams": [
+        {
+          "path": "/tmp/infra-coverage-sol-raw/missing-policy.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        {
+          "path": "/tmp/infra-coverage-sol-raw/missing-policy.stderr",
+          "sha256": "b50765aa2d393cda42b2d13b64fa2b92dfa91d44a6f061950bb76b9d00edcba2",
+          "bytes": 198
+        }
+      ]
+    },
+    {
+      "label": "unreadable-policy",
+      "argv": [
+        "/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib",
+        "check",
+        "committed",
+        "/tmp/infra-coverage-sol-raw/fixture",
+        "87db10edcd0775dd37fa84641d614124ef0dab94",
+        "/tmp/infra-coverage-sol-raw/unreadable-policy.json",
+        "--rule",
+        "INV-CLASSIFY"
+      ],
+      "cwd": "/tmp/infra-coverage-sol-raw/fixture",
+      "exitCode": 1,
+      "seconds": 13.466,
+      "streams": [
+        {
+          "path": "/tmp/infra-coverage-sol-raw/unreadable-policy.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        {
+          "path": "/tmp/infra-coverage-sol-raw/unreadable-policy.stderr",
+          "sha256": "3467889fe539a32cf65ceebe83e7e638bed0e956984737bec08208073965c419",
+          "bytes": 198
+        }
+      ]
+    },
+    {
+      "label": "malformed-policy",
+      "argv": [
+        "/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib",
+        "check",
+        "committed",
+        "/tmp/infra-coverage-sol-raw/fixture",
+        "87db10edcd0775dd37fa84641d614124ef0dab94",
+        "/tmp/infra-coverage-sol-raw/malformed-policy.json",
+        "--rule",
+        "INV-CLASSIFY"
+      ],
+      "cwd": "/tmp/infra-coverage-sol-raw/fixture",
+      "exitCode": 1,
+      "seconds": 5.65,
+      "streams": [
+        {
+          "path": "/tmp/infra-coverage-sol-raw/malformed-policy.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        {
+          "path": "/tmp/infra-coverage-sol-raw/malformed-policy.stderr",
+          "sha256": "e6eb14b5880768e926c748cf87a2442f4d946fa931abec61f5fafd993050daf3",
+          "bytes": 146
+        }
+      ]
+    },
+    {
+      "label": "removed-mode",
+      "argv": [
+        "/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib",
+        "check",
+        "committed",
+        "/tmp/infra-coverage-sol-raw/fixture",
+        "87db10edcd0775dd37fa84641d614124ef0dab94",
+        "/tmp/infra-coverage-sol-raw/removed-mode.json",
+        "--rule",
+        "INV-CLASSIFY"
+      ],
+      "cwd": "/tmp/infra-coverage-sol-raw/fixture",
+      "exitCode": 1,
+      "seconds": 5.02,
+      "streams": [
+        {
+          "path": "/tmp/infra-coverage-sol-raw/removed-mode.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        {
+          "path": "/tmp/infra-coverage-sol-raw/removed-mode.stderr",
+          "sha256": "0470eff2a81284dd0638d958daea1bdcb57ada60ae463329b067b94f27d28e53",
+          "bytes": 81
+        }
+      ]
+    },
+    {
+      "label": "unsupported-yaml-semantic",
+      "argv": [
+        "/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib",
+        "check",
+        "committed",
+        "/tmp/infra-coverage-sol-raw/fixture",
+        "87db10edcd0775dd37fa84641d614124ef0dab94",
+        "/tmp/infra-coverage-sol-raw/fixture-policy.json",
+        "--rule",
+        "REL-EXTRACT"
+      ],
+      "cwd": "/tmp/infra-coverage-sol-raw/fixture",
+      "exitCode": 1,
+      "seconds": 4.686,
+      "streams": [
+        {
+          "path": "/tmp/infra-coverage-sol-raw/unsupported-yaml-semantic.stdout",
+          "sha256": "4d661089d3de55db214d4eaab0907ed529c741a1801bed326e09c452876b1b55",
+          "bytes": 483
+        },
+        {
+          "path": "/tmp/infra-coverage-sol-raw/unsupported-yaml-semantic.stderr",
+          "sha256": "f5de1594610591e05b93b1baccd7637642cb4e3f720bdd78a9fbc68f1129646c",
+          "bytes": 37
+        }
+      ]
+    },
+    {
+      "label": "fixture-tree",
+      "argv": ["git", "ls-tree", "-rz", "87db10edcd0775dd37fa84641d614124ef0dab94", "--", "infra"],
+      "cwd": "/tmp/infra-coverage-sol-raw/fixture",
+      "exitCode": 0,
+      "seconds": 0.004,
+      "streams": [
+        {
+          "path": "/tmp/infra-coverage-sol-raw/fixture-tree.stdout",
+          "sha256": "9be94e40cd647b79dab0431099a1b5bf9a9ff5b78724e17d44477a426bf2057b",
+          "bytes": 145
+        },
+        {
+          "path": "/tmp/infra-coverage-sol-raw/fixture-tree.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ]
+    }
+  ],
+  "rawArtifacts": [
+    {
+      "path": "/tmp/infra-coverage-sol-raw/diagnostic-policy.json",
+      "bytes": 18842,
+      "sha256": "d857a3a6246f6bc9a6981626da822007e0b321dafce7b0754971d9fcc423cec1"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/explain-F1.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/explain-F1.stdout",
+      "bytes": 357,
+      "sha256": "e1eea8223428a6775eda770e0fa6d0f6ecfbc837cb324e9b7ffe41b1f78c75b9"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/explain-F7.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/explain-F7.stdout",
+      "bytes": 333,
+      "sha256": "357fbf6e7b2e9f3a40066f91e4486782ec53134b57b6e6592d3bf8dd5f166d7e"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/explain-INV-CLASSIFY.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/explain-INV-CLASSIFY.stdout",
+      "bytes": 325,
+      "sha256": "3394c2c62f029d79718f95ee896d7f6f2b57e8fded725016323c7f9f9d0f8db3"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/explain-K2.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/explain-K2.stdout",
+      "bytes": 326,
+      "sha256": "4a0505d47bdf3fb2368c3543a4a90cbabe63004b805e1271bbfcb0635ca4addd"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/explain-K3.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/explain-K3.stdout",
+      "bytes": 356,
+      "sha256": "44fa05db5c9f357de966ea474b0630d41894954b3507731b63a08296dc6f6710"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/explain-K4.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/explain-K4.stdout",
+      "bytes": 331,
+      "sha256": "b11e97755ec89a2b258db5822098421cabaffec4c7e25480564dd97b4d12625f"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/explain-K5.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/explain-K5.stdout",
+      "bytes": 350,
+      "sha256": "20c4c8f2b73493be1a05ec79167a559d3f8c609936188b83681851af53d59861"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/explain-K6.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/explain-K6.stdout",
+      "bytes": 310,
+      "sha256": "3d96e9a05e774596d3c7a3fe3f99122a5b962c38d31818d95bd9705112c682b8"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/explain-MOD-DIRECT-ENTRIES.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/explain-MOD-DIRECT-ENTRIES.stdout",
+      "bytes": 294,
+      "sha256": "f768ebd34d4dcdc29fb4b839c05f63f01ba0e08598a61fd44b655eaf59a9383d"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/explain-MOD-INDEX.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/explain-MOD-INDEX.stdout",
+      "bytes": 358,
+      "sha256": "fae98d9d740a405481f6d8352d3ef756f4c40096cbb86c24a0489b7510f149d2"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/explain-MOD-LAYOUT.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/explain-MOD-LAYOUT.stdout",
+      "bytes": 281,
+      "sha256": "66ef4928ce5424c10e11cd6f5537e3143a3e898aa4181a837724ce23b63bea01"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/explain-PERF-THRESHOLD.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/explain-PERF-THRESHOLD.stdout",
+      "bytes": 264,
+      "sha256": "5fbfdc421c91c454b41ff02d1d7ef02afb22ea50a6b3dba4b15e2bb2fc89e31b"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/explain-REL-EXTRACT.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/explain-REL-EXTRACT.stdout",
+      "bytes": 322,
+      "sha256": "2449caed7374e842835b184ad9eb85bcbf8cdbb7cc83f7ad58275afa6c0f3b59"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/explain-SPEC-SCENARIOS.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/explain-SPEC-SCENARIOS.stdout",
+      "bytes": 287,
+      "sha256": "ee253db3edffa7c53ca51e90ab56a150bb3b07eb1818504bce1053e3ca15345f"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/finalize.py",
+      "bytes": 6612,
+      "sha256": "2e7d96e2002418ea9d9769b2b72248794b29045988de2d290c96c2fcdcd0f504"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/fixture-add.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/fixture-add.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/fixture-commit.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/fixture-commit.stdout",
+      "bytes": 203,
+      "sha256": "9f7d3292bebbf0308edff3ebd027cbebde79039e23d47fb26f7a6b860ac8709e"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/fixture-config-1.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/fixture-config-1.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/fixture-config-2.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/fixture-config-2.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/fixture-init-0.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/fixture-init-0.stdout",
+      "bytes": 78,
+      "sha256": "3b177102d96393f9b5ba95806418eaf20ab82f177f48f89fe12a16c2d2cc51a8"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/fixture-policy.json",
+      "bytes": 23468,
+      "sha256": "d2ba5457240218e3d9d33a12130a2e04bd09e8a5208390744dda2d0fd947e66a"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/fixture-tree.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/fixture-tree.stdout",
+      "bytes": 145,
+      "sha256": "9be94e40cd647b79dab0431099a1b5bf9a9ff5b78724e17d44477a426bf2057b"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/full.stderr",
+      "bytes": 37,
+      "sha256": "f5de1594610591e05b93b1baccd7637642cb4e3f720bdd78a9fbc68f1129646c"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/full.stderr.txt",
+      "bytes": 108,
+      "sha256": "2a1df721715fc0dd9468127f265150f433456f9aa8649ccc2a27fb6476b5cd2e"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/full.stdout",
+      "bytes": 2779,
+      "sha256": "8072c2e54bd4acb200eaded87e00bf2f926b388ffc35c9b3b3d9e316c069702c"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/full.stdout.json",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/identity.stderr",
+      "bytes": 1748,
+      "sha256": "6d0cbbff9db289924dcbcda38533aba67cbe30d354679e23a3380dd70c650e56"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/identity.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/infra-diagnostic-policy.json",
+      "bytes": 23510,
+      "sha256": "17bf1c19d87a2fb0f2c5ae09065c8bc751fae12645f19599aab61106631a4cea"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/installed-package-files.json",
+      "bytes": 3257342,
+      "sha256": "8ff2a14b5306c223406add6620ffc904b7f1f95636bab686dace8b330cbdc078"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/inventory-deploy-k8s.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/inventory-deploy-k8s.stdout",
+      "bytes": 3753,
+      "sha256": "384cb67fb90ccd3931f40a1b5e02e2cab4ca44ce0cfd82e3a36c819d14b3f088"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/inventory-infra.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/inventory-infra.stdout",
+      "bytes": 26772,
+      "sha256": "80e5b5005e5e93f1a7989bd97dcc4ac3a5818bb07e45a62987ac21acef437802"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/inventory-tools-tool-fleet.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/inventory-tools-tool-fleet.stdout",
+      "bytes": 8564,
+      "sha256": "cbff304166ff0957a9a0d9cf0c98b19dee3e0a16a8bb6252aa779c348570c6ed"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/malformed-policy.json",
+      "bytes": 4,
+      "sha256": "17eed55d881c0dd5fe0935a98d89dd9e52d62aed941f3fb7d17bd490e5aa3e8f"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/malformed-policy.stderr",
+      "bytes": 146,
+      "sha256": "e6eb14b5880768e926c748cf87a2442f4d946fa931abec61f5fafd993050daf3"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/malformed-policy.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/missing-policy.stderr",
+      "bytes": 198,
+      "sha256": "b50765aa2d393cda42b2d13b64fa2b92dfa91d44a6f061950bb76b9d00edcba2"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/missing-policy.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/negative-receipts.json",
+      "bytes": 8044,
+      "sha256": "8864c67d81e41378096a812bd889b58dab64bba134ac3ddc8b9c2dc5d5af7c95"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/negative-summary.json",
+      "bytes": 3086,
+      "sha256": "d74220ed1bd0ad9b8da32381c419eb525d069bbf809af0111da9cd28d7ebf071"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/negatives.log",
+      "bytes": 2853,
+      "sha256": "3ef6d8969ac3a25c7da80f8014c60b6eaa3b96a36bb00ae0496fb9db53fb6c12"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/negatives.py",
+      "bytes": 4934,
+      "sha256": "4cb224b6a5db0717b145894bdb476a452a0abd9d6a20e853eb610458d1a20cb8"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/orientation.txt",
+      "bytes": 17652,
+      "sha256": "e4faf4b1421e57265a1a896480e51290d49b06399231b6d68571059ebcc1ce68"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/receipts-interim.json",
+      "bytes": 24705,
+      "sha256": "84ef4a3c549f23be7a04d2f5ba11dde267f0d053064cc9228308da5a0d570d14"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/removed-mode.json",
+      "bytes": 15282,
+      "sha256": "158b01284a83f8d24867b80a27444219d3268aff2d10cbc1100edcbb86599a2e"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/removed-mode.stderr",
+      "bytes": 81,
+      "sha256": "0470eff2a81284dd0638d958daea1bdcb57ada60ae463329b067b94f27d28e53"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/removed-mode.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/report.md",
+      "bytes": 9825,
+      "sha256": "2f3196e0182efa24396e94332e6c3febc3502d332807edc289d8da0452bc0987"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/research.log",
+      "bytes": 283,
+      "sha256": "11c3041cda501b69cdb404dd8aa195cb4052d27ab83549156cd024010390bd4a"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/research.py",
+      "bytes": 4445,
+      "sha256": "79eb43239ff49716c0e9750aa03e90c0b01ecf416285137f139fabf0438fe947"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/rule-F1.stderr",
+      "bytes": 37,
+      "sha256": "f5de1594610591e05b93b1baccd7637642cb4e3f720bdd78a9fbc68f1129646c"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/rule-F1.stdout",
+      "bytes": 338,
+      "sha256": "972543bd42d611fac04f3b11e9d6b3fe70635bf01412cd9a6b90504948d70581"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/rule-F7.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/rule-F7.stdout",
+      "bytes": 1074,
+      "sha256": "0a5e7910b459d03980421f3ed1871465a52268fa05662b3df2e87a0b0bd52462"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/rule-INV-CLASSIFY.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/rule-INV-CLASSIFY.stdout",
+      "bytes": 238,
+      "sha256": "57feb191d320133cdaa6eaa9086780d0c795c419120c487be42d25aab00e69fa"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/rule-K2.stderr",
+      "bytes": 37,
+      "sha256": "f5de1594610591e05b93b1baccd7637642cb4e3f720bdd78a9fbc68f1129646c"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/rule-K2.stdout",
+      "bytes": 338,
+      "sha256": "ab9a9ca11e979f4cb8d47a53543272102501427065d2f0cb99b7822f980f4686"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/rule-K3.stderr",
+      "bytes": 37,
+      "sha256": "f5de1594610591e05b93b1baccd7637642cb4e3f720bdd78a9fbc68f1129646c"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/rule-K3.stdout",
+      "bytes": 338,
+      "sha256": "de024ca663f7c4a473e3eab822a4bdc8abc7842d259edda029d96ce0c014291c"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/rule-K4.stderr",
+      "bytes": 37,
+      "sha256": "f5de1594610591e05b93b1baccd7637642cb4e3f720bdd78a9fbc68f1129646c"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/rule-K4.stdout",
+      "bytes": 338,
+      "sha256": "60f350954b32bb6360713bbe1d7f1f6dc0b66c1366c9a84f4e68f6031eb0b8b4"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/rule-K5.stderr",
+      "bytes": 37,
+      "sha256": "f5de1594610591e05b93b1baccd7637642cb4e3f720bdd78a9fbc68f1129646c"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/rule-K5.stdout",
+      "bytes": 338,
+      "sha256": "e1f320e41f799814e14ad498573391a038524550c2aa44a3c71163c149a18d92"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/rule-K6.stderr",
+      "bytes": 37,
+      "sha256": "f5de1594610591e05b93b1baccd7637642cb4e3f720bdd78a9fbc68f1129646c"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/rule-K6.stdout",
+      "bytes": 338,
+      "sha256": "855801b0e917c328bc92328184005ed19824b2b3832b1695f37c5744ae9e49d9"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/rule-MOD-DIRECT-ENTRIES.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/rule-MOD-DIRECT-ENTRIES.stdout",
+      "bytes": 244,
+      "sha256": "08e3f598be69cedd2988119adda438b4e4b3432519ae517222012e221ef8365a"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/rule-MOD-INDEX.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/rule-MOD-INDEX.stdout",
+      "bytes": 235,
+      "sha256": "2c7bdb24d65b6d607b0411aff83903e67f0bc219a7218fbf41bd3d40fecf3e0a"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/rule-MOD-LAYOUT.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/rule-MOD-LAYOUT.stdout",
+      "bytes": 775,
+      "sha256": "6cf0d30f32455bd9b088cc21b9f0efd3f412aebc2cbc877911726110663bac5b"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/rule-PERF-THRESHOLD.stderr",
+      "bytes": 37,
+      "sha256": "f5de1594610591e05b93b1baccd7637642cb4e3f720bdd78a9fbc68f1129646c"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/rule-PERF-THRESHOLD.stdout",
+      "bytes": 338,
+      "sha256": "039b1ae2d39d5dfa94adec2b69232cf650c3cbd4a7262fc01a388d4d7c995cc0"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/rule-REL-EXTRACT.stderr",
+      "bytes": 37,
+      "sha256": "f5de1594610591e05b93b1baccd7637642cb4e3f720bdd78a9fbc68f1129646c"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/rule-REL-EXTRACT.stdout",
+      "bytes": 356,
+      "sha256": "e4a768fede4146cb25d95d0d6ae7ae35bfaff18fbbf377a130c7782fa319eb51"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/rule-SPEC-SCENARIOS.stderr",
+      "bytes": 37,
+      "sha256": "f5de1594610591e05b93b1baccd7637642cb4e3f720bdd78a9fbc68f1129646c"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/rule-SPEC-SCENARIOS.stdout",
+      "bytes": 389,
+      "sha256": "d77d099a5ce23af684ca73b9685b63804a4c649aaf6352c969828aa31f3dc3f8"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/unreadable-policy.json",
+      "bytes": 23468,
+      "sha256": "d2ba5457240218e3d9d33a12130a2e04bd09e8a5208390744dda2d0fd947e66a"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/unreadable-policy.stderr",
+      "bytes": 198,
+      "sha256": "3467889fe539a32cf65ceebe83e7e638bed0e956984737bec08208073965c419"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/unreadable-policy.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/unsupported-yaml-semantic.stderr",
+      "bytes": 37,
+      "sha256": "f5de1594610591e05b93b1baccd7637642cb4e3f720bdd78a9fbc68f1129646c"
+    },
+    {
+      "path": "/tmp/infra-coverage-sol-raw/unsupported-yaml-semantic.stdout",
+      "bytes": 483,
+      "sha256": "4d661089d3de55db214d4eaab0907ed529c741a1801bed326e09c452876b1b55"
+    }
+  ],
+  "baselinePolicy": {
+    "path": "/tmp/infra-coverage-sol-raw/diagnostic-policy.json",
+    "sha256": "d857a3a6246f6bc9a6981626da822007e0b321dafce7b0754971d9fcc423cec1",
+    "exitCode": 1,
+    "stderrPath": "/tmp/infra-coverage-sol-raw/full.stderr.txt",
+    "stdoutBytes": 0
+  },
+  "sourceReadEvidence": [
+    "AGENTS.md",
+    "LLM_README.md",
+    "tools/tool-fleet/project.json",
+    "tools/tool-fleet/src/check.ts",
+    "tools/tool-fleet/src/check-provision.ts",
+    "tools/tool-fleet/src/check-cli.ts",
+    "apps/twilight-structure/twilight-burokrat/cli/src/rules/registry.ts",
+    "apps/twilight-structure/twilight-burokrat/cli/src/rules/check.ts",
+    "apps/twilight-structure/twilight-burokrat/cli/src/rules/size-ratchet.ts",
+    "apps/twilight-structure/twilight-burokrat/cli/src/contracts/records.ts"
+  ],
+  "skipped": [
+    "native infrastructure checks",
+    "host provisioning",
+    "live activation/certification",
+    "h2puni gate (host pop-os; documentation research only)",
+    "production evaluator implementation/tests",
+    "live WBS update",
+    "push pending Astra review"
+  ],
+  "reviewChecks": [
+    {
+      "name": "check-packet",
+      "exitCode": 0,
+      "stdout": {
+        "path": "/tmp/infra-coverage-sol-raw/check-packet.stdout",
+        "sha256": "ceb57e5745dee5341de9618d5895ff2af9acb509f5acf801d2750a1d61169c71"
+      },
+      "stderr": {
+        "path": "/tmp/infra-coverage-sol-raw/check-packet.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "name": "format-check",
+      "exitCode": 0,
+      "stdout": {
+        "path": "/tmp/infra-coverage-sol-raw/format-check.stdout",
+        "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20"
+      },
+      "stderr": {
+        "path": "/tmp/infra-coverage-sol-raw/format-check.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    }
+  ]
+}
