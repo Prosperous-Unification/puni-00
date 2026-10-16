@@ -161,6 +161,57 @@ describe('capturedOptimizationReaderOf', () => {
     }
   });
 
+  it.each([
+    { publication: 'solver', status: 'optimal', proof: 'proven' },
+    { publication: 'solver', status: 'unknown', proof: 'incomplete' },
+    { publication: 'quantisation-floor', status: 'unknown', proof: 'quantisation-floor' },
+  ] as const)('preserves $proof proof through a stored captured plan read', (variant) => {
+    const fixture = database();
+    try {
+      const generation = allocate(fixture.db);
+      const floor = variant.publication === 'quantisation-floor';
+      store(fixture.db, generation, {
+        objective: 'pri',
+        status: 'ok',
+        resultJson: JSON.stringify(
+          encodeOptimizedResult({
+            publication: variant.publication,
+            schedule: PLAN,
+            objectiveValues: {
+              makespan: {
+                value: 2,
+                stageValue: floor ? null : 2,
+                bound: floor ? null : 2,
+                status: floor ? 'unknown' : 'optimal',
+              },
+              priority: {
+                value: 0,
+                stageValue: floor ? null : 0,
+                bound: floor ? null : 0,
+                status: floor ? 'unknown' : 'optimal',
+              },
+              movement: { value: 0, stageValue: null, bound: null, status: variant.status },
+            },
+          }),
+        ),
+        failureReason: null,
+      });
+      const answer = capturedOptimizationReaderOf(fixture.db, {
+        contractVersion: CONTRACT,
+        budgetMs: BUDGET,
+        now: () => NOW,
+      })(ask());
+      // Proof: independently replacing each production proof label failed its
+      // corresponding proven, incomplete or quantisation-floor case here.
+      expect(answer.variants.pri).toEqual({ state: 'ready', proof: variant.proof });
+      expect(answer.schedules.pri === null ? null : encodeSchedule(answer.schedules.pri)).toEqual(
+        encodeSchedule(PLAN),
+      );
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
   it('adds exact-key slot and queue liveness without admitting work', () => {
     const fixture = database();
     try {
