@@ -4,8 +4,8 @@
 
 The Saved plans panel SHALL offer to compare again only when a side of the
 comparison on screen has moved since it was asked: the current plan, when any
-project event other than a saved-plan list change has arrived (including events
-whose type is unknown), or a saved plan in the comparison that is no longer on
+project event other than a saved-plan list change has happened (including events
+whose type is unknown, and any time the panel's connection was down), or a saved plan in the comparison that is no longer on
 the shelf. Saving, renaming or deleting saved plans that are not a side of the
 comparison SHALL NOT mark it out of date. A comparison between two saved plans
 SHALL NOT be marked out of date by an edit to the current plan.
@@ -18,6 +18,11 @@ SHALL NOT be marked out of date by an edit to the current plan.
 #### Scenario: an edit to the plan
 
 - **WHEN** the current plan is edited after the comparison was made
+- **THEN** the panel says the plan has changed since the comparison was made and offers Compare again
+
+#### Scenario: an edit while the connection was down
+
+- **WHEN** the current plan is edited while the panel's connection is down, and the connection comes back
 - **THEN** the panel says the plan has changed since the comparison was made and offers Compare again
 
 #### Scenario: a side deleted by someone else
@@ -41,12 +46,18 @@ one, and SHALL carry the whole sentence as the row's fact.
 In the Views and the Saved plans panels, an empty name SHALL NOT disable Save,
 and Enter in the name field SHALL save. A view saved with no name SHALL be named
 by what it filters; a plan saved with no name keeps be-01's time name. Views'
-Save SHALL stay off while nothing is filtered.
+Save SHALL stay off while nothing is filtered. A view saved under a name a view
+already has SHALL replace that view rather than add a second one.
 
 #### Scenario: a filtered plan, no view name
 
 - **WHEN** the reader ticks a team filter and presses Save in Views with an empty name
 - **THEN** a view named by its filter words, such as `team Billing`, is saved
+
+#### Scenario: Save pressed twice
+
+- **WHEN** the reader presses Save twice with the same filter and no name
+- **THEN** one view named `team Billing` is listed
 
 ### Requirement: A one-shot Export / Import item closes its menu
 

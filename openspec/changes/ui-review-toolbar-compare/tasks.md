@@ -25,3 +25,9 @@
 
 - [x] 5.1 Probe 880–1100 px with the menu open and closed (did not reproduce)
 - [x] 5.2 Extend the end-group e2e with 960 × 600 and the menu open at 960 and 1024, with a watched fault
+
+## 6. Review round 1 (PR #523)
+
+- [x] 6.1 Failing composition test: a shelf stream that drops and resettles moves `livePlanRevision` and rereads the shelf
+- [x] 6.2 `browserSavedPlanRoutes.subscribe` reports a resettle after a drop as a change of unknown type
+- [x] 6.3 Failing Vitest case (F-140): Save twice under one derived name lists one view; a save under an existing name replaces it

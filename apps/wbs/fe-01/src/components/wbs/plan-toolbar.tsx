@@ -475,7 +475,8 @@ function closeOnChoice(panel: HTMLDivElement | null): (() => void) | undefined {
  * plans are sibling panels with one anatomy, and Saved plans names a plan saved
  * with no name by its time. A view saved with no name is named by what it asks
  * of the plan — {@link filterWords}, the words its row's fact already shows —
- * and Enter in the field saves, as it does there.
+ * and Enter in the field saves, as it does there. A name a view already has
+ * replaces that view rather than listing a second one (F-140).
  */
 export function SavedViews({
   views,
@@ -1240,10 +1241,23 @@ export function PlanToolbar({
         current={currentCriteria}
         labels={filterLabels}
         onSave={(name) => {
-          const next = [
-            ...savedViews,
-            { id: crypto.randomUUID(), name, criteria: currentCriteria, hiddenColumnIds },
-          ];
+          // One name names one view (UI review F-140): a save under a name a view already has
+          // replaces that view where it stands, so a double press of Save, or a derived name
+          // saved twice, cannot list two identical rows.
+          // Proof: on 2026-10-16, appending regardless failed `a save under a name a view
+          // already has replaces that view, not a second row (F-140)` on `expected [ Array(3) ]
+          // to deeply equal [ 'team Billing' ]`.
+          const named = savedViews.find((view) => view.name === name);
+          const saved = {
+            id: named?.id ?? crypto.randomUUID(),
+            name,
+            criteria: currentCriteria,
+            hiddenColumnIds,
+          };
+          const next =
+            named === undefined
+              ? [...savedViews, saved]
+              : savedViews.map((view) => (view.id === named.id ? saved : view));
           setSavedViews(next);
           rememberSavedViews(projectId, next);
         }}

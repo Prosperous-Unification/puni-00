@@ -74,8 +74,27 @@ export function browserSavedPlanRoutes(
     rename: (savedPlanId, name) => api.rename(savedPlanId, name),
     remove: (savedPlanId) => api.remove(savedPlanId),
     compare: (projectId, left, right) => api.compare(projectId, left, right),
-    subscribe: (projectId, onChange) =>
-      subscribeToProject({ projectId, sinceSeq: -1, onChange }, streamDeps),
+    subscribe: (projectId, onChange) => {
+      // The shelf subscribes without resuming, so whatever was published while its socket was
+      // down never arrives. A resettle after a drop is reported as a change this side cannot
+      // name: it may have moved the plan and the list (UI review F-100, the reconnect half).
+      let dropped = false;
+      return subscribeToProject(
+        {
+          projectId,
+          sinceSeq: -1,
+          onChange,
+          onConnectionChange: (connected) => {
+            // Proof: on 2026-10-16, without this callback, `counts a reconnect after a drop as a
+            // move of the live plan, and rereads the shelf (F-100)` failed on `expected +0 to
+            // be 1`.
+            if (connected && dropped) onChange(null);
+            dropped = !connected;
+          },
+        },
+        streamDeps,
+      );
+    },
   };
 }
 

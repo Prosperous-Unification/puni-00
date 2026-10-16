@@ -47,7 +47,8 @@ export interface SavedPlanRoutes {
   /**
    * Calls `onChange` on every broadcast about the project, until unsubscribed, with the event's
    * type when the frame names one (`subscribeToProject`'s `changed`) and `null` or nothing when
-   * it does not.
+   * it does not — including once when the stream comes back after a drop, since what was
+   * published in the gap is lost.
    */
   readonly subscribe: (
     projectId: string,
@@ -74,7 +75,9 @@ export interface SavedPlans {
    * a saved plan never changes, so a save, rename or delete leaves both sides of a comparison
    * where they were (F-100). A frame that names no type, or a type this side does not know,
    * counts — it may have moved anything (R5). The reader's own edits count too, because be-01
-   * publishes them on the same stream.
+   * publishes them on the same stream. So does the stream coming back after a drop: what was
+   * published while it was down never arrives, so the routes report the reconnect as a change of
+   * unknown type.
    */
   readonly livePlanRevision: Store<number>;
   /** Reads the shelf again, which no broadcast would have caused: the actor's own fast path. */

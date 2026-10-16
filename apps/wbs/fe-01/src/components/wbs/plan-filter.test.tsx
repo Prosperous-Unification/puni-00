@@ -1338,6 +1338,27 @@ describe('saved views, per browser', () => {
     },
   );
 
+  itDom(
+    'a save under a name a view already has replaces that view, not a second row (F-140)',
+    async () => {
+      // A derived name makes a double press of Save one click away from two
+      // identical views; one name names one view.
+      await aPlanWithATeam();
+      openFilters();
+      tick('Team Billing');
+      openViews();
+      click('Save');
+      click('Save');
+      fireEvent.submit(screen.getByLabelText('Name this view'));
+
+      const stored = JSON.parse(localStorage.getItem(KEY) ?? '[]') as { name: string }[];
+      // Proof: on 2026-10-16, against 76dc8ab32 (`onSave` appending), this failed on
+      // `expected [ Array(3) ] to deeply equal [ 'team Billing' ]`.
+      expect(stored.map((view) => view.name)).toEqual(['team Billing']);
+      expect(screen.getByText('Views (1)')).toBeInTheDocument();
+    },
+  );
+
   itDom('saves a named view on Enter in its name field, as Saved plans does (F-104)', async () => {
     await aPlanWithATeam();
     openFilters();
