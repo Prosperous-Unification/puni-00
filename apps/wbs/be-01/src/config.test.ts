@@ -17,7 +17,7 @@ const VALID = {
 describe('BeConfig', () => {
   it('accepts only explicit enabled or disabled proof scheduling overrides', () => {
     expect(loadConfig(VALID).ORGANIZATION_DOMAIN_PROOF_SCHEDULING).toBeUndefined();
-    for (const configured of ['enabled', 'disabled'])
+    for (const configured of ['enabled', 'disabled'] as const)
       expect(
         loadConfig({ ...VALID, ORGANIZATION_DOMAIN_PROOF_SCHEDULING: configured })
           .ORGANIZATION_DOMAIN_PROOF_SCHEDULING,

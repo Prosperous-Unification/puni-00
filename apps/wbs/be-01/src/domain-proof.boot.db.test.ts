@@ -32,7 +32,7 @@ beforeEach(() => {
     dbPath,
     port: 0,
     appOrigin: 'http://localhost:4200',
-    logger: createLogger({ service: 'domain-proof-boot-test', level: 'error' }),
+    logger: createLogger({ service: 'be-01', level: 'error' }),
     jwtKey: 'domain-proof-test-key-32-characters-long',
     gwUrl: 'http://localhost:3200',
     internalAuthSecret: 'internal-secret-with-at-least-32-characters',
@@ -48,7 +48,7 @@ afterEach(async () => {
   rmSync(directory, { recursive: true });
 });
 
-function boot(configured: BootOptions, dependencies: Parameters<typeof bootBe01>[1]) {
+function boot(configured: BootOptions, dependencies: NonNullable<Parameters<typeof bootBe01>[1]>) {
   return bootBe01(configured, {
     makeApp: (composition) => {
       const app = buildApp(composition);
