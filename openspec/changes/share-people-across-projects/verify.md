@@ -4529,6 +4529,11 @@ this is an approval slice checkpoint, not an activation or whole-repository gate
 - `bun test apps/wbs/be-01/src/app.routes.test.ts -t 'complete pinned identity and origin policy inventory' --timeout=30000`:
   **1 pass, 0 fail, 264 assertions**; the new route is covered by authenticated write scope and
   the session-cookie origin policy. Other tests in that file were filtered out.
+- `NX_DAEMON=false bunx nx run wbs-be-01:lint`: backend source lint passed, 0/1 cache hits.
+  Nx could not create sandbox worker sockets and used its documented in-process fallback;
+  the target completed successfully. Log: `lint.log`.
+- `bunx prettier --check` on all five changed files and `git diff --check`: passed.
+  Log: `format.log`.
 - `NX_DAEMON=false bunx nx run wbs-be-01:typecheck`: **passed**, including module checks.
   Nx's sandbox-denied socket fallback ran plugins in the main process.
 - `NX_DAEMON=false bunx nx run-many -t typecheck -p wbs-store-sqlite,wbs-core,wbs-contracts --parallel=2`:
@@ -5190,6 +5195,11 @@ Adjacent `Proof:` comments identify these observations in the new test suite.
   exist, after mounted approvals had succeeded. Test-only lifecycle/child seams then made them GREEN.
 - First complete real Docker process run: **7 passed, 0 failed/skipped, 135 assertions**,
   9.92 seconds. Subsequent canonical-byte and audit-time assertions are included in final regression.
+- `NX_DAEMON=false bunx nx run wbs-be-01:lint`: backend source lint passed, 0/1 cache hits.
+  Nx could not create sandbox worker sockets and used its documented in-process fallback;
+  the target completed successfully. Log: `lint.log`.
+- `bunx prettier --check` on all five changed files and `git diff --check`: passed.
+  Log: `format.log`.
 - `NX_DAEMON=false bunx nx run wbs-be-01:typecheck`: final exit 0, including module checks,
   `/tmp/shared-process-nx-typecheck-final.log`. Initial run found one test-only nested-function
   image narrowing error; introducing a narrowed local string corrected it.
@@ -5407,6 +5417,11 @@ No external credentials or persistent host configuration were used.
   exact `[0,49)` fixed booking and person assignment, refuses unknown/infeasible answers and
   rejects a feasible answer overlapping that booking.
 - `shellcheck -s bash apps/wbs/be-01/scripts/solver-image-smoke.sh`: exit 0.
+- `NX_DAEMON=false bunx nx run wbs-be-01:lint`: backend source lint passed, 0/1 cache hits.
+  Nx could not create sandbox worker sockets and used its documented in-process fallback;
+  the target completed successfully. Log: `lint.log`.
+- `bunx prettier --check` on all five changed files and `git diff --check`: passed.
+  Log: `format.log`.
 - `NX_DAEMON=false bunx nx run wbs-be-01:typecheck`: exit 0, including module typecheck.
 - `bunx eslint apps/wbs/be-01/scripts/solver-image-smoke.test.ts`: exit 0.
 - `NX_DAEMON=false bunx nx run wbs-be-01:lint`: exit 0; uncached project source lint.
@@ -5539,3 +5554,75 @@ live source, binding, selected local digest, service and dev caller is unverifie
 refuses any missing prerequisite. The h2puni canonical gate was not run because live host operations
 were outside this scope. Full repository test/lint/typecheck gates were not run; focused evidence
 and the existing image scenario were used for this slice.
+
+## Real process crash/replay acceptance (2026-10-16)
+
+Base: published #522 head `5bffd8ebefff8ad2da4820db89d0aa409a542cdb`, copied from
+`/tmp/capacity-installed-acceptance` into isolated `/tmp/capacity-crash-replay-sol`.
+The earlier `coldProcess()` helper made another composition inside the test process; it is
+now named `coldComposition()` and its test describes that boundary accurately.
+
+`capacity-fanout-process.db.test.ts` now owns two actual Bun subprocesses and one disposable,
+migrated SQLite file. The writer seeds ranked A above B, both assigned Ana, Fast selected and
+optimization disabled. Shared mode is seeded only in this test fixture; the production
+`SUPPORTED_CAPACITY_MODES` remains unchanged. Both children call `bootBe01`, keep its actual
+composition and mounted routes, and replace only socket listening. Native signed credentials
+select organizations through the mounted selection route; no project or membership authority
+is replaced.
+
+Before editing, the writer reads B's mounted tree and records its cursor (-1). It sends the
+mounted authenticated command changing A's estimate from 1 to 3. Its transport enters a held
+fetch promise after commit. The parent opens its own SQLite connection and checks A=3 and
+exactly one durable `project:B` event, seq 0, `elsewhere_changed B←A`, while the writer is alive.
+It sends SIGKILL only to that owned child and awaits its signaled death. The reader has a
+separate PID and fresh composition, and verifies its replay buffer cannot cover B's event.
+Mounted authenticated `/internal/resume` from the pre-edit cursor returns the original event
+once. A repeat from seq 0 returns no event. The mounted B tree places Ana at [3,4), names A's
+work item as the elsewhere holder and reports `waitingElsewhere=1`.
+
+Reads/resumes leave event rows, sequences, command history, optimization cache/generation,
+queue/slot state, organization/shared-people audits, projects and estimates byte-equivalent to
+the pre-read SQL snapshot. A foreign organization's principal and the original principal after
+membership removal both receive forbidden replay outcomes. Parent polling and reader execution
+have 15-second bounds, with owned-process cleanup in `finally` and a 30-second test budget.
+
+### Watched production faults
+
+Each mutation was applied independently, run against the actual subprocess acceptance, and
+restored. Logs are in `/tmp/capacity-crash-evidence/` (local evidence, not repository artifacts).
+
+| Fault                                            | Observed failure                                       | Log                       |
+| ------------------------------------------------ | ------------------------------------------------------ | ------------------------- |
+| Skip `recordCommittedFanout` recipients          | Parent found no durable B row                          | `skip-fanout.log`         |
+| Remove `ReplayOrchestrator` durable log fallback | Cold resume denied `out_of_range`                      | `memory-only-replay.log`  |
+| Record again inside `pushRecorded`               | Parent found an extra B event at seq 1                 | `duplicate-recording.log` |
+| Compose services with unbound source             | Parent found no durable B row                          | `suppress-binding.log`    |
+| Ignore Fast scheduler's shared input             | B ran [0,1), with no elsewhere holder or wait count    | `ignore-shared-input.log` |
+| Admit all resume subscriptions                   | Both foreign and removed principals replayed B's cause | `bypass-membership.log`   |
+
+The initial test-first run failed because the child executable did not yet exist; the six
+production mutations above supply the behavioral negative evidence. Adjacent `Proof:` comments
+name their faults and observed failures.
+
+### Local validation
+
+- `bun test apps/wbs/be-01/src/capacity-fanout-process.db.test.ts apps/wbs/be-01/src/services.db.test.ts --test-name-pattern 'replays committed capacity fanout|shared-person replay closure'`:
+  5 passed, 130 filtered, 0 failed, 28 assertions. The push-failure regression deliberately emits
+  its existing gateway-unreachable warning. Log: `final-tests.log`.
+- `NX_DAEMON=false bunx nx run wbs-be-01:lint`: backend source lint passed, 0/1 cache hits.
+  Nx could not create sandbox worker sockets and used its documented in-process fallback;
+  the target completed successfully. Log: `lint.log`.
+- `bunx prettier --check` on all five changed files and `git diff --check`: passed.
+  Log: `format.log`.
+- `NX_DAEMON=false bunx nx run wbs-be-01:typecheck`: module checks and backend TypeScript build
+  passed, 0/2 cache hits. Log: `typecheck.log`.
+- `bun build apps/wbs/be-01/src/main.ts --target=bun --outfile=/tmp/capacity-crash-evidence/be-01.js`:
+  passed, 1434 modules, 4.21 MB bundle. Log: `build.log`.
+- `bun /tmp/puni-ci-repair-openspec-tool/node_modules/@fission-ai/openspec/bin/openspec.js validate --all --json`:
+  all 224 entries passed (206 changes, 18 specs), 0 failed. Log: `openspec.log`. The tool was
+  absent from PATH and the repo dependencies; this existing complete tool installation was used
+  after the no-install lookup and an incomplete cache copy refused to execute.
+
+No installed/live acceptance, Browser hold, F9, ledger or supervisor file was changed. No push,
+publication, live-host operation, canonical h2puni gate, full repository gate or CI run occurred.
+Independent review remains required; this checkpoint records scoped local acceptance only.

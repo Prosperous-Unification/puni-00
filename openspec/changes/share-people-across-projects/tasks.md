@@ -414,7 +414,7 @@ does not fan out twice`. R5: fan out on any insertion, compare only input hash, 
       Reconciled on the merged integration branch in
       [the 6j/6k reconciliation](verify.md#6j-and-6k-reconciliation-on-current-main-batch-10).
 - [x] 6l. **Replay and release closure.** RED real event-log/realtime and mounted tests:
-      `crash after commit before push replays from a cold process`, `pushRecorded preserves
+      `commit before push replays from a cold composition`, `pushRecorded preserves
 sequence`, `push failure retains durable event`, `expired replay requires snapshot` and
       `unauthorized subscription cannot replay cause`. R5: skip durable insert, allocate another
       sequence during push, depend on memory-only replay and bypass replay authority separately.
@@ -428,6 +428,19 @@ sequence`, `push failure retains durable event`, `expired replay requires snapsh
       declared dependency (Fable decision, 2026-10-11): replay authorization owed by
       organization-ownership-and-access 6.1/6.2; `unauthorized subscription cannot replay cause`
       moves there and is not built here.
+
+- [x] 6l.process. **Real process crash/replay acceptance (WBS 010.4.16).**
+      On published #522 head `5bffd8ebefff8ad2da4820db89d0aa409a542cdb`, add a disposable
+      migrated A/B shared-person fixture with Fast and optimization off. Start an authenticated
+      mounted command in an actual Bun writer, observe its committed estimate and exact durable
+      B←A row independently before transport returns, SIGKILL only that owned process and await
+      its death. A different-PID fresh production composition with an empty replay buffer resumes
+      from the mounted pre-edit tree cursor and reads B's Ana slice [3,4), holder A and one
+      elsewhere wait. Repeated resume produces no event or persistence change; foreign and removed
+      principals are denied. Watch skipped fan-out, removed durable fallback, duplicate recording,
+      suppressed binding, ignored shared input and bypassed membership fail separately.
+      See [the process acceptance checkpoint](verify.md#real-process-crashreplay-acceptance-2026-10-16).
+      This is local acceptance evidence; canonical host gate, CI and review remain separate.
 
 ## 7. fe
 
