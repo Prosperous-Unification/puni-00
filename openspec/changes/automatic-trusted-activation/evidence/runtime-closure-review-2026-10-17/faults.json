@@ -1,0 +1,121 @@
+[
+  {
+    "fault": "closure-reference-snapshot",
+    "needle": "const source = Buffer.from(closureBytes);",
+    "replacement": "const source = Buffer.from(input.closureBytes);",
+    "focus": "snapshots the closure byte reference",
+    "argv": [
+      "python3",
+      "/tmp/puni-runtime-closure-sol-oct17/openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/rss-guard.py",
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts",
+      "--test-name-pattern",
+      "snapshots the closure byte reference"
+    ],
+    "exitCode": 1,
+    "assertionFailed": true
+  },
+  {
+    "fault": "closure-pin-snapshot",
+    "needle": "    closure,\n    runtimeClosureIdentity,\n    readFile",
+    "replacement": "    closure,\n    runtimeClosureIdentity: input.runtimeClosureIdentity,\n    readFile",
+    "focus": "captured pin after runtime file reads",
+    "argv": [
+      "python3",
+      "/tmp/puni-runtime-closure-sol-oct17/openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/rss-guard.py",
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts",
+      "--test-name-pattern",
+      "captured pin after runtime file reads"
+    ],
+    "exitCode": 1,
+    "assertionFailed": true
+  },
+  {
+    "fault": "root-unicode",
+    "needle": "Buffer.from(path, 'utf8').toString('utf8') !== path ||",
+    "replacement": "false ||",
+    "focus": "lexically preserving resolve",
+    "argv": [
+      "python3",
+      "/tmp/puni-runtime-closure-sol-oct17/openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/rss-guard.py",
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts",
+      "--test-name-pattern",
+      "lexically preserving resolve"
+    ],
+    "exitCode": 1,
+    "assertionFailed": true
+  },
+  {
+    "fault": "review-manifest-cap",
+    "needle": "closureBytes.byteLength > limits.maximumManifestBytes",
+    "replacement": "false",
+    "focus": "bounds admission",
+    "argv": [
+      "python3",
+      "/tmp/puni-runtime-closure-sol-oct17/openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/rss-guard.py",
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts",
+      "--test-name-pattern",
+      "bounds admission"
+    ],
+    "exitCode": 1,
+    "assertionFailed": true
+  },
+  {
+    "fault": "review-independent-pin",
+    "needle": "hashBytes(source) !== runtimeClosureIdentity",
+    "replacement": "false",
+    "focus": "independent exact canonical pin",
+    "argv": [
+      "python3",
+      "/tmp/puni-runtime-closure-sol-oct17/openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/rss-guard.py",
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts",
+      "--test-name-pattern",
+      "independent exact canonical pin"
+    ],
+    "exitCode": 1,
+    "assertionFailed": true
+  },
+  {
+    "fault": "review-limits-snapshot",
+    "needle": "const limits = { ...installedLimits };",
+    "replacement": "const limits = installedLimits;",
+    "focus": "owns complete exact",
+    "argv": [
+      "python3",
+      "/tmp/puni-runtime-closure-sol-oct17/openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/rss-guard.py",
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts",
+      "--test-name-pattern",
+      "owns complete exact"
+    ],
+    "exitCode": 1,
+    "assertionFailed": true
+  },
+  {
+    "fault": "review-root-path-cap",
+    "needle": "Buffer.byteLength(runtimeRoot) > limits.maximumPathBytes ||\n    Buffer.byteLength(candidateRoot) > limits.maximumPathBytes",
+    "replacement": "false",
+    "focus": "root path bound",
+    "argv": [
+      "python3",
+      "/tmp/puni-runtime-closure-sol-oct17/openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/rss-guard.py",
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts",
+      "--test-name-pattern",
+      "root path bound"
+    ],
+    "exitCode": 1,
+    "assertionFailed": true
+  }
+]

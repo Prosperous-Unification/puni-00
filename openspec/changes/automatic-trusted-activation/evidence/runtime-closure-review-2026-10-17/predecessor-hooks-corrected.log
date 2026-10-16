@@ -1,0 +1,105 @@
+╭───────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  [1mpre-commit[m │
+╰───────────────────────────────────────╯
+│  website-migration-lint (skip) no files for inspection
+│  migration-lint (skip) no files for inspection
+│  doc-caps (skip) no matching staged files
+┃  tool-wiki ❯ 
+{"schemaVersion":1,"status":"inactive","certified":false,"reason":"external activation root is not provisioned"}
+
+┃  plaintext-secrets ❯ 
+
+┃  private-nesting ❯ 
+
+┃  format ❯ 
+Checking formatting...
+All matched files use Prettier code style!
+
+┃  lint ❯ 
+warning No cached ProjectGraph is available. The rule will be skipped.
+          If you encounter this error as part of running standard `nx` commands then please open an issue on https://github.com/nrwl/nx
+          @nx/enforce-module-boundaries
+warning No cached ProjectGraph is available. The rule will be skipped.
+          If you encounter this error as part of running standard `nx` commands then please open an issue on https://github.com/nrwl/nx
+          @nx/enforce-module-boundaries
+
+[38;2;56;56;56m  ────────────────────────────────────[m
+summary: (done in 4.76 seconds)
+✓ tool-wiki (0.01 seconds)
+✓ plaintext-secrets (0.03 seconds)
+✓ private-nesting (0.04 seconds)
+✓ format (1.89 seconds)
+✓ lint (4.73 seconds)
+╭───────────────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  [1mprepare-commit-msg[m │
+╰───────────────────────────────────────────────╯
+┃  agent-authored-by ❯ 
+
+[38;2;56;56;56m  ────────────────────────────────────[m
+summary: (done in 0.01 seconds)
+✓ agent-authored-by (0.01 seconds)
+╭───────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  [1mcommit-msg[m │
+╰───────────────────────────────────────╯
+┃  agent-authored-by ❯ 
+
+[38;2;56;56;56m  ────────────────────────────────────[m
+summary: (done in 0.01 seconds)
+✓ agent-authored-by (0.01 seconds)
+[runtime-closure-sol-17b 5ee40fc48] Add bounded declared runtime closure admission
+ 58 files changed, 3513 insertions(+)
+ create mode 100644 apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts
+ create mode 100644 apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.ts
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/allocation-cap.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/ancestor-symlink.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/candidate-overlap.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/canonical-bytes.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/capture-read-bytes.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/cleanup-aggregate.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/copy-read-bytes.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/copy-return.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/entry-cap.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/exact-owner.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/fault-harness.py
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/faults-initial.json
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/faults-second.json
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/faults.json
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/file-kind.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/file-mode.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/focused-final.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/freeze-capability.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/freeze-closure.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/freeze-file.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/freeze-files.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/hooks-first.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/independent-pin.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/leaf-symlink.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/length-safe.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/limits-grammar.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/limits-snapshot.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/lint-fix.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/lint.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/manifest-cap.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/nonblocking.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/openspec-final.json
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/owned-cap.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/path-cap.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/path-grammar.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/path-prefix.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/path-sort.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/preallocation-length.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/probe-cap.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/program-inventory.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/raw-identity.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/read-cap.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/root-grammar.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/root-path-cap.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/rss-guard.py
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/schema-file.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/schema-root.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/stable-stat.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/tuple-snapshot.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/tuple.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/typecheck.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/runtime-closure-2026-10-17/utf8-fatal.log
+{"ceilingBytes": 943718400, "sampledPeakBytes": 805171200, "exitCode": 0}

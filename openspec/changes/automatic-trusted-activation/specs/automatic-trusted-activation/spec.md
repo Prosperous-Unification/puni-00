@@ -1211,3 +1211,16 @@ and lifetime content allocations before their corresponding work or allocation.
   before any filesystem IO; post-capture legitimate reads use owned bytes exclusively
 - **AND** this admission prerequisite authenticates only the declared bytes; transitive completeness,
   protected installation ownership and executing compiler/runtime identity remain separate obligations
+
+#### Scenario: Configured bootstrap getters change across accesses
+
+- **WHEN** configured roots, closure bytes, expected identity or installed limits use changing getters
+- **THEN** admission snapshots each top-level operand once before checks, copies the captured
+  limits, bounds and copies the captured byte reference, and publishes only the captured expected pin
+
+#### Scenario: A physical root contains malformed Unicode
+
+- **WHEN** a configured physical root would change under UTF-8 encoding, including a lone surrogate
+  that aliases a replacement-character directory
+- **THEN** admission rejects before realpath/open/read, independently of path-library normalization,
+  and checks physical root byte ceilings before round-trip allocation

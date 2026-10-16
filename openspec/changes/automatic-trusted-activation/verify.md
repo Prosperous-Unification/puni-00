@@ -4665,3 +4665,52 @@ After these repairs and source formatting, `focused-final.log` reports **22 pass
 108 expect calls**, exit 0, sampled tree peak **678,711,296 bytes**. The TypeScript-only format
 command exited 0, sampled peak **148,131,840 bytes**. Typecheck remains unavailable; `.3d` and
 parent `.3` remain unchecked/open even if the corrected hooks complete.
+
+## Review successor: bootstrap getter snapshots and portable physical-root encoding
+
+Predecessor reviewed SHA: `5ee40fc48c27aac25be5a5fa21dd135b70c82c5d`. Evidence is retained in
+[`evidence/runtime-closure-review-2026-10-17`](evidence/runtime-closure-review-2026-10-17).
+The predecessor's corrected normal-hook output is now committed as
+`predecessor-hooks-corrected.log`: exit 0, sampled peak **805,171,200 bytes** under 900 MiB.
+That hook ESLint execution reported no diagnostics, while explicitly **skipping the Nx module
+boundary rule because its ProjectGraph was missing**. Earlier standalone lint OOM/failures remain
+failures; the normal hook does not retroactively make them pass. Tool Wiki stayed inactive and
+uncertified, and matching migration/doc-cap jobs were absent. No full lint/gate claim is made.
+
+Review reproduced changing top-level getters: one small `closureBytes` return passed the byte
+cap before a larger pinned return was copied, and a pin getter returned two expected values
+before publishing a foreign third value. Both were assertion RED. Admission now snapshots roots,
+raw-byte reference, expected pin and limits object once at entry, copies captured limit values,
+checks/copies the captured bytes and publishes only the captured expected pin. The published-pin
+fault also uses real file reads to change the getter phase: rereading the getter after capture
+produces the foreign identity. Both production omissions caused intended assertion RED.
+
+The original Unicode exploit claim is **downgraded for pinned Bun 1.4.2**. This host's
+`path.join` and `path.resolve` normalize malformed UTF-16; tests construct lone-surrogate aliases
+by string concatenation, and the existing `resolve(path) !== path` check already refuses before
+filesystem IO. `native-unicode-before-fix.log` records that native predecessor control passing.
+The explicit UTF-8 round-trip fence strengthens the portable boundary. Its separate portability
+witness narrowly spies on the exact production `node:path.resolve` dependency to preserve the
+already absolute spelling, modeling Node-like lexical preservation. It uses real replacement-
+character directories and real open/read routes; omission of only the Unicode predicate then
+admits the alias and produces assertion RED. This is **not a pinned-host bypass**.
+`root-unicode-native-omission-control.log` confirms that even with the Unicode predicate omitted,
+Bun's native resolver still refuses: 1 pass, 8 assertions, exit 0, sampled peak **344,862,720 bytes**.
+Both native and modeled controls assert zero realpath/open/read calls on restored refusal.
+Physical-root byte caps precede the new UTF-8 round-trip allocation.
+
+The predecessor's 40-fault ledger remains historical, causally reviewed evidence for that SHA.
+The review-wave `faults.json` records **7/7** intended assertion RED omissions: byte-reference
+snapshot, published-pin snapshot, modeled Unicode fence, and replays of manifest cap, independent
+pin, copied limits and root-path cap after the snapshot/reordering edits. Source was restored
+in `finally`. No typecheck retry was attempted: typecheck and Nx boundary validation remain
+unavailable, `.3d` stays unchecked, and parent `.3` remains open. Final restored commands and
+normal successor hook disposition follow their observed runs below.
+
+Restored successor controls: guarded focused test exit 0, **27 pass, 0 fail, 130 expect calls**,
+sampled peak **674,443,264 bytes** under 768 MiB (`focused-final.log`). Guarded formatting of the
+two TypeScript files and three touched OpenSpec Markdown files exited 0, sampled peak
+**342,487,040 bytes** (`format-final.log`). Pinned cached `bunx --no-install
+@fission-ai/openspec@1.12.0 validate automatic-trusted-activation --strict --json` reported **1/1
+valid, zero issues**, exit 0 (`openspec-final.json`). `git diff --check` exited 0. The successor
+normal-hook log is reported with the committed SHA after its run; typecheck was not retried.

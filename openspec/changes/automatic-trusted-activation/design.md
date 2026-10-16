@@ -1066,8 +1066,11 @@ and an independently installed exact SHA-256 pin. It validates the closed schema
 nonempty program inventory, and captures every declared file by raw byte identity and exact
 length. Relative virtual paths are well-formed Unicode, unique and UTF-8-byte sorted, with
 no empty/dot/traversal components, NUL, backslash, leading slash or file-ancestor conflicts.
-No Unicode normalization supplies aliases. Absolute physical roots must be lexically canonical;
+No Unicode normalization supplies aliases. The bootstrap snapshots each top-level root, raw-byte reference, expected pin and limits object
+once before checks, copies the limits, checks/copies the captured byte reference, and publishes
+only the captured pin. Absolute physical roots must be well-formed UTF-8 round trips and lexically canonical;
 resolved candidate and runtime roots cannot overlap in either component-boundary direction.
+Physical root byte ceilings precede UTF-8 round-trip allocation and filesystem probes.
 The Linux bootstrap reader traverses each ancestor through pinned directory descriptors with
 `O_NOFOLLOW`, opens each leaf with `O_NOFOLLOW|O_NONBLOCK`, checks regular-file status and
 length before content allocation, reads at most declared length plus one byte, and reconciles

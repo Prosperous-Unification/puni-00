@@ -1,6 +1,7 @@
 import * as fs from 'node:fs';
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import * as paths from 'node:path';
 import { join } from 'node:path';
 
 import { hashBytes, hashCanonical, serializeCanonical } from '@twilight-burokrat/judge';
@@ -490,6 +491,108 @@ test('rejects invalid raw UTF-8 before any bootstrap filesystem probe', () => {
       }),
     ).toThrow();
     expect(probe).not.toHaveBeenCalled();
+  } finally {
+    probe.mockRestore();
+  }
+});
+
+test('snapshots the closure byte reference before its manifest cap', () => {
+  const { input } = fixture();
+  const bytes = input.closureBytes;
+  let reads = 0;
+  const probe = spyOn(fs, 'realpathSync');
+  try {
+    expect(() =>
+      readReviewRuntime({
+        ...input,
+        limits: { ...input.limits, maximumManifestBytes: 1 },
+        get closureBytes() {
+          reads += 1;
+          return reads === 1 ? Uint8Array.of(0) : bytes;
+        },
+      }),
+    ).toThrow();
+    expect(reads).toBe(1);
+    expect(probe).not.toHaveBeenCalled();
+  } finally {
+    probe.mockRestore();
+  }
+});
+test('publishes only the snapshotted independently expected pin', () => {
+  const { input } = fixture();
+  const pin = input.runtimeClosureIdentity;
+  let reads = 0;
+  const runtime = readReviewRuntime({
+    ...input,
+    get runtimeClosureIdentity() {
+      reads += 1;
+      return reads <= 2 ? pin : 'f'.repeat(64);
+    },
+  });
+  expect(runtime.runtimeClosureIdentity).toBe(pin);
+  expect(reads).toBe(1);
+});
+function assertUnicodeRoots(): void {
+  for (const field of ['runtimeRoot', 'candidateRoot'] as const) {
+    const { input, root } = fixture();
+    const actual = join(root, 'root-\ufffd');
+    const alias = `${root}/root-\ud800`;
+    if (field === 'runtimeRoot') {
+      fs.renameSync(input.runtimeRoot, actual);
+      input.runtimeRoot = alias;
+      input.candidateRoot = actual;
+    } else {
+      mkdirSync(actual);
+      input.candidateRoot = alias;
+    }
+    const probe = spyOn(fs, 'realpathSync');
+    const open = spyOn(fs, 'openSync');
+    const read = spyOn(fs, 'readSync');
+    try {
+      expect(() => readReviewRuntime(input)).toThrow('root malformed');
+      expect(probe).not.toHaveBeenCalled();
+      expect(open).not.toHaveBeenCalled();
+      expect(read).not.toHaveBeenCalled();
+    } finally {
+      probe.mockRestore();
+      open.mockRestore();
+      read.mockRestore();
+    }
+  }
+}
+
+test('rejects physical root Unicode aliases before filesystem probes', assertUnicodeRoots);
+test('rejects root Unicode with lexically preserving resolve', () => {
+  // Bun 1.4.2 normalizes malformed UTF-16 in resolve; this dependency fault models
+  // lexical preservation so that the independent Unicode fence cannot be masked.
+  const resolve = spyOn(paths, 'resolve').mockImplementation((...parts) => parts.join('/'));
+  try {
+    assertUnicodeRoots();
+  } finally {
+    resolve.mockRestore();
+  }
+});
+
+test('publishes the captured pin after runtime file reads', () => {
+  const { input } = fixture();
+  const pin = input.runtimeClosureIdentity;
+  let captured = false;
+  const read = fs.readSync;
+  const probe = spyOn(fs, 'readSync').mockImplementation(
+    (...args: Parameters<typeof fs.readSync>) => {
+      const count = read(...args);
+      captured = true;
+      return count;
+    },
+  );
+  try {
+    const runtime = readReviewRuntime({
+      ...input,
+      get runtimeClosureIdentity() {
+        return captured ? 'f'.repeat(64) : pin;
+      },
+    });
+    expect(runtime.runtimeClosureIdentity).toBe(pin);
   } finally {
     probe.mockRestore();
   }

@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:
+81 |   const bytes = runtime.readFile(entry);
+82 |   bytes.fill(0);
+83 |   input.closureBytes.fill(0);
+84 |   input.limits.maximumBytes = 1;
+85 |   rmSync(input.runtimeRoot, { recursive: true });
+86 |   expect(() => runtime.readFile(entry)).not.toThrow();
+                                                 ^
+error: expect(received).not.toThrow()
+
+Error name: "Error"
+Error message: "runtime byte ceiling exceeded"
+
+      at <anonymous> (/tmp/puni-runtime-closure-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:86:45)
+(fail) owns complete exact bytes despite caller and ambient mutation [2.66ms]
+
+ 0 pass
+ 26 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [921.00ms]
+{"ceilingBytes": 805306368, "sampledPeakBytes": 331567104, "exitCode": 1}

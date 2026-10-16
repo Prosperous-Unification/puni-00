@@ -51,7 +51,14 @@ const Owners = new WeakMap<ReviewRuntime, ReadonlyMap<string, Uint8Array>>();
 
 // Proof: root-grammar admitted a lexical ../ root alias.
 function assertRoot(path: string): void {
-  if (!isAbsolute(path) || resolve(path) !== path || path.includes('\0') || path.includes('\\'))
+  // Proof: root-unicode admitted an OS replacement-character alias under lexically preserving resolve.
+  if (
+    Buffer.from(path, 'utf8').toString('utf8') !== path ||
+    !isAbsolute(path) ||
+    resolve(path) !== path ||
+    path.includes('\0') ||
+    path.includes('\\')
+  )
     throw new Error('runtime root malformed');
 }
 function contains(parent: string, child: string): boolean {
@@ -78,11 +85,23 @@ function openDirectory(path: string, chargeProbe: () => void, descriptors: numbe
  * Admits an independently pinned canonical declared closure and captures all its bytes.
  * Installed roots and limits are bootstrap authority. This does not prove transitive closure
  * completeness or authenticate executing code. Reads return copies and share finite lifetime
- * read/allocation budgets with capture; no runtime read reopens a path.
+ * read/allocation budgets with capture; no runtime read reopens a path. Bootstrap operands
+ * are captured once, and physical roots must preserve their exact UTF-8 spelling.
+ * @throws Error for invalid trusted state or exceeded bounds; AggregateError when capture
+ * and descriptor cleanup both fail.
  */
 export function readReviewRuntime(input: ReviewRuntimeInput): ReviewRuntime {
   // Proof: limits-snapshot made a later caller limit mutation break a captured owned read.
-  const limits = { ...input.limits };
+  // Proof: closure-reference-snapshot bypassed the byte cap with a changing top-level getter;
+  // closure-pin-snapshot published a foreign pin when the getter was reread after verification.
+  const {
+    runtimeRoot,
+    candidateRoot,
+    closureBytes,
+    runtimeClosureIdentity,
+    limits: installedLimits,
+  } = input;
+  const limits = { ...installedLimits };
   // Proof: limits-grammar admitted NaN installed ceilings.
   for (const ceiling of [
     limits.maximumManifestBytes,
@@ -97,9 +116,9 @@ export function readReviewRuntime(input: ReviewRuntimeInput): ReviewRuntime {
     if (!Number.isSafeInteger(ceiling) || ceiling < 1)
       throw new Error('runtime limit must be a positive safe integer');
   // Proof: manifest-cap admitted a document above its raw byte ceiling.
-  if (input.closureBytes.byteLength > limits.maximumManifestBytes)
+  if (closureBytes.byteLength > limits.maximumManifestBytes)
     throw new Error('runtime manifest ceiling exceeded');
-  const source = Buffer.from(input.closureBytes);
+  const source = Buffer.from(closureBytes);
   // Proof: schema-root/schema-file admitted undeclared closure/file keys when reject was removed.
   // Proof: utf8-fatal let a raw invalid UTF-8 path reach bootstrap IO when decoding was lossy.
   const decoded: unknown = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(source));
@@ -115,8 +134,8 @@ export function readReviewRuntime(input: ReviewRuntimeInput): ReviewRuntime {
   const closure = parseOrThrow(Closure, decoded);
   // Proof: independent-pin admitted a foreign digest; canonical-bytes admitted JSON without LF.
   if (
-    !Sha256.test(input.runtimeClosureIdentity) ||
-    hashBytes(source) !== input.runtimeClosureIdentity ||
+    !Sha256.test(runtimeClosureIdentity) ||
+    hashBytes(source) !== runtimeClosureIdentity ||
     serializeCanonical(closure) !== source.toString('utf8')
   )
     throw new Error('runtime closure identity or canonical bytes differ');
@@ -179,15 +198,14 @@ export function readReviewRuntime(input: ReviewRuntimeInput): ReviewRuntime {
     retained += file.byteLength + 1;
     previous = file.path;
   }
-  const { runtimeRoot, candidateRoot } = input;
-  assertRoot(runtimeRoot);
-  assertRoot(candidateRoot);
   // Proof: root-path-cap admitted long physical roots with short virtual paths.
   if (
     Buffer.byteLength(runtimeRoot) > limits.maximumPathBytes ||
     Buffer.byteLength(candidateRoot) > limits.maximumPathBytes
   )
     throw new Error('runtime root path ceiling exceeded');
+  assertRoot(runtimeRoot);
+  assertRoot(candidateRoot);
   chargeProbe();
   const candidate = realpathSync(candidateRoot);
   // Proof: candidate-overlap admitted equal and containing candidate roots.
@@ -275,7 +293,7 @@ export function readReviewRuntime(input: ReviewRuntimeInput): ReviewRuntime {
   // Proof: freeze-capability lost the explicit frozen capability assertion.
   const capability: ReviewRuntime = Object.freeze({
     closure,
-    runtimeClosureIdentity: input.runtimeClosureIdentity,
+    runtimeClosureIdentity,
     readFile(this: ReviewRuntime, file: Readonly<FileIdentity>): Uint8Array {
       // Proof: exact-owner admitted a spread capability with a copied method.
       if (Owners.get(this) !== owned) throw new Error('runtime capability is not owned');

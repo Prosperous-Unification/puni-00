@@ -1,0 +1,36 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:
+(pass) owns complete exact bytes despite caller and ambient mutation [8.87ms]
+(pass) requires the independent exact canonical pin [0.47ms]
+(pass) rejects closed schema, noncanonical paths, duplicate and unordered paths [5.22ms]
+(pass) rejects absent, unreadable, changed and wrong-length files [1.26ms]
+(pass) rejects leaf and ancestor symlinks and candidate overlap [0.68ms]
+(pass) bounds admission and subsequent copy allocations and reads [2.18ms]
+(pass) rejects empty inventories, program-free inventories and noncanonical serialized bytes [0.79ms]
+(pass) copied methods grant no authority and unlisted installed files stay unreachable [0.40ms]
+(pass) rejects unsafe lengths, path prefix conflicts and noncanonical root aliases [0.76ms]
+(pass) manifest refusals precede all bootstrap filesystem probes [2.59ms]
+(pass) wrong-length files refuse before allocating or reading their content [0.36ms]
+(pass) read failure preserves a simultaneous cleanup failure [0.41ms]
+(pass) capture detects a same-byte file mutation during the bounded read [0.36ms]
+(pass) non-regular files refuse before allocating their content [0.37ms]
+(pass) a FIFO refuses without waiting for a writer [1306.94ms]
+(pass) nonadjacent file ancestors refuse before bootstrap IO [1.02ms]
+(pass) root path bound applies independently from virtual file paths [0.48ms]
+(pass) copy reads have a distinct lifetime returned-byte bound [0.77ms]
+(pass) literal canonical manifest vector pins LF and raw file identities [0.65ms]
+(pass) an unexpected undefined read failure cannot publish a partial capability [0.59ms]
+(pass) snapshots a caller tuple before joining owned content [0.79ms]
+(pass) rejects invalid raw UTF-8 before any bootstrap filesystem probe [0.58ms]
+(pass) snapshots the closure byte reference before its manifest cap [0.49ms]
+(pass) publishes only the snapshotted independently expected pin [0.57ms]
+(pass) rejects physical root Unicode aliases before filesystem probes [0.92ms]
+(pass) rejects root Unicode with lexically preserving resolve [0.58ms]
+(pass) publishes the captured pin after runtime file reads [0.50ms]
+
+ 27 pass
+ 0 fail
+ 130 expect() calls
+Ran 27 tests across 1 file. [2.27s]
+{"ceilingBytes": 805306368, "sampledPeakBytes": 674443264, "exitCode": 0}

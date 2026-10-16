@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:
+590 |       ...input,
+591 |       get runtimeClosureIdentity() {
+592 |         return captured ? 'f'.repeat(64) : pin;
+593 |       },
+594 |     });
+595 |     expect(runtime.runtimeClosureIdentity).toBe(pin);
+                                                 ^
+error: expect(received).toBe(expected)
+
+Expected: "a7d7265d46270b8b68a03beebcf7a6d2446a445ed78caddf4abd618088a32156"
+Received: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+
+      at <anonymous> (/tmp/puni-runtime-closure-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:595:44)
+(fail) publishes the captured pin after runtime file reads [14.30ms]
+
+ 0 pass
+ 26 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [986.00ms]
+{"ceilingBytes": 805306368, "sampledPeakBytes": 334184448, "exitCode": 1}
