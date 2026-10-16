@@ -1,3 +1,4 @@
+import { rejects } from 'node:assert/strict';
 import { chmod, link, mkdir, mkdtemp, readFile, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -1185,8 +1186,9 @@ for (const fault of ['none', 'id', 'image', 'entrypoint'] as const) {
     const commands: string[][] = [];
     const candidate = await prepareBackend('be', 'green', image, '/fixture/be.phase', {
       ...prepared,
-      runDocker: async (args) => {
+      runDocker: async (args, signal) => {
         commands.push(args);
+        if (signal?.aborted) throw new Error('observed maintenance abort');
         if (args[0] !== 'inspect') return prepared.runDocker(args);
         if (args[2] === '{{.Id}}') return maintenanceId;
         return JSON.stringify({
@@ -1224,6 +1226,12 @@ for (const fault of ['none', 'id', 'image', 'entrypoint'] as const) {
         maintenanceId,
         maintenanceId,
       ]);
+      const controller = new AbortController();
+      controller.abort();
+      await refuses(
+        candidate.verifyMaintenance(maintenanceId, controller.signal),
+        'observed maintenance abort',
+      );
     } else await refuses(candidate.startMaintenance(), 'maintenance');
     expect(commands.some((args) => args[0] === 'exec')).toBe(false);
   });
@@ -1580,4 +1588,239 @@ for (const vocabulary of storedVocabularies) {
       }
     });
   }
+}
+
+async function assertRefusal(pending: Promise<unknown>, message = '') {
+  await rejects(pending, new RegExp(message));
+}
+
+async function activationFixture(fault = '') {
+  const f = await fixture();
+  const original = f.io.sh;
+  let attempted = false;
+  let maintenanceStarted = false;
+  let receipt: unknown;
+  let capabilityProbes = 0;
+  const verify = f.io.prepareBackend;
+  if (verify === undefined) throw new Error('fixture missing preparation');
+  f.io.prepareBackend = async (...args) => {
+    const prepared = await verify(...args);
+    const previous = prepared.verifyMaintenance;
+    prepared.verifyMaintenance = (identity, signal) => {
+      if (attempted && fault === 'maintenance-stall') {
+        signal?.addEventListener('abort', () => f.events.push('aborted'));
+        return new Promise<string>(() => undefined).then(() => undefined);
+      }
+      if (maintenanceStarted && fault === 'maintenance-drift')
+        return Promise.reject(new Error('activation maintenance drift'));
+      return previous(identity);
+    };
+    return prepared;
+  };
+  f.io.resolveMount = (path) => {
+    if (attempted && fault === 'resolve-stall') return new Promise<string>(() => undefined);
+    return Promise.resolve(
+      maintenanceStarted && fault === 'database-drift' && path.endsWith('/wbs.db')
+        ? '/replaced/wbs.db'
+        : path,
+    );
+  };
+  const namespaceProof = f.io.namespaceProof;
+  if (namespaceProof === undefined) throw new Error('fixture missing namespace proof');
+  f.io.namespaceProof = (...args) =>
+    attempted && fault === 'namespace-stall'
+      ? new Promise<void>(() => undefined)
+      : namespaceProof(...args);
+  f.io.sh = async (args, signal) => {
+    const stall = () => {
+      signal?.addEventListener('abort', () => f.events.push('aborted'));
+      return new Promise<string>(() => undefined);
+    };
+    if (attempted && fault === 'stopped-stall' && args[0] === 'inspect' && args[3] === outgoingId)
+      return stall();
+    if (args[0] === 'ps' && maintenanceStarted)
+      return fault === 'writer-drift' ? outgoingId : `${outgoingId}\n${maintenanceId}`;
+    if (args[0] === 'inspect' && args[1] === outgoingId && args[2] === maintenanceId) {
+      const observed = JSON.parse(await original(['inspect', outgoingId])) as Record<
+        string,
+        unknown
+      >[];
+      return JSON.stringify([
+        ...observed,
+        {
+          ...observed[0],
+          Id: maintenanceId,
+          Name: '/be-01-green',
+          Image: `sha256:${'c'.repeat(64)}`,
+          Config: { Image: image, Env: ['DB_PATH=/data/wbs.db'] },
+        },
+      ]);
+    }
+    if (
+      maintenanceStarted &&
+      fault === 'rollback-running' &&
+      args[0] === 'inspect' &&
+      args[3] === outgoingId
+    ) {
+      const observed = JSON.parse(await original(args)) as { State: { Running: boolean } };
+      observed.State.Running = true;
+      return JSON.stringify(observed);
+    }
+    if (
+      maintenanceStarted &&
+      fault === 'rollback-drift' &&
+      args[0] === 'inspect' &&
+      args[1] === '--type'
+    ) {
+      const observed = JSON.parse(await original(args)) as [
+        { Config: { Image: string }; Image: string },
+      ];
+      observed[0].Config.Image = image;
+      observed[0].Image = `sha256:${'c'.repeat(64)}`;
+      return JSON.stringify(observed);
+    }
+    if (args.includes('src/migrate-cli.ts')) maintenanceStarted = true;
+    if (args[0] === 'run' && args.includes('src/step-blockage-replay-kinds-cli.ts')) {
+      capabilityProbes += 1;
+      if (fault === 'capability-stall' && capabilityProbes >= 1) return stall();
+      const incapable =
+        (fault === 'candidate-incapable' && args.includes(image)) ||
+        (fault === 'rollback-incapable' && args.includes(previousImage));
+      return incapable ? '[]' : '["step_blockage_activation_v1"]';
+    }
+    if (args[0] === 'run' && args.includes('src/step-blockage-activation-cli.ts')) {
+      if (fault === 'inspect-stall') return stall();
+      if (fault === 'missing-receipt-migration')
+        throw new Error('missing step blockage receipt migration');
+      return '{"state":"DISABLED","receipt":null}';
+    }
+    if (args[0] === 'exec' && args.includes('-e')) {
+      receipt = (
+        JSON.parse(await readFile(join(f.root, 'be-writer-activation.json'), 'utf8')) as {
+          receipt: unknown;
+        }
+      ).receipt;
+      return '';
+    }
+    if (args.includes('activate')) {
+      attempted = true;
+      expect(await readFile(join(f.root, 'be-writer-activation.json'), 'utf8')).toContain(
+        previousImage,
+      );
+      if (fault === 'activate-stall') return stall();
+      if (fault === 'commit-uncertain') throw new Error('transport lost after commit');
+      return JSON.stringify({ state: 'ENABLED', receipt });
+    }
+    if (args[0] === 'exec' && args.includes('src/step-blockage-activation-cli.ts')) {
+      if (fault === 'readback-stall') return stall();
+      if (fault === 'readback-unavailable') throw new Error('readback unavailable');
+      return JSON.stringify({
+        state: 'ENABLED',
+        receipt: fault === 'readback-mismatch' ? {} : receipt,
+      });
+    }
+    return original(args);
+  };
+  return { ...f, attempted: () => attempted };
+}
+
+for (const fault of ['candidate-incapable', 'rollback-incapable', 'missing-receipt-migration']) {
+  test(`explicit activation refuses ${fault} before maintenance or intent`, async () => {
+    const f = await activationFixture(fault);
+    await assertRefusal(execute(f.plan, image, 'release', f.io, true));
+    expect(f.attempted()).toBe(false);
+    expect(f.events).not.toContain('maintenance');
+    expect(f.events).not.toContain('start');
+    await assertRefusal(readFile(join(f.root, 'be-writer-activation.json')), 'ENOENT');
+  });
+}
+for (const fault of [
+  'maintenance-drift',
+  'rollback-running',
+  'rollback-drift',
+  'database-drift',
+  'writer-drift',
+  'commit-uncertain',
+  'readback-unavailable',
+  'readback-mismatch',
+]) {
+  test(`explicit activation retains barriers and prevents exposure on ${fault}`, async () => {
+    const f = await activationFixture(fault);
+    const refusal: Record<string, string> = {
+      'maintenance-drift': 'activation maintenance drift',
+      'rollback-running': 'not proven stopped',
+      'rollback-drift': 'activation rollback image association changed',
+      'database-drift': 'activation database identity changed',
+      'writer-drift': 'activation writer inventory changed',
+      'commit-uncertain': 'transport lost after commit',
+      'readback-unavailable': 'readback unavailable',
+      'readback-mismatch': 'activation committed readback differs',
+    };
+    await assertRefusal(execute(f.plan, image, 'release', f.io, true), refusal[fault]);
+    expect(f.isBlueRunning()).toBe(false);
+    expect(f.events).not.toContain('start');
+    expect(f.events).not.toContain('alias');
+    for (const boundary of ['stop', 'maintenance', 'migration'])
+      expect(await readFile(join(f.root, `be-writer-${boundary}.json`), 'utf8')).toContain(image);
+    if (['commit-uncertain', 'readback-unavailable', 'readback-mismatch'].includes(fault)) {
+      expect(f.attempted()).toBe(true);
+      expect(await readFile(join(f.root, 'be-writer-activation.json'), 'utf8')).toContain(image);
+    } else expect(f.attempted()).toBe(false);
+    await assertRefusal(execute(f.plan, image, 'release', f.io), 'explicit recovery');
+  });
+}
+test('explicit activation exposes the application only after exact separate committed readback', async () => {
+  const f = await activationFixture();
+  await execute(f.plan, image, 'release', f.io, true);
+  expect(f.attempted()).toBe(true);
+  expect(f.events).toContain('start');
+  expect(await readFile(join(f.root, 'be-writer-exposure.json'), 'utf8')).toContain(image);
+});
+
+test('committed activation clears all five barriers after application exposure', async () => {
+  const f = await activationFixture();
+  f.plan.steps.push('commit');
+  await execute(f.plan, image, 'release', f.io, true);
+  await assertNoWriterBarrier(f.root);
+  expect(f.events).toContain('start');
+});
+
+test('activation refuses a non-backend plan before preflight', async () => {
+  const f = await activationFixture();
+  await assertRefusal(
+    execute({ ...f.plan, tier: 'gw' }, image, 'release', f.io, true),
+    'activation requires only be',
+  );
+  expect(f.events).toEqual([]);
+});
+
+for (const fault of [
+  'capability-stall',
+  'inspect-stall',
+  'activate-stall',
+  'readback-stall',
+  'maintenance-stall',
+  'stopped-stall',
+  'resolve-stall',
+  'namespace-stall',
+]) {
+  test(`activation total budget bounds production caller ${fault} and retains uncertainty`, async () => {
+    const f = await activationFixture(fault);
+    f.io.activationBudgetMs = 30;
+    await assertRefusal(execute(f.plan, image, 'release', f.io, true), 'deadline exceeded');
+    expect(f.events).not.toContain('start');
+    expect(f.events).not.toContain('alias');
+    if (fault !== 'resolve-stall' && fault !== 'namespace-stall')
+      expect(f.events).toContain('aborted');
+    expect(f.isBlueRunning()).toBe(false);
+    expect(await readFile(join(f.root, 'be-writer-stop.json'), 'utf8')).toContain(image);
+    if (fault === 'capability-stall' || fault === 'inspect-stall') {
+      await assertRefusal(readFile(join(f.root, 'be-writer-activation.json')), 'ENOENT');
+      expect(f.attempted()).toBe(false);
+    } else {
+      for (const boundary of ['maintenance', 'migration', 'activation'])
+        expect(await readFile(join(f.root, `be-writer-${boundary}.json`), 'utf8')).toContain(image);
+    }
+    await assertRefusal(execute(f.plan, image, 'release', f.io), 'explicit recovery');
+  }, 500);
 }

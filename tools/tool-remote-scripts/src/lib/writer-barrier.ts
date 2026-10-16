@@ -32,11 +32,9 @@ export interface WriterIntent {
   capture?: { path: string; sha256: string; databasePath: string; target: string; attempt: string };
 }
 
-const boundaries = ['stop', 'exposure', 'migration', 'maintenance'] as const;
-function markerPath(
-  root: string,
-  boundary: 'stop' | 'exposure' | 'migration' | 'maintenance',
-): string {
+// Proof: omitting activation let its exact durable intent pass ordinary retry admission.
+const boundaries = ['stop', 'exposure', 'migration', 'maintenance', 'activation'] as const;
+function markerPath(root: string, boundary: (typeof boundaries)[number]): string {
   return `${root}/be-writer-${boundary}.json`;
 }
 
@@ -65,7 +63,7 @@ export async function assertNoWriterBarrier(root: string): Promise<void> {
 /** Exclusively publishes and syncs intent before either destructive or exposing IO. */
 export async function writeWriterBarrier(
   root: string,
-  boundary: 'stop' | 'exposure' | 'migration' | 'maintenance',
+  boundary: Exclude<(typeof boundaries)[number], 'activation'>,
   intent: WriterIntent,
 ): Promise<void> {
   await writeNewMigrationCapture(markerPath(root, boundary), `${JSON.stringify(intent)}\n`);
@@ -76,10 +74,12 @@ export async function clearWriterBarrier(
   root: string,
   hasMigration = false,
   hasMaintenance = false,
+  hasActivation = false,
 ): Promise<void> {
   for (const boundary of boundaries) {
     if (boundary === 'migration' && !hasMigration) continue;
     if (boundary === 'maintenance' && !hasMaintenance) continue;
+    if (boundary === 'activation' && !hasActivation) continue;
     await unlink(markerPath(root, boundary));
   }
   const directory = await open(root, 'r');
