@@ -1503,6 +1503,10 @@ _Avoid_: scenario registry, identifier list
 The earlier scenario identity from which a newly issued scenario was split.
 _Avoid_: replacement ID, reused ID
 
+**Proposed citation policy**:
+A proposed treatment of scenario-citation violations as debt or refusal within one selected Browser observation. Its preview conveys no rule enrollment or permission to admit a candidate.
+_Avoid_: trusted rule policy, admission policy, T2 enforcement
+
 **Fleet**:
 The managed set of hosts and their assigned cluster memberships and capabilities,
 independent of which machines currently provide them.
