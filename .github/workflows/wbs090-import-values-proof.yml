@@ -2,7 +2,7 @@ name: wbs090-import-values-proof
 
 on:
   push:
-    branches: [proof/wbs090-import-values-2026966]
+    branches: [proof/wbs090-import-values-20261016]
 
 permissions:
   contents: read
