@@ -494,3 +494,28 @@ Date.now = forbidden; globalThis.fetch = forbidden; Bun.spawn = forbidden; Bun.s
   expect(invocation.exitCode, invocation.stderr).toBe(0);
   expect(invocation.stderr).toBe('');
 });
+
+test('record-progress-v2 explicitly binds the complete producer reference', () => {
+  const invocation = invokeCli(entrypoint, ['record-progress-v2', ...buildFlags()]);
+  expect(invocation.exitCode, invocation.stderr).toBe(0);
+  const receipt = JSON.parse(readFileSync(output, 'utf8')) as Record<string, unknown>;
+  expect(receipt['schemaVersion']).toBe(2);
+  expect(receipt['referenceDigest']).toBe(reference['referenceDigest']);
+  expect(receipt['receiptDigest']).toBe(digestWithout(receipt, 'receiptDigest'));
+  const proposed = join(directory, 'batch.json');
+  const admission = invokeCli(join(navigatorRoot, 'entrypoint.ts'), [
+    'admit-progress',
+    '--receipt',
+    output,
+    '--plan-reference',
+    referencePath,
+    '--tasks',
+    tasksPath,
+    '--accepted-reference',
+    referencePath,
+    '--output',
+    proposed,
+  ]);
+  expect(admission.exitCode, admission.stderr).toBe(0);
+  expect(existsSync(proposed)).toBe(true);
+});

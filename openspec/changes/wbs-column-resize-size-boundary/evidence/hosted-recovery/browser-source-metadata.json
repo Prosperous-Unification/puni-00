@@ -1,0 +1,19 @@
+{
+  "ci": {
+    "commitHref": "https://github.com/Prosperous-Unification/puni-00/commit/2b7b5ffdb801c68c4765e52e13240115efa06ff0",
+    "commitHash": "2b7b5ffdb801c68c4765e52e13240115efa06ff0",
+    "prHref": "https://github.com/Prosperous-Unification/puni-00/pull/537",
+    "prTitle": "refactor(wbs): extract column resize interaction",
+    "prBaseHash": "5274046bdb0835727e22f98901a849afaad3b4a7",
+    "buildHref": "https://github.com/Prosperous-Unification/puni-00/actions/runs/38859192929"
+  },
+  "commitHash": "2b7b5ffdb801c68c4765e52e13240115efa06ff0",
+  "stats": {
+    "total": 158,
+    "expected": 158,
+    "unexpected": 0,
+    "flaky": 0,
+    "skipped": 0,
+    "ok": true
+  }
+}

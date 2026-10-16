@@ -1,0 +1,12 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:43:20). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.0 /home/runner/work/puni-00/puni-00/candidate/apps/wbs/fe-01
+
+ ✓ src/components/wbs/column-resize.test.tsx (3 tests) 102ms
+
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+   Start at  06:25:19
+   Duration  1.27s (environment 35%, transform 31%, import 20%, tests 8%, setup 6%)

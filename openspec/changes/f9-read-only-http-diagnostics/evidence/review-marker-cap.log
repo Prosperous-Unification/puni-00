@@ -1,0 +1,33 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/forge-http-observation.test.ts:
+354 |   }
+355 | });
+356 |
+357 | test('retains root marker in the allowed prefix of an oversized chunk', async () => {
+358 |   const origin = serve(() => new Response('<div id="root">' + 'x'.repeat(65537)));
+359 |   expect(await observeWeb(origin, 1000)).toMatchObject({ rootMarker: true, failure: 'body-limit' });
+                                               ^
+error: expect(received).toMatchObject(expected)
+
+  {
++   "contentType": "text/plain;charset=utf-8",
++   "durationMs": 2.8305830000000043,
+    "failure": "body-limit",
+-   "rootMarker": true,
++   "path": "/",
++   "rootMarker": false,
++   "status": 200,
+  }
+
+- Expected  - 1
++ Received  + 5
+
+      at <anonymous> (/tmp/f9-diagnostic-sol-oct16/tools/tool-devsync/src/k3s/forge-http-observation.test.ts:359:42)
+(fail) retains root marker in the allowed prefix of an oversized chunk [6.52ms]
+
+ 0 pass
+ 16 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [41.00ms]

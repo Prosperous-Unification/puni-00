@@ -140,7 +140,9 @@ describe('twin dispatch', () => {
     const run = await runTwinInProcess(['--help']);
     expect(run.exitCode).toBe(0);
     expect(run.stdout).toBe(`${USAGE}\n`);
+    // Proof: omitting admit-progress from COMMAND_FLAGS failed this help test (2026-10-16).
     expect(USAGE.split('\n').map((line) => line.split(' ')[1])).toEqual([
+      'admit-progress',
       'plan-reference',
       'receipt-to-commands',
     ]);

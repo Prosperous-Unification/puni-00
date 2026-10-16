@@ -354,6 +354,10 @@
           {
             "kind": "suffix",
             "value": ".svg"
+          },
+          {
+            "kind": "path",
+            "value": "tools/tool-devsync/feasibility/source-memory-relay/relay.c"
           }
         ],
         "exclude": [
@@ -1288,7 +1292,10 @@
     },
     {
       "boundaryId": "boundary.frontend.calendar-markers",
-      "selector": { "kind": "prefix", "value": "apps/wbs/fe-01/src/modules/calendar-markers" },
+      "selector": {
+        "kind": "prefix",
+        "value": "apps/wbs/fe-01/src/modules/calendar-markers"
+      },
       "sourceSelector": {
         "kind": "prefix",
         "value": "apps/fe-01/src/components/wbs/wbs-table.tsx"
@@ -1304,7 +1311,10 @@
     },
     {
       "boundaryId": "boundary.frontend.directory",
-      "selector": { "kind": "prefix", "value": "apps/wbs/fe-01/src/modules/directory" },
+      "selector": {
+        "kind": "prefix",
+        "value": "apps/wbs/fe-01/src/modules/directory"
+      },
       "sourceSelector": {
         "kind": "prefix",
         "value": "apps/fe-01/src/components/directory/directory-page.tsx"
@@ -1320,7 +1330,10 @@
     },
     {
       "boundaryId": "boundary.frontend.directory-management",
-      "selector": { "kind": "prefix", "value": "apps/wbs/fe-01/src/modules/directory-management" },
+      "selector": {
+        "kind": "prefix",
+        "value": "apps/wbs/fe-01/src/modules/directory-management"
+      },
       "sourceSelector": {
         "kind": "prefix",
         "value": "apps/fe-01/src/components/directory/directory-page.tsx"
@@ -1336,8 +1349,14 @@
     },
     {
       "boundaryId": "boundary.frontend.plan-commands",
-      "selector": { "kind": "prefix", "value": "apps/wbs/fe-01/src/modules/plan-commands" },
-      "sourceSelector": { "kind": "prefix", "value": "apps/fe-01/src/lib/wbs-api.ts" },
+      "selector": {
+        "kind": "prefix",
+        "value": "apps/wbs/fe-01/src/modules/plan-commands"
+      },
+      "sourceSelector": {
+        "kind": "prefix",
+        "value": "apps/fe-01/src/lib/wbs-api.ts"
+      },
       "baselineEntries": [
         {
           "mode": "100644",
@@ -1349,8 +1368,14 @@
     },
     {
       "boundaryId": "boundary.frontend.plan-feed",
-      "selector": { "kind": "prefix", "value": "apps/wbs/fe-01/src/modules/plan-feed" },
-      "sourceSelector": { "kind": "prefix", "value": "apps/fe-01/src/lib/plan-refresh.ts" },
+      "selector": {
+        "kind": "prefix",
+        "value": "apps/wbs/fe-01/src/modules/plan-feed"
+      },
+      "sourceSelector": {
+        "kind": "prefix",
+        "value": "apps/fe-01/src/lib/plan-refresh.ts"
+      },
       "baselineEntries": [
         {
           "mode": "100644",
@@ -1362,7 +1387,10 @@
     },
     {
       "boundaryId": "boundary.frontend.plan-writer",
-      "selector": { "kind": "prefix", "value": "apps/wbs/fe-01/src/modules/plan-writer" },
+      "selector": {
+        "kind": "prefix",
+        "value": "apps/wbs/fe-01/src/modules/plan-writer"
+      },
       "sourceSelector": {
         "kind": "prefix",
         "value": "apps/fe-01/src/components/wbs/use-plan-read.ts"
@@ -1378,8 +1406,14 @@
     },
     {
       "boundaryId": "boundary.frontend.preferences",
-      "selector": { "kind": "prefix", "value": "apps/wbs/fe-01/src/modules/preferences" },
-      "sourceSelector": { "kind": "prefix", "value": "apps/fe-01/src/lib/remembered.ts" },
+      "selector": {
+        "kind": "prefix",
+        "value": "apps/wbs/fe-01/src/modules/preferences"
+      },
+      "sourceSelector": {
+        "kind": "prefix",
+        "value": "apps/fe-01/src/lib/remembered.ts"
+      },
       "baselineEntries": [
         {
           "mode": "100644",
@@ -1391,7 +1425,10 @@
     },
     {
       "boundaryId": "boundary.frontend.project",
-      "selector": { "kind": "prefix", "value": "apps/wbs/fe-01/src/modules/project" },
+      "selector": {
+        "kind": "prefix",
+        "value": "apps/wbs/fe-01/src/modules/project"
+      },
       "sourceSelector": {
         "kind": "prefix",
         "value": "apps/fe-01/src/components/wbs/project-page.tsx"
@@ -1407,8 +1444,14 @@
     },
     {
       "boundaryId": "boundary.frontend.saved-plans",
-      "selector": { "kind": "prefix", "value": "apps/wbs/fe-01/src/modules/saved-plans" },
-      "sourceSelector": { "kind": "prefix", "value": "apps/fe-01/src/lib/saved-plan-shelf.ts" },
+      "selector": {
+        "kind": "prefix",
+        "value": "apps/wbs/fe-01/src/modules/saved-plans"
+      },
+      "sourceSelector": {
+        "kind": "prefix",
+        "value": "apps/fe-01/src/lib/saved-plan-shelf.ts"
+      },
       "baselineEntries": [
         {
           "mode": "100644",

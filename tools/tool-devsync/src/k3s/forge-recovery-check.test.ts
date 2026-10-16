@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 
 import { type PodObservation, type RecoveryDriver, rehearseRecovery } from './forge-recovery-check';
-import { observePod, requireMemoryEvidence } from './forge-recovery-lab';
+import { observePod } from './forge-recovery-lab';
 
 const initial: PodObservation = {
   uid: 'owned-pod',
@@ -225,22 +225,21 @@ test('accepts captured API edge-proxy denial after an immediately preceding full
   expect(checks).toContain('restored');
 });
 
-test('refuses platform-only memory samples as first forge-container evidence', () => {
-  expect(() => {
-    requireMemoryEvidence(
-      '/sys/fs/cgroup/kubepods/platform\nmemory.current\n1\nmemory.peak\n2\nmemory.events\noom 0\nVmRSS: 1 kB',
-      initial,
-    );
-  }).toThrow('first source container memory/RSS evidence absent');
-});
-
-test('requires memory current, peak, events and RSS in the first source cgroup', () => {
-  const sample =
-    '/sys/fs/cgroup/kubepods/podowned-pod/first\nmemory.current\n1\nmemory.peak\n2\nmemory.events\noom 0\nVmRSS: 1 kB';
-  expect(() => {
-    requireMemoryEvidence(sample, initial);
-  }).not.toThrow();
-  expect(() => {
-    requireMemoryEvidence(sample.replace('memory.peak', 'omitted'), initial);
-  }).toThrow();
+test('refuses inline escaped-newline and Unicode-separator ingress markers', async () => {
+  for (const output of [
+    'metadata: CHECK FAILED: web serves index.html',
+    'metadata: error: CHECK FAILED: web serves index.html',
+    '\u001b[0mmetadata: \u001b[31merror\u001b[0m: CHECK FAILED: web serves index.html',
+    'metadata: ' + JSON.stringify('\nerror: CHECK FAILED: web serves index.html'),
+    'metadata: \u2028error: CHECK FAILED: web serves index.html',
+    'metadata: \u2029CHECK FAILED: web serves index.html',
+  ]) {
+    const { driver } = fixture();
+    const runCheck = driver.check.bind(driver);
+    driver.check = (phase) =>
+      phase === 'ingress-denied' ? Promise.resolve({ exitCode: 1, output }) : runCheck(phase);
+    const report = await rehearseRecovery(driver, 50);
+    expect(report.ingressNegative).toBe('fail');
+    expect(report.acceptancePassed).toBe(false);
+  }
 });

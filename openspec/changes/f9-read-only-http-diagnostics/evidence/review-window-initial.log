@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/forge-http-observation.test.ts:
+374 |     const report = await observeConvergence(origin, {
+375 |       windowMs: 80,
+376 |       intervalMs: phase === 'pause' ? 30000 : 10,
+377 |       requestMs: 1000,
+378 |     });
+379 |     expect(performance.now() - started).toBeLessThan(500);
+                                              ^
+error: expect(received).toBeLessThan(expected)
+
+Expected: < 500
+Received: 1002.9155289999999
+
+      at <anonymous> (/tmp/f9-diagnostic-sol-oct16/tools/tool-devsync/src/k3s/forge-http-observation.test.ts:379:41)
+(fail) convergence clamps slow initial and final requests and oversized pauses to its window [1007.44ms]
+
+ 0 pass
+ 16 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1041.00ms]

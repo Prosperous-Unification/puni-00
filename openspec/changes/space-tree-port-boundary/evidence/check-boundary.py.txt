@@ -1,0 +1,21 @@
+import json, sys
+from collections import Counter
+base = json.load(open(sys.argv[1]))
+verdict = json.load(open(sys.argv[2]))
+path = 'libs/wbs/application/core/src/service/space.resource.ts'
+subject = 'libs/wbs/application/core/src/module/work-item/work-item.resource.ts'
+def edge(finding):
+    return finding['ruleId'] == 'K6' and finding['path'] == path and finding['subject'] == subject
+def multiset(findings):
+    return Counter(json.dumps(finding, sort_keys=True) for finding in findings)
+for report in [base, verdict]:
+    assert report['ruleIds'] == ['K6'], report
+    assert report['unevaluated'] == [], report
+    assert report['certifies'] is False, report
+assert len(base['findings']) == 2, base
+assert sum(edge(finding) for finding in base['findings']) == 1, base
+# Proof: committed direct Pick and transitive port re-export restore the concrete space tree dependency.
+assert not any(edge(finding) for finding in verdict['findings']), 'concrete space tree resource edge remains'
+assert multiset(verdict['findings']) == multiset([finding for finding in base['findings'] if not edge(finding)]), 'unrelated findings changed'
+assert len(verdict['findings']) == 1, verdict
+print('PASS: exact space-tree edge removed; plan-import to directory K6 finding preserved')

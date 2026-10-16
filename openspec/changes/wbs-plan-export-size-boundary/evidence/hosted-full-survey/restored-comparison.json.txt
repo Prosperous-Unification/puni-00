@@ -1,0 +1,69 @@
+{
+  "policyId": "wbs.plan-export.recovery.full.v1",
+  "baselineCandidate": "fdd5cf83c5ef387a2c0696cfce4ea30eb624c58fc841e10f7bfb6a0618186656",
+  "finalCandidate": "1446e69f16d34221281cffd3a03eba11a9b9eb035bd5a44fc6461b924bcac8d0",
+  "registeredRules": [
+    "F1",
+    "F7",
+    "INV-CLASSIFY",
+    "K2",
+    "K3",
+    "K4",
+    "K5",
+    "K6",
+    "MOD-DIRECT-ENTRIES",
+    "MOD-INDEX",
+    "MOD-LAYOUT",
+    "PERF-THRESHOLD",
+    "REL-EXTRACT",
+    "SPEC-SCENARIOS"
+  ],
+  "baselineFindings": 57,
+  "finalFindings": 56,
+  "baselineByRule": {
+    "F1": 0,
+    "F7": 41,
+    "INV-CLASSIFY": 0,
+    "K2": 0,
+    "K3": 0,
+    "K4": 0,
+    "K5": 0,
+    "K6": 12,
+    "MOD-DIRECT-ENTRIES": 0,
+    "MOD-INDEX": 0,
+    "MOD-LAYOUT": 4,
+    "PERF-THRESHOLD": 0,
+    "REL-EXTRACT": 0,
+    "SPEC-SCENARIOS": 0
+  },
+  "finalByRule": {
+    "F1": 0,
+    "F7": 40,
+    "INV-CLASSIFY": 0,
+    "K2": 0,
+    "K3": 0,
+    "K4": 0,
+    "K5": 0,
+    "K6": 12,
+    "MOD-DIRECT-ENTRIES": 0,
+    "MOD-INDEX": 0,
+    "MOD-LAYOUT": 4,
+    "PERF-THRESHOLD": 0,
+    "REL-EXTRACT": 0,
+    "SPEC-SCENARIOS": 0
+  },
+  "unrelatedFindingsUnchanged": true,
+  "unevaluatedUnchanged": true,
+  "unevaluated": [
+    {
+      "ruleId": "PERF-THRESHOLD",
+      "reason": "Performance config content differs from reviewed authority"
+    },
+    {
+      "ruleId": "SPEC-SCENARIOS",
+      "reason": "competing overlay operation: wbs-domain: A leaf's status folds its progress, hold, readiness and predecessors"
+    }
+  ],
+  "allowed": false,
+  "certifies": false
+}

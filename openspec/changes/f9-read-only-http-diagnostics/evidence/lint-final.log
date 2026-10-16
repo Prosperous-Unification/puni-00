@@ -1,0 +1,15 @@
+
+> nx run tool-devsync:lint
+
+> bunx eslint tools/tool-devsync/src tools/tool-devsync/workspace-projects.mjs tools/tool-devsync/workspace-inventory.mjs
+
+
+
+
+ NX   Successfully ran target lint for project tool-devsync
+
+
+  Run duration:      26.3s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     26.3s (1 task)
+  Recoverable time:  <1ms

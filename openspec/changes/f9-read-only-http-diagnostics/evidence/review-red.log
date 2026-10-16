@@ -1,0 +1,72 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/forge-http-observation.test.ts:
+275 |     if (origin === undefined || failure === undefined) throw new Error('fixture case missing');
+276 |     const checker = await runFailedChecker(origin);
+277 |     expect(checker.exitCode).not.toBe(0);
+278 |     expect(checker.output).toContain(`"failure":"${failure}"`);
+279 |     const verdict = await judgeDeniedChecker(checker);
+280 |     expect(verdict.ingressNegative).toBe('fail');
+                                          ^
+error: expect(received).toBe(expected)
+
+Expected: "fail"
+Received: "pass"
+
+      at <anonymous> (/tmp/f9-diagnostic-sol-oct16/tools/tool-devsync/src/k3s/forge-http-observation.test.ts:280:37)
+(fail) production checker transport deadline and body-limit failures never earn ingress credit [647.01ms]
+291 |     } })));
+292 |     const server = servers.at(-1);
+293 |     if (server === undefined) throw new Error('fixture server missing');
+294 |     if (reset) timers.push(setTimeout(() => { void server.stop(true); }, 60));
+295 |     try {
+296 |       expect(await observeWeb(origin, 150)).toMatchObject({ status: 200, rootMarker: true, failure: reset ? 'transport' : 'deadline' });
+                                                  ^
+error: expect(received).toMatchObject(expected)
+
+  {
++   "contentType": null,
++   "durationMs": 151.14628100000004,
+    "failure": "deadline",
+-   "rootMarker": true,
++   "path": "/",
++   "rootMarker": false,
+    "status": 200,
+  }
+
+- Expected  - 1
++ Received  + 4
+
+      at <anonymous> (/tmp/f9-diagnostic-sol-oct16/tools/tool-devsync/src/k3s/forge-http-observation.test.ts:296:45)
+(fail) retains a split root marker when the response later hangs or resets [161.97ms]
+298 |   }
+299 | });
+300 |
+301 | test('retains root marker in the allowed prefix of an oversized chunk', async () => {
+302 |   const origin = serve(() => new Response('<div id="root">' + 'x'.repeat(65537)));
+303 |   expect(await observeWeb(origin, 1000)).toMatchObject({ rootMarker: true, failure: 'body-limit' });
+                                               ^
+error: expect(received).toMatchObject(expected)
+
+  {
++   "contentType": "text/plain;charset=utf-8",
++   "durationMs": 1.1747070000000122,
+    "failure": "body-limit",
+-   "rootMarker": true,
++   "path": "/",
++   "rootMarker": false,
++   "status": 200,
+  }
+
+- Expected  - 1
++ Received  + 5
+
+      at <anonymous> (/tmp/f9-diagnostic-sol-oct16/tools/tool-devsync/src/k3s/forge-http-observation.test.ts:303:42)
+(fail) retains root marker in the allowed prefix of an oversized chunk [2.63ms]
+(pass) convergence clamps slow initial and final requests and oversized pauses to its window [245.53ms]
+
+ 1 pass
+ 13 filtered out
+ 3 fail
+ 11 expect() calls
+Ran 4 tests across 1 file. [1102.00ms]

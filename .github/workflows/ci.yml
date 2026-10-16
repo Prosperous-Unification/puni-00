@@ -356,8 +356,11 @@ jobs:
     # at 60m in `Gate head pinning` after every earlier step passed. Ninety was then set for the
     # single job. With Tool Wiki moved to the Twilight shard (`gate_twilight`) this job took
     # 26m35s in the full-mode run 36473105834 (Nx step 22m21s; docs/findings/ci-gate-duration.md),
-    # and sixty leaves more than double that.
-    timeout-minutes: 60
+    # and sixty leaves more than double that. Run 38858776285 (PR #535, f6f867ec, 2026-10-16)
+    # then spent 55m05s in Nx and was canceled in Gate head pinning at 07:01:03 UTC.
+    # Restore a finite ninety-minute allowance; remaining checks still require hosted proof.
+    # Evidence: openspec/changes/workspace-gate-time-budget/verify.md.
+    timeout-minutes: 90
     steps:
       # Full history: with the default depth of 1 the `main` ref is absent, and
       # nx falls back to a different file scope rather than failing. Since

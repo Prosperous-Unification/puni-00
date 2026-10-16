@@ -1,0 +1,20 @@
+4 | const candidate = JSON.parse(readFileSync(process.argv[3], 'utf8'));
+5 | const path = 'apps/wbs/fe-01/src/components/wbs/use-plan-layout.tsx';
+6 | assert.deepEqual(base.ruleIds, ['F7']);
+7 | assert.deepEqual(candidate.ruleIds, ['F7']);
+8 | assert(base.findings.some((finding) => finding.ruleId === 'F7' && finding.path === path));
+9 | assert(
+    ^
+AssertionError: selected oversized hook finding remains
+ generatedMessage: false,
+     actual: false,
+   expected: true,
+   operator: "==",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /home/runner/work/puni-00/puni-00/proof/openspec/changes/wbs-column-resize-size-boundary/evidence/recovery-proof/assert-f7.mjs:9:1
+
+::error file=proof/openspec/changes/wbs-column-resize-size-boundary/evidence/recovery-proof/assert-f7.mjs,line=9,col=1,title=AssertionError: selected oversized hook finding remains::%0A      at /home/runner/work/puni-00/puni-00/proof/openspec/changes/wbs-column-resize-size-boundary/evidence/recovery-proof/assert-f7.mjs:9:1
+
+Bun v1.4.2 (Linux x64)

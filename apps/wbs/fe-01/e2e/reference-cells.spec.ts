@@ -697,6 +697,41 @@ test('exposes the active priority option at the scrolling table edge', async ({ 
   );
 });
 
+test.describe('390x844 reference sheets with a mouse', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: false });
+
+  test('an option fact card is painted above its reference sheet', async ({ page }) => {
+    const seeded = await seed(page);
+    const parent = page.getByRole('article', { name: 'Work item 010', exact: true });
+    await parent.locator('[data-card-tags-field]').click();
+    const dialog = page.getByRole('dialog', { name: /^Tags for / });
+    const box = dialog.getByRole('combobox', { name: 'Tags for 010', exact: true });
+    await box.fill(seeded.tags[2].name);
+    const option = dialog.getByRole('option', { name: seeded.tags[2].name, exact: true });
+    await expect(option).toBeVisible();
+    // Wrapping makes touch names readable without hover. A mouse can still
+    // open a fact card, and that card must be painted over its source sheet.
+    await page.waitForTimeout(300);
+    await option.hover();
+    const card = page.getByRole('tooltip').filter({ hasText: seeded.tags[2].name });
+    await expect(card).toHaveCount(1);
+    const painted = await card.evaluate((node) => {
+      if (!(node instanceof HTMLElement)) throw new Error('the card is not an HTML element');
+      // Cards take no pointer; lend this one a pointer for the paint probe.
+      const pointerEvents = node.style.pointerEvents;
+      node.style.pointerEvents = 'auto';
+      const bounds = node.getBoundingClientRect();
+      const top = document.elementFromPoint(
+        bounds.left + bounds.width / 2,
+        bounds.top + bounds.height / 2,
+      );
+      node.style.pointerEvents = pointerEvents;
+      return { onTop: top !== null && node.contains(top), drawn: top?.outerHTML.slice(0, 80) };
+    });
+    expect(painted.onTop, `the fact card is painted under ${String(painted.drawn)}`).toBe(true);
+  });
+});
+
 test.describe('390x844 reference sheets', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
 

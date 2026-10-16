@@ -311,6 +311,26 @@ function validatorEntryPaths(): string[] | { artifactManifest: string } {
 
 export function runCli(argv: readonly string[]): Promise<void> | void {
   const args = [...argv];
+  if (args[0] === 'inspect-evaluation-coverage' && args.length !== 5) {
+    // Proof: the missing-operand production CLI test received unknown-command before this guard.
+    throw new Error(
+      'usage: twilight-burokrat inspect-evaluation-coverage <repository> <full-sha> <external-rule-policy> <external-coverage-review>',
+    );
+  }
+  if (args[0] === 'inspect-evaluation-coverage') {
+    return import('./evidence/evaluation-coverage').then(({ inspectEvaluationCoverage }) => {
+      const report = inspectEvaluationCoverage(
+        args[1],
+        args[2],
+        args[3],
+        args[4],
+        import.meta.path,
+      );
+      process.stdout.write(`${JSON.stringify(report)}\n`);
+      // Proof: removing this assignment made the unresolved production matrix return exit 0; its CLI test failed.
+      if (report.rows.some((row) => row.evaluation === 'unevaluated')) process.exitCode = 1;
+    });
+  }
   if (args[0] === 'validate-progress-receipt') {
     // Proof: removing this refusal failed seven operand/process CLI cases in
     // progress-receipt.test.ts, replacing usage diagnostics with reads (2026-10-15).
@@ -453,6 +473,53 @@ export function runCli(argv: readonly string[]): Promise<void> | void {
       );
     });
   }
+  if (args[0] === 'inspect-browser-scenarios') {
+    const mode = args[4];
+    // Proof: removing arity or mode independently failed TEST-AXES-131's named production usage refusals.
+    if (args.length !== 10 || (mode !== 'ordinary' && mode !== 'packaged' && mode !== 'portable'))
+      throw new Error(
+        'usage: twilight-burokrat inspect-browser-scenarios <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <review-authority> <conformance-authority> <architecture-authority> <performance-authority> <capability>',
+      );
+    return import('./evidence/browser-scenarios').then(({ inspectBrowserScenarios }) => {
+      const observation = inspectBrowserScenarios(
+        args[1],
+        args[2],
+        args[3],
+        mode,
+        args[5],
+        args[6],
+        args[7],
+        args[8],
+        args[9],
+      );
+      process.stdout.write(`${JSON.stringify(observation)}\n`);
+      // Proof: removal made TEST-AXES-129's missing-terminal findings exit zero.
+      if (observation.citationFindings.length !== 0) process.exitCode = 1;
+    });
+  }
+  if (args[0] === 'inspect-browser-source-levels') {
+    const mode = args[4];
+    // Proof: independent removals failed TEST-AXES-147 WATCH_cli-arity/mode's named usage refusals.
+    if (args.length !== 9 || (mode !== 'ordinary' && mode !== 'packaged' && mode !== 'portable'))
+      throw new Error(
+        'usage: twilight-burokrat inspect-browser-source-levels <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <review-authority> <conformance-authority> <architecture-authority> <performance-authority>',
+      );
+    return import('./evidence/browser-source-levels').then(({ inspectBrowserSourceLevels }) => {
+      const observation = inspectBrowserSourceLevels(
+        args[1],
+        args[2],
+        args[3],
+        mode,
+        args[5],
+        args[6],
+        args[7],
+        args[8],
+      );
+      process.stdout.write(`${JSON.stringify(observation)}\n`);
+      // Proof: removal made TEST-AXES-147 WATCH_cli-exit's valid wrong-level observation exit zero.
+      if (observation.isolation.kind === 'wrong-level') process.exitCode = 1;
+    });
+  }
   if (args[0] === 'inspect-browser-levels') {
     const mode = args[4];
     // Proof: independently removing arity or mode validation failed TEST-AXES-124's named usage assertions.
@@ -499,6 +566,53 @@ export function runCli(argv: readonly string[]): Promise<void> | void {
     return import('./evidence/browser-memberships').then(({ inspectBrowserMemberships }) => {
       process.stdout.write(
         `${JSON.stringify(inspectBrowserMemberships(args[1], args[2], args[3], mode, args[5]))}\n`,
+      );
+    });
+  }
+  if (args[0] === 'inspect-browser-t2') {
+    // Proof: individual arity/flag removals accepted TEST-AXES-143's extra/flag operand negatives.
+    if (args.length !== 8 || args[6] !== '--now')
+      throw new Error(
+        'usage: twilight-burokrat inspect-browser-t2 <repository> <full-committed-sha> <external-rule-policy> <capability> <external-ledger-authority> --now <UTC-instant>',
+      );
+    return import('./evidence/manual').then(({ readEvaluationInstant }) => {
+      const evaluatedAt = readEvaluationInstant(args[7]);
+      return import('./evidence/browser-t2').then(({ inspectBrowserT2 }) => {
+        // Proof: adding debt-based exit one failed TEST-AXES-141's valid diagnostic with unassigned debt.
+        const observation = inspectBrowserT2(
+          args[1],
+          args[2],
+          args[3],
+          args[4],
+          args[5],
+          evaluatedAt,
+        );
+        process.stdout.write(`${JSON.stringify(observation)}\n`);
+      });
+    });
+  }
+  if (args[0] === 'inspect-browser-scenario-ledger') {
+    // Proof: disabling arity/flag refusal failed TEST-AXES-139 extra/flag operand assertions.
+    if (args.length !== 8 || args[6] !== '--now')
+      throw new Error(
+        'usage: twilight-burokrat inspect-browser-scenario-ledger <repository> <full-committed-sha> <external-rule-policy> <capability> <external-ledger-authority> --now <UTC instant>',
+      );
+    return import('./evidence/manual').then(({ readEvaluationInstant }) => {
+      const evaluatedAt = readEvaluationInstant(args[7]);
+      return import('./evidence/browser-scenario-ledger').then(
+        ({ inspectBrowserScenarioLedger }) => {
+          const observation = inspectBrowserScenarioLedger(
+            args[1],
+            args[2],
+            args[3],
+            args[4],
+            args[5],
+            evaluatedAt,
+          );
+          process.stdout.write(`${JSON.stringify(observation)}\n`);
+          // Proof: removing debt exit mapping failed TEST-AXES-138 unassigned JSON/exit assertion.
+          if (observation.debt.length !== 0) process.exitCode = 1;
+        },
       );
     });
   }
@@ -692,7 +806,7 @@ export function runCli(argv: readonly string[]): Promise<void> | void {
   // re-adding its route above failed `submit-admission is an unknown command` (cli.test.ts) and
   // `the validator bundle carries no authority store` (packaging/bundle.test.ts) (2026-10-11).
   throw new Error(
-    `unknown command: ${args[0] ?? '<missing>'}\nusage: twilight-burokrat <validate-progress-receipt|validate-plan-tasks|validate-record|read-candidate|candidate-identity|inspect-performance|inspect-performance-sources|inspect-performance-levels|inspect-performance-scenarios|inspect-scenario-ledger|inspect-browser-levels|inspect-browser-performance|inspect-browser-architecture|inspect-browser-conformance|inspect-browser-memberships|inspect-browser|inspect-test-reports|inspect-test-sources|inspect-spec-sources|inspect-manual|inspect-manual-observation|classify-candidate|content-manifest|validate-artifacts|extract-relationships|check-indexes|check-root-migration|validate-review-provenance|freeze-exhaustive|verify-exhaustive|evaluate-exhaustive-coverage|lint-local|lint-ci|check|explain|scenario|template|validate-policy-activation> ...`,
+    `unknown command: ${args[0] ?? '<missing>'}\nusage: twilight-burokrat <validate-progress-receipt|validate-plan-tasks|validate-record|read-candidate|candidate-identity|inspect-evaluation-coverage|inspect-performance|inspect-performance-sources|inspect-performance-levels|inspect-performance-scenarios|inspect-scenario-ledger|inspect-browser-t2|inspect-browser-scenario-ledger|inspect-browser-scenarios|inspect-browser-source-levels|inspect-browser-levels|inspect-browser-performance|inspect-browser-architecture|inspect-browser-conformance|inspect-browser-memberships|inspect-browser|inspect-test-reports|inspect-test-sources|inspect-spec-sources|inspect-manual|inspect-manual-observation|classify-candidate|content-manifest|validate-artifacts|extract-relationships|check-indexes|check-root-migration|validate-review-provenance|freeze-exhaustive|verify-exhaustive|evaluate-exhaustive-coverage|lint-local|lint-ci|check|explain|scenario|template|validate-policy-activation> ...`,
   );
 }
 

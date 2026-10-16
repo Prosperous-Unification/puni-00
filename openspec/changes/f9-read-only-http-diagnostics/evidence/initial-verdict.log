@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/forge-http-observation.test.ts:
+50 | test('convergence preserves immediate failure despite later success and uses GET only', async () => {
+51 |   let calls = 0;
+52 |   const origin = serve(() => ++calls === 1 ? new Response('denied', { status: 403 }) : new Response('<div id="root"></div>'));
+53 |   const report = await observeConvergence(origin, { windowMs: 100, intervalMs: 10, requestMs: 30 });
+54 |   expect(report.initial.failure).toBe('response');
+55 |   expect(report.initialPassed).toBe(false);
+                                    ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at <anonymous> (/tmp/f9-diagnostic-sol-oct16/tools/tool-devsync/src/k3s/forge-http-observation.test.ts:55:32)
+(fail) convergence preserves immediate failure despite later success and uses GET only [103.24ms]
+
+ 0 pass
+ 9 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [137.00ms]

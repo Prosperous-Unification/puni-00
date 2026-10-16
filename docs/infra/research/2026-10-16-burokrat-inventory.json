@@ -1,0 +1,3038 @@
+{
+  "candidate": "4f098bfe2bf64343b8f503b5bdebd6e1a6fa34f4",
+  "infra": [
+    {
+      "path": "infra/ansible/ansible.cfg",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "29b866bd73eb2df39d1b74e9b6928e71eef2231d",
+      "family": "other",
+      "subjectFamily": "other"
+    },
+    {
+      "path": "infra/ansible/inventory/platform.hcloud.yml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "abcf7ea720860b320e2d6dd0c379546adc95ae10",
+      "family": "yaml",
+      "subjectFamily": "ansible-yaml"
+    },
+    {
+      "path": "infra/ansible/inventory/production-existing-hosts.yml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "d01a0c82d21d3e1ead098f0e26034f8f99805e73",
+      "family": "yaml",
+      "subjectFamily": "ansible-yaml"
+    },
+    {
+      "path": "infra/ansible/inventory/workers.hcloud.yml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "b3517940f136d54180c71879847b5b201ea47e76",
+      "family": "yaml",
+      "subjectFamily": "ansible-yaml"
+    },
+    {
+      "path": "infra/ansible/playbooks/backup.yml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "f09094006a8d4e5b3b06fde1c7cc2455a6080675",
+      "family": "yaml",
+      "subjectFamily": "ansible-yaml"
+    },
+    {
+      "path": "infra/ansible/playbooks/bootstrap.yml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "6803f396d2abb479cfa4189f24a4fd45e3de3072",
+      "family": "yaml",
+      "subjectFamily": "ansible-yaml"
+    },
+    {
+      "path": "infra/ansible/playbooks/discover.yml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "5eaedbe271ea3152953834446a0257060e1d9676",
+      "family": "yaml",
+      "subjectFamily": "ansible-yaml"
+    },
+    {
+      "path": "infra/ansible/playbooks/files/puni-remove-k3s-rules.sh",
+      "mode": "100755",
+      "kind": "blob",
+      "blob": "099c00a3905d31ef9bfd71407d04346aa0474434",
+      "family": "shell",
+      "subjectFamily": "shell"
+    },
+    {
+      "path": "infra/ansible/playbooks/firewall.yml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "a119497d94439a95a8ffaaccc2b9d80253aef6c8",
+      "family": "yaml",
+      "subjectFamily": "ansible-yaml"
+    },
+    {
+      "path": "infra/ansible/playbooks/join.yml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "09aedb6b72ccb68a6228ab804566a69417d8d333",
+      "family": "yaml",
+      "subjectFamily": "ansible-yaml"
+    },
+    {
+      "path": "infra/ansible/playbooks/platform.yml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "b3b580bcf5b4cc268db40a16940b2275783e266d",
+      "family": "yaml",
+      "subjectFamily": "ansible-yaml"
+    },
+    {
+      "path": "infra/ansible/playbooks/preflight.yml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "1a04d0343c3276f1f4c183eedca5c812135747c4",
+      "family": "yaml",
+      "subjectFamily": "ansible-yaml"
+    },
+    {
+      "path": "infra/ansible/playbooks/restore.yml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "1e4ed01dc59010c5bf718838bfe6b2fa6b905bbf",
+      "family": "yaml",
+      "subjectFamily": "ansible-yaml"
+    },
+    {
+      "path": "infra/ansible/playbooks/retire.yml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "92ab4011d90c534f7465dedf824a5a8acae18f6a",
+      "family": "yaml",
+      "subjectFamily": "ansible-yaml"
+    },
+    {
+      "path": "infra/ansible/playbooks/rollback-host.yml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "4ccb3aa672e0649ef3ef49328838debf9c225ba8",
+      "family": "yaml",
+      "subjectFamily": "ansible-yaml"
+    },
+    {
+      "path": "infra/ansible/playbooks/solver.yml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "e89f14da918239bb0ba0e9c6f56f9541dbf0b57c",
+      "family": "yaml",
+      "subjectFamily": "ansible-yaml"
+    },
+    {
+      "path": "infra/ansible/playbooks/upgrade.yml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "76d59eccf2cdffd79cebe361066e5dcd33121112",
+      "family": "yaml",
+      "subjectFamily": "ansible-yaml"
+    },
+    {
+      "path": "infra/ansible/playbooks/validate-enrollment.yml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "658011a9a7e161a4070d8f9c09171c78050deee8",
+      "family": "yaml",
+      "subjectFamily": "ansible-yaml"
+    },
+    {
+      "path": "infra/ansible/roles/backup/handlers/main.yml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "21bb4ef36e6ed1ba5e08ff28fdaa3c006445c00d",
+      "family": "yaml",
+      "subjectFamily": "ansible-yaml"
+    },
+    {
+      "path": "infra/ansible/roles/backup/tasks/main.yml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "4bd83ef157b09b5c46ae9457104513040d8be665",
+      "family": "yaml",
+      "subjectFamily": "ansible-yaml"
+    },
+    {
+      "path": "infra/ansible/roles/backup/templates/etcd-snapshots.yaml.j2",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "49f7645b8e9228713d0f749e91729b4ed4e75902",
+      "family": "jinja",
+      "subjectFamily": "jinja"
+    },
+    {
+      "path": "infra/ansible/roles/base/handlers/main.yml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "03c7e5999a8a4683eebf712ad1aa15f89c9f2d1e",
+      "family": "yaml",
+      "subjectFamily": "ansible-yaml"
+    },
+    {
+      "path": "infra/ansible/roles/base/tasks/main.yml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "e7e7fe08fd59d8520e1044cb258bb9e82280de59",
+      "family": "yaml",
+      "subjectFamily": "ansible-yaml"
+    },
+    {
+      "path": "infra/ansible/roles/base/templates/journald-fleet.conf.j2",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "b6dcebed5d29d1811c65d933c43439cfc646a883",
+      "family": "jinja",
+      "subjectFamily": "jinja"
+    },
+    {
+      "path": "infra/ansible/roles/base/templates/k3s-sysctl.conf.j2",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "bce62a2ce8849c5012007a34b5d7ec1111c31462",
+      "family": "jinja",
+      "subjectFamily": "jinja"
+    },
+    {
+      "path": "infra/ansible/roles/base/templates/operator-sudoers.j2",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "94cb86aabe7ac97407cc8c9e275936cd1bd04f9b",
+      "family": "jinja",
+      "subjectFamily": "jinja"
+    },
+    {
+      "path": "infra/ansible/roles/k3s_agent/handlers/main.yml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "bf84e88d11b44d85d1f377ec3a162c692d56b2b4",
+      "family": "yaml",
+      "subjectFamily": "ansible-yaml"
+    },
+    {
+      "path": "infra/ansible/roles/k3s_agent/tasks/main.yml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "0d0f7b0eb95c0abd8690d6092f8eed86831c1466",
+      "family": "yaml",
+      "subjectFamily": "ansible-yaml"
+    },
+    {
+      "path": "infra/ansible/roles/k3s_agent/templates/config.yaml.j2",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "0c504d9f2f1838c75918bfdc0df2a5d417117a1f",
+      "family": "jinja",
+      "subjectFamily": "jinja"
+    },
+    {
+      "path": "infra/ansible/roles/k3s_agent/templates/k3s-agent.service.j2",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "de1e775f91cc5f2fd75518fcfc451f204b0d4ef0",
+      "family": "jinja",
+      "subjectFamily": "jinja"
+    },
+    {
+      "path": "infra/ansible/roles/k3s_server/handlers/main.yml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "278fb96a478b701dd6d03cb964d04e65b6008485",
+      "family": "yaml",
+      "subjectFamily": "ansible-yaml"
+    },
+    {
+      "path": "infra/ansible/roles/k3s_server/tasks/main.yml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "862f391445aada91f93b9c066f246e27259f139e",
+      "family": "yaml",
+      "subjectFamily": "ansible-yaml"
+    },
+    {
+      "path": "infra/ansible/roles/k3s_server/templates/config.yaml.j2",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "3cc5914c864398eb1d3593fa75daa50b3b682d79",
+      "family": "jinja",
+      "subjectFamily": "jinja"
+    },
+    {
+      "path": "infra/ansible/roles/k3s_server/templates/k3s.service.j2",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "7d8a36542a23f95433046cae4d47fdcbdfbe23cb",
+      "family": "jinja",
+      "subjectFamily": "jinja"
+    },
+    {
+      "path": "infra/ansible/roles/network/handlers/main.yml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "a8407a6a4aa91cab286ebbf042dea95cde0d04b6",
+      "family": "yaml",
+      "subjectFamily": "ansible-yaml"
+    },
+    {
+      "path": "infra/ansible/roles/network/tasks/main.yml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "ca9fb906ed7de323a5bda2265cb575248bf4ab40",
+      "family": "yaml",
+      "subjectFamily": "ansible-yaml"
+    },
+    {
+      "path": "infra/ansible/roles/network/templates/k3s.nft.j2",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "d16a5e556d47a9f2d6a09c9c3642c522537a5270",
+      "family": "jinja",
+      "subjectFamily": "jinja"
+    },
+    {
+      "path": "infra/ansible/roles/network/templates/private-mtu.service.j2",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "3ed5444aeac659dc35c3b90500c5f79816287566",
+      "family": "jinja",
+      "subjectFamily": "jinja"
+    },
+    {
+      "path": "infra/ansible/roles/network/templates/puni-k3s-firewall.service.j2",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "3ad69ea61c7d22f595c1e85f14ef412b5fdffc2a",
+      "family": "jinja",
+      "subjectFamily": "jinja"
+    },
+    {
+      "path": "infra/ansible/roles/solver/files/puni-cri-peer",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "7a4d02583249532789b8f908f5574b12bec175e4",
+      "family": "extensionless",
+      "subjectFamily": "extensionless"
+    },
+    {
+      "path": "infra/ansible/roles/solver/handlers/main.yml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "e30e2deb22278cf8775dd9b6a106aede3b4b2004",
+      "family": "yaml",
+      "subjectFamily": "ansible-yaml"
+    },
+    {
+      "path": "infra/ansible/roles/solver/tasks/main.yml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "b53f3f76947548f882064c5773643fb7e809b65f",
+      "family": "yaml",
+      "subjectFamily": "ansible-yaml"
+    },
+    {
+      "path": "infra/ansible/roles/solver/templates/puni-solver.conf.j2",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "ff3ced38059096df402da3df248a18472e867593",
+      "family": "jinja",
+      "subjectFamily": "jinja"
+    },
+    {
+      "path": "infra/ansible/roles/solver/templates/wbs-solver-supervisor.service.j2",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "b165d46cfde5660eb89e7859fb36597291b7209f",
+      "family": "jinja",
+      "subjectFamily": "jinja"
+    },
+    {
+      "path": "infra/ansible/roles/solver/vars/main.yml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "6c24321077843cfed39e9c3555d9e65763a05cc9",
+      "family": "yaml",
+      "subjectFamily": "ansible-yaml"
+    },
+    {
+      "path": "infra/ansible/roles/storage/tasks/main.yml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "0cc018108249a73774d03311123d4bb2692be414",
+      "family": "yaml",
+      "subjectFamily": "ansible-yaml"
+    },
+    {
+      "path": "infra/ansible/scripts/cluster-checks.py",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "3b8a912b9258600d07b4a3642ef553774e22e78b",
+      "family": "python",
+      "subjectFamily": "python"
+    },
+    {
+      "path": "infra/ansible/tasks/require-enrollment-identity.yml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "6b9ba19b9e2341f71e75da389c754f3350e7c916",
+      "family": "yaml",
+      "subjectFamily": "ansible-yaml"
+    },
+    {
+      "path": "infra/ansible/tests/enrollment-identity.yml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "568567295162fbe1932bfecc781ceef3a2ddb162",
+      "family": "yaml",
+      "subjectFamily": "ansible-yaml"
+    },
+    {
+      "path": "infra/ci/burokrat/admit.sh",
+      "mode": "100755",
+      "kind": "blob",
+      "blob": "c8d3ed227ddf51e75b8c2b96156557ba5728543b",
+      "family": "shell",
+      "subjectFamily": "shell"
+    },
+    {
+      "path": "infra/ci/burokrat/bootstrap.sh",
+      "mode": "100755",
+      "kind": "blob",
+      "blob": "9ace3aa80052a1dc68a0e50aca566a5a5eda95e9",
+      "family": "shell",
+      "subjectFamily": "shell"
+    },
+    {
+      "path": "infra/ci/burokrat/consumer.json",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "f3200c5bf15fdb67bbba647ddca4108bd97bc1b6",
+      "family": "other",
+      "subjectFamily": "other"
+    },
+    {
+      "path": "infra/ci/burokrat/package.json",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "e829eba2a09744fc7fb1dab1f242cec350493084",
+      "family": "other",
+      "subjectFamily": "other"
+    },
+    {
+      "path": "infra/ci/deploy-runner/job-started.sh",
+      "mode": "100755",
+      "kind": "blob",
+      "blob": "12b48a6278b07489d8d5b0b300c423e68001f951",
+      "family": "shell",
+      "subjectFamily": "shell"
+    },
+    {
+      "path": "infra/clusters/platform/local/alerts.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "50d5e61efc5e7974fe2c8059c34480636d63b89d",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/clusters/platform/local/backup.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "7f5e463366c06a5320da4a355ca49103bb3ab034",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/clusters/platform/local/certificates.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "6ab464852abfe08c8d25bdfe61123f87a4c38925",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/clusters/platform/local/controllers.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "b976ccbda92cfbfec6b88a3aae90d79b39785e96",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/clusters/platform/local/identity.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "02d21f146811c0fbaecba280e9b308e36f702769",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/clusters/platform/local/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "c00c2ac3bfe35488f84373280fbaf6b0937b2cc6",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/clusters/platform/local/observability.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "575ab05ece260eed21017840200fb9c20d4b1e3b",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/clusters/platform/local/platform.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "53d634b77e98e32145cfb4ad86365c2e7f5c0827",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/clusters/platform/local/policy.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "333aaea0826673ce0652942b53b3ede1d4b85e5d",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/clusters/platform/local/secrets.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "dd2f7f88595c9818ca5fd93b2ed56d70a233ddf2",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/clusters/platform/local/storage.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "c4b82270336cfc08505d5bc8a00c62487e88b7da",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/clusters/platform/local/target.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "8b87ace8a2eaeeb5cc076077c065cbffdd37e798",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/clusters/platform/production/alerts.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "cab9a37d2f39e419e52b9c54fef5fa94ae25dab3",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/clusters/platform/production/backup.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "5ca4948b4dbfe6c95bf89b522eb83fa619228b16",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/clusters/platform/production/certificates.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "690cac6b6305b9167dbf5991912ef939a28188cc",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/clusters/platform/production/controllers.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "b261d09ff6e6c791d1b424090e9e57ee7363c24c",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/clusters/platform/production/identity.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "68c1dd3ed0117a6deed55cf1509ea8c87f0b336c",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/clusters/platform/production/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "c00c2ac3bfe35488f84373280fbaf6b0937b2cc6",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/clusters/platform/production/observability.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "29160e2188db78796af50374f349badbc24ed83e",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/clusters/platform/production/platform.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "7c5498216d6ef4a3caf560211445cda7e4d54602",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/clusters/platform/production/policy.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "e12e33998c35563524e0b43fdef51843d84037a7",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/clusters/platform/production/secrets.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "013a140b3e2713b0b40810f2497263f1f5028555",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/clusters/platform/production/storage.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "7d4f243fa55d4c38ea66309f9fc6ec027e180a25",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/clusters/platform/production/target.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "edc076382ed1084e01147719d7d6cd76d778c64b",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/clusters/workers/local/certificates.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "7fa98ae91459bd12fceed337250321ea40125271",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/clusters/workers/local/controllers.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "65cac0f7da8cf7341358e88979ed7e30d987667a",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/clusters/workers/local/identity.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "acaaab081d0ecd030efd636eaafbf5c20590d961",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/clusters/workers/local/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "aeba2c9daa5b2d18fd9bf477451a1f8afcb72186",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/clusters/workers/local/policy.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "78819379981c303de10b93c4bd793031e96f3cab",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/clusters/workers/local/secrets.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "1f6204a11dc8ba8185f9b910ca47b8746cbb8e16",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/clusters/workers/local/storage.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "bca49620ce6834b965aff76d1a5ff84d52905cf1",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/clusters/workers/local/target.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "27f7143e7b09dbfcced9f04a04e972834c254408",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/clusters/workers/local/telemetry.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "c62415b339a912c063fbdad9c0cc287a107c7aed",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/clusters/workers/production/certificates.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "2b296f7fd2410938162738d000a25c317d437878",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/clusters/workers/production/controllers.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "0e672cb1091b184e4d56789f724e3641c739d5bc",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/clusters/workers/production/identity.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "aab6894a3a30ff282c6e8d2ff87129b7874a0634",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/clusters/workers/production/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "aeba2c9daa5b2d18fd9bf477451a1f8afcb72186",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/clusters/workers/production/policy.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "d85d6a01806bf5bab1935285f6198c98c4f1da59",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/clusters/workers/production/secrets.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "98b92b1c0313970abb727287a6e3abbfc62b820f",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/clusters/workers/production/storage.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "5f3853e55464b57095568a0b1c30cda8dce45b54",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/clusters/workers/production/target.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "9e026c343c392c2c954a36d1f90bf18885c9da3d",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/clusters/workers/production/telemetry.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "5fcdf504d3455c1fd2206128ed82d0e73023e60a",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/controller/Containerfile",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "8f27c28211c4e1dca9b5badc25072710cb001ca7",
+      "family": "containerfile",
+      "subjectFamily": "containerfile"
+    },
+    {
+      "path": "infra/controller/requirements-python.txt",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "044504cf07a8f0dc719c5ae8c06972b53100db28",
+      "family": "other",
+      "subjectFamily": "other"
+    },
+    {
+      "path": "infra/controller/requirements.yml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "8104bdbc5b3b634312bc316433fd1861de793b94",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/environments/README.md",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "fc797e674ed77d4b1e9387c1540f7e8423c081d4",
+      "family": "other",
+      "subjectFamily": "other"
+    },
+    {
+      "path": "infra/environments/local/inputs.json",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "8f00275023d029b9f6811651f2e78cf36dcba7c6",
+      "family": "other",
+      "subjectFamily": "other"
+    },
+    {
+      "path": "infra/environments/site-inputs.schema.json",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "54ce443a001b32bc63caadc92f8753622f252611",
+      "family": "other",
+      "subjectFamily": "other"
+    },
+    {
+      "path": "infra/fleet/desired.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "4fba0efa03b4aba4ecda80a6a1b752f8f7b7a577",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/fleet/examples/local.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "cafd7ac7cdf661ca928e346d4eb95a26b48d40f5",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/fleet/examples/production.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "d3b31516e4c153f7c23974fcf762da23e1ed7173",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/fleet/schemas/operation-plan.json",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "a98b5a93ad2fb96fcc2ec62410bbbaa91bdcbeab",
+      "family": "other",
+      "subjectFamily": "other"
+    },
+    {
+      "path": "infra/local/README.md",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "d334128e3a34057d2885b57b4af93474f001d5b0",
+      "family": "other",
+      "subjectFamily": "other"
+    },
+    {
+      "path": "infra/local/cloud-init.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "ef58dd9d3ab326337e4323f328acd41b7196182a",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/local/object-store/Containerfile",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "bc7b160379c76b302959423697c8f0e4bfd932d8",
+      "family": "containerfile",
+      "subjectFamily": "containerfile"
+    },
+    {
+      "path": "infra/local/platform.k3d.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "03aff2d19d61cf376cf82e7e6b544f0440cf9b1a",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/local/qemu-lab.lock.json",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "7484c621b031b77aa280e960e3d34995a0569704",
+      "family": "other",
+      "subjectFamily": "other"
+    },
+    {
+      "path": "infra/local/tsconfig.json",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "61d537658102d47702594fa21d745a2a0bd99698",
+      "family": "other",
+      "subjectFamily": "other"
+    },
+    {
+      "path": "infra/local/vm-lab.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "f2a7bf6ed331b1c5f9fdc05fdc3f9da05ccc73bb",
+      "family": "typescript",
+      "subjectFamily": "typescript"
+    },
+    {
+      "path": "infra/local/workers.k3d.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "f160723586822817210f0a28c366f31643de4dc6",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/alerts/base/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "145a0b59150663220e177ef0d7a0f56c15e2d91c",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/alerts/base/probes.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "a048d5a8b9591e7a9e8dfe42874027b6555e30d6",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/alerts/base/rules.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "5fd9b98f91e3fc830e9757dec1887d368a847db8",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/alerts/local/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "27bb5cb0b48f5df4a32540b7ef41262e35c4b6fa",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/alerts/production/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "e2be5da73ee9be5b68a26534a150045bec18065b",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/alerts/production/public-probes.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "367a5085ad218dee985f5dcae4ab7cb63743c362",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/backup/elastic/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "46ceea3a8e744101e93928f01d77aa8ec81b1060",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/backup/elastic/snapshots.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "e109a8a7dd08603963dd4e65a6f858af9926ef5f",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/backup/local/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "c021362cabd04082d45a55adc80d26101a8356f1",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/backup/local/object-store.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "31fe50f598ec19b1c63ac04215a24e99611f5495",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/backup/production/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "670792e31b85d5c17673a9a57813e2697d2d524c",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/backup/velero/local/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "fd0632b9c7a6f149fb00f1b06c99ef6aed8c3c12",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/backup/velero/local/velero.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "d6f79991438a5a895392139c9356db537afa11b4",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/backup/velero/production/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "fd0632b9c7a6f149fb00f1b06c99ef6aed8c3c12",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/backup/velero/production/velero.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "ec21415a94b8fa81a29dc528d9f6335e7f199b91",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/certificates/controllers/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "96a63c470b597f5833256a5ce08d5cb33843a7af",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/certificates/controllers/namespace.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "7ac80efe887acd6ee020081db2c509fdd7c4f955",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/certificates/platform/local/certificate.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "5eb714a201c86d35fea6f1804faed5b562c48e61",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/certificates/platform/local/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "6a4788f335ded5f4f29547e4965759e5838a829b",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/certificates/platform/production/certificate.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "5eb714a201c86d35fea6f1804faed5b562c48e61",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/certificates/platform/production/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "6a4788f335ded5f4f29547e4965759e5838a829b",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/certificates/workers/local/certificate.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "30f271595bbadc6ef03cb63c0e7865504f681e00",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/certificates/workers/local/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "6a4788f335ded5f4f29547e4965759e5838a829b",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/certificates/workers/production/certificate.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "0e6c7cf0672fdb47df59e3eebb36fe5b02b5a106",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/certificates/workers/production/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "6a4788f335ded5f4f29547e4965759e5838a829b",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/charts/cert-manager-v1.21.2.tgz",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "48361ef178b8748d5a1c1e10167c44a3bf495671",
+      "family": "archive",
+      "subjectFamily": "archive"
+    },
+    {
+      "path": "infra/platform/charts/eck-elasticsearch-0.20.0.tgz",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "04c3c60d247d7b79d8a85f7c31155f87070ce3f7",
+      "family": "archive",
+      "subjectFamily": "archive"
+    },
+    {
+      "path": "infra/platform/charts/eck-kibana-0.20.0.tgz",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "0d605922c5c80da6691ecd22d79b3343618a9597",
+      "family": "archive",
+      "subjectFamily": "archive"
+    },
+    {
+      "path": "infra/platform/charts/eck-operator-3.5.0.tgz",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "2da871f04fd7d8d6197ddd33e579f76d5b521f1c",
+      "family": "archive",
+      "subjectFamily": "archive"
+    },
+    {
+      "path": "infra/platform/charts/hcloud-cloud-controller-manager-1.37.0.tgz",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "c685558177b825ca19d62e1d0b49b847bb5709f1",
+      "family": "archive",
+      "subjectFamily": "archive"
+    },
+    {
+      "path": "infra/platform/charts/hcloud-csi-2.23.0.tgz",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "929f5fc29b6d986979c2c84a480cb5dd5f614b3c",
+      "family": "archive",
+      "subjectFamily": "archive"
+    },
+    {
+      "path": "infra/platform/charts/kube-prometheus-stack-91.4.1.tgz",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "0e15b4d91f89892a15e8ca1101e5fb3b051e16ac",
+      "family": "archive",
+      "subjectFamily": "archive"
+    },
+    {
+      "path": "infra/platform/charts/opentelemetry-collector-0.173.1.tgz",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "33dadb6c420d2a249807f8f464f24a494b7359f8",
+      "family": "archive",
+      "subjectFamily": "archive"
+    },
+    {
+      "path": "infra/platform/charts/traefik-41.6.0.tgz",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "2fffa6dc66142038e2fb1cad640494c3c3bad2ea",
+      "family": "archive",
+      "subjectFamily": "archive"
+    },
+    {
+      "path": "infra/platform/charts/velero-12.2.0.tgz",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "2d6b010a452182062fbeeec4c1eb45f70fbde5a7",
+      "family": "archive",
+      "subjectFamily": "archive"
+    },
+    {
+      "path": "infra/platform/conformance/admission/forge-allowed.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "35e41be4fc560e1e64ebdd7e8d1c5971e41fd3c1",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/conformance/admission/forge-namespace-check.mjs",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "764716695dbe338953ffa52d98f52e08747ee3da",
+      "family": "other",
+      "subjectFamily": "other"
+    },
+    {
+      "path": "infra/platform/conformance/admission/forge-namespace-upgrade-check.mjs",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "8bb0ce6448b3a080923aa86fd38e58cb6ee20cf1",
+      "family": "other",
+      "subjectFamily": "other"
+    },
+    {
+      "path": "infra/platform/conformance/admission/forge-namespaces.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "5110a7e4422131803ec9593f63fdea119a9f6da9",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/conformance/admission/forge-nested-path.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "f568fa588249277872c536ec220f2f9b52657b83",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/conformance/admission/restricted-privileged.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "bc4ebac75cd3713f7b96976e7c23907101052708",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/conformance/admission/solver-allowed.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "5398decaa6b9c677fba2a19e9a7d1ef87e957e04",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/conformance/admission/solver-alternate-path.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "bfaf5d8cd84263a8fb687231ad9e6c59068bdee1",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/conformance/admission/solver-apparmor-unconfined.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "6f9f0085f83b022c9703aa286a53ff419c5b6803",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/conformance/admission/solver-default-token.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "2aad17f9fc4b5fe2556a9d5b55ad63c76f4ff40f",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/conformance/admission/solver-digest-prefix.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "53f94906a1e27d70b78a58f121e77e0ef93aa28c",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/conformance/admission/solver-ephemeral-container-patch.json",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "6de969e1a29442030680fdc990c60bab85da705f",
+      "family": "other",
+      "subjectFamily": "other"
+    },
+    {
+      "path": "infra/platform/conformance/admission/solver-host-ipc.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "419323a5008f92280d1d5b1ca3fd94c407110b63",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/conformance/admission/solver-host-port.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "965a3ee27757e40199c3313ad54afa8e6738f9bc",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/conformance/admission/solver-implicit-privilege-escalation.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "37099c74c6e2ce6a4752be5b82c109943f6aec1e",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/conformance/admission/solver-legacy-apparmor.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "711c095e7b3d6bf93917d0f8467a9d8f4abc7841",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/conformance/admission/solver-lifecycle-host.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "3b0068bc897dfd53d9fc4694f4f13afeb1263a62",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/conformance/admission/solver-pod-apparmor-unconfined.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "8d680ad5bfd63ed174b616c3ba7fa0f33880929f",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/conformance/admission/solver-pod-runas-root.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "d78ffd09009ce882131cd5cb3b326ab8af667cd0",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/conformance/admission/solver-pod-seccomp-unconfined.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "c81d5988494f1bd8f4648a07ac1e9eea3b1a0885",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/conformance/admission/solver-pod-selinux-unconfined.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "dc72620093c7b8515af9cded58c126a27396cf9e",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/conformance/admission/solver-privileged-init.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "c87aa8ea81d20bf0e7f5487050722a42239dd346",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/conformance/admission/solver-probe-host.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "b0c2e49ff491e095edc489b9f199748cbba20b81",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/conformance/admission/solver-proc-mount.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "f5cb73bc8fc58f927576de8b24661c5f65929c67",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/conformance/admission/solver-projected-token.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "c3f66a063b403a0442327563a30885949e1dd7b3",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/conformance/admission/solver-rollback-allowed.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "b5ce62dbd7ece2dcef00bfccfc9f492582f9a1cd",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/conformance/admission/solver-root-capability-unconfined.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "1dd9d6a2cfbaeb7acc290d06e208bfd3f1068a51",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/conformance/admission/solver-selinux-unconfined.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "b5c30d25ecba1d73bf80ac17617d4b2067ed8cde",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/conformance/admission/solver-untrusted-image.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "be062fb66ddbdac9b5f0a5ce2266b88d91a11f5a",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/conformance/admission/solver-untrusted-service-account.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "e3028886db8642a4aebc1f9b5f74b69dff82b4ad",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/conformance/alerts/collector-metrics.json",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "2ba38fd19697ad420541e31c98984d9e2b3e26a9",
+      "family": "other",
+      "subjectFamily": "other"
+    },
+    {
+      "path": "infra/platform/conformance/alerts/rules.test.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "388d99da50654a23a4b3aafb5944b60603c8b1a3",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/conformance/network/probes.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "7dbc811572a03bf72c5980820041b4001221781b",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/conformance/network/receivers.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "cf8710b810a0967c36245044ed89779253a04193",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/flux/install.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "e177f80708158c651b905e9bc6c31521b8a351d3",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/networking/cert-manager/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "a0cb3ae3662a712a9d376fca2723f91393b0507e",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/networking/cert-manager/release.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "6198d31e826702a8a8fd7d6c9b22dffde90388af",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/networking/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "83a782ecefa9e7991e6cf3703b9a2bee30a579ef",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/networking/namespaces.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "30da0eb145eb0f9339a30fdbd27d52d131886ad6",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/networking/traefik.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "c9ef5a9d2f3dd08bba6ea7ad90097c0d312c83be",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/observability/eck/eck-operator.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "1aea29386a95d929495ca69861ad724aa12856a9",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/observability/eck/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "16b25ceef9ed71ece7c8e26448a728cf6033ed44",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/observability/elastic/local/elasticsearch.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "14de627a64c7493432cdb3f4ce1687b7c083c265",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/observability/elastic/local/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "1173a55c2828fa02843b04ba63f84d7f4aaec5a4",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/observability/elastic/production/elasticsearch.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "ae49a16f94e1360d1f8beca045b2595a1e345041",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/observability/elastic/production/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "1173a55c2828fa02843b04ba63f84d7f4aaec5a4",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/observability/elastic/settings/failure-fields.json",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "5ab4c3b29c4903e9a1c75962db386134a40ebfe0",
+      "family": "other",
+      "subjectFamily": "other"
+    },
+    {
+      "path": "infra/platform/observability/elastic/settings/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "a5e5749e75c19707881dbc3c5a0c8413517f90a3",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/observability/elastic/settings/settings.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "686e8b5b330b5ff276aab94cce308ad32fa58e2a",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/observability/kibana/kibana.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "aa7410417427d2072ac2517fdc2794c15c3e2796",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/observability/kibana/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "82da24826ae61bbea29f79eff36dadf8dca89ce9",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/observability/kibana/objects/apply.sh",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "3cf4cf49b0445e9842c6204dbf3ff38db1583e5e",
+      "family": "shell",
+      "subjectFamily": "shell"
+    },
+    {
+      "path": "infra/platform/observability/kibana/objects/job.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "30f99bc155305324e6477a3ca143e8c868bd3487",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/observability/kibana/objects/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "1e24773d6cc946b4bb8f4bd647c4b5c409999c0d",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/observability/kibana/objects/objects.ndjson",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "85d63d3f52083b5c3450591e4abacf7695fede7a",
+      "family": "other",
+      "subjectFamily": "other"
+    },
+    {
+      "path": "infra/platform/observability/local/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "31681441d8770e98326d8b77306678290f2e0683",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/observability/local/otlp-ingress.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "1025380cd821623e77620d0f4f39aebd1c7ad394",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/observability/local/receiver.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "75cbb739d1d65ed3331e064a00c5e094329825dc",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/observability/local/telemetry.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "8ad45f7c13dbd86917fb2d148e8d46d6fc9ff6b2",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/observability/otel/collector.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "0800b62c8d900fb70c2609b2e629b1056385c764",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/observability/otel/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "6f63f4659d687eb44a1a0d7c2780318011a7d55c",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/observability/production/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "cafe0eeb0b5a03dc7c9976d31e113c5062078112",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/observability/production/otlp-ingress.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "1d6e5569a9501292c4f3d85e70664acc19f5236e",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/observability/production/telemetry.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "5d090c56975a732bb9842d6958866ad88547fb7f",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/observability/prometheus/blackbox-exporter.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "48bdbca2cae6d8b25fbaf7fbcd4e8e061dfbc67d",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/observability/prometheus/kube-prometheus-stack.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "03ed21d5dc7a5a77407f9109873f8cca647d8015",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/observability/prometheus/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "b65b86af8538aaae17dfc23cea86d73417547df7",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/policy/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "69d07638287598c4ef7d2019be04c802abadad09",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/policy/namespaces.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "12da2ae2d48a8f9f742eba3d9fd81c75afd2e852",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/policy/network-policy.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "bd5afd49b1be1cf7ae45034ece7e00685228508b",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/policy/trusted-images.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "0185017b540bb388d2475e1f9677056e1f9d72ff",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/policy/trusted-rbac.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "5caca0c008b8b8e795c7ed9c60f4ac1c8fd2c661",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/policy/trusted-workloads.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "256f32059e9016f397375ccc907208578da6282b",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/registry/base/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "d8c09363f1fd74f55e28c722d6084bc3b27f1bb5",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/registry/base/network-policy.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "3a3dc389ec63ba7d708c28b8407afe22df9b2a67",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/registry/base/registry.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "f141b58488c1d23188b37a98ad1d0675baae8528",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/registry/local/issuers.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "b5087ed8ce436f6ae219b68da9451e91e9b1b3ed",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/registry/local/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "e9ee57c0e30996665e74fd268d12415eea7d3ddc",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/registry/production/issuers.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "5e44c0c6118ca6300030a4314197be9c859be83e",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/registry/production/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "e9ee57c0e30996665e74fd268d12415eea7d3ddc",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/secrets/platform-local/externally-provided.json",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "d0f98a257ce474468f74ef0385709bb7374c1e49",
+      "family": "other",
+      "subjectFamily": "other"
+    },
+    {
+      "path": "infra/platform/secrets/platform-local/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "b83b23e571e6260905be385eee4e168dac3470e6",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/secrets/platform-production/externally-provided.json",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "fad55bb53e75dc1a465ffa0c91c69fa855e48127",
+      "family": "other",
+      "subjectFamily": "other"
+    },
+    {
+      "path": "infra/platform/secrets/platform-production/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "b83b23e571e6260905be385eee4e168dac3470e6",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/secrets/workers-local/externally-provided.json",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "e477410fa0a891591287c40043dc71f33a30f223",
+      "family": "other",
+      "subjectFamily": "other"
+    },
+    {
+      "path": "infra/platform/secrets/workers-local/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "b83b23e571e6260905be385eee4e168dac3470e6",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/secrets/workers-production/externally-provided.json",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "cce6bcf7be2f634cc8f4f66d9fa9096f77e21356",
+      "family": "other",
+      "subjectFamily": "other"
+    },
+    {
+      "path": "infra/platform/secrets/workers-production/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "b83b23e571e6260905be385eee4e168dac3470e6",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/storage/local/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "f452e37dc992df263dccaa514b60ef70087b4fbe",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/storage/local/storage-class.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "2b231263cd4f61ee51133e8ac86b9c56a86c7d56",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/storage/production-existing-hosts/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "1a9800039c96fab503861a75477a18c4addf286a",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/storage/production/hcloud-ccm.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "236260f9abe76b841ef60a829b9d9bc67188d97e",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/storage/production/hcloud-csi.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "0252452a0113d1610a6f1081ff5b9a9ece6d4a98",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/storage/production/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "869a523370a9ab5c3d833ce389adbc1152b8d415",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/target/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "b83b23e571e6260905be385eee4e168dac3470e6",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/telemetry/agent/agent.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "48f11c76314da9918fae3db2bce435734d1da844",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/telemetry/agent/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "10632c4abb003d737b1dbb734f32c08d8faac280",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/telemetry/local/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "db03d44115c6d24e4941167d16d9ab90aeb680de",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/telemetry/local/upstream.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "a9d04e7ad5804c10c4b9e45e984300cad925b8bd",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/telemetry/production/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "db03d44115c6d24e4941167d16d9ab90aeb680de",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/telemetry/production/upstream.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "227797ebd9626f8ee819d676454ea300f9e0168f",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/platform/workers-jobs/synthetic-job.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "86a99b2c17131c7a9946800abe192ac462e99a6d",
+      "family": "yaml",
+      "subjectFamily": "yaml"
+    },
+    {
+      "path": "infra/terraform/.terraform.lock.hcl",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "920c074e5945f7de17d8e6d87fa4cddd8033fc7a",
+      "family": "hcl",
+      "subjectFamily": "hcl"
+    },
+    {
+      "path": "infra/terraform/README.md",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "4b51b987a789dca903fbe15340a29e11199a9ed4",
+      "family": "other",
+      "subjectFamily": "other"
+    },
+    {
+      "path": "infra/terraform/backend.tf",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "95e41d82af2e21d212a8bb236c3d794716a1c7e2",
+      "family": "terraform",
+      "subjectFamily": "terraform"
+    },
+    {
+      "path": "infra/terraform/main.tf",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "f2f88b2200969f4af542f26ada083e013a3bf905",
+      "family": "terraform",
+      "subjectFamily": "terraform"
+    },
+    {
+      "path": "infra/terraform/outputs.tf",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "6dbae1846f63c495338628f7243f70796b91e148",
+      "family": "terraform",
+      "subjectFamily": "terraform"
+    },
+    {
+      "path": "infra/terraform/terragrunt.hcl",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "03352d9247c8c22fd9364f4950f1c5f0a80f0cfc",
+      "family": "hcl",
+      "subjectFamily": "hcl"
+    },
+    {
+      "path": "infra/terraform/variables.tf",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "f2d07a66e0c28fe7900919bd07c6645eb29e9a39",
+      "family": "terraform",
+      "subjectFamily": "terraform"
+    },
+    {
+      "path": "infra/terraform/versions.tf",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "7e0968d83a585a4f6fcbe94935885ddb2c0ae0d2",
+      "family": "terraform",
+      "subjectFamily": "terraform"
+    },
+    {
+      "path": "infra/versions/README.md",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "5273950ffd2ee7b007b13bff44e4762fcd1a0a69",
+      "family": "other",
+      "subjectFamily": "other"
+    },
+    {
+      "path": "infra/versions/object-store.json",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "449f9aa640971aa1750327b12359990bf584db14",
+      "family": "other",
+      "subjectFamily": "other"
+    },
+    {
+      "path": "infra/versions/toolchain.json",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "62d5c7d90abbc45b1515a048a7d77220f8fbda82",
+      "family": "other",
+      "subjectFamily": "other"
+    }
+  ],
+  "support": [
+    {
+      "path": "tools/tool-fleet/project.json",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "df8f0b2a8299ba9344b660fabd9b3ea53e587032",
+      "family": "other"
+    },
+    {
+      "path": "tools/tool-fleet/src/ansible.test.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "f9f43804f1d4e92ff43b852d8e0f14328d9e4adc",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/api-forward.test.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "d2a654cf892407fa669098ff01be946e7a5470e2",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/api-forward.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "758cc26a96ba12931a8a53804d9ba440dbd30402",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/apply-cli.test.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "78b0c8e5f8bfa6d7785140227cb14e44d4a70ea9",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/apply.test.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "d6577aaf4bae425232861616ff480e918944e1f4",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/apply.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "f401f602eb470115f6cf04b66e8d2305d3b3e2ff",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/backup-sqlite.test.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "fb8fbfff1311ca509ad31f7f01debdcd1751a50a",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/backup-sqlite.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "250bdfe3a385eb90650dab1fb30dca525a6da5f7",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/check-actionlint.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "ddf5d2551de7e3241f3e4217b7fa486d9c8fde99",
+      "family": "yaml"
+    },
+    {
+      "path": "tools/tool-fleet/src/check-ansible.py",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "360897a9cac9f8c8ac2d84aa80237c4d0092c166",
+      "family": "python"
+    },
+    {
+      "path": "tools/tool-fleet/src/check-backup.test.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "e22cd8356dd328cce497bd6516ba7c87e7284623",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/check-backup.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "ac2b7e1bab814e1ec84fe24a81ad0a135496f0bb",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/check-cli.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "79cdbbd84dd488c81f00b0af03c22ccced40e440",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/check-faults.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "8aa75f34e9103387e05462375b5a98c14aba8d43",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/check-provision.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "22346c7d32bce8d64921082259af1b9b97984739",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/check-tools.json",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "13d47969cb5ba953f0fc2ce65701778e19f8a4fe",
+      "family": "other"
+    },
+    {
+      "path": "tools/tool-fleet/src/check.test.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "debc31cd2df308e620765de49644d943c6471ed3",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/check.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "e017c786747eda3d89eed5eb7dc07c78590d4c57",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/cli.test.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "557e21139f20cd60c71e9f3b34483259280ac724",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/cli.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "60034020f8f6ea394c41128858c45980a3ed936a",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/cluster-checks.test.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "2dacf31bea8955fe63526112aadcb116e3360782",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/contracts.test.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "04b5f0756596e5c234449762e029f0ae5eb23172",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/contracts.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "8ee64d7a1614d7cc84f0aff882ddb8ad24f01cae",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/controller.test.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "b0645dce2a84e8aa8601fb2a95099e42eb1d49fd",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/controller.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "9df920d42da6ee1055e5d72a2d8e19744f7545e5",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/destroy.test.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "3bc13ff7580db1250c4ae7d8173fbb79134840af",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/discover.test.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "6405cf2cf4de4520c9db589618d8554ecfe25d48",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/discover.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "2816c3528e225b4e5574f24bd50b0df9c21b0a86",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/drain-rehearsal.test.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "be13017d1aa1c540778cf123cbad6385aed22cb3",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/drain-rehearsal.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "ad92eea7226f0c1ff226423e6c819d3f6dd31015",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/entrypoint.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "b7e55717479569ceb00d198bb3f461043c95df45",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/health.test.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "8eabc73e021c4bfe59c693807e9ce3465a531c61",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/health.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "2f8f9e9835847a86213fd0c84f01c5bc1d8c5106",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/journal.test.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "6011d62c9402812d8232772ec9b3310f987eedc5",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/journal.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "0b34f3b17455a7cebf448be41ec6ee8275e8cc1e",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/k3d-lab.test.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "a8b350ea89037f996d791f1af907801c642dc456",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/k3d-lab.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "38b9b237e6a5562d0da6e21fa05ef39cc06deb30",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/k3d-object-store.test.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "9b3f5fc00d64bc77fd74b04d1a313dbdb048c8c2",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-hub.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "07628ab47c461df252657b73b5de29e747c1f316",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-provider.test.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "04d4b5a4071413ea93c7f5bd554725e59efa7551",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-provider.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "865c0fd1db4db400facfa7d91d66726f46adfcde",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab-qemu.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "045b301e04260e3f39e812e8ec8558677dc4186d",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab.test.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "ffb161692d415c8e93574de058e4eb055dfe2212",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/lab.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "705b28a7753b8a54d25405b4351257b0121b7683",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/maintenance-workers.test.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "51b94099a573b1b8328530af9fe56ee11f43aff3",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/maintenance-workers.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "89393432a87e3a49d44c4a6a5db430ea0c5b723a",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/maintenance.test.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "d44cace06d3b0313ae6cf83ea9fac5a600c4cbcb",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/maintenance.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "626694d136e1c2b5e9e18c5852c6eef4e9957faf",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/object-store-buckets.test.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "8a8e5e15075be1a3de867c1b6be5866f9fed16ad",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/object-store-image-cli.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "f7932d26195694cc3f262ca19813b087aac5a218",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/object-store-image.test.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "5c481abe2a5bf2e396d487b6bd936a133bc84d5e",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/object-store-image.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "6d656e02386252687ee7fd61779c7f6e0c966669",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/object-store-import-cli.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "ac00e197b59d79898d99c47fbc4da97ff7282703",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/object-store-import.test.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "9ac65941fdbe585e6cf82bb616bbfa3bf3078ebf",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/observability-budget.test.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "615d7e4f3edece14336aef63dd987c34bea1d67a",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/observation.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "d3d7717c50c97d32595bf331f2f4ebae2b4e7db0",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/placement.test.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "8b727d1c660ae070985affd5846f4124f639ff2a",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/plan-facade.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "48873e7c0fa94b96e5536ae394bd8853a6d048c9",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/plan.test.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "1418fad82476cbadea065f4844ccc2ec60a06c08",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/plan.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "a12bb636fb127d180d83da8ac1489fb92c035ede",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/platform-alerts.test.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "86e26e138ad3cff4313cde839bb8353c90681ecc",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/platform-alerts.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "aa7c8b32f8ebd7e2331614a769082369283cf31c",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/platform-dns.test.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "965bb95ee6ae69ebcb455cb4c2b090a9a971aff8",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/platform-dns.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "84cb62e49ccd59f79f118a4ec3478d349fc707b1",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/platform-manifests.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "ae837805e7ad309a873d548ee031b4302d4ded3b",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/platform-otlp.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "989d49dd9a5024c99e40566b456c22a467284655",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/platform-registry.test.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "494923d6151d24507add62a24ed1aab723333f6c",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/platform-registry.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "bf35ece37924008d8fc57d922869b96d5626fd15",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/platform-releases.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "8b97af40fbc0b8187b627e2fe5ccbab80afd1990",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/platform.test.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "7eb07962139ae7ed1709cf3d45cf20ff614bf822",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/platform.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "6691a8eeb051debe081b25cf6f544edc1a8a4859",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/production-apply.test.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "4ae92c4df246ee1b3936d4822950edfd545d2ff2",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/production-apply.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "d36ff595ff902fad8fb3885ad84278b6073cc30f",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/recover.test.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "85fbd2a8e48e1542fedbda30909ed01e26f3a927",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/recover.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "8f0f1914c62074e4b40a567162f5cc4e4082435d",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/replace.test.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "4995811ae4a0ba817b6886f68615e1b1ad994165",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/replace.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "82a41eabc50f0151cdfa05bd6a714f5836d6c0c8",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/retire.test.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "691969d6386c6c2cd375a6c17a4db57febf4d49e",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/retire.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "a472312e3b2f786165251b5a21c8a52e11710acd",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/snapshot-check.test.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "2218682e8eeff493f8f7c10fdc007a69a30dc01b",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/ssh-transport.test.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "accf016fdeeb8f4a970aace5c96359dca73d0767",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/ssh-transport.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "a24e8ad3542f1a4518383dada078e0edfa4a2921",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/terraform.test.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "eebab156e2d271f57083c5d466aaa19fb6535a6a",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/terraform.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "19bb115991c87f71cebd5c6c5cc2876fff609d02",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/terragrunt.test.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "c82edba21f4849fd4418c477b72eba3227f0aa26",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/terragrunt.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "132d71151eb94725f0f913396df8657d5146a04f",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/testing/fleet.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "95532e8be2776c6680407eca201453936c116b94",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/traefik-rehearsal.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "bf2dba379b6729c09e133655e7cd60cdc84f01bd",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/upgrade.test.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "bdd5ce2ce97ddce83f01fbe50ee6345e365d9542",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/src/upgrade.ts",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "54c6d0b88ccd52e0afc6c669145b1b53a1034362",
+      "family": "typescript"
+    },
+    {
+      "path": "tools/tool-fleet/tsconfig.json",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "b6c8ec0e5c9bc829a9c822fa8c1b1a87d5693500",
+      "family": "other"
+    },
+    {
+      "path": "tools/tool-fleet/tsconfig.lib.json",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "56bf47acadc008026b007d51d3d81422a6de8fed",
+      "family": "other"
+    },
+    {
+      "path": "tools/tool-fleet/tsconfig.spec.json",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "ac87d42b0de85c4fc56e1ca8e4652cd660abda13",
+      "family": "other"
+    }
+  ],
+  "nxAdditionalSubjects": [
+    {
+      "path": "deploy/k8s/wbs/base/backend.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "66b1c1afcae57013280e1179b3e782a07045e789",
+      "family": "yaml"
+    },
+    {
+      "path": "deploy/k8s/wbs/base/backup.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "2d2c20a7fd601afad37235fbd88d4d1f55895f33",
+      "family": "yaml"
+    },
+    {
+      "path": "deploy/k8s/wbs/base/frontend.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "70705169ef0c252bac79a7f534c4a1aab98c0c3d",
+      "family": "yaml"
+    },
+    {
+      "path": "deploy/k8s/wbs/base/gateway.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "548add2cf5502721a1ca8d5c8b7be1d17cb99551",
+      "family": "yaml"
+    },
+    {
+      "path": "deploy/k8s/wbs/base/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "d2d7de35be733a2ccacf78edd5038397aea20caf",
+      "family": "yaml"
+    },
+    {
+      "path": "deploy/k8s/wbs/base/mcp-storage.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "17d0364d27082cad8673d9a715a6b57540925561",
+      "family": "yaml"
+    },
+    {
+      "path": "deploy/k8s/wbs/base/mcp.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "819ce7cae0a590bcd5dc1d76939c52bff53cef86",
+      "family": "yaml"
+    },
+    {
+      "path": "deploy/k8s/wbs/base/network-policy.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "835e1d08d25d6f84c299d3b29ee4f0e769e469a9",
+      "family": "yaml"
+    },
+    {
+      "path": "deploy/k8s/wbs/base/storage.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "5569d0735fe17c4d063ab9c5d5dd5485e26fadc7",
+      "family": "yaml"
+    },
+    {
+      "path": "deploy/k8s/wbs/base/verify-cronjob.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "5f52df1bf25139243b327b134673c4108fea0e94",
+      "family": "yaml"
+    },
+    {
+      "path": "deploy/k8s/wbs/lab/backend-rollback-fault.Dockerfile",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "27408779c3a87c0ad1d12f443cf6aa3f918e4d1b",
+      "family": "other"
+    },
+    {
+      "path": "deploy/k8s/wbs/lab/backend-unhealthy.Dockerfile",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "74db027c54899cb9020418c6f3adda8e09cb18c2",
+      "family": "other"
+    },
+    {
+      "path": "deploy/k8s/wbs/lab/backend-upgrade.Dockerfile",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "a48c29fee494825c7937e21068f0f876fbb6f351",
+      "family": "other"
+    },
+    {
+      "path": "deploy/k8s/wbs/lab/mcp-01.Dockerfile",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "8129a9bd2625887967f9dfdb5b43763b3bfc1fb9",
+      "family": "other"
+    },
+    {
+      "path": "deploy/k8s/wbs/lab/migrations/20261001015000_lab_older_candidate/down.sql",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "1f2823b97b021c4a6d87a84744e35bbcd083ff85",
+      "family": "other"
+    },
+    {
+      "path": "deploy/k8s/wbs/lab/migrations/20261001015000_lab_older_candidate/migration.sql",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "5a5885c9035d7de8ab68047608246cbddea0441b",
+      "family": "other"
+    },
+    {
+      "path": "deploy/k8s/wbs/lab/migrations/29991231000000_lab_additive/down.sql",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "c69fa75c6987344f64c01b120e1cb8b86f42e5c6",
+      "family": "other"
+    },
+    {
+      "path": "deploy/k8s/wbs/lab/migrations/29991231000000_lab_additive/migration.sql",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "8026addd8f49a03e21b682931c47c18dd0359717",
+      "family": "other"
+    },
+    {
+      "path": "deploy/k8s/wbs/lab/rollback-fault/migrations/29991231010000_lab_rollback_failure/down.sql",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "2447dbefa978ec70be7e0791bcdce55024e5d3ba",
+      "family": "other"
+    },
+    {
+      "path": "deploy/k8s/wbs/lab/rollback-fault/migrations/29991231010000_lab_rollback_failure/migration.sql",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "03e8b06f96726ffb1907934191442819f42fb0fb",
+      "family": "other"
+    },
+    {
+      "path": "deploy/k8s/wbs/overlays/dev/ingress.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "ba0e26ebb60184027e1abc9e0313c5405253b8af",
+      "family": "yaml"
+    },
+    {
+      "path": "deploy/k8s/wbs/overlays/dev/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "ead5962ef94098ad957309d9311cdb77bdb965f6",
+      "family": "yaml"
+    },
+    {
+      "path": "deploy/k8s/wbs/overlays/dev/network-policy.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "248fd8d90dc5e4aedccfabc0b8f9276dd99850f2",
+      "family": "yaml"
+    },
+    {
+      "path": "deploy/k8s/wbs/overlays/dev/pod.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "1e4775dd6b60aaf98e09752b609c638938913b3f",
+      "family": "yaml"
+    },
+    {
+      "path": "deploy/k8s/wbs/overlays/dev/service.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "dafcb61538767f8de597978561a488085b3f5cd3",
+      "family": "yaml"
+    },
+    {
+      "path": "deploy/k8s/wbs/overlays/dev/storage.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "a1d5c2237d6890e2d3c5001e1ac71624de0a446a",
+      "family": "yaml"
+    },
+    {
+      "path": "deploy/k8s/wbs/overlays/local/backup-egress.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "0d6f785079a527f70c4c88532a4b4b1645de8771",
+      "family": "yaml"
+    },
+    {
+      "path": "deploy/k8s/wbs/overlays/local/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "0be9c07422a4d7c1af019f221ffd78af4017ab34",
+      "family": "yaml"
+    },
+    {
+      "path": "deploy/k8s/wbs/overlays/prod/backup-egress.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "2ee280848bb6ee5574501f9097f37f17bd153076",
+      "family": "yaml"
+    },
+    {
+      "path": "deploy/k8s/wbs/overlays/prod/delivery.json",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "bd61f305b5f1e1180b81f275ad3f857ee20f9c5e",
+      "family": "other"
+    },
+    {
+      "path": "deploy/k8s/wbs/overlays/prod/externally-provided.json",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "85ee6ae47352c6a1f06caada1fc5374d36b104ea",
+      "family": "other"
+    },
+    {
+      "path": "deploy/k8s/wbs/overlays/prod/ingress.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "86469ff076f76c4362c0e72b9b359a1151b218f6",
+      "family": "yaml"
+    },
+    {
+      "path": "deploy/k8s/wbs/overlays/prod/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "ad5d9f9856638adf6493a224d006b8e6ca73d721",
+      "family": "yaml"
+    },
+    {
+      "path": "deploy/k8s/wbs/overlays/staging/backup-egress.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "2ee280848bb6ee5574501f9097f37f17bd153076",
+      "family": "yaml"
+    },
+    {
+      "path": "deploy/k8s/wbs/overlays/staging/delivery.json",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "81606d7009b78caf6bf1e60c7422a912418583fd",
+      "family": "other"
+    },
+    {
+      "path": "deploy/k8s/wbs/overlays/staging/ingress.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "ae504f8fe0aa3f6661511238f6a658720c84458e",
+      "family": "yaml"
+    },
+    {
+      "path": "deploy/k8s/wbs/overlays/staging/kustomization.yaml",
+      "mode": "100644",
+      "kind": "blob",
+      "blob": "816becb0fd155f8c99b5af072b91a897a6ae212a",
+      "family": "yaml"
+    }
+  ],
+  "nxWorkflowInputs": [".github/workflows/infra-check.yml", ".github/workflows/deploy-k3s.yml"],
+  "absentProjects": ["tool-provision"],
+  "provisionModule": "tools/tool-fleet/src/check-provision.ts",
+  "counts": {
+    "other": 25,
+    "yaml": 197,
+    "shell": 5,
+    "jinja": 13,
+    "extensionless": 1,
+    "python": 1,
+    "containerfile": 2,
+    "typescript": 1,
+    "archive": 10,
+    "hcl": 2,
+    "terraform": 5
+  }
+}

@@ -1,0 +1,11 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/forge-process-observation.test.ts:
+(pass) records stable Vite identity and memory without raw arguments or verdicts [12.59ms]
+(pass) refuses a changed executable target with the same basename and stable PID argv [30.54ms]
+
+ 2 pass
+ 20 filtered out
+ 0 fail
+ 7 expect() calls
+Ran 2 tests across 1 file. [79.00ms]

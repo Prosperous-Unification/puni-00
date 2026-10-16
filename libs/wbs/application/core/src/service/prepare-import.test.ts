@@ -26,6 +26,37 @@ test('prepares normalized names, indexes and leaf values', () => {
   expect(prepared.value.workItems[0]?.estimates).toEqual([
     { stepFileId: 'step-1', optimistic: 1, realistic: 2, pessimistic: 3 },
   ]);
+  expect(prepared.value.workItems[0]).toMatchObject({
+    fileId: 'row-1',
+    parentFileId: null,
+    position: 10,
+    name: 'Ship',
+    notes: 'Keep the deadline',
+    frozenNumber: null,
+    startNoEarlierThan: '2026-09-14',
+    startNoEarlierThanReason: 'Release window',
+    deadline: '2026-09-18',
+    factStart: null,
+    factEnd: null,
+    readiness: null,
+    hold: null,
+    priority: 2,
+    serviceTeamFileId: 'team-1',
+    serviceFileId: 'service-1',
+    maxParallel: 1,
+    teamFileIds: ['team-1'],
+    tagFileIds: ['tag-1'],
+    serviceFileIds: ['service-1'],
+    typeFileIds: ['type-1'],
+    externalRefs: [
+      {
+        fileId: 'external-ref-1',
+        systemFileId: 'system-1',
+        url: 'https://example.test/issues/1',
+        name: 'ISSUE-1',
+      },
+    ],
+  });
   expect(prepared.value.workItems[0]).not.toHaveProperty('id');
   expect(prepared.value.workItems[0]).not.toHaveProperty('dependsOn');
   expect(prepared.value.capacity[0]).toEqual({ teamFileId: 'team-1', size: 2 });

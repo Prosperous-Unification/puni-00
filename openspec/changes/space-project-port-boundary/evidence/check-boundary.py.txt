@@ -1,0 +1,21 @@
+import json, sys
+from collections import Counter
+base = json.load(open(sys.argv[1]))
+verdict = json.load(open(sys.argv[2]))
+path = 'libs/wbs/application/core/src/service/space.resource.ts'
+subject = 'libs/wbs/application/core/src/module/project/project.resource.ts'
+def edge(finding):
+    return finding['ruleId'] == 'K6' and finding['path'] == path and finding['subject'] == subject
+def multiset(findings):
+    return Counter(json.dumps(finding, sort_keys=True) for finding in findings)
+for report in [base, verdict]:
+    assert report['ruleIds'] == ['K6'], report
+    assert report['unevaluated'] == [], report
+    assert report['certifies'] is False, report
+assert len(base['findings']) == 3, base
+assert sum(edge(finding) for finding in base['findings']) == 1, base
+# Proof: direct Pick and neutral-looking resource re-export both restore this production K6 edge.
+assert not any(edge(finding) for finding in verdict['findings']), 'concrete project resource edge remains'
+assert multiset(verdict['findings']) == multiset([finding for finding in base['findings'] if not edge(finding)]), 'unrelated findings changed'
+assert len(verdict['findings']) == 2, verdict
+print('PASS: exact space-project edge removed; two unrelated K6 findings preserved')

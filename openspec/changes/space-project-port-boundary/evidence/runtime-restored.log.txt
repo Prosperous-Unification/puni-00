@@ -1,0 +1,13 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/service/space.resource.test.ts:
+(pass) SpaceResource > a hidden member, over space {a1, a2 hidden, a3} > refuses to place a project after it, as if it were not a member [4.99ms]
+(pass) SpaceResource > a hidden member, over space {a1, a2 hidden, a3} > refuses to move it, or to move another after it [0.97ms]
+(pass) SpaceResource > a hidden member, over space {a1, a2 hidden, a3} > refuses to remove it [0.83ms]
+(pass) SpaceResource > a hidden member, over space {a1, a2 hidden, a3} > still places, moves and removes around it by visible members [1.16ms]
+
+ 4 pass
+ 19 filtered out
+ 0 fail
+ 10 expect() calls
+Ran 4 tests across 1 file. [313.00ms]

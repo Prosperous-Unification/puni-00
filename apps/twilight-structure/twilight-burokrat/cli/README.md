@@ -95,6 +95,16 @@ sorted intersection and source union. Manual, Architecture and Performance remai
 Authentication is absent and `certifies:false`; no classification, isolation, execution,
 coverage or admission claim follows. Failed and skipped Browser outcomes remain observations.
 
+`inspect-browser-source-levels <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <review-authority> <conformance-authority> <architecture-authority> <performance-authority>`
+composes the real Browser source owner and level inspectors for the same committed snapshot.
+It requires exact case IDs, files, outcomes, source tuples, report identity and complete level
+membership, then rereads the publication to refuse drift. Full upstream observations, module
+index review debt and typed isolation remain visible. Wrong-level emits JSON and exits one;
+isolated observations exit zero even with failed/skipped outcomes. A source owner identifies
+the test file's module; it supplies no tested-module claim, T2, coverage or admission authority.
+Authentication stays absent and certification false. Existing source and level commands retain
+their v1 output.
+
 `inspect-browser-levels <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <review-authority> <conformance-authority> <architecture-authority> <performance-authority>`
 joins the real Browser Memberships and three source adapters for one exact committed candidate,
 mode and complete collection. The generic review must explicitly mark Manual reviewed-empty
@@ -127,6 +137,14 @@ selected commit. It reports the source owner, source and index identities, index
 an explicitly unresolved test level. Source ownership does not establish the module tested by a
 case. The observation remains unauthenticated, noncertifying, and carries no coverage or admission
 credit.
+
+Browser Performance version-1 authority retains committed declaration/config/project pins.
+Version 2 moves those pins into `performance:{kind:'committed',declaration,config,project}`
+or explicitly asserts `performance:{kind:'reviewed-empty'}`. Empty membership validates the
+selected manifest and complete Browser sources, refusing any own `test:performance` or
+`test:performance:level` target and any selected entry at or below the fixed
+`<projectRoot>/performance-cases.json` path. Working-tree repairs cannot alter selected state.
+It emits no Performance execution claim; unrelated memberships remain unknown and certification false.
 
 `inspect-performance <repository> <committed-sha> <external-rule-policy>` inspects the
 current immutable Performance publication. It binds committed declaration, config and fixture
@@ -221,9 +239,10 @@ It checks existing plan/task consistency, the complete plan reference and each r
 leaf task ID and step code membership. Navigator reuses `checkProgressReceiptConsistency` before
 constructing commands. The report grants no certification, authorship, freshness, evidence
 authority, approval, admission or authority over current WBS state. Historical v6/v7/v8 references
-remain supported; v9 requires task schema 2 and v10 is refused. Receipt binding uses the six-field
-PlanRef, without asserting direct blockage freshness. Missing, unreadable, malformed and inconsistent inputs fail
-with no success stdout. This command reads files only.
+remain supported; v9 requires task schema 2 and v10 is refused. Schema 1 receipts bind the six-field
+PlanRef. Schema 2 receipts additionally bind referenceDigest, which must match the supplied plan
+reference. Neither establishes live WBS freshness. Missing, unreadable, malformed and inconsistent
+inputs fail with no success stdout. This command reads files only.
 
 `twib validate-plan-tasks <plan-reference.json> <tasks.json>` strictly checks the two supplied
 documents using [`validatePlanTasks`](src/contracts/validate-plan-tasks.ts). Its deterministic
@@ -235,3 +254,13 @@ dependency closure.
 `twilight-burokrat inspect-performance-scenarios <repository> <committed-sha> <external-rule-policy> <external-level-authority> <capability>` joins the validated isolated Performance publication to the entire selected B3 active tree under the external policy's pinned predecessor. Each adopted requested scenario lists passing selected case IDs or `unobserved-in-selection`. Only terminal test-title `[CAPABILITY-001] ` prefixes cite scenarios. Missing/malformed prefixes and unknown/retired identities produce separate citation findings and exit 1; source, policy, isolation or B3 refusals emit no JSON. The full observation preserves unrelated B3 debt and binds all upstream identities. It remains unauthenticated and noncertifying; an unobserved row says nothing about tests outside this selection.
 
 `twilight-burokrat inspect-scenario-ledger <repository> <committed-sha> <external-rule-policy> <external-level-authority> <capability> <external-ledger-authority> --now <UTC instant>` enumerates every adopted effective scenario in the selected capability and joins a closed external obligation authority. It preserves the complete Performance/B3 observation, citation findings and unidentified debt. Missing obligations are named `unassigned`; unsupported automated lowest levels remain debt; inapplicability requires a reason; Manual obligations retain the existing inspector's exact current/stale/failed/overdue observation. Valid debt emits JSON and exits 1. Authority/evidence/join refusals emit no partial JSON. The canonical full-payload digest binds normalized obligations, upstream observations and evaluation instant. Authentication is absent and certification is false; this diagnostic does not grant coverage or admission.
+
+Version 2 of the closed ledger authority additionally requires `browser:{mode,reviewAuthorityPath,conformanceAuthorityPath,architectureAuthorityPath,performanceAuthorityPath,observationDigest}`. The four paths must be canonical absolute external files. The command always reads real Browser scenarios and the mandatory Performance input, joins complete B3 reports and exact nested identities before obligations, and emits schema 2 with both complete observations. Only Browser lowest-level obligations use Browser cases: all passed is passing, any failed is failed, otherwise any skipped is skipped; absent remains unobserved. Failed, skipped and absent observations remain debt. Both citation sources are labelled, shared unidentified B3 debt appears once, and the complete payload remains noncertifying. Version 1 retains its existing envelope and behavior.
+
+`inspect-browser-scenarios <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <review-authority> <conformance-authority> <architecture-authority> <performance-authority> <capability>` joins real isolated Browser levels and whole-tree B3 specifications. Requested adopted scenarios retain complete passed/failed/skipped cases or `unobserved-in-selection`; all active citations, including other capabilities, remain visible. Only terminal title prefixes cite scenarios. Invalid citations produce JSON findings and exit 1, while unobserved rows alone exit 0. Authority, identity, digest, isolation or B3 refusals emit stderr without JSON. Full nested reports and policy identity remain diagnostic, authentication absent and `certifies:false`; no candidate files execute and no coverage or admission follows.
+
+`twilight-burokrat inspect-browser-scenario-ledger <repository> <full-committed-sha> <external-rule-policy> <capability> <external-ledger-authority> --now <UTC-instant>` is the Browser-only capability diagnostic. Its closed schema-1 external authority contains `revision`, `candidate`, `capability`, `browser` (`mode`, `reviewAuthorityPath`, `conformanceAuthorityPath`, `architectureAuthorityPath`, `performanceAuthorityPath`, `observationDigest`) and `obligations` with the existing automated/inapplicable/manual dispositions. All four Browser membership authorities remain mandatory, including Performance membership. Separate Performance execution publications and level authorities are unnecessary. The existing `inspect-scenario-ledger` v1/v2 contracts retain mandatory Performance execution evidence.
+
+The Browser-only ledger joins the real isolated Browser scenario observation to the complete committed B3 selection before assigning requested rows. Only automated `lowestSufficientLevel: "browser"` receives Browser evidence; other automated levels remain unsupported debt. Passed/failed/skipped cases, absent observations, unassigned rows, explicit inapplicable reasons, real pinned Manual observations, Browser-labelled citation debt and unrelated B3 debt remain visible. Valid debt emits complete JSON with exit 1; invalid authority/evidence joins refuse without JSON. Authentication remains absent, certification remains false, and the canonical digest binds the complete observation. This command does not establish coverage or admission and does not close WBS080.39.
+
+`twilight-burokrat inspect-browser-t2 <repository> <full-committed-sha> <external-rule-policy> <capability> <external-ledger-authority> --now <UTC-instant>` consumes the real Browser-only ledger as a noncertifying T2 citation diagnostic. It retains the complete ledger and its debt, exact selection/instant/publication scope, policy identity, complete original citation findings and full canonical digest. Every source-bound Browser report case appears exactly once in canonical case-ID order as `{case, citation}`; citation is `{kind:'cited',scenarioId}` or `{kind:'missing'|'malformed'|'inactive'}`. Active citations in other capabilities remain cited. Missing, duplicate, conflicting, foreign or altered partition cases and invalid ledger joins refuse with stderr and no JSON. Valid diagnostics exit zero even with citation findings, failed/skipped outcomes or ledger debt. The command grants no admission or coverage authority and does not register T2 in RulePolicy. Required external authorities and explicit UTC instant retain the Browser-only ledger's strict boundaries.

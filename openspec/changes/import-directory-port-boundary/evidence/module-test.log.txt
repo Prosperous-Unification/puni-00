@@ -1,0 +1,17 @@
+bun test v1.4.2 (744846f84)
+
+src/module/plan-import/module.test.ts:
+(pass) the Plan import module > refuses a document whose deadline sits before the project start, without an admitted batch [12.20ms]
+(pass) the Plan import module > refuses a row carrying two types before any write, announcing nothing [0.93ms]
+(pass) the Plan import module > admits a small document over the graph installPlanImport wires [18.75ms]
+(pass) the Plan import module > refuses a scoped source without borrowed import authority before any write [1.27ms]
+(pass) the Plan import module > exposes only the contract exports from its installer [0.36ms]
+(pass) the Plan import module > keeps its private bindings out of a host graph [0.32ms]
+(pass) the Plan import module > labels its private bindings with the module name [0.76ms]
+(pass) the Plan import module > names itself when a host omits a requirement [0.66ms]
+(pass) ImportedPlanResource > keeps the raw scope out of reach at run time [0.03ms]
+
+ 9 pass
+ 0 fail
+ 16 expect() calls
+Ran 9 tests across 1 file. [1.80s]

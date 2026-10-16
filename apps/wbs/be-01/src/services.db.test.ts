@@ -7468,8 +7468,8 @@ describe('shared-person replay closure (6l)', () => {
     spawn: () => Promise.reject(new Error('replay closure fixture must not launch')),
   } satisfies Parameters<typeof bootstrap>[0];
 
-  /** A second process over the same file: its own source, buffer and composition, no memory. */
-  function coldProcess(path: string) {
+  /** A second composition over the same file, with its own source and empty replay buffer. */
+  function coldComposition(path: string) {
     const source = openSqliteSource({ dbPath: path });
     sources.push(source);
     return buildServices({
@@ -7499,7 +7499,7 @@ describe('shared-person replay closure (6l)', () => {
     );
   }
 
-  it('crash after commit before push replays from a cold process', async () => {
+  it('commit before push replays from a cold composition', async () => {
     const deliveryEntered = signal();
     const releaseDelivery = signal();
     const { db, path, services } = bootstrap(READY_DRAIN, undefined, () => {
@@ -7510,10 +7510,10 @@ describe('shared-person replay closure (6l)', () => {
     const contractVersion = await commitDrainFanout(db, services);
     const finishing = services.optimizationLifecycle.finishDrain('A', contractVersion);
     try {
-      // The first process has committed and is stalled before its transport
+      // The first composition has committed and is stalled before its transport
       // returns: what a crash between commit and push leaves behind.
       await deliveryEntered.promise;
-      const cold = coldProcess(path);
+      const cold = coldComposition(path);
       expect(cold.replayBuffer.covers('project:B', 0)).toBe(false);
       // Proof (2026-10-11): replacing the orchestrator's log fallback with an
       // empty list (memory-only replay) made this cold resume answer `denied`
@@ -7559,7 +7559,7 @@ describe('shared-person replay closure (6l)', () => {
     // with a fabricated seq-0 record made this cold resume answer `replaying`
     // with no events, because the log never held the pushed event
     // (`.local/6l-skip-insert-red.log`, 0 pass, 4 fail).
-    expect(await coldProcess(path).replay.replay({ 'project:B': -1 })).toEqual({
+    expect(await coldComposition(path).replay.replay({ 'project:B': -1 })).toEqual({
       'project:B': { status: 'replaying', events: [{ seq: 0, message: ELSEWHERE_B }] },
     });
     expect(sequencerOf(db, 'project:B')).toEqual([{ next_seq: 1 }]);
@@ -7576,7 +7576,7 @@ describe('shared-person replay closure (6l)', () => {
     await log.recordEvent('project:B', later, 4);
     // The bounded replay sweep's own count rule, keeping the newest two.
     expect(await log.pruneBeyond(2)).toBeGreaterThan(0);
-    const cold = coldProcess(path);
+    const cold = coldComposition(path);
     // Proof (2026-10-11): disabling the orchestrator's contiguity guard
     // (`false &&`) made this expired resume answer `replaying` with only seq
     // 1–2, a hole the client could not see, instead of the snapshot-required

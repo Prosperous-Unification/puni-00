@@ -471,3 +471,65 @@ The observation emits complete upstream report, parsed external authority and ra
 ## Browser Performance membership slice 4.1b.12
 
 `inspect-browser-performance` independently captures exact committed selection and joins the complete real report to a closed v1 external authority. Authority pins revision/candidate/mode/report digest/projectRoot, manifest/declaration/config path-digest pairs and project. Manifest is exactly projectRoot/project.json; three pinned paths are distinct. Every Browser file and declared source must be within root and a selected regular blob. Manifest is a JSON object with a targets object. Decode the entire declaration with decodePerformanceCases and compute digestPerformanceDeclaration; declaration config and project equal authority, cases are nonempty. Browser config/project are independent. Read every declared fixture before sorted deduplicated intersection, including disjoint sources. Deduplicate source tuples only when mode and digest agree. Retain complete upstream report/outcomes, authority/raw digest, declaration/semantic digest, complete sorted fixture set and intersection; earlier memberships unknown, authentication absent and certifies false. Hash the full envelope except its digest. Source/installed bounded dispatch refuses malformed arguments with named stderr and no JSON.
+
+## Browser Performance reviewed-empty slice 4.1b.15
+
+Version 1 stays unchanged. Version 2 has the same common identity and manifest pins, with closed `performance:{kind:'reviewed-empty'}` or `performance:{kind:'committed',declaration:{path,digest},config:{path,digest},project}`. Empty membership validates all Browser selected sources and manifest, rejects own `test:performance` and `test:performance:level` targets regardless of value, and rejects any selected entry at or beneath the fixed `<projectRoot>/performance-cases.json` path. This checks selected entries without interpreting malformed or nonregular declarations as absence. Output schemaVersion stays 1; Performance membership is exactly reviewed-empty, other rows stay unknown, complete report and Browser/manifest source union remain, authentication stays absent and certifies false. Committed v2 passes through the existing complete decoder/source validation. No candidate code executes.
+
+## Browser scenario inspection slice 4.1b.16
+
+`inspect-browser-scenarios` takes the Browser levels operands followed by a capability. It independently reads the exact committed candidate and invokes real `inspectBrowserLevels`, checks outer and source-bound report revision/candidate/mode and full canonical digests, then requires Browser isolation. The external policy digest must equal the report's policy digest and contain scenarios authority. `evaluateSpecifications` receives the entire selected tree before the requested capability is filtered. Unknown capabilities and unidentified requested scenarios refuse; unrelated unidentified B3 entries remain in the complete nested report.
+
+Only `/^\[([A-Z][A-Z0-9-]*-\d{3,})\] /` on the terminal test title cites a scenario. The active set comes from all B3 effective requirements. Missing, malformed and inactive citations remain separate findings with original case ID/title/status. `citations` retains all active cited scenario IDs, including other capabilities, with complete source-bound case records in canonical case-ID order. Requested `scenarios` enumerate every adopted scenario with `{kind:'observed',cases}` or `{kind:'unobserved-in-selection'}`. Passed, failed and skipped outcomes remain intact; failed outcomes alone are observations and do not become citation findings. Unobserved rows alone exit zero. Citation findings exit one with JSON; refusals emit no partial JSON.
+
+The schema-1 `browser-scenarios` envelope retains full `levels`, `report` and `specifications`, both upstream observation digests, external policy ID/digest, selected publication scope, absent authentication, false certification and a complete canonical digest. It accepts no observation JSON, executes no candidate code and grants no T2, coverage or admission authority.
+
+## Browser scenario ledger slice 4.1c.4
+
+The unchanged ledger operands retain the mandatory Performance authority. Version 1 keeps its command, output, canonical digest and refusal behavior. Closed version 2 adds required `browser:{mode,reviewAuthorityPath,conformanceAuthorityPath,architectureAuthorityPath,performanceAuthorityPath,observationDigest}`. All four paths are canonical absolute external regular files with no symlink components. No supplied observation body is accepted. The real Browser scenario inspector always runs, even without a Browser obligation.
+
+Before assigning obligations the ledger checks full canonical Browser/levels/report digests, exact revision/candidate/mode, policy ID/digest and capability, absent authentication and false certification. Levels' nested report must equal the full Browser report, publication scope and pins must agree, and complete B3 reports and requested ID/title inventories must equal Performance. Schema 2 embeds both full observations. Only automated `browser` lowest-level assignments consume Browser cases; all passed gives `passing-in-selection`, any failed gives `failed-in-selection`, otherwise any skipped gives `skipped-in-selection`, absent gives `unobserved-in-selection`. Case records and outcomes remain complete. Failed/skipped/absent verdicts are debt. Performance and other lowest levels retain their own behavior. Both citation sources carry source labels; identical full B3 debt is emitted once. JSON debt exits one; refusals emit stderr and no JSON; zero debt remains noncertifying.
+
+## Browser-only scenario ledger
+
+The separate Browser ledger uses schema one and the Browser scenario inspector as its evidence source. The legacy Performance-backed v1/v2 ledger remains unchanged. Browser Performance membership describes source classification and remains required; it is distinct from a Performance execution publication and level authority.
+
+The new inspector independently reads the exact committed snapshot and external rule policy, evaluates complete B3 selection, then joins the real Browser inspector's complete B3 report and requested inventory before applying obligations. All four external membership paths are checked even for empty obligations. Nested report/levels identity, policy, mode, diagnostic boundaries, digests, publication scope and pins are joined. Manual dispositions call the real Manual observation inspector at the requested instant and join the same snapshot, policy, selected scenario and pinned complete digest.
+
+Every requested row remains visible. Browser evidence credits only automated Browser obligations; other automated levels are unsupported. Failed/skipped/unobserved/unassigned/unsupported and noncurrent Manual rows are debt, along with Browser-labelled citations and whole-tree unidentified B3 findings. The command emits complete JSON with exit one for debt, and refuses invalid trusted state without JSON. The complete envelope remains unauthenticated and noncertifying.
+
+## Browser T2 diagnostic consumer
+
+`inspect-browser-t2 <repository> <full-committed-sha> <external-rule-policy> <capability> <external-ledger-authority> --now <UTC-instant>` calls `inspectBrowserScenarioLedger` directly. It checks the complete returned ledger digest and its exact selection, capability, instant and diagnostic identity, then joins the nested Browser report, scope, policy and observation pins. It accepts no supplied observation JSON.
+
+The citations and original citation findings must form a complete disjoint partition of all report cases. Case IDs are unique in the report; every cited case equals its complete report record; each finding equals that report case's terminal title and status. Citation groups are unique active scenario IDs across the entire effective B3 tree, including other capabilities. Verdicts are `cited` with `scenarioId`, `missing`, `malformed` or `inactive`; terminal citation semantics must agree with the upstream partition. Duplicate, conflicting, foreign, omitted or altered cases/findings refuse. Rows sort by canonical case ID and retain the complete original ReportCase.
+
+The schema-one `browser-t2` envelope retains revision, candidate, capability, evaluation instant, selected publication scope, full ledger and its digest, external policy identity, every case row and complete original findings. The complete payload has a canonical digest, authentication absent and certifies false. Diagnostic success exits zero regardless of failed/skipped outcomes, citation findings or nested ledger debt. Invalid inputs/joins exit one with stderr and no partial JSON. RulePolicy and T2 registration remain unchanged.
+
+## Browser source level composer (4.1b.17)
+
+The additive `inspect-browser-source-levels` command accepts exactly the eight Browser level
+operands: repository, full committed SHA, external rule policy, mode, and four external
+Manual-review/Conformance/Architecture/Performance authorities. It independently captures the
+committed snapshot, then calls real `inspectTestSources` and `inspectBrowserLevels`. It verifies
+complete canonical digests and absent/noncertifying markers, exact revision/candidate/mode and
+shared report identity. Source bindings must form an exact case-ID bijection with the complete
+recorded report, retaining equal file, status and source mode/content digest. Level bindings
+must uniquely cover exactly those files; their isolation must match their classifications.
+The selected source owner's module identifies the test file's owner only.
+
+The schema-one envelope embeds both complete upstream observations as `sources` and `levels`,
+with `sourceObservationDigest`, `levelObservationDigest`, exact selection identity, retained
+`indexIdentity`/`indexReviewDebt`, case-ID sorted owner/level bindings, typed isolation,
+`authentication:{kind:'absent'}` and `certifies:false`. Existing source observations keep their
+explicit unresolved level; the new joined bindings carry the effective classification. Its
+digest hashes the entire emitted payload excluding only itself. Preserving full upstreams
+means deliberately resealed upstream order faults change the envelope digest even when the
+joined case bindings normalize identically; normal real inspectors already canonicalize order.
+
+A final real `inspectTestReports` call verifies digest equality after both readers, so physical
+publication corruption and validly resealed observation drift refuse without partial JSON.
+Wrong-level isolation emits JSON with exit one; isolated observations exit zero even with
+failed/skipped cases and index review debt. No candidate execution or supplied JSON observation
+is admitted. Source/installed command dispatch remains thin and v1 readers remain unchanged.
+No new domain vocabulary or hard-to-reverse architecture decision is introduced.

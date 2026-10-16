@@ -1931,6 +1931,21 @@ Automatic readiness after abrupt termination of a forge container's initial proc
 within the same Pod and with a new container identity and increased restart count.
 _Avoid_: Pod recreation, cold startup
 
+**Source memory observation**:
+A bounded record of one source container's memory counters and observed processes, with
+its Pod, container, process and cgroup identities.
+_Avoid_: memory acceptance, OOM diagnosis
+
+**Source observation authority**:
+The separately trusted owner that establishes which runtime, node and source identities
+an observation can speak for.
+_Avoid_: caller assertion, endpoint selection
+
+**Authenticated source memory evidence**:
+Source memory observations whose runtime provenance and source identity continuity are
+verified against source observation authority for one invocation.
+_Avoid_: matching observations, F9 acceptance, cold-start success
+
 ### Local fleet creation
 
 **Creation attempt**:
@@ -1951,3 +1966,7 @@ _Avoid_: ownership claim, cleanup authorization
 **Pending creation operation**:
 A reserved direct creation whose outcome has not been durably recorded. The external resource may exist.
 _Avoid_: failed creation, absent resource
+
+**Reviewed-empty membership**:
+An explicit review assertion that no member of a named earlier test level belongs to the reviewed fixture scope. It carries no execution or certification claim.
+_Avoid_: unknown membership, passing Performance result

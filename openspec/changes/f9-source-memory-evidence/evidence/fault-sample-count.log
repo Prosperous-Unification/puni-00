@@ -1,0 +1,87 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:
+(pass) returns complete first-container evidence without readiness or OOM verdicts [0.77ms]
+(pass) refuses binding foreign Pod [0.08ms]
+(pass) refuses binding replacement container [0.01ms]
+(pass) refuses binding warm container
+(pass) refuses binding container prefix
+(pass) refuses binding empty Pod UID
+(pass) refuses binding invalid init PID
+(pass) refuses binding invalid init starttime
+(pass) refuses binding unsafe init PID
+(pass) refuses binding root cgroup [0.02ms]
+(pass) refuses binding dot cgroup [0.01ms]
+(pass) refuses binding relative cgroup
+(pass) refuses binding invalid device
+(pass) refuses binding invalid inode
+(pass) refuses sample sibling cgroup [0.04ms]
+(pass) refuses sample prefix cgroup
+(pass) refuses sample device
+(pass) refuses sample inode
+(pass) refuses absent or reused init [] [0.03ms]
+(pass) refuses absent or reused init [{"pid":43,"starttime":"1234","ppid":1,"executable":"bun","role":"unknown","rssKiB":2,"threads":1}] [0.02ms]
+(pass) refuses absent or reused init [{"pid":42,"starttime":"5678","ppid":1,"executable":"bun","role":"unknown","rssKiB":2,"threads":1}]
+(pass) refuses invalid memory.max undefined [0.13ms]
+(pass) refuses invalid memory.max max [0.01ms]
+(pass) refuses invalid memory.max
+(pass) refuses invalid memory.max -1
+(pass) refuses invalid memory.max 2Gi
+(pass) refuses invalid memory.max 2147483649 [0.06ms]
+(pass) refuses invalid memory.max 02147483648 [0.03ms]
+105 |     ).toThrow('2Gi');
+106 |   });
+107 | }
+108 |
+109 | test('refuses empty samples', () => {
+110 |   expect(() => requireMemoryEvidence([], first, binding)).toThrow('complete sample');
+                                                                ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "complete sample"
+
+Received function did not throw
+Received value: {
+  source: {
+    uid: "owned-pod",
+    container: "containerd://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    init: {
+      pid: 42,
+      starttime: "1234",
+    },
+    cgroup: "/kubepods/podowned-pod/source",
+    device: "29",
+    inode: "200",
+  },
+  samples: [],
+}
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:110:59)
+(fail) refuses empty samples [0.27ms]
+(pass) refuses incomplete current [0.08ms]
+(pass) refuses incomplete peak [0.01ms]
+(pass) refuses incomplete missing oom
+(pass) refuses incomplete events
+(pass) refuses incomplete event count [0.02ms]
+(pass) refuses incomplete RSS [0.02ms]
+(pass) refuses incomplete threads
+(pass) refuses incomplete PPID
+(pass) refuses incomplete PID [0.01ms]
+(pass) refuses incomplete starttime [0.02ms]
+(pass) refuses incomplete executable
+(pass) refuses incomplete role
+(pass) refuses incomplete duplicate PID [0.02ms]
+(pass) refuses incomplete event name
+(pass) refuses incomplete timestamp
+(pass) refuses incomplete elapsed
+(pass) refuses incomplete negative elapsed
+(pass) refuses an incomplete later sample instead of crediting one complete sample [0.07ms]
+(pass) omits credential argv and injected restored success from returned evidence [0.14ms]
+
+1 tests failed:
+(fail) refuses empty samples [0.27ms]
+
+ 47 pass
+ 1 fail
+ 53 expect() calls
+Ran 48 tests across 1 file. [48.00ms]

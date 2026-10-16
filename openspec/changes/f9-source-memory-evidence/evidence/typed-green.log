@@ -1,0 +1,55 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:
+(pass) returns complete first-container evidence without readiness or OOM verdicts [0.83ms]
+(pass) refuses binding foreign Pod [0.10ms]
+(pass) refuses binding replacement container [0.01ms]
+(pass) refuses binding warm container
+(pass) refuses binding container prefix
+(pass) refuses binding empty Pod UID
+(pass) refuses binding invalid init PID
+(pass) refuses binding invalid init starttime
+(pass) refuses binding unsafe init PID
+(pass) refuses binding root cgroup [0.03ms]
+(pass) refuses binding dot cgroup [0.01ms]
+(pass) refuses binding relative cgroup
+(pass) refuses binding invalid device
+(pass) refuses binding invalid inode
+(pass) refuses sample sibling cgroup [0.04ms]
+(pass) refuses sample prefix cgroup [0.01ms]
+(pass) refuses sample device
+(pass) refuses sample inode
+(pass) refuses absent or reused init [] [0.05ms]
+(pass) refuses absent or reused init [{"pid":43,"starttime":"1234","ppid":1,"executable":"bun","role":"unknown","rssKiB":2,"threads":1}] [0.03ms]
+(pass) refuses absent or reused init [{"pid":42,"starttime":"5678","ppid":1,"executable":"bun","role":"unknown","rssKiB":2,"threads":1}]
+(pass) refuses invalid memory.max undefined [0.18ms]
+(pass) refuses invalid memory.max max [0.07ms]
+(pass) refuses invalid memory.max
+(pass) refuses invalid memory.max -1
+(pass) refuses invalid memory.max 2Gi
+(pass) refuses invalid memory.max 2147483649 [0.01ms]
+(pass) refuses invalid memory.max 02147483648
+(pass) refuses empty samples [0.03ms]
+(pass) refuses incomplete current [0.03ms]
+(pass) refuses incomplete peak [0.01ms]
+(pass) refuses incomplete events [0.06ms]
+(pass) refuses incomplete event count [0.03ms]
+(pass) refuses incomplete RSS [0.01ms]
+(pass) refuses incomplete threads [0.02ms]
+(pass) refuses incomplete PPID [0.02ms]
+(pass) refuses incomplete PID [0.02ms]
+(pass) refuses incomplete starttime
+(pass) refuses incomplete executable [0.02ms]
+(pass) refuses incomplete role
+(pass) refuses incomplete duplicate PID [0.01ms]
+(pass) refuses incomplete event name [0.01ms]
+(pass) refuses incomplete timestamp
+(pass) refuses incomplete elapsed
+(pass) refuses incomplete negative elapsed [0.01ms]
+(pass) refuses an incomplete later sample instead of crediting one complete sample [0.06ms]
+(pass) omits credential argv and injected restored success from returned evidence [0.14ms]
+
+ 47 pass
+ 0 fail
+ 52 expect() calls
+Ran 47 tests across 1 file. [50.00ms]

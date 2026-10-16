@@ -1,0 +1,12 @@
+--- a/libs/wbs/application/core/src/module/plan-import/imported-plan.resource.ts
++++ b/libs/wbs/application/core/src/module/plan-import/imported-plan.resource.ts
+@@ -3,3 +3,3 @@
+ import type { CalendarMarker } from '../../ports/calendar-marker-store';
+-import type { ImportDirectory } from '../../ports/import-directory';
++import type { DirectoryService } from '../directory/directory.resource';
+ import type { ResourceAccess } from '../../ports/organization-access';
+@@ -18,3 +18,3 @@
+ export interface ImportServices {
+-  directory: ImportDirectory;
++  directory: DirectoryService;
+   workItems: TreeAnnouncement;

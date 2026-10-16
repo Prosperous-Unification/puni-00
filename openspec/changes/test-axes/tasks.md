@@ -106,6 +106,8 @@ concrete design before Sol implements it. Existing 2.1/2.2a/2.2/4.1 obligations 
 - [x] 4.1c.2 Compose real Manual observations over the same exact committed candidate and external policy. Preserve current/stale/failed/overdue and skipped outcomes; join full nested identity, evaluation instant and digest, refusing unreadable or mismatched reports without partial JSON.
 - [ ] 4.1c.3 Complete watched production guard/dependency negatives, installed dispatch, canonical digest and focused regression validation. Record actual evidence and independent review. Parent 4.1, T2, source reconciliation and certification remain open; WBS080.39 remains in progress.
 
+- [x] 4.1c.4 Add a closed version-two Browser authority to the unchanged diagnostic ledger over real Browser and mandatory Performance observations; retain exact v1 behavior. Allocate fresh scenarios preserving journal prefix, observe production RED/GREEN, prove full nested joins before assignments with repinned fault and watched guard negatives, preserve outcomes and labelled debt, prove installed parity, and record owning/adjacent tests and scoped uncached checks. Parent 4.1, 4.1c.3, T2, source reconciliation and certification remain open.
+
 ## 4.1b.11 Browser Architecture membership (WBS080.39)
 
 - [x] 4.1b.11a Allocate scenarios through the production allocator preserving the journal prefix; observe actual invokeCli unknown-command RED; specify exact authority and committed/reviewed-empty contract.
@@ -132,3 +134,38 @@ concrete design before Sol implements it. Existing 2.1/2.2a/2.2/4.1 obligations 
 - [x] 4.1b.14c Classify the complete admitted collection through the shared first-match table; preserve full upstream observations/outcomes/sources, deterministic isolated/wrong-level findings, noncertifying envelope and full digest. Prove precedence, wrong-level CLI status, source and built installed dispatch, bounded usage and canonical identity with watched faults.
 - [x] 4.1b.14d Run focused composer/adapter/Performance-level regressions, scoped Nx lint/typecheck/build, final restored negatives, changed-file format, scenario provenance and pinned strict/all OpenSpec validation. Record evidence and skips; commit clean local candidate for independent Astra review. Coordinator owns release/host acceptance; WBS080.39, T2 and parent tasks remain open.
 - [ ] 4.1b.14e Independent Astra review of the exact local candidate, followed by coordinator integration and release/CI/host acceptance. This packet does not close WBS080.39 or the parent ledgers.
+
+## 4.1b.15 Browser Performance explicit reviewed-empty (WBS080.39)
+
+- [x] 4.1b.15a Record bounded intent, resolved term and v2 contract; allocate scenarios with production allocator preserving journal prefix; observe production v2 schema RED.
+- [x] 4.1b.15b Implement closed v2 dispositions, selected target/declaration contradiction checks and unchanged committed v1 behavior; preserve all report and source identities, unknown unrelated rows and certifies:false.
+- [x] 4.1b.15c Watch new guard/schema faults fail production assertions; run focused and scoped acceptance, installed dispatch, format, provenance and strict/all OpenSpec validation; record evidence and commit clean local candidate.
+- [ ] 4.1b.15d Independent Astra review and coordinator release/CI/host acceptance. Parent WBS080.39 and 2.1/2.2a/2.2/4.1 remain open.
+
+## 4.1b.16 Browser scenario diagnostic (WBS080.39)
+
+- [x] 4.1b.16a Record approved bounded intent and full-tree Browser scenario contract; allocate fresh IDs through production allocator preserving the journal; observe actual invokeCli unknown-command RED.
+- [x] 4.1b.16b Join real isolated Browser levels with full B3 selection and exact snapshot/policy/digest identities. Preserve complete outcomes, terminal-only invalid citation findings, active other-capability citations and every requested scenario. Watch each new guard fail its production-path negative under injected faults.
+- [x] 4.1b.16c Run focused Browser/Performance/specification regression, scoped lint/typecheck/build, installed dispatch, format, provenance and pinned strict/all OpenSpec validation; record actual evidence and commit clean local candidate.
+- [ ] 4.1b.16d Independent Astra review and coordinator release/CI/host acceptance. WBS080.39, T2, source reconciliation, certification and parent Tasks 2.1/2.2a/2.2/4.1 remain open.
+
+## 4.1c.5 Browser-only capability scenario diagnostic (WBS080.39)
+
+- [x] 4.1c.5a Record approved intent and contract, allocate fresh scenarios preserving the complete journal prefix, and observe production unknown-command RED with no Performance execution publication.
+- [x] 4.1c.5b Implement strict closed authority, real Browser and Manual joins, complete B3/inventory validation, outcomes, supported-level limits, labelled debt and noncertifying envelope. Preserve old ledger v1/v2.
+- [x] 4.1c.5c Watch production guard/dependency negatives; run focused/adjacent tests, installed dispatch, scoped lint/typecheck/build, format, provenance and strict/all OpenSpec validation. Record evidence and commit exact clean candidate for Astra review.
+- [ ] 4.1c.5d Independent Astra review and coordinator release/CI/host acceptance. WBS080.39, parent ledgers, source reconciliation and certification remain open.
+
+## 4.1c.6 Browser T2 diagnostic consumer (WBS080.39)
+
+- [x] 4.1c.6a Record approved bounded intent and contract, allocate scenarios through the production allocator preserving the journal prefix, and observe production unknown-command RED.
+- [x] 4.1c.6b Implement direct real Browser-only ledger consumption, exact diagnostic joins, complete disjoint citation partition, full output and debt-independent successful exit. Cover malformed dependencies, strict input/authority boundaries and source/installed parity through production dispatch.
+- [x] 4.1c.6c Watch production-path negative guard/dependency mutations, add adjacent Proof comments, run sequential focused checks with memory monitoring, format and provenance/OpenSpec checks; record actual evidence and skips.
+- [ ] 4.1c.6d Independent Astra review of the committed draft PR and coordinator hosted exact-head/release/host acceptance. Coordinator owns restack and integration; WBS080.39 and parent ledgers remain open.
+
+## 4.1b.17 Browser case source and level composition (WBS080.39)
+
+- [x] 4.1b.17a Allocate TEST-AXES-144..147 through the production scenario allocator, preserve the journal prefix and observe unknown-command production CLI RED. Read source/report/levels/index callers and tests; add the bounded same-operands composer preserving both full real upstreams, review debt and diagnostic markers.
+- [x] 4.1b.17b Prove exact snapshot/mode/digest/report and complete case-ID/file/outcome/source/classification/isolation joins, inherited missing/malformed/unreadable index and publication refusals, canonical complete payload and source/built dispatch. Watch new guards and output/dependency faults fail production assertions, restore and record evidence.
+- [x] 4.1b.17c Complete focused serial regression, changed-file formatting and lint, narrow direct declaration/type check, scenario provenance and strict/all OpenSpec validation. Record exact checks, memory settings, watched failures and explicit whole-project check limits; commit the clean local candidate.
+- [ ] 4.1b.17d Obtain Astra exact-commit review before any push. Coordinator owns hosted CI and integration. Parent Tasks 2.1/2.2a/2.2/4.1, tested-module/coverage/T2 authority, source reconciliation and WBS closure remain open.

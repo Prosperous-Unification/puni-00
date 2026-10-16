@@ -1,0 +1,64 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/forge-process-observation.test.ts:
+(pass) records stable Vite identity and memory without raw arguments or verdicts [18.78ms]
+(pass) unknown launcher arguments cannot impersonate the Vite launcher [4.01ms]
+(pass) refuses absent and unreadable required memory state [3.96ms]
+(pass) refuses malformed counters, PID identity, status and cgroup membership [15.36ms]
+103 | });
+104 |
+105 | test('refuses oversized files and more than 256 exact members', async () => {
+106 |   const { cgroup, proc, roots } = await fixture();
+107 |   await writeFile(join(proc, 'cmdline'), 'x'.repeat(65537));
+108 |   await rejects(
+              ^
+AssertionError: The input did not match the regular expression /byte limit/. Input:
+
+'Error: malformed process command'
+
+ generatedMessage: true,
+   expected: /byte limit/,
+   operator: "rejects",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at expectedException (node:assert:327:33)
+      at expectsError (node:assert:395:20)
+      at assert.rejects (node:assert:434:17)
+      at /tmp/f9-process-sampler-e7201df/tools/tool-devsync/src/k3s/forge-process-observation.test.ts:108:9
+
+77 |     throw new Error('required memory events absent');
+78 |   return events;
+79 | }
+80 | function identifyRole(command: string): ProcessObservation['role'] {
+81 |   // Proof: unterminated-cmdline fixture refuses; launcher-position fixture cannot impersonate Vite.
+82 |   if (!command.endsWith('\0')) throw new Error('malformed process command');
+                                              ^
+error: malformed process command
+      at identifyRole (/tmp/f9-process-sampler-e7201df/tools/tool-devsync/src/k3s/forge-process-observation.ts:82:42)
+      at <anonymous> (/tmp/f9-process-sampler-e7201df/tools/tool-devsync/src/k3s/forge-process-observation.ts:192:22)
+      at async observeProcesses (/tmp/f9-process-sampler-e7201df/tools/tool-devsync/src/k3s/forge-process-observation.ts:252:26)
+      at async waitForActual (node:assert:359:24)
+      at async assert.rejects (node:assert:434:77)
+      at async <anonymous> (/tmp/f9-process-sampler-e7201df/tools/tool-devsync/src/k3s/forge-process-observation.test.ts:108:9)
+(fail) refuses oversized files and more than 256 exact members [19.44ms]
+(pass) refuses foreign directories and symlink escapes [3.67ms]
+(pass) refuses invalid bounds before inspecting filesystem [0.77ms]
+(pass) deadline refuses an interval exceeding remaining budget [42.40ms]
+(pass) CLI rejects extra lifecycle arguments before reading files [23.17ms]
+(pass) refuses identity and membership changes after command inspection [65.03ms]
+(pass) CLI local watchdog exits during a stalled required read [65.82ms]
+(pass) refuses unsafe executable text instead of logging it [4.33ms]
+(pass) refuses cgroup directory replacement during process inspection [32.15ms]
+(pass) library deadline rejects a stalled read and leaves no long pause running [141.71ms]
+(pass) refuses exec changes within the same PID start time [29.74ms]
+(pass) refuses unreadable required state independently from absent state [2.06ms]
+(pass) refuses missing required event counters and malformed process fields [9.52ms]
+(pass) refuses nonregular required state [2.01ms]
+(pass) rejects a FIFO required file without leaving a blocked reader [40.47ms]
+(pass) refuses a nondirectory cgroup path before reading member files [1.93ms]
+
+ 19 pass
+ 1 fail
+ 34 expect() calls
+Ran 20 tests across 1 file. [568.00ms]

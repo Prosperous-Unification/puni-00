@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/home/df/wd/puni/puni-00/.worktrees/wbs090-import-directory-port/openspec/changes/import-directory-port-boundary/evidence/check-boundary.py.txt", line 14, in <module>
+    assert not any(edge(finding) for finding in verdict['findings']), 'concrete directory resource edge remains'
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: concrete directory resource edge remains

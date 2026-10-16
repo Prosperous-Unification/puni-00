@@ -1,0 +1,17 @@
+import ts from '/home/df/wd/puni/puni-00/.worktrees/wbs090-space-tree-port-sol/node_modules/typescript/lib/typescript.js';
+const path = 'libs/wbs/application/core/src/ports/plan-tree.ts';
+const source = ts.createSourceFile(path, await Bun.file(path).text(), ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+const names: string[] = [];
+function visit(node: ts.Node): void {
+  if (ts.isJSDocLink(node)) names.push(node.name?.getText(source) ?? '<missing>');
+  const documented = node as ts.Node & { jsDoc?: readonly ts.JSDoc[] };
+  for (const comment of documented.jsDoc ?? []) visit(comment);
+  ts.forEachChild(node, visit);
+}
+visit(source);
+console.log(JSON.stringify(names));
+for (const target of ['sliceKey', 'haveSameSliceOrder', 'DirectoryStore.assignmentsInProject', 'DEFAULT_PRIORITY_BANDS']) {
+  if (!names.includes(target)) throw new Error(`JSDoc target does not resolve syntactically: ${target}`);
+}
+if (names.includes('import')) throw new Error('JSDoc link targets import instead of an imported symbol');
+console.log('PASS: five reviewed JSDoc links target their imported symbol names');

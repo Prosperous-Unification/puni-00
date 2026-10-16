@@ -1,0 +1,34 @@
+{
+  "manifest": {
+    "packageVersion": "0.1.0",
+    "schemaVersion": 1,
+    "sourceRevision": "ac774f0c358db369c2048e537151e263cc29361e",
+    "toolkitIdentity": "2417f876901efadcc817e7518a8f796985c9e62409ab6f68458b55ea21d2b69a"
+  },
+  "executableSha256": "92ca1424826b325dad64a160090fb8c83521a5e581a48f6bed510a1d7d00ef4c"
+}
+ 7 | const digest = createHash('sha256')
+ 8 |   .update(readFileSync(join(packageRoot, 'dist/bin.mjs')))
+ 9 |   .digest('hex');
+10 | console.log(JSON.stringify({ manifest, executableSha256: digest }, null, 2));
+11 | assert.equal(manifest.sourceRevision, 'ac774f0c358db369c2048e537151e263cc29361e');
+12 | assert.equal(
+            ^
+AssertionError: Expected values to be strictly equal:
++ actual - expected
+
++ '2417f876901efadcc817e7518a8f796985c9e62409ab6f68458b55ea21d2b69a'
+- 'db3dcf59b03555b34b0219b400c9a0ce077df031aa550eb2c1f2f03eae494a79'
+
+ generatedMessage: true,
+     actual: "2417f876901efadcc817e7518a8f796985c9e62409ab6f68458b55ea21d2b69a",
+   expected: "db3dcf59b03555b34b0219b400c9a0ce077df031aa550eb2c1f2f03eae494a79",
+   operator: "strictEqual",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /home/runner/work/puni-00/puni-00/proof/openspec/changes/wbs-column-resize-size-boundary/evidence/recovery-proof/verify-tool.mjs:12:8
+
+::error file=proof/openspec/changes/wbs-column-resize-size-boundary/evidence/recovery-proof/verify-tool.mjs,line=12,col=8,title=AssertionError: Expected values to be strictly equal%3A::%0A+ '2417f876901efadcc817e7518a8f796985c9e62409ab6f68458b55ea21d2b69a'%0A- 'db3dcf59b03555b34b0219b400c9a0ce077df031aa550eb2c1f2f03eae494a79'%0A%0A      at /home/runner/work/puni-00/puni-00/proof/openspec/changes/wbs-column-resize-size-boundary/evidence/recovery-proof/verify-tool.mjs:12:8
+
+Bun v1.4.2 (Linux x64)

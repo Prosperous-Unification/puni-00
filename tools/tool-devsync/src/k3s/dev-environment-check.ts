@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path';
 import { chromium } from '@playwright/test';
 
 import { parseDevEnvironmentRequest } from './dev-environment';
+import { observeWeb } from './forge-http-observation';
 import { environmentNamespace } from './forge-namespace';
 
 /**
@@ -134,8 +135,14 @@ async function withEdit<T>(path: string, suffix: string, action: () => Promise<T
 }
 
 async function checkHttp(request: CheckRequest): Promise<void> {
-  const page = await fetch(`${request.origin}/`);
-  check(page.status === 200 && (await page.text()).includes('id="root"'), 'web serves index.html');
+  const web = await observeWeb(request.origin);
+  // Proof: routing transport/deadline/body-limit through the response prefix falsely credits
+  // ingress denial in the production checker-to-rehearseRecovery regression.
+  const message =
+    web.failure === null || web.failure === 'response'
+      ? 'web serves index.html'
+      : `web observation ${web.failure}`;
+  check(web.failure === null, `${message}; observation=${JSON.stringify(web)}`);
   const name = `f9-check-${String(Date.now())}`;
   const created = await fetch(`${request.origin}/api/projects`, {
     method: 'POST',

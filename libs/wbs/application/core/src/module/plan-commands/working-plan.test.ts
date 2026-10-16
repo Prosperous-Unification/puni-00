@@ -489,6 +489,7 @@ describe('the admitted working batch baseline', () => {
           },
         ],
       }));
+      const expected = structuredClone(labelled);
       const stores: PlanTransactionalStores = {
         ...source.stores,
         workItems: {
@@ -520,7 +521,13 @@ describe('the admitted working batch baseline', () => {
       borrowed.externalRefs[0].url = 'https://borrowed.example/ref';
       await source.stores.workItems.remove([created.value.id], [], { at: 2, by: OWNER });
 
-      expect(await workingPlan.stores.workItems.listByProject(projectId)).toEqual(labelled);
+      // Proof (2026-10-16), "loads on first demand and detaches every retained answer":
+      // replacing tagIds: [...workItem.tagIds] with tagIds: workItem.tagIds kept
+      // toEqual(labelled) green; this snapshot oracle failed on "tag-borrowed".
+      // Individual teamIds, serviceIds, typeIds and external-ref-record copy
+      // omissions also failed through createWorkingPlan; restored copies pass.
+      expect(await workingPlan.stores.workItems.listByProject(projectId)).toEqual(expected);
+      expect(labelled).toEqual(expected);
       workingPlan.close();
     } finally {
       await source.close();

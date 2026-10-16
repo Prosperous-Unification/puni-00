@@ -56,7 +56,8 @@ export type ReadBlob = (blob: string, path: string) => Uint8Array;
 /** Git-compatible NUL sniff window; valid UTF-8 after it remains eligible as source text. */
 const BinarySniffByteLimit = 8_000;
 
-function isSelected(path: string, selector: ContentSelector): boolean {
+/** Matches one content selector against an exact candidate-relative path. */
+export function isSelected(path: string, selector: ContentSelector): boolean {
   const segments = path.split('/');
   switch (selector.kind) {
     case 'path':

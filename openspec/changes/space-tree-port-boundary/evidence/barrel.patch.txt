@@ -1,0 +1,20 @@
+diff --git a/libs/wbs/application/core/src/ports/tree-read.ts b/libs/wbs/application/core/src/ports/tree-read.ts
+index 12878d617..db012b1f3 100644
+--- a/libs/wbs/application/core/src/ports/tree-read.ts
++++ b/libs/wbs/application/core/src/ports/tree-read.ts
+@@ -41,0 +42,2 @@ export interface TreeRead {
++
++export type { WorkItemService } from '../module/work-item/work-item.resource';
+diff --git a/libs/wbs/application/core/src/service/space.resource.ts b/libs/wbs/application/core/src/service/space.resource.ts
+index 655109319..95fb55988 100644
+--- a/libs/wbs/application/core/src/service/space.resource.ts
++++ b/libs/wbs/application/core/src/service/space.resource.ts
+@@ -20 +20 @@ import type { Space, SpaceStore } from '../ports/space-store';
+-import type { TreeRead } from '../ports/tree-read';
++import type { WorkItemService } from '../ports/tree-read';
+@@ -79 +79 @@ export interface SpaceResourceOptions {
+-  trees: TreeRead;
++  trees: Pick<WorkItemService, 'treeWithin' | 'sharedTreesWithin'>;
+@@ -104 +104 @@ type SharedTreeEntry = Extract<
+-  Awaited<ReturnType<TreeRead['sharedTreesWithin']>>,
++  Awaited<ReturnType<WorkItemService['sharedTreesWithin']>>,
