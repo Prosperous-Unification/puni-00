@@ -8,7 +8,7 @@ const scratch = mkdtempSync(join(tmpdir(), 'relay-build-'));
 const executable = join(scratch, 'relay');
 const source = process.env['RELAY_SOURCE'] ?? join(directory, 'relay.c');
 
-beforeAll(() => {
+function compileSource(selectedSource: string, selectedExecutable: string) {
   const compiled = Bun.spawnSync([
     'cc',
     '-std=c11',
@@ -16,17 +16,38 @@ beforeAll(() => {
     '-Wall',
     '-Wextra',
     '-Werror',
-    source,
+    selectedSource,
     '-o',
-    executable,
+    selectedExecutable,
   ]);
   if (compiled.exitCode !== 0) throw new Error(new TextDecoder().decode(compiled.stderr));
+}
+
+beforeAll(async () => {
+  compileSource(source, executable);
+  const original = readFileSync(source, 'utf8');
+  const start = original.indexOf('static int remaining_cleanup_ms(');
+  const end = original.indexOf('static void remove_private(', start);
+  for (const failureRead of [1, 2]) {
+    const cleanup = original
+      .slice(start, end)
+      .replaceAll('read_clock()', `(++cleanup_clock_reads >= ${failureRead} ? -1 : read_clock())`);
+    const selectedSource = join(scratch, `clock-${failureRead}.c`);
+    await Bun.write(
+      selectedSource,
+      original.slice(0, start) +
+        'static unsigned cleanup_clock_reads = 0;\n' +
+        cleanup +
+        original.slice(end),
+    );
+    compileSource(selectedSource, join(scratch, `clock-${failureRead}`));
+  }
 });
 afterAll(() => rmSync(scratch, { recursive: true }));
 
-async function observe(scenario: string) {
+async function observe(scenario: string, selectedExecutable = executable) {
   const child = Bun.spawn(
-    ['/usr/bin/python3', '-I', join(directory, 'fixture.py'), 'run', executable, scenario],
+    ['/usr/bin/python3', '-I', join(directory, 'fixture.py'), 'run', selectedExecutable, scenario],
     { stdout: 'pipe', stderr: 'pipe' },
   );
   const [stdout, stderr, exitCode] = await Promise.all([
@@ -108,6 +129,18 @@ test('deadline terminates and reaps a stalled direct child', async () => {
   expect(observed.elapsedMs).toBeLessThan(3000);
 }, 8000);
 
+for (const failureRead of [1, 2]) {
+  test(`cleanup clock read ${failureRead} failure kills and reaps a child alive after EOF`, async () => {
+    const observed = await observe('linger', join(scratch, `clock-${failureRead}`));
+    expect(observed.upstreamBytes).toBe(49152);
+    expect(observed.childAlive).toBe(false);
+    expect(observed.privateExists).toBe(false);
+    expect(observed.exit).not.toBe(0);
+    expect(observed.error).toBe('relay:cleanup\n');
+    expect(observed.elapsedMs).toBeLessThan(3000);
+  }, 8000);
+}
+
 test('fixture code makes no installed or production authority claim', () => {
   expect(readFileSync(join(directory, 'README.md'), 'utf8')).toContain('nonauthoritative');
 });
@@ -175,6 +208,18 @@ const omissions = [
     target: 'deadline terminates and reaps a stalled direct child',
     before: 'reap_client(&relay);',
     after: '(void)reap_client;',
+  },
+  {
+    name: 'cleanup budget initial clock',
+    target: 'cleanup clock read 1 failure kills and reaps a child alive after EOF',
+    before: 'if (remaining_cleanup_ms(started) < 0)',
+    after: 'if ((void)remaining_cleanup_ms(started), false)',
+  },
+  {
+    name: 'cleanup budget subsequent clock',
+    target: 'cleanup clock read 2 failure kills and reaps a child alive after EOF',
+    before: 'if (remaining_cleanup_ms(started) < 0)',
+    after: 'if ((void)remaining_cleanup_ms(started), false)',
   },
   {
     name: 'private cleanup identity',

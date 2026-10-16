@@ -76,6 +76,8 @@ def client(path, mode, size):
         response.extend(chunk)
     emit({'response': response[:1].decode(), 'valid': bytes(response[1:]) == payload})
     connection.close()
+    if mode == 'linger':
+        time.sleep(20)
 
 
 def alive(pid):
@@ -106,7 +108,7 @@ def run(executable, scenario):
             servers.append(server)
             event = json.loads(line_of(server.stdout))
             expected = os.getpid() if scenario == 'foreign-upstream' else event['listening']
-            mode = 'delay' if scenario == 'foreign-child' else 'stall' if scenario == 'stall' else 'normal'
+            mode = 'delay' if scenario == 'foreign-child' else 'stall' if scenario == 'stall' else 'linger' if scenario == 'linger' else 'normal'
             size = '200000' if scenario == 'overflow' else '49152'
             relay = subprocess.Popen([executable, endpoint, str(expected), scratch, sys.executable, str(Path(__file__).resolve()), mode, size], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
             first = line_of(relay.stdout)

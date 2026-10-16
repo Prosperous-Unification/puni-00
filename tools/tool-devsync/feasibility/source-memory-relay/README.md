@@ -22,8 +22,8 @@ escalation for these local sockets only.
 
 `relay.probe.ts` deliberately avoids ordinary Bun test filename discovery. The
 ordinary tool-devsync discovery filter `bun test feasibility/source-memory-relay`
-exited 1 with no matching files after searching 93 files. The explicit path above
-ran exactly 22 cases in this file. This is an explicit unintegrated feasibility
+exited 1 with no matching files. The explicit path above
+ran exactly 26 cases in this file. This is an explicit unintegrated feasibility
 limitation, not a skipped production check: no project.json or full-gate compiler
 requirement is introduced. Native ownership, packaging and supported deployment
 capabilities still require the design's first milestone.
@@ -44,8 +44,11 @@ replaced. It rejects a mismatched upstream before request bytes, a foreign same-
 listener connector before forwarding, and a dead peer whose descendant still
 holds and services the original connection. One 1.5-second monotonic IO budget,
 a 128KiB aggregate read cap, bounded queues and direct-child cleanup bound the
-observed fixtures. Cleanup allows at most another 500ms for the direct child and
-reports failure if it cannot complete. Socket removal uses a retained directory
+observed fixtures. Cleanup normally gives the direct child a 500ms monotonic budget. A failed
+initial/subsequent clock read or expired budget invokes SIGKILL and at most 500
+nonblocking reap attempts with 1ms sleeps, independently of clock availability.
+Scheduling and uninterruptible kernel waits prevent a strict wall-time guarantee;
+an unreaped child is reported as cleanup failure. Socket removal uses a retained directory
 reference and checks inode/device/type before unlinking; the consuming replacement
 probe leaves the foreign replacement intact and reports cleanup failure.
 
@@ -58,20 +61,29 @@ proof that a broken native helper cleans itself up.
 The retained red logs use the earlier relay.test.ts filename, before explicit
 probe isolation. The initial real assertion red expected successful forwarding but received the
 refusal stub's exit 64. A later cleanup red observed a deleted foreign replacement
-before the identity guard was added. The final serial run passed **22 cases,
-93 assertions**, including these seven compiled-source faults. Each mutant must
+before the identity guard was added. The final serial run passed **26 cases,
+117 assertions**, including these nine compiled-source faults. Each mutant must
 fail its named consuming test; restored source controls pass. Adjacent C `Proof:`
-comments name observed faults.
+comments name observed faults. The cleanup-clock regression first failed both
+consuming tests with `childAlive=true` against the reviewed predecessor. The
+restored helper refuses unavailable clock readings through one necessary budget
+check; omitting that check fails each regression independently. Clock failure is
+injected only into the compiled cleanup functions, while the rest of the exchange
+uses the real clock. The child half-closes its request and remains alive while the
+relay completes both stream directions; no completed-response claim depends on
+child stdout racing with termination.
 
-| Fault                                      | Observed decisive failure                                       |
-| ------------------------------------------ | --------------------------------------------------------------- |
-| Omit upstream peer comparison              | Foreign-upstream relay exits 0 rather than refusing             |
-| Omit exact direct-child comparison         | 15 foreign request bytes forwarded; expected zero               |
-| Omit retained peer liveness check          | Dead peer's surviving descendant completes successfully         |
-| Omit aggregate byte cap                    | 200000-byte fixture completes successfully rather than refusing |
-| Break monotonic poll budget dependency     | Direct child remains observable after the external watchdog     |
-| Omit direct-child cleanup                  | Direct child remains observable after native refusal            |
-| Omit private socket cleanup identity check | Foreign replacement disappears; expected preserved              |
+| Fault                                             | Observed decisive failure                                       |
+| ------------------------------------------------- | --------------------------------------------------------------- |
+| Omit upstream peer comparison                     | Foreign-upstream relay exits 0 rather than refusing             |
+| Omit exact direct-child comparison                | 15 foreign request bytes forwarded; expected zero               |
+| Omit retained peer liveness check                 | Dead peer's surviving descendant completes successfully         |
+| Omit aggregate byte cap                           | 200000-byte fixture completes successfully rather than refusing |
+| Break monotonic poll budget dependency            | Direct child remains observable after the external watchdog     |
+| Omit direct-child cleanup                         | Direct child remains observable after native refusal            |
+| Omit cleanup budget check; initial clock fails    | EOF-complete direct child remains observable after watchdog     |
+| Omit cleanup budget check; subsequent clock fails | EOF-complete direct child remains observable after watchdog     |
+| Omit private socket cleanup identity check        | Foreign replacement disappears; expected preserved              |
 
 Raw test diagnostics contain only controlled fixture values. Exact UTF-8 diagnostic outputs are retained in JSON `combinedOutput` strings
 with their original byte hashes; source hashes are retained in [evidence](evidence/environment.json).
@@ -79,7 +91,7 @@ with their original byte hashes; source hashes are retained in [evidence](eviden
 ## Resource receipt and remaining work
 
 Observed locally: Bun 1.4.2, Linux 7.0.11-76070011-generic, GCC 13.3.0 and fixture
-Python 3.12.3. GNU `time -v` reported **33104 KiB maximum RSS**, 15.61 seconds,
+Python 3.12.3. GNU `time -v` reported **33444 KiB maximum RSS**, 27.21 seconds,
 zero swaps and exit 0. This metric is the command/children maximum RSS reported by
 GNU time, **not summed simultaneous process-tree memory**. No crictl was on PATH. A local containerd socket path existed; it was neither
 contacted nor authenticated.

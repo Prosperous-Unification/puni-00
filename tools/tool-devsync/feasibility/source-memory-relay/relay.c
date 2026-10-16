@@ -183,6 +183,25 @@ static int forward_bytes(struct Relay *relay) {
   }
   return 0;
 }
+static void terminate_client(struct Relay *relay) {
+  refuse_relay(relay, "cleanup");
+  if (kill(relay->child, SIGKILL) != 0 && errno != ESRCH) return;
+  /* The iteration cap remains finite even when the monotonic clock is unavailable.
+   * A child stuck in an uninterruptible kernel operation can still outlive refusal. */
+  for (unsigned attempt = 0; attempt < 500; attempt++) {
+    int status;
+    pid_t observed = waitpid(relay->child, &status, WNOHANG);
+    if (observed == relay->child) { relay->child = -1; return; }
+    if (observed < 0 && errno != EINTR) return;
+    struct timespec pause = {.tv_nsec = 1000000};
+    nanosleep(&pause, NULL);
+  }
+}
+static int remaining_cleanup_ms(long long started) {
+  long long now = read_clock();
+  if (started < 0 || now < 0 || now - started >= 500) return -1;
+  return (int)(500 - (now - started));
+}
 static void reap_client(struct Relay *relay) {
   if (relay->child <= 0) return;
   if (relay->failure != NULL && kill(relay->child, SIGKILL) != 0 && errno != ESRCH) refuse_relay(relay, "cleanup");
@@ -195,11 +214,11 @@ static void reap_client(struct Relay *relay) {
       if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) refuse_relay(relay, "child-exit");
       return;
     }
-    if (observed < 0 || read_clock() - started > 500) {
-      if (kill(relay->child, SIGKILL) != 0 && errno != ESRCH) refuse_relay(relay, "cleanup");
-      refuse_relay(relay, "cleanup");
-      return;
-    }
+    /* Proof: omitting the cleanup budget check leaves the EOF-complete child
+     * observable after the watchdog in both "cleanup clock read 1/2 failure"
+     * fixtures, with persistent clock failure injected only during cleanup. */
+    if (remaining_cleanup_ms(started) < 0) { terminate_client(relay); return; }
+    if (observed < 0) { terminate_client(relay); return; }
     struct timespec pause = {.tv_nsec = 1000000};
     nanosleep(&pause, NULL);
   }
