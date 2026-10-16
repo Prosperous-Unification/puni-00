@@ -125,6 +125,55 @@ async function seedEveryBarColour(page: Page): Promise<void> {
 }
 
 /**
+ * A plan of three rows whose steps share one scheduled instant, the shape of
+ * `010.3.06` and `010.3.08` in the PUNI plan (ui-review F-101): `010` with only
+ * its last step estimated, short, and `020` with no step estimated at all;
+ * and `030`, whose last step is estimated at ten days and so runs far past
+ * its unestimated first step's assumed span (F-138).
+ * Unknown slices take no schedule time, so `010`'s unestimated first step and
+ * its short estimated one start at one instant and are drawn in lanes.
+ */
+async function seedSharedInstants(page: Page): Promise<void> {
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
+  await createProject(page, 'Shared instants');
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('wbs.project'))).not.toBeNull();
+  const projectId = await page.evaluate(() => localStorage.getItem('wbs.project'));
+  if (projectId === null) throw new Error('no project id after creating the plan');
+  await jsonSend(page, 'PATCH', `/api/projects/${projectId}`, { startDate: PLAN_START });
+  const plan = await page.evaluate(async (id) => {
+    const response = await fetch(`/api/projects/${id}/work-items`);
+    return response.json() as Promise<{ steps: { id: string; name: string }[] }>;
+  }, projectId);
+  const last = plan.steps.at(-1);
+  if (last === undefined || plan.steps.length < 2) {
+    throw new Error('a new project has fewer than two steps');
+  }
+  await jsonSend(page, 'POST', `/api/projects/${projectId}/commands`, {
+    commands: [
+      { kind: 'createWorkItem', ref: 'pile', parentId: null, afterId: null, name: 'Row pile' },
+      { kind: 'createWorkItem', ref: 'ghost', parentId: null, afterRef: 'pile', name: 'Row ghost' },
+      { kind: 'createWorkItem', ref: 'long', parentId: null, afterRef: 'ghost', name: 'Row long' },
+      {
+        kind: 'setEstimate',
+        workItemRef: 'long',
+        stepId: last.id,
+        days: { optimistic: 8, realistic: 10, pessimistic: 12 },
+      },
+      {
+        kind: 'setEstimate',
+        workItemRef: 'pile',
+        stepId: last.id,
+        days: { optimistic: 0.25, realistic: 0.5, pessimistic: 1 },
+      },
+    ],
+  });
+  await page.reload();
+  await page.getByRole('button', { name: 'Gantt', exact: true }).click();
+  await expect(page.locator('[data-gantt-bar]').first()).toBeVisible();
+}
+
+/**
  * Every on-bar label's contrast against the bar under it, measured the way
  * `status.spec.ts` measures a glyph: the computed colours composited on a 1×1
  * canvas — the page's own ground, then the bar's fill at its computed
@@ -163,8 +212,12 @@ async function labelContrasts(page: Page): Promise<Record<string, number>> {
     };
     const ratios: Record<string, number> = {};
     const bars = [...document.querySelectorAll('[data-gantt-bar]')];
-    for (const label of document.querySelectorAll<HTMLElement>('[data-gantt-bar-label]')) {
-      const sliceId = label.dataset['ganttBarLabel'] ?? '';
+    // A lane stack's one label is measured over its first bar, under its own
+    // patch of ground (F-101).
+    for (const label of document.querySelectorAll<HTMLElement>(
+      '[data-gantt-bar-label], [data-gantt-stack-label]',
+    )) {
+      const sliceId = label.dataset['ganttBarLabel'] ?? label.dataset['ganttStackLabel'] ?? '';
       // Matched by value rather than by an attribute selector: a slice id is
       // two ids joined by a separator a CSS string does not carry verbatim.
       const bar = bars.find((each) => each.getAttribute('data-gantt-bar') === sliceId);
@@ -306,18 +359,20 @@ test.describe('Gantt legibility (ui-review 2026-10-13)', () => {
 
   test('labels never overlap one another on the chart (F-012)', async ({ page }) => {
     await seedEveryBarColour(page);
-    const boxes = await page.locator('[data-gantt-bar-label]').evaluateAll((labels) =>
-      labels.map((label) => {
-        const box = label.getBoundingClientRect();
-        return {
-          id: label.textContent,
-          left: box.left,
-          right: box.right,
-          top: box.top,
-          bottom: box.bottom,
-        };
-      }),
-    );
+    const boxes = await page
+      .locator('[data-gantt-bar-label], [data-gantt-stack-label]')
+      .evaluateAll((labels) =>
+        labels.map((label) => {
+          const box = label.getBoundingClientRect();
+          return {
+            id: label.textContent,
+            left: box.left,
+            right: box.right,
+            top: box.top,
+            bottom: box.bottom,
+          };
+        }),
+      );
     expect(boxes.length).toBeGreaterThan(10);
     // Proof: on main, whose labels took the whole bar band in every lane,
     // this failed on the `guess` row's two placeholders, `? · 130 · Row guess
@@ -331,6 +386,79 @@ test.describe('Gantt legibility (ui-review 2026-10-13)', () => {
           first.top < second.bottom - 0.5 &&
           second.top < first.bottom - 0.5;
         expect(overlap, `${first.id} over ${second.id}`).toBe(false);
+      }
+    }
+  });
+
+  test('a row whose steps share one instant writes its number once, whole (F-101)', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await seedSharedInstants(page);
+    const labels = await page
+      .locator('[data-gantt-bar-label], [data-gantt-stack-label]')
+      .evaluateAll((found) =>
+        found.map((label) => {
+          // The glyphs' own box, not the label's: what overprinted was ink.
+          const range = document.createRange();
+          range.selectNodeContents(label);
+          const ink = range.getBoundingClientRect();
+          const box = label.getBoundingClientRect();
+          return {
+            text: label.textContent,
+            stack: label.hasAttribute('data-gantt-stack-label'),
+            left: Math.max(ink.left, box.left),
+            right: Math.min(ink.right, box.right),
+            top: Math.max(ink.top, box.top),
+            bottom: Math.min(ink.bottom, box.bottom),
+          };
+        }),
+      );
+    // `010` is one short estimated step beside unestimated ones; `020` is
+    // nobody's estimate at all. Each writes its number once, on its stack.
+    //
+    // Proof: on main, which wrote a label in each lane, this failed on
+    // `labels for 010`, expected length 1, received `["010 · no estimate",
+    // "010"]`; watched 2026-10-16.
+    //
+    // The counts are pinned: the seed is fixed, so a stack that miscounted
+    // must not pass (F-142).
+    for (const [number, words] of [
+      ['010', '010 · 2 steps · 1 no estimate'],
+      ['020', '020 · 2 steps · no estimate'],
+    ] as const) {
+      const own = labels.filter((label) => label.text.startsWith(number));
+      expect(
+        own.map((label) => label.text),
+        `labels for ${number}`,
+      ).toEqual([words]);
+      expect(own[0].stack, `${number} written by its stack`).toBe(true);
+    }
+    // `030`'s ten-day bar keeps its own words past the placeholder, beside
+    // the stack's.
+    //
+    // Proof: on 52cdd2ae5, which gave every laned bar no label, this failed
+    // on `labels for 030`, the received list missing `"bar: 030 · Row
+    // long"` (only the stack's label); watched 2026-10-17.
+    const long = labels.filter((label) => label.text.startsWith('030'));
+    expect(
+      long.map((label) => `${label.stack ? 'stack' : 'bar'}: ${label.text}`).sort(),
+      'labels for 030',
+    ).toEqual(['bar: 030 · Row long', 'stack: 030 · 2 steps · 1 no estimate']);
+    // Every label here, the spilled one on its patch of bar fill included,
+    // clears 4.5:1 on what it sits on.
+    for (const [bar, measured] of Object.entries(await labelContrasts(page))) {
+      expect(measured, `label on ${bar}`).toBeGreaterThanOrEqual(4.5);
+    }
+    // No two labels' ink touches, with a pixel of air on every side.
+    for (const [at, first] of labels.entries()) {
+      for (const second of labels.slice(at + 1)) {
+        const touches =
+          first.left < second.right + 1 &&
+          second.left < first.right + 1 &&
+          first.top < second.bottom + 1 &&
+          second.top < first.bottom + 1;
+        expect(touches, `${first.text} against ${second.text}`).toBe(false);
       }
     }
   });

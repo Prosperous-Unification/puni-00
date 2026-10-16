@@ -7794,6 +7794,49 @@ describe('downloading the chart as a standalone .svg', () => {
     }
   });
 
+  itDom('writes a lane stack’s one label in the file, as the live chart does (F-101)', async () => {
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [rowAt('sand', 3, 6)],
+          slices: [
+            sliceAt('sand-plan', 'sand', 3, 3, { stepId: 'plan', estimated: false, duration: 0 }),
+            sliceAt('sand-dev', 'sand', 3, 6),
+          ],
+          steps: [
+            { id: 'plan', name: 'Plan' },
+            { id: 'dev', name: 'Dev' },
+          ],
+        })}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointed={pointedAtRow(null)}
+      />,
+    );
+    const { blobs } = captureDownloads();
+    clickDownload();
+
+    const doc = new DOMParser().parseFromString(await readBlobText(blobs[0]), 'image/svg+xml');
+    const written = [...doc.documentElement.children]
+      .filter((element) => element.tagName === 'text')
+      .map((element) => element.textContent)
+      // On-bar spelling only, not the label column's `sand - sand`.
+      .filter((words) => words.startsWith('sand ·'));
+    // The Dev bar runs past the placeholder, so it writes its own words there
+    // too (F-138).
+    //
+    // Proof: with the stack loop deleted from `buildStandaloneGanttSvg`, this
+    // failed on `expected [] to deeply equal [ 'sand · 2 steps · 1 no
+    // estimate' ]` (2026-10-16); with the spill ignored in the file, on
+    // `expected [ 'sand · 2 steps · 1 no estimate' ] to deeply equal [ …(2) ]`
+    // (2026-10-17).
+    expect(written.sort()).toEqual(['sand · 2 steps · 1 no estimate', 'sand · sand']);
+  });
+
   itDom(
     'moves the divider, the axis and the chart together for a name that does not fit',
     async () => {

@@ -893,6 +893,53 @@ test.describe('the open project picker, measured by a browser', () => {
     }
   });
 
+  test('every entry’s date is still on screen at 1024 (F-107)', async ({ page }) => {
+    // The date is what tells `Review fixture` from its twin; the owner is the
+    // part that gives way when the list is narrow.
+    await switchToAccountWithAProject(page, signedInAs, LOCAL_USERNAME);
+    await renameSelectedProject(page, 'Review fixture');
+    await page.setViewportSize({ width: 1024, height: 768 });
+    await openPicker(page);
+
+    const metas = await page
+      .getByRole('listbox', { name: 'Projects' })
+      .getByRole('option')
+      .evaluateAll((options) =>
+        options.map((option) => {
+          const meta = option.lastElementChild;
+          const text = meta?.firstChild;
+          if (meta === null || text === null || text === undefined) {
+            throw new Error(`option ${option.textContent} has no meta text`);
+          }
+          const words = text.textContent ?? '';
+          const date = /\d{1,2} [A-Z][a-z]{2}( '\d\d)?/.exec(words);
+          if (date === null) throw new Error(`no date in the meta ${words}`);
+          const range = document.createRange();
+          range.setStart(text, date.index);
+          range.setEnd(text, date.index + date[0].length);
+          const name = option.firstElementChild;
+          if (name === null) throw new Error(`option ${option.textContent} has no name`);
+          return {
+            meta: words,
+            // Names from other tests in this run may be as wide as the list
+            // itself; that is F-086's listbox width, not this meta's order.
+            nameShare: name.getBoundingClientRect().width / option.getBoundingClientRect().width,
+            datePastEdge: Math.round(
+              range.getBoundingClientRect().right - meta.getBoundingClientRect().right,
+            ),
+          };
+        }),
+      );
+    const measured = metas.filter((each) => each.nameShare < 0.5);
+    expect(measured.length, 'no option with a short name to measure').toBeGreaterThan(0);
+    // Proof: on main, whose meta was `(local-dev · 16 Oct)`, this failed on
+    // `the date in (local-dev · 16 Oct) is cut off`, the date's right
+    // edge 33px past the meta's clipped edge; watched 2026-10-16.
+    for (const { meta, datePastEdge } of measured) {
+      expect(datePastEdge, `the date in ${meta} is cut off`).toBeLessThanOrEqual(0);
+    }
+  });
+
   test('a short entry is shown whole', async ({ page }) => {
     // The other side of the claim. Without it, "clipped" would be satisfied by
     // a picker that clips everything — including the two-word names most

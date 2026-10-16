@@ -99,7 +99,7 @@ export const KEY_BINDINGS: readonly KeyBinding[] = [
     renderers: TABLE_ONLY,
   },
   {
-    keys: 'Enter in Prio',
+    keys: 'Enter in Priority',
     does: 'Saves the number and stays on the row, so the dates move while you are still looking at it. Ctrl/⌘ + Enter is the save that also moves on.',
     where: 'Editing',
     // Its own entry rather than a sentence inside the one above, and the

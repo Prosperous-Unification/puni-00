@@ -2467,10 +2467,10 @@ describe('an entry says who owns it and when it was made', () => {
     // By accessible name, not by textContent: the claim is that the two are
     // distinguishable to the accessibility tree, and a meta rendered as a
     // `title` or an adjacent sibling would pass a text assertion and fail this.
-    expect(screen.getByRole('option', { name: `Rewire the shed (kat · ${THIS_JUNE})` }).id).toBe(
+    expect(screen.getByRole('option', { name: `Rewire the shed (${THIS_JUNE} · kat)` }).id).toBe(
       'project-option-p1',
     );
-    expect(screen.getByRole('option', { name: `Rewire the shed (strip · ${THIS_JUNE})` }).id).toBe(
+    expect(screen.getByRole('option', { name: `Rewire the shed (${THIS_JUNE} · strip)` }).id).toBe(
       'project-option-p2',
     );
   });
@@ -2497,8 +2497,8 @@ describe('an entry says who owns it and when it was made', () => {
     // `'27` and not `2027`: the off-year is two digits since 2026-09-13.
     const nextYear = `'${String((new Date().getFullYear() + 1) % 100).padStart(2, '0')}`;
     expect(optionNames()).toEqual([
-      `This year (kat · ${THIS_JUNE})`,
-      `Next year (kat · ${THIS_JUNE} ${nextYear})`,
+      `This year (${THIS_JUNE} · kat)`,
+      `Next year (${THIS_JUNE} ${nextYear} · kat)`,
     ]);
   });
 });
@@ -2512,14 +2512,14 @@ describe('the picker searches', () => {
     openPicker();
     await waitFor(() => {
       expect(optionNames()).toEqual([
-        `Rewire the shed (kat · ${THIS_JUNE})`,
-        `Paint the fence (strip · ${THIS_JUNE})`,
+        `Rewire the shed (${THIS_JUNE} · kat)`,
+        `Paint the fence (${THIS_JUNE} · strip)`,
       ]);
     });
 
     fireEvent.change(picker(), { target: { value: 'FENCE' } });
 
-    expect(optionNames()).toEqual([`Paint the fence (strip · ${THIS_JUNE})`]);
+    expect(optionNames()).toEqual([`Paint the fence (${THIS_JUNE} · strip)`]);
   });
 
   itDom('matches the name alone — an owner’s username offers nothing', async () => {
@@ -2596,8 +2596,8 @@ describe('the picker searches', () => {
 
     await waitFor(() => {
       expect(optionNames()).toEqual([
-        `Paint the fence (strip · ${THIS_JUNE})`,
-        `Rewire the shed (kat · ${THIS_JUNE})`,
+        `Paint the fence (${THIS_JUNE} · strip)`,
+        `Rewire the shed (${THIS_JUNE} · kat)`,
       ]);
     });
   });
@@ -3249,7 +3249,7 @@ describe('a pick leaves the picker at rest', () => {
     // commit that opened the list.
     expect(picker().readOnly).toBe(false);
     fireEvent.change(picker(), { target: { value: 'FENCE' } });
-    expect(offered()).toEqual([`Paint the fence (strip · ${THIS_JUNE})`]);
+    expect(offered()).toEqual([`Paint the fence (${THIS_JUNE} · strip)`]);
     expect(picker().value).toBe('FENCE');
   });
 });
@@ -3390,7 +3390,7 @@ describe('a new project opens with its name ready to be typed', () => {
     fireEvent.keyDown(screen.getByLabelText('Project name'), { key: 'Escape' });
     openPicker();
     await waitFor(() => {
-      expect(optionNames()).toContain(`Paint the fence (strip · ${THIS_JUNE})`);
+      expect(optionNames()).toContain(`Paint the fence (${THIS_JUNE} · strip)`);
     });
   });
 
@@ -3413,7 +3413,7 @@ describe('a new project opens with its name ready to be typed', () => {
     expect(picker().value).toBe('New project');
     openPicker();
     await waitFor(() => {
-      expect(optionNames()).toContain(`New project (kat · ${THIS_JUNE})`);
+      expect(optionNames()).toContain(`New project (${THIS_JUNE} · kat)`);
     });
   });
 });

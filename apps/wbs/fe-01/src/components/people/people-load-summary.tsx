@@ -2,7 +2,9 @@ import { Link } from '@tanstack/react-router';
 import { type ClientReply, readOrganizationLoad } from '@wbs/contracts';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 
+import { LINK_CLASS } from '@/components/spaces/space-chrome';
 import { failureMessage, unreachable } from '@/lib/http';
+import { cn } from '@/lib/utils';
 import type { DirectoryManagement } from '@/modules/directory-management/contract';
 import { useResourceClient } from '@/runtime/organization-resources';
 
@@ -167,7 +169,13 @@ export function PersonLoadSummary({
         // more cases in `people-load-summary.test.tsx` find no such link;
         // watched 2026-09-29.
         aria-label={`Load of ${personName}: ${line}`}
-        className="underline"
+        // The app's link ink at the line's own weight: a bare `underline`
+        // left the anchor the user agent's link blue, `rgb(0, 0, 238)` light
+        // and `rgb(158, 158, 255)` dark (ui-review F-102).
+        // Proof: `className="underline"` put back, and `are the palette’s
+        // ink, not the browser’s link blue` (`directory.spec.ts`) failed in
+        // both schemes on those two colours; watched 2026-10-16.
+        className={cn(LINK_CLASS, 'font-normal')}
       >
         {line}
       </Link>
