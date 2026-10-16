@@ -1,0 +1,32 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-memory/src/memory-source.test.ts:
+117 |     expect(await scope.stores.blockages.set(fact, stamp)).toBe('written');
+118 |     expect(await scope.stores.blockages.listByProject('p1')).toEqual([fact]);
+119 |     return { commit: true, value: undefined };
+120 |   });
+121 |   // Proof: omitting MemoryState's blockage-table copy left this read empty; watched 2026-10-13.
+122 |   expect(await source.stores.blockages.listByProject('p1')).toEqual([fact]);
+                                                                  ^
+error: expect(received).toEqual(expected)
+
+- [
+-   {
+-     "blockedAt": 123,
+-     "stepId": "st-1",
+-     "workItemId": "wi-blocked",
+-   },
+- ]
++ []
+
+- Expected  - 7
++ Received  + 1
+
+      at <anonymous> (/tmp/wbs-memory-stores-sol/libs/wbs/adapters/store-memory/src/memory-source.test.ts:122:61)
+(fail) commits and rolls back project-seeded blockage facts and cascades removed owners [7.93ms]
+
+ 0 pass
+ 14 filtered out
+ 1 fail
+ 6 expect() calls
+Ran 1 test across 1 file. [1.60s]

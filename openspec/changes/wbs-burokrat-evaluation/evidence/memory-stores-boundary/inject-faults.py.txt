@@ -1,0 +1,29 @@
+from pathlib import Path
+import subprocess,json
+root=Path.cwd(); production=root/'libs/wbs/adapters/store-memory/src/memory-stores.ts'; clean=production.read_text(); evidence=root/'openspec/changes/wbs-burokrat-evaluation/evidence/memory-stores-boundary'
+owner='./libs/wbs/adapters/store-memory/src/memory-source.test.ts'; conformance='./libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts'
+faults=[
+('clone-alias','return new MemoryState(structuredClone(this.tables));','return new MemoryState(this.tables);',owner,'discards refused state'),
+('typed-copy','    replaceArray(this.tables.typedDependencies.rows, next.tables.typedDependencies.rows);','',owner,'commits all mixed-store'),
+('allowance-copy','    replaceMap(this.tables.projects.allowanceRevisions, next.tables.projects.allowanceRevisions);','', './libs/wbs/application/core/src/module/plan-commands/module.test.ts','undoes an allowance edit committed'),
+('blockage-copy','    replaceArray(this.tables.blockages.rows, next.tables.blockages.rows);','',owner,'commits and rolls back project-seeded'),
+('detached-wrapper','return detachedStores(stores);','return stores;',owner,'returns detached values'),
+('tag-projects','return { ...written, projectIds };','return { ...written, projectIds: [] };',conformance,'Task 6.4 observes outside-epoch'),
+('satellite-cascade','      removeSatelliteRows(state.tables.blockages.rows);','',owner,'commits and rolls back project-seeded'),
+('journal-forward',"      lateWrite.reach('journal-history-insert', { journalEventIds });",'',conformance,'runs every Task 5.1 journal'),
+('estimate-cascade','      removeSatelliteRows(state.tables.estimates.rows);','', './libs/wbs/application/core/src/module/plan-commands/plan-commands.test.ts','refreshes every delete-last-child hand-up'),
+('subtree-forward',"        lateWrite.reach('subtree-final-satellite', { satelliteKeys });",'',conformance,'runs every subtree case'),
+]
+observations=[]
+try:
+ for name,needle,replacement,suite,focus in faults:
+  if clean.count(needle)!=1: raise RuntimeError(name+' ambiguous fault')
+  production.write_text(clean.replace(needle,replacement))
+  command=['bun','test',suite,'--test-name-pattern',focus,'--timeout=10000']
+  run=subprocess.run(command,cwd=root,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+  (evidence/(name+'.log')).write_text(run.stdout)
+  observations.append({'fault':name,'argv':command,'exitCode':run.returncode,'observedFailure':run.returncode!=0})
+  print(name,run.returncode,run.stdout[-210:],flush=True)
+finally: production.write_text(clean)
+(evidence/'faults.json').write_text(json.dumps(observations,indent=2)+'\n')
+if not all(x['observedFailure'] for x in observations): raise RuntimeError('fault escaped')

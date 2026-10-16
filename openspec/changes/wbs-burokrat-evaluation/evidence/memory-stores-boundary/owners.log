@@ -1,0 +1,49 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-memory/src/memory-source.test.ts:
+(pass) refuses scoped saved-plan writes without a transactional membership source [6.26ms]
+(pass) commits and rolls back project-seeded blockage facts and cascades removed owners [2.74ms]
+(pass) the staged memory source > saves committed capture and independent history while a batch commits [4.96ms]
+(pass) the staged memory source > saves committed capture and independent history while a batch refuses [0.61ms]
+(pass) the staged memory source > serializes competing saved-plan quota checks independently of command batches [0.84ms]
+(pass) the staged memory source > commits all mixed-store writes together [0.77ms]
+(pass) the staged memory source > queues public writes behind a held batch [20.82ms]
+(pass) the staged memory source > discards refused state and gives the next batch a fresh scope [0.98ms]
+(pass) the staged memory source > returns detached values from every public storage shape [3.67ms]
+(pass) the staged memory source > returns detached values from every admitted storage shape [0.94ms]
+(pass) the staged memory source > binds subtree writes and public dependency reads to one table [0.86ms]
+(pass) the staged memory source > refuses a missing independent-history route without deleting real history [0.34ms]
+(pass) the staged memory source > refuses saved-plan persistence mutations without their exact target state [0.43ms]
+(pass) refuses an attempt start at a node stated done [0.28ms]
+(pass) captures direct blockage detached from later memory writes [0.88ms]
+
+libs/wbs/adapters/store-memory/src/source-conformance.test.ts:
+(pass) the in-memory unit of work > (a) makes none of a refused batch observable [0.79ms]
+(pass) the in-memory unit of work > (b) makes none of a batch that threw observable, and rethrows [0.53ms]
+(pass) the in-memory unit of work > (c) makes all of a committed batch observable [0.39ms]
+(pass) the in-memory unit of work > (h) lets a scope store write without waiting for the turn its batch holds [0.29ms]
+(pass) the in-memory unit of work > (k) runs the repair after the rollback, over the surviving state [0.39ms]
+(pass) the in-memory unit of work > (k) lets a failing repair surface as itself, with no second rollback [0.56ms]
+
+libs/wbs/adapters/store-memory/src/targeted-readers.test.ts:
+(pass) targeted memory readers reject malformed trusted state > names a missing work-item reference in all four satellite families [0.71ms]
+(pass) targeted memory readers reject malformed trusted state > filters a valid cross-project work-item in all four satellite families [0.32ms]
+(pass) targeted memory readers reject malformed trusted state > names a cross-project step in all four satellite families [0.32ms]
+(pass) targeted memory readers reject malformed trusted state > names a missing step in all four satellite families [0.35ms]
+(pass) targeted memory readers reject malformed trusted state > rejects invalid values and timestamps in each satellite shape [0.73ms]
+
+libs/wbs/adapters/store-memory/src/step-blockage-fixture.test.ts:
+(pass) keeps pair-keyed sparse facts ordered and preserves original timestamps on moves [0.64ms]
+(pass) refuses missing steps, malformed timestamps and parent owners [0.29ms]
+(pass) refuses cross-project steps, corrupted read facts and invalid transfer destinations [0.25ms]
+(pass) refuses duplicate transfers atomically and reads parent-owned corruption loudly [0.33ms]
+
+libs/wbs/adapters/store-memory/src/typed-dependency-fixture.test.ts:
+(pass) refuses duplicate ids and endpoint keys [0.20ms]
+(pass) refuses updates and removals of unknown ids [0.15ms]
+(pass) removes and returns links touching the doomed set [0.14ms]
+
+ 33 pass
+ 0 fail
+ 267 expect() calls
+Ran 33 tests across 5 files. [1.61s]
