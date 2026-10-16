@@ -92,6 +92,7 @@ export const PICKER_PANEL_STYLE = {
   overflowY: 'auto',
 } as const satisfies CSSProperties;
 
+/** Directory options scroll to the active row; bottom sheets wrap names within the search width. */
 export function PickerList({
   id,
   label,
@@ -166,7 +167,6 @@ export function PickerList({
             style={{
               padding: '2px 6px',
               cursor: 'pointer',
-              whiteSpace: 'nowrap',
               background: active ? 'var(--accent)' : undefined,
             }}
             onClick={option.take}

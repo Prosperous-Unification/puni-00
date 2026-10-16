@@ -48,6 +48,9 @@ export const WORK_ITEM_FIELD_GROUPS = {
     'blockageCauses',
   ],
   constraints: [
+    // Proof: removal failed both mounted constraints-page parity assertions
+    // while the outline still omitted the field; watched 2026-10-15.
+    'nodeResources',
     'position',
     'frozenNumber',
     'startNoEarlierThan',

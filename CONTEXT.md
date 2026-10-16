@@ -268,6 +268,12 @@ _Avoid_: queue, execution state, readiness
 A grouping across board columns, independent of the progress each column names.
 _Avoid_: status, column
 
+**Node resources**:
+
+The effective person, teams and parallel width of one leaf step. A person is explicit,
+assumed from the leaf's sole assignment, or unassigned. Teams are the nearest stated
+whole set, with each team's stated project capacity or no capacity statement.
+
 **Step node ID**:
 A step node's stable identity: a versioned encoding of its work item's ID and its step's
 ID. Unchanged by renumbering, reparenting while it stays a leaf, step rename or step

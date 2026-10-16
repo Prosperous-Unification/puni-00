@@ -827,26 +827,32 @@ isolatedTest(
     try {
       for (let attempt = 0; attempt < 30; attempt += 1) {
         const owner = createPerformanceProcessOwner();
+        // Proof: delaying the PID write after creating the final marker made this test
+        // read an empty string as PID zero. Rename keeps that delay before publication.
+        let adoptedPid = 0;
         const runner = owner.spawn(
           [
             process.execPath,
             '--eval',
-            `const child = Bun.spawn(['setsid', 'sleep', '30'], {stdout:'ignore',stderr:'ignore'}); await Bun.write(${JSON.stringify(marker)}, String(child.pid)); await Bun.sleep(30000);`,
+            `import { rename } from 'node:fs/promises'; const child = Bun.spawn(['setsid', 'sleep', '30'], {stdout:'ignore',stderr:'ignore'}); await Bun.write(${JSON.stringify(`${marker}.pending`)}, ''); if (${String(attempt === 0)}) await Bun.sleep(50); await Bun.write(${JSON.stringify(`${marker}.pending`)}, String(child.pid)); await rename(${JSON.stringify(`${marker}.pending`)}, ${JSON.stringify(marker)}); await Bun.sleep(30000);`,
           ],
           process.cwd(),
           { PATH: process.env['PATH'] ?? '/usr/bin:/bin' },
         );
-        for (let poll = 0; poll < 100 && !(await Bun.file(marker).exists()); poll += 1)
-          await Bun.sleep(10);
-        const adoptedPid = Number((await readFile(marker, 'utf8')).trim());
-        expect(adoptedPid).toBeGreaterThan(0);
-        await owner.stop();
+        try {
+          for (let poll = 0; poll < 100 && !(await Bun.file(marker).exists()); poll += 1)
+            await Bun.sleep(10);
+          adoptedPid = Number((await readFile(marker, 'utf8')).trim());
+          expect(adoptedPid).toBeGreaterThan(0);
+        } finally {
+          await owner.stop();
+        }
         expect(await runner.exited).not.toBeNull();
         expect(await Bun.file(`/proc/${String(adoptedPid)}/stat`).exists()).toBe(false);
         await rm(marker, { force: true });
       }
     } finally {
-      await rm(marker, { force: true });
+      await Promise.all([rm(marker, { force: true }), rm(`${marker}.pending`, { force: true })]);
     }
   },
   30_000,

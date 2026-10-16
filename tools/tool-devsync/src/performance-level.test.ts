@@ -496,7 +496,9 @@ async function isServiceReady(port: number): Promise<boolean> {
       resolve(response.statusCode === 200);
     });
     request.once('error', (cause: NodeJS.ErrnoException) => {
-      if (cause.code === 'ECONNREFUSED') resolve(false);
+      // Proof: the real TCP disconnect fixture failed with ECONNRESET before this branch
+      // modeled startup resets as not ready; other request failures still reject.
+      if (cause.code === 'ECONNREFUSED' || cause.code === 'ECONNRESET') resolve(false);
       else reject(cause);
     });
     request.setTimeout(750, () => {
@@ -504,6 +506,27 @@ async function isServiceReady(port: number): Promise<boolean> {
     });
   });
 }
+
+it('readiness observation treats a fixture connection reset as not ready', async () => {
+  const listener = createServer((socket) => socket.destroy());
+  await new Promise<void>((resolve, reject) => {
+    listener.once('error', reject);
+    listener.listen(0, '127.0.0.1', resolve);
+  });
+  try {
+    const address = listener.address();
+    if (address === null || typeof address === 'string')
+      throw new Error('Readiness reset fixture has no TCP address');
+    expect(await isServiceReady(address.port)).toBe(false);
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      listener.close((cause) => {
+        if (cause === undefined) resolve();
+        else reject(cause);
+      });
+    });
+  }
+});
 
 async function isPortFree(port: number): Promise<boolean> {
   const probe = createServer();

@@ -1,4 +1,4 @@
-import type { EventLogStore, RecordedEvent } from '@wbs/core';
+import type { EventLogStore, RecordedEvent } from '@wbs/core/ports/event-log-store';
 import { sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
@@ -38,7 +38,7 @@ export interface EventLogTransactionalWrite {
  * same history. Replay and retention read and prune through the public, gated
  * copy.
  */
-export type { EventLogStore, RecordedEvent } from '@wbs/core';
+export type { EventLogStore, RecordedEvent } from '@wbs/core/ports/event-log-store';
 
 export class DrizzleEventLogStore implements EventLogStore, EventLogTransactionalWrite {
   constructor(
