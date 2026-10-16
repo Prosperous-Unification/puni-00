@@ -10,4 +10,4 @@
 - [ ] 2.1 Evaluate base and exact committed candidate with the identified installed evaluator and unchanged policy; require exactly the selected hover-card F7 finding removed and prove the assertion fails with the oversized file restored in a disposable commit.
 - [ ] 2.2 Run serial hosted full surveys with all rules; compare every unrelated finding and unevaluated outcome without changing policy.
 - [ ] 2.3 Run hosted browser regressions and the required immutable-commit gate; keep WBS100 `blocked_by_proxy` without certification or closure.
-- [ ] 2.4 Obtain PM source diff review before push; push the reviewed branch and open a draft PR based on the pushed wave 9 integration branch.
+- [x] 2.4 Obtain PM source diff review before push; push the reviewed branch and open a draft PR based on the pushed wave 9 integration branch.

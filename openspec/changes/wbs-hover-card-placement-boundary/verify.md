@@ -94,9 +94,17 @@ Burokrat survey was run on the RAM-constrained laptop.
 ## Completeness and integration
 
 The extraction and local fixed-output/identity proofs are implemented. Hosted
-committed F7 proof, full survey preservation, browser/gate and reviewed push/PR
+committed F7 proof, full survey preservation and browser/gate
 remain unchecked in `tasks.md`, blocking archive. The delta spec is not synced.
 No separate design or ADR is needed for this bounded reversible extraction;
-no new domain terms were introduced. PM source diff review was requested before
-push. Implementation commit identity will be recorded by the integration lane.
+no new domain terms were introduced. PM reviewed the final source diff and packet before the normal-hook commit and
+guarded push. Implementation commit:
+`edf1fdb2b37b28a5d7523de7bf438a9194c5c7d6`, tree
+`b3d946c56e8d661aaea62bcc4daf1f6dc58f91b9`. Draft
+[PR #542](https://github.com/Prosperous-Unification/puni-00/pull/542) targets
+`integration/wbs-wave9-20261016`, whose remote head was freshly verified as the
+wave 9 base before publication. All normal commit hooks ran successfully;
+module-boundary lint remained skipped without a cached graph, and tool-wiki
+admission reported inactive because no external activation root was provisioned.
+This documentation follow-up records publication without claiming hosted proof.
 WBS100 remains `blocked_by_proxy`; this packet claims no certification or closure.
