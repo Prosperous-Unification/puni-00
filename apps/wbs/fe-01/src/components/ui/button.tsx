@@ -29,9 +29,14 @@ import { cn } from '@/lib/utils';
  * the neutralising happens per component. Watched: without it the `link`
  * variant's "Have an account? Register" rendered inside the platform's grey
  * button box, on the signed-out page, 2026-08-09. `tailwind-merge` is what lets
- * the `outline` variant put its 1px border straight back.
+ * the `outline` variant put its 1px border straight back — which is why every
+ * caller goes through {@link buttonVariants}, never this table raw.
+ *
+ * The `outline` edge is `--control-edge`, not `--input`: a control whose only
+ * cue is its boundary needs 3:1 against what it stands on (WCAG 1.4.11), and
+ * `--input` measured 1.2:1 on white (UI review F-124).
  */
-export const buttonVariants = cva(
+const buttonClasses = cva(
   'inline-flex shrink-0 items-center justify-center gap-2 border-0 bg-transparent rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50',
   {
     variants: {
@@ -39,7 +44,7 @@ export const buttonVariants = cva(
         default: 'bg-primary text-primary-foreground shadow-sm hover:bg-primary/90',
         destructive: 'bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90',
         outline:
-          'border-input bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm',
+          'border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm',
         secondary: 'bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80',
         ghost: 'hover:bg-accent hover:text-accent-foreground',
         link: 'text-primary underline-offset-4 hover:underline',
@@ -56,6 +61,28 @@ export const buttonVariants = cva(
 );
 
 /**
+ * The classes for one button shape, merged: the base's `border-0
+ * bg-transparent` give way to the variant's `border bg-background`, and a
+ * caller's `className` to both.
+ *
+ * Merged here and not by each caller, because `cva` **appends** without
+ * merging and the stylesheet's order then picks the winner. An element that
+ * took `buttonVariants({ variant: 'outline' })` raw — the sign-in page's
+ * Continue with SSO link, the toolbar's Freeze # trigger — carried both
+ * `border-0` and `border`, and the zero won: no edge at all, 1.08:1 light and
+ * 1.01:1 dark against the card (UI review F-124). Merging twice through `cn`
+ * is harmless.
+ *
+ * Proof: `e2e/control-edge.spec.ts` `outline controls paint a 3:1 edge` failed
+ * on `Continue with SSO: outside · Expected: >= 3 · Received: 1.08…` (light)
+ * and `1.01…` (dark) while this returned `buttonClasses(props)` unmerged.
+ * Watched 2026-10-16.
+ */
+export function buttonVariants(props?: Parameters<typeof buttonClasses>[0]): string {
+  return cn(buttonClasses(props));
+}
+
+/**
  * The classes that lay a `ghost` button out as one row of a menu: the full
  * width of the panel, its words from the left edge, at body weight. One
  * constant so the Export / Import menu and its Import with AI trigger read as
@@ -63,13 +90,13 @@ export const buttonVariants = cva(
  */
 export const MENU_ITEM = 'w-full justify-start font-normal';
 
-export type ButtonVariant = NonNullable<VariantProps<typeof buttonVariants>['variant']>;
-export type ButtonSize = NonNullable<VariantProps<typeof buttonVariants>['size']>;
+export type ButtonVariant = NonNullable<VariantProps<typeof buttonClasses>['variant']>;
+export type ButtonSize = NonNullable<VariantProps<typeof buttonClasses>['size']>;
 
 export interface ButtonProps
   extends
     ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof buttonVariants>,
+    VariantProps<typeof buttonClasses>,
     Hintable,
     Factable {}
 
