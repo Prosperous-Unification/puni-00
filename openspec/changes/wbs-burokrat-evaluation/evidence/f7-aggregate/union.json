@@ -1,0 +1,165 @@
+{
+  "base": "87a2b7edbfaabae889d91daa823f16f520a51cec",
+  "head": "a0d8212575cdc04dc6414c14012e2a0a1efa1d28",
+  "tree": "2c5fc48ef5ab50f6e678b7b76cf0d246cec128cb",
+  "changed_paths": 39,
+  "exact_mode_blob_union": true,
+  "sources": [
+    {
+      "source": "4486df76748ca9eb8ddebbf6852436fc4e08f647",
+      "entry": "100644 blob 9a2ba6a17d16a19a84c513c8de51388320441bdd\tlibs/wbs/adapters/store-sqlite/src/cached-outcome.ts"
+    },
+    {
+      "source": "4486df76748ca9eb8ddebbf6852436fc4e08f647",
+      "entry": "100644 blob 9bebc79394cea27d0bf7094f13b9ce73edde1619\tlibs/wbs/adapters/store-sqlite/src/captured-optimization-reader.db.test.ts"
+    },
+    {
+      "source": "4486df76748ca9eb8ddebbf6852436fc4e08f647",
+      "entry": "100644 blob 9c418c244c5e83d5528aad170dec188e4b54ad46\tlibs/wbs/adapters/store-sqlite/src/optimized-cache.db.test.ts"
+    },
+    {
+      "source": "4486df76748ca9eb8ddebbf6852436fc4e08f647",
+      "entry": "100644 blob 8b44acfe77edc3badbb1d1076d5de749222feb82\tlibs/wbs/adapters/store-sqlite/src/optimized-schedule-cache.ts"
+    },
+    {
+      "source": "4486df76748ca9eb8ddebbf6852436fc4e08f647",
+      "entry": "100644 blob 51c9b8e438a176fa1b505cfce330a7e4514540e5\topenspec/changes/wbs-burokrat-evaluation/evidence/cache-outcome-boundary/intent.md"
+    },
+    {
+      "source": "4486df76748ca9eb8ddebbf6852436fc4e08f647",
+      "entry": "100644 blob e87d5873899738afe295531317034b4db0f678ec\topenspec/changes/wbs-burokrat-evaluation/evidence/cache-outcome-boundary/verify.md"
+    },
+    {
+      "source": "240b72d87789ee793e94c0c85612819605024382",
+      "entry": "100644 blob 4593dc9bfadb25e1d523c1867b9b5d0bda582361\tlibs/wbs/adapters/store-memory/src/memory-stores.ts"
+    },
+    {
+      "source": "240b72d87789ee793e94c0c85612819605024382",
+      "entry": "100644 blob 4ca880c9a96a1f38d08713f7682db8e002d529b7\tlibs/wbs/adapters/store-memory/src/source.ts"
+    },
+    {
+      "source": "240b72d87789ee793e94c0c85612819605024382",
+      "entry": "100644 blob 9791521c5215293af942df8e612a8ebc13dc1067\topenspec/changes/wbs-burokrat-evaluation/evidence/memory-stores-boundary/allowance-copy.log"
+    },
+    {
+      "source": "240b72d87789ee793e94c0c85612819605024382",
+      "entry": "100644 blob 880d1005460a76693ef282638c6391fc3f3a1525\topenspec/changes/wbs-burokrat-evaluation/evidence/memory-stores-boundary/allowance-restored.log"
+    },
+    {
+      "source": "240b72d87789ee793e94c0c85612819605024382",
+      "entry": "100644 blob 6f844ba2f516113f84705285273dce64f9a30093\topenspec/changes/wbs-burokrat-evaluation/evidence/memory-stores-boundary/baseline.log"
+    },
+    {
+      "source": "240b72d87789ee793e94c0c85612819605024382",
+      "entry": "100644 blob ca2c480f95b8b7a2609fe3d2fadb2e61c9210a30\topenspec/changes/wbs-burokrat-evaluation/evidence/memory-stores-boundary/blockage-copy.log"
+    },
+    {
+      "source": "240b72d87789ee793e94c0c85612819605024382",
+      "entry": "100644 blob d3af293689bd93ad7ab2cb0c4383d1c8689adf0b\topenspec/changes/wbs-burokrat-evaluation/evidence/memory-stores-boundary/cascade-restored.log"
+    },
+    {
+      "source": "240b72d87789ee793e94c0c85612819605024382",
+      "entry": "100644 blob 86beabec22c8b27741bcf521d8b4d6cab71d2bd0\topenspec/changes/wbs-burokrat-evaluation/evidence/memory-stores-boundary/check-declarations.mjs.txt"
+    },
+    {
+      "source": "240b72d87789ee793e94c0c85612819605024382",
+      "entry": "100644 blob f45b00e4426477fd2781e9ca489ecd1340d47154\topenspec/changes/wbs-burokrat-evaluation/evidence/memory-stores-boundary/clone-alias.log"
+    },
+    {
+      "source": "240b72d87789ee793e94c0c85612819605024382",
+      "entry": "100644 blob a86a198ffe6127e993d4b7083468ccfd7e08bcad\topenspec/changes/wbs-burokrat-evaluation/evidence/memory-stores-boundary/conformance.log"
+    },
+    {
+      "source": "240b72d87789ee793e94c0c85612819605024382",
+      "entry": "100644 blob 9434a2809eef3c1ac35da1ed2c59bb8f6784d2df\topenspec/changes/wbs-burokrat-evaluation/evidence/memory-stores-boundary/declarations.json"
+    },
+    {
+      "source": "240b72d87789ee793e94c0c85612819605024382",
+      "entry": "100644 blob 2ff046933f1099f424034e9e0a2f20a212f1eacd\topenspec/changes/wbs-burokrat-evaluation/evidence/memory-stores-boundary/detached-wrapper.log"
+    },
+    {
+      "source": "240b72d87789ee793e94c0c85612819605024382",
+      "entry": "100644 blob 4c76a4a7a9729aa31b6830adb4e6fff48e607e57\topenspec/changes/wbs-burokrat-evaluation/evidence/memory-stores-boundary/estimate-cascade.log"
+    },
+    {
+      "source": "240b72d87789ee793e94c0c85612819605024382",
+      "entry": "100644 blob 5f66ee840f320ddc05f5262ccb0b43d01b7510d6\topenspec/changes/wbs-burokrat-evaluation/evidence/memory-stores-boundary/faults.json"
+    },
+    {
+      "source": "240b72d87789ee793e94c0c85612819605024382",
+      "entry": "100644 blob 4aa0d16e7a0ff5c16269bf45771cebe89cc2e81d\topenspec/changes/wbs-burokrat-evaluation/evidence/memory-stores-boundary/format.log"
+    },
+    {
+      "source": "240b72d87789ee793e94c0c85612819605024382",
+      "entry": "100644 blob d77d37be63ec77ef4a9810aecf1e50033e2ea0da\topenspec/changes/wbs-burokrat-evaluation/evidence/memory-stores-boundary/inject-faults.py.txt"
+    },
+    {
+      "source": "240b72d87789ee793e94c0c85612819605024382",
+      "entry": "100644 blob 22566e6abc1300319203d2c79d5ea8c29544d604\topenspec/changes/wbs-burokrat-evaluation/evidence/memory-stores-boundary/intent.md"
+    },
+    {
+      "source": "240b72d87789ee793e94c0c85612819605024382",
+      "entry": "100644 blob b9d0462db0d3daaa06f09bd8c8efab3e3a9b5c58\topenspec/changes/wbs-burokrat-evaluation/evidence/memory-stores-boundary/journal-forward.log"
+    },
+    {
+      "source": "240b72d87789ee793e94c0c85612819605024382",
+      "entry": "100644 blob a540fb3327d10c9e09b28acb2a433c77392bb6d4\topenspec/changes/wbs-burokrat-evaluation/evidence/memory-stores-boundary/lint.log"
+    },
+    {
+      "source": "240b72d87789ee793e94c0c85612819605024382",
+      "entry": "100644 blob 2db74ac3752880d276b799d28a64b85ec85e93bb\topenspec/changes/wbs-burokrat-evaluation/evidence/memory-stores-boundary/normal-hooks.log"
+    },
+    {
+      "source": "240b72d87789ee793e94c0c85612819605024382",
+      "entry": "100644 blob 8303542250b71471250ac6ca3f6365a939025b9d\topenspec/changes/wbs-burokrat-evaluation/evidence/memory-stores-boundary/owners.log"
+    },
+    {
+      "source": "240b72d87789ee793e94c0c85612819605024382",
+      "entry": "100644 blob 45a69dd6db4fe5bf886317c300e8eb55ac4fe812\topenspec/changes/wbs-burokrat-evaluation/evidence/memory-stores-boundary/satellite-cascade.log"
+    },
+    {
+      "source": "240b72d87789ee793e94c0c85612819605024382",
+      "entry": "100644 blob 9aaf9c0ce8eed7f9283d103e5b81ffbd4065a3d1\topenspec/changes/wbs-burokrat-evaluation/evidence/memory-stores-boundary/subtree-forward.log"
+    },
+    {
+      "source": "240b72d87789ee793e94c0c85612819605024382",
+      "entry": "100644 blob 71f4a585f3c1cbf295f68b6645589206f9741c98\topenspec/changes/wbs-burokrat-evaluation/evidence/memory-stores-boundary/tag-projects.log"
+    },
+    {
+      "source": "240b72d87789ee793e94c0c85612819605024382",
+      "entry": "100644 blob e69de29bb2d1d6434b8b29ae775ad8c2e48c5391\topenspec/changes/wbs-burokrat-evaluation/evidence/memory-stores-boundary/typecheck.log"
+    },
+    {
+      "source": "240b72d87789ee793e94c0c85612819605024382",
+      "entry": "100644 blob 31d377a5fa50fd55120f36b94447a578392d281e\topenspec/changes/wbs-burokrat-evaluation/evidence/memory-stores-boundary/typed-copy.log"
+    },
+    {
+      "source": "240b72d87789ee793e94c0c85612819605024382",
+      "entry": "100644 blob e22199873c8e78f8d363203707792035d142a3d7\topenspec/changes/wbs-burokrat-evaluation/evidence/memory-stores-boundary/verify.md"
+    },
+    {
+      "source": "f3f87016de0f4cdc1fa0e6f943894c76753bdcaf",
+      "entry": "100644 blob 2f85737817101349a0ac2bccd756bd18aa43582b\tlibs/wbs/adapters/store-sqlite/src/domain-claim.ts"
+    },
+    {
+      "source": "f3f87016de0f4cdc1fa0e6f943894c76753bdcaf",
+      "entry": "100644 blob e73dd07a1c8ffbe3eae7a668c7db82614caa042a\tlibs/wbs/adapters/store-sqlite/src/domain-verification.ts"
+    },
+    {
+      "source": "f3f87016de0f4cdc1fa0e6f943894c76753bdcaf",
+      "entry": "100644 blob 9f26959987b2340baee767305710d8a17d5765cd\topenspec/changes/wbs-burokrat-evaluation/evidence/domain-verification-boundary/commit-hooks.log"
+    },
+    {
+      "source": "f3f87016de0f4cdc1fa0e6f943894c76753bdcaf",
+      "entry": "100644 blob 09a30964de805da9d3d5bda72b12e09ef948cfa6\topenspec/changes/wbs-burokrat-evaluation/evidence/domain-verification-boundary/intent.md"
+    },
+    {
+      "source": "f3f87016de0f4cdc1fa0e6f943894c76753bdcaf",
+      "entry": "100644 blob 3b77da90a45b7d0b642614a86aea0c5b1fe697b0\topenspec/changes/wbs-burokrat-evaluation/evidence/domain-verification-boundary/negative.log"
+    },
+    {
+      "source": "f3f87016de0f4cdc1fa0e6f943894c76753bdcaf",
+      "entry": "100644 blob accaf5491001fbc1651f5a99b07027d2ba829ae4\topenspec/changes/wbs-burokrat-evaluation/evidence/domain-verification-boundary/verify.md"
+    }
+  ]
+}

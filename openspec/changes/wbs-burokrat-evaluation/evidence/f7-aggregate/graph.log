@@ -1,0 +1,7 @@
+bunx nx graph --file=/tmp/wbs-f7-aggregate-graph.json
+
+ NX   JSON output created in /tmp
+
+/tmp/wbs-f7-aggregate-graph.json
+
+max_rss_kib=255420 elapsed_seconds=0.74

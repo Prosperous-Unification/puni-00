@@ -1,0 +1,37 @@
+[
+  {
+    "name": "sqlite-lib-typecheck",
+    "command": "bunx tsc --project libs/wbs/adapters/store-sqlite/tsconfig.lib.json --noEmit --incremental false",
+    "exit": 0
+  },
+  {
+    "name": "sqlite-spec-typecheck",
+    "command": "bunx tsc --project libs/wbs/adapters/store-sqlite/tsconfig.spec.json --noEmit --incremental false",
+    "exit": 0
+  },
+  {
+    "name": "memory-lib-typecheck",
+    "command": "bunx tsc --project libs/wbs/adapters/store-memory/tsconfig.lib.json --noEmit --incremental false",
+    "exit": 0
+  },
+  {
+    "name": "memory-spec-typecheck",
+    "command": "bunx tsc --project libs/wbs/adapters/store-memory/tsconfig.spec.json --noEmit --incremental false",
+    "exit": 0
+  },
+  {
+    "name": "graph",
+    "command": "bunx nx graph --file=/tmp/wbs-f7-aggregate-graph.json",
+    "exit": 0
+  },
+  {
+    "name": "lint",
+    "command": "bunx eslint libs/wbs/adapters/store-sqlite/src/cached-outcome.ts libs/wbs/adapters/store-sqlite/src/optimized-schedule-cache.ts libs/wbs/adapters/store-sqlite/src/optimized-cache.db.test.ts libs/wbs/adapters/store-sqlite/src/captured-optimization-reader.db.test.ts libs/wbs/adapters/store-memory/src/memory-stores.ts libs/wbs/adapters/store-memory/src/source.ts libs/wbs/adapters/store-sqlite/src/domain-claim.ts libs/wbs/adapters/store-sqlite/src/domain-verification.ts",
+    "exit": 0
+  },
+  {
+    "name": "openspec",
+    "command": "bun /tmp/bunx-1000-@fission-ai/openspec@1.12.0/node_modules/@fission-ai/openspec/bin/openspec.js validate wbs-burokrat-evaluation --strict --json",
+    "exit": 0
+  }
+]
