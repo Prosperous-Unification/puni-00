@@ -758,3 +758,46 @@ believed — not after it has been written down as a finding in three files.
 
 Prove your check fails when the thing is broken, and say so in the comment. A check whose
 failure mode has never been observed is a claim, not a gate.
+
+## Bun forced recursive removal can leave its root
+
+PR #504's hosted Twilight run 38827022818 failed the oversized pinned Git diagnostics
+acquisition test at `24c5eda8c5b37280048aee9cbf9ef411c87b04f6`: refusal left a `.pending-`
+directory. Bun 1.4.2 (`744846f84`) with Git 2.43 passed 2,000 repeated oversized-output
+and diagnostics tests; Git 2.55 also passed 2,000 repetitions without injected timing.
+Those green runs did not establish cleanup under concurrent filesystem mutation.
+
+Git 2.55 fetch starts `maintenance run --auto --quiet --detach`. Its detached child
+unlinks `objects/maintenance.lock` after fetch can return. On the original commit,
+tracing the diagnostics test with `strace -f -e inject=unlink:delay_enter=1ms` and the
+Git 2.55 Ubuntu package reproduced 25 failures in 50 runs. The trace showed Bun's
+recursive removal receive `ENOENT` for `maintenance.lock` after the maintenance
+child removed it, return successfully, and leave the remaining directory tree.
+An independent one-child `unlinkat` ENOENT injection reproduced that silent partial
+removal without Git. A successful `rmSync({ recursive: true, force: true })` alone
+therefore does not prove absence on this runtime.
+
+`prepareRetainedLocalReviewCandidate` suppresses automatic maintenance on both its
+current and historical fetches, covering the earlier removal of the temporary Git
+repository as well as final pending cleanup. Final cleanup also verifies absence,
+retries at most three removals while dev/inode/UID/mode and directory type still
+match the created directory, and preserves cleanup failures alongside acquisition
+failures. It does not recursively delete a replacement discovered during a retry.
+The production tests inject partial successful removal, persistent non-removal,
+replacement and unreadable or altered metadata; each failed before the repair.
+Removing each ownership comparator independently and each fetch flag independently
+failed its corresponding test. The existing final-cleanup deadline fault now runs
+at the absence lookup, because cleanup avoids deleting a path already found absent.
+The repaired code passed the same Git 2.55 delayed-unlink experiment for 50 rounds
+of diagnostics refusal plus current and historical fetches (150 tests, zero
+failures); the acquisition trace contained no pending-repository maintenance child.
+The Git 2.43 object-store suite passed all 169 tests. Scoped uncached Twilight Dash
+lint, its TypeScript build and owned-file formatting also passed.
+
+The retry ceiling has a separate weakened-bound proof: changing `attempt === 3`
+to `attempt === 4` failed `pending cleanup refuses a persistently incomplete
+successful removal` with `Expected: 3, Received: 4` (one failure, exit 1).
+Restoring the three-attempt guard passed that same test (one pass, zero failures).
+The earlier `=== 1` mutation demonstrated premature refusal only; it did not prove
+the upper bound. Both the adjacent production comment and this record retain the
+weakened-bound observation instead. Runtime code is unchanged by this correction.
