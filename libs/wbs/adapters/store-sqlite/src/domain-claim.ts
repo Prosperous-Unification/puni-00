@@ -94,17 +94,26 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
     });
   }
 
-  /** Records a check under the surviving snapshot, rechecking old-proof expiry at commit. */
+  /**
+   * Records a check under the surviving snapshot, rechecking old-proof expiry at commit.
+   * Cancellation after the write turn arrives prevents every mutation; once this
+   * synchronous transaction is admitted, it may commit before shutdown joins it.
+   */
   async finishProofCheck(
     proof: RetainedDomainProof,
     matched: 'current' | 'previous' | null,
     at: number,
     now: () => number,
-  ): Promise<'checked' | 'stale'> {
+    cancellation?: AbortSignal,
+  ): Promise<'checked' | 'stale' | 'cancelled'> {
     return this.gate.enter(async () => {
       await Promise.resolve();
       return this.db.transaction(
         (tx) => {
+          // Proof: removing this transaction-entry check made repository
+          // `stop joins queued completion` mutate day-fourteen timestamps for
+          // matching TXT and suspend the missing-TXT claim after cancellation.
+          if (cancellation?.aborted) return 'cancelled' as const;
           // Proof: 2026-09-28, bypassing this read made mounted `leaves a
           // retained check stale when activation changes during lookup`
           // record checked after an injected marker rollback.

@@ -65,13 +65,19 @@ export interface RetainedDomainProof {
 export interface DomainProofChecks {
   readonly resolver: DomainResolver;
   readDueProofs(at: number): Promise<readonly RetainedDomainProof[]>;
-  /** Rechecks an old match against `now` inside the committing transaction. */
+  /**
+   * Rechecks an old match against `now` inside the committing transaction.
+   * Cancellation is admitted after acquiring the write turn, before mutations;
+   * a synchronous transaction already admitted may commit. Cancelled work is
+   * distinct from a changed snapshot and must not increment stale counts.
+   */
   finishProofCheck(
     proof: RetainedDomainProof,
     matched: 'current' | 'previous' | null,
     at: number,
     now: () => number,
-  ): Promise<'checked' | 'stale'>;
+    cancellation?: AbortSignal,
+  ): Promise<'checked' | 'stale' | 'cancelled'>;
 }
 
 /** Initial challenge persistence, with authority rechecked in the committing transaction. */

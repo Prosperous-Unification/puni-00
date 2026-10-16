@@ -8,7 +8,7 @@ import { DomainClaimRepository } from '@wbs/store-sqlite';
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 
 import { openConnection, openDatabase } from '../repository/db';
-import { OPEN } from '../repository/gate';
+import { type Gate, OPEN, WriteCoordinator } from '../repository/gate';
 import { runMigrations } from '../repository/migrate';
 import { runDomainProofWorker, startDomainProofWorker } from './domain-proof-worker';
 
@@ -65,6 +65,87 @@ function plantProof(index: number, lastCheckedAt = START): string {
 }
 
 describe('bounded retained proof scheduling against SQLite', () => {
+  for (const matches of [true, false]) {
+    test(`stop joins queued completion without day-fourteen mutation for matching TXT ${String(matches)}`, async () => {
+      const id = plantProof(0);
+      if (!matches) records.clear();
+      const coordinator = new WriteCoordinator();
+      const held = Promise.withResolvers<undefined>();
+      const queued = Promise.withResolvers<undefined>();
+      const holding = coordinator.enter(() => held.promise);
+      const gate: Gate = {
+        enter: (work) => {
+          queued.resolve(undefined);
+          return coordinator.enter(work);
+        },
+      };
+      const claims = new DomainClaimRepository(connection.db, gate, policy, repository.resolver);
+      const at = START + 14 * DAY;
+      let counts: { checked: number; stale: number } | undefined;
+      const worker = startDomainProofWorker({
+        sweep: async (signal, limit) => {
+          counts = await runDomainProofWorker(claims, at, () => at, limit, signal);
+        },
+        wait: () => Promise.reject(new Error('unexpected wait after cancelled queued completion')),
+      });
+      try {
+        await queued.promise;
+        let stopped = false;
+        const stopping = worker.stop().then(() => {
+          stopped = true;
+        });
+        for (let turn = 0; turn < 10; turn += 1) await Promise.resolve();
+        expect(stopped).toBe(false);
+        held.resolve(undefined);
+        await holding;
+        await stopping;
+        expect(
+          sqlite
+            .query(
+              'SELECT last_checked_at, last_success_at, status FROM organization_domain_claim WHERE id = ?',
+            )
+            .get(id),
+        ).toEqual({ last_checked_at: START, last_success_at: START, status: 'verified' });
+        expect(counts).toEqual({ checked: 0, stale: 0 });
+      } finally {
+        held.resolve(undefined);
+        await holding;
+        await worker.stop();
+      }
+    });
+  }
+
+  test('counts an admitted synchronous completion truthfully after cancellation during its commit clock', async () => {
+    const id = plantProof(0);
+    const at = START + 7 * DAY;
+    const oldValue = records.get('_wbs-verification.claim-00.example.org');
+    if (oldValue === undefined) throw new Error('expected planted TXT proof');
+    sqlite.run(
+      'UPDATE organization_domain_claim SET proof_digest = ?, previous_proof_digest = ?, previous_proof_valid_until = ? WHERE id = ?',
+      ['b'.repeat(64), createHash('sha256').update(oldValue).digest('hex'), at + DAY, id],
+    );
+    const cancellation = new AbortController();
+    const counts = await runDomainProofWorker(
+      repository,
+      at,
+      () => {
+        cancellation.abort();
+        return at;
+      },
+      32,
+      cancellation.signal,
+    );
+    expect(cancellation.signal.aborted).toBe(true);
+    expect(counts).toEqual({ checked: 1, stale: 0 });
+    expect(
+      sqlite
+        .query(
+          'SELECT last_checked_at, last_success_at, status FROM organization_domain_claim WHERE id = ?',
+        )
+        .get(id),
+    ).toEqual({ last_checked_at: at, last_success_at: at, status: 'verified' });
+  });
+
   test('cancellation during DNS leaves a day-fourteen proof verified and unchecked', async () => {
     const id = plantProof(0);
     records.clear();

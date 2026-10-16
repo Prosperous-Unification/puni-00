@@ -42,6 +42,8 @@ export function runDomainProofWorker(
     },
     at,
     now,
+    // Proof: omitting this signal made both repository `stop joins queued
+    // completion` cases write after their held turn released.
     cancellation,
   );
 }

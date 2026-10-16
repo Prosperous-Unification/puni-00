@@ -105,7 +105,12 @@ export async function checkDomainProofs(
     const matched = await matchesProof(checks, proof, at, cancellation);
     // Proof: removing this check made both `cancellation before DNS reply` cases commit.
     if (cancellation?.aborted) return { checked, stale };
-    const finished = await checks.finishProofCheck(proof, matched, at, now);
+    // Proof: omitting cancellation forwarding made both repository
+    // `stop joins queued completion` cases mutate after their held turn released.
+    const finished = await checks.finishProofCheck(proof, matched, at, now, cancellation);
+    // Proof: removing this branch made `returns partial counts` count the
+    // cancelled completion as stale (expected 0 stale, received 1).
+    if (finished === 'cancelled') return { checked, stale };
     if (finished === 'checked') checked += 1;
     else stale += 1;
   }

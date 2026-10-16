@@ -35,6 +35,29 @@ function createChecks(lookupTxt: DomainResolver['lookupTxt']) {
 }
 
 describe('retained proof DNS failure and cancellation', () => {
+  test('returns partial counts without counting a cancelled completion as stale', async () => {
+    const { checks } = createChecks(() => Promise.resolve([TXT]));
+    checks.readDueProofs = () => Promise.resolve([proof, { ...proof, id: 'claim-b' }]);
+    checks.finishProofCheck = (claim) =>
+      Promise.resolve(claim.id === proof.id ? 'checked' : 'cancelled');
+    expect(await checkDomainProofs(checks, 7)).toEqual({ checked: 1, stale: 0 });
+  });
+
+  test('preserves a completion failure after parent cancellation', async () => {
+    const cancellation = new AbortController();
+    const fault = new Error('completion gate failed');
+    const { checks } = createChecks(() => Promise.resolve([TXT]));
+    checks.finishProofCheck = () => {
+      cancellation.abort();
+      return Promise.reject(fault);
+    };
+    expect(
+      await checkDomainProofs(checks, 7, () => 7, cancellation.signal).catch(
+        (cause: unknown) => cause,
+      ),
+    ).toBe(fault);
+  });
+
   test('records modeled DNS unavailability as a failed proof', async () => {
     const { checks, completions } = createChecks(() =>
       Promise.reject(new DomainDnsUnavailableError('DNS network unavailable')),

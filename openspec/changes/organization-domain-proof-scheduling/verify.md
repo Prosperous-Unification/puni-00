@@ -64,6 +64,26 @@ Focused green run: 17 tests passed, 0 failed, 42 assertions across the new core 
 
 Seven separately watched and restored mutations failed: remove typed error narrowing; return early for parent abort before narrowing unexpected errors; remove the composed lookup signal; race parent abort before resolver cleanup; remove pre-read cancellation; remove pre-lookup cancellation; remove pre-completion cancellation. Receipts are `/tmp/domain-proof-cancellation-*.log`.
 
-Known incomplete race: held-gate RED fixture saved at `/tmp/domain-proof-worker.queued-cancellation.db.test.ts` showed a cancelled queued completion still wrote last_checked_at=1210600000 instead of 1000000 and suspended the claim. The proposed transaction-entry signal/outcome amendment is in design.md; production port/store cancellation change awaits Astra review. DNS adapter subclassing, boot and entrypoints remain untouched. This checkpoint does not claim full cancellation safety or feature completion.
+Race reproduced at this historical checkpoint (resolved below): held-gate RED fixture saved at `/tmp/domain-proof-worker.queued-cancellation.db.test.ts` showed a cancelled queued completion still wrote last_checked_at=1210600000 instead of 1000000 and suspended the claim. The proposed transaction-entry signal/outcome amendment is in design.md; production port/store cancellation change awaits Astra review. DNS adapter subclassing, boot and entrypoints remain untouched. This checkpoint does not claim full cancellation safety or feature completion.
 
 Final checkpoint regression: `bun test` for core proof service, runtime worker unit/DB, and mounted domain controller suites passed 77 tests, 0 failed, 265 assertions. Focused ESLint exited 0 (module-boundary rule still skipped); formatting and change-specific OpenSpec validation passed. Full gate, typecheck/build and adapter integration remain unverified.
+
+## Queued completion cancellation checkpoint
+
+Astra approved the optional trailing AbortSignal on finishProofCheck and the explicit cancelled outcome. The immediate transaction now checks cancellation after the write gate, before mutations. Core forwards that signal and returns partial counts without incrementing checked or stale counts for cancelled completion. There is no asynchronous boundary after transaction admission; an admitted synchronous transaction may complete and is counted truthfully.
+
+New repository integration tests first failed for both matching and missing TXT on day fourteen: matching proof advanced both timestamps after stop; missing TXT advanced the check timestamp and suspended the claim. The partial-count core test also failed by counting cancellation as stale. These tests now pass, including stop remaining pending until the held write turn releases. They are repository integration tests, not HTTP-mounted evidence.
+
+Five separately watched production-path mutations were restored before verification:
+
+| Fault                                          | Observed failure                                                            |
+| ---------------------------------------------- | --------------------------------------------------------------------------- |
+| Remove runtime signal forwarding               | Both queued completion cases mutated timestamps; missing TXT suspended      |
+| Remove core finishProofCheck signal forwarding | Both queued completion cases mutated timestamps; missing TXT suspended      |
+| Remove transaction-entry cancellation check    | Both queued completion cases mutated timestamps; missing TXT suspended      |
+| Remove explicit cancelled-count branch         | Partial counts returned stale=1 instead of stale=0                          |
+| Return immediately from stop                   | Both queued cases observed stopped=true while the write turn was still held |
+
+Receipts: `/tmp/domain-proof-queued-*.log`. An additional repository case verifies cancellation during the already-admitted synchronous commit clock still returns checked=1 and the committed timestamps. A core case preserves completion exceptions raised after parent cancellation. Adapter files, boot and entrypoints remain untouched; no push was performed.
+
+Verification for queued completion checkpoint: the same four focused suites passed 82 tests, 0 failed, 276 assertions (`/tmp/domain-proof-queued-checkpoint-tests.log`). Focused ESLint for the six changed code files exited 0; the absent cached Nx graph still skips module-boundary lint. Change-specific OpenSpec validation returned 1 valid change with no issues. Changed-file formatting and whitespace checks passed. Full typecheck, build, host gate, CI, adapter integration, production activation and external live-domain evidence remain unverified.
