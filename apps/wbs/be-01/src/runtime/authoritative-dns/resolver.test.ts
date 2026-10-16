@@ -47,6 +47,7 @@ function answer(request: DnsExchange, overrides: Partial<packet.Packet> = {}): D
     flags: packet.AUTHORITATIVE_ANSWER,
     questions: [question],
     answers,
+    authorities: question.type === 'AAAA' ? [soa] : [],
     ...overrides,
   });
   return {
@@ -387,7 +388,7 @@ describe('authoritative DNS resolver production boundary', () => {
       const { resolver, requests } = fixture((request) => {
         const type = packet.decode(request.packet).questions![0].type;
         return absent === 'NS' || type === 'A' || type === 'AAAA'
-          ? answer(request, { answers: [] })
+          ? answer(request, { answers: [], authorities: [{ ...soa, name: '.' }] })
           : answer(request);
       });
       const failure: unknown = await resolver
@@ -544,6 +545,7 @@ describe('authoritative DNS resolver production boundary', () => {
       if (question.type === 'NS' && question.name === owner)
         return answer(request, {
           answers: [],
+          authorities: [soa],
           additionals: [{ name: 'ns.example.com', type: 'A', ttl: 60, data: '127.0.0.1' }],
         });
       return answer(request);
@@ -806,7 +808,7 @@ describe('authoritative DNS resolver production boundary', () => {
           requests.push(request);
           return new Promise((resolve, reject) => {
             const clear = timers.schedule(800, () => {
-              resolve(answer(request, { answers: [] }));
+              resolve(answer(request, { answers: [], authorities: [{ ...soa, name: '.' }] }));
             });
             request.signal.addEventListener(
               'abort',

@@ -318,6 +318,22 @@ describe('owned DNS socket transport', () => {
                   type: 'response',
                   questions: query.questions,
                   answers: [],
+                  authorities: [
+                    {
+                      name: '.',
+                      type: 'SOA',
+                      ttl: 60,
+                      data: {
+                        mname: 'ns.example.com',
+                        rname: 'hostmaster.example.com',
+                        serial: 1,
+                        refresh: 2,
+                        retry: 3,
+                        expire: 4,
+                        minimum: 5,
+                      },
+                    },
+                  ],
                 }),
                 peer: request.address,
                 port: 53,

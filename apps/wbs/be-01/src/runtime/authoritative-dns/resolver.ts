@@ -331,6 +331,16 @@ function readRoutingRecords<T extends 'NS' | 'A' | 'AAAA'>(
   // `refuses invalid recursive authority evidence: owner` (2026-10-16).
   if (reply.answers.some((record) => record.name.toLowerCase() !== name || record.type !== type))
     throw new DnsUnavailableError('DNS routing owner or type refused');
+  // Proof: removing terminal-negative SOA classification failed the encoded NS/A/AAAA
+  // `requires terminal negatives for recursive discovery` referral/empty cases (2026-10-16).
+  // Proof: removing SOA enclosure failed that matrix's non_enclosing_soa cases (2026-10-16).
+  if (
+    reply.answers.length === 0 &&
+    !reply.authorities.some((record) => record.type === 'SOA' && encloses(record.name, name))
+  )
+    throw new DnsUnavailableError('DNS routing negative lacks enclosing SOA');
+  // Proof: collecting routing records from authority/additional sections failed
+  // `requires terminal negatives for recursive discovery` misplaced-positive cases (2026-10-16).
   // Boundary: the checks above classify every answer as the requested IN
   // routing type; the pinned codec decodes these checked RDATA spans to strings.
   return reply.answers as readonly (DnsStringAnswer & { readonly type: T })[];
