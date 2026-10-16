@@ -1,0 +1,506 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:
+202 |
+203 | if (import.meta.main) await runRecoveryLab(process.argv.slice(2));
+204 | /** Refuses unrelated platform samples as evidence about the first observed forge container. */
+205 | export function requireMemoryEvidence(samples: string, pod: PodObservation): void {
+206 |   const source = samples
+207 |     .split('/sys/fs/cgroup/')
+           ^
+TypeError: samples.split is not a function. (In 'samples.split("/sys/fs/cgroup/")', 'samples.split' is undefined)
+      at requireMemoryEvidence (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-recovery-lab.ts:207:6)
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:34:20)
+(fail) returns complete first-container evidence without readiness or OOM verdicts [0.30ms]
+48 |   ['relative cgroup', { cgroup: 'kubepods/source' }],
+49 |   ['invalid device', { device: '' }],
+50 |   ['invalid inode', { inode: 'bad' }],
+51 | ] as const) {
+52 |   test(`refuses binding ${label}`, () => {
+53 |     expect(() => requireMemoryEvidence([sample], first, { ...binding, ...changed })).toThrow('source binding');
+                                                                                          ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "source binding"
+Received message: "samples.split is not a function. (In 'samples.split(\"/sys/fs/cgroup/\")', 'samples.split' is undefined)"
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:53:86)
+(fail) refuses binding foreign Pod [0.17ms]
+48 |   ['relative cgroup', { cgroup: 'kubepods/source' }],
+49 |   ['invalid device', { device: '' }],
+50 |   ['invalid inode', { inode: 'bad' }],
+51 | ] as const) {
+52 |   test(`refuses binding ${label}`, () => {
+53 |     expect(() => requireMemoryEvidence([sample], first, { ...binding, ...changed })).toThrow('source binding');
+                                                                                          ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "source binding"
+Received message: "samples.split is not a function. (In 'samples.split(\"/sys/fs/cgroup/\")', 'samples.split' is undefined)"
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:53:86)
+(fail) refuses binding replacement container [0.04ms]
+48 |   ['relative cgroup', { cgroup: 'kubepods/source' }],
+49 |   ['invalid device', { device: '' }],
+50 |   ['invalid inode', { inode: 'bad' }],
+51 | ] as const) {
+52 |   test(`refuses binding ${label}`, () => {
+53 |     expect(() => requireMemoryEvidence([sample], first, { ...binding, ...changed })).toThrow('source binding');
+                                                                                          ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "source binding"
+Received message: "samples.split is not a function. (In 'samples.split(\"/sys/fs/cgroup/\")', 'samples.split' is undefined)"
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:53:86)
+(fail) refuses binding warm container [0.03ms]
+48 |   ['relative cgroup', { cgroup: 'kubepods/source' }],
+49 |   ['invalid device', { device: '' }],
+50 |   ['invalid inode', { inode: 'bad' }],
+51 | ] as const) {
+52 |   test(`refuses binding ${label}`, () => {
+53 |     expect(() => requireMemoryEvidence([sample], first, { ...binding, ...changed })).toThrow('source binding');
+                                                                                          ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "source binding"
+Received message: "samples.split is not a function. (In 'samples.split(\"/sys/fs/cgroup/\")', 'samples.split' is undefined)"
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:53:86)
+(fail) refuses binding container prefix [0.03ms]
+48 |   ['relative cgroup', { cgroup: 'kubepods/source' }],
+49 |   ['invalid device', { device: '' }],
+50 |   ['invalid inode', { inode: 'bad' }],
+51 | ] as const) {
+52 |   test(`refuses binding ${label}`, () => {
+53 |     expect(() => requireMemoryEvidence([sample], first, { ...binding, ...changed })).toThrow('source binding');
+                                                                                          ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "source binding"
+Received message: "samples.split is not a function. (In 'samples.split(\"/sys/fs/cgroup/\")', 'samples.split' is undefined)"
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:53:86)
+(fail) refuses binding empty Pod UID [0.04ms]
+48 |   ['relative cgroup', { cgroup: 'kubepods/source' }],
+49 |   ['invalid device', { device: '' }],
+50 |   ['invalid inode', { inode: 'bad' }],
+51 | ] as const) {
+52 |   test(`refuses binding ${label}`, () => {
+53 |     expect(() => requireMemoryEvidence([sample], first, { ...binding, ...changed })).toThrow('source binding');
+                                                                                          ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "source binding"
+Received message: "samples.split is not a function. (In 'samples.split(\"/sys/fs/cgroup/\")', 'samples.split' is undefined)"
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:53:86)
+(fail) refuses binding invalid init PID [0.03ms]
+48 |   ['relative cgroup', { cgroup: 'kubepods/source' }],
+49 |   ['invalid device', { device: '' }],
+50 |   ['invalid inode', { inode: 'bad' }],
+51 | ] as const) {
+52 |   test(`refuses binding ${label}`, () => {
+53 |     expect(() => requireMemoryEvidence([sample], first, { ...binding, ...changed })).toThrow('source binding');
+                                                                                          ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "source binding"
+Received message: "samples.split is not a function. (In 'samples.split(\"/sys/fs/cgroup/\")', 'samples.split' is undefined)"
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:53:86)
+(fail) refuses binding invalid init starttime [0.02ms]
+48 |   ['relative cgroup', { cgroup: 'kubepods/source' }],
+49 |   ['invalid device', { device: '' }],
+50 |   ['invalid inode', { inode: 'bad' }],
+51 | ] as const) {
+52 |   test(`refuses binding ${label}`, () => {
+53 |     expect(() => requireMemoryEvidence([sample], first, { ...binding, ...changed })).toThrow('source binding');
+                                                                                          ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "source binding"
+Received message: "samples.split is not a function. (In 'samples.split(\"/sys/fs/cgroup/\")', 'samples.split' is undefined)"
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:53:86)
+(fail) refuses binding relative cgroup [0.03ms]
+48 |   ['relative cgroup', { cgroup: 'kubepods/source' }],
+49 |   ['invalid device', { device: '' }],
+50 |   ['invalid inode', { inode: 'bad' }],
+51 | ] as const) {
+52 |   test(`refuses binding ${label}`, () => {
+53 |     expect(() => requireMemoryEvidence([sample], first, { ...binding, ...changed })).toThrow('source binding');
+                                                                                          ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "source binding"
+Received message: "samples.split is not a function. (In 'samples.split(\"/sys/fs/cgroup/\")', 'samples.split' is undefined)"
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:53:86)
+(fail) refuses binding invalid device [0.02ms]
+48 |   ['relative cgroup', { cgroup: 'kubepods/source' }],
+49 |   ['invalid device', { device: '' }],
+50 |   ['invalid inode', { inode: 'bad' }],
+51 | ] as const) {
+52 |   test(`refuses binding ${label}`, () => {
+53 |     expect(() => requireMemoryEvidence([sample], first, { ...binding, ...changed })).toThrow('source binding');
+                                                                                          ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "source binding"
+Received message: "samples.split is not a function. (In 'samples.split(\"/sys/fs/cgroup/\")', 'samples.split' is undefined)"
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:53:86)
+(fail) refuses binding invalid inode [0.03ms]
+59 |   ['prefix cgroup', { cgroup: '/kubepods/podowned-pod/source-extra' }],
+60 |   ['device', { device: '30' }],
+61 |   ['inode', { inode: '201' }],
+62 | ] as const) {
+63 |   test(`refuses sample ${label}`, () => {
+64 |     expect(() => requireMemoryEvidence([{ ...sample, ...changed }], first, binding)).toThrow('cgroup identity');
+                                                                                          ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "cgroup identity"
+Received message: "samples.split is not a function. (In 'samples.split(\"/sys/fs/cgroup/\")', 'samples.split' is undefined)"
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:64:86)
+(fail) refuses sample sibling cgroup [0.06ms]
+59 |   ['prefix cgroup', { cgroup: '/kubepods/podowned-pod/source-extra' }],
+60 |   ['device', { device: '30' }],
+61 |   ['inode', { inode: '201' }],
+62 | ] as const) {
+63 |   test(`refuses sample ${label}`, () => {
+64 |     expect(() => requireMemoryEvidence([{ ...sample, ...changed }], first, binding)).toThrow('cgroup identity');
+                                                                                          ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "cgroup identity"
+Received message: "samples.split is not a function. (In 'samples.split(\"/sys/fs/cgroup/\")', 'samples.split' is undefined)"
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:64:86)
+(fail) refuses sample prefix cgroup [0.03ms]
+59 |   ['prefix cgroup', { cgroup: '/kubepods/podowned-pod/source-extra' }],
+60 |   ['device', { device: '30' }],
+61 |   ['inode', { inode: '201' }],
+62 | ] as const) {
+63 |   test(`refuses sample ${label}`, () => {
+64 |     expect(() => requireMemoryEvidence([{ ...sample, ...changed }], first, binding)).toThrow('cgroup identity');
+                                                                                          ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "cgroup identity"
+Received message: "samples.split is not a function. (In 'samples.split(\"/sys/fs/cgroup/\")', 'samples.split' is undefined)"
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:64:86)
+(fail) refuses sample device [0.02ms]
+59 |   ['prefix cgroup', { cgroup: '/kubepods/podowned-pod/source-extra' }],
+60 |   ['device', { device: '30' }],
+61 |   ['inode', { inode: '201' }],
+62 | ] as const) {
+63 |   test(`refuses sample ${label}`, () => {
+64 |     expect(() => requireMemoryEvidence([{ ...sample, ...changed }], first, binding)).toThrow('cgroup identity');
+                                                                                          ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "cgroup identity"
+Received message: "samples.split is not a function. (In 'samples.split(\"/sys/fs/cgroup/\")', 'samples.split' is undefined)"
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:64:86)
+(fail) refuses sample inode [0.02ms]
+65 |   });
+66 | }
+67 |
+68 | for (const processes of [[], [{ ...sample.processes[0], pid: 43 }], [{ ...sample.processes[0], starttime: '5678' }]]) {
+69 |   test(`refuses absent or reused init ${JSON.stringify(processes)}`, () => {
+70 |     expect(() => requireMemoryEvidence([{ ...sample, processes } as CgroupObservation], first, binding)).toThrow('init member');
+                                                                                                              ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "init member"
+Received message: "samples.split is not a function. (In 'samples.split(\"/sys/fs/cgroup/\")', 'samples.split' is undefined)"
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:70:106)
+(fail) refuses absent or reused init [] [0.05ms]
+65 |   });
+66 | }
+67 |
+68 | for (const processes of [[], [{ ...sample.processes[0], pid: 43 }], [{ ...sample.processes[0], starttime: '5678' }]]) {
+69 |   test(`refuses absent or reused init ${JSON.stringify(processes)}`, () => {
+70 |     expect(() => requireMemoryEvidence([{ ...sample, processes } as CgroupObservation], first, binding)).toThrow('init member');
+                                                                                                              ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "init member"
+Received message: "samples.split is not a function. (In 'samples.split(\"/sys/fs/cgroup/\")', 'samples.split' is undefined)"
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:70:106)
+(fail) refuses absent or reused init [{"pid":43,"starttime":"1234","ppid":1,"executable":"bun","role":"unknown","rssKiB":2,"threads":1}] [0.03ms]
+65 |   });
+66 | }
+67 |
+68 | for (const processes of [[], [{ ...sample.processes[0], pid: 43 }], [{ ...sample.processes[0], starttime: '5678' }]]) {
+69 |   test(`refuses absent or reused init ${JSON.stringify(processes)}`, () => {
+70 |     expect(() => requireMemoryEvidence([{ ...sample, processes } as CgroupObservation], first, binding)).toThrow('init member');
+                                                                                                              ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "init member"
+Received message: "samples.split is not a function. (In 'samples.split(\"/sys/fs/cgroup/\")', 'samples.split' is undefined)"
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:70:106)
+(fail) refuses absent or reused init [{"pid":42,"starttime":"5678","ppid":1,"executable":"bun","role":"unknown","rssKiB":2,"threads":1}] [0.02ms]
+71 |   });
+72 | }
+73 |
+74 | for (const max of [undefined, 'max', '', '-1', '2Gi', '2147483649', '02147483648']) {
+75 |   test(`refuses invalid memory.max ${String(max)}`, () => {
+76 |     expect(() => requireMemoryEvidence([{ ...sample, memory: { ...sample.memory, max } } as CgroupObservation], first, binding)).toThrow('2Gi');
+                                                                                                                                      ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "2Gi"
+Received message: "samples.split is not a function. (In 'samples.split(\"/sys/fs/cgroup/\")', 'samples.split' is undefined)"
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:76:130)
+(fail) refuses invalid memory.max undefined [0.06ms]
+71 |   });
+72 | }
+73 |
+74 | for (const max of [undefined, 'max', '', '-1', '2Gi', '2147483649', '02147483648']) {
+75 |   test(`refuses invalid memory.max ${String(max)}`, () => {
+76 |     expect(() => requireMemoryEvidence([{ ...sample, memory: { ...sample.memory, max } } as CgroupObservation], first, binding)).toThrow('2Gi');
+                                                                                                                                      ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "2Gi"
+Received message: "samples.split is not a function. (In 'samples.split(\"/sys/fs/cgroup/\")', 'samples.split' is undefined)"
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:76:130)
+(fail) refuses invalid memory.max max [0.03ms]
+71 |   });
+72 | }
+73 |
+74 | for (const max of [undefined, 'max', '', '-1', '2Gi', '2147483649', '02147483648']) {
+75 |   test(`refuses invalid memory.max ${String(max)}`, () => {
+76 |     expect(() => requireMemoryEvidence([{ ...sample, memory: { ...sample.memory, max } } as CgroupObservation], first, binding)).toThrow('2Gi');
+                                                                                                                                      ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "2Gi"
+Received message: "samples.split is not a function. (In 'samples.split(\"/sys/fs/cgroup/\")', 'samples.split' is undefined)"
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:76:130)
+(fail) refuses invalid memory.max  [0.03ms]
+71 |   });
+72 | }
+73 |
+74 | for (const max of [undefined, 'max', '', '-1', '2Gi', '2147483649', '02147483648']) {
+75 |   test(`refuses invalid memory.max ${String(max)}`, () => {
+76 |     expect(() => requireMemoryEvidence([{ ...sample, memory: { ...sample.memory, max } } as CgroupObservation], first, binding)).toThrow('2Gi');
+                                                                                                                                      ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "2Gi"
+Received message: "samples.split is not a function. (In 'samples.split(\"/sys/fs/cgroup/\")', 'samples.split' is undefined)"
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:76:130)
+(fail) refuses invalid memory.max -1 [0.02ms]
+71 |   });
+72 | }
+73 |
+74 | for (const max of [undefined, 'max', '', '-1', '2Gi', '2147483649', '02147483648']) {
+75 |   test(`refuses invalid memory.max ${String(max)}`, () => {
+76 |     expect(() => requireMemoryEvidence([{ ...sample, memory: { ...sample.memory, max } } as CgroupObservation], first, binding)).toThrow('2Gi');
+                                                                                                                                      ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "2Gi"
+Received message: "samples.split is not a function. (In 'samples.split(\"/sys/fs/cgroup/\")', 'samples.split' is undefined)"
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:76:130)
+(fail) refuses invalid memory.max 2Gi [0.03ms]
+71 |   });
+72 | }
+73 |
+74 | for (const max of [undefined, 'max', '', '-1', '2Gi', '2147483649', '02147483648']) {
+75 |   test(`refuses invalid memory.max ${String(max)}`, () => {
+76 |     expect(() => requireMemoryEvidence([{ ...sample, memory: { ...sample.memory, max } } as CgroupObservation], first, binding)).toThrow('2Gi');
+                                                                                                                                      ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "2Gi"
+Received message: "samples.split is not a function. (In 'samples.split(\"/sys/fs/cgroup/\")', 'samples.split' is undefined)"
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:76:130)
+(fail) refuses invalid memory.max 2147483649 [0.03ms]
+71 |   });
+72 | }
+73 |
+74 | for (const max of [undefined, 'max', '', '-1', '2Gi', '2147483649', '02147483648']) {
+75 |   test(`refuses invalid memory.max ${String(max)}`, () => {
+76 |     expect(() => requireMemoryEvidence([{ ...sample, memory: { ...sample.memory, max } } as CgroupObservation], first, binding)).toThrow('2Gi');
+                                                                                                                                      ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "2Gi"
+Received message: "samples.split is not a function. (In 'samples.split(\"/sys/fs/cgroup/\")', 'samples.split' is undefined)"
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:76:130)
+(fail) refuses invalid memory.max 02147483648 [0.03ms]
+76 |     expect(() => requireMemoryEvidence([{ ...sample, memory: { ...sample.memory, max } } as CgroupObservation], first, binding)).toThrow('2Gi');
+77 |   });
+78 | }
+79 |
+80 | test('refuses empty samples', () => {
+81 |   expect(() => requireMemoryEvidence([], first, binding)).toThrow('complete sample');
+                                                               ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "complete sample"
+Received message: "samples.split is not a function. (In 'samples.split(\"/sys/fs/cgroup/\")', 'samples.split' is undefined)"
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:81:59)
+(fail) refuses empty samples [0.05ms]
+90 |   ['threads', { processes: [{ ...sample.processes[0], threads: NaN }] }],
+91 |   ['timestamp', { sampledAt: 'bad' }],
+92 |   ['elapsed', { elapsedMs: Infinity }],
+93 | ] as const) {
+94 |   test(`refuses incomplete ${label}`, () => {
+95 |     expect(() => requireMemoryEvidence([{ ...sample, ...changed } as unknown as CgroupObservation], first, binding)).toThrow('complete sample');
+                                                                                                                          ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "complete sample"
+Received message: "samples.split is not a function. (In 'samples.split(\"/sys/fs/cgroup/\")', 'samples.split' is undefined)"
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:95:118)
+(fail) refuses incomplete current [0.05ms]
+90 |   ['threads', { processes: [{ ...sample.processes[0], threads: NaN }] }],
+91 |   ['timestamp', { sampledAt: 'bad' }],
+92 |   ['elapsed', { elapsedMs: Infinity }],
+93 | ] as const) {
+94 |   test(`refuses incomplete ${label}`, () => {
+95 |     expect(() => requireMemoryEvidence([{ ...sample, ...changed } as unknown as CgroupObservation], first, binding)).toThrow('complete sample');
+                                                                                                                          ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "complete sample"
+Received message: "samples.split is not a function. (In 'samples.split(\"/sys/fs/cgroup/\")', 'samples.split' is undefined)"
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:95:118)
+(fail) refuses incomplete peak [0.03ms]
+90 |   ['threads', { processes: [{ ...sample.processes[0], threads: NaN }] }],
+91 |   ['timestamp', { sampledAt: 'bad' }],
+92 |   ['elapsed', { elapsedMs: Infinity }],
+93 | ] as const) {
+94 |   test(`refuses incomplete ${label}`, () => {
+95 |     expect(() => requireMemoryEvidence([{ ...sample, ...changed } as unknown as CgroupObservation], first, binding)).toThrow('complete sample');
+                                                                                                                          ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "complete sample"
+Received message: "samples.split is not a function. (In 'samples.split(\"/sys/fs/cgroup/\")', 'samples.split' is undefined)"
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:95:118)
+(fail) refuses incomplete events [0.03ms]
+90 |   ['threads', { processes: [{ ...sample.processes[0], threads: NaN }] }],
+91 |   ['timestamp', { sampledAt: 'bad' }],
+92 |   ['elapsed', { elapsedMs: Infinity }],
+93 | ] as const) {
+94 |   test(`refuses incomplete ${label}`, () => {
+95 |     expect(() => requireMemoryEvidence([{ ...sample, ...changed } as unknown as CgroupObservation], first, binding)).toThrow('complete sample');
+                                                                                                                          ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "complete sample"
+Received message: "samples.split is not a function. (In 'samples.split(\"/sys/fs/cgroup/\")', 'samples.split' is undefined)"
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:95:118)
+(fail) refuses incomplete event count [0.04ms]
+90 |   ['threads', { processes: [{ ...sample.processes[0], threads: NaN }] }],
+91 |   ['timestamp', { sampledAt: 'bad' }],
+92 |   ['elapsed', { elapsedMs: Infinity }],
+93 | ] as const) {
+94 |   test(`refuses incomplete ${label}`, () => {
+95 |     expect(() => requireMemoryEvidence([{ ...sample, ...changed } as unknown as CgroupObservation], first, binding)).toThrow('complete sample');
+                                                                                                                          ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "complete sample"
+Received message: "samples.split is not a function. (In 'samples.split(\"/sys/fs/cgroup/\")', 'samples.split' is undefined)"
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:95:118)
+(fail) refuses incomplete RSS [0.03ms]
+90 |   ['threads', { processes: [{ ...sample.processes[0], threads: NaN }] }],
+91 |   ['timestamp', { sampledAt: 'bad' }],
+92 |   ['elapsed', { elapsedMs: Infinity }],
+93 | ] as const) {
+94 |   test(`refuses incomplete ${label}`, () => {
+95 |     expect(() => requireMemoryEvidence([{ ...sample, ...changed } as unknown as CgroupObservation], first, binding)).toThrow('complete sample');
+                                                                                                                          ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "complete sample"
+Received message: "samples.split is not a function. (In 'samples.split(\"/sys/fs/cgroup/\")', 'samples.split' is undefined)"
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:95:118)
+(fail) refuses incomplete threads [0.02ms]
+90 |   ['threads', { processes: [{ ...sample.processes[0], threads: NaN }] }],
+91 |   ['timestamp', { sampledAt: 'bad' }],
+92 |   ['elapsed', { elapsedMs: Infinity }],
+93 | ] as const) {
+94 |   test(`refuses incomplete ${label}`, () => {
+95 |     expect(() => requireMemoryEvidence([{ ...sample, ...changed } as unknown as CgroupObservation], first, binding)).toThrow('complete sample');
+                                                                                                                          ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "complete sample"
+Received message: "samples.split is not a function. (In 'samples.split(\"/sys/fs/cgroup/\")', 'samples.split' is undefined)"
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:95:118)
+(fail) refuses incomplete timestamp [0.03ms]
+90 |   ['threads', { processes: [{ ...sample.processes[0], threads: NaN }] }],
+91 |   ['timestamp', { sampledAt: 'bad' }],
+92 |   ['elapsed', { elapsedMs: Infinity }],
+93 | ] as const) {
+94 |   test(`refuses incomplete ${label}`, () => {
+95 |     expect(() => requireMemoryEvidence([{ ...sample, ...changed } as unknown as CgroupObservation], first, binding)).toThrow('complete sample');
+                                                                                                                          ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "complete sample"
+Received message: "samples.split is not a function. (In 'samples.split(\"/sys/fs/cgroup/\")', 'samples.split' is undefined)"
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:95:118)
+(fail) refuses incomplete elapsed [0.03ms]
+ 95 |     expect(() => requireMemoryEvidence([{ ...sample, ...changed } as unknown as CgroupObservation], first, binding)).toThrow('complete sample');
+ 96 |   });
+ 97 | }
+ 98 |
+ 99 | test('refuses an incomplete later sample instead of crediting one complete sample', () => {
+100 |   expect(() => requireMemoryEvidence([sample, { ...sample, memory: { ...sample.memory, peak: '' } }], first, binding)).toThrow('complete sample');
+                                                                                                                             ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "complete sample"
+Received message: "samples.split is not a function. (In 'samples.split(\"/sys/fs/cgroup/\")', 'samples.split' is undefined)"
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:100:120)
+(fail) refuses an incomplete later sample instead of crediting one complete sample [0.07ms]
+202 |
+203 | if (import.meta.main) await runRecoveryLab(process.argv.slice(2));
+204 | /** Refuses unrelated platform samples as evidence about the first observed forge container. */
+205 | export function requireMemoryEvidence(samples: string, pod: PodObservation): void {
+206 |   const source = samples
+207 |     .split('/sys/fs/cgroup/')
+           ^
+TypeError: samples.split is not a function. (In 'samples.split("/sys/fs/cgroup/")', 'samples.split' is undefined)
+      at requireMemoryEvidence (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-recovery-lab.ts:207:6)
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:105:20)
+(fail) omits credential argv and injected restored success from returned evidence [0.22ms]
+
+ 0 pass
+ 36 fail
+ 34 expect() calls
+Ran 36 tests across 1 file. [40.00ms]

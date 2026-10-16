@@ -191,6 +191,28 @@ Offline fixtures and watched negatives are recorded in
 [`f9-local-process-observation/verify.md`](../../openspec/changes/f9-local-process-observation/verify.md).
 The historical first cold-start OOM and complete F9 acceptance remain unresolved.
 
+### First source memory evidence
+
+`requireMemoryEvidence(samples, first, source)` in `forge-recovery-lab.ts` now accepts
+structured `CgroupObservation` values from `observeProcesses`, an expected first
+`PodObservation`, and an explicit `SourceBinding`. The binding supplies Pod UID, the full
+`containerd://` ID, init PID/starttime, and exact cgroup membership path/device/inode.
+The path uses the sampler's `/kubepods/...` form, without `/sys/fs/cgroup`.
+The caller must independently establish the binding from the intended source container;
+this validator checks consistency and cannot authenticate that supplied assertion.
+
+Every sample must match that cgroup identity, include the same init PID/starttime, contain
+complete memory/process metrics, and report `memory.max` exactly `2147483648` (2Gi).
+Empty samples or a foreign, replacement, sibling, reused or incomplete identity throw.
+Returned evidence copies declared fields only, omitting argv and caller-supplied verdicts.
+There is no JSON file adapter: raw sampler JSON must not be cast into this typed interface.
+The source API consumes in-process observations; historical text logs remain historical.
+
+Evidence validation does not establish readiness, first-attempt success, OOM cause,
+restored-checker success or F9 acceptance. `runRecoveryLab` remains disabled.
+Offline checks and watched guard removals are recorded in
+[`f9-source-memory-evidence/verify.md`](../../openspec/changes/f9-source-memory-evidence/verify.md).
+
 ### Forge namespace admission prerequisite
 
 Admission reserves `puni-forge` and `puni-forge-<slug>`. The suffix uses the existing
