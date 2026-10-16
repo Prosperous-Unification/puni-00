@@ -1,0 +1,5 @@
+{
+  "encoding": "utf-8",
+  "sha256": "a71f3feb0bbde6a93d317102edfdd89d7fdf57236b287f2868edb03ffbbc69ab",
+  "combinedOutput": "bun test v1.4.2 (744846f84)\n\ntools/tool-devsync/feasibility/source-memory-relay/relay.probe.ts:\n94 |   expect(observed.privateExists).toBe(false);\n95 | }, 8000);\n96 | \n97 | test('rejects a foreign same-UID listener connector before forwarding', async () => {\n98 |   const observed = await observe('foreign-child');\n99 |   expect(observed.upstreamBytes).toBe(0);\n                                      ^\nerror: expect(received).toBe(expected)\n\nExpected: 0\nReceived: 15\n\n      at <anonymous> (/tmp/f9-native-relay-feasibility-sol/tools/tool-devsync/feasibility/source-memory-relay/relay.probe.ts:99:34)\n(fail) rejects a foreign same-UID listener connector before forwarding [99.63ms]\n\n 0 pass\n 16 filtered out\n 1 fail\n 3 expect() calls\nRan 1 test across 1 file. [502.00ms]\n"
+}

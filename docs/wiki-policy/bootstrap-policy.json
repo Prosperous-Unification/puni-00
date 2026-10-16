@@ -330,6 +330,10 @@
           {
             "kind": "suffix",
             "value": ".svg"
+          },
+          {
+            "kind": "path",
+            "value": "tools/tool-devsync/feasibility/source-memory-relay/relay.c"
           }
         ],
         "exclude": [
