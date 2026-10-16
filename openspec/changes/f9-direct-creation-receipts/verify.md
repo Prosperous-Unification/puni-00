@@ -59,3 +59,43 @@ Shared identity/directory helpers retain their existing phase-one guards and Pro
 Assessment is a read-only library entry whose inspector callback supplies normalized facts for a supplied full ID; there is no Docker inspection CLI or recovery activation. The callback contract requires exact-ID lookup, and the assessment compares returned IDs to catch Docker name fallback. Tests use controlled inspector responses and offline Docker/k3d executables, not live daemon evidence. Registry receipts confer no volume ownership; k3d-created endpoints remain outside the direct receipt scope and cause foreign-attachment refusal.
 
 The host gate and raw full Nx gate were intentionally not run: release/gate ownership is delegated to the PM. `tool-fleet` has no build target; its applicable test, lint and typecheck targets were run. No live infrastructure acceptance or actual foreign-user inode test is claimed. Ordinary down, phase-one unconditional deletion refusal, k3d no-rollback and the disabled recovery path retain test coverage.
+
+## Exact target review repair
+
+Review of `8d24619ccbab641a25f2249cc83dcbd2f0f9e874` found the direct receipts and inspection boundary did not bind Docker kind/name. The repair extracts the existing `labNamesOf` function and type into `k3d-lab-names.ts`, re-exporting them from `k3d-lab.ts` for existing callers. Direct slots derive the same names, with network→network and registry→container kinds. Both pending and created records persist these attributes; strict readers and assessment compare each independently.
+
+Operation schema is now **v2**. No claim is made that external v1 receipt files do not exist; earlier operation evidence refuses without migration or adoption. Phase-one attempt journals remain schema v1. The inspector supplies actual kind and normalized actual name, which must match the receipted target as well as ID/label. No cleanup or activation boundary changed.
+
+The new production-path test first failed on missing pending kind/name. Real Docker fixtures now verify requested command names and reserved kind/name attributes. Four separate fixtures corrupt pending network/registry kind/name after the command starts; completion refuses, no following creation or cleanup executes. Consumer negatives separately cover both states, both slots and both fields; inspection negatives preserve matching IDs and labels while changing only kind or name.
+
+### Additional watched proofs
+
+All 15 repair mutations below were observed failing, then restored. [Summary](evidence/target-mutations.log).
+
+| Check                        | Fault and production negative                                                                      | Evidence                                            |
+| ---------------------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| Recorded kind binding        | Bypass derived-kind comparison; both-slot pending/created assessments fail                         | [consumer](evidence/target-record-kind.log)         |
+| Recorded name binding        | Bypass derived-name comparison; both-slot pending/created assessments fail                         | [consumer](evidence/target-record-name.log)         |
+| Inspected actual kind        | Bypass only kind comparison; each slot's mismatch negative fails with ID/label preserved           | [log](evidence/target-inspected-kind.log)           |
+| Inspected actual name        | Bypass only name comparison; each slot's mismatch negative fails with ID/label preserved           | [log](evidence/target-inspected-name.log)           |
+| Earlier operation version    | Broaden v2 schema to accept v1; unbound-version negative fails                                     | [log](evidence/target-schema-v2.log)                |
+| Required receipt kind        | Make schema kind optional; missing-kind negative misses its strict schema refusal                  | [log](evidence/target-record-required-kind.log)     |
+| Required receipt name        | Make schema name optional; missing-name negative misses its strict schema refusal                  | [log](evidence/target-record-required-name.log)     |
+| Required inspection kind     | Make schema kind optional; missing-kind inspection misses its strict schema refusal                | [log](evidence/target-inspection-required-kind.log) |
+| Required inspection name     | Make schema name optional; missing-name inspection misses its strict schema refusal                | [log](evidence/target-inspection-required-name.log) |
+| Real caller kind consumption | Bypass record kind comparison; both-slot post-command corruption callers fail to stop              | [log](evidence/target-caller-record-kind.log)       |
+| Real caller name consumption | Bypass record name comparison; both-slot post-command corruption callers fail to stop              | [log](evidence/target-caller-record-name.log)       |
+| Network slot kind            | Derive container kind for network; literal real-up fixture fails pending binding                   | [log](evidence/target-derived-network-kind.log)     |
+| Registry slot kind           | Derive network kind for registry; literal real-up fixture fails pending binding                    | [log](evidence/target-derived-registry-kind.log)    |
+| Shared network name          | Change shared derivation to foreign network name; real-up caller fails literal command-name check  | [log](evidence/target-shared-network-name.log)      |
+| Shared registry name         | Change shared derivation to foreign registry name; real-up caller fails literal command-name check | [log](evidence/target-shared-registry-name.log)     |
+
+### Repair validation
+
+- Affected `tool-fleet:test`, cache skipped: exit 0; 581 pass, 0 fail, 2044 assertions across 44 files ([summary](evidence/target-affected-tests.log)).
+- Affected `tool-fleet:lint` and `tool-fleet:typecheck`, daemon/plugins disabled and cache skipped: exit 0, both successful.
+- Pinned OpenSpec `validate --all --json`: exit 0; 221 passed, 0 failed ([summary](evidence/target-openspec-summary.json)).
+- Scoped Prettier check of all changed sources/docs and change artifacts: exit 0; all matched files use Prettier style ([output](evidence/target-format.log)).
+- Removed trailing whitespace from the four reviewed historical evidence logs (`directory-sync`, `file-sync`, `file-uid`, `regular-file`). `git diff --check 2c9ce1f4260e39c8414e9ccc548bba4868997da9` on the repair working tree returned 0; `git diff --check HEAD^..HEAD` and `git diff --check 2c9ce1f4260e39c8414e9ccc548bba4868997da9..HEAD` each returned exit 0 with no output on the committed repair.
+
+Host gate, push, merge and deployment remain delegated and were not run. No live Docker or actual foreign-user inode evidence is claimed. The repair uses scoped formatting; the earlier full format run is recorded above and the release host gate remains pending PM ownership.

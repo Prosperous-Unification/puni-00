@@ -11,6 +11,7 @@ import {
 } from './creation-journal';
 import {
   assessCreationReceipts,
+  type CreationInspection,
   executeDirectCreation,
   readCreationOperation,
 } from './creation-receipts';
@@ -56,8 +57,14 @@ async function completed() {
   );
   return directory;
 }
-const inspect = (slot: 'network' | 'registry', id: string) =>
-  Promise.resolve({ id, labId: 'f9', peerIds: [slot === 'network' ? registryId : networkId] });
+const inspect = (slot: 'network' | 'registry', id: string): Promise<CreationInspection> =>
+  Promise.resolve({
+    id,
+    kind: slot === 'network' ? 'network' : 'container',
+    name: slot === 'network' ? 'puni-f9' : 'puni-f9-registry',
+    labId: 'f9',
+    peerIds: [slot === 'network' ? registryId : networkId],
+  });
 
 it('persists pending before Docker and created before the next creation; never grants deletion', async () => {
   const directory = await fixture();
@@ -220,6 +227,8 @@ for (const fault of [
         (slot, id) =>
           Promise.resolve({
             id: fault === 'returned-id' ? foreignId : id,
+            kind: slot === 'network' ? 'network' : 'container',
+            name: slot === 'network' ? 'puni-f9' : 'puni-f9-registry',
             labId: fault === 'label' ? 'other' : 'f9',
             peerIds:
               fault === 'foreign-endpoint'
@@ -325,8 +334,10 @@ it('refuses a completion that changed state while Docker was running', async () 
         pathFor(directory),
         JSON.stringify({
           ...identity,
-          schemaVersion: 1,
+          schemaVersion: 2,
           slot: 'network',
+          kind: 'network',
+          name: 'puni-f9',
           state: 'created',
           dockerId: foreignId,
         }),
@@ -362,7 +373,7 @@ for (const fault of ['uid', 'regular-file'] as const) {
       }}));
       const { assessCreationReceipts } = await import(${JSON.stringify(join(import.meta.dir, 'creation-receipts.ts'))});
       try {
-        await assessCreationReceipts(${JSON.stringify(directory)}, ${JSON.stringify(identity)}, 'daemon-1', (slot, id) => Promise.resolve({ id, labId: 'f9', peerIds: [slot === 'network' ? ${JSON.stringify(registryId)} : ${JSON.stringify(networkId)}] }));
+        await assessCreationReceipts(${JSON.stringify(directory)}, ${JSON.stringify(identity)}, 'daemon-1', (slot, id) => Promise.resolve({ id, kind: slot === 'network' ? 'network' : 'container', name: slot === 'network' ? 'puni-f9' : 'puni-f9-registry', labId: 'f9', peerIds: [slot === 'network' ? ${JSON.stringify(registryId)} : ${JSON.stringify(networkId)}] }));
         throw new Error('fault ignored');
       } catch (cause) {
         if (!(cause instanceof Error) || !cause.message.includes('owner-only regular file')) throw cause;
@@ -439,3 +450,105 @@ it('refuses an occupied completion lock without replacing pending evidence', asy
   );
   expect((await readCreationOperation(directory, identity, 'network')).state).toBe('pending');
 });
+
+it('binds each pending and created receipt to its lab-derived kind and name', async () => {
+  const directory = await fixture();
+  for (const [slot, kind, name, dockerId] of [
+    ['network', 'network', 'puni-f9', networkId],
+    ['registry', 'container', 'puni-f9-registry', registryId],
+  ] as const) {
+    await executeDirectCreation(directory, identity, slot, async () => {
+      expect(await readCreationOperation(directory, identity, slot)).toMatchObject({
+        state: 'pending',
+        kind,
+        name,
+      });
+      return dockerId;
+    });
+    expect(await readCreationOperation(directory, identity, slot)).toMatchObject({
+      state: 'created',
+      kind,
+      name,
+    });
+  }
+});
+
+for (const slot of ['network', 'registry'] as const) {
+  for (const field of ['kind', 'name'] as const) {
+    for (const state of ['pending', 'created'] as const) {
+      it(`refuses ${slot} ${state} receipt ${field} mismatch during assessment`, async () => {
+        const directory = await completed();
+        const path = pathFor(directory, slot);
+        const receipt = JSON.parse(await readFile(path, 'utf8')) as Record<string, unknown>;
+        receipt['state'] = state;
+        if (state === 'pending') delete receipt['dockerId'];
+        receipt[field] =
+          field === 'kind' ? (slot === 'network' ? 'container' : 'network') : 'puni-other';
+        await writeFile(path, JSON.stringify(receipt));
+        await requireRefusal(
+          assessCreationReceipts(directory, identity, 'daemon-1', inspect),
+          `operation ${field} mismatch`,
+        );
+      });
+    }
+    it(`refuses inspected ${slot} ${field} mismatch independently of ID and label`, async () => {
+      const directory = await completed();
+      await requireRefusal(
+        assessCreationReceipts(directory, identity, 'daemon-1', async (selected, id) => {
+          const inspected = await inspect(selected, id);
+          return selected !== slot
+            ? inspected
+            : {
+                ...inspected,
+                [field]:
+                  field === 'kind' ? (slot === 'network' ? 'container' : 'network') : 'puni-other',
+              };
+        }),
+        `inspected ${field} mismatch`,
+      );
+    });
+  }
+}
+
+it('refuses earlier operation schema v1 instead of adopting unbound receipts', async () => {
+  const directory = await completed();
+  const path = pathFor(directory);
+  const receipt = JSON.parse(await readFile(path, 'utf8')) as Record<string, unknown>;
+  receipt['schemaVersion'] = 1;
+  await writeFile(path, JSON.stringify(receipt));
+  await requireRefusal(
+    assessCreationReceipts(directory, identity, 'daemon-1', inspect),
+    'Malformed creation operation',
+  );
+});
+
+for (const field of ['kind', 'name'] as const) {
+  it(`refuses receipt missing required ${field}`, async () => {
+    const directory = await completed();
+    const path = pathFor(directory);
+    const receipt = JSON.parse(await readFile(path, 'utf8')) as Record<string, unknown>;
+    if (field === 'kind') delete receipt['kind'];
+    else delete receipt['name'];
+    await writeFile(path, JSON.stringify(receipt));
+    await requireRefusal(
+      assessCreationReceipts(directory, identity, 'daemon-1', inspect),
+      'Malformed creation operation',
+    );
+  });
+}
+
+for (const field of ['kind', 'name'] as const) {
+  it(`refuses inspection missing required ${field}`, async () => {
+    const directory = await completed();
+    await requireRefusal(
+      assessCreationReceipts(directory, identity, 'daemon-1', async (slot, id) => {
+        const inspected = await inspect(slot, id);
+        const malformed: Record<string, unknown> = { ...inspected };
+        if (field === 'kind') delete malformed['kind'];
+        else delete malformed['name'];
+        return malformed as unknown as CreationInspection;
+      }),
+      'Malformed Docker inspection',
+    );
+  });
+}

@@ -14,7 +14,7 @@ error: expect(received).toEqual(expected)
 -   "code": 0,
 -   "stderr": "",
 +   "code": 1,
-+   "stderr": 
++   "stderr":
 + "19 |         }});
 + 20 |       }}));
 + 21 |       const { assessCreationReceipts } = await import("/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-receipts.ts");
@@ -24,7 +24,7 @@ error: expect(received).toEqual(expected)
 +                        ^
 + error: fault ignored
 +       at /tmp/f9-receipts-sol-oct16/[eval]:24:19
-+ 
++
 + Bun v1.4.2 (Linux x64)
 + "
 + ,

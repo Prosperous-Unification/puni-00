@@ -14,7 +14,7 @@ error: expect(received).toEqual(expected)
 -   "code": 0,
 -   "stderr": "",
 +   "code": 1,
-+   "stderr": 
++   "stderr":
 + "25 |             console.log('NETWORK CREATED'); return "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 + 26 |           });
 + 27 |           await executeDirectCreation("/tmp/wbs-test-709-NRZbvs/creation-receipts-AkRM8s", {"labId":"f9","attemptId":"cdd167d5-f9b2-4b94-9200-776445bf8b19","daemonId":"daemon-1"}, 'registry', async () => {
@@ -24,7 +24,7 @@ error: expect(received).toEqual(expected)
 +                          ^
 + error: fault ignored
 +       at /tmp/f9-receipts-sol-oct16/[eval]:30:21
-+ 
++
 + Bun v1.4.2 (Linux x64)
 + "
 + ,
@@ -48,7 +48,7 @@ error: expect(received).toEqual(expected)
 -   "code": 0,
 -   "stderr": "",
 +   "code": 1,
-+   "stderr": 
++   "stderr":
 + "25 |             console.log('NETWORK CREATED'); return "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 + 26 |           });
 + 27 |           await executeDirectCreation("/tmp/wbs-test-709-NRZbvs/creation-receipts-enkBIa", {"labId":"f9","attemptId":"cdd167d5-f9b2-4b94-9200-776445bf8b19","daemonId":"daemon-1"}, 'registry', async () => {
@@ -58,7 +58,7 @@ error: expect(received).toEqual(expected)
 +                          ^
 + error: fault ignored
 +       at /tmp/f9-receipts-sol-oct16/[eval]:30:21
-+ 
++
 + Bun v1.4.2 (Linux x64)
 + "
 + ,

@@ -27,7 +27,11 @@ async function fixture(
     | 'network-malformed'
     | 'registry'
     | 'registry-malformed'
-    | 'foreign-race',
+    | 'foreign-race'
+    | 'network-wrong-kind'
+    | 'network-wrong-name'
+    | 'registry-wrong-kind'
+    | 'registry-wrong-name',
 ) {
   const root = await scratchAsync('k3d-creation-caller-');
   const binaries = join(root, 'bin');
@@ -53,11 +57,19 @@ case "$*" in
   'network ls '*) if test -f '${present}'; then printf 'puni-f9\\tf9\\t\\n'; fi ;;
   'port '*) printf '5000/tcp -> 127.0.0.1:40000\\n' ;;
   'run '*)
+    test "$4" = 'puni-f9-registry' || { echo 'wrong registry command name' >&2; exit 80; }
+    grep -q '"kind":"container"' '${attempts}'/*.operations/registry.json || { echo 'missing registry kind binding' >&2; exit 85; }
+    grep -q '"name":"puni-f9-registry"' '${attempts}'/*.operations/registry.json || { echo 'missing registry name binding' >&2; exit 84; }
+    ${failCreation === 'registry-wrong-kind' ? `sed -i 's/"kind":"container"/"kind":"network"/' '${attempts}'/*.operations/registry.json` : failCreation === 'registry-wrong-name' ? `sed -i 's/"name":"puni-f9-registry"/"name":"puni-other"/' '${attempts}'/*.operations/registry.json` : ''}
     grep -q '"state":"created"' '${attempts}'/*.operations/network.json || { echo 'network receipt not durable' >&2; exit 88; }
     ${failCreation === 'registry' ? "echo 'injected registry failure' >&2; exit 73" : failCreation === 'registry-malformed' ? "printf 'not-an-id\\n'" : "printf '%064d\\n' 1"} ;;
   'rm '*) ;;
   'network rm '*) rm '${present}' ;;
   'network create '*)
+    grep -q '"kind":"network"' '${attempts}'/*.operations/network.json || { echo 'missing network kind binding' >&2; exit 83; }
+    grep -q '"name":"puni-f9"' '${attempts}'/*.operations/network.json || { echo 'missing network name binding' >&2; exit 82; }
+    test "$5" = 'puni-f9' || { echo 'wrong network command name' >&2; exit 81; }
+    ${failCreation === 'network-wrong-kind' ? `sed -i 's/"kind":"network"/"kind":"container"/' '${attempts}'/*.operations/network.json` : failCreation === 'network-wrong-name' ? `sed -i 's/"name":"puni-f9"/"name":"puni-other"/' '${attempts}'/*.operations/network.json` : ''}
     test -n "$(find '${attempts}' -name '*.json' -print -quit)" || { echo 'missing reservation' >&2; exit 89; }
     grep -q '"state":"pending"' '${attempts}'/*.operations/network.json || { echo 'missing pending operation' >&2; exit 87; }
     ${failCreation === 'network' ? "echo 'injected create failure' >&2; exit 71" : failCreation === 'foreign-race' ? `touch '${present}'; echo 'foreign name race' >&2; exit 74` : failCreation === 'network-malformed' ? `touch '${present}'; printf 'not-an-id\\n'` : `touch '${present}'; printf '%064d\\n' 2`} ;;
@@ -211,5 +223,27 @@ for (const fault of [
     expect(commands).not.toContain('delete');
     expect(commands).not.toMatch(/(^|\n)(network )?rm /);
     if (slot === 'network') expect(commands).not.toMatch(/(^|\n)run /);
+  });
+}
+
+for (const fault of [
+  'network-wrong-kind',
+  'network-wrong-name',
+  'registry-wrong-kind',
+  'registry-wrong-name',
+] as const) {
+  it(`refuses ${fault} after real Docker command without continuing creation`, async () => {
+    const { calls, invoke } = await fixture(fault);
+    const invocation = invoke('up');
+    const stderr = await new Response(invocation.stderr).text();
+    expect(await invocation.exited).not.toBe(0);
+    expect(stderr).toContain(
+      fault.endsWith('kind') ? 'operation kind mismatch' : 'operation name mismatch',
+    );
+    const commands = await readFile(calls, 'utf8');
+    expect(commands).not.toContain('cluster create');
+    expect(commands).not.toContain('delete');
+    expect(commands).not.toMatch(/(^|\n)(network )?rm /);
+    if (fault.startsWith('network')) expect(commands).not.toMatch(/(^|\n)run /);
   });
 }

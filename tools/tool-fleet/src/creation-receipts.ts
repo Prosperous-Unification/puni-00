@@ -12,15 +12,21 @@ import {
   requireIdentity,
   syncDirectory,
 } from './creation-journal';
+import { labNamesOf } from './k3d-lab-names';
 
 const DockerIdSchema = type(/^[0-9a-f]{64}$/);
 const SlotSchema = type("'network'|'registry'");
 const binding = {
-  schemaVersion: '1',
+  // Proof: schema-v2 mutation accepting v1 failed the earlier-unbound-operation negative.
+  schemaVersion: '2',
   labId: 'string',
   attemptId: 'string',
   daemonId: 'string',
   slot: SlotSchema,
+  // Proof: making kind optional failed separate missing receipt/inspection kind negatives.
+  kind: "'network'|'container'",
+  // Proof: making name optional failed separate missing receipt/inspection name negatives.
+  name: 'string',
   '+': 'reject',
 } as const;
 const OperationSchema = type.or(
@@ -35,6 +41,15 @@ function requireSlot(slot: CreationSlot): CreationSlot {
   // Proof: closed-slot mutation made the invalid-slots production negative fail.
   if (parsed instanceof type.errors) throw new Error('Invalid creation slot');
   return parsed;
+}
+
+/** Derive a closed slot target from the same names used by {@link labNamesOf} in Docker creation. */
+function targetOf(labId: string, slot: CreationSlot) {
+  const names = labNamesOf(labId);
+  // Proof: separate network/registry kind and shared-name mutations failed real-up caller fixtures.
+  return slot === 'network'
+    ? { kind: 'network' as const, name: names.network }
+    : { kind: 'container' as const, name: names.registry };
 }
 
 function operationDirectory(directory: string, identity: CreationIdentity): string {
@@ -58,7 +73,8 @@ async function writeOperation(path: string, operation: CreationOperation): Promi
 }
 
 /**
- * Read an attempt-bound direct creation operation. Pending records preserve uncertainty after
+ * Read a schema-v2 attempt-bound direct creation operation and compare its expected Docker kind/name
+ * with the closed slot target. Earlier unbound v1 operations refuse without migration. Pending records preserve uncertainty after
  * a lost Docker response. Neither state grants cleanup authority or ownership of volumes.
  */
 export async function readCreationOperation(
@@ -94,6 +110,11 @@ export async function readCreationOperation(
       operation.slot !== slot
     )
       throw new Error('Creation operation binding mismatch');
+    const target = targetOf(identity.labId, slot);
+    // Proof: record-kind bypass failed both-slot pending/created assessments and real Docker caller negatives.
+    if (operation.kind !== target.kind) throw new Error('Creation operation kind mismatch');
+    // Proof: record-name bypass failed both-slot pending/created assessments and real Docker caller negatives.
+    if (operation.name !== target.name) throw new Error('Creation operation name mismatch');
     return operation;
   } finally {
     await descriptor.close();
@@ -127,7 +148,8 @@ export async function executeDirectCreation(
     if (network.state !== 'created') throw new Error('Network creation is unresolved');
   }
   const path = join(operations, `${slot}.json`);
-  await writeOperation(path, { ...identity, schemaVersion: 1, slot, state: 'pending' });
+  const target = targetOf(identity.labId, slot);
+  await writeOperation(path, { ...identity, ...target, schemaVersion: 2, slot, state: 'pending' });
   // Proof: removed directory-sync mutation failed reservation/completion directory-sync negatives.
   await syncDirectory(operations);
   const response = await create();
@@ -144,7 +166,8 @@ export async function executeDirectCreation(
     const replacement = `${path}.${randomUUID()}`;
     await writeOperation(replacement, {
       ...identity,
-      schemaVersion: 1,
+      ...target,
+      schemaVersion: 2,
       slot,
       state: 'created',
       dockerId,
@@ -160,6 +183,10 @@ export async function executeDirectCreation(
 
 const InspectionSchema = type({
   id: DockerIdSchema,
+  // Proof: making kind optional failed separate missing receipt/inspection kind negatives.
+  kind: "'network'|'container'",
+  // Proof: making name optional failed separate missing receipt/inspection name negatives.
+  name: 'string',
   labId: 'string',
   peerIds: DockerIdSchema.array(),
   '+': 'reject',
@@ -169,7 +196,7 @@ export type CreationInspection = typeof InspectionSchema.infer;
 /**
  * Read-only assessment of both direct receipts against the current daemon and exact inspected
  * objects. The inspector must query by the supplied full ID; Docker may resolve that string
- * as a name, so the returned ID is independently compared. Network endpoint IDs must be the
+ * as a name, so the returned ID, actual kind and normalized actual name are independently compared. Network endpoint IDs must be the
  * receipted registry, and the registry must reference only the receipted network. k3d endpoints
  * therefore refuse assessment. This grants no deletion authority and never inspects volumes.
  */
@@ -197,6 +224,10 @@ export async function assessCreationReceipts(
     // Proof: independent inspected-ID and label mutations failed returned-ID and foreign-label negatives.
     if (inspected.id !== operation.dockerId || inspected.labId !== identity.labId)
       throw new Error('Docker inspected identity mismatch');
+    // Proof: inspected-kind bypass failed both-slot kind negatives with matching IDs and labels.
+    if (inspected.kind !== operation.kind) throw new Error('Docker inspected kind mismatch');
+    // Proof: inspected-name bypass failed both-slot name negatives with matching IDs and labels.
+    if (inspected.name !== operation.name) throw new Error('Docker inspected name mismatch');
     // Proof: foreign-attachments mutation failed foreign-endpoint negative.
     if (inspected.peerIds.some((id) => id !== peerId))
       throw new Error('Docker object has foreign attachments');

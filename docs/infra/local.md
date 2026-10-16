@@ -279,11 +279,11 @@ They record the creation attempt and Docker daemon identity, not ownership of in
 containers, networks or volumes.
 
 Direct network and registry creation also reserve pending operations under
-`.puni/fleet-labs/k3d/.attempts/<lab-id>/<attempt-id>.operations/`. Each successful command
-records the full Docker ID it returned before the next creation starts. Errors and malformed or
+`.puni/fleet-labs/k3d/.attempts/<lab-id>/<attempt-id>.operations/`. Operation schema v2 binds the slot to its lab-derived Docker kind/name and rejects earlier v1
+operation files. Each successful command records the full Docker ID it returned before the next creation starts. Errors and malformed or
 lost responses leave pending evidence; never resolve them by adopting a name or label. These
 receipts do not cover k3d-created resources or the registry's volumes. Read-only receipt assessment
-requires the same daemon, exact inspected IDs and no foreign attachments; it grants no cleanup
+requires the same daemon, exact inspected IDs, kinds and names, and no foreign attachments; it grants no cleanup
 authority. Ordinary `down` preserves this evidence alongside the journal.
 
 A failed `up` reports its attempt and journal path. Its resource inventory is unknown: resources

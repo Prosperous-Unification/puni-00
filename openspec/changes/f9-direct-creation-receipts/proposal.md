@@ -4,7 +4,7 @@ The phase-one attempt journal records lifecycle but cannot establish which objec
 
 ## What Changes
 
-Network and registry creation reserve separate durable pending operations before Docker executes. Each successful command's full returned ID becomes a durable direct creation receipt before the next creation. A read-only assessment checks both receipts against the current daemon and exact inspected identities, refusing foreign attachments and unresolved evidence.
+Network and registry creation reserve separate durable pending operations before Docker executes. Each successful command's full returned ID, expected Docker kind and lab-derived name become a durable direct creation receipt before the next creation. A read-only assessment checks both receipts against the current daemon and exact inspected IDs, kinds and names, refusing foreign attachments and unresolved evidence.
 
 ## Non-Goals
 

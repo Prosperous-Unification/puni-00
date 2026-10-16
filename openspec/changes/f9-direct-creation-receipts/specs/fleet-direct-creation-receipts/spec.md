@@ -2,7 +2,7 @@
 
 ### Requirement: Direct creation is durably reserved and recorded
 
-The lab SHALL reserve an owner-only pending operation bound to schema, lab, attempt, daemon and a closed network or registry slot before executing that Docker creation. It SHALL persist the full ID returned by that creation before proceeding to another creation. Errors or missing/malformed responses SHALL preserve unresolved pending evidence and stop progression. It SHALL neither adopt resources by names/labels nor overwrite a reserved slot.
+The lab SHALL reserve an owner-only pending operation bound to schema v2, lab, attempt, daemon, a closed network or registry slot, and its derived Docker kind and name before executing that Docker creation. It SHALL persist the full ID returned by that creation before proceeding to another creation. Errors or missing/malformed responses SHALL preserve unresolved pending evidence and stop progression. It SHALL neither adopt resources by names/labels nor overwrite a reserved slot.
 
 #### Scenario: Network creation succeeds before registry creation
 
@@ -21,16 +21,26 @@ The lab SHALL reserve an owner-only pending operation bound to schema, lab, atte
 
 ### Requirement: Trusted operation evidence is strict
 
-Receipt consumption SHALL reject missing, unreadable, public, foreign-owner, symlink, nonregular, malformed or incorrectly bound operation evidence, including unknown schema fields. It SHALL require the phase-one journal binding as well.
+Receipt consumption SHALL reject missing, unreadable, public, foreign-owner, symlink, nonregular, malformed or incorrectly bound operation evidence, including unknown schema fields, earlier operation schema v1, and kind/name attributes that differ from the lab-derived slot target. It SHALL require the phase-one journal binding as well.
 
 #### Scenario: Invalid evidence reaches assessment
 
 - **WHEN** either operation has invalid evidence or binding
 - **THEN** assessment refuses before granting a successful assessment
 
+#### Scenario: Receipt target differs from requested slot
+
+- **WHEN** a pending or created receipt contains another kind or name for either direct slot
+- **THEN** reading and assessment refuse before proceeding to another creation
+
+#### Scenario: Earlier unbound operation evidence exists
+
+- **WHEN** operation schema v1 is supplied to the v2 reader
+- **THEN** it refuses without migration or adoption
+
 ### Requirement: Assessment is read-only and exact
 
-Assessment SHALL require both created receipts, the same current daemon and exact returned inspected IDs and lab labels. Network endpoint IDs SHALL contain no foreign container, and registry network IDs SHALL reference only the receipted network. It SHALL confer no deletion or volume authority.
+Assessment SHALL require both created receipts, the same current daemon and exact returned inspected IDs, lab labels, actual Docker kinds and actual names matching the derived slot target. Network endpoint IDs SHALL contain no foreign container, and registry network IDs SHALL reference only the receipted network. It SHALL confer no deletion or volume authority.
 
 #### Scenario: Docker resolves an ID-shaped name to another object
 
@@ -46,6 +56,11 @@ Assessment SHALL require both created receipts, the same current daemon and exac
 
 - **WHEN** assessment targets the later attempt
 - **THEN** the older receipt cannot resolve its pending operation
+
+#### Scenario: Inspected target differs despite matching ID and label
+
+- **WHEN** inspection reports another kind or name for either direct slot
+- **THEN** assessment refuses independently of the matching ID and label
 
 ### Requirement: Destructive paths remain disabled
 
