@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "sourceRevision": "26732f5440eed8123540202b6dc8eba966835244",
+  "diagnosticPath": "openspec/changes/wbs-burokrat-evaluation/evidence/candidate-a478c109/diagnostic-policy.json.txt",
+  "diagnosticSha256": "ffc33d5b91dcfae0e622294936f732c366c501d202fc53d15c6a744d266f2690",
+  "classificationPath": "docs/code-organization/rule-policy.json",
+  "addedBinaryDeclarations": [
+    {
+      "path": "apps/website/fe-01/public/apple-touch-icon.png",
+      "format": "image/png",
+      "consumer": "apps/website/fe-01/index.html",
+      "regenerationAuthority": {
+        "kind": "source",
+        "path": "docs/website/app-icons.md"
+      }
+    },
+    {
+      "path": "apps/website/fe-01/public/favicon-32.png",
+      "format": "image/png",
+      "consumer": "apps/website/fe-01/index.html",
+      "regenerationAuthority": {
+        "kind": "source",
+        "path": "docs/website/app-icons.md"
+      }
+    },
+    {
+      "path": "apps/website/fe-01/public/favicon.ico",
+      "format": "image/vnd.microsoft.icon",
+      "consumer": "apps/website/fe-01/index.html",
+      "regenerationAuthority": {
+        "kind": "source",
+        "path": "docs/website/app-icons.md"
+      }
+    },
+    {
+      "path": "apps/website/fe-01/src/assets/fonts/Geist-variable.ttf",
+      "format": "font/ttf",
+      "consumer": "apps/website/fe-01/src/style.css",
+      "regenerationAuthority": {
+        "kind": "source",
+        "path": "apps/website/fe-01/src/assets/fonts/README.md"
+      }
+    },
+    {
+      "path": "apps/website/fe-01/src/assets/fonts/InterTight-variable.ttf",
+      "format": "font/ttf",
+      "consumer": "apps/website/fe-01/src/style.css",
+      "regenerationAuthority": {
+        "kind": "source",
+        "path": "apps/website/fe-01/src/assets/fonts/README.md"
+      }
+    }
+  ],
+  "updatedBinaryDeclarations": [
+    {
+      "path": "infra/platform/charts/cert-manager-v1.21.2.tgz",
+      "before": {
+        "path": "infra/platform/charts/cert-manager-v1.21.2.tgz",
+        "format": "application/gzip",
+        "consumer": "infra/platform/networking/cert-manager.yaml",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "infra/versions/toolchain.json"
+        }
+      },
+      "after": {
+        "path": "infra/platform/charts/cert-manager-v1.21.2.tgz",
+        "format": "application/gzip",
+        "consumer": "infra/platform/networking/cert-manager/release.yaml",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "infra/versions/toolchain.json"
+        }
+      }
+    }
+  ],
+  "policyId": "wbs.plan-export.recovery.full.v1",
+  "policySha256": "3cff7523646c98f4b405c7aea21df6b913ce90f0c1f6545157007fc31f73a00c",
+  "historicalPolicySha256": "052a3aa30b1ae091968cf01318c7ad89a32e4e3dc144479e73d0c6da0ae965de",
+  "historicalBytesRecovered": false,
+  "differenceFromRetainedDiagnostic": [
+    "policyId changed to identify recovery",
+    "classificationPolicy copied from exact source head: five website binary declarations and one cert-manager consumer relocation"
+  ],
+  "registeredModes": 14,
+  "configCount": 21,
+  "plainSelectorCount": 442
+}

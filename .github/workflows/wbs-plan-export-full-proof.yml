@@ -1,0 +1,113 @@
+name: wbs-plan-export-full-proof
+
+on:
+  push:
+    branches: [proof/wbs-plan-export-full-20261016]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wbs-plan-export-full-proof
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          path: proof
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 26732f5440eed8123540202b6dc8eba966835244
+          fetch-depth: 0
+          path: candidate
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ac774f0c358db369c2048e537151e263cc29361e
+          fetch-depth: 0
+          path: evaluator-source
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.4.2
+      - name: Pin source identities and reserve ephemeral swap
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir "$GITHUB_WORKSPACE/receipts"
+          test "$(git -C candidate rev-parse HEAD)" = 26732f5440eed8123540202b6dc8eba966835244
+          test "$(git -C candidate rev-parse HEAD^{tree})" = d1cf5f0e6026914eb412026b578dfb9be85487b4
+          test "$(git -C evaluator-source rev-parse HEAD)" = ac774f0c358db369c2048e537151e263cc29361e
+          git -C candidate rev-parse HEAD HEAD^{tree} > receipts/candidate-identity.txt
+          git -C candidate rev-parse 4f098bfe2bf64343b8f503b5bdebd6e1a6fa34f4 4f098bfe2bf64343b8f503b5bdebd6e1a6fa34f4^{tree} > receipts/base-identity.txt
+          git -C evaluator-source rev-parse HEAD HEAD^{tree} > receipts/evaluator-source-identity.txt
+          git -C proof rev-parse HEAD HEAD^{tree} > receipts/workflow-identity.txt
+          bun --version > receipts/bun-version.txt
+          free -m > receipts/memory-before.txt
+          df -h > receipts/disk-before.txt
+          sudo fallocate -l 12G /mnt/wbs-plan-export-proof.swap
+          sudo chmod 600 /mnt/wbs-plan-export-proof.swap
+          sudo mkswap /mnt/wbs-plan-export-proof.swap > receipts/swap-setup.log
+          sudo swapon /mnt/wbs-plan-export-proof.swap
+          free -m > receipts/memory-with-swap.txt
+      - name: Install frozen evaluator dependencies
+        working-directory: evaluator-source
+        shell: bash
+        run: |
+          set -euo pipefail
+          bun install --frozen-lockfile > ../receipts/evaluator-install.log 2>&1
+      - name: Build and pack evaluator from fixed source
+        working-directory: evaluator-source/apps/twilight-structure/twilight-burokrat/cli
+        shell: bash
+        run: |
+          set -euo pipefail
+          bun src/packaging/build.ts > "$GITHUB_WORKSPACE/receipts/evaluator-build.log" 2>&1
+          bun src/packaging/pack.ts > "$GITHUB_WORKSPACE/receipts/evaluator-pack.log" 2>&1
+      - name: Install one independent consumer and verify recovery identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          proof="$GITHUB_WORKSPACE/proof/openspec/changes/wbs-plan-export-size-boundary/evidence/hosted-full-proof"
+          mkdir consumer
+          cp evaluator-source/dist/twilight-burokrat-pack/twilight-burokrat-0.1.0.tgz receipts/
+          sha256sum receipts/twilight-burokrat-0.1.0.tgz > receipts/tarball.sha256
+          printf '{"name":"plan-export-proof-consumer","private":true}\n' > consumer/package.json
+          cd consumer
+          bun add --exact --ignore-scripts ../receipts/twilight-burokrat-0.1.0.tgz > ../receipts/consumer-install.log 2>&1
+          bun "$proof/verify-tool.mjs" "$PWD/node_modules/twilight-burokrat" > ../receipts/installed-identity.json 2>&1
+          cp "$proof/recovery-full-policy.json.txt" ../receipts/recovery-full-policy.json
+          cp "$proof/policy-provenance.json" ../receipts/
+          sha256sum ../receipts/recovery-full-policy.json > ../receipts/policy.sha256
+      - name: Evaluate every rule on exact base then exact final head
+        shell: bash
+        run: |
+          set -euo pipefail
+          proof="$GITHUB_WORKSPACE/proof/openspec/changes/wbs-plan-export-size-boundary/evidence/hosted-full-proof"
+          receipts="$GITHUB_WORKSPACE/receipts"
+          bun "$proof/run-survey.mjs" "$GITHUB_WORKSPACE/consumer" "$GITHUB_WORKSPACE/candidate" 4f098bfe2bf64343b8f503b5bdebd6e1a6fa34f4 "$receipts/recovery-full-policy.json" "$receipts" full-base
+          bun "$proof/run-survey.mjs" "$GITHUB_WORKSPACE/consumer" "$GITHUB_WORKSPACE/candidate" 26732f5440eed8123540202b6dc8eba966835244 "$receipts/recovery-full-policy.json" "$receipts" full-final
+          bun "$proof/assert-full.mjs" "$receipts/full-base.json" "$receipts/full-final.json" "$receipts/recovery-full-policy.json" > "$receipts/full-comparison.json" 2> "$receipts/full-comparison.stderr"
+      - name: Watch comparator reject selected finding and unrelated drift
+        shell: bash
+        run: |
+          set -euo pipefail
+          proof="$GITHUB_WORKSPACE/proof/openspec/changes/wbs-plan-export-size-boundary/evidence/hosted-full-proof"
+          receipts="$GITHUB_WORKSPACE/receipts"
+          bun "$proof/prove-comparator.mjs" "$proof" "$receipts" > "$receipts/comparator-negatives.log" 2>&1
+          bun "$proof/assert-full.mjs" "$receipts/full-base.json" "$receipts/full-final.json" "$receipts/recovery-full-policy.json" > "$receipts/restored-comparison.json" 2>&1
+          git -C candidate diff --exit-code
+          free -m > "$receipts/memory-after.txt"
+      - name: Preserve exact full-survey receipts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: wbs-plan-export-26732f-full-survey
+          path: receipts/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 1
