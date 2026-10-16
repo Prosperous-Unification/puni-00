@@ -392,7 +392,9 @@ afterAll(() => {
   hostileRegistry.stop();
   disposeRelocationFixtures();
   for (const root of scratchRoots.splice(0)) rmSync(root, { force: true, recursive: true });
-});
+  // Proof: replaying this hook with 65 s of synchronous cleanup failed at the inherited 60 s
+  // budget; 180 s passed and removed both fixture roots (docs/test-budgets.md).
+}, 180_000);
 
 function installedConsumer(runner: Runner): string {
   return join(runner.temporary, 'twilight-burokrat/consumer');
