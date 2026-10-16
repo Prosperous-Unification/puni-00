@@ -1,0 +1,59 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-fleet/src/k3d-creation-journal.test.ts:
+159 | it('keeps old attempt journals across ordinary up down up', async () => {
+160 |   const { attempts, invoke } = await fixture('none');
+161 |   for (const action of ['up', 'down', 'up'] as const) {
+162 |     const invocation = invoke(action);
+163 |     const stderr = await new Response(invocation.stderr).text();
+164 |     expect({ code: await invocation.exited, stderr }).toEqual({ code: 0, stderr: '' });
+                                                            ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "code": 0,
+-   "stderr": "",
++   "code": 1,
++   "stderr":
++ "850 |           : []),
++ 851 |       ].join('\n');
++ 852 |     });
++ 853 |     console.log(announcement);
++ 854 |   } catch (cause) {
++ 855 |     throw new Error(
++                     ^
++ error: k3d lab f9 attempt fce2c0a2-0116-4ee2-9216-a2ce21666ebf failed; resource state is unknown and requires manual inspection. Journal /tmp/wbs-test-1762548-VvkD0G/k3d-creation-caller-UHoHdJ/.puni/fleet-labs/k3d/.attempts/f9/fce2c0a2-0116-4ee2-9216-a2ce21666ebf.json is not cleanup authority; inspect exact resource identities manually (docs/infra/local.md).
++       at upLab (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/k3d-lab.ts:855:15)
++       at async runLab (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/k3d-lab.ts:933:13)
++
++ 415 |     child.exited,
++ 416 |     new Response(child.stdout).text(),
++ 417 |     new Response(child.stderr).text(),
++ 418 |   ]);
++ 419 |   if (exitCode !== 0) {
++ 420 |     throw new Error(
++                     ^
++ error: docker run --detach --name foreign-f9-registry --label puni.dev/lab-id=f9 --network puni-f9 --publish 127.0.0.1::5000 --restart unless-stopped docker.io/library/registry:2.8.3@sha256:46faa9a1ae6813194b53921a370f2f4f8c5e1aae228a89bceafef5847a6a3278 exited 80: wrong registry command name
++       at run (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/k3d-lab.ts:420:15)
++       at async executeDirectCreation (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-receipts.ts:147:26)
++       at async <anonymous> (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/k3d-lab.ts:764:13)
++       at async executeCreationAttempt (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-journal.ts:212:21)
++       at async upLab (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/k3d-lab.ts:753:32)
++       at async runLab (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/k3d-lab.ts:933:13)
++
++ Bun v1.4.2 (Linux x64)
++ "
++ ,
+  }
+
+- Expected  - 2
++ Received  + 31
+
+      at <anonymous> (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/k3d-creation-journal.test.ts:164:55)
+(fail) keeps old attempt journals across ordinary up down up [634.51ms]
+
+ 0 pass
+ 10 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [878.00ms]

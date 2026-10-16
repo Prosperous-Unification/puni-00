@@ -1206,7 +1206,8 @@ export function ProjectPage({
                 // the window and giving the whole document a horizontal
                 // scrollbar. The width is the combobox's instead: the input is
                 // inside the bar, the bar is inside the viewport, so the list
-                // is too, whatever be-01 answers with. Entries clip.
+                // is too, whatever be-01 answers with. Entries wrap inside it
+                // (UI review F-086), so the width never decides what is read.
                 //
                 // Proof: back to `min-w-full`, `the widest entry be-01 permits
                 // stays inside the window` in `e2e/header.spec.ts` failed at
@@ -1250,7 +1251,7 @@ export function ProjectPage({
                       }
                     }}
                     className={cn(
-                      'flex cursor-pointer items-baseline gap-1 rounded-sm px-2 py-1 whitespace-nowrap',
+                      'flex cursor-pointer flex-wrap items-baseline gap-x-1 rounded-sm px-2 py-1 max-md:min-h-11 max-md:content-center',
                       entry.id === highlighted?.id && 'bg-accent text-accent-foreground',
                     )}
                     onClick={() => {
@@ -1259,19 +1260,23 @@ export function ProjectPage({
                   >
                     {/*
                       The name is shown whole and the meta is the half that
-                      gives way — `shrink-0` here, `min-w-0 truncate` on the
+                      gives way — the name wraps, `min-w-0 truncate` on the
                       meta below. The other way round, a long owner name (an
                       e2e run's generated account, say) squeezed every `New
                       project …` to `New pr…` and the picker offered choices
-                      nobody could tell apart — Dany, 2026-08-10. A name wider
-                      than the listbox itself still clips at the box's edge
-                      (the viewport is the physical bound, and the hover card
-                      carries the full text); the meta never causes it.
-                      `whitespace-nowrap` above stays — the entry is one line
-                      whether it fits or not, and wrapping instead would make a
-                      long name a two-row option rather than a clipped one.
+                      nobody could tell apart — Dany, 2026-08-10.
+
+                      **Wrapped, not clipped, since UI review F-086.** The
+                      entry was one line whatever its length, so a name wider
+                      than the list was cut at the list's edge with no
+                      ellipsis — and an import's `(imported 15 Oct)` is at the
+                      end of its name, so two imports of one plan read the
+                      same on every phone and on a laptop past ~22
+                      characters. A two-line option is a name read whole; the
+                      meta drops to a line of its own when the name leaves it
+                      no room, and still truncates there.
                     */}
-                    <span className="shrink-0">{entry.name}</span>
+                    <span className="min-w-0 break-words">{entry.name}</span>
                     {/*
                       A real space in the text, not only the `gap` beside it: an
                       entry's accessible name is `Rewire the shed (1 Jun · kat)`

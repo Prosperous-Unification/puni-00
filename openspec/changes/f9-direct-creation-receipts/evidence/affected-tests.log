@@ -1,0 +1,19 @@
+tool-fleet:  559 pass
+tool-fleet:  0 fail
+tool-fleet:  1980 expect() calls
+tool-fleet: Ran 559 tests across 44 files. [65.58s]
+
+
+
+ NX   Successfully ran target test for project tool-fleet
+
+
+  Run duration:      1m 6s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     1m 6s (1 task)
+  Recoverable time:  <1ms
+
+  Recommendations:
+    - Cache: drop --skip-nx-cache to restore unchanged tasks instantly.
+    - Speed up or split the longest tasks on the critical path:
+        tool-fleet:test    1m 6s

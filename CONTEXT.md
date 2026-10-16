@@ -1918,3 +1918,36 @@ _Avoid_: restore log, retry token
 The durable link between a completed restore operation and one personally issued organization
 approval used by that recovery.
 _Avoid_: operator attestation, approval deletion
+
+### Forge recovery rehearsal
+
+**Cold startup**:
+The first startup of a forge environment from a fresh worktree, before any automatic
+container replacement or manual retry.
+_Avoid_: warm recovery, eventual readiness
+
+**PID1 recovery**:
+Automatic readiness after abrupt termination of a forge container's initial process,
+within the same Pod and with a new container identity and increased restart count.
+_Avoid_: Pod recreation, cold startup
+
+### Local fleet creation
+
+**Creation attempt**:
+One invocation that tries to create a local fleet lab, identified independently of later invocations
+and bound to one Docker daemon.
+_Avoid_: lab generation, recovery session
+
+**Creation journal**:
+The durable lifecycle record of one creation attempt. Its completion describes the attempt's
+outcome and does not establish ownership of individual resources.
+_Avoid_: ownership receipt, deletion authority
+
+**Direct creation receipt**:
+Durable evidence that one creation attempt received the full identity of a directly created
+Docker network or registry container. It does not cover attached volumes or grant deletion authority.
+_Avoid_: ownership claim, cleanup authorization
+
+**Pending creation operation**:
+A reserved direct creation whose outcome has not been durably recorded. The external resource may exist.
+_Avoid_: failed creation, absent resource

@@ -1,0 +1,29 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-fleet/src/creation-receipts.test.ts:
+404 |   const [stdout, stderr, code] = await Promise.all([
+405 |     new Response(invocation.stdout).text(),
+406 |     new Response(invocation.stderr).text(),
+407 |     invocation.exited,
+408 |   ]);
+409 |   expect({ code, stderr }).toEqual({ code: 0, stderr: '' });
+                                 ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "code": 0,
++   "code": 137,
+    "stderr": "",
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-receipts.test.ts:409:28)
+(fail) refuses a real FIFO operation without waiting for a writer [2042.48ms]
+
+ 0 pass
+ 35 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [2.28s]

@@ -1069,24 +1069,29 @@ test('abort-ignoring current reader settles before terminal journal close', asyn
 
 test('synchronous current work cannot commit after whole-tick deadline', async () => {
   const source = fixture();
+  const monotonic = scriptedMonotonic();
   const state = { ...source.state, policy: { ...source.state.policy, wholeTickMs: 5 } };
   expect(await initializeTickState(state)).toBe('initialized');
+  let currentRead = false;
   const outcome = await runObservationTick({
-    monotonic: monotonicClock(),
+    monotonic,
     state,
     signal: new AbortController().signal,
     cleanupMs: 200,
     reader: {
       listOpenPullRequests: () => Promise.resolve({ pulls: [source.pull], nextPage: null }),
       getPullRequest: () => {
-        const until = performance.now() + 20;
-        while (performance.now() < until) {
-          /* The event-loop timer cannot fire. */
-        }
+        currentRead = true;
+        // Advance past the tick deadline while staying inside cleanup grace. A real 5 ms
+        // deadline can expire before this read, or a host stall can make production exit 124.
+        // Proof: advancing by zero instead returned complete with one request and failed
+        // the cancelled assertion (2026-10-16).
+        monotonic.advance(20);
         return Promise.resolve(source.pull);
       },
     },
   });
+  expect(currentRead).toBe(true);
   expect(outcome).toEqual({ kind: 'cancelled' });
   expect(requestCount(source.databasePath)).toBe(0);
 });

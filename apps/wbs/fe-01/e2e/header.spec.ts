@@ -97,6 +97,7 @@ async function measureOpenListbox(page: Page): Promise<{
   pageOverflowX: number;
   entryOverflow: number;
   nameOverflow: number;
+  nameLines: number;
 }> {
   const option = await selectedProjectOption(page);
   return option.evaluate((entry) => {
@@ -119,6 +120,13 @@ async function measureOpenListbox(page: Page): Promise<{
       pageOverflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
       entryOverflow: overflow,
       nameOverflow: nameSpan.scrollWidth - nameSpan.clientWidth,
+      // Lines the name is drawn on: a name wider than the list wraps rather
+      // than clipping (UI review F-086), so more than one is how a long entry
+      // says it had to give way.
+      nameLines: Math.round(
+        nameSpan.getBoundingClientRect().height /
+          Number.parseFloat(getComputedStyle(nameSpan).lineHeight),
+      ),
     };
   });
 }
@@ -604,23 +612,27 @@ test.describe('the open project picker, measured by a browser', () => {
       width: number;
       pastRightEdge: number;
       pageOverflowX: number;
-      entryOverflow: number;
+      nameLines: number;
     }[] = [];
     for (const width of FIT_WIDTHS) {
       await page.setViewportSize({ width, height: 800 });
       await openPicker(page);
-      const { pastRightEdge, pageOverflowX, entryOverflow } = await measureOpenListbox(page);
-      measured.push({ width, pastRightEdge, pageOverflowX, entryOverflow });
+      const { pastRightEdge, pageOverflowX, nameLines } = await measureOpenListbox(page);
+      measured.push({ width, pastRightEdge, pageOverflowX, nameLines });
     }
 
     for (const at of measured) {
       // The precondition, at every width: the seeded entry really is wider
-      // than the room it is given, so the two assertions under it are about a
-      // list that had to be bounded rather than one that happened to fit.
+      // than the room it is given — it wraps (UI review F-086) — so the two
+      // assertions under it are about a list that had to be bounded rather
+      // than one that happened to fit.
+      // Proof: with the entry back on one line (`whitespace-nowrap`), this
+      // failed on `the entry fits on one line at 1280px`, `Received: 1`.
+      // Watched 2026-10-16.
       expect(
-        at.entryOverflow,
-        `the entry fits at ${String(at.width)}px, so the bound below proves nothing`,
-      ).toBeGreaterThan(0);
+        at.nameLines,
+        `the entry fits on one line at ${String(at.width)}px, so the bound below proves nothing`,
+      ).toBeGreaterThan(1);
       expect(
         at.pastRightEdge,
         `the listbox reaches ${String(at.pastRightEdge)}px past the window at ${String(at.width)}px`,
@@ -632,19 +644,16 @@ test.describe('the open project picker, measured by a browser', () => {
     }
   });
 
-  test('the entry is clipped and its full text is still readable', async ({ page }) => {
+  test('a long entry wraps whole and its full text is still readable', async ({ page }) => {
     const owner = LOCAL_USERNAME;
     await switchToAccountWithAProject(page, signedInAs, owner);
     await renameSelectedProject(page, LONG_PROJECT_NAME);
     await page.setViewportSize({ width: 1280, height: 800 });
     await openPicker(page);
 
-    const { entryOverflow, nameOverflow } = await measureOpenListbox(page);
+    const { nameLines, nameOverflow } = await measureOpenListbox(page);
 
-    expect(
-      entryOverflow,
-      'the entry was not clipped, so the card is not standing in for anything',
-    ).toBeGreaterThan(0);
+    expect(nameLines, 'the entry fits on one line, so nothing had to give way').toBeGreaterThan(1);
     // The half that clipped is the meta, never the name: a long owner used to
     // squeeze every name to `New pr…` and the picker offered choices nobody
     // could tell apart (Dany, 2026-08-10).
@@ -652,8 +661,8 @@ test.describe('the open project picker, measured by a browser', () => {
     // `Expected: 0, Received: 277` while the entry still clipped. Watched in
     // Chromium, 2026-08-10.
     expect(nameOverflow, 'the name is the half that clipped; it must show whole').toBe(0);
-    // The whole name and the whole meta, which is what makes the clipping
-    // survivable: the owner is how two projects of one name are told apart, so
+    // The whole name and the whole meta, which is what makes a truncated
+    // meta survivable: the owner is how two projects of one name are told apart, so
     // a card carrying the name alone would lose exactly the part that was cut.
     const card = await readHoverCard(page);
     expect(card).toContain(LONG_PROJECT_NAME);
@@ -698,6 +707,88 @@ test.describe('the open project picker, measured by a browser', () => {
         };
       })
       .toEqual({ optionMoved: 12, cardOffset: 0 });
+  });
+
+  test('two imports of one long name read apart at every width', async ({ page }) => {
+    // A real import name (UI review F-086): the dated suffix is at the end,
+    // where a picker that cuts its names cuts first, and the two imports
+    // differ only there.
+    const first = 'Twilight Shipyards roadmap 2026 (imported 15 Oct)';
+    const second = 'Twilight Shipyards roadmap 2026 (imported 15 Oct, 2)';
+    await renameSelectedProject(page, first);
+    const firstId = await page.evaluate(() => window.localStorage.getItem('wbs.project'));
+    await createProject(page);
+    await renameSelectedProject(page, second);
+    const secondId = await page.evaluate(() => window.localStorage.getItem('wbs.project'));
+    if (firstId === null || secondId === null) throw new Error('the imports have no ids');
+
+    const measured: {
+      width: number;
+      cutBy: number[];
+      pastRightEdge: number;
+      pageOverflowX: number;
+      fact: string | null;
+    }[] = [];
+    for (const [width, height] of [
+      [1440, 900],
+      [1024, 768],
+      [375, 812],
+    ] as const) {
+      await page.setViewportSize({ width, height });
+      await openPicker(page);
+      const reading = await page.evaluate(
+        (ids) => {
+          const list = document.querySelector('[role="listbox"]');
+          if (list === null) throw new Error('the picker is not open');
+          const inner = list.getBoundingClientRect().right - list.clientLeft;
+          return {
+            // How far each name runs past the list's inner edge or past its
+            // own box: either is a name the reader does not see whole.
+            cutBy: ids.map((id) => {
+              const name = document.querySelector(`#project-option-${id} span`);
+              if (name === null) throw new Error(`no name for ${id}`);
+              return Math.max(
+                Math.round(name.getBoundingClientRect().right - inner),
+                name.scrollWidth - name.clientWidth,
+              );
+            }),
+            pastRightEdge: Math.round(
+              list.getBoundingClientRect().right - document.documentElement.clientWidth,
+            ),
+            pageOverflowX:
+              document.documentElement.scrollWidth - document.documentElement.clientWidth,
+          };
+        },
+        [firstId, secondId],
+      );
+      const box = page.getByRole('combobox', { name: 'Project' });
+      await box.evaluate((node) => {
+        if (node instanceof HTMLElement) node.blur();
+      });
+      measured.push({ width, ...reading, fact: await box.getAttribute('data-fact') });
+    }
+
+    // Proof: on the old list (`w-full`, `whitespace-nowrap`, the name
+    // `shrink-0`) this failed at every width — `cutBy` `[46, 61]` at 1440,
+    // `[135, 150]` at 1024 and `[158, 173]` at 375: the names ran past the
+    // list's edge, the dates with them. Watched 2026-10-16.
+    expect(measured.map(({ width, cutBy }) => ({ width, cutBy }))).toEqual(
+      measured.map(({ width }) => ({ width, cutBy: [0, 0] })),
+    );
+    for (const at of measured) {
+      expect(
+        at.pastRightEdge,
+        `the list passes the window at ${String(at.width)}px`,
+      ).toBeLessThanOrEqual(0);
+      expect(at.pageOverflowX, `the page scrolls sideways at ${String(at.width)}px`).toBe(0);
+      // The closed box still cuts with an ellipsis; its fact card is the
+      // app's own `title` (native ones are swept by `hints.spec.ts`).
+      // Proof: `data-fact` dropped from the box failed on `the closed box does
+      // not carry its name at 1440px`, `Received: null`. Watched 2026-10-16.
+      expect(at.fact, `the closed box does not carry its name at ${String(at.width)}px`).toBe(
+        second,
+      );
+    }
   });
 
   test('every entry’s date is still on screen at 1024 (F-107)', async ({ page }) => {

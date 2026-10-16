@@ -15,9 +15,20 @@ export interface PickerOption {
   /** Stable within one list — the React key. */
   key: string;
   label: ReactNode;
+  /**
+   * The line's whole words for a compact list's fact card (UI review F-092).
+   * Bottom sheets draw these words whole without requiring a hover. Absent
+   * on lines that are never long — a status, a mention.
+   */
+  words?: string;
   /** Whether this is the entry currently in force, for `aria-selected`. */
   selected: boolean;
   take: () => void;
+}
+
+/** An entry's line as plain words: what {@link pickableLabel} draws, said once. */
+export function pickableWords(entry: PickableEntry): string {
+  return entry.detail === undefined ? entry.name : `${entry.name} — ${entry.detail}`;
 }
 
 /** An entry as a list line reads it: the name, and its detail in grey. */
@@ -114,6 +125,8 @@ export function PickerList({
   // the eye is. jsdom has no scrollIntoView, hence the typeof — that boundary
   // is the test environment, not a browser this will meet. (Same guard the
   // depends list uses in `wbs-table.tsx`.)
+  // Proof: omitting this native call failed `exposes the active priority
+  // option at the scrolling table edge` on a clipped option's hit test.
   const scrollToActive = (element: HTMLLIElement | null, active: boolean) => {
     if (active && element !== null && typeof element.scrollIntoView === 'function') {
       element.scrollIntoView({ block: 'nearest' });
@@ -164,9 +177,10 @@ export function PickerList({
             // `--accent` and not a border, because a border on one line moves
             // the lines under it by a pixel as the typing narrows the list.
             data-picker-take={active ? '' : undefined}
+            data-fact={option.words}
+            // Compact lists truncate; bottom sheets wrap the whole name.
+            // Static layout lives in styles.css so the sheet can override it.
             style={{
-              padding: '2px 6px',
-              cursor: 'pointer',
               background: active ? 'var(--accent)' : undefined,
             }}
             onClick={option.take}
@@ -420,6 +434,7 @@ export function CreatablePicker({
   const choose = (entry: PickableEntry): PickerOption => ({
     key: entry.id,
     label: pickableLabel(entry),
+    words: pickableWords(entry),
     selected: entry.id === value,
     take: () => {
       take(() => onChoose(entry.id));
@@ -437,6 +452,7 @@ export function CreatablePicker({
           {
             key: '(add)',
             label: `Add “${typed.trim()}”`,
+            words: `Add “${typed.trim()}”`,
             selected: false,
             take: () => {
               take(() => onCreate(typed.trim()));

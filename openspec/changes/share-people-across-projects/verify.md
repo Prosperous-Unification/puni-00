@@ -5370,3 +5370,105 @@ this avoids Node's conflicting-colour warning without suppressing stderr or othe
 Full backend/SQLite suites were not repeated for this configuration/test/evidence correction;
 the preceding complete suite counts remain evidence for the original checkpoint and dependency
 scope. No push, merge or canonical host gate was performed.
+
+## Supplied immutable solver artifact checkpoint (010.4.16, 2026-10-16)
+
+Base: `3e06eb5a409fdc2be9ab0bc42970453ccf0f65f3`, isolated
+`/tmp/puni-capacity-digest-oct16` on `pop-os`. This slice adds an exclusive
+`--image=REGISTRY/BE@sha256:<64 lowercase hex>` entry path to the existing smoke. It inspects
+that exact local reference before runtime creation, gives it to the temporary supervisor and
+both authenticated packaged clients, and preserves the artifact. No build, publish, pull,
+retag or image removal occurs in supplied mode. Nonzero orphan-proc flags refuse before Docker.
+Temporary caller/solver containers, supervisor and socket directory belong to this invocation;
+cleanup refusal, surviving containers and unknown presence fail acceptance.
+
+This is temporary-supervisor artifact acceptance, not installed source-to-digest binding,
+persistent supervisor readiness, deployment or shared-mode activation. ADR 0025 remains the
+binding authority. The initial Docker inventory displayed unqualified repositories; read-only
+inspection subsequently proved Docker resolves the existing backend's fully qualified immutable
+reference without pulling or retagging. Task 9.4 passed against:
+`docker.io/library/puni-compose-backend@sha256:81d3c8dfde7ed4c8520a290d04b27e4a3e7e9398af764cf1d48f32db90f7fb5b`.
+The artifact's OCI source revision is `c4e005f59c3b3421ca22f56b4fe2951590fa8ce5` (2026-10-14),
+not this checkout's source revision. Acceptance proves that exact existing artifact's packaged
+clients and solver path, without asserting a source-to-digest binding for this checkout.
+Current-release digest/binding and attended host acceptance remain unverified.
+No external credentials or persistent host configuration were used.
+
+### Focused checks and limits
+
+- `bun install --frozen-lockfile --ignore-scripts`: exit 0, 1292 packages installed; dependency
+  lifecycle scripts intentionally skipped for this isolated checkout.
+- TDD RED before shell implementation: focused fake-Docker smoke **11 pass, 14 fail**. Tag,
+  malformed/extra arguments reached Docker; supplied mode still built and removed its ephemeral
+  artifact. The initial sandbox run could not listen on a Unix socket (`EPERM`); socket-enabled
+  reruns exercised the production shell entrypoint.
+- `bun test apps/wbs/be-01/scripts/solver-image-smoke.test.ts apps/wbs/be-01/scripts/solver-image-scenario.test.ts --timeout=10000`:
+  **31 pass, 0 fail, 103 assertions** after final formatting. The retained scenario asserts Ana's
+  exact `[0,49)` fixed booking and person assignment, refuses unknown/infeasible answers and
+  rejects a feasible answer overlapping that booking.
+- `shellcheck -s bash apps/wbs/be-01/scripts/solver-image-smoke.sh`: exit 0.
+- `NX_DAEMON=false bunx nx run wbs-be-01:typecheck`: exit 0, including module typecheck.
+- `bunx eslint apps/wbs/be-01/scripts/solver-image-smoke.test.ts`: exit 0.
+- `NX_DAEMON=false bunx nx run wbs-be-01:lint`: exit 0; uncached project source lint.
+- `bunx @fission-ai/openspec@1.12.0 validate --all --json`: **214 passed, 0 failed**.
+- Final shell-only rerun after UUID-scoping the supplied caller name: **29 pass, 0 fail,
+  95 assertions**. The earlier combined run above also covers the unchanged scenario.
+- Supplied-digest live command: `bash apps/wbs/be-01/scripts/solver-image-smoke.sh --image=docker.io/library/puni-compose-backend@sha256:81d3c8dfde7ed4c8520a290d04b27e4a3e7e9398af764cf1d48f32db90f7fb5b`:
+  **exit 0**, authenticated feasible baseline and shared-person answers. Cleanup completed;
+  exact image inspection afterward retained the same image ID and OCI revision; no smoke caller
+  or solver containers remained. No build, pull, publication, retagging or image removal occurred.
+- `bunx prettier --check <six changed paths excluding the shell script>` and `git diff --check`:
+  exit 0. Normal repository hooks were installed in the isolated clone before committing.
+- Existing no-argument real Docker smoke: exit 0; unique attempt
+  `1e92b219-87cb-41f5-bede-4c8918bb96f9`, authenticated feasible baseline and shared-person
+  responses. Docker exported manifest list
+  `sha256:3d57b21114aed9307369088b3471b39ec67fa9f60cc82de62a81b6988f17df54`.
+  The ephemeral registry needed one bounded retry after a connection reset. Cleanup completed.
+  `WBS_RUN_SOLVER_ORPHAN_PROC` was unset; the persistent-systemd orphan proof was not run.
+- No h2puni canonical gate, CI, activation, push, merge or deployment was performed. The exact-SHA
+  canonical gate remains required before an integration claim.
+
+### Watched production mutations
+
+Each mutation changed only the real shell entrypoint, ran its focused fake-Docker negative, and
+was restored before the next final check. Logs are local `/tmp/digest-mutation-<fault>.log`.
+
+| Injected fault                                        | Observed negative                                                     |
+| ----------------------------------------------------- | --------------------------------------------------------------------- |
+| Permit a tag through argument validation              | Tag refusal failed because Docker was called before refusal.          |
+| Substitute a different digest for the supplied one    | Exact host/client digest test failed.                                 |
+| Continue after missing-image inspection               | Missing-digest test failed; the clients ran without a local artifact. |
+| Skip the pre-runtime image inspection                 | Exact-inventory test failed: the first Docker call was a client run.  |
+| Omit the authenticated shared-person invocation       | Client-count and shared-client-failure tests failed.                  |
+| Remove the supplied artifact during cleanup           | Preservation test failed: supplied image disappeared.                 |
+| Ignore owned-container cleanup failures               | Caller/solver removal and inspect-refusal tests exited 0 and failed.  |
+| Treat a container inspect permission error as absence | Inspect-refusal test exited 0 and failed.                             |
+| Remove an unrelated production container              | Invocation-owned cleanup inventory test failed.                       |
+| Ignore temporary supervisor shutdown failure          | Supervisor-stop-failure test exited 0 and failed.                     |
+| Ignore socket-directory cleanup refusal               | Socket-cleanup-failure test exited 0 and failed.                      |
+| Skip container absence readback after removal         | Ignored-removal test exited 0 and failed.                             |
+
+### Explicit registry correction after exact review (2026-10-16)
+
+Exact review of `655d3724bacd2f0eb5c16a466c1031855353104d` found that the overall syntax regex
+accepted a lowercase Docker Hub namespace as its first path component. The production shell
+entrypoint reproduced the gap: `library/backend`, `team/nested/backend` and `registry/backend`
+each reached Docker image inspection before refusing (three RED tests). A separate registry guard
+now requires a dotted host, exact `localhost`, or a syntax-validated host with an explicit numeric
+port. Boundary positives cover `registry.example`, `docker.io`, `localhost`, `localhost:5000`, `registry:5000`
+and `127.0.0.1:5000`; namespace-only paths refuse before Docker.
+
+R5 watched negative: removing only the new registry guard made all three namespace refusal tests
+fail again with an observed `image inspect` call. The restored boundary group passed 9/9.
+This correction changes input validation only; the earlier live acceptance's fully qualified
+`docker.io/library/puni-compose-backend` reference retains the same meaning and evidence bounds.
+
+Correction checks: the final combined smoke/scenario command above passed **40/40, 127
+assertions**; registry boundary selection passed **9/9, 24 assertions**. Shellcheck, direct ESLint,
+uncached `NX_DAEMON=false bunx nx run wbs-be-01:typecheck` (including modules), all **214**
+OpenSpec items, changed-path Prettier and `git diff --check` passed. The canonical supplied digest
+command above was rerun with the tightened guard and again exited **0** after authenticated
+feasible baseline and shared-person responses; its temporary runtime cleanup completed.
+The no-argument build branch and application source were unchanged by this correction, so the
+previous real build smoke and project source lint were retained without repetition. Canonical
+h2puni gate, CI and current-release/installed binding acceptance remain unverified.

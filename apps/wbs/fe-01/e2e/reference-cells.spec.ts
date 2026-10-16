@@ -662,8 +662,129 @@ test('rests every reference row on one line and opens a crowded cell to reach ev
   ).toHaveCount(0);
 });
 
+test('exposes the active priority option at the scrolling table edge', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 600 });
+  const seeded = await seed(page);
+  await commands(
+    page,
+    seeded.projectId,
+    Array.from({ length: 35 }, (_, index) => ({
+      kind: 'createWorkItem',
+      ref: `edge-${String(index)}`,
+      parentId: null,
+      ...(index === 0 ? { afterId: null } : { afterRef: `edge-${String(index - 1)}` }),
+      name: `Table edge ${String(index)}`,
+    })),
+  );
+  await page.reload();
+  const priority = page.getByLabel('Priority for 350', { exact: true });
+  await priority.scrollIntoViewIfNeeded();
+  await priority.evaluate((box) => {
+    let frame = box.parentElement;
+    while (frame !== null && getComputedStyle(frame).overflowY !== 'auto')
+      frame = frame.parentElement;
+    if (frame === null) throw new Error('the priority cell has no scrolling table frame');
+    frame.scrollTop +=
+      box.getBoundingClientRect().bottom - frame.getBoundingClientRect().bottom + 4;
+  });
+  await priority.click();
+  const active = page
+    .getByRole('listbox', { name: 'Priority bands for 350' })
+    .locator('[data-picker-take]');
+  await expect(active).toBeVisible();
+  expect(await hitsItself(active), 'the active priority option is clipped by the table edge').toBe(
+    true,
+  );
+});
+
 test.describe('390x844 reference sheets', () => {
-  test.use({ viewport: { width: 390, height: 844 } });
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
+
+  test('long directory names stay fully visible without panning the reference sheet', async ({
+    page,
+  }) => {
+    const seeded = await seed(page);
+    // Twenty-five, each far wider than the sheet: the review's deterministic
+    // reproduction (UI review F-092). Unique per run because the directory is
+    // shared by every test that has ever run against this be-01.
+    const run = `${String(Date.now())}/w${String(test.info().workerIndex)}`;
+    const long = Array.from(
+      { length: 25 },
+      (_, index) =>
+        `Aaaa customer-request number ${String(index + 1)} whose name keeps going well past the edge [${run}]`,
+    );
+    await directoryCommands<Entry>(
+      page,
+      long.map((name) => ({ kind: 'createTag', name })),
+    );
+    await page.reload();
+
+    const parent = page.getByRole('article', { name: 'Work item 010', exact: true });
+    await parent.locator('[data-card-tags-field]').click();
+    const dialog = page.getByRole('dialog', { name: /^Tags for / });
+    await expect(dialog).toBeVisible();
+    const box = dialog.getByRole('combobox', { name: 'Tags for 010', exact: true });
+    await box.tap();
+    // The active line is the first, and arrows walk it down the list: the
+    // scroll that carried the sheet sideways was this line's `scrollIntoView`.
+    for (let step = 0; step < 6; step += 1) await box.press('ArrowDown');
+    const list = dialog.locator('[data-picker-list]');
+    await expect(list).toBeVisible();
+    await expect(list.getByRole('option', { name: long[0], exact: true })).toHaveCount(1);
+    expect(seeded.tags.length, 'the seed carries its own short tags').toBe(3);
+
+    const measured = await dialog.evaluate((surface) => {
+      const listBox = surface.querySelector('[data-picker-list]');
+      if (listBox === null) throw new Error('the picker list is not open');
+      const options = [...listBox.querySelectorAll<HTMLElement>('[role="option"]')];
+      const sheet = surface.getBoundingClientRect();
+      const listRect = listBox.getBoundingClientRect();
+      return {
+        scrollLeft: surface.scrollLeft,
+        sideways: surface.scrollWidth - surface.clientWidth,
+        listPastSheet: Math.round(listRect.right - sheet.right),
+        listSideways: listBox.scrollWidth - listBox.clientWidth,
+        lines: options.map((option) => {
+          const style = getComputedStyle(option);
+          const box = option.getBoundingClientRect();
+          const text = document.createRange();
+          text.selectNodeContents(option);
+          const fragments = [...text.getClientRects()];
+          return {
+            name: option.textContent,
+            wrapped: fragments.length > 1,
+            clipped: fragments.some(
+              (fragment) =>
+                fragment.left < box.left - 1 ||
+                fragment.right > box.right + 1 ||
+                fragment.top < box.top - 1 ||
+                fragment.bottom > box.bottom + 1,
+            ),
+            paddingTop: parseFloat(style.paddingTop),
+            paddingBottom: parseFloat(style.paddingBottom),
+          };
+        }),
+      };
+    });
+    expect(measured.scrollLeft, 'the sheet scrolled sideways').toBe(0);
+    expect(measured.sideways, 'the sheet is wider inside than it is').toBeLessThanOrEqual(0);
+    expect(measured.listPastSheet, 'the list reaches past the sheet').toBeLessThanOrEqual(0);
+    expect(measured.listSideways, 'the list needs horizontal panning').toBeLessThanOrEqual(0);
+    for (const name of long) {
+      const line = measured.lines.find((option) => option.name === name);
+      expect(line, 'a long directory name is missing').toBeDefined();
+      expect(line?.clipped, `${name} is visibly clipped`).toBe(false);
+      expect(line?.wrapped, `${name} does not wrap into view`).toBe(true);
+      expect(
+        line?.paddingTop,
+        `${name} has too little space above its words`,
+      ).toBeGreaterThanOrEqual(12);
+      expect(
+        line?.paddingBottom,
+        `${name} has too little space below its words`,
+      ).toBeGreaterThanOrEqual(12);
+    }
+  });
 
   test('round-trips three reachable values, inherited context, and light/dark paint', async ({
     page,

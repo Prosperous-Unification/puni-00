@@ -1,6 +1,6 @@
-import type { ProjectService } from '../module/project/project.resource';
 import type { Clock } from '../ports/clock';
 import type { ResourceAccess } from '../ports/organization-access';
+import type { ProjectList } from '../ports/project-list';
 import type { ProjectRankStore, RankedProject } from '../ports/project-rank-store';
 
 /** One project in rank order, named as the caller's project list names it. */
@@ -15,7 +15,7 @@ export type ProjectRankOutcome<R extends ProjectRankRefusal = ProjectRankRefusal
 
 export interface ProjectRankResourceOptions {
   ranks: ProjectRankStore;
-  projects: Pick<ProjectService, 'listWithin'>;
+  projects: ProjectList;
   clock: Pick<Clock, 'stampFor'>;
 }
 

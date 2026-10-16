@@ -486,6 +486,17 @@ sequence`, `push failure retains durable event`, `expired replay requires snapsh
       focused checks. Cleanup removes image tags on failure. This prerequisite does not activate
       shared mode; `SUPPORTED_CAPACITY_MODES` remains `['isolated']`.
 
+- [x] 9.3 Add exclusive supplied immutable image acceptance to the existing authenticated smoke:
+      strict pre-Docker argument/orphan refusal, exact local inspection, no artifact mutation or
+      fallback, unchanged baseline/shared request validation, and invocation-owned cleanup refusal.
+      Watch tag acceptance, digest substitution, missing fallback, skipped inspection, omitted
+      shared client, supplied-image deletion and ignored cleanup failures. Record focused checks
+      and temporary-supervisor evidence separately from installed binding evidence.
+- [x] 9.4 Run supplied-image live acceptance for an explicitly selected, locally available
+      registry-qualified solver digest; record the exact reference and both feasible responses.
+      Accepted the existing docker.io/library/puni-compose-backend digest on pop-os, 2026-10-16;
+      exact reference and temporary-supervisor receipt are recorded in verify.md.
+
 ## 10. Audited shared backup restore activation
 
 - [x] 10.1 Personal approval contract and additive schema: authenticated nondelegated super-admin
