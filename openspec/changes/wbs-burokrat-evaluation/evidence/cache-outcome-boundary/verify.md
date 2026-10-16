@@ -45,7 +45,7 @@ Other fault runs each produced one failure. Unknown objective/status/failure-rea
 
 ## Mechanical equivalence
 
-A TypeScript AST/scanner comparison loaded the base file with `git show 87a2b7ed:<path>`, located every named top-level declaration in either destination file and compared scanner tokens with comments, whitespace and the export modifier excluded. All 33 original declarations were identical. This includes every helper body, all retained SQL/read/write bodies, types and constants. Collecting named exports and named reexports proved the original facade still exports exactly the same 25 names. The new module imports no cache facade.
+A TypeScript AST/scanner comparison loaded the base file with `git show 87a2b7ed:<path>`, located each of the 33 named top-level declarations and both top-level variable statements (`MISS` and `MAX_LIVE_BUDGETS`) in either destination file, and compared scanner tokens with comments, whitespace and the export modifier excluded. The upgraded comparison reported all 35 unchanged. This covers every helper body, all retained SQL/read/write bodies, types and both constants. Collecting named exports and named reexports proved the original facade still exports exactly the same 25 names. The new module imports no cache facade.
 
 Moved declarations: `CachedOutcome`, `OptimizedPair`, `optimizationVariantState`, `corrupt`, `parsePayload`, `decodePayload`, `outcomeOf`, `objectivesToAutoSpawn`, `objectivesToRetry`. Only `outcomeOf` gains an export inside the adjacent module for the cache reader; it is not reexported by the original facade/package index.
 
