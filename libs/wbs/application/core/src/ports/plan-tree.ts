@@ -1,3 +1,6 @@
+// Documentation boundary: these type-only names resolve JSDoc links and emit no JavaScript.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import type { DEFAULT_PRIORITY_BANDS, haveSameSliceOrder, sliceKey } from '@wbs/domain';
 import type {
   DependencyEndpoint,
   DependencyReach,
@@ -11,6 +14,9 @@ import type {
 
 import type { NumberedWorkItem } from '../service/numbered-work-item';
 import type { TeamCapacity } from './capacity-store';
+// Documentation boundary: this type-only name resolves a JSDoc member and emits no JavaScript.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import type { DirectoryStore } from './directory-store';
 import type { Project } from './project-store';
 import type { OptimizationVariantState } from './scheduler';
 import type { ElsewhereHolderLabel } from './shared-people-values';
@@ -20,11 +26,11 @@ import type { Step } from './step-store';
  * One placed slice as a reader sees it: the engine's own output, under the key
  * the engine holds it by.
  *
- * `id` is that key — {@link import('@wbs/domain').sliceKey}'s string, and opaque on both sides of the
+ * `id` is that key — {@link sliceKey}'s string, and opaque on both sides of the
  * wire. It is what a slice's `resourcePredecessorId` names, so the person a
  * reader draws a link from is **looked up** among these ids rather than derived
  * from a work item and a step: reconstructing the key on the client would be a
- * second implementation of {@link import('@wbs/domain').sliceKey}, and the two would disagree the day
+ * second implementation of {@link sliceKey}, and the two would disagree the day
  * either changes.
  *
  * Everything else is {@link ScheduledSlice} unchanged. The numbers are the
@@ -64,7 +70,7 @@ export interface PlanOptimization {
   >;
   /**
    * Whether a variant places the slices it shares with Fast in the same
-   * relative order — {@link import('@wbs/domain').haveSameSliceOrder}, per variant, present exactly
+   * relative order — {@link haveSameSliceOrder}, per variant, present exactly
    * where {@link PlanOptimization.finishDays} carries that variant's finish.
    *
    * Server-side per tasks.md 8.7, because it is the one half of the comparison
@@ -147,7 +153,7 @@ export interface PlanTree {
    * the slices in this very payload. `/api/people` answers a different question — who
    * could be assigned — and is still what the pickers read.
    *
-   * Read together with assignments through {@link import('./directory-store').DirectoryStore.assignmentsInProject},
+   * Read together with assignments through {@link DirectoryStore.assignmentsInProject},
    * so the names and assignments share one project-scoped database statement.
    *
    * Typed as the two columns it is, not as a `Person`. The builder has always
@@ -189,7 +195,7 @@ export interface PlanTree {
    * rather than on one.
    *
    * Never absent and never empty: a project holding no rows reads as
-   * {@link import('@wbs/domain').DEFAULT_PRIORITY_BANDS}, so a client can resolve every priority
+   * {@link DEFAULT_PRIORITY_BANDS}, so a client can resolve every priority
    * without a fallback of its own.
    * `openspec/changes/priority-bands/design.md` D2.
    */

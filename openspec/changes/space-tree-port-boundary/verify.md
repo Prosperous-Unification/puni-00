@@ -104,3 +104,30 @@ deployment, policy activation or archive has been performed.
 Retained log files normalize terminal carriage returns and trailing whitespace; verdict and policy bytes are unchanged.
 
 Retained fault patches use zero context to avoid trailing whitespace in empty context lines; `git apply --unidiff-zero --check --cached` passed against each exact green tree.
+
+## Astra source review follow-up
+
+Astra high reviewed exact `710ba3810791d4e8a30651c9b80ca6cb05c117cc`
+without P0–P2 findings and identified a P3 navigation regression: the five
+moved `{@link import('…').Symbol}` links parse as links to `import`.
+A TypeScript JSDoc AST check reproduced that failure before this correction.
+The links now use ordinary imported symbol names. Type-only imports bind
+`sliceKey`, `haveSameSliceOrder`, `DEFAULT_PRIORITY_BANDS` and `DirectoryStore`;
+two narrow `@typescript-eslint/no-unused-vars` suppressions have adjacent
+comments explaining the documentation-only symbol-resolution boundary and
+absence of emitted JavaScript. No other rule is suppressed.
+
+A JSDoc `@import` alternative passed link parsing and lint but did not bind the
+symbols in this TypeScript source under the installed checker, so it was
+rejected. The retained parser and checker scripts and outputs in `evidence/`
+show all five corrected links resolve to `sliceKey` in `schedule.ts`,
+`haveSameSliceOrder` in `schedule-order.ts`, `assignmentsInProject` in
+`directory-store.ts`, and `DEFAULT_PRIORITY_BANDS` in `priority-band.ts`.
+The parser negative is retained alongside the passing output.
+
+Review follow-up checks: scoped core production noEmit typecheck exit 0;
+changed-file ESLint exit 0, with the same missing-Nx-graph boundary rule skip;
+Bun.Transpiler confirms plan-tree JavaScript is byte-identical to reviewed
+`710ba381`. Formatting is checked through the normal commit hook. Runtime tests
+were not rerun for this documentation/type-only correction; the 60-test results
+above describe the original extraction. Full local gates remain unrun.
