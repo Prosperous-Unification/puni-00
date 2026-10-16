@@ -762,6 +762,12 @@ export function HoverCard({
             // that cannot be clamped into view.
             maxWidth: `min(${String(CARD_MAX_WIDTH_PX)}px, 100vw)`,
           };
+  // A card that opens from a cell stays inside that cell's wrapper, which is
+  // what its `position: absolute` is measured against. An anchored one is
+  // portalled out: its mark is inside an `<svg>`, which can hold no HTML at
+  // all, and every ancestor of it clips. A card placed beside a list is
+  // portalled for the second of those reasons — the listbox scrolls and clips.
+  const portalled = anchor !== undefined || beside !== undefined || diagonal !== undefined;
   const body = (
     <div
       ref={card}
@@ -783,7 +789,18 @@ export function HoverCard({
         // line: measured in Chromium at `cardBottom: 908` in a 900px window
         // before it existed. Watched 2026-08-11.
         boxSizing: 'border-box',
-        zIndex: 20,
+        // A portalled card is drawn on `--layer-card`, above every modal
+        // surface, because the control it explains may be on one: at 20 it
+        // was painted under the phone's sheets and Project settings (UI
+        // review F-131). In a cell it keeps 20, measured against the table's
+        // own sticky layers.
+        //
+        // Proof: at 20 for both, #515's original reference-sheet fact-card
+        // paint probe (`e2e/reference-cells.spec.ts`) failed on `the fact card
+        // is painted under <div role="dialog" … data-modal-surface="bottom"`.
+        // Watched 2026-10-16 on 102a2e098; the reconciled mouse probe and the
+        // independent touch wrapping case still require hosted verification.
+        zIndex: portalled ? 'var(--layer-card)' : 20,
         minWidth: compact ? undefined : CARD_MIN_WIDTH_PX,
         background: 'var(--popover)',
         color: 'var(--popover-foreground)',
@@ -812,12 +829,5 @@ export function HoverCard({
       {children}
     </div>
   );
-  // A card that opens from a cell stays inside that cell's wrapper, which is
-  // what its `position: absolute` is measured against. An anchored one is
-  // portalled out: its mark is inside an `<svg>`, which can hold no HTML at
-  // all, and every ancestor of it clips. A card placed beside a list is
-  // portalled for the second of those reasons — the listbox scrolls and clips.
-  return anchor === undefined && beside === undefined && diagonal === undefined
-    ? body
-    : createPortal(body, document.body);
+  return portalled ? createPortal(body, document.body) : body;
 }

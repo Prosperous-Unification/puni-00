@@ -59,3 +59,34 @@ host gate or raw full Nx gate ran. Chromium is the existing browser contract;
 no new scroll API is used. Existing Vite configuration and proxy disconnect
 warnings occurred during browser runs. Nx generated its graph in process after
 the sandbox denied plugin worker sockets.
+
+## Current-main reconciliation of #515 review fixes, 2026-10-16
+
+Base: `5274046bdb0835727e22f98901a849afaad3b4a7`, isolated checkout
+`/tmp/puni-ui515-reconcile`. This candidate applies the unique review fixes from
+`89b1b62ebd078857adc86afece4551054bb429df`, without replaying its merge onto
+main. Bottom-sheet names still wrap in full with symmetric touch padding;
+the existing touchscreen and table-edge scrolling regressions, picker CSS,
+and all combined-candidate evidence above are retained.
+
+The reference-sheet fact-card paint assertion is a separate mouse case at
+390×844. It does not replace the touchscreen whole-name regression or require
+touch readers to hover. The new mouse case has not run on this candidate.
+
+### Historical review-round proofs
+
+Commit `89b1b62e` records the following observed failures on `102a2e098` on
+2026-10-16. These are historical evidence, not fresh runs on this reconciliation:
+
+- Guarding only `onPointerDownOutside` left Radix's `onInteractOutside` able to close Project settings: both the desktop toast-dismiss case and nested 390×844 case failed with settings dialog `element(s) not found`.
+- A portalled card at `zIndex: 20` failed the original reference-sheet paint probe with `the fact card is painted under <div role="dialog" … data-modal-surface="bottom"`.
+- The keyboard shortcuts backdrop at `z-100` failed the standing-toast paint probe with `covered by <div role="presentation" data-cheat-sheet-backdrop …`.
+- The project list at input width failed the imported-name line-count assertion at 375px with `[3,3]` lines.
+
+### Fresh local checks and limits
+
+- Changed-file Prettier `--check`: exit 0, all matched files formatted. `git diff --check`: exit 0.
+- Preservation inspection: removing only the added mouse describe block reproduces the base reference-cell test byte for byte; `creatable-picker.tsx` is byte for byte unchanged; the prior `verify.md` is an unchanged prefix.
+- OpenSpec validation is **unavailable locally**: the cached 1.12.0 CLI has no dependency tree. Direct Bun execution tried its read-only auto-install cache and exited `EROFS`; `bun --no-install` identified missing `commander`, and supplying the workspace dependency path then identified missing `diff`. No dependency installation was attempted after the host OOM.
+- No local unit/component suite, browser suite, mutation run, lint, typecheck, build, full Nx gate or h2puni gate ran for this candidate. Hosted CI must verify those checks; the adapted mouse paint probe especially needs a fresh positive and a negative with the card layer restored to 20.
+- This local review candidate has not been pushed, merged, archived or deployed. It requires architect review before publication.
