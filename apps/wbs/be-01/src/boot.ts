@@ -43,7 +43,8 @@ import { REFUSE_DELEGATIONS } from './runtime/delegation';
 import { REFUSE_DELEGATION_ISSUANCE } from './runtime/delegation-issuer';
 import { importDelegationKeys } from './runtime/delegation-keys';
 import { runDomainProofWorker, startDomainProofWorker } from './runtime/domain-proof-worker';
-import { refusingEmailDelivery } from './runtime/email-delivery';
+import { createEmailDelivery } from './runtime/email-delivery';
+import type { EmailDeliveryConfig } from './runtime/email-delivery-config';
 import { organizationCookieBinding } from './runtime/organization-cookie';
 import {
   nativeBrowserCredentialEvidence,
@@ -76,6 +77,8 @@ export interface BootOptions {
    * marker before any binding.
    */
   browserSessionAuthority: 'enabled' | 'disabled';
+  /** Parsed explicit SMTP authority; absence keeps direct/test boot callers disabled. */
+  emailDelivery?: EmailDeliveryConfig;
   delegationKeys?: DelegationKeys;
   /** Explicit recursive IPs; absence retains the refusing domain resolver. */
   organizationDnsResolvers?: readonly string[];
@@ -234,6 +237,7 @@ export async function bootBe01(
   // Keys are parsed even while production refuses delegation, so a broken
   // configured pair cannot hide until a later activation.
   if (opts.delegationKeys !== undefined) await importDelegationKeys(opts.delegationKeys);
+  // Proof: dropping scheduling in the combined SMTP/DNS boot test observed0 workers instead of1.
   const schedulesProofs =
     opts.organizationDomainProofScheduling === undefined
       ? opts.organizationDnsResolvers !== undefined
@@ -251,6 +255,8 @@ export async function bootBe01(
           dependencies.dnsTransport ?? new SocketDnsTransport(),
         );
   const state = { migrationsApplied: false, stopping: false };
+  // Proof: replacing this with disabled delivery failed the combined boot submission after a real proof sweep.
+  const emailDelivery = createEmailDelivery(opts.emailDelivery ?? { kind: 'disabled' });
   const bag = await DiBag.createBuilder()
     .withServices({
       // One connection for the process, opened through `openDrizzle` so the
@@ -380,7 +386,8 @@ export async function bootBe01(
               // left the cold boot rank move without its second durable a2 event
               // in boot.db.test.ts (R5 boot-rank-binding).
               projectRanks: services.projectRanks,
-              emailDelivery: refusingEmailDelivery,
+              // Proof: retaining the refusing sink made boot's real-TLS challenge test answer503 instead of201.
+              emailDelivery,
               steps: services.steps,
               calendarMarkers: services.calendarMarkers,
               workItems: services.workItems,

@@ -3,6 +3,7 @@ import { defineConfig } from '@wbs/config';
 import { type } from '@wbs/validation';
 
 import { parseResolvers } from './runtime/authoritative-dns/addresses';
+import { type EmailDeliveryConfig, readEmailDelivery } from './runtime/email-delivery-config';
 
 export const BeConfig = type({
   PORT: 'string.integer.parse',
@@ -50,6 +51,7 @@ export const loadConfig = (
   appOrigin: string;
   delegationKeys?: DelegationKeys;
   organizationDnsResolvers?: readonly string[];
+  emailDelivery: EmailDeliveryConfig;
 } => {
   const mode = authModeOf(envSource);
   const config = defineConfig(BeConfig, envSource);
@@ -83,6 +85,8 @@ export const loadConfig = (
     delegationKeys,
     appOrigin,
     organizationDnsResolvers: parseResolvers(config.ORGANIZATION_DNS_RESOLVERS),
+    // Proof: removing this binding failed the production config disabled-mode assertion.
+    emailDelivery: readEmailDelivery(envSource),
     SOLVER_BUDGET_MS: solverBudgetMs,
     SOLVER_SEARCH_WORKERS: solverSearchWorkers,
     SOLVER_MEMORY_LIMIT_MB: solverMemoryLimitMb,

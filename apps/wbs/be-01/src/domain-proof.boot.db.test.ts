@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { EmailDelivery } from '@wbs/core';
 import { createLogger } from '@wbs/observability';
 import { openSqliteSource } from '@wbs/store-sqlite';
 import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test';
@@ -14,6 +15,7 @@ import { DnsUnavailableError } from './runtime/authoritative-dns/failures';
 import type { DnsTransport } from './runtime/authoritative-dns/resolver';
 import { DnsCleanupError } from './runtime/authoritative-dns/transport';
 import { startDomainProofWorker } from './runtime/domain-proof-worker';
+import { startSmtpRelay } from './testing/smtp-relay';
 
 let directory: string;
 let sqlite: ReturnType<typeof openDatabase>;
@@ -32,7 +34,7 @@ beforeEach(() => {
     dbPath,
     port: 0,
     appOrigin: 'http://localhost:4200',
-    logger: createLogger({ service: 'domain-proof-boot-test', level: 'error' }),
+    logger: createLogger({ service: 'be-01', level: 'error' }),
     jwtKey: 'domain-proof-test-key-32-characters-long',
     gwUrl: 'http://localhost:3200',
     internalAuthSecret: 'internal-secret-with-at-least-32-characters',
@@ -48,7 +50,7 @@ afterEach(async () => {
   rmSync(directory, { recursive: true });
 });
 
-function boot(configured: BootOptions, dependencies: Parameters<typeof bootBe01>[1]) {
+function boot(configured: BootOptions, dependencies: NonNullable<Parameters<typeof bootBe01>[1]>) {
   return bootBe01(configured, {
     makeApp: (composition) => {
       const app = buildApp(composition);
@@ -412,5 +414,62 @@ describe('boot-owned retained proof scheduling', () => {
       else expect(failure?.cause).toBeInstanceOf(Error);
       await running.stop();
     });
+  }
+});
+
+test('one boot preserves configured SMTP and immediate proof scheduling together', async () => {
+  const relay = await startSmtpRelay();
+  try {
+    plantProof(true);
+    const clock = createWait();
+    let workers = 0;
+    let lookups = 0;
+    let delivery: EmailDelivery | undefined;
+    running = await boot(
+      { ...options, emailDelivery: relay.config },
+      {
+        openSource: openSqliteSource,
+        makeApp: (composition) => {
+          delivery = composition.emailDelivery;
+          const app = buildApp(composition);
+          app.stop = () => {
+            listenerStops += 1;
+            return Promise.resolve(app);
+          };
+          return app;
+        },
+        dnsTransport: {
+          exchange: () => {
+            lookups += 1;
+            return Promise.reject(new DnsUnavailableError('controlled composition outage'));
+          },
+        },
+        startProofWorker: (schedule) => {
+          workers += 1;
+          return startDomainProofWorker({ ...schedule, wait: clock.wait });
+        },
+      },
+    );
+    expect(workers).toBe(1);
+    const failed = Promise.withResolvers<never>();
+    running.backgroundFailure.observe((failure) => {
+      failed.reject(failure.cause);
+    });
+    await Promise.race([clock.entered.promise, failed.promise]);
+    expect(lookups).toBeGreaterThan(0);
+    expect(readProof()).toMatchObject({ status: 'suspended', last_success_at: old });
+    if (delivery === undefined) throw new Error('boot omitted email delivery composition');
+    await delivery.deliver({
+      purpose: 'verification',
+      recipient: 'owner@example.test',
+      token: 'a'.repeat(64),
+    });
+    expect(relay.observed.connections).toBe(1);
+    expect(relay.observed.bodies).toHaveLength(1);
+    expect(running.backgroundFailure.current()).toBeUndefined();
+    await running.stop();
+    expect(listenerStops).toBe(1);
+  } finally {
+    await relay.close();
   }
 });

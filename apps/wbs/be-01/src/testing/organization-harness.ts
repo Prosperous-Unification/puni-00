@@ -7,6 +7,7 @@ import {
   type CapacityModeSwitch,
   CREATOR_ADMISSION,
   type DomainResolver,
+  type EmailMessage,
   type PasswordHasher,
   type ProjectRankStore,
 } from '@wbs/core';
@@ -139,6 +140,7 @@ export interface OrganizationHarnessOptions {
 }
 
 interface TestMail {
+  purposes: Map<string, EmailMessage['purpose']>;
   tokens: Map<string, string>;
   fail: boolean;
   beforeDelivery?: () => void | Promise<void>;
@@ -416,7 +418,7 @@ export class OrganizationHarness {
         broadcast: recordingBroadcaster(),
       }),
     };
-    const mail: TestMail = { tokens: new Map<string, string>(), fail: false };
+    const mail: TestMail = { tokens: new Map<string, string>(), purposes: new Map(), fail: false };
     const app = buildApp({
       loginThrottle: testLoginThrottle(),
       clock: testClock,
@@ -456,10 +458,11 @@ export class OrganizationHarness {
       spaces: new SpaceRepository(db, OPEN),
       projectRanks: uncomposedRanks(new ProjectRankRepository(db, OPEN)),
       emailDelivery: {
-        deliver: async (address, token) => {
+        deliver: async (message) => {
           await mail.beforeDelivery?.();
           if (mail.fail) return Promise.reject(new Error('injected mail sink failure'));
-          mail.tokens.set(address, token);
+          mail.tokens.set(message.recipient, message.token);
+          mail.purposes.set(message.recipient, message.purpose);
           return Promise.resolve();
         },
       },
@@ -717,6 +720,13 @@ export class OrganizationHarness {
     const token = this.mail?.tokens.get(address);
     if (token === undefined) throw new Error(`no challenge delivered to ${address}`);
     return token;
+  }
+
+  /** Captured purpose, so the production caller cannot silently swap message semantics. */
+  deliveredEmailPurpose(address: string): EmailMessage['purpose'] {
+    const purpose = this.mail?.purposes.get(address);
+    if (purpose === undefined) throw new Error('no message purpose was captured');
+    return purpose;
   }
 
   /** Makes the injected test sink reject delivery. */

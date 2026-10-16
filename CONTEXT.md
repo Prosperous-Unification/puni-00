@@ -82,6 +82,14 @@ _Avoid_: automatic enrollment, JIT membership
 An offer to a specific email address to join an organization with a specified role.
 _Avoid_: join request, signup link
 
+**Email submission**:
+The handoff of one purpose-specific message for one recipient to an explicitly configured mail relay.
+_Avoid_: inbox delivery, address verification
+
+**Relay acceptance**:
+The relay's final positive acknowledgement of a complete submitted message; it does not prove receipt in the recipient's inbox.
+_Avoid_: delivered email, verified recipient
+
 **Legacy organization**:
 The single organization that receives WBS content and users from before organization ownership was introduced.
 _Avoid_: default tenant, personal organization

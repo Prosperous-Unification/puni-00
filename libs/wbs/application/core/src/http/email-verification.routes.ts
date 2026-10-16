@@ -58,12 +58,15 @@ export function emailVerificationRoutes(
           }
         }
         try {
-          await delivery.deliver(email, token);
+          // Proof: swapping this purpose failed the mounted email-verification message-purpose assertion.
+          await delivery.deliver({ purpose: 'verification', recipient: email, token });
         } catch {
           // Proof: 2026-09-28, marking failed delivery as delivered failed `refuses failed delivery and address conflict without verifying either account`.
+          // Proof (SMTP): marking this delivered let a captured rejected code confirm200 instead of409; skipping it left pending state, and hiding its failure returned503 instead of500.
           await verification.recordDelivery(answer.value.id, false);
           return { ok: false, status: 503, body: { error: 'delivery_failed' } };
         }
+        // Proof (SMTP): omitting this update made boot confirmation refuse a relay-accepted code.
         await verification.recordDelivery(answer.value.id, true);
         return { ok: true, status: 201, body: { expiresAt: answer.value.expiresAt } };
       },

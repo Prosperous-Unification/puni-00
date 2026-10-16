@@ -33,6 +33,7 @@ describe('password email verification', () => {
     expect(issued.status).toBe(201);
     expect(issued.body).toHaveProperty('expiresAt');
     const token = harness.deliveredEmailToken('ada@example.org');
+    expect(harness.deliveredEmailPurpose('ada@example.org')).toBe('verification');
     expect(
       await harness.call('ada', 'POST', '/api/onboarding/email-challenges/confirm', {
         email: 'other@example.org',

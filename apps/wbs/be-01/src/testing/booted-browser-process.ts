@@ -11,6 +11,7 @@ import type { OidcRouteOptions } from '../controller/oidc-options';
 import { openDatabase } from '../repository/db';
 import { runMigrations } from '../repository/migrate';
 import type { DnsTransport } from '../runtime/authoritative-dns/resolver';
+import type { EmailDeliveryConfig } from '../runtime/email-delivery-config';
 import { TEST_JWT_KEY } from './auth-fixture';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
@@ -47,6 +48,7 @@ export class BootedBrowserProcess {
     oidc?: OidcRouteOptions,
     appOrigin = BOOTED_ORIGIN,
     dns?: { readonly resolvers?: readonly string[]; readonly transport?: DnsTransport },
+    emailDelivery?: EmailDeliveryConfig,
   ): Promise<BootedBrowserProcess> {
     const dir = mkdtempSync(join(tmpdir(), 'wbs-booted-browser-'));
     const dbPath = join(dir, 'test.db');
@@ -62,6 +64,7 @@ export class BootedBrowserProcess {
         gwUrl: 'http://gw.invalid',
         internalAuthSecret: BOOTED_INTERNAL_SECRET,
         browserSessionAuthority,
+        emailDelivery,
         oidc,
         commitDir: dir,
         organizationDnsResolvers: dns?.resolvers,

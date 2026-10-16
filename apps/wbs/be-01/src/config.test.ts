@@ -17,7 +17,7 @@ const VALID = {
 describe('BeConfig', () => {
   it('accepts only explicit enabled or disabled proof scheduling overrides', () => {
     expect(loadConfig(VALID).ORGANIZATION_DOMAIN_PROOF_SCHEDULING).toBeUndefined();
-    for (const configured of ['enabled', 'disabled'])
+    for (const configured of ['enabled', 'disabled'] as const)
       expect(
         loadConfig({ ...VALID, ORGANIZATION_DOMAIN_PROOF_SCHEDULING: configured })
           .ORGANIZATION_DOMAIN_PROOF_SCHEDULING,
@@ -42,6 +42,13 @@ describe('BeConfig', () => {
     ])
       expect(() => loadConfig({ ...VALID, ORGANIZATION_DNS_RESOLVERS: configured })).toThrow();
   });
+  it('composes explicit disabled mail and refuses partial SMTP configuration before boot', () => {
+    expect(loadConfig(VALID)).toHaveProperty('emailDelivery', { kind: 'disabled' });
+    expect(() => loadConfig({ ...VALID, WBS_SMTP_HOST: 'relay.test' })).toThrow(
+      'invalid email delivery configuration',
+    );
+  });
+
   it('refuses partial delegation key configuration', () => {
     expect(() => loadConfig({ ...VALID, WBS_DELEGATION_SIGNING_KEY: 'x' })).toThrow();
     expect(() => loadConfig({ ...VALID, WBS_DELEGATION_VERIFY_KEY: 'x' })).toThrow();
