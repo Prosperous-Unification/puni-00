@@ -65,7 +65,15 @@ suite exercises the real production functions directly.
 | Fault injected                                                                  | Observing test                                               | Observed failure                                                        |
 | ------------------------------------------------------------------------------- | ------------------------------------------------------------ | ----------------------------------------------------------------------- |
 | Below-mark gap addition changed to subtraction in production `surfacePlacement` | `surface placement geometry > below the mark with its gap`   | Actual top 222 versus expected 234; exit 1.                             |
+| Production scrolling floor reduced from 160 to 90                               | `sideways placement geometry > scrolling height floor`       | Actual maxHeight 155 versus expected 160; 1 failed, 23 passed; exit 1.  |
 | Same arithmetic mutation                                                        | `clamped at the right edge`, `exact fit below remains below` | Actual tops 222/668 versus expected 234/680; total 3 failed, 21 passed. |
+
+Astra source review also found the original scrolling-floor fixture supplied
+exactly 160px of room, which did not distinguish a lower floor. Its cell now spans
+145–155px in a 300px frame, supplying only 155px while expecting 160px. Lowering
+the production `SCROLLING_MIN_HEIGHT` from 160 to 90 failed exactly that case on
+maxHeight 155 versus 160 (1 failed, 23 passed); production was restored unchanged
+before the passing rerun. The test has an adjacent observed `Proof:` comment.
 
 The fault was removed before the passing rerun. Its adjacent `Proof:` comment
 records the injection and observed fixed-output case. The original component

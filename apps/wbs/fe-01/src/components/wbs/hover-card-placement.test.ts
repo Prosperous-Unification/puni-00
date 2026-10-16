@@ -183,9 +183,12 @@ describe('sideways placement geometry', () => {
       frame,
       { side: 'right', align: 'top', maxHeight: 410 },
     ],
+    // Proof: lowering the production floor from 160 to 90 failed this case
+    // on maxHeight 155 versus expected 160 (2026-10-16). The frame supplies
+    // only 155px, so the constant rather than available room determines it.
     [
       'scrolling height floor',
-      { left: 10, right: 30, top: 140, bottom: 160 },
+      { left: 10, right: 30, top: 145, bottom: 155 },
       CARD,
       { left: 0, right: 1000, top: 0, bottom: 300 },
       { side: 'right', align: 'top', maxHeight: 160 },
