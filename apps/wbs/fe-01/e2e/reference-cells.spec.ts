@@ -706,14 +706,14 @@ test.describe('390x844 reference sheets with a mouse', () => {
     await parent.locator('[data-card-tags-field]').click();
     const dialog = page.getByRole('dialog', { name: /^Tags for / });
     const box = dialog.getByRole('combobox', { name: 'Tags for 010', exact: true });
-    await box.fill(seeded.tags[0].name);
-    const option = dialog.getByRole('option', { name: seeded.tags[0].name, exact: true });
+    await box.fill(seeded.tags[2].name);
+    const option = dialog.getByRole('option', { name: seeded.tags[2].name, exact: true });
     await expect(option).toBeVisible();
     // Wrapping makes touch names readable without hover. A mouse can still
     // open a fact card, and that card must be painted over its source sheet.
     await page.waitForTimeout(300);
     await option.hover();
-    const card = page.getByRole('tooltip').filter({ hasText: seeded.tags[0].name });
+    const card = page.getByRole('tooltip').filter({ hasText: seeded.tags[2].name });
     await expect(card).toHaveCount(1);
     const painted = await card.evaluate((node) => {
       if (!(node instanceof HTMLElement)) throw new Error('the card is not an HTML element');
