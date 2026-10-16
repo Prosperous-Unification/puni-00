@@ -40,7 +40,7 @@ one settlement, destruction and sanitized failures. A handwritten SMTP state
 machine duplicates protocol/security work and is not approved. The high-level
 client hides active connection lifetime needed by the required deadline.
 
-Before production integration, a focused Bun1.4.2 local TLS probe must demonstrate
+The disposable Bun1.4.2 local TLS probe subsequently demonstrated
 public import/types, complete handshake and PLAIN authentication, one final250
 submission, refused final ACK, withheld ACK timeout, physical close, no resend,
 late callback suppression, immediate220 handoff on a paused owned socket, and
@@ -72,5 +72,6 @@ claim for that client option. The caller-owned TLS receive boundary independentl
 counts every plaintext byte across the entire session, capped at 64KiB. A
 64KiB+1 complete-one-chunk reply, including an apparently successful final250,
 must refuse before success; removing the aggregate guard must fail that oracle.
-This is an observed source finding, not yet a locally executed compatibility
-proof. No handwritten SMTP decoder is needed for aggregate byte accounting.
+The disposable probe and production adapter tests now exercise this boundary;
+see [verification receipts](verify.md). No handwritten SMTP decoder is needed
+for aggregate byte accounting.

@@ -67,6 +67,7 @@ export function isEmailMailbox(value: string): boolean {
  * Reads optional SMTP authority once, before serving. All fields absent means
  * disabled; any present field requires complete implicit-TLS configuration.
  * Native read/PEM errors are sanitized so startup logging cannot disclose secrets.
+ * Operator authority and disabled behavior: docs/runbook-organization-email-delivery.md.
  */
 export function readEmailDelivery(
   env: Readonly<Record<string, string | undefined>>,

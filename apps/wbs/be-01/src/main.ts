@@ -36,6 +36,7 @@ try {
     gwUrl: cfg.GW_URL,
     internalAuthSecret: cfg.INTERNAL_AUTH_SECRET,
     browserSessionAuthority: cfg.BROWSER_SESSION_AUTHORITY,
+    emailDelivery: cfg.emailDelivery,
     delegationKeys: cfg.delegationKeys,
     oidc: cfg.AUTH_MODE === 'oidc' ? oidcRouteOptionsFromEnv(process.env) : undefined,
     localIdentity:

@@ -1,15 +1,15 @@
 ## Review boundary
 
-Planning only on exact main `87a2b7edbfaabae889d91daa823f16f520a51cec`.
-Production implementation waits for Astra review of this design and client evidence.
+Design reviewed on exact main `87a2b7edbfaabae889d91daa823f16f520a51cec`.
+Astra approved this design and client evidence before production implementation.
 The implementation scope is password-email verification only, per PM decision.
-The maintained low-level client boundary still requires exact design review.
+The maintained low-level client passed a controlled disposable probe; exact source review remains a separate acceptance step.
 
 ## Existing behavior and integration points
 
-`EmailDelivery.deliver(address, token)` is called by
+Before this change, `EmailDelivery.deliver(address, token)` was called by
 `emailVerificationRoutes`, `invitationRoutes` and `joinRequestRoutes`.
-`bootBe01` always binds `refusingEmailDelivery`; both process entrypoints use
+`bootBe01` always bound `refusingEmailDelivery`; both process entrypoints use
 `loadConfig`. Verification marks its challenge failed on transport refusal;
 invitations revoke the offer; approval revokes the offer and reopens the request
 unless a newer pending request exists. Repository failures propagate; a transport
@@ -40,8 +40,10 @@ No secrets or raw supplied configuration appear in errors.
 
 Both entrypoints pass the parsed mode through `BootOptions` and boot constructs
 the adapter once. Direct boot callers that omit the optional new setting remain
-explicitly disabled for compatibility; a supplied enabled setting is validated
-at its trusted boundary before acquiring database/listener resources. Existing
+explicitly disabled for compatibility. Operator input is validated once by
+`readEmailDelivery` through `loadConfig` before either process entrypoint invokes
+boot. Internal BootOptions carry that parsed configuration, as with existing
+authentication options; they are not a second untyped operator-config API. Existing
 organization activation is unchanged by SMTP configuration.
 
 ## Purpose and message boundary
@@ -111,7 +113,9 @@ Check the monotonic clock before auth/send/body work and final-ACK acceptance,
 and before publishing the outcome against its applicable absolute deadline;
 a late timer callback must not extend eligibility. Native close and outcome
 publication may use only the bounded cleanup allowance after timely final ACK.
-Do not renew deadlines on activity. Shortened injected clocks/budgets exist only
+Deadlines bound eligibility rather than OS scheduling latency; an observable
+failure can arrive later while the runtime is not scheduled. Do not renew
+deadlines on activity. Shortened injected clocks/budgets exist only
 in fixtures. Cancellation here means the wrapper cutoff or an owned internal
 abort, not a new HTTP disconnect guarantee (the port has no request signal).
 On timeout, premature close, error or cancellation: stop library work,

@@ -100,7 +100,9 @@ No activity SHALL renew those budgets. Cleanup SHALL end no later than
 `min(closeStartedAt + 1000ms, startedAt + 10000ms)`. Monotonic time SHALL be
 checked at auth/send/body/final-ACK transitions and before publishing an outcome
 against its applicable deadline, including if a timer callback is delayed.
-Cancellation denotes the owned wrapper cutoff/abort, not a new HTTP-disconnect
+Deadlines SHALL bound eligibility even under delayed runtime scheduling; they
+SHALL NOT be represented as a hard real-time execution guarantee. Cancellation
+denotes the owned wrapper cutoff/abort, not a new HTTP-disconnect
 contract. It SHALL enforce a wrapper-owned 64KiB aggregate received SMTP-byte cap,
 including complete one-chunk replies, before exposing success. The client SHALL
 use an 8KiB partial-buffer guard; this SHALL NOT be represented as a complete-reply

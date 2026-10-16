@@ -1,49 +1,100 @@
-## Planning status
+## Candidate scope
 
 Base main `87a2b7edbfaabae889d91daa823f16f520a51cec` in isolated
-`/tmp/wbs-organization-smtp-sol`; no production/dependency/schema edits yet.
-PM selected password-verification-only scope. SMTP invitation/join delivery
-remains explicitly disabled even when verification SMTP is configured.
+`/tmp/wbs-organization-smtp-sol`. Planning commit
+`f3bd6a1d68dd640114e69631f151b8e0d694e5e4` and configuration checkpoint
+`6c1df143b4ed9394f835cac8deb1e45f17f60d5c` preceded transport implementation.
+Astra approved the exact verification-only design and pinned client boundary
+before the disposable probe and production TDD. Source review is pending.
 
-Read the email port, three route callers, production/dev entrypoints, boot/config,
-verification/invitation/join repositories and mounted tests. Client source
-inspection is recorded in [client review](client-review.md). Upstream Bun CI is
-not local compatibility evidence. Astra exact artifact review found one P2 client-boundary overclaim: maxResponseSize does not bound complete one-chunk replies. Revised to wrapper-owned aggregate64KiB plus honest client partial-buffer8KiB; clarification corrections cover final250 versus accepted[] recipient identity and absolute clock checks. Independent Astra exact design review reports no remaining P0–P3 findings; approved to commit the planning packet and run the disposable client probe. Runtime compatibility and production implementation remain unproven.
+The implementation enables only password-email verification. Invitation and join
+approval still refuse under enabled SMTP, revoke the pending offer, and preserve
+join-request compensation. No invitation migration, live activation, external
+relay credentials, trusted sender authority or inbox receipt is supplied. This
+slice does not complete WBS010.5.4.
 
-## Planned commands
+## Production TDD and watched faults
 
-Run serially with RAM observation, no broad local process overlap. Use Bun1.4.2,
-`NODE_OPTIONS=--max-old-space-size=768` where applicable; this is a Node heap cap,
-not a hard Bun RSS limit. Do not claim the latter.
+Initial adapter/boot runs failed before their implementation/binding; purpose
+capture initially failed before the harness/port change. Receipts include
+`/tmp/smtp-purpose-green.log`, `/tmp/smtp-transport-disabled-green.log` and
+`/tmp/smtp-boot-red.log` (configured boot returned503 instead of201).
 
-- Disposable native TLS maintained-client probe: pending design approval.
-- `bun test apps/wbs/be-01/src/runtime/email-delivery-config.test.ts`: pending implementation.
-- `bun test apps/wbs/be-01/src/runtime/email-delivery.test.ts`: pending implementation.
-- `bun test apps/wbs/be-01/src/boot-email-delivery.db.test.ts`: pending implementation.
-- Existing email-verification/invitation/join-request controller suites: pending implementation.
-- Scoped ESLint/TypeScript/Prettier and OpenSpec: planning artifacts: OpenSpec1.12.0 strict validation passed (`Change organization-email-delivery is valid`), Prettier write completed and git diff --check passed on 2026-10-16. No runtime claims follow from these checks.
-- Normal hooks: pending planning commit.
-- Full Nx, browser, Docker, Burokrat survey, canonical h2 gate: not run locally; outside this planning checkpoint.
-- Hosted exact source CI, deployment, real relay/inbox: not run; release/external evidence remains pending.
+**53 serial production mutations exited nonzero**, then their source bytes were
+restored. Adjacent `Proof:` comments name consuming oracles. These are scoped
+controls, not a full gate or arbitrary-fault guarantee.
 
-## Failure-proof table
+| Boundary                       | Watched faults                                                                                                                                                       | Receipt prefix                         |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| Configuration                  | 20 required/grammar/CA/source-sanitization faults listed below                                                                                                       | `/tmp/smtp-config-faults.log`          |
+| Purpose port                   | Three route purpose swaps                                                                                                                                            | `/tmp/smtp-purpose-fault-`             |
+| Transport                      | 16 initial guards: invitation/recipient/token/TLS/CA/final code/recipient count/identity/rejections/bytes/clock/native ACK/destroy/no resend/body-only success/timer | `/tmp/smtp-transport-faults.log`       |
+| Authentication and late events | Explicit auth, PLAIN method, terminal work guard, frozen outcome                                                                                                     | `/tmp/smtp-transport-extra-faults.log` |
+| Partial/aggregate limits       | Latest-chunk-only accounting; weakened client partial limit                                                                                                          | `/tmp/smtp-fragment-faults.log`        |
+| Cleanup eligibility            | Renewed total cleanup budget; omitted publication clock                                                                                                              | `/tmp/smtp-cleanup-faults.log`         |
+| Boot/compensation              | Refusing binding, false delivered state, omitted failed update, swallowed compensation error, omitted delivered update, invitation dispatch bypass                   | `/tmp/smtp-boot-faults.log`            |
 
-No safety check is implemented or proven yet. These are required watched faults,
-not completed evidence; tasks remain unchecked until fresh RED/GREEN/negative receipts.
+The initial authentication-method omission survived because the client preferred
+PLAIN when both methods were advertised. A LOGIN-only fixture exposed the actual
+fallback: removing explicit PLAIN produced `AUTH OTHER`, so the strengthened
+oracle failed. Fragment accounting is independently observed by temporarily
+raising the public client partial limit in the fixture; latest-chunk-only
+accounting then falsely accepts. Complete oversized final250 also refuses.
 
-| Check                                 | Injected fault                                                        | Required observing test                                           | Outcome |
-| ------------------------------------- | --------------------------------------------------------------------- | ----------------------------------------------------------------- | ------- |
-| Explicit complete configuration/trust | Omit pair/required-field/read/parse checks; missing and unreadable CA | production config/boot refusal                                    | Pending |
-| Invitation remains disabled           | Route invitation purpose to enabled SMTP                              | configured boot invitation/join zero-connections and compensation | Pending |
-| One recipient and safe content        | Remove mailbox/token guard; allow header injection/raw error          | adapter grammar and leakage oracles                               | Pending |
-| Verified TLS                          | Disable CA/name verification                                          | real TLS wrong-CA/name before auth/body                           | Pending |
-| Final acceptance                      | Treat RCPT or body write as success                                   | withheld final ACK and unusable captured code                     | Pending |
-| Exact recipient                       | Ignore accepted/rejected response shape                               | wrong/multiple recipient adapter case                             | Pending |
-| Absolute deadline and byte caps       | Renew timer or omit receive cap                                       | trickle/complete-one-chunk64KiB+1 bounded abort                   | Pending |
-| Native close and no resend            | Substitute library end; omit destroy; duplicate send                  | native-close/late-callback/counting cases                         | Pending |
-| Boot binding                          | Bind refusing adapter despite valid config                            | boot-mounted verification success                                 | Pending |
-| Failed delivery compensation          | Mark delivered, omit failed state or swallow store error              | captured token cannot confirm / storage failure propagates        | Pending |
-| Current authority and one use         | Bypass existing activation/address/consume predicate                  | mounted current-address/replay/authority cases                    | Pending |
+Automatic approval review rejected a proposed removal of the `settled` guard;
+that removal never executed and was not retried. The safe alternative retains
+the guard and adds late-connect and late-error lifecycle controls. Both passed
+(`/tmp/smtp-transport-late-green.log`); separate terminal-work/frozen-outcome
+mutations failed while `settled` remained intact. No settled-removal proof is
+claimed.
+
+## Final serial verification
+
+Commands use Bun1.4.2 and serial execution (`--max-concurrency 1`), with bounded
+process timeouts and `NODE_OPTIONS=--max-old-space-size=768` where applicable.
+That setting is not a Bun/native compiler RSS cap. No concurrent heavy scan was
+run. Local loopback TLS tests require approved sandbox elevation; the initial
+disposable probe sandbox bind failure is recorded below.
+
+- Adapter: **36 tests, 129 assertions, 15.86s**, RSS **55,812KiB**;
+  `/tmp/smtp-adapter-final.log`.
+- Boot SMTP lifecycle: **8 tests, 36 assertions, 14.01s**, RSS **620,792KiB**;
+  `/tmp/smtp-boot-final.log`.
+- Existing verification: **14 tests, 59 assertions, 3.83s**, RSS **577,500KiB**;
+  `/tmp/smtp-verification-final.log`. Run from `apps/wbs/be-01`, the declared Nx
+  cwd. The initial repo-root invocation failed one existing spawned Bun eval
+  alias lookup (`@wbs/store-sqlite/db`); using the project cwd resolved it without
+  a source workaround.
+- Existing invitation: **20 tests, 57 assertions, 3.62s**, RSS **571,376KiB**;
+  `/tmp/smtp-invitation-final.log`.
+- Existing join request: **26 tests, 104 assertions, 6.06s**, RSS **633,992KiB**;
+  `/tmp/smtp-join-final.log`.
+- Production/dev startup refusal: **2 tests, 8 assertions, 3.57s**;
+  `/tmp/smtp-startup-green.log`.
+- Configuration final checkpoint: **65 tests, 97 assertions, 277ms**;
+  `/tmp/smtp-config-checkpoint.log`.
+- Production be-01 TypeScript (`bunx tsc -p apps/wbs/be-01/tsconfig.lib.json
+--noEmit`, timeout45s): **exit0, 5.56s, RSS2,650,244KiB**;
+  `/tmp/smtp-be-typecheck.log`. The native compiler ignores the Node heap cap;
+  this one-off process ended, with MemAvailable21,407,880KiB afterward. It was
+  not repeated.
+- Scoped ESLint on all18 changed TypeScript files: **exit0**;
+  `/tmp/smtp-lint-final.log`. Nx module-boundary rule skipped for missing cached
+  graph, as disclosed below. Prettier formatted all25 supported changed files;
+  `/tmp/smtp-format-final.log`; `git diff --check` passed.
+- OpenSpec1.12.0 strict change validation: **valid**;
+  `/tmp/smtp-openspec-final.log`, using the existing cached scoped
+  `@fission-ai/openspec` CLI through Bun. Initial unscoped `bunx openspec` could
+  not use its read-only temporary directory, and a guessed global path was
+  absent; neither was a validation success.
+- Normal hooks: pending implementation commit; exact source review follows it.
+
+Full local Nx, browser, Docker, Burokrat, full build, exact hosted CI and canonical
+h2 gate were not run for this candidate. Cached Nx module-boundary lint is
+unavailable in this isolated checkout; the explicit lint diagnostic is recorded,
+not a passing boundary claim. CI and canonical h2 gate remain required before
+release. Live relay/inbox and operator CA/sender/credential acceptance remain
+external and unverified.
 
 ## Disposable maintained-client probe
 
@@ -103,5 +154,5 @@ bun-types --strict --skipLibCheck` (`/tmp/smtp-config-tsc.log`); the initial
 `--types bun` invocation could not find that definition and was corrected to the
 repository's actual bun-types package. This is not project-wide typecheck.
 
-Transport, boot dispatch and mounted SMTP lifecycle remain unimplemented; no
-runtime delivery or WBS completion is claimed by this checkpoint.
+The configuration checkpoint preceded the transport and boot evidence above; it
+made no runtime delivery or WBS completion claim.
