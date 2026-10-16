@@ -26,7 +26,9 @@ Each entry in the header's project list SHALL show the project's whole name,
 wrapping onto further lines when it is wider than the list, and SHALL NOT cut
 the name at the list's edge. The list SHALL stay inside the window and the page
 SHALL NOT scroll sideways. Below 768px the list SHALL be the window's width
-less its margins, so a name takes at most two lines there. The closed picker
+less its margins, so a name takes at most two lines there. From 768px up the
+list SHALL be at least 18rem wide, starting at the picker's left edge, however
+little room the header's other controls leave the picker. The closed picker
 SHALL carry the whole name in its fact card. The open change
 `project-dropdown-details` is amended to the same rule (wrap, never clip).
 
@@ -34,6 +36,11 @@ SHALL carry the whole name in its fact card. The open change
 
 - **WHEN** a reader with `Twilight Shipyards roadmap 2026 (imported 15 Oct)` and `Twilight Shipyards roadmap 2026 (imported 15 Oct, 2)` opens the project list at 1440, 1024 or 375px
 - **THEN** both names are drawn whole, dates included, on at most two lines, and the list ends inside the window
+
+#### Scenario: a narrow picker at 1024px
+
+- **WHEN** the header's other controls leave the picker less than 18rem at 1024px and a reader opens the project list with the long import name selected
+- **THEN** the list is at least 18rem wide, so each long import name takes at most two lines, and the list still ends inside the window
 
 ### Requirement: Picker names stay readable without widening a sheet
 

@@ -81,3 +81,11 @@ Main's F-092 rule set kept (bottom sheets wrap, compact lists ellipsis + fact ca
 - header, plan-import, project-settings — 27 passed.
 - `reference-cells.spec.ts --repeat-each 3` — 18 passed (includes the card paint probe on main's wrapped line, watched failing with the card at `zIndex: 20`).
 - `lint:fast` + `typecheck` (wbs-fe-01) — passed; `openspec validate --all --json` — 224/224.
+
+## Integration-4 fix: list width independent of the header, 2026-10-16
+
+On `ui-review/integration-4` (#528's outline Plan / Board selector), the list at the input's width was 196px at 1024. Fix: `md:min-w-72` on the listbox. Shift 5500:
+
+- Proof (before the fix): `header.spec.ts` › `two imports of one long name read apart at every width` failed on `a name takes more than two lines at 1024px: [3,3]`, and the new check failed on `the list is narrower than 18rem at 1024px`, `Received: 196`.
+- After: header 18 passed; plan-import 5 passed; mobile 28 passed; toolbar-panels 20 passed (`--workers 2`).
+- `lint:fast` + `typecheck` (wbs-fe-01) passed; `openspec validate --all --json` — 231/231.

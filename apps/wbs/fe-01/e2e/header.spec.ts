@@ -828,6 +828,7 @@ test.describe('the open project picker, measured by a browser', () => {
       width: number;
       cutBy: number[];
       lines: number[];
+      listWidth: number;
       pastRightEdge: number;
       pageOverflowX: number;
       fact: string | null;
@@ -865,6 +866,7 @@ test.describe('the open project picker, measured by a browser', () => {
                   Number.parseFloat(getComputedStyle(name).lineHeight),
               );
             }),
+            listWidth: Math.round(list.getBoundingClientRect().width),
             pastRightEdge: Math.round(
               list.getBoundingClientRect().right - document.documentElement.clientWidth,
             ),
@@ -887,6 +889,19 @@ test.describe('the open project picker, measured by a browser', () => {
     // list's edge, the dates with them. Watched 2026-10-16.
     expect(measured.map(({ width, cutBy }) => ({ width, cutBy }))).toEqual(
       measured.map(({ width }) => ({ width, cutBy: [0, 0] })),
+    );
+    // From `md` up the list is at least the picker's widest (18rem = 288px)
+    // whatever room the header's neighbours leave the input: the Plan / Board
+    // selector's outline (#528) took 3px from the input at 1024, and a list at
+    // the input's width put `(imported 15 Oct, 2)` on a third line.
+    // Proof: with the list at the input's width (`w-full`, no `md:min-w-72`),
+    // the integrated tree failed on `a name takes more than two lines at
+    // 1024px: [3,3]`, and this check on `the list is narrower than 18rem at
+    // 1024px`, `Received: 196`. Watched 2026-10-16.
+    const laptop = measured.find(({ width }) => width === 1024);
+    if (laptop === undefined) throw new Error('no reading at 1024');
+    expect(laptop.listWidth, 'the list is narrower than 18rem at 1024px').toBeGreaterThanOrEqual(
+      288,
     );
     // On a phone the list takes the window's width rather than the input's
     // (UI review F-130): the input starts at the margin there, so the bound
