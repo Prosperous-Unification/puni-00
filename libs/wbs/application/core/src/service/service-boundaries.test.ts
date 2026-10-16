@@ -7,6 +7,7 @@ import { ESLint } from 'eslint';
 const root = fileURLToPath(new URL('../../../../../..', import.meta.url));
 const services = [
   'auth.service',
+  'command-fields',
   'command-normalizers',
   'compensating',
   'directory-usage',
