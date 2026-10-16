@@ -202,3 +202,20 @@ Not verified: a production Alertmanager route (the `alertmanager-puni` SOPS secr
   - The queue rule without its exporter filter: the full remote-write queue alerts at 9 m and 22 m.
   - The queue rule with `> 1`: no alert at 12 m.
 - **k3d, queue full** (queue size 2, 180 s black hole, committed rules): `PuniLogQueueFull` pending at 06:39:08, firing in Alertmanager by 06:40:10, and the receiver logged firing then resolved. `PuniLogRecordsDropped` fired too, as hung batches were dropped (`send_failed` 11 → 557). Stored: 364 of 900 under that shrunken queue. The committed collector config (queue 5000, `block_on_overflow: true`) was then reapplied and logged `Everything is ready`.
+
+## Upstream audit: 2026-10-16
+
+WBS 080.04 / A30 documentation synchronization, based on public main `4f098bfe2bf64343b8f503b5bdebd6e1a6fa34f4`. This extends the historical v0.162.0 audit above; it does not replace its k3d observations or claim a new runtime proof.
+
+Primary sources checked on 2026-10-16:
+
+- GitHub's [latest-release API](https://api.github.com/repos/open-telemetry/opentelemetry-collector-contrib/releases/latest) returned `tag_name: v0.163.0` and `published_at: 2026-10-14T06:53:39Z`, matching the [v0.163.0 release](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/tag/v0.163.0).
+- Tagged [v0.163.0 `esclient.go`](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/v0.163.0/exporter/elasticsearchexporter/esclient.go#L278-L284) still sets `RetryOnError` to `!errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded)`. Deadline-exceeded errors remain excluded from this client retry predicate.
+- Tagged [v0.163.0 `factory.go`](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/v0.163.0/exporter/elasticsearchexporter/factory.go#L220-L237) supplies start, shutdown, queue/batch and disabled helper-timeout options, with no `exporterhelper.WithRetry`. The factory has no helper retry to recover this timeout path.
+- Upstream [issue #46970, implementing `exporterhelper.Request` for bulk requests](https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/46970), remained open in the [issue API response](https://api.github.com/repos/open-telemetry/opentelemetry-collector-contrib/issues/46970). It remains a dependency to watch, not evidence of a released fix.
+
+The source evidence therefore supplies no timeout-loss fix candidate through the latest released v0.163.0. The settled A30 split remains: task 2.7's loss/queue alert mitigation is complete; task 2.5's real production pipeline and Alertmanager acceptance remains gated on WBS 070.07/070.08; task 2.6 remains blocked on an upstream fix followed by zero-loss live outage and collector-restart acceptance. The collector stays pinned at 0.160.0. Alert names/thresholds, queue/overflow settings, timeout and documented bounded-loss policy are unchanged.
+
+This was a read-only primary-source audit. No collector build, deployment, configuration change, real pipeline/Alertmanager exercise, outage or collector restart was performed. The downloaded tagged source and GitHub API responses are retained locally under `/tmp/a30-primary-v0163/`; they are source evidence only.
+
+Documentation checks for this audit: `bunx prettier --check openspec/changes/log-failure-records/tasks.md openspec/changes/log-failure-records/verify.md docs/infra/platform.md` and `git diff --check` exited 0. All 11 local Markdown file/anchor references resolve. `bunx @fission-ai/openspec@1.12.0 validate log-failure-records --strict --json` exited 0 with one valid change and no issues (captured in `/tmp/a30-openspec-strict.json`). Task checkboxes and the entire earlier verify record are preserved. No implementation tests, promtool, k3d, host gate or live checks were rerun for this documentation-only synchronization; those results are not inferred from source inspection. No push was performed.
