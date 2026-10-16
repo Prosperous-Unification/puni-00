@@ -4,6 +4,16 @@
 
 The authenticated acquisition path SHALL obtain its runtime, node, source selection and trusted executable identities from source observation authority installed outside candidate and caller control. Caller fields SHALL be selectors only and SHALL NOT create or replace authority. Authority SHALL bind the observation invocation to the selected cluster/node, expected Pod UID, full containerd ID, source container name and captured process/namespace identities. Missing independently established first-source lineage SHALL prevent a first-source authenticity claim.
 
+#### Scenario: Authenticate the current source without historical lineage
+
+- **WHEN** installed authority establishes the current invocation's runtime, node and source identities and every transport, sampling and evidence requirement succeeds, but independent first-source lineage is absent
+- **THEN** acquisition returns authenticated current-source evidence explicitly limited to that invocation, without first-source or historical ownership claims
+
+#### Scenario: First-source claim requires independent lineage
+
+- **WHEN** a first-source authenticity claim is requested without independently established first-source lineage
+- **THEN** that claim is refused and matching authenticated current-source observations do not acquire a first-source label
+
 #### Scenario: Caller supplies a consistent foreign world
 
 - **WHEN** caller-selected executable, socket, roots, process identities, hashes or a self-issued receipt describe mutually consistent observations without installed authority
@@ -96,7 +106,7 @@ Authenticated acquisition SHALL preserve validateSourceMemory's complete metrics
 
 ### Requirement: Installed acceptance proves the production path
 
-Acceptance of this capability SHALL exercise a fresh installed consumer outside the candidate checkout against the supported real CRI/runtime and separately provisioned authority. It SHALL retain source, toolchain, helper/client/configuration, authority and invocation identities, raw bounded evidence and cleanup outcomes. Every safety check SHALL have a production-path injected fault observed failing, a restored control and an adjacent Proof comment. Fixture-only or source-checkout success SHALL NOT close installed acceptance.
+Acceptance of this capability SHALL exercise a fresh installed consumer outside the candidate checkout against the supported real CRI/runtime and separately provisioned authority. It SHALL retain source, toolchain, helper/client/configuration, authority and invocation identities, bounded sanitized observation and protocol receipts, and cleanup outcomes. Retained receipts SHALL exclude secret-bearing raw CRI captures. Every safety check SHALL have a production-path injected fault observed failing, a restored control and an adjacent Proof comment. Fixture-only or source-checkout success SHALL NOT close installed acceptance.
 
 #### Scenario: Installed consumer resists substitution
 
