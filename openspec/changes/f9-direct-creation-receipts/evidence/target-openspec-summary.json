@@ -1,0 +1,22 @@
+{
+  "summary": {
+    "totals": {
+      "items": 221,
+      "passed": 221,
+      "failed": 0
+    },
+    "byType": {
+      "change": {
+        "items": 203,
+        "passed": 203,
+        "failed": 0
+      },
+      "spec": {
+        "items": 18,
+        "passed": 18,
+        "failed": 0
+      }
+    }
+  },
+  "version": "1.0"
+}

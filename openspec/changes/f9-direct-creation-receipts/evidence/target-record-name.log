@@ -1,0 +1,69 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-fleet/src/creation-receipts.test.ts:
+25 |       throw new Error('Expected refusal');
+26 |     },
+27 |     (cause: unknown) => cause,
+28 |   );
+29 |   expect(refusal).toBeInstanceOf(Error);
+30 |   if (typeof expected === 'string') expect(String(refusal)).toContain(expected);
+                                                                 ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "operation name mismatch"
+Received: "Error: Direct creation remains unresolved"
+
+      at requireRefusal (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-receipts.test.ts:30:61)
+      at async <anonymous> (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-receipts.test.ts:488:15)
+(fail) refuses network pending receipt name mismatch during assessment [19.84ms]
+25 |       throw new Error('Expected refusal');
+26 |     },
+27 |     (cause: unknown) => cause,
+28 |   );
+29 |   expect(refusal).toBeInstanceOf(Error);
+30 |   if (typeof expected === 'string') expect(String(refusal)).toContain(expected);
+                                                                 ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "operation name mismatch"
+Received: "Error: Docker inspected name mismatch"
+
+      at requireRefusal (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-receipts.test.ts:30:61)
+      at async <anonymous> (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-receipts.test.ts:488:15)
+(fail) refuses network created receipt name mismatch during assessment [15.03ms]
+25 |       throw new Error('Expected refusal');
+26 |     },
+27 |     (cause: unknown) => cause,
+28 |   );
+29 |   expect(refusal).toBeInstanceOf(Error);
+30 |   if (typeof expected === 'string') expect(String(refusal)).toContain(expected);
+                                                                 ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "operation name mismatch"
+Received: "Error: Direct creation remains unresolved"
+
+      at requireRefusal (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-receipts.test.ts:30:61)
+      at async <anonymous> (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-receipts.test.ts:488:15)
+(fail) refuses registry pending receipt name mismatch during assessment [11.00ms]
+25 |       throw new Error('Expected refusal');
+26 |     },
+27 |     (cause: unknown) => cause,
+28 |   );
+29 |   expect(refusal).toBeInstanceOf(Error);
+30 |   if (typeof expected === 'string') expect(String(refusal)).toContain(expected);
+                                                                 ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "operation name mismatch"
+Received: "Error: Docker inspected name mismatch"
+
+      at requireRefusal (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-receipts.test.ts:30:61)
+      at async <anonymous> (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-receipts.test.ts:488:15)
+(fail) refuses registry created receipt name mismatch during assessment [15.12ms]
+
+ 0 pass
+ 54 filtered out
+ 4 fail
+ 8 expect() calls
+Ran 4 tests across 1 file. [315.00ms]

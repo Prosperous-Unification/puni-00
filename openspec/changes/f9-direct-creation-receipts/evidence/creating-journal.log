@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-fleet/src/creation-receipts.test.ts:
+24 |       throw new Error('Expected refusal');
+25 |     },
+26 |     (cause: unknown) => cause,
+27 |   );
+28 |   expect(refusal).toBeInstanceOf(Error);
+29 |   if (typeof expected === 'string') expect(String(refusal)).toContain(expected);
+                                                                 ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "creating attempt"
+Received: "Error: must not create"
+
+      at requireRefusal (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-receipts.test.ts:29:61)
+      at async <anonymous> (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-receipts.test.ts:254:9)
+(fail) refuses invalid slots and terminal journals before invoking Docker [27.19ms]
+
+ 0 pass
+ 35 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [266.00ms]

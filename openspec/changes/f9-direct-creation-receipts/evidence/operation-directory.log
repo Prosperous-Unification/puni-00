@@ -1,0 +1,28 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-fleet/src/creation-receipts.test.ts:
+19 |   operation: Promise<unknown>,
+20 |   expected?: string | RegExp,
+21 | ): Promise<void> {
+22 |   const refusal: unknown = await operation.then(
+23 |     () => {
+24 |       throw new Error('Expected refusal');
+                     ^
+error: Expected refusal
+      at <anonymous> (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-receipts.test.ts:24:17)
+(fail) refuses public operation directory during assessment [38.88ms]
+19 |   operation: Promise<unknown>,
+20 |   expected?: string | RegExp,
+21 | ): Promise<void> {
+22 |   const refusal: unknown = await operation.then(
+23 |     () => {
+24 |       throw new Error('Expected refusal');
+                     ^
+error: Expected refusal
+      at <anonymous> (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-receipts.test.ts:24:17)
+(fail) refuses symlink operation directory during assessment [12.42ms]
+
+ 0 pass
+ 37 filtered out
+ 2 fail
+Ran 2 tests across 1 file. [440.00ms]

@@ -1,0 +1,77 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-fleet/src/creation-receipts.test.ts:
+305 |       const [stdout, stderr, code] = await Promise.all([
+306 |         new Response(invocation.stdout).text(),
+307 |         new Response(invocation.stderr).text(),
+308 |         invocation.exited,
+309 |       ]);
+310 |       expect({ code, stderr }).toEqual({ code: 0, stderr: '' });
+                                     ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "code": 0,
+-   "stderr": "",
++   "code": 1,
++   "stderr":
++ "25 |             console.log('NETWORK CREATED'); return "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
++ 26 |           });
++ 27 |           await executeDirectCreation("/tmp/wbs-test-709-NRZbvs/creation-receipts-AkRM8s", {"labId":"f9","attemptId":"cdd167d5-f9b2-4b94-9200-776445bf8b19","daemonId":"daemon-1"}, 'registry', async () => {
++ 28 |             console.log('REGISTRY CREATED'); return "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
++ 29 |           });
++ 30 |           throw new Error('fault ignored');
++                          ^
++ error: fault ignored
++       at /tmp/f9-receipts-sol-oct16/[eval]:30:21
++
++ Bun v1.4.2 (Linux x64)
++ "
++ ,
+  }
+
+- Expected  - 2
++ Received  + 15
+
+      at <anonymous> (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-receipts.test.ts:310:32)
+(fail) stops before the next creation when reservation file sync fails [441.38ms]
+305 |       const [stdout, stderr, code] = await Promise.all([
+306 |         new Response(invocation.stdout).text(),
+307 |         new Response(invocation.stderr).text(),
+308 |         invocation.exited,
+309 |       ]);
+310 |       expect({ code, stderr }).toEqual({ code: 0, stderr: '' });
+                                     ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "code": 0,
+-   "stderr": "",
++   "code": 1,
++   "stderr":
++ "25 |             console.log('NETWORK CREATED'); return "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
++ 26 |           });
++ 27 |           await executeDirectCreation("/tmp/wbs-test-709-NRZbvs/creation-receipts-enkBIa", {"labId":"f9","attemptId":"cdd167d5-f9b2-4b94-9200-776445bf8b19","daemonId":"daemon-1"}, 'registry', async () => {
++ 28 |             console.log('REGISTRY CREATED'); return "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
++ 29 |           });
++ 30 |           throw new Error('fault ignored');
++                          ^
++ error: fault ignored
++       at /tmp/f9-receipts-sol-oct16/[eval]:30:21
++
++ Bun v1.4.2 (Linux x64)
++ "
++ ,
+  }
+
+- Expected  - 2
++ Received  + 15
+
+      at <anonymous> (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-receipts.test.ts:310:32)
+(fail) stops before the next creation when completion file sync fails [435.86ms]
+
+ 0 pass
+ 34 filtered out
+ 2 fail
+ 2 expect() calls
+Ran 2 tests across 1 file. [1116.00ms]
