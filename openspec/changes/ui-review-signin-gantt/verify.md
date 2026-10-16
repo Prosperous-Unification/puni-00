@@ -10,7 +10,12 @@ All runs 2026-10-16 in `/home/df/wd/puni/ui-signin-gantt` (branch `ui-review/sig
 - `bunx @fission-ai/openspec@1.12.0 validate --all --json` — 215/215 valid.
 - Playwright: `control-edge, drop-cue, sign-in, shell-faults, scroll-stability, hints` — all passed
   (the scroll probe's three opt-in cases skip by design); `gantt.spec.ts` marker rule
-  `--repeat-each 3` — 3/3 passed; wider suites listed in the PR body.
+  `--repeat-each 3` — 3/3 passed.
+- Wider Playwright: `gantt, gantt-legibility, plan-table-review, header, toolbar-panels, layout,
+dark-mode, mobile, tailwind, home, page-states, keyboard` — 250 passed, 1 skipped, 1 failed:
+  `gantt.spec.ts` `re-measures the room when the toolbar wraps under a new control` on its own guard
+  (`Expected: > 104 · Received: 104`): Freeze # now paints its border and the toolbar wraps at 780
+  before the drag. Re-measured (780: 104/104, 785–815: 68/104, 820: 68/68), moved to 800 — passed.
 
 ## R5 proofs (observed failures)
 
