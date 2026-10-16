@@ -722,7 +722,12 @@ function readRetainedReviewCandidate(
   return { readyDirectory, manifest, manifestBytes: manifestBytes.toString('utf8'), rawBlobs };
 }
 
-/** Acquires only a configured local repository into a private bare store; remote access is a separate adapter. */
+/**
+ * Acquires only a configured local repository into a private bare store; remote access is a separate adapter.
+ * Fetches suppress automatic maintenance so detached Git children cannot race store removal.
+ * Bun's forced recursive removal may succeed after a nested ENOENT without removing its root;
+ * cleanup verifies absence, retries at most three removals, and refuses a changed directory identity.
+ */
 function prepareRetainedLocalReviewCandidate(
   input: LocalReviewAcquisitionInput,
   rawRequest: ActivationRequest,
@@ -810,6 +815,7 @@ function prepareRetainedLocalReviewCandidate(
     return invocation.stdout;
   };
   const pending = mkdtempSync(join(input.storeBase, '.pending-'));
+  const pendingIdentity = lstatSync(pending);
   let prepared:
     | {
         readyDirectory: string;
@@ -835,6 +841,8 @@ function prepareRetainedLocalReviewCandidate(
     invokeGit([
       `--git-dir=${gitDirectory}`,
       'fetch',
+      // Proof: the maintenance-refusing pinned wrapper failed acquisition without this flag.
+      '--no-auto-maintenance',
       '--quiet',
       '--no-tags',
       '--no-recurse-submodules',
@@ -876,6 +884,8 @@ function prepareRetainedLocalReviewCandidate(
             invokeGit([
               `--git-dir=${gitDirectory}`,
               'fetch',
+              // Proof: removing this flag alone failed the third historical-commit test.
+              '--no-auto-maintenance',
               '--quiet',
               '--no-tags',
               '--no-recurse-submodules',
@@ -1061,7 +1071,30 @@ function prepareRetainedLocalReviewCandidate(
   }
   let cleanupFailure: unknown;
   try {
-    rmSync(pending, { recursive: true, force: true });
+    for (let attempt = 0; ; attempt += 1) {
+      let current: ReturnType<typeof lstatSync>;
+      try {
+        current = lstatSync(pending);
+      } catch (cause) {
+        if (cause instanceof Error && 'code' in cause && cause.code === 'ENOENT') break;
+        // Proof: swallowing unreadable pending metadata failed its production cleanup test.
+        throw cause;
+      }
+      // Proof: removing each directory/dev/ino/uid/mode comparator independently failed
+      // its changed-metadata or substituted-directory pending-cleanup test.
+      if (
+        !current.isDirectory() ||
+        current.dev !== pendingIdentity.dev ||
+        current.ino !== pendingIdentity.ino ||
+        current.uid !== pendingIdentity.uid ||
+        current.mode !== pendingIdentity.mode
+      )
+        throw new Error('pending review cleanup ownership changed');
+      // Proof: a persistently successful no-op removal reached this bound in production;
+      // omitting the verified retry loop left nested entries in the transient-removal test.
+      if (attempt === 3) throw new Error('pending review cleanup did not converge');
+      rmSync(pending, { recursive: true, force: true });
+    }
   } catch (cause) {
     cleanupFailure = cause;
   }
