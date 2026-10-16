@@ -1,0 +1,28 @@
+
+ NX   Running target typecheck for 2 projects and 2 tasks they depend on:
+
+- wbs-core
+- wbs-be-01
+
+
+✔  nx run wbs-be-01:"typecheck:module"
+✔  nx run wbs-be-01:typecheck
+✔  nx run wbs-core:"typecheck:module"
+✔  nx run wbs-core:typecheck
+
+
+
+ NX   Successfully ran target typecheck for 2 projects and 2 tasks they depend on
+
+
+Output of 4 successful tasks were not shown. Run with --verbose or --output-style=static to see it.
+
+  Run duration:      2m 19s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     2m 19s (2 tasks)
+  Recoverable time:  <1ms
+
+  Recommendations:
+    - Cache: drop --skip-nx-cache to restore unchanged tasks instantly.
+    - Speed up or split the longest tasks on the critical path:
+        wbs-core:typecheck:module    2m 10s

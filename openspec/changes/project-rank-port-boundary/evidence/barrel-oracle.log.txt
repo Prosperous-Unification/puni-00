@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/tmp/check-project-rank-boundary.py", line 12, in <module>
+    assert not any(edge(finding) for finding in verdict['findings']), 'concrete project resource edge remains'
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: concrete project resource edge remains
