@@ -139,3 +139,10 @@ concrete design before Sol implements it. Existing 2.1/2.2a/2.2/4.1 obligations 
 - [x] 4.1b.15b Implement closed v2 dispositions, selected target/declaration contradiction checks and unchanged committed v1 behavior; preserve all report and source identities, unknown unrelated rows and certifies:false.
 - [x] 4.1b.15c Watch new guard/schema faults fail production assertions; run focused and scoped acceptance, installed dispatch, format, provenance and strict/all OpenSpec validation; record evidence and commit clean local candidate.
 - [ ] 4.1b.15d Independent Astra review and coordinator release/CI/host acceptance. Parent WBS080.39 and 2.1/2.2a/2.2/4.1 remain open.
+
+## 4.1b.16 Browser scenario diagnostic (WBS080.39)
+
+- [x] 4.1b.16a Record approved bounded intent and full-tree Browser scenario contract; allocate fresh IDs through production allocator preserving the journal; observe actual invokeCli unknown-command RED.
+- [x] 4.1b.16b Join real isolated Browser levels with full B3 selection and exact snapshot/policy/digest identities. Preserve complete outcomes, terminal-only invalid citation findings, active other-capability citations and every requested scenario. Watch each new guard fail its production-path negative under injected faults.
+- [x] 4.1b.16c Run focused Browser/Performance/specification regression, scoped lint/typecheck/build, installed dispatch, format, provenance and pinned strict/all OpenSpec validation; record actual evidence and commit clean local candidate.
+- [ ] 4.1b.16d Independent Astra review and coordinator release/CI/host acceptance. WBS080.39, T2, source reconciliation, certification and parent Tasks 2.1/2.2a/2.2/4.1 remain open.

@@ -1050,6 +1050,30 @@
       "id": "TEST-AXES-127",
       "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
       "title": "Browser Performance preserves committed authority versions"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-128",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser scenarios preserve complete outcomes and unobserved rows"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-129",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser scenarios diagnose only terminal active citations"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-130",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser scenarios refuse authority and selection drift"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-131",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser scenarios preserve installed dispatch and canonical identity"
     }
   ]
 }

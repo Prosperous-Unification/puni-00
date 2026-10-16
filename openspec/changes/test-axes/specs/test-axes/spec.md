@@ -1,5 +1,33 @@
 ## ADDED Requirements
 
+### Requirement: Browser scenario observations join isolated publication and whole-tree specifications
+
+`inspect-browser-scenarios` SHALL join the real isolated Browser levels observation to complete B3 specification evaluation before filtering the requested capability. It SHALL require exact committed revision, candidate, mode, policy and canonical upstream digest identity and explicit external scenarios authority. It SHALL preserve full nested levels and specifications reports and policy identity. Only a terminal title prefix `[SCENARIO-ID] ` SHALL cite an adopted active scenario. Missing, malformed and inactive citations SHALL remain findings with case identity and outcome; active citations for other capabilities SHALL remain visible. Every adopted requested scenario SHALL have its observed cases with original passed/failed/skipped outcomes or unobserved-in-selection. Findings SHALL emit JSON and exit one; unobserved rows alone SHALL exit zero. Refusals SHALL emit stderr without JSON. The schema-1 envelope SHALL bind the complete canonical digest, absent authentication and false certification. Candidate files SHALL never execute and supplied observation JSON SHALL not be accepted. No coverage or admission follows.
+
+#### Scenario: [TEST-AXES-128] Browser scenarios preserve complete outcomes and unobserved rows
+
+- **GIVEN** an isolated real Browser publication and adopted requested scenarios
+- **WHEN** production joins complete B3 selection
+- **THEN** all passed failed skipped observations and unobserved rows remain visible with full noncertifying identity
+
+#### Scenario: [TEST-AXES-129] Browser scenarios diagnose only terminal active citations
+
+- **GIVEN** missing malformed unknown retired and other-capability citations
+- **WHEN** production reads terminal titles only
+- **THEN** invalid citations produce findings and other active capability observations remain visible
+
+#### Scenario: [TEST-AXES-130] Browser scenarios refuse authority and selection drift
+
+- **GIVEN** identity digest policy isolation or whole-tree B3 disagreement
+- **WHEN** production joins its real dependencies
+- **THEN** it refuses by name without partial JSON
+
+#### Scenario: [TEST-AXES-131] Browser scenarios preserve installed dispatch and canonical identity
+
+- **GIVEN** supported and unsupported operands and the built installed executable
+- **WHEN** scenario inspection runs
+- **THEN** source and installed observations agree and every envelope field is digest bound
+
 ### Requirement: Browser Performance explicitly reviewed-empty membership
 
 Version 1 Browser Performance authority SHALL retain its committed behavior and output. Version 2 SHALL require the same revision/candidate/mode/report/project-root/manifest identity and a closed `performance` disposition: `{kind:'reviewed-empty'}` or `{kind:'committed',declaration,config,project}` with the existing path/digest pins. It SHALL validate every Browser selected source and pinned manifest before membership. Reviewed-empty SHALL reject any own `test:performance` or `test:performance:level` target, and any selected entry at `<projectRoot>/performance-cases.json` or beneath that path, including malformed, symlink or directory declarations. Working-tree replacement or deletion SHALL not repair selected contradictions. Empty authority SHALL emit exactly reviewed-empty membership with complete Browser/manifest source union, preserving all report outcomes, unknown unrelated rows, absent authentication, false certification and full-envelope digest. It SHALL not claim a Performance execution or coverage result.
