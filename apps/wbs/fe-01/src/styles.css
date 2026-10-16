@@ -97,6 +97,18 @@
 
   --radius: 0.5rem;
 
+  /*
+   * The two layers that stack across portals, as one ordering rather than two
+   * numbers that happen to agree. A modal (`components/ui/modal.tsx`) and the
+   * toast stack (`components/wbs/toasts.tsx`) are both portalled to `<body>`,
+   * so between them the z-index is the whole answer: at one shared `z-50` the
+   * sheet, later in the document, painted over a refusal raised while it was
+   * open (UI review F-085). A toast is what happened, so it is above whatever
+   * surface the reader was on when it happened.
+   */
+  --layer-modal: 50;
+  --layer-toast: 60;
+
   --background: oklch(1 0 0);
   --foreground: oklch(0.129 0.042 264.695);
   --card: oklch(1 0 0);
@@ -1505,6 +1517,20 @@
     background: color-mix(in oklab, var(--accent) 60%, transparent);
   }
 
+  /* A picker's list on a modal surface is never wider than its box (UI review
+     F-092). In a table the list may outgrow its cell — the column is narrow
+     and the rows below are the room it takes — but a sheet is the whole phone
+     screen, and a list 945px wide under a 390px sheet made the sheet itself
+     scroll sideways when the active line was scrolled into view: the title
+     and the first chips cut at the left, the names at the right. The lines
+     end in an ellipsis instead (`creatable-picker.tsx`).
+     Proof: without this rule, `a long option is cut with an ellipsis and
+     never scrolls the sheet sideways` (`e2e/reference-cells.spec.ts`) failed
+     on `the sheet scrolled sideways`, `Received: 73`. Watched 2026-10-16. */
+  [data-modal-surface] [data-picker-list] {
+    max-width: 100%;
+  }
+
   [data-grid] [role='menu'] button:hover {
     background: var(--accent);
   }
@@ -1833,6 +1859,20 @@
     min-height: 44px;
     display: flex;
     align-items: center;
+  }
+
+  /* A picker's lines stay blocks, because an ellipsis is drawn only by a
+     block container: the rule above makes every option a flex row, which
+     turns the name into an anonymous flex item that is cut without one (UI
+     review F-092). The padding keeps the same 44px target with the word
+     centred: a 20px line and 12px above and below.
+     Proof: without this rule `e2e/reference-cells.spec.ts` failed on `a cut
+     option is a flex row, which draws no ellipsis`, all 27 cut lines
+     listed. Watched 2026-10-16. */
+  [data-modal-surface] [data-picker-list] [role='option'] {
+    display: block;
+    padding-block: 12px;
+    line-height: 20px;
   }
 }
 

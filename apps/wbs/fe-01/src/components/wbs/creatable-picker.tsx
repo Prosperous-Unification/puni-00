@@ -15,9 +15,20 @@ export interface PickerOption {
   /** Stable within one list — the React key. */
   key: string;
   label: ReactNode;
+  /**
+   * The line's whole words, as its fact card says them: a line wider than its
+   * list ends in an ellipsis, and this is where the rest is read (UI review
+   * F-092). Absent on lines that are never long — a status, a mention.
+   */
+  words?: string;
   /** Whether this is the entry currently in force, for `aria-selected`. */
   selected: boolean;
   take: () => void;
+}
+
+/** An entry's line as plain words: what {@link pickableLabel} draws, said once. */
+export function pickableWords(entry: PickableEntry): string {
+  return entry.detail === undefined ? entry.name : `${entry.name} — ${entry.detail}`;
 }
 
 /** An entry as a list line reads it: the name, and its detail in grey. */
@@ -163,10 +174,19 @@ export function PickerList({
             // `--accent` and not a border, because a border on one line moves
             // the lines under it by a pixel as the typing narrows the list.
             data-picker-take={active ? '' : undefined}
+            data-fact={option.words}
+            // One line, cut with an ellipsis where the list is narrower than
+            // the name — the chips' rule. The list is as wide as its longest
+            // line until something bounds it; on a modal surface `styles.css`
+            // does (`[data-modal-surface] [data-picker-list]`), because a
+            // phone's sheet is 390px and a list 945px wide made the sheet
+            // scroll sideways under `scrollIntoView` (UI review F-092).
             style={{
               padding: '2px 6px',
               cursor: 'pointer',
               whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
               background: active ? 'var(--accent)' : undefined,
             }}
             onClick={option.take}
@@ -420,6 +440,7 @@ export function CreatablePicker({
   const choose = (entry: PickableEntry): PickerOption => ({
     key: entry.id,
     label: pickableLabel(entry),
+    words: pickableWords(entry),
     selected: entry.id === value,
     take: () => {
       take(() => onChoose(entry.id));
@@ -437,6 +458,7 @@ export function CreatablePicker({
           {
             key: '(add)',
             label: `Add “${typed.trim()}”`,
+            words: `Add “${typed.trim()}”`,
             selected: false,
             take: () => {
               take(() => onCreate(typed.trim()));

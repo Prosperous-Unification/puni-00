@@ -665,6 +665,93 @@ test('rests every reference row on one line and opens a crowded cell to reach ev
 test.describe('390x844 reference sheets', () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
+  test('a long option is cut with an ellipsis and never scrolls the sheet sideways', async ({
+    page,
+  }) => {
+    const seeded = await seed(page);
+    // Twenty-five, each far wider than the sheet: the review's deterministic
+    // reproduction (UI review F-092). Unique per run because the directory is
+    // shared by every test that has ever run against this be-01.
+    const run = `${String(Date.now())}/w${String(test.info().workerIndex)}`;
+    const long = Array.from(
+      { length: 25 },
+      (_, index) =>
+        `Aaaa customer-request number ${String(index + 1)} whose name keeps going well past the edge [${run}]`,
+    );
+    await directoryCommands<Entry>(
+      page,
+      long.map((name) => ({ kind: 'createTag', name })),
+    );
+    await page.reload();
+
+    const parent = page.getByRole('article', { name: 'Work item 010', exact: true });
+    await parent.locator('[data-card-tags-field]').click();
+    const dialog = page.getByRole('dialog', { name: /^Tags for / });
+    await expect(dialog).toBeVisible();
+    const box = dialog.getByRole('combobox', { name: 'Tags for 010', exact: true });
+    await box.focus();
+    // The active line is the first, and arrows walk it down the list: the
+    // scroll that carried the sheet sideways was this line's `scrollIntoView`.
+    for (let step = 0; step < 6; step += 1) await box.press('ArrowDown');
+    const list = dialog.locator('[data-picker-list]');
+    await expect(list).toBeVisible();
+    await expect(list.getByRole('option', { name: long[0], exact: true })).toHaveCount(1);
+    expect(seeded.tags.length, 'the seed carries its own short tags').toBe(3);
+
+    const measured = await dialog.evaluate((surface) => {
+      const listBox = surface.querySelector('[data-picker-list]');
+      if (listBox === null) throw new Error('the picker list is not open');
+      const options = [...listBox.querySelectorAll<HTMLElement>('[role="option"]')];
+      const sheet = surface.getBoundingClientRect();
+      // Wider than its line (cut), or a line wider than the sheet (the old
+      // list, which grew to its longest name instead).
+      const cut = options.filter(
+        (option) =>
+          option.scrollWidth > option.clientWidth ||
+          option.getBoundingClientRect().width > sheet.width,
+      );
+      const listRect = listBox.getBoundingClientRect();
+      return {
+        scrollLeft: surface.scrollLeft,
+        sideways: surface.scrollWidth - surface.clientWidth,
+        listPastSheet: Math.round(listRect.right - sheet.right),
+        cut: cut.length,
+        cutWithoutEllipsis: cut
+          .filter((option) => getComputedStyle(option).textOverflow !== 'ellipsis')
+          .map((option) => option.textContent.slice(0, 30)),
+        cutAsFlexRow: cut
+          .filter((option) => getComputedStyle(option).display !== 'block')
+          .map((option) => option.textContent.slice(0, 30)),
+        cutWithoutWords: cut
+          .filter((option) => option.getAttribute('data-fact') !== option.textContent)
+          .map((option) => option.textContent.slice(0, 30)),
+      };
+    });
+    // The precondition: the long names really are wider than the sheet, so
+    // the bounds below are about a list that had to be cut.
+    expect(measured.cut, 'no option outgrew the sheet, so nothing below is proved').toBeGreaterThan(
+      20,
+    );
+    // Proof: on the old list (`white-space: nowrap`, no bound, no ellipsis)
+    // this failed on `Expected: 0, Received: 73` — the dialog scrolled 73px
+    // sideways, cutting its title and the first chips at the left. Watched
+    // 2026-10-16.
+    expect(measured.scrollLeft, 'the sheet scrolled sideways').toBe(0);
+    expect(measured.sideways, 'the sheet is wider inside than it is').toBeLessThanOrEqual(0);
+    expect(measured.listPastSheet, 'the list reaches past the sheet').toBeLessThanOrEqual(0);
+    // Proof: `textOverflow: 'clip'` back on the line failed on `a cut option
+    // has no ellipsis` with all 27 cut lines listed; `data-fact` dropped from
+    // the line failed `a cut option does not carry its whole name` the same
+    // way. Watched 2026-10-16.
+    expect(measured.cutWithoutEllipsis, 'a cut option has no ellipsis').toEqual([]);
+    // `text-overflow` is computed on a flex row too, and drawn by nothing:
+    // the ellipsis is a block container's, so the line has to stay one.
+    expect(measured.cutAsFlexRow, 'a cut option is a flex row, which draws no ellipsis').toEqual(
+      [],
+    );
+    expect(measured.cutWithoutWords, 'a cut option does not carry its whole name').toEqual([]);
+  });
+
   test('round-trips three reachable values, inherited context, and light/dark paint', async ({
     page,
   }) => {

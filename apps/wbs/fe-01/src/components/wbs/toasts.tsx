@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -156,15 +157,35 @@ export interface ToastStackProps {
  * `aria-live="polite"` on the container carries the info messages. An error is
  * its own `role="alert"`, which is an assertive live region on that element —
  * a refused request interrupts, a note does not.
+ *
+ * **Portalled to `<body>`, above every modal** (`--layer-toast` over
+ * `--layer-modal` in `styles.css`). In the tree it shared the modals' `z-50`
+ * and lost to them on document order, so a refusal raised from the phone's
+ * Plan actions sheet was drawn under the sheet and the reader saw nothing
+ * (UI review F-085). `pointer-events-auto` because an open modal sets
+ * `pointer-events: none` on `<body>`, which every portal inherits; the ✕ has
+ * to answer a tap while the sheet is still open, and `ModalContent` keeps that
+ * tap from closing it.
+ *
+ * Proof: back in the tree at `z-50`, `a refused import is drawn above the
+ * sheet it was chosen on` (`e2e/plan-import.spec.ts`, 390×844) failed on `the
+ * toast is covered by <button class="inline-flex …` — a row of the sheet.
+ * Portalled at `--layer-toast` but without `pointer-events-auto`, it failed
+ * the same way: a hit test skips what takes no pointer, so the row under the
+ * toast was what a tap would reach. Watched 2026-10-16.
+ *
+ * `font-sans` because a child of `<body>` is outside the one on `<main>`: the
+ * portalled stack read in Times until it said its own face (the hover cards'
+ * lesson in `styles.css`).
  */
 export function ToastStack({ toasts, onDismiss }: ToastStackProps) {
   const shown = toasts.slice(0, VISIBLE_TOASTS);
   const collapsed = toasts.length - shown.length;
-  return (
+  return createPortal(
     <div
       data-toasts
       aria-live="polite"
-      className="fixed right-4 bottom-4 z-50 flex max-w-[30em] flex-col gap-2"
+      className="pointer-events-auto fixed right-4 bottom-4 z-(--layer-toast) flex max-w-[30em] flex-col gap-2 font-sans"
     >
       {shown.map((toast) => (
         <div
@@ -210,6 +231,7 @@ export function ToastStack({ toasts, onDismiss }: ToastStackProps) {
           +{collapsed} more
         </div>
       )}
-    </div>
+    </div>,
+    document.body,
   );
 }
