@@ -13,6 +13,7 @@ import { dirname, join } from 'node:path';
 
 import { describe, expect, it } from 'bun:test';
 
+import { readProjects } from '../workspace-projects.mjs';
 import {
   ADOPTED_CAPABILITY,
   AGGREGATE_DECLARATIONS,
@@ -92,16 +93,29 @@ function auditManifest(
   }
 }
 
-function auditNodeManifest(path: string): { exitCode: number | null; stderr: string } {
-  const run = Bun.spawnSync(
-    ['bun', 'tools/tool-devsync/src/verify-test-levels-cli.ts', '--node-manifest', path],
-    {
-      cwd: WORKSPACE.pathname,
-      stdout: 'pipe',
-      stderr: 'pipe',
-      env: { ...process.env, FORCE_COLOR: '0' },
-    },
-  );
+function auditNodeManifest(
+  path: string,
+  workspace?: string,
+): { exitCode: number | null; stderr: string } {
+  const cli = new URL('./verify-test-levels-cli.ts', import.meta.url).pathname;
+  // Only the child changes its imported URL; sibling tests keep the real workspace.
+  const command =
+    workspace === undefined
+      ? ['bun', cli, '--node-manifest', path]
+      : [
+          'bun',
+          '--eval',
+          `import { WORKSPACE } from ${JSON.stringify(new URL('./test-levels.ts', import.meta.url).href)};
+WORKSPACE.pathname = ${JSON.stringify(`${workspace}/`)};
+process.argv = ${JSON.stringify(['bun', cli, '--node-manifest', path])};
+await import(${JSON.stringify(cli)});`,
+        ];
+  const run = Bun.spawnSync(command, {
+    cwd: WORKSPACE.pathname,
+    stdout: 'pipe',
+    stderr: 'pipe',
+    env: { ...process.env, FORCE_COLOR: '0' },
+  });
   return { exitCode: run.exitCode, stderr: run.stderr.toString() };
 }
 
@@ -760,10 +774,12 @@ LIST_JSON="$listing" LIST_PHASE="$phase" "$REAL_BUN" -e 'const path=process.env.
     }
   });
 
-  it('refuses invalid Node suite entries and omitted authority members through the CLI', () => {
+  it('refuses invalid Node suite entries and omitted authority members through the CLI', async () => {
     const scratch = mkdtempSync(join(tmpdir(), 'test-level-node-entries-'));
-    const root = join(WORKSPACE.pathname, 'apps/wbs/fe-01');
-    const manifest = JSON.parse(readFileSync(join(root, 'vitest.node-suites.json'), 'utf8')) as {
+    const root = join(scratch, 'apps/wbs/fe-01');
+    const manifest = JSON.parse(
+      readFileSync(new URL('apps/wbs/fe-01/vitest.node-suites.json', WORKSPACE), 'utf8'),
+    ) as {
       schemaVersion: number;
       suites: { file: string; reason?: string }[];
     };
@@ -772,13 +788,18 @@ LIST_JSON="$listing" LIST_PHASE="$phase" "$REAL_BUN" -e 'const path=process.env.
     const link = join(root, `escaped-${String(process.pid)}.test.ts`);
     const outside = mkdtempSync(join(tmpdir(), 'test-level-outside-'));
     const parentLink = join(root, `outside-${String(process.pid)}`);
-    mkdirSync(directory);
+    mkdirSync(directory, { recursive: true });
     symlinkSync('/etc/hosts', link);
     writeFileSync(join(outside, 'file.test.ts'), 'export {};\n');
     symlinkSync(outside, parentLink);
     try {
+      // Proof: the original real-project fixture made this production discovery
+      // throw `directory is symlinked: apps/wbs/fe-01/outside-121` (0 pass / 1 fail).
+      expect((await readProjects(WORKSPACE)).some((project) => project.name === 'wbs-fe-01')).toBe(
+        true,
+      );
       const first = manifest.suites[0];
-      for (const [changed, message] of [
+      const cases: readonly (readonly [unknown, string, string?])[] = [
         [
           { ...manifest, schemaVersion: 99 },
           `error: ${path}: Node suite manifest has an invalid schema or version`,
@@ -822,22 +843,28 @@ LIST_JSON="$listing" LIST_PHASE="$phase" "$REAL_BUN" -e 'const path=process.env.
         [
           { ...manifest, suites: [{ file: `nonregular-${String(process.pid)}.test.ts` }] },
           `error: ${path}: Node suite is missing, nonregular or escapes project`,
+          scratch,
         ],
         [
           { ...manifest, suites: [{ file: `escaped-${String(process.pid)}.test.ts` }] },
           `error: ${path}: Node suite is missing, nonregular or escapes project`,
+          scratch,
         ],
         [
+          // Proof: removing the production realpath comparison made this CLI
+          // miss the named project-escape refusal (0 pass / 1 fail, 27 expects).
           { ...manifest, suites: [{ file: `outside-${String(process.pid)}/file.test.ts` }] },
           `error: ${path}: Node suite is missing, nonregular or escapes project`,
+          scratch,
         ],
         [
           { ...manifest, suites: manifest.suites.slice(1) },
           'error: vitest.node.config.ts collection differs from NODE_SUITES',
         ],
-      ] as const) {
+      ];
+      for (const [changed, message, workspace] of cases) {
         writeFileSync(path, JSON.stringify(changed));
-        const run = auditNodeManifest(path);
+        const run = auditNodeManifest(path, workspace);
         expect(run.exitCode).toBe(1);
         expect(run.stderr).toContain(message);
       }
