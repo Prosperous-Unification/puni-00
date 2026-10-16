@@ -1,4 +1,3 @@
-import { useCardOpenOn } from '../cell-card-store';
 import { cellKey } from '../editable-grid';
 import {
   MARK_BOX_PX,
@@ -9,6 +8,7 @@ import {
 } from '../external-ref-marks';
 import { ExternalRefsCard } from '../external-refs-card';
 import type { PlanLive } from '../plan-live';
+import { useCardOpenOn } from '../use-card-open-on';
 import { column } from './column';
 
 /** Builds the refs column family against the stable live cell contract. */

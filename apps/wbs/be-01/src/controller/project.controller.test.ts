@@ -1659,7 +1659,8 @@ it('exports complete deadline tree fields without undo flags and rejects malform
   expect(exported).toMatchObject({
     ...core,
     workItems: core.workItems.map(
-      ({ blockages: _blockages, blockageCauses: _causes, ...row }) => row,
+      ({ blockages: _blockages, blockageCauses: _causes, nodeResources: _resources, ...row }) =>
+        row,
     ),
   });
   const tree = spyOn(h.workItems, 'tree');

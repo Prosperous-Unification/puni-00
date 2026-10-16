@@ -1,8 +1,8 @@
 # Twilight Dash
 
 Dash owns the runtime admission authority ([`src/authority`](src/authority/authority-store.ts))
-and exposes nine local commands. `bootstrap-authority <repository>` is the only command that
-creates an authority; every other command refuses an absent one. `inspect-authority <repository>
+and exposes ten local commands. `bootstrap-authority <repository>` is the only command that
+creates an authority; the other authority commands refuse an absent one. `inspect-authority <repository>
 [--session <id>]` prints the authority state, read-only. `recover-publication <repository> --integration-id
 <id>` finishes an interrupted publication from its durable record. `submit-admission <repository>
 <packet-json> <staged|committed> <revision-or-base>` freezes a bound packet's candidate and
@@ -102,3 +102,37 @@ The [OpenSpec verification ledger](../../../../openspec/changes/dash-local-plan-
 records byte equivalence, mutation canaries, required-state/output refusals and
 watched production fault proofs. Exact-SHA host gate and CI acceptance remain
 separate requirements.
+
+## `record-progress`
+
+Record explicit operator assertions against a supplied plan reference and task export:
+
+```sh
+bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts record-progress \
+  --entries /path/to/entries.json \
+  --plan-reference /path/to/plan-reference.json \
+  --tasks /path/to/tasks.json \
+  --output /path/to/new-progress-receipt.json
+```
+
+All four flags are required exactly once, in any order. The entries file is a JSON array
+of existing v1 progress entries (`taskId`, `stepCode`, `status`, `observedAt`, `evidence`,
+and optional `measures`). Status is `in_progress` or `done`; evidence is a repository-relative
+path or `{ "kind": "external", "authority": "ci" }`. Measures may include nonnegative
+`hours_actual` and integer `token_actual`; zero and absence retain different meanings.
+
+The command preserves entry order, repetitions, supplied timestamps and evidence. Entries
+are operator assertions: Dash does not authenticate evidence or infer completion from
+CheckRun records. It checks only the existing receipt/reference/task consistency, including
+v6/v7 references with schema-1 tasks and v8/v9 with schema-2 tasks. It copies the complete
+PlanRef into the existing v1 receipt and emits canonical JSON with one newline.
+
+The output must be a new path in an existing directory. Dash creates it exclusively with
+mode 0600 and prints its digest only after writing and closing. Refusals exit 1 with empty
+stdout and one safe error line; failed publication removes its partial file when cleanup
+succeeds, and cleanup failure remains visible. Inputs are required strict UTF-8 JSON.
+
+Use Burokrat `validate-progress-receipt` to check the artifact and Navigator
+`receipt-to-commands` to prepare the existing WBS command batch. Applying it to current WBS
+state remains the existing person/MCP act; the receipt grants no authorship, certification,
+execution eligibility or current WBS authority.

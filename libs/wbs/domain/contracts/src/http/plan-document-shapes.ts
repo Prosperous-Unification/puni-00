@@ -124,7 +124,7 @@ export type DocumentAttempt = (typeof documentAttempt)['infer'];
  * present only on a leaf that holds any.
  */
 const documentWorkItem = numberedWorkItem
-  .omit('attempts', 'spans', 'span', 'blockages', 'blockageCauses')
+  .omit('attempts', 'spans', 'span', 'blockages', 'blockageCauses', 'nodeResources')
   .and({ 'attempts?': type({ '[string]': documentAttempt.array() }) });
 
 export const planDocument = workItemTree.omit('typedDependencies', 'workItems').and({

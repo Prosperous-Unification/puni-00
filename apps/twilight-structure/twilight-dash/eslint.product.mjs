@@ -4,7 +4,8 @@
  * activation check runner under `check-runs/` and the review invoker under `review/` reach
  * Burokrat's judges through the exact
  * `@twilight-burokrat/judge` alias. Every other cross-product, app-to-app and app-to-infrastructure
- * dependency retains the workspace fences. Tests may additionally reach the shared scratch helper
+ * dependency retains the workspace fences. The two exact progress paths additionally reach
+ * `@twilight-burokrat/contracts` alone. Tests may additionally reach the shared scratch helper
  * and the shared clock-read detector.
  */
 export default ({
@@ -101,6 +102,16 @@ export default ({
         '^@tools/test-scratch$',
         '^@twilight-burokrat/judge$',
       ]),
+    },
+    {
+      files: [
+        'apps/twilight-structure/twilight-dash/cli/src/progress/record-progress.ts',
+        'apps/twilight-structure/twilight-dash/cli/src/progress/record-progress.test.ts',
+      ],
+      // Proof: removing this allowance rejected the legitimate progress import. Widening its
+      // alias, relative specifier or file scope independently broke the sibling, relative or
+      // peer refusals in the effective-policy production test (2026-10-15).
+      rules: boundary(['^@twilight-burokrat/contracts$']),
     },
   ];
 };

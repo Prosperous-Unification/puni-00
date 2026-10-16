@@ -39,7 +39,8 @@ export function assertReplayInventory(value: unknown): asserts value is readonly
     if (
       (row['kind'] !== 'replace_blockage' &&
         row['kind'] !== 'move_progress_v1' &&
-        row['kind'] !== 'delete_state_v1') ||
+        row['kind'] !== 'delete_state_v1' &&
+        row['kind'] !== 'step_blockage_activation_v1') ||
       typeof row['count'] !== 'number' ||
       !Number.isSafeInteger(row['count']) ||
       row['count'] <= 0 ||
@@ -66,7 +67,7 @@ function assertCapabilities(value: unknown, image: string): asserts value is Rep
 
 function assertSupported(inventory: readonly ReplayCount[], observation: ReplayCapabilities): void {
   for (const row of inventory) {
-    // Proof: skipping support comparison promotes unsupported nested inverse/precondition history.
+    // Proof: skipping support comparison promotes unsupported nested inverse/precondition history and ENABLED-empty with either incapable exact image.
     if (!observation.capabilities.includes(row.kind))
       throw new Error(
         `replay ${row.kind} (${String(row.count)}) unsupported by ${observation.image}`,

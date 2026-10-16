@@ -56,3 +56,44 @@ Host activation SHALL require an explicit operator flag, durable intent, exact s
 
 - **WHEN** activation may have committed but exact receipt readback is unavailable
 - **THEN** deploy retains barriers and refuses application exposure or rollback
+
+#### Scenario: Preserve enabled empty authority
+
+- **WHEN** either deployment transport inventories a valid ENABLED database with its exact receipt and no facts or journal entries
+- **THEN** it retains one `step_blockage_activation_v1` obligation and refuses an incapable candidate or rollback image
+
+#### Scenario: Preserve-only predecessor rollout
+
+- **WHEN** admission reads a valid pre-receipt DISABLED database
+- **THEN** it accepts the unchanged activation authority so the existing deployment migration phase can apply the additive receipt migration
+
+#### Scenario: Coherent pre-marker predecessor
+
+- **WHEN** the existing readable physical migration ledger records neither activation migration and no marker/receipt schema object or admission trigger remains
+- **THEN** coordinator inventory reports no activation obligation and still inventories fact and journal compatibility
+
+#### Scenario: Partial or unreadable predecessor
+
+- **WHEN** predecessor ledger, marker, receipt or trigger authority is missing inconsistently, malformed or unreadable
+- **THEN** admission refuses instead of inferring DISABLED or an empty activation inventory
+
+#### Scenario: Ordinary deployment uses the outgoing rollback digest
+
+- **WHEN** an ordinary Compose deployment replaces an existing backend
+- **THEN** it captures the outgoing container's pinned image and runtime image identity before stopping it, revalidates that association after stop, and independently checks that rollback digest and the candidate digest before maintenance or migration
+
+#### Scenario: Missing or changed outgoing image
+
+- **WHEN** the outgoing image identity is missing, unpinned, inconsistent or changes after writer stop
+- **THEN** ordinary deployment refuses before maintenance, migration or application exposure and retains any existing writer barriers
+
+#### Scenario: Genuine first installation
+
+- **WHEN** no managed backend writer exists at preflight and admission and no outgoing colour is recorded or routed
+- **THEN** Compose records a null predecessor and admits only a capable candidate over coherent pre-marker or DISABLED authority; ENABLED authority refuses without a rollback image
+
+#### Scenario: Complete asymmetric image compatibility before maintenance
+
+- **WHEN** an ordinary Compose deployment encounters any stored vocabulary value that either the candidate or captured outgoing rollback image cannot read
+- **THEN** it refuses before maintenance, migration or application exposure, independently of activation state or whether the other image supports that value
+- **AND** this comparison covers the entire stored-vocabulary registry, including facts and journal semantics

@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "candidate": "e81e8e7138afebe2fb6224d76838d5c3ea647cc32f8168d1026ed3df00b2a744",
+  "policy": "rules.puni-00.v1",
+  "allowed": true,
+  "ruleIds": ["F1"],
+  "findings": [
+    {
+      "ruleId": "F1",
+      "path": "apps/wbs/fe-01/src/components/wbs/cell-card-store.ts",
+      "subject": "external:react",
+      "message": "declared plain TypeScript imports external:react through 'react'",
+      "effect": "debt"
+    }
+  ],
+  "unevaluated": [],
+  "certifies": false
+}

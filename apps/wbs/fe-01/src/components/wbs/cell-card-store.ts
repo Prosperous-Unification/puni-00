@@ -1,5 +1,3 @@
-import { useSyncExternalStore } from 'react';
-
 /**
  * Which cell's hover card is on screen, held outside React state so that
  * moving the pointer across a cardable cell costs no render of the plan.
@@ -318,19 +316,4 @@ export function createCellCards(): CellCards {
       settle();
     },
   };
-}
-
-/**
- * Whether this cell is the one whose card is on screen.
- *
- * A boolean and not the key, so a card opening three rows away tells this cell
- * nothing: `useSyncExternalStore` compares what the getter returns, and every
- * cardable cell on a five-hundred-row plan subscribes.
- */
-export function useCardOpenOn(cards: CellCards, cell: string): boolean {
-  return useSyncExternalStore(
-    cards.subscribe,
-    () => cards.openCard() === cell,
-    () => false,
-  );
 }

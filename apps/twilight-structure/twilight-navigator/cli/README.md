@@ -64,7 +64,9 @@ writes one owner-only WBS command batch `{ id, commands }`: per entry in receipt
 entry carries them. It prints the batch digest.
 
 Applying the batch is a person's or the WBS MCP's act (`postApiProjectsByIdCommands`):
-Navigator sends nothing. Dash does not emit progress receipts yet.
+Navigator sends nothing. Dash `record-progress` emits the existing v1 receipt from explicit
+operator entries and supplied reference/tasks. Entries are operator assertions; evidence is
+not authenticated and current WBS application remains the existing person/MCP act.
 
 ## Exit codes
 

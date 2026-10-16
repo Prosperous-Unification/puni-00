@@ -341,3 +341,22 @@ for (const direction of ['forward', 'inverse', 'both', 'combined', 'legacy'] as 
     });
   }
 }
+
+it('retains enabled-empty capability in pinned cutover evidence', async () => {
+  const { validateCutoverReplay } = await import('./cutover-replay');
+  const pinned = identity();
+  const sha256 = '0'.repeat(64);
+  expect(
+    validateCutoverReplay(
+      {
+        ...pinned,
+        version: 1,
+        inventory: [{ kind: 'step_blockage_activation_v1', count: 1 }],
+        capabilities: ['step_blockage_activation_v1'],
+        exportSha256: sha256,
+      },
+      pinned,
+      sha256,
+    ).inventory,
+  ).toEqual([{ kind: 'step_blockage_activation_v1', count: 1 }]);
+});
