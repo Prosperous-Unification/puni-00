@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { stripVTControlCharacters } from 'node:util';
 const receipts = process.argv[2];
-const read = (name) => readFileSync(join(receipts, name), 'utf8');
+// Proof: hosted run 38860218758 reached the expected failures and restoration,
+// then this reader's summary assertion failed on ANSI-colored Vitest output.
+const read = (name) => stripVTControlCharacters(readFileSync(join(receipts, name), 'utf8'));
 const pointer = read('fault-pointer-filter.log');
 const release = read('fault-release-commit.log');
 assert(
