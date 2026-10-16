@@ -5,6 +5,7 @@ import { scratchAsync } from '@tools/test-scratch';
 import { expect, it } from 'bun:test';
 
 import { readCreationAttempt } from './creation-journal';
+import type { HostCapacity } from './k3d-lab';
 
 const ROOT = join(import.meta.dir, '../../..');
 
@@ -32,6 +33,7 @@ async function fixture(
     | 'network-wrong-name'
     | 'registry-wrong-kind'
     | 'registry-wrong-name',
+  capacity: HostCapacity = { availableMemoryMiB: 8192, freeDiskMiB: 16_384 },
 ) {
   const root = await scratchAsync('k3d-creation-caller-');
   const binaries = join(root, 'bin');
@@ -113,7 +115,7 @@ esac
       [
         process.execPath,
         '--eval',
-        `import { runLab } from ${JSON.stringify(join(ROOT, 'tools/tool-fleet/src/k3d-lab.ts'))}; await runLab(${JSON.stringify([action, '--id', 'f9', '--profile', 'app', ...(action === 'up' ? ['--worktree-root', root] : [])])}, ${JSON.stringify(root)});`,
+        `import { runLab } from ${JSON.stringify(join(ROOT, 'tools/tool-fleet/src/k3d-lab.ts'))}; await runLab(${JSON.stringify([action, '--id', 'f9', '--profile', 'app', ...(action === 'up' ? ['--worktree-root', root] : [])])}, ${JSON.stringify(root)}, async () => (${JSON.stringify(capacity)}));`,
       ],
       {
         cwd: root,
@@ -247,3 +249,38 @@ for (const fault of [
     if (fault.startsWith('network')) expect(commands).not.toMatch(/(^|\n)run /);
   });
 }
+
+for (const capacity of [
+  { availableMemoryMiB: 8192, freeDiskMiB: 7250 },
+  { availableMemoryMiB: 4095, freeDiskMiB: 16_384 },
+]) {
+  it(`refuses insufficient app capacity ${JSON.stringify(capacity)} before resource creation`, async () => {
+    const { calls, invoke } = await fixture('network', capacity);
+    const invocation = invoke('up');
+    const stderr = await new Response(invocation.stderr).text();
+    expect(await invocation.exited).not.toBe(0);
+    expect(stderr).toContain('k3d lab profile app refused');
+    expect(stderr).toContain(
+      capacity.freeDiskMiB === 7250
+        ? '7250 MiB Docker disk free, 12288 MiB required'
+        : '4095 MiB memory available, 4096 MiB required',
+    );
+    const commands = await readFile(calls, 'utf8');
+    expect(commands).not.toContain('network create');
+    expect(commands).not.toMatch(/(^|\n)run /);
+    expect(commands).not.toContain('cluster create');
+  });
+}
+
+it('admits exact app capacity and reaches resource creation', async () => {
+  const { calls, invoke } = await fixture('network', {
+    availableMemoryMiB: 4096,
+    freeDiskMiB: 12_288,
+  });
+  const invocation = invoke('up');
+  const stderr = await new Response(invocation.stderr).text();
+  expect(await invocation.exited).not.toBe(0);
+  expect(stderr).toContain('injected create failure');
+  expect(stderr).not.toContain('k3d lab profile app refused');
+  expect(await readFile(calls, 'utf8')).toContain('network create');
+});

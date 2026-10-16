@@ -688,9 +688,16 @@ async function waitForBundledIngress(
   ]);
 }
 
-async function upLab(root: string, request: K3dLabRequest, tools: LabTools): Promise<void> {
+async function upLab(
+  root: string,
+  request: K3dLabRequest,
+  tools: LabTools,
+  readCapacity: () => Promise<HostCapacity>,
+): Promise<void> {
   const profile = PROFILES[request.profile];
-  requireProfileResources(request.profile, await hostCapacity());
+  // Proof: removing this call made both `refuses insufficient app capacity` subprocess
+  // cases reach Docker network creation instead of refusing 7250 MiB disk or 4095 MiB memory.
+  requireProfileResources(request.profile, await readCapacity());
   const names = labNamesOf(request.labId);
   const existing = await listLabResources(request.labId);
   if (existing.containers.length > 0 || existing.networks.length > 0) {
@@ -919,8 +926,16 @@ async function statusLab(root: string, request: K3dLabRequest, tools: LabTools):
   }
 }
 
-/** Entry for `tool-fleet:lab`: the VM lab when `--lab-id` is present, otherwise the k3d lab. */
-export async function runLab(arguments_: readonly string[], root: string): Promise<void> {
+/**
+ * Entry for `tool-fleet:lab`: the VM lab when `--lab-id` is present, otherwise the k3d lab.
+ * The capacity reader defaults to real Docker disk and available host memory; subprocess
+ * fixtures supply deterministic capacity independently of their scratch filesystem.
+ */
+export async function runLab(
+  arguments_: readonly string[],
+  root: string,
+  readCapacity: () => Promise<HostCapacity> = hostCapacity,
+): Promise<void> {
   if (isVmLabRequest(arguments_)) {
     await (await import('./lab')).runVmLab(arguments_, root);
     return;
@@ -929,7 +944,7 @@ export async function runLab(arguments_: readonly string[], root: string): Promi
   const tools = await requireLabTools(root);
   switch (request.action) {
     case 'up':
-      await upLab(root, request, tools);
+      await upLab(root, request, tools, readCapacity);
       return;
     case 'down':
       await downLab(root, request, tools);

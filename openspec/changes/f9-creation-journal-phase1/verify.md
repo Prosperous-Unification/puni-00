@@ -164,3 +164,53 @@ The first revised typecheck correctly rejected possibly undefined UID expectatio
 the test now requires a UID provider before comparing the real fixture owners. Typecheck was rerun
 successfully. The full restored suite and focused fixtures passed without ignored failures.
 No new live infrastructure commands, dependency installation, host gate, push or PR occurred.
+
+## PR #514 host capacity fixture repair
+
+Base: public aggregate head `f3686898014b9488b33081aa7003acac470b0b51`.
+Work is isolated in `/tmp/puni-514-fixture-repair`; no shared root or locked h2 gate tree
+was edited. The exact-head host gate reported 11 creation journal fixture failures because
+its fake Docker root was a scratch directory on a filesystem with approximately 7250 MiB
+free, below the unchanged app profile requirement of 12288 MiB.
+
+`runLab` now accepts a capacity reader that defaults to `hostCapacity`; the CLI still reads
+DockerRootDir, statfs and MemAvailable. The creation journal subprocess fixture supplies
+8192 MiB memory and 16384 MiB disk independently of the scratch filesystem. The production
+resource guard remains unconditional, and no environment bypass or threshold change was added.
+This repairs test isolation while preserving the specified production behavior, so no delta
+requirement was changed.
+
+The new subprocess cases refuse 7250 MiB disk and 4095 MiB memory, checking the exact
+shortfall and absence of network, registry and k3d creation commands. Equality at 4096 MiB
+memory and 12288 MiB disk reaches the injected Docker network creation failure. Before the
+callback was wired through, both refusal cases failed because real host capacity was used.
+For the R5 proof, replacing only the production `requireProfileResources` call with
+`await readCapacity()` made both refusal cases fail: Docker network creation reached the
+injected exit-71 failure instead of reporting capacity refusal. The guard was restored and
+an adjacent `Proof:` comment records this observation. The mutation transcript is
+`/tmp/puni-514-capacity-guard-removed.log`.
+
+Fresh restored verification:
+
+- `BUN_TMPDIR=/tmp bun install --frozen-lockfile`: checked 1573 installs across 1447 packages,
+  no lockfile change. The first install attempt refused its default temporary directory as
+  read-only; the explicit owned `/tmp` retry passed.
+- `bun test --preload ./tools/test/scratch/preload.ts --timeout=30000` with the four explicit
+  files `k3d-creation-journal.test.ts`, `k3d-lab.test.ts`, `creation-journal.test.ts` and
+  `creation-receipts.test.ts`: 122 pass, 0 fail, 398 expectations, 15.45 seconds.
+  Normal creation cases require loopback sockets, so this run used socket permission after
+  the restricted run reported listen refusal. Transcript: `/tmp/puni-514-focused.log`.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run tool-fleet:lint`: passed, 19.6 seconds.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run tool-fleet:typecheck`: passed, 1.3 seconds.
+- `BUN_TMPDIR=/tmp bunx @fission-ai/openspec@1.12.0 validate --all --json`: 224 passed, 0 failed.
+- The same validator with `validate f9-creation-journal-phase1 --strict --json`: 1 passed, 0 failed.
+- Extra `validate --all --strict --json`: 218 passed, 6 failed on preexisting placeholder
+  Purpose warnings in main specs `dev-deploy`, `live-plan-snapshot`, `plan-command-registry`,
+  `plan-import`, `saved-plans` and `scheduler-optimization`. Running that exact command against
+  an exported OpenSpec tree from base SHA `f3686898014b9488b33081aa7003acac470b0b51` produced
+  the same six IDs and identical issue arrays. No unrelated spec was edited. Transcripts:
+  `/tmp/puni-514-openspec.json` and `/tmp/puni-514-base-openspec-strict.json`.
+
+The canonical exact-SHA h2 gate, full workspace checks and live Docker/k3d acceptance are
+not certified by these scoped checks. Independent exact review and the canonical gate remain
+required before integration; no push or deployment was performed by this repair task.
