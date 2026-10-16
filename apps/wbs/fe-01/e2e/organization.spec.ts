@@ -1,4 +1,4 @@
-import { expect, type Page, test } from '@playwright/test';
+import { expect, type Page, test, type TestInfo } from '@playwright/test';
 
 /**
  * The organization page, drawn by a browser, for a super-admin of an activated
@@ -17,10 +17,18 @@ import { expect, type Page, test } from '@playwright/test';
  */
 
 const DAY = 86_400_000;
+const ISOLATED_WORDS =
+  'Each project schedules its people as if it had them alone. A person booked in two projects at once shows as an overlap on their load.';
+const UNAVAILABLE_WORDS = 'Sharing people across projects is not available in this release yet.';
+const SUPER_ADMIN_WORDS = 'Only a super-admin can change whether people are shared.';
+
+type SharingReply =
+  { sharedPeople: boolean; sharingAvailable: boolean; canSwitch: boolean } | { error: 'forbidden' };
 
 async function answerAsSuperAdmin(
   page: Page,
   mode: 'ready' | 'denied' | 'held' | 'create-held' | 'enforce-held' = 'ready',
+  sharing: SharingReply = { sharedPeople: false, sharingAvailable: true, canSwitch: true },
 ): Promise<void> {
   const now = Date.now();
   await page.route('**/api/**', async (route) => {
@@ -160,8 +168,12 @@ async function answerAsSuperAdmin(
             },
           ],
         });
+      case 'GET /api/organization/session-policy':
+        return json({ policy: null });
+      case 'GET /api/organization/provisioning-tokens':
+        return json({ tokens: [] });
       case 'GET /api/organization':
-        return json({ sharedPeople: false, sharingAvailable: true, canSwitch: true });
+        return json(sharing, 'error' in sharing ? 403 : 200);
       default:
         return json({ error: 'not_found' }, 404);
     }
@@ -384,4 +396,121 @@ for (const width of [1280, 375]) {
       expect(reached.size).toBe(expected);
     });
   });
+}
+
+/** The sharing panel is fully visible and contained before its attached pixel evidence is captured. */
+async function captureSharingPanel(
+  page: Page,
+  testInfo: TestInfo,
+  colorScheme: 'light' | 'dark',
+): Promise<void> {
+  const panel = page.getByRole('region', { name: 'Shared people', exact: true });
+  await expect(page.locator('html')).toHaveClass(
+    colorScheme === 'dark' ? /dark/ : /^(?!.*\bdark\b).*$/,
+  );
+  await panel.scrollIntoViewIfNeeded();
+  const geometry = await panel.evaluate((section) => {
+    const rectangle = section.getBoundingClientRect();
+    const main = section.closest('main');
+    if (main === null) throw new Error('Shared people must belong to main');
+    return {
+      left: rectangle.left,
+      right: rectangle.right,
+      top: rectangle.top,
+      bottom: rectangle.bottom,
+      width: rectangle.width,
+      height: rectangle.height,
+      viewportWidth: innerWidth,
+      viewportHeight: innerHeight,
+      documentOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      mainOverflow: main.scrollWidth - main.clientWidth,
+      panelOverflow: section.scrollWidth - section.clientWidth,
+    };
+  });
+  expect(geometry.width).toBeGreaterThan(0);
+  expect(geometry.height).toBeGreaterThan(0);
+  expect(geometry.left).toBeGreaterThanOrEqual(0);
+  // Proof: min-width:600px around the production panel failed here at 375px: right edge 600 (2026-10-16).
+  expect(geometry.right).toBeLessThanOrEqual(geometry.viewportWidth);
+  expect(geometry.top).toBeGreaterThanOrEqual(0);
+  expect(geometry.bottom).toBeLessThanOrEqual(geometry.viewportHeight);
+  expect(geometry.documentOverflow).toBe(0);
+  expect(geometry.mainOverflow).toBe(0);
+  expect(geometry.panelOverflow).toBe(0);
+  const screenshot = testInfo.outputPath('shared-people.png');
+  await panel.screenshot({ path: screenshot });
+  await testInfo.attach('Shared people panel', {
+    path: screenshot,
+    contentType: 'image/png',
+  });
+}
+
+for (const width of [375, 1280]) {
+  for (const colorScheme of ['light', 'dark'] as const) {
+    test.describe(`Shared people at ${String(width)}px in ${colorScheme}`, () => {
+      test.use({ viewport: { width, height: width === 375 ? 812 : 900 }, colorScheme });
+
+      for (const canSwitch of [true, false]) {
+        test(`keeps unavailable isolated people read-only with canSwitch ${String(canSwitch)}`, async ({
+          page,
+        }, testInfo) => {
+          let patches = 0;
+          page.on('request', (request) => {
+            if (
+              request.method() === 'PATCH' &&
+              new URL(request.url()).pathname === '/api/organization'
+            )
+              patches += 1;
+          });
+          await answerAsSuperAdmin(page, 'ready', {
+            sharedPeople: false,
+            sharingAvailable: false,
+            canSwitch,
+          });
+          await page.goto('/organization');
+          const panel = page.getByRole('region', { name: 'Shared people', exact: true });
+          // Proof: omitting SharingPanel from organization-page.tsx failed this region assertion (2026-10-16).
+          await expect(panel).toBeVisible();
+          for (const visit of ['initial', 'reloaded']) {
+            if (visit === 'reloaded') await page.reload();
+            // Proof: wrong isolated explanation and bypassing the unavailable branch each failed this exact copy assertion (2026-10-16).
+            await expect(panel.locator('p')).toHaveText([ISOLATED_WORDS, UNAVAILABLE_WORDS]);
+            await expect(panel.locator('button, input, select, [role="group"]')).toHaveCount(0);
+            expect(patches).toBe(0);
+          }
+          await captureSharingPanel(page, testInfo, colorScheme);
+        });
+      }
+
+      test('explains supported-release permission without controls', async ({ page }, testInfo) => {
+        await answerAsSuperAdmin(page, 'ready', {
+          sharedPeople: false,
+          sharingAvailable: true,
+          canSwitch: false,
+        });
+        await page.goto('/organization');
+        const panel = page.getByRole('region', { name: 'Shared people', exact: true });
+        // Proof: bypassing the production canSwitch branch removed the permission sentence and failed here (2026-10-16).
+        await expect(panel.locator('p')).toHaveText([ISOLATED_WORDS, SUPER_ADMIN_WORDS]);
+        await expect(panel.locator('button, input, select, [role="group"]')).toHaveCount(0);
+        await captureSharingPanel(page, testInfo, colorScheme);
+      });
+
+      test('rejects an unsupported forbidden sharing reply', async ({ page }, testInfo) => {
+        await answerAsSuperAdmin(page, 'ready', { error: 'forbidden' });
+        await page.goto('/organization');
+        const panel = page.getByRole('region', { name: 'Shared people', exact: true });
+        // Proof: adding forbidden to readCapacityMode refusals produced the super-admin sentence and failed here (2026-10-16).
+        await expect(panel.getByRole('alert')).toHaveText(
+          'The server returned an unexpected response. Try again.',
+        );
+        await expect(panel.locator('p')).toHaveText([
+          'The server returned an unexpected response. Try again.',
+        ]);
+        await expect(panel.getByRole('status')).toHaveCount(0);
+        await expect(panel.locator('button, input, select, [role="group"]')).toHaveCount(0);
+        await captureSharingPanel(page, testInfo, colorScheme);
+      });
+    });
+  }
 }
