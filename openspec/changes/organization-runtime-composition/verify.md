@@ -101,3 +101,14 @@ SMTP, scheduler and authoritative DNS (`/tmp/dns-smtp-openspec.log`). No full
 OpenSpec-all/repository gate claim follows. The normal-hook merge commit outcome
 and exact SHA/tree are recorded in `/tmp/dns-smtp-merge-commit.log` and the final
 handoff. Source branches remain untouched and no public push is performed.
+
+Normal merge hooks passed at source merge
+`ffe81c6d834a41c689b94a4a2835e097ebe99955`, tree
+`cc31ef7cade27c257d73391d3beb32fb61d03c85`:
+lint, format, plaintext secrets, private nesting and agent trailers passed.
+Tool Wiki explicitly reported inactive/not certified because the external
+activation root is not provisioned; no certification claim. Migration/doc-cap
+hooks had no matching paths. The new clone required `bunx lefthook install`
+before committing; no hook was bypassed. MemAvailable afterward21,183,812KiB.
+This receipt-only follow-up changes no source/test blobs; exact final review
+head/tree are supplied in the handoff.

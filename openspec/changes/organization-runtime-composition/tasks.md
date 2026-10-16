@@ -8,7 +8,7 @@
 
 - [x] 2.1 Add the combined configured boot test; observe separate SMTP-binding and proof-scheduling omissions fail, restore and add adjacent Proof comments.
 - [x] 2.2 Run SMTP, authoritative DNS and proof scheduler boot suites plus focused runtime/config/supervisor regressions serially with RSS observation.
-- [ ] 2.3 Run scoped lint/typecheck/format/OpenSpec/diff checks and normal hooks; disclose unavailable checks.
+- [x] 2.3 Run scoped lint/typecheck/format/OpenSpec/diff checks and normal hooks; disclose unavailable checks.
 
 ## 3. Review boundary
 
