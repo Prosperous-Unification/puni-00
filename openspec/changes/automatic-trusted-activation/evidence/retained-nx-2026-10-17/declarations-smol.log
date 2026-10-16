@@ -1,0 +1,6 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.test.ts:
+(pass) retained sha1 declarations equal legacy after source removal without ambient reads [178.27ms]
+(pass) retained sha256 declarations equal legacy after source removal without ambient reads [209.65ms]
+(pass) retained declarations refuse legacy null history before reading [197.43ms]

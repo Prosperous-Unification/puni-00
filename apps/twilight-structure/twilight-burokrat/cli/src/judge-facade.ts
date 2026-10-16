@@ -112,7 +112,12 @@ export {
   extractDeclaredRelationshipsFromSource,
   identifyDeclarationExtractor,
 } from './relationships/declarations';
-export { type NxRelationships } from './relationships/nx';
+export { extractNxRelationships } from './relationships/nx';
+export {
+  extractNxRelationshipsFromSource,
+  type NxRelationships,
+  type NxSource,
+} from './relationships/nx-core';
 export { type ExtractorIdentity } from './relationships/typescript';
 export { AuditFinding } from './review/audit';
 export {

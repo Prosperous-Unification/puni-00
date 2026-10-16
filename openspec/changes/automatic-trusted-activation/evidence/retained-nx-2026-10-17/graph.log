@@ -1,0 +1,6 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-artifact-graph.test.ts:
+(pass) retained sha1 graph replays after checkout/store removal without ambient IO [107.52ms]
+(pass) retained sha256 graph replays after checkout/store removal without ambient IO [98.24ms]
+(pass) classification and record reads share maximumReads [79.76ms]

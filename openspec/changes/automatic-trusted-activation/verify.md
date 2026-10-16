@@ -4349,3 +4349,118 @@ record-only graph cannot authenticate an external response container; missing se
 containers refuse. Full-repository corpus compatibility, resource fit and eleven-document
 freeze/replay remain required by 2.1d.1.5. No host/live/push/publication or full Nx/h2puni gate
 was performed in this local prerequisite slice.
+
+## 2026-10-17 bounded 2.1d.1.3b — retained static Nx prerequisite
+
+Isolated clone baseline: `3ddaec6dac1aa011cd6f07f3027ad41af5cc69a7`.
+Burokrat now shares the filesystem-independent static Nx selector core between the preserved
+legacy wrapper and Dash's owned retained adapter. Extractor identity and static selector
+semantics remain unchanged. The additive `extractRetainedNxDeclarations` composition derives
+Nx target authority before calling the existing declarations core; it accepts no Nx override.
+The prior declaration API and its fault witnesses remain intact. Exact ownership uses the
+existing private candidate provenance WeakMap through a neutral API; graph diagnostics remain
+unchanged. All explicit entry/read/byte/output limits reject missing, zero and NaN values.
+Selector bytes charge before hashing/appending to bound shared-default amplification; the
+final envelope check includes the extractor and array wrappers.
+
+### Observed controls and faults
+
+- SHA-1/SHA-256 mounted target-fact comparisons matched legacy Nx plus declarations after
+  deleting both original checkout and retained store following capability open. Ambient
+  filesystem/Git/spawn sentinels were active. Static plugin input contains throwing candidate
+  code. Discovery, sorting, shallow defaults, implicit dependencies, nested node_modules,
+  project symlink exclusion and nx.json current-byte symlink resolution have parity controls.
+- The focused Nx run passed **17 tests, 30 assertions** before the amplification/envelope
+  controls were added. The amplification negative first observed final-only output refusal,
+  then passed with the required early selector-byte diagnostic (**1 test, 1 assertion**).
+- The moved unreadable read initially lost the old named diagnostic; deferring source reads
+  inside the shared parser's context wrapper restored it. Final separate core tests passed
+  **2 tests, 2 assertions**; retained malformed UTF-8 remains a refusal.
+- **16 watched production mutations** each exited 1 with failing assertions; every source was
+  restored. These cover exact ownership call and private lookup, false-empty census, wrong
+  path/blob reads, all four limit validation and enforcement boundaries, default/dependency
+  omission and incremental amplification-hook omission. Exact commands, faults and diagnostic logs
+  are in [r5-faults.json](evidence/retained-nx-2026-10-17/r5-faults.json).
+- The final separate facade test passed **1 test, 5 assertions** and committed target-fact
+  tests passed **2 tests, 24 assertions**. Dash spec-project typecheck passed. Initial
+  pre-amplification Burokrat and Dash spec-project typechecks passed; the final Burokrat
+  attempt was stopped at the resource ceiling and is unavailable.
+- Scoped ESLint passed with the local Nx graph available, measured peak process-tree RSS
+  **905785344 bytes** (below 900 MiB). The graph query passed. OpenSpec strict validation
+  passed **1 change, 0 issues**. Structured check receipts and logs accompany the fault file.
+
+### Resource-limited checks and remaining scope
+
+A first combined regression finished **90 passed, 1 failed**, with the failure naming the
+facade's exact-export allowlist; the two new exports were then added to that allowlist and
+its separate final test passed. A subsequent combined run was watchdog-killed at sampled
+**1027784704 bytes**. It is not a passing regression. The declaration-only run was killed at
+**946814976 bytes** with an 800 MiB threshold. Fresh `bun --smol` declaration and graph runs
+were then stopped under a 600 MiB threshold at sampled **780812288** and **790052864 bytes**;
+the final Burokrat typecheck stopped at **630177792 bytes**. Sampling permits overshoot during
+rapid allocation. None of these stopped files was retried. Full restored declaration and graph
+regressions, and final Burokrat typecheck, require hosted validation. No full Nx gate/build,
+canonical h2puni gate or CI-only check was run.
+
+Normal Git hooks were installed in this clone. A clone-local Lefthook override serializes
+pre-commit commands to control RAM; the merged JSON dumps differ solely in pre-commit.parallel
+(true versus omitted false), preserving every command, glob and message hook. The override is
+removed after the commit. No command is skipped through this setting. External Tool Wiki
+activation remains unprovisioned, so its ordinary local hook can report inactive rather than
+certified admission.
+
+This is bounded static Nx work only. Parent 2.1d.1.3, compiler/runtime closure, all eleven
+freeze documents, V4 preparation provenance, full-repository fit and external authority remain
+open. No publication, push, merge, deployment, protected-provider operation or WBS mutation
+was performed.
+
+The first serial hook attempt was watchdog-stopped at sampled **636387328 bytes** under a
+600 MiB threshold, with no commit. The final clone-local override also runs the original
+`bunx eslint` command once per staged filename. Filenames were checked for simple safe
+characters; merged dumps differ only in `parallel` and the equivalent serial `lint.run`.
+Every remaining hook command/glob and both message hooks are preserved. The final commit
+attempt uses an 800 MiB stop threshold and a 384 MiB Node heap.
+
+The final normal-hook attempt returned **exit 1** because ESLint exhausted the explicit
+384 MiB Node heap. Peak process-tree RSS was **677314560 bytes**, below the 800 MiB stop
+threshold. Format, plaintext-secrets and private-nesting passed; Tool Wiki ran and reported
+inactive as expected without an external activation. Lint failed loudly. No commit was
+created and no hook was bypassed. Sanitized diagnostic output and receipt are retained as
+`evidence/retained-nx-2026-10-17/commit-per-file.{log,json}`. The local override was removed;
+normal-hook commit and exact-commit independent review remain pending. Task 2.1d.1.3b remains
+unchecked pending hosted regression/typecheck acceptance.
+
+Diagnostic logs strip ANSI escapes, trailing line whitespace and trailing empty lines; original local outputs remain in `/tmp/retained-nx-raw-logs`. These edits preserve diagnostics and assertion outcomes.
+
+Astra's staged review also found one byte of drift per selector in incremental accounting:
+`serializeCanonical` already contributes terminal LF. The charge is now canonical byte length
+plus **78**, equivalent to removing LF then adding identity-field/array-separator bytes. A
+512-target exact-final-envelope control was added. This narrow arithmetic correction and its
+new control were **not executed locally** after the 300 MiB handoff limit took effect; hosted
+validation remains required. The earlier amplification fault evidence precedes this correction.
+
+### Resumed exact-fit control and normal-hook attempt
+
+After the reference worker released the serial lane, the parent authorized only the new
+512-target exact-final-envelope control and one normal-hook attempt with a 640 MiB Node heap
+and 900 MiB process-tree watchdog. The fresh exact-fit control passed **1 test, 1 assertion**
+at **372740096 bytes** peak tree RSS. This verifies the corrected +78 accounting at the exact
+actual output ceiling. Its command/output receipt is `exact-fit-final.{json,log}` in the
+existing evidence directory. Full declaration/graph suites and final Burokrat typecheck remain
+unavailable as recorded above. The normal-hook configuration is again verified to differ only
+in serial scheduling and equivalent per-file lint batching; no hook command or glob is removed.
+The parent handoff receipt records the final commit-attempt disposition.
+
+The resumed 640 MiB-heap normal-hook attempt stayed within budget (**809889792 bytes**,
+22.367 seconds) and returned exit 1 for a real lint error: the new exact-fit test interpolates
+a number without explicit string conversion (`restrict-template-expressions`). Format,
+plaintext-secrets and private-nesting passed; Tool Wiki ran and reported inactive. No commit
+was created; no bypass or further retry was attempted. The local override was removed.
+The exact-fit behavior control passed as recorded above; the test's lint correction and normal
+commit remain pending. Final hook output/receipt are `commit-final.{log,json}`.
+
+The parent authorized a corrected-source retry after the concrete lint failure. The new test
+now uses explicit `String(index)` conversion, preserving its target names and behavior. The
+same complete serial/per-file hook configuration and safe staged filenames were reverified;
+the retry retains the 640 MiB Node heap and 900 MiB process-tree watchdog. Its final disposition
+is recorded in the durable handoff receipt.

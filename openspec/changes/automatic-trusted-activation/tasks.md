@@ -290,6 +290,13 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
       third-revision and raw historical symlink authority, BOM current targets, legacy null
       history refusal and independently watched guard omissions. This bounded component does
       not close 2.1d.1.3, compiler/runtime closure, all eleven documents or external authority.
+- [ ] 2.1d.1.3b Extract the shared filesystem-independent static Nx selector core and mount an
+      additive retained Nx-plus-declarations composition with no caller-supplied Nx authority.
+      Preserve legacy identity, discovery, sorting, shallow defaults, implicit dependencies,
+      symlink/node_modules exclusions and refusals. Prove exact owned-candidate census,
+      tuple reads, source/store removal, no ambient read/execution and explicit entry/read/byte/
+      output limits, including incremental default-amplification refusal before selector hashing.
+      This bounded prerequisite leaves compiler/runtime closure and parent 2.1d.1.3 open.
 - [x] 2.1d.1.4 Implement and pin deterministic artifact graph derivation. TDD every allowlisted
       record kind, raw-response payload versus container digest, semantic digest non-edges,
       installed extra-edge selectors, zero-indegree roots, missing/foreign/ambiguous response,

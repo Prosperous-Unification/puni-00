@@ -1,0 +1,108 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.test.ts:
+1095 | });
+1096 |
+1097 | test('retained Nx enforces final envelope bytes', () => {
+1098 |   const fixture = nxFixture();
+1099 |   const extracted = extractNxRelationships(fixture.input.sourceRepository);
+1100 |   expect(() => extractRetainedNxRelationships(fixture.candidate, {...nxLimits, maximumOutputBytes: Buffer.byteLength(serializeCanonical(extracted)) - 1})).toThrow('retained Nx output byte ceiling exceeded');
+                                                                                                                                                                  ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "retained Nx output byte ceiling exceeded"
+
+Received function did not throw
+Received value: {
+  extractor: {
+    extractorId: "nx.project-json",
+    version: "v1",
+    blob: "488dbda8571b820b6082f23a724861ca17372050f1667b2cd3862c90d7ae3d52",
+  },
+  relationships: {
+    projects: [
+      {
+        name: "alpha",
+        root: "z",
+        tags: [ "a", "z" ],
+        extractor: {
+          extractorId: "nx.project-json",
+          version: "v1",
+          blob: "488dbda8571b820b6082f23a724861ca17372050f1667b2cd3862c90d7ae3d52",
+        },
+        identity: "76fbb806a5ce7aaecaea88bf31e67d7991e1453bc58fbc623a6aead388402c94",
+      },
+      {
+        name: "zeta",
+        root: "a",
+        tags: [ "a", "z" ],
+        extractor: {
+          extractorId: "nx.project-json",
+          version: "v1",
+          blob: "488dbda8571b820b6082f23a724861ca17372050f1667b2cd3862c90d7ae3d52",
+        },
+        identity: "37ad2b49574be77d81086eb3153b1611cad7f0b95b6182ba05f92cdc304bfdd8",
+      }
+    ],
+    dependencies: [
+      {
+        source: "alpha",
+        target: "zeta",
+        type: "implicit",
+        extractor: {
+          extractorId: "nx.project-json",
+          version: "v1",
+          blob: "488dbda8571b820b6082f23a724861ca17372050f1667b2cd3862c90d7ae3d52",
+        },
+        identity: "a92e9c997c860b31c8e44618cfc118da23f2e7d0773ad3145402eba2f3321f19",
+      }
+    ],
+    targets: [
+      {
+        project: "alpha",
+        target: "check",
+        configuration: {
+          cache: true,
+          options: {
+            command: "bun test",
+          },
+          configurations: {},
+          parallelism: true,
+        },
+        extractor: {
+          extractorId: "nx.project-json",
+          version: "v1",
+          blob: "488dbda8571b820b6082f23a724861ca17372050f1667b2cd3862c90d7ae3d52",
+        },
+        identity: "afc9ca92c8783e538143664770dcfe64b05730dc67266fe8cba56910dc1a64f3",
+      },
+      {
+        project: "zeta",
+        target: "check",
+        configuration: {
+          cache: true,
+          options: {
+            command: "bun test",
+          },
+          configurations: {},
+          parallelism: true,
+        },
+        extractor: {
+          extractorId: "nx.project-json",
+          version: "v1",
+          blob: "488dbda8571b820b6082f23a724861ca17372050f1667b2cd3862c90d7ae3d52",
+        },
+        identity: "bd991ccacfb5d2afea996b2ec8a52f9d830fbe4f40e38a94df5bfe06580f179c",
+      }
+    ],
+  },
+}
+
+      at <anonymous> (/tmp/puni-retained-nx-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.test.ts:1100:156)
+(fail) retained Nx enforces final envelope bytes [249.95ms]
+
+ 0 pass
+ 77 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1242.00ms]

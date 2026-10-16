@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.test.ts:
+1089 |
+1090 | test('retained Nx bounds shared-default amplification before hashing selectors', () => {
+1091 |   const fixture = nxFixture((repository) => {
+1092 |     writeFileSync(join(repository, 'nx.json'), JSON.stringify({targetDefaults: {check: {large: 'x'.repeat(4096)}}}));
+1093 |   });
+1094 |   expect(() => extractRetainedNxRelationships(fixture.candidate, {...nxLimits, maximumOutputBytes: 6000})).toThrow('retained Nx selector byte ceiling exceeded');
+                                                                                                                  ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "retained Nx selector byte ceiling exceeded"
+Received message: "retained Nx output byte ceiling exceeded"
+
+      at <anonymous> (/tmp/puni-retained-nx-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.test.ts:1094:108)
+(fail) retained Nx bounds shared-default amplification before hashing selectors [247.24ms]
+
+ 0 pass
+ 77 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1223.00ms]

@@ -1,0 +1,8 @@
+{
+  "exitCode": -9,
+  "status": "watchdog-killed",
+  "observedTreeRssBytes": 1027784704,
+  "seconds": 11.725,
+  "ceilingBytes": 943718400,
+  "scope": "combined five-file regression; unavailable, superseded by separate per-file checks"
+}

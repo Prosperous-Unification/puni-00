@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.test.ts:
+1068 | }
+1069 |
+1070 | for (const bound of Object.keys(nxLimits) as (keyof typeof nxLimits)[]) {
+1071 |   test(`retained Nx validates ${bound}`, () => {
+1072 |     const fixture = nxFixture();
+1073 |     for (const value of [0, NaN, undefined]) expect(() => extractRetainedNxRelationships(fixture.candidate, {...nxLimits, [bound]: value} as typeof nxLimits)).toThrow(`${bound} must be a positive safe integer`);
+                                                                                                                                                                      ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "maximumOutputBytes must be a positive safe integer"
+Received message: "retained Nx selector byte ceiling exceeded"
+
+      at <anonymous> (/tmp/puni-retained-nx-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.test.ts:1073:160)
+(fail) retained Nx validates maximumOutputBytes [232.81ms]
+
+ 0 pass
+ 77 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1242.00ms]

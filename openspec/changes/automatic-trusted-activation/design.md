@@ -1023,6 +1023,16 @@ core; do not replace extraction with caller-supplied relationship labels. Cleanu
 private workspace, preserves primary plus cleanup failures and never supplies a successful
 manifest after incomplete work.
 
+The bounded static Nx prerequisite shares `NxSource` and the unchanged `nx.project-json`
+extractor identity between the legacy filesystem wrapper and the retained adapter. The latter
+requires exact installed ownership, enumerates the frozen selected metadata and reads exact
+path/blob tuples, with explicit entry/read/byte/output ceilings. An installed pre-selector
+callback charges serialized selector bytes before hashing/appending, bounding shared-default
+amplification; a final exact envelope-byte check includes the extractor and array wrappers.
+The additive `extractRetainedNxDeclarations` composition derives target authority itself and
+then calls the existing declaration core. It does not supply TypeScript selectors or establish
+compiler/runtime closure, all eleven documents, preparation V4 or external authority.
+
 Strict `ReviewRuntimeClosureV1` contains exactly `{ schemaVersion: 1,
 kind: 'review-runtime-closure', parserProgramIdentity, compilerHostIdentity,
 resolutionPolicyIdentity, files }`. Each file is `{ path, role, identity, byteLength }`, with

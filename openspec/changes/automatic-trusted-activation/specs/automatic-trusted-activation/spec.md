@@ -547,6 +547,15 @@ historical selectors. All objects, parser work and documents SHALL obey installe
 - **THEN** refuse before any outside read; legitimate absent probes inside the closed namespace
   remain modeled absence and complete read observations bind the actual selected bytes
 
+#### Scenario: Static Nx target authority survives retained replay
+
+- **WHEN** retained declaration evaluation selects an explicit Nx target after source checkout
+  and retained storage removal following capability open
+- **THEN** the installed composition derives the project census and target configuration from
+  owned candidate bytes through the shared static selector core, preserves legacy shallow defaults
+  and implicit dependencies, executes no candidate code, and refuses copied candidate authority
+  or entry/read/byte/output overflow before returning declaration facts
+
 #### Scenario: All documents survive retained replay
 
 - **WHEN** the producer is reopened after its original checkout and acquired Git store are gone

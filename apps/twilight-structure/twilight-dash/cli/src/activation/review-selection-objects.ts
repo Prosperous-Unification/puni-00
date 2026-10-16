@@ -143,6 +143,14 @@ const GraphProvenance = new WeakMap<
   }>
 >();
 
+/** Requires the exact installed owner's candidate; copied metadata cannot select a new census. */
+export function readRetainedCandidateProvenance(candidate: RetainedCandidate) {
+  const provenance = GraphProvenance.get(candidate);
+  // Proof: removing this lookup refusal lost the copied false-empty Nx census ownership diagnosis.
+  if (provenance === undefined) throw new Error('owned retained candidate source required');
+  return provenance;
+}
+
 /** Grants graph authority only to the exact owned, validated retained candidate capability. */
 export function readRetainedGraphProvenance(candidate: RetainedCandidate) {
   const provenance = GraphProvenance.get(candidate);
