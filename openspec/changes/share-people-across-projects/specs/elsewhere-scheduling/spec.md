@@ -269,3 +269,40 @@ deletion; the target's saved input alone SHALL NOT be represented as replayable 
 - **WHEN** A's assignment is removed and B's saved plan is compared with current in either direction
 - **THEN** the comparison answers with the displaced dates and holder difference; a missing
   side is JSON `null`, while actual zero, false and empty-string values remain those values
+
+### Requirement: A supplied immutable solver artifact is accepted without rebuilding
+
+The solver image smoke SHALL accept either no arguments for its existing build proof or exactly
+one `--image=REGISTRY/BE@sha256:<64 lowercase hex>` argument for local artifact acceptance.
+The registry component SHALL be a dotted host, `localhost`, or a host with an explicit numeric
+port; a bare namespace such as `library/backend` or `team/nested/backend` SHALL be refused before
+Docker. Supplied mode SHALL reject tags, duplicate/unknown/malformed arguments and the orphan derivative
+build flag before Docker. It SHALL inspect the exact supplied reference before runtime creation,
+refuse absence without fallback, and distinguish daemon/permission failures from absence.
+It SHALL NOT build, publish, pull, retag or remove the supplied artifact.
+
+Both existing authenticated baseline and shared-person clients and the temporary supervisor SHALL
+use that exact digest. The shared request SHALL retain Ana's higher-ranked booking and require a
+publishing feasible response validated against the exact sent request. Cleanup SHALL touch only
+invocation-owned runtime resources and SHALL fail on removal refusal, surviving containers or
+unknown container presence. Acceptance SHALL NOT be evidence of an installed binding, persistent
+supervisor readiness or shared-mode activation.
+
+#### Scenario: accept a locally present artifact
+
+- **GIVEN** an exact supplied backend digest is locally available
+- **WHEN** the smoke runs in supplied-image mode
+- **THEN** both authenticated clients validate feasible answers against that digest
+- **AND** the image survives while invocation-owned runtime resources are removed
+
+#### Scenario: a digest is missing or Docker cannot inspect it
+
+- **WHEN** exact local inspection reports absence, daemon failure or permission failure
+- **THEN** acceptance fails before runtime creation without building or pulling a replacement
+- **AND** absence and inability to inspect have distinct diagnoses
+
+#### Scenario: temporary cleanup is refused
+
+- **GIVEN** both authenticated responses passed
+- **WHEN** an invocation-owned container cannot be inspected or removed, or survives removal
+- **THEN** acceptance fails and the supplied artifact remains untouched
