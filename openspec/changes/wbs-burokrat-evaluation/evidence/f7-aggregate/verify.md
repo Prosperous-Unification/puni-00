@@ -30,7 +30,11 @@ check or production behavior was introduced in this aggregate.
 logs retain complete output and `/usr/bin/time` peak RSS. Commands ran serially,
 with `NODE_OPTIONS=--max-old-space-size=768`, `NX_DAEMON=false`, and
 `NX_ISOLATE_PLUGINS=false`. The Node setting bounds its old generation; it is
-not a total RSS cap. Highest observed peak was focused ESLint, 944464 KiB.
+not a total RSS cap. Highest observed peak was the SQLite library typecheck,
+1975300 KiB (about 1.88 GiB). SQLite spec typecheck used 1333036 KiB and memory
+library typecheck used 1026816 KiB. These scoped serial checks still consumed
+substantial laptop RAM; the earlier 944464 KiB maximum attributed to ESLint was
+incorrect. No additional typecheck or test was run for this evidence correction.
 
 | Check                                                              | Observed                                                                 |
 | ------------------------------------------------------------------ | ------------------------------------------------------------------------ |
@@ -42,7 +46,28 @@ not a total RSS cap. Highest observed peak was focused ESLint, 944464 KiB.
 | Scoped ESLint, all eight touched TypeScript files                  | Exit 0, no skipped-boundary warning                                      |
 | Pinned OpenSpec 1.12.0 strict change validation                    | Exit 0, 1 valid; zero deltas accepted by existing skip_specs declaration |
 
-Scoped formatting and `git diff --check` are recorded separately. Normal hooks
+Scoped formatting passed (`format.log`). The earlier whitespace-check statement
+was incomplete: the recorded aggregate-directory check did not cover inherited
+source evidence. Fresh `git diff --check` from exact base to evidence head
+`31c1be09342b5dd09b0fdc7a844fb447741d96c5` exits **2**, with 16 trailing-whitespace
+warnings. `diff-check.json` retains the exact command, exit code, stdout and
+per-path mode/blob provenance. All warnings are inherited reviewed source
+receipts, preserved byte for byte:
+
+| Source evidence path, relative to `evidence/`   | Warning lines             |
+| ----------------------------------------------- | ------------------------- |
+| `domain-verification-boundary/commit-hooks.log` | 7, 10, 12, 14, 18, 30, 38 |
+| `memory-stores-boundary/allowance-copy.log`     | 8                         |
+| `memory-stores-boundary/journal-forward.log`    | 4                         |
+| `memory-stores-boundary/normal-hooks.log`       | 7, 10, 12, 14, 18, 36, 44 |
+
+There are zero aggregate-added warnings. The base-to-HEAD whitespace check is
+**failing**, not waived or relabelled as passing. Raw source receipts remain
+unchanged to preserve their reviewed mode/blob union. The JSON receipt encodes
+raw output using string escapes so its own storage introduces no whitespace
+warning. A scoped aggregate-only check does not replace this failed check.
+
+Normal hooks
 were installed through `bun run tools/tool-git-hooks/src/install.ts`; merge
 commits ran prepare-commit-msg and commit-msg hooks. The aggregate evidence
 commit `c25cb3621871424292d93e200dab1894c8abe8f7` passed normal applicable
