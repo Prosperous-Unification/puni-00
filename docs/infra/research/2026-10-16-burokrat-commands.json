@@ -2,14 +2,7 @@
   "receipts": [
     {
       "label": "inventory-infra",
-      "argv": [
-        "git",
-        "ls-tree",
-        "-rz",
-        "4f098bfe2bf64343b8f503b5bdebd6e1a6fa34f4",
-        "--",
-        "infra"
-      ],
+      "argv": ["git", "ls-tree", "-rz", "4f098bfe2bf64343b8f503b5bdebd6e1a6fa34f4", "--", "infra"],
       "cwd": "/tmp/infra-coverage-research-sol",
       "exitCode": 0,
       "seconds": 0.004,
@@ -80,11 +73,7 @@
     },
     {
       "label": "explain-F1",
-      "argv": [
-        "/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib",
-        "explain",
-        "F1"
-      ],
+      "argv": ["/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib", "explain", "F1"],
       "cwd": "/tmp/infra-coverage-research-sol",
       "exitCode": 0,
       "seconds": 3.67,
@@ -103,11 +92,7 @@
     },
     {
       "label": "explain-F7",
-      "argv": [
-        "/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib",
-        "explain",
-        "F7"
-      ],
+      "argv": ["/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib", "explain", "F7"],
       "cwd": "/tmp/infra-coverage-research-sol",
       "exitCode": 0,
       "seconds": 3.639,
@@ -149,11 +134,7 @@
     },
     {
       "label": "explain-K2",
-      "argv": [
-        "/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib",
-        "explain",
-        "K2"
-      ],
+      "argv": ["/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib", "explain", "K2"],
       "cwd": "/tmp/infra-coverage-research-sol",
       "exitCode": 0,
       "seconds": 3.647,
@@ -172,11 +153,7 @@
     },
     {
       "label": "explain-K3",
-      "argv": [
-        "/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib",
-        "explain",
-        "K3"
-      ],
+      "argv": ["/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib", "explain", "K3"],
       "cwd": "/tmp/infra-coverage-research-sol",
       "exitCode": 0,
       "seconds": 3.669,
@@ -195,11 +172,7 @@
     },
     {
       "label": "explain-K4",
-      "argv": [
-        "/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib",
-        "explain",
-        "K4"
-      ],
+      "argv": ["/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib", "explain", "K4"],
       "cwd": "/tmp/infra-coverage-research-sol",
       "exitCode": 0,
       "seconds": 3.683,
@@ -218,11 +191,7 @@
     },
     {
       "label": "explain-K5",
-      "argv": [
-        "/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib",
-        "explain",
-        "K5"
-      ],
+      "argv": ["/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib", "explain", "K5"],
       "cwd": "/tmp/infra-coverage-research-sol",
       "exitCode": 0,
       "seconds": 3.66,
@@ -241,11 +210,7 @@
     },
     {
       "label": "explain-K6",
-      "argv": [
-        "/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib",
-        "explain",
-        "K6"
-      ],
+      "argv": ["/tmp/burokrat-closure-exact-consumer/node_modules/.bin/twib", "explain", "K6"],
       "cwd": "/tmp/infra-coverage-research-sol",
       "exitCode": 0,
       "seconds": 3.705,
@@ -845,10 +810,7 @@
     },
     {
       "label": "fixture-init-0",
-      "argv": [
-        "git",
-        "init"
-      ],
+      "argv": ["git", "init"],
       "cwd": "/tmp/infra-coverage-sol-raw/fixture",
       "exitCode": 0,
       "seconds": 0.004,
@@ -867,12 +829,7 @@
     },
     {
       "label": "fixture-config-1",
-      "argv": [
-        "git",
-        "config",
-        "user.name",
-        "Coverage fixture"
-      ],
+      "argv": ["git", "config", "user.name", "Coverage fixture"],
       "cwd": "/tmp/infra-coverage-sol-raw/fixture",
       "exitCode": 0,
       "seconds": 0.003,
@@ -891,12 +848,7 @@
     },
     {
       "label": "fixture-config-2",
-      "argv": [
-        "git",
-        "config",
-        "user.email",
-        "fixture@example.invalid"
-      ],
+      "argv": ["git", "config", "user.email", "fixture@example.invalid"],
       "cwd": "/tmp/infra-coverage-sol-raw/fixture",
       "exitCode": 0,
       "seconds": 0.003,
@@ -915,11 +867,7 @@
     },
     {
       "label": "fixture-add",
-      "argv": [
-        "git",
-        "add",
-        "."
-      ],
+      "argv": ["git", "add", "."],
       "cwd": "/tmp/infra-coverage-sol-raw/fixture",
       "exitCode": 0,
       "seconds": 0.004,
@@ -938,12 +886,7 @@
     },
     {
       "label": "fixture-commit",
-      "argv": [
-        "git",
-        "commit",
-        "-m",
-        "Coverage negative fixtures"
-      ],
+      "argv": ["git", "commit", "-m", "Coverage negative fixtures"],
       "cwd": "/tmp/infra-coverage-sol-raw/fixture",
       "exitCode": 0,
       "seconds": 0.008,
@@ -1102,14 +1045,7 @@
     },
     {
       "label": "fixture-tree",
-      "argv": [
-        "git",
-        "ls-tree",
-        "-rz",
-        "87db10edcd0775dd37fa84641d614124ef0dab94",
-        "--",
-        "infra"
-      ],
+      "argv": ["git", "ls-tree", "-rz", "87db10edcd0775dd37fa84641d614124ef0dab94", "--", "infra"],
       "cwd": "/tmp/infra-coverage-sol-raw/fixture",
       "exitCode": 0,
       "seconds": 0.004,

@@ -3019,13 +3019,8 @@
       "family": "yaml"
     }
   ],
-  "nxWorkflowInputs": [
-    ".github/workflows/infra-check.yml",
-    ".github/workflows/deploy-k3s.yml"
-  ],
-  "absentProjects": [
-    "tool-provision"
-  ],
+  "nxWorkflowInputs": [".github/workflows/infra-check.yml", ".github/workflows/deploy-k3s.yml"],
+  "absentProjects": ["tool-provision"],
   "provisionModule": "tools/tool-fleet/src/check-provision.ts",
   "counts": {
     "other": 25,

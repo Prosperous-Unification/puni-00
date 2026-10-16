@@ -1,12 +1,7 @@
 {
   "allowed": false,
   "certifies": false,
-  "states": [
-    "evaluated",
-    "unevaluated",
-    "refused",
-    "not-applicable"
-  ],
+  "states": ["evaluated", "unevaluated", "refused", "not-applicable"],
   "interpretation": "Subject-family statuses are explicit research judgments against installed explain contracts and pinned source; the CLI reports whole-rule outcomes, not this matrix. Evaluated structural rules are not semantic health claims. Refused represents command/authority or research-oracle rejection, separate from debt.",
   "families": [
     "ansible-yaml",
@@ -271,10 +266,7 @@
       "ruleId": "F7",
       "subjectFamily": "ansible-yaml",
       "status": "not-applicable",
-      "inputContract": [
-        "candidate.entries",
-        "policy.sizeCeilings"
-      ],
+      "inputContract": ["candidate.entries", "policy.sizeCeilings"],
       "reason": "measurement contract admits production .ts/.tsx only; excludes tests and declarations; roots infra and tools/tool-fleet",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -285,10 +277,7 @@
       "ruleId": "F7",
       "subjectFamily": "archive",
       "status": "not-applicable",
-      "inputContract": [
-        "candidate.entries",
-        "policy.sizeCeilings"
-      ],
+      "inputContract": ["candidate.entries", "policy.sizeCeilings"],
       "reason": "measurement contract admits production .ts/.tsx only; excludes tests and declarations; roots infra and tools/tool-fleet",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -299,10 +288,7 @@
       "ruleId": "F7",
       "subjectFamily": "containerfile",
       "status": "not-applicable",
-      "inputContract": [
-        "candidate.entries",
-        "policy.sizeCeilings"
-      ],
+      "inputContract": ["candidate.entries", "policy.sizeCeilings"],
       "reason": "measurement contract admits production .ts/.tsx only; excludes tests and declarations; roots infra and tools/tool-fleet",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -313,10 +299,7 @@
       "ruleId": "F7",
       "subjectFamily": "extensionless",
       "status": "not-applicable",
-      "inputContract": [
-        "candidate.entries",
-        "policy.sizeCeilings"
-      ],
+      "inputContract": ["candidate.entries", "policy.sizeCeilings"],
       "reason": "measurement contract admits production .ts/.tsx only; excludes tests and declarations; roots infra and tools/tool-fleet",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -327,10 +310,7 @@
       "ruleId": "F7",
       "subjectFamily": "hcl",
       "status": "not-applicable",
-      "inputContract": [
-        "candidate.entries",
-        "policy.sizeCeilings"
-      ],
+      "inputContract": ["candidate.entries", "policy.sizeCeilings"],
       "reason": "measurement contract admits production .ts/.tsx only; excludes tests and declarations; roots infra and tools/tool-fleet",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -341,10 +321,7 @@
       "ruleId": "F7",
       "subjectFamily": "jinja",
       "status": "not-applicable",
-      "inputContract": [
-        "candidate.entries",
-        "policy.sizeCeilings"
-      ],
+      "inputContract": ["candidate.entries", "policy.sizeCeilings"],
       "reason": "measurement contract admits production .ts/.tsx only; excludes tests and declarations; roots infra and tools/tool-fleet",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -355,10 +332,7 @@
       "ruleId": "F7",
       "subjectFamily": "other",
       "status": "not-applicable",
-      "inputContract": [
-        "candidate.entries",
-        "policy.sizeCeilings"
-      ],
+      "inputContract": ["candidate.entries", "policy.sizeCeilings"],
       "reason": "measurement contract admits production .ts/.tsx only; excludes tests and declarations; roots infra and tools/tool-fleet",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -369,10 +343,7 @@
       "ruleId": "F7",
       "subjectFamily": "python",
       "status": "not-applicable",
-      "inputContract": [
-        "candidate.entries",
-        "policy.sizeCeilings"
-      ],
+      "inputContract": ["candidate.entries", "policy.sizeCeilings"],
       "reason": "measurement contract admits production .ts/.tsx only; excludes tests and declarations; roots infra and tools/tool-fleet",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -383,10 +354,7 @@
       "ruleId": "F7",
       "subjectFamily": "shell",
       "status": "not-applicable",
-      "inputContract": [
-        "candidate.entries",
-        "policy.sizeCeilings"
-      ],
+      "inputContract": ["candidate.entries", "policy.sizeCeilings"],
       "reason": "measurement contract admits production .ts/.tsx only; excludes tests and declarations; roots infra and tools/tool-fleet",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -397,10 +365,7 @@
       "ruleId": "F7",
       "subjectFamily": "terraform",
       "status": "not-applicable",
-      "inputContract": [
-        "candidate.entries",
-        "policy.sizeCeilings"
-      ],
+      "inputContract": ["candidate.entries", "policy.sizeCeilings"],
       "reason": "measurement contract admits production .ts/.tsx only; excludes tests and declarations; roots infra and tools/tool-fleet",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -411,10 +376,7 @@
       "ruleId": "F7",
       "subjectFamily": "typescript",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.sizeCeilings"
-      ],
+      "inputContract": ["candidate.entries", "policy.sizeCeilings"],
       "reason": "measurement contract admits production .ts/.tsx only; excludes tests and declarations; roots infra and tools/tool-fleet",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -425,10 +387,7 @@
       "ruleId": "F7",
       "subjectFamily": "yaml",
       "status": "not-applicable",
-      "inputContract": [
-        "candidate.entries",
-        "policy.sizeCeilings"
-      ],
+      "inputContract": ["candidate.entries", "policy.sizeCeilings"],
       "reason": "measurement contract admits production .ts/.tsx only; excludes tests and declarations; roots infra and tools/tool-fleet",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -439,10 +398,7 @@
       "ruleId": "F7",
       "subjectFamily": "support-typescript",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.sizeCeilings"
-      ],
+      "inputContract": ["candidate.entries", "policy.sizeCeilings"],
       "reason": "measurement contract admits production .ts/.tsx only; excludes tests and declarations; roots infra and tools/tool-fleet",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -453,10 +409,7 @@
       "ruleId": "F7",
       "subjectFamily": "nx-deploy-yaml",
       "status": "not-applicable",
-      "inputContract": [
-        "candidate.entries",
-        "policy.sizeCeilings"
-      ],
+      "inputContract": ["candidate.entries", "policy.sizeCeilings"],
       "reason": "measurement contract admits production .ts/.tsx only; excludes tests and declarations; roots infra and tools/tool-fleet",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -467,10 +420,7 @@
       "ruleId": "F7",
       "subjectFamily": "nx-workflow-yaml",
       "status": "not-applicable",
-      "inputContract": [
-        "candidate.entries",
-        "policy.sizeCeilings"
-      ],
+      "inputContract": ["candidate.entries", "policy.sizeCeilings"],
       "reason": "measurement contract admits production .ts/.tsx only; excludes tests and declarations; roots infra and tools/tool-fleet",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -481,10 +431,7 @@
       "ruleId": "F7",
       "subjectFamily": "provision-support-typescript",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.sizeCeilings"
-      ],
+      "inputContract": ["candidate.entries", "policy.sizeCeilings"],
       "reason": "measurement contract admits production .ts/.tsx only; excludes tests and declarations; roots infra and tools/tool-fleet",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -495,10 +442,7 @@
       "ruleId": "INV-CLASSIFY",
       "subjectFamily": "ansible-yaml",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.classificationPolicy"
-      ],
+      "inputContract": ["candidate.entries", "policy.classificationPolicy"],
       "reason": "exact candidate path/mode/blob classification; source parsing is outside contract",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -509,10 +453,7 @@
       "ruleId": "INV-CLASSIFY",
       "subjectFamily": "archive",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.classificationPolicy"
-      ],
+      "inputContract": ["candidate.entries", "policy.classificationPolicy"],
       "reason": "exact candidate path/mode/blob classification; source parsing is outside contract",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -523,10 +464,7 @@
       "ruleId": "INV-CLASSIFY",
       "subjectFamily": "containerfile",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.classificationPolicy"
-      ],
+      "inputContract": ["candidate.entries", "policy.classificationPolicy"],
       "reason": "exact candidate path/mode/blob classification; source parsing is outside contract",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -537,10 +475,7 @@
       "ruleId": "INV-CLASSIFY",
       "subjectFamily": "extensionless",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.classificationPolicy"
-      ],
+      "inputContract": ["candidate.entries", "policy.classificationPolicy"],
       "reason": "exact candidate path/mode/blob classification; source parsing is outside contract",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -551,10 +486,7 @@
       "ruleId": "INV-CLASSIFY",
       "subjectFamily": "hcl",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.classificationPolicy"
-      ],
+      "inputContract": ["candidate.entries", "policy.classificationPolicy"],
       "reason": "exact candidate path/mode/blob classification; source parsing is outside contract",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -565,10 +497,7 @@
       "ruleId": "INV-CLASSIFY",
       "subjectFamily": "jinja",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.classificationPolicy"
-      ],
+      "inputContract": ["candidate.entries", "policy.classificationPolicy"],
       "reason": "exact candidate path/mode/blob classification; source parsing is outside contract",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -579,10 +508,7 @@
       "ruleId": "INV-CLASSIFY",
       "subjectFamily": "other",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.classificationPolicy"
-      ],
+      "inputContract": ["candidate.entries", "policy.classificationPolicy"],
       "reason": "exact candidate path/mode/blob classification; source parsing is outside contract",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -593,10 +519,7 @@
       "ruleId": "INV-CLASSIFY",
       "subjectFamily": "python",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.classificationPolicy"
-      ],
+      "inputContract": ["candidate.entries", "policy.classificationPolicy"],
       "reason": "exact candidate path/mode/blob classification; source parsing is outside contract",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -607,10 +530,7 @@
       "ruleId": "INV-CLASSIFY",
       "subjectFamily": "shell",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.classificationPolicy"
-      ],
+      "inputContract": ["candidate.entries", "policy.classificationPolicy"],
       "reason": "exact candidate path/mode/blob classification; source parsing is outside contract",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -621,10 +541,7 @@
       "ruleId": "INV-CLASSIFY",
       "subjectFamily": "terraform",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.classificationPolicy"
-      ],
+      "inputContract": ["candidate.entries", "policy.classificationPolicy"],
       "reason": "exact candidate path/mode/blob classification; source parsing is outside contract",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -635,10 +552,7 @@
       "ruleId": "INV-CLASSIFY",
       "subjectFamily": "typescript",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.classificationPolicy"
-      ],
+      "inputContract": ["candidate.entries", "policy.classificationPolicy"],
       "reason": "exact candidate path/mode/blob classification; source parsing is outside contract",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -649,10 +563,7 @@
       "ruleId": "INV-CLASSIFY",
       "subjectFamily": "yaml",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.classificationPolicy"
-      ],
+      "inputContract": ["candidate.entries", "policy.classificationPolicy"],
       "reason": "exact candidate path/mode/blob classification; source parsing is outside contract",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -663,10 +574,7 @@
       "ruleId": "INV-CLASSIFY",
       "subjectFamily": "support-typescript",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.classificationPolicy"
-      ],
+      "inputContract": ["candidate.entries", "policy.classificationPolicy"],
       "reason": "exact candidate path/mode/blob classification; source parsing is outside contract",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -677,10 +585,7 @@
       "ruleId": "INV-CLASSIFY",
       "subjectFamily": "nx-deploy-yaml",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.classificationPolicy"
-      ],
+      "inputContract": ["candidate.entries", "policy.classificationPolicy"],
       "reason": "exact candidate path/mode/blob classification; source parsing is outside contract",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -691,10 +596,7 @@
       "ruleId": "INV-CLASSIFY",
       "subjectFamily": "nx-workflow-yaml",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.classificationPolicy"
-      ],
+      "inputContract": ["candidate.entries", "policy.classificationPolicy"],
       "reason": "exact candidate path/mode/blob classification; source parsing is outside contract",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -705,10 +607,7 @@
       "ruleId": "INV-CLASSIFY",
       "subjectFamily": "provision-support-typescript",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.classificationPolicy"
-      ],
+      "inputContract": ["candidate.entries", "policy.classificationPolicy"],
       "reason": "exact candidate path/mode/blob classification; source parsing is outside contract",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -719,10 +618,7 @@
       "ruleId": "K2",
       "subjectFamily": "ansible-yaml",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -733,10 +629,7 @@
       "ruleId": "K2",
       "subjectFamily": "archive",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -747,10 +640,7 @@
       "ruleId": "K2",
       "subjectFamily": "containerfile",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -761,10 +651,7 @@
       "ruleId": "K2",
       "subjectFamily": "extensionless",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -775,10 +662,7 @@
       "ruleId": "K2",
       "subjectFamily": "hcl",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -789,10 +673,7 @@
       "ruleId": "K2",
       "subjectFamily": "jinja",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -803,10 +684,7 @@
       "ruleId": "K2",
       "subjectFamily": "other",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -817,10 +695,7 @@
       "ruleId": "K2",
       "subjectFamily": "python",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -831,10 +706,7 @@
       "ruleId": "K2",
       "subjectFamily": "shell",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -845,10 +717,7 @@
       "ruleId": "K2",
       "subjectFamily": "terraform",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -859,10 +728,7 @@
       "ruleId": "K2",
       "subjectFamily": "typescript",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "TypeScript import unresolved: tools/tool-fleet/src/platform-manifests.ts -> 'yaml'",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -873,10 +739,7 @@
       "ruleId": "K2",
       "subjectFamily": "yaml",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -887,10 +750,7 @@
       "ruleId": "K2",
       "subjectFamily": "support-typescript",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "TypeScript import unresolved: tools/tool-fleet/src/platform-manifests.ts -> 'yaml'",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -901,10 +761,7 @@
       "ruleId": "K2",
       "subjectFamily": "nx-deploy-yaml",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -915,10 +772,7 @@
       "ruleId": "K2",
       "subjectFamily": "nx-workflow-yaml",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -929,10 +783,7 @@
       "ruleId": "K2",
       "subjectFamily": "provision-support-typescript",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "TypeScript import unresolved: tools/tool-fleet/src/platform-manifests.ts -> 'yaml'",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -943,10 +794,7 @@
       "ruleId": "K3",
       "subjectFamily": "ansible-yaml",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -957,10 +805,7 @@
       "ruleId": "K3",
       "subjectFamily": "archive",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -971,10 +816,7 @@
       "ruleId": "K3",
       "subjectFamily": "containerfile",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -985,10 +827,7 @@
       "ruleId": "K3",
       "subjectFamily": "extensionless",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -999,10 +838,7 @@
       "ruleId": "K3",
       "subjectFamily": "hcl",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1013,10 +849,7 @@
       "ruleId": "K3",
       "subjectFamily": "jinja",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1027,10 +860,7 @@
       "ruleId": "K3",
       "subjectFamily": "other",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1041,10 +871,7 @@
       "ruleId": "K3",
       "subjectFamily": "python",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1055,10 +882,7 @@
       "ruleId": "K3",
       "subjectFamily": "shell",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1069,10 +893,7 @@
       "ruleId": "K3",
       "subjectFamily": "terraform",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1083,10 +904,7 @@
       "ruleId": "K3",
       "subjectFamily": "typescript",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "TypeScript import unresolved: tools/tool-fleet/src/platform-manifests.ts -> 'yaml'",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1097,10 +915,7 @@
       "ruleId": "K3",
       "subjectFamily": "yaml",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1111,10 +926,7 @@
       "ruleId": "K3",
       "subjectFamily": "support-typescript",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "TypeScript import unresolved: tools/tool-fleet/src/platform-manifests.ts -> 'yaml'",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1125,10 +937,7 @@
       "ruleId": "K3",
       "subjectFamily": "nx-deploy-yaml",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1139,10 +948,7 @@
       "ruleId": "K3",
       "subjectFamily": "nx-workflow-yaml",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1153,10 +959,7 @@
       "ruleId": "K3",
       "subjectFamily": "provision-support-typescript",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "TypeScript import unresolved: tools/tool-fleet/src/platform-manifests.ts -> 'yaml'",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1167,10 +970,7 @@
       "ruleId": "K4",
       "subjectFamily": "ansible-yaml",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1181,10 +981,7 @@
       "ruleId": "K4",
       "subjectFamily": "archive",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1195,10 +992,7 @@
       "ruleId": "K4",
       "subjectFamily": "containerfile",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1209,10 +1003,7 @@
       "ruleId": "K4",
       "subjectFamily": "extensionless",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1223,10 +1014,7 @@
       "ruleId": "K4",
       "subjectFamily": "hcl",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1237,10 +1025,7 @@
       "ruleId": "K4",
       "subjectFamily": "jinja",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1251,10 +1036,7 @@
       "ruleId": "K4",
       "subjectFamily": "other",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1265,10 +1047,7 @@
       "ruleId": "K4",
       "subjectFamily": "python",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1279,10 +1058,7 @@
       "ruleId": "K4",
       "subjectFamily": "shell",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1293,10 +1069,7 @@
       "ruleId": "K4",
       "subjectFamily": "terraform",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1307,10 +1080,7 @@
       "ruleId": "K4",
       "subjectFamily": "typescript",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "TypeScript import unresolved: tools/tool-fleet/src/platform-manifests.ts -> 'yaml'",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1321,10 +1091,7 @@
       "ruleId": "K4",
       "subjectFamily": "yaml",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1335,10 +1102,7 @@
       "ruleId": "K4",
       "subjectFamily": "support-typescript",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "TypeScript import unresolved: tools/tool-fleet/src/platform-manifests.ts -> 'yaml'",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1349,10 +1113,7 @@
       "ruleId": "K4",
       "subjectFamily": "nx-deploy-yaml",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1363,10 +1124,7 @@
       "ruleId": "K4",
       "subjectFamily": "nx-workflow-yaml",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1377,10 +1135,7 @@
       "ruleId": "K4",
       "subjectFamily": "provision-support-typescript",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "TypeScript import unresolved: tools/tool-fleet/src/platform-manifests.ts -> 'yaml'",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1391,10 +1146,7 @@
       "ruleId": "K5",
       "subjectFamily": "ansible-yaml",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1405,10 +1157,7 @@
       "ruleId": "K5",
       "subjectFamily": "archive",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1419,10 +1168,7 @@
       "ruleId": "K5",
       "subjectFamily": "containerfile",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1433,10 +1179,7 @@
       "ruleId": "K5",
       "subjectFamily": "extensionless",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1447,10 +1190,7 @@
       "ruleId": "K5",
       "subjectFamily": "hcl",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1461,10 +1201,7 @@
       "ruleId": "K5",
       "subjectFamily": "jinja",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1475,10 +1212,7 @@
       "ruleId": "K5",
       "subjectFamily": "other",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1489,10 +1223,7 @@
       "ruleId": "K5",
       "subjectFamily": "python",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1503,10 +1234,7 @@
       "ruleId": "K5",
       "subjectFamily": "shell",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1517,10 +1245,7 @@
       "ruleId": "K5",
       "subjectFamily": "terraform",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1531,10 +1256,7 @@
       "ruleId": "K5",
       "subjectFamily": "typescript",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "TypeScript import unresolved: tools/tool-fleet/src/platform-manifests.ts -> 'yaml'",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1545,10 +1267,7 @@
       "ruleId": "K5",
       "subjectFamily": "yaml",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1559,10 +1278,7 @@
       "ruleId": "K5",
       "subjectFamily": "support-typescript",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "TypeScript import unresolved: tools/tool-fleet/src/platform-manifests.ts -> 'yaml'",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1573,10 +1289,7 @@
       "ruleId": "K5",
       "subjectFamily": "nx-deploy-yaml",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1587,10 +1300,7 @@
       "ruleId": "K5",
       "subjectFamily": "nx-workflow-yaml",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1601,10 +1311,7 @@
       "ruleId": "K5",
       "subjectFamily": "provision-support-typescript",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "TypeScript import unresolved: tools/tool-fleet/src/platform-manifests.ts -> 'yaml'",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1615,10 +1322,7 @@
       "ruleId": "K6",
       "subjectFamily": "ansible-yaml",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1629,10 +1333,7 @@
       "ruleId": "K6",
       "subjectFamily": "archive",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1643,10 +1344,7 @@
       "ruleId": "K6",
       "subjectFamily": "containerfile",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1657,10 +1355,7 @@
       "ruleId": "K6",
       "subjectFamily": "extensionless",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1671,10 +1366,7 @@
       "ruleId": "K6",
       "subjectFamily": "hcl",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1685,10 +1377,7 @@
       "ruleId": "K6",
       "subjectFamily": "jinja",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1699,10 +1388,7 @@
       "ruleId": "K6",
       "subjectFamily": "other",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1713,10 +1399,7 @@
       "ruleId": "K6",
       "subjectFamily": "python",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1727,10 +1410,7 @@
       "ruleId": "K6",
       "subjectFamily": "shell",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1741,10 +1421,7 @@
       "ruleId": "K6",
       "subjectFamily": "terraform",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1755,10 +1432,7 @@
       "ruleId": "K6",
       "subjectFamily": "typescript",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "TypeScript import unresolved: tools/tool-fleet/src/platform-manifests.ts -> 'yaml'",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1769,10 +1443,7 @@
       "ruleId": "K6",
       "subjectFamily": "yaml",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1783,10 +1454,7 @@
       "ruleId": "K6",
       "subjectFamily": "support-typescript",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "TypeScript import unresolved: tools/tool-fleet/src/platform-manifests.ts -> 'yaml'",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1797,10 +1465,7 @@
       "ruleId": "K6",
       "subjectFamily": "nx-deploy-yaml",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1811,10 +1476,7 @@
       "ruleId": "K6",
       "subjectFamily": "nx-workflow-yaml",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1825,10 +1487,7 @@
       "ruleId": "K6",
       "subjectFamily": "provision-support-typescript",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "TypeScript import unresolved: tools/tool-fleet/src/platform-manifests.ts -> 'yaml'",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -1839,9 +1498,7 @@
       "ruleId": "MOD-DIRECT-ENTRIES",
       "subjectFamily": "ansible-yaml",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -1852,9 +1509,7 @@
       "ruleId": "MOD-DIRECT-ENTRIES",
       "subjectFamily": "archive",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -1865,9 +1520,7 @@
       "ruleId": "MOD-DIRECT-ENTRIES",
       "subjectFamily": "containerfile",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -1878,9 +1531,7 @@
       "ruleId": "MOD-DIRECT-ENTRIES",
       "subjectFamily": "extensionless",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -1891,9 +1542,7 @@
       "ruleId": "MOD-DIRECT-ENTRIES",
       "subjectFamily": "hcl",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -1904,9 +1553,7 @@
       "ruleId": "MOD-DIRECT-ENTRIES",
       "subjectFamily": "jinja",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -1917,9 +1564,7 @@
       "ruleId": "MOD-DIRECT-ENTRIES",
       "subjectFamily": "other",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -1930,9 +1575,7 @@
       "ruleId": "MOD-DIRECT-ENTRIES",
       "subjectFamily": "python",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -1943,9 +1586,7 @@
       "ruleId": "MOD-DIRECT-ENTRIES",
       "subjectFamily": "shell",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -1956,9 +1597,7 @@
       "ruleId": "MOD-DIRECT-ENTRIES",
       "subjectFamily": "terraform",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -1969,9 +1608,7 @@
       "ruleId": "MOD-DIRECT-ENTRIES",
       "subjectFamily": "typescript",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -1982,9 +1619,7 @@
       "ruleId": "MOD-DIRECT-ENTRIES",
       "subjectFamily": "yaml",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -1995,9 +1630,7 @@
       "ruleId": "MOD-DIRECT-ENTRIES",
       "subjectFamily": "support-typescript",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -2008,9 +1641,7 @@
       "ruleId": "MOD-DIRECT-ENTRIES",
       "subjectFamily": "nx-deploy-yaml",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -2021,9 +1652,7 @@
       "ruleId": "MOD-DIRECT-ENTRIES",
       "subjectFamily": "nx-workflow-yaml",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -2034,9 +1663,7 @@
       "ruleId": "MOD-DIRECT-ENTRIES",
       "subjectFamily": "provision-support-typescript",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -2047,9 +1674,7 @@
       "ruleId": "MOD-INDEX",
       "subjectFamily": "ansible-yaml",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -2060,9 +1685,7 @@
       "ruleId": "MOD-INDEX",
       "subjectFamily": "archive",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -2073,9 +1696,7 @@
       "ruleId": "MOD-INDEX",
       "subjectFamily": "containerfile",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -2086,9 +1707,7 @@
       "ruleId": "MOD-INDEX",
       "subjectFamily": "extensionless",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -2099,9 +1718,7 @@
       "ruleId": "MOD-INDEX",
       "subjectFamily": "hcl",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -2112,9 +1729,7 @@
       "ruleId": "MOD-INDEX",
       "subjectFamily": "jinja",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -2125,9 +1740,7 @@
       "ruleId": "MOD-INDEX",
       "subjectFamily": "other",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -2138,9 +1751,7 @@
       "ruleId": "MOD-INDEX",
       "subjectFamily": "python",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -2151,9 +1762,7 @@
       "ruleId": "MOD-INDEX",
       "subjectFamily": "shell",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -2164,9 +1773,7 @@
       "ruleId": "MOD-INDEX",
       "subjectFamily": "terraform",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -2177,9 +1784,7 @@
       "ruleId": "MOD-INDEX",
       "subjectFamily": "typescript",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -2190,9 +1795,7 @@
       "ruleId": "MOD-INDEX",
       "subjectFamily": "yaml",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -2203,9 +1806,7 @@
       "ruleId": "MOD-INDEX",
       "subjectFamily": "support-typescript",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -2216,9 +1817,7 @@
       "ruleId": "MOD-INDEX",
       "subjectFamily": "nx-deploy-yaml",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -2229,9 +1828,7 @@
       "ruleId": "MOD-INDEX",
       "subjectFamily": "nx-workflow-yaml",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -2242,9 +1839,7 @@
       "ruleId": "MOD-INDEX",
       "subjectFamily": "provision-support-typescript",
       "status": "evaluated",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "candidate-wide nearest wiki-index and reference structure only; does not validate infrastructure language semantics",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -2255,9 +1850,7 @@
       "ruleId": "MOD-LAYOUT",
       "subjectFamily": "ansible-yaml",
       "status": "not-applicable",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "family has no reviewed service-kind module layout authority; whole-tree run finds WBS module debt",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -2268,9 +1861,7 @@
       "ruleId": "MOD-LAYOUT",
       "subjectFamily": "archive",
       "status": "not-applicable",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "family has no reviewed service-kind module layout authority; whole-tree run finds WBS module debt",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -2281,9 +1872,7 @@
       "ruleId": "MOD-LAYOUT",
       "subjectFamily": "containerfile",
       "status": "not-applicable",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "family has no reviewed service-kind module layout authority; whole-tree run finds WBS module debt",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -2294,9 +1883,7 @@
       "ruleId": "MOD-LAYOUT",
       "subjectFamily": "extensionless",
       "status": "not-applicable",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "family has no reviewed service-kind module layout authority; whole-tree run finds WBS module debt",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -2307,9 +1894,7 @@
       "ruleId": "MOD-LAYOUT",
       "subjectFamily": "hcl",
       "status": "not-applicable",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "family has no reviewed service-kind module layout authority; whole-tree run finds WBS module debt",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -2320,9 +1905,7 @@
       "ruleId": "MOD-LAYOUT",
       "subjectFamily": "jinja",
       "status": "not-applicable",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "family has no reviewed service-kind module layout authority; whole-tree run finds WBS module debt",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -2333,9 +1916,7 @@
       "ruleId": "MOD-LAYOUT",
       "subjectFamily": "other",
       "status": "not-applicable",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "family has no reviewed service-kind module layout authority; whole-tree run finds WBS module debt",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -2346,9 +1927,7 @@
       "ruleId": "MOD-LAYOUT",
       "subjectFamily": "python",
       "status": "not-applicable",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "family has no reviewed service-kind module layout authority; whole-tree run finds WBS module debt",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -2359,9 +1938,7 @@
       "ruleId": "MOD-LAYOUT",
       "subjectFamily": "shell",
       "status": "not-applicable",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "family has no reviewed service-kind module layout authority; whole-tree run finds WBS module debt",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -2372,9 +1949,7 @@
       "ruleId": "MOD-LAYOUT",
       "subjectFamily": "terraform",
       "status": "not-applicable",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "family has no reviewed service-kind module layout authority; whole-tree run finds WBS module debt",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -2385,9 +1960,7 @@
       "ruleId": "MOD-LAYOUT",
       "subjectFamily": "typescript",
       "status": "not-applicable",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "family has no reviewed service-kind module layout authority; whole-tree run finds WBS module debt",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -2398,9 +1971,7 @@
       "ruleId": "MOD-LAYOUT",
       "subjectFamily": "yaml",
       "status": "not-applicable",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "family has no reviewed service-kind module layout authority; whole-tree run finds WBS module debt",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -2411,9 +1982,7 @@
       "ruleId": "MOD-LAYOUT",
       "subjectFamily": "support-typescript",
       "status": "not-applicable",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "family has no reviewed service-kind module layout authority; whole-tree run finds WBS module debt",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -2424,9 +1993,7 @@
       "ruleId": "MOD-LAYOUT",
       "subjectFamily": "nx-deploy-yaml",
       "status": "not-applicable",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "family has no reviewed service-kind module layout authority; whole-tree run finds WBS module debt",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -2437,9 +2004,7 @@
       "ruleId": "MOD-LAYOUT",
       "subjectFamily": "nx-workflow-yaml",
       "status": "not-applicable",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "family has no reviewed service-kind module layout authority; whole-tree run finds WBS module debt",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -2450,9 +2015,7 @@
       "ruleId": "MOD-LAYOUT",
       "subjectFamily": "provision-support-typescript",
       "status": "not-applicable",
-      "inputContract": [
-        "candidate.entries"
-      ],
+      "inputContract": ["candidate.entries"],
       "reason": "family has no reviewed service-kind module layout authority; whole-tree run finds WBS module debt",
       "installedWholeTreeStatus": "evaluated",
       "executionReceipt": "full",
@@ -2463,10 +2026,7 @@
       "ruleId": "PERF-THRESHOLD",
       "subjectFamily": "ansible-yaml",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.performance"
-      ],
+      "inputContract": ["candidate.entries", "policy.performance"],
       "reason": "Performance config content differs from reviewed authority; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -2477,10 +2037,7 @@
       "ruleId": "PERF-THRESHOLD",
       "subjectFamily": "archive",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.performance"
-      ],
+      "inputContract": ["candidate.entries", "policy.performance"],
       "reason": "Performance config content differs from reviewed authority; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -2491,10 +2048,7 @@
       "ruleId": "PERF-THRESHOLD",
       "subjectFamily": "containerfile",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.performance"
-      ],
+      "inputContract": ["candidate.entries", "policy.performance"],
       "reason": "Performance config content differs from reviewed authority; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -2505,10 +2059,7 @@
       "ruleId": "PERF-THRESHOLD",
       "subjectFamily": "extensionless",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.performance"
-      ],
+      "inputContract": ["candidate.entries", "policy.performance"],
       "reason": "Performance config content differs from reviewed authority; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -2519,10 +2070,7 @@
       "ruleId": "PERF-THRESHOLD",
       "subjectFamily": "hcl",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.performance"
-      ],
+      "inputContract": ["candidate.entries", "policy.performance"],
       "reason": "Performance config content differs from reviewed authority; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -2533,10 +2081,7 @@
       "ruleId": "PERF-THRESHOLD",
       "subjectFamily": "jinja",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.performance"
-      ],
+      "inputContract": ["candidate.entries", "policy.performance"],
       "reason": "Performance config content differs from reviewed authority; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -2547,10 +2092,7 @@
       "ruleId": "PERF-THRESHOLD",
       "subjectFamily": "other",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.performance"
-      ],
+      "inputContract": ["candidate.entries", "policy.performance"],
       "reason": "Performance config content differs from reviewed authority; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -2561,10 +2103,7 @@
       "ruleId": "PERF-THRESHOLD",
       "subjectFamily": "python",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.performance"
-      ],
+      "inputContract": ["candidate.entries", "policy.performance"],
       "reason": "Performance config content differs from reviewed authority; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -2575,10 +2114,7 @@
       "ruleId": "PERF-THRESHOLD",
       "subjectFamily": "shell",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.performance"
-      ],
+      "inputContract": ["candidate.entries", "policy.performance"],
       "reason": "Performance config content differs from reviewed authority; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -2589,10 +2125,7 @@
       "ruleId": "PERF-THRESHOLD",
       "subjectFamily": "terraform",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.performance"
-      ],
+      "inputContract": ["candidate.entries", "policy.performance"],
       "reason": "Performance config content differs from reviewed authority; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -2603,10 +2136,7 @@
       "ruleId": "PERF-THRESHOLD",
       "subjectFamily": "typescript",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.performance"
-      ],
+      "inputContract": ["candidate.entries", "policy.performance"],
       "reason": "Performance config content differs from reviewed authority; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -2617,10 +2147,7 @@
       "ruleId": "PERF-THRESHOLD",
       "subjectFamily": "yaml",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.performance"
-      ],
+      "inputContract": ["candidate.entries", "policy.performance"],
       "reason": "Performance config content differs from reviewed authority; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -2631,10 +2158,7 @@
       "ruleId": "PERF-THRESHOLD",
       "subjectFamily": "support-typescript",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.performance"
-      ],
+      "inputContract": ["candidate.entries", "policy.performance"],
       "reason": "Performance config content differs from reviewed authority; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -2645,10 +2169,7 @@
       "ruleId": "PERF-THRESHOLD",
       "subjectFamily": "nx-deploy-yaml",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.performance"
-      ],
+      "inputContract": ["candidate.entries", "policy.performance"],
       "reason": "Performance config content differs from reviewed authority; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -2659,10 +2180,7 @@
       "ruleId": "PERF-THRESHOLD",
       "subjectFamily": "nx-workflow-yaml",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.performance"
-      ],
+      "inputContract": ["candidate.entries", "policy.performance"],
       "reason": "Performance config content differs from reviewed authority; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -2673,10 +2191,7 @@
       "ruleId": "PERF-THRESHOLD",
       "subjectFamily": "provision-support-typescript",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.performance"
-      ],
+      "inputContract": ["candidate.entries", "policy.performance"],
       "reason": "Performance config content differs from reviewed authority; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -2687,10 +2202,7 @@
       "ruleId": "REL-EXTRACT",
       "subjectFamily": "ansible-yaml",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -2701,10 +2213,7 @@
       "ruleId": "REL-EXTRACT",
       "subjectFamily": "archive",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -2715,10 +2224,7 @@
       "ruleId": "REL-EXTRACT",
       "subjectFamily": "containerfile",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -2729,10 +2235,7 @@
       "ruleId": "REL-EXTRACT",
       "subjectFamily": "extensionless",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -2743,10 +2246,7 @@
       "ruleId": "REL-EXTRACT",
       "subjectFamily": "hcl",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -2757,10 +2257,7 @@
       "ruleId": "REL-EXTRACT",
       "subjectFamily": "jinja",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -2771,10 +2268,7 @@
       "ruleId": "REL-EXTRACT",
       "subjectFamily": "other",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -2785,10 +2279,7 @@
       "ruleId": "REL-EXTRACT",
       "subjectFamily": "python",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -2799,10 +2290,7 @@
       "ruleId": "REL-EXTRACT",
       "subjectFamily": "shell",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -2813,10 +2301,7 @@
       "ruleId": "REL-EXTRACT",
       "subjectFamily": "terraform",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -2827,10 +2312,7 @@
       "ruleId": "REL-EXTRACT",
       "subjectFamily": "typescript",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "TypeScript import unresolved: tools/tool-fleet/src/platform-manifests.ts -> 'yaml'",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -2841,10 +2323,7 @@
       "ruleId": "REL-EXTRACT",
       "subjectFamily": "yaml",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -2855,10 +2334,7 @@
       "ruleId": "REL-EXTRACT",
       "subjectFamily": "support-typescript",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "TypeScript import unresolved: tools/tool-fleet/src/platform-manifests.ts -> 'yaml'",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -2869,10 +2345,7 @@
       "ruleId": "REL-EXTRACT",
       "subjectFamily": "nx-deploy-yaml",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -2883,10 +2356,7 @@
       "ruleId": "REL-EXTRACT",
       "subjectFamily": "nx-workflow-yaml",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "no registered semantic extractor/authority for this non-TypeScript subject family; TypeScript and Nx extraction cannot establish language semantics",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -2897,10 +2367,7 @@
       "ruleId": "REL-EXTRACT",
       "subjectFamily": "provision-support-typescript",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ],
+      "inputContract": ["candidate.entries", "policy.relationshipRequest"],
       "reason": "TypeScript import unresolved: tools/tool-fleet/src/platform-manifests.ts -> 'yaml'",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -2911,10 +2378,7 @@
       "ruleId": "SPEC-SCENARIOS",
       "subjectFamily": "ansible-yaml",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.scenarios"
-      ],
+      "inputContract": ["candidate.entries", "policy.scenarios"],
       "reason": "competing overlay operation: wbs-domain: A leaf's status folds its progress, hold, readiness and predecessors; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -2925,10 +2389,7 @@
       "ruleId": "SPEC-SCENARIOS",
       "subjectFamily": "archive",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.scenarios"
-      ],
+      "inputContract": ["candidate.entries", "policy.scenarios"],
       "reason": "competing overlay operation: wbs-domain: A leaf's status folds its progress, hold, readiness and predecessors; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -2939,10 +2400,7 @@
       "ruleId": "SPEC-SCENARIOS",
       "subjectFamily": "containerfile",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.scenarios"
-      ],
+      "inputContract": ["candidate.entries", "policy.scenarios"],
       "reason": "competing overlay operation: wbs-domain: A leaf's status folds its progress, hold, readiness and predecessors; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -2953,10 +2411,7 @@
       "ruleId": "SPEC-SCENARIOS",
       "subjectFamily": "extensionless",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.scenarios"
-      ],
+      "inputContract": ["candidate.entries", "policy.scenarios"],
       "reason": "competing overlay operation: wbs-domain: A leaf's status folds its progress, hold, readiness and predecessors; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -2967,10 +2422,7 @@
       "ruleId": "SPEC-SCENARIOS",
       "subjectFamily": "hcl",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.scenarios"
-      ],
+      "inputContract": ["candidate.entries", "policy.scenarios"],
       "reason": "competing overlay operation: wbs-domain: A leaf's status folds its progress, hold, readiness and predecessors; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -2981,10 +2433,7 @@
       "ruleId": "SPEC-SCENARIOS",
       "subjectFamily": "jinja",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.scenarios"
-      ],
+      "inputContract": ["candidate.entries", "policy.scenarios"],
       "reason": "competing overlay operation: wbs-domain: A leaf's status folds its progress, hold, readiness and predecessors; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -2995,10 +2444,7 @@
       "ruleId": "SPEC-SCENARIOS",
       "subjectFamily": "other",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.scenarios"
-      ],
+      "inputContract": ["candidate.entries", "policy.scenarios"],
       "reason": "competing overlay operation: wbs-domain: A leaf's status folds its progress, hold, readiness and predecessors; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -3009,10 +2455,7 @@
       "ruleId": "SPEC-SCENARIOS",
       "subjectFamily": "python",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.scenarios"
-      ],
+      "inputContract": ["candidate.entries", "policy.scenarios"],
       "reason": "competing overlay operation: wbs-domain: A leaf's status folds its progress, hold, readiness and predecessors; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -3023,10 +2466,7 @@
       "ruleId": "SPEC-SCENARIOS",
       "subjectFamily": "shell",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.scenarios"
-      ],
+      "inputContract": ["candidate.entries", "policy.scenarios"],
       "reason": "competing overlay operation: wbs-domain: A leaf's status folds its progress, hold, readiness and predecessors; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -3037,10 +2477,7 @@
       "ruleId": "SPEC-SCENARIOS",
       "subjectFamily": "terraform",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.scenarios"
-      ],
+      "inputContract": ["candidate.entries", "policy.scenarios"],
       "reason": "competing overlay operation: wbs-domain: A leaf's status folds its progress, hold, readiness and predecessors; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -3051,10 +2488,7 @@
       "ruleId": "SPEC-SCENARIOS",
       "subjectFamily": "typescript",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.scenarios"
-      ],
+      "inputContract": ["candidate.entries", "policy.scenarios"],
       "reason": "competing overlay operation: wbs-domain: A leaf's status folds its progress, hold, readiness and predecessors; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -3065,10 +2499,7 @@
       "ruleId": "SPEC-SCENARIOS",
       "subjectFamily": "yaml",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.scenarios"
-      ],
+      "inputContract": ["candidate.entries", "policy.scenarios"],
       "reason": "competing overlay operation: wbs-domain: A leaf's status folds its progress, hold, readiness and predecessors; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -3079,10 +2510,7 @@
       "ruleId": "SPEC-SCENARIOS",
       "subjectFamily": "support-typescript",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.scenarios"
-      ],
+      "inputContract": ["candidate.entries", "policy.scenarios"],
       "reason": "competing overlay operation: wbs-domain: A leaf's status folds its progress, hold, readiness and predecessors; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -3093,10 +2521,7 @@
       "ruleId": "SPEC-SCENARIOS",
       "subjectFamily": "nx-deploy-yaml",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.scenarios"
-      ],
+      "inputContract": ["candidate.entries", "policy.scenarios"],
       "reason": "competing overlay operation: wbs-domain: A leaf's status folds its progress, hold, readiness and predecessors; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -3107,10 +2532,7 @@
       "ruleId": "SPEC-SCENARIOS",
       "subjectFamily": "nx-workflow-yaml",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.scenarios"
-      ],
+      "inputContract": ["candidate.entries", "policy.scenarios"],
       "reason": "competing overlay operation: wbs-domain: A leaf's status folds its progress, hold, readiness and predecessors; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -3121,10 +2543,7 @@
       "ruleId": "SPEC-SCENARIOS",
       "subjectFamily": "provision-support-typescript",
       "status": "unevaluated",
-      "inputContract": [
-        "candidate.entries",
-        "policy.scenarios"
-      ],
+      "inputContract": ["candidate.entries", "policy.scenarios"],
       "reason": "competing overlay operation: wbs-domain: A leaf's status folds its progress, hold, readiness and predecessors; supplied authority is WBS evidence, with no reviewed infrastructure-family evidence",
       "installedWholeTreeStatus": "unevaluated",
       "executionReceipt": "full",
@@ -3296,9 +2715,7 @@
           "candidate": "13bc0a49fd26dc8c6ef484b9d4b8e892d7c6647ffb1531cc4a7a7035f8ca3a99",
           "policy": "diagnostic.infra-coverage.2026-10-16",
           "allowed": false,
-          "ruleIds": [
-            "REL-EXTRACT"
-          ],
+          "ruleIds": ["REL-EXTRACT"],
           "findings": [],
           "unevaluated": [
             {

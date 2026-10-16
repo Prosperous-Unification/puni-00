@@ -22,138 +22,98 @@
       "family": "code-shape",
       "statement": "A service, store or geometry module is plain TypeScript and never imports a React package.",
       "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-services-are-plain-typescript",
-      "inputs": [
-        "candidate.entries",
-        "policy.plainTypeScriptPaths",
-        "policy.relationshipRequest"
-      ]
+      "inputs": ["candidate.entries", "policy.plainTypeScriptPaths", "policy.relationshipRequest"]
     },
     {
       "id": "F7",
       "family": "code-shape",
       "statement": "A production source file does not grow past the size ceiling, and a file already above it only shrinks.",
       "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-source-file-size-is-ratcheted",
-      "inputs": [
-        "candidate.entries",
-        "policy.sizeCeilings"
-      ]
+      "inputs": ["candidate.entries", "policy.sizeCeilings"]
     },
     {
       "id": "INV-CLASSIFY",
       "family": "inventory",
       "statement": "Every tracked entry is classified by exactly one rule of the classification policy.",
       "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-inventory-classification",
-      "inputs": [
-        "candidate.entries",
-        "policy.classificationPolicy"
-      ]
+      "inputs": ["candidate.entries", "policy.classificationPolicy"]
     },
     {
       "id": "K2",
       "family": "relationships",
       "statement": "Delivery imports feature-services and never a resource-service or a repository.",
       "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
-      "inputs": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ]
+      "inputs": ["candidate.entries", "policy.relationshipRequest"]
     },
     {
       "id": "K3",
       "family": "relationships",
       "statement": "A feature-service imports resource-services and never a repository or delivery, through a barrel or directly.",
       "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
-      "inputs": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ]
+      "inputs": ["candidate.entries", "policy.relationshipRequest"]
     },
     {
       "id": "K4",
       "family": "relationships",
       "statement": "A resource-service imports repository ports and never a feature-service or delivery.",
       "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
-      "inputs": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ]
+      "inputs": ["candidate.entries", "policy.relationshipRequest"]
     },
     {
       "id": "K5",
       "family": "relationships",
       "statement": "A repository adapter imports nothing above it: no resource-service, no feature-service and no delivery.",
       "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
-      "inputs": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ]
+      "inputs": ["candidate.entries", "policy.relationshipRequest"]
     },
     {
       "id": "K6",
       "family": "relationships",
       "statement": "No kind imports a sibling of the same kind from another module.",
       "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-kind-direction-over-the-import-graph",
-      "inputs": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ]
+      "inputs": ["candidate.entries", "policy.relationshipRequest"]
     },
     {
       "id": "MOD-DIRECT-ENTRIES",
       "family": "modules",
       "statement": "A module index declares no more direct entries than the reviewed limit.",
       "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-module-index-direct-entry-limit",
-      "inputs": [
-        "candidate.entries"
-      ]
+      "inputs": ["candidate.entries"]
     },
     {
       "id": "MOD-INDEX",
       "family": "modules",
       "statement": "Each module index declares exactly the candidate files nearest to it, and every Markdown reference and anchor it states resolves inside the candidate.",
       "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-module-index-declarations",
-      "inputs": [
-        "candidate.entries"
-      ]
+      "inputs": ["candidate.entries"]
     },
     {
       "id": "MOD-LAYOUT",
       "family": "modules",
       "statement": "A module directory declares the wiki index and the contract the module layout names.",
       "source": "openspec/changes/twilight-burokrat-kind-rules/specs/burokrat-rules/spec.md#requirement-module-layout",
-      "inputs": [
-        "candidate.entries"
-      ]
+      "inputs": ["candidate.entries"]
     },
     {
       "id": "PERF-THRESHOLD",
       "family": "test-evidence",
       "statement": "Every declared Performance case has reviewed thresholds and current measured evidence.",
       "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
-      "inputs": [
-        "candidate.entries",
-        "policy.performance"
-      ]
+      "inputs": ["candidate.entries", "policy.performance"]
     },
     {
       "id": "REL-EXTRACT",
       "family": "relationships",
       "statement": "Every declared relationship of the candidate resolves to an extracted selector.",
       "source": "openspec/changes/twilight-burokrat-rule-model/specs/burokrat-rules/spec.md#requirement-relationship-resolution",
-      "inputs": [
-        "candidate.entries",
-        "policy.relationshipRequest"
-      ]
+      "inputs": ["candidate.entries", "policy.relationshipRequest"]
     },
     {
       "id": "SPEC-SCENARIOS",
       "family": "specifications",
       "statement": "Scenario identifiers retain an append-only reviewed lineage across the selected candidate and its pinned base.",
       "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
-      "inputs": [
-        "candidate.entries",
-        "policy.scenarios"
-      ]
+      "inputs": ["candidate.entries", "policy.scenarios"]
     }
   ],
   "adoptedSet": {
