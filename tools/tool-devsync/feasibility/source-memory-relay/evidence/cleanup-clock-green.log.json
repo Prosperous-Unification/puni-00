@@ -1,0 +1,5 @@
+{
+  "encoding": "utf-8",
+  "sha256": "040c680523246d124279e55925729a0323407ccde9dfcf92372bc47cc3a49276",
+  "combinedOutput": "bun test v1.4.2 (744846f84)\n\ntools/tool-devsync/feasibility/source-memory-relay/relay.probe.ts:\n(pass) cleanup clock read 1 failure kills and reaps a child alive after EOF [132.63ms]\n(pass) cleanup clock read 2 failure kills and reaps a child alive after EOF [130.65ms]\n{\"omission\":\"cleanup budget initial clock\",\"expectedTestFailure\":\"cleanup clock read 1 failure kills and reaps a child alive after EOF\",\"exitCode\":1}\n(pass) watched omission: cleanup budget initial clock [4525.50ms]\n{\"omission\":\"cleanup budget subsequent clock\",\"expectedTestFailure\":\"cleanup clock read 2 failure kills and reaps a child alive after EOF\",\"exitCode\":1}\n(pass) watched omission: cleanup budget subsequent clock [4507.67ms]\n\n 4 pass\n 22 filtered out\n 0 fail\n 24 expect() calls\nRan 4 tests across 1 file. [9.71s]\n"
+}

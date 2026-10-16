@@ -62,10 +62,22 @@
       "rationale": "Committed write owners call recordCommittedFanout to compare captured scheduling observations and record each recipient/cause event in their borrowed event log before settlement"
     },
     {
+      "path": "libs/wbs/application/core/src/service/command-fields.ts",
+      "kind": "support",
+      "disposition": "private request-normalization helpers of command-normalizers.ts; move with that owner into module/plan-commands",
+      "rationale": "command-normalizers.ts imports field readers, the command input type and semantic refusal helpers from this extracted file, and reexports its normalization error and constants"
+    },
+    {
       "path": "libs/wbs/application/core/src/service/command-normalizers.ts",
       "kind": "support",
       "disposition": "application support; move into module/plan-commands (task 6.1 reclassified it from the domain library, 2026-10-11)",
       "rationale": "work-item.routes.ts normalizes request command values through the core's capacity and priority-ladder body parsers, and prepare-import.ts shares its limits; it is request-boundary code over the command definitions, not domain code"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/compensating-command.ts",
+      "kind": "support",
+      "disposition": "private journal command model of compensating.ts; move with that owner into module/work-item",
+      "rationale": "compensating.ts imports and reexports these inverse-command and journal payload types; their vocabulary follows the application store ports rather than owning a resource or capability"
     },
     {
       "path": "libs/wbs/application/core/src/service/compensating.ts",

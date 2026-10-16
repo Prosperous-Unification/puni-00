@@ -908,7 +908,11 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // test with 109 test-fixture contexts, 324 occurrences and `1c809c15…`, none unclassified.
     // The two added contexts assert persisted disjoint claims for `apps/fe-01` and `apps/gw-01`
     // in claims.db.test.ts; restoring this observed pin passed (2026-10-14).
-    digest: '1c809c1513514d1e09753be99cb3b42882fda2693da8e4aa7d55fd5c7ae1f511',
+    // Proof: leaving `1c809c15…` after policy formatting failed this corpus test with
+    // `97371753…`: four historical source-selector lines changed their trimmed context;
+    // 324 occurrences, categories, coverage and no unclassified entries stayed unchanged.
+    // Restoring the observed digest passed (2026-10-16).
+    digest: '97371753d3da30f386d3be73c405a3c952773b67c736d7a27fd6f738def191e4',
     occurrences: 324,
     unclassified: [],
   });

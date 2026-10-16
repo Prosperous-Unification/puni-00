@@ -1101,3 +1101,27 @@ The system SHALL provide `inspect-browser-t2 <repository> <full-committed-sha> <
 
 - **WHEN** source and built installed dispatch inspect valid debt-bearing evidence, or a required authority is missing/unreadable/malformed or CLI selection/instant/arity is invalid
 - **THEN** valid JSON and exit behavior match exactly, and invalid trusted state refuses with no partial JSON through both entry points
+
+### Requirement: Browser source levels bind exact case ownership and classification
+
+`inspect-browser-source-levels` SHALL compose real source ownership and Browser level inspectors for the same exact committed snapshot, mode, policy and four membership authorities. It SHALL verify complete canonical upstream identities, report digest and exact case-ID bijection with matching file, status and selected source tuples; complete unique level membership SHALL cover exactly the recorded files. It SHALL preserve full upstream observations, source ownership, index review debt, classification and isolation, then reinspect the real publication before emitting a full canonical digest. Authentication SHALL remain absent and certification false. Wrong-level isolation SHALL emit JSON and exit one; isolated observations SHALL exit zero even with failed/skipped cases. Malformed trusted state SHALL refuse without JSON. Existing v1 commands SHALL remain unchanged. No tested-module, coverage, T2 or admission authority follows.
+
+#### Scenario: [TEST-AXES-144] Browser source levels preserve complete case owners and classifications
+
+- **WHEN** real ownership and level inspectors admit the same committed complete collection
+- **THEN** every reported case retains its outcome, source owner and effective level, complete nested observations and review debt
+
+#### Scenario: [TEST-AXES-145] Browser source levels refuse identity and case substitutions
+
+- **WHEN** upstream identities, digests, case inventories, source tuples or complete level membership disagree
+- **THEN** composition refuses with a named diagnostic and no JSON
+
+#### Scenario: [TEST-AXES-146] Browser source levels inherit index failures and publication drift
+
+- **WHEN** committed index state is malformed or unreadable, or publication changes during composition
+- **THEN** the real production command refuses without partial JSON
+
+#### Scenario: [TEST-AXES-147] Browser source levels preserve canonical installed diagnostic boundaries
+
+- **WHEN** source and built executable dispatch inspect isolated or wrong-level observations
+- **THEN** both preserve complete canonical identity and absent authentication with false certification, and map only wrong-level isolation to exit one

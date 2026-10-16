@@ -1833,3 +1833,65 @@ Production-path negatives:
 - Removing the membership-list revision key after adding acceptance failed both cases because `Choose Beta` never appeared (`/tmp/org-invite-p2-fault-refresh.log`, exit 1). Restored production code carries adjacent `Proof:` comments for both faults.
 
 Focused UTC Vitest for gate, onboarding screen, invitation acceptance, membership choices and organization owner/context model suites passed **44/44**. `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-fe-01:typecheck --outputStyle=static` passed both module and application tasks with zero cache hits. Targeted OpenSpec validation (`bunx @fission-ai/openspec@1.12.0 validate organization-ownership-and-access --json`) passed one change with zero issues. The final restored six-suite run again passed **44/44**; scoped ESLint, Prettier and `git diff --check` passed. Repository hooks were installed with `tool-git-hooks:install`; normal commit-hook results are recorded by the candidate handoff. Checks used the workspace's existing dependency installation through an isolated checkout symlink; locked installation, the exact-SHA host gate, full frontend/browser suites and CI remain for the integration owner.
+
+## Wave11 hosted gate repair
+
+[Hosted run 38895348379](https://github.com/Prosperous-Unification/puni-00/actions/runs/38895348379)
+on aggregate `37dbc32c8144ea2f1f37e003f3bd407865a93995` failed two workspace checks:
+
+- Service-kind equality named newly extracted `command-fields.ts` and `compensating-command.ts`
+  as missing classifications. Their callers remain command normalization and journal compensation.
+  Both are now classified as application support with explicit owner/rationale, matching their
+  extraction. The exact-inventory assertion is unchanged; its adjacent comment records the red.
+- Mounted cleanup exhausted Bun's default 10-second outer test allowance after two serial app
+  worker startups. The preceding protocol case took 8.276 seconds on CI. Worker143 and the injected
+  output rejection were the timeout teardown cascade. The cleanup case alone now has a finite
+  30-second total, justified by the controlled delayed-start run; the separate readiness and
+  stop/reap bounds remain intact. This allowance is not a sum of every worst-case worker phase. Worker deadlines, process cleanup, join checks and production code are
+  unchanged. No blanket suite timeout was raised.
+
+Focused controlled proofs, run serially with `NODE_OPTIONS=--max-old-space-size=768`:
+
+| State or injected fault                                                            | Observed result                                                                        |
+| ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Original classification inventory                                                  | Exit1, 0pass/1fail; both exact paths missing                                           |
+| Restored two support entries, complete service-kinds file                          | Exit0, 17pass/0fail, 19 assertions                                                     |
+| Original cleanup, quiet host                                                       | Exit0, 1pass/0fail, 7 assertions, 4.58s test /6.25s wall                               |
+| Add 3.5s after each ready frame, old 10s outer budget                              | Exit1, test timed out after10000ms; dangling-child/output-fault cascade reproduced     |
+| Identical delayed readiness, explicit 30s outer budget                             | Exit0, 1pass/0fail, 7 assertions, 11.54s test /13.16s wall                             |
+| Remove injected delays; withhold first worker's ready frame under 30s outer budget | Exit1, named `ready: worker deadline` at10.14s; per-worker bound remains active        |
+| Restore readiness; regress cleanup to Promise.all/finally removal                  | Exit1, 0pass/1fail; pre-removal sibling-closed assertion expected true, received false |
+
+All injections were restored. The only executable test change retained is this one test's
+30-second allowance; adjacent proof comments record the observed negatives. Restored focused
+checks, scoped static/OpenSpec and normal hooks are pending below. Full local Nx, full Burokrat,
+browser and host gates were intentionally not run under the laptop RAM constraint. The previous
+queued gate and hosted failures do not transfer acceptance to the repair head; PM must schedule
+new exact-head CI and the canonical h2puni gate before release. No push/merge/deployment or WBS
+status change is claimed by this repair.
+
+Final restored controls passed with child-pipe permission: protocol plus cleanup **2 pass, 0 fail,
+12 assertions**, 9.78 seconds total. The preceding sandbox attempt passed cleanup but failed
+protocol at `child.stdin.flush()` with `EPERM: operation not permitted, write`, then reported the
+expected teardown exit143. Running the same two cases with approved pipe access passed; no
+protocol source change was made. The classification rationale distinguishes privately imported
+CommandInput from reexported normalization error/constants.
+
+Local receipts retained for coordinator review:
+
+- `/tmp/wbs-wave11-kinds-red.log` and `/tmp/wbs-wave11-kinds-green.log`
+- `/tmp/wbs-wave11-cleanup-baseline.log`
+- `/tmp/wbs-wave11-cleanup-delay-red.log` and `/tmp/wbs-wave11-cleanup-delay-green.log`
+- `/tmp/wbs-wave11-cleanup-withheld-red.log`
+- `/tmp/wbs-wave11-cleanup-failfast-red.log`
+- `/tmp/wbs-wave11-mounted-restored.log` (sandbox refusal)
+- `/tmp/wbs-wave11-mounted-restored-elevated.log` (restored two-case pass)
+
+Scoped ESLint and changed-file Prettier passed. ESLint skipped Nx module boundaries without a
+cached graph and reported the preexisting unused eslint-disable directive in service-kinds.test.ts;
+no lint error was reported. Pinned OpenSpec1.12.0 validated this change with1passed/0failed and no
+issues. Explicit staged normal pre-commit jobs passed: lint, format, plaintext-secrets and
+private-nesting. Tool Wiki reported inactive/uncertified without an external activation root.
+Separate typecheck and broader suites were not run for this policy/test-budget repair; exact-head
+CI and canonical host gate remain required. Independent Astra high review of the exact source
+diff found no outstanding P0–P3 findings. Normal commit hooks remain enabled, with no bypass.
