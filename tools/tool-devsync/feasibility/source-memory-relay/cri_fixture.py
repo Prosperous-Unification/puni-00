@@ -2,7 +2,10 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
+import select
 import selectors
+import socket
 import subprocess
 import tempfile
 import time
@@ -37,16 +40,24 @@ def run_probe(directory, executable, daemon, crictl, command, expected_pid=None,
                 raise AssertionError(f'expected BOUND: {bound + stdout!r}, {stderr!r}, exit={process.returncode}')
             stdout, stderr = process.communicate('R', timeout=4)
             stdout = bound + stdout
+        # Proof: omitting the native CHILD announcement fails the consuming
+        # CRI observation at receipt count; replacing its PID with "invalid" fails syntax
+        # before cleanup can be certified (2026-10-16).
+        receipts = [line for line in stdout.splitlines() if line.startswith('CHILD')]
+        launched = command != 'forbidden' and expected_pid is None
+        assert len(receipts) == (1 if launched else 0), f'CHILD receipt count: {stdout!r}'
         child = None
+        if launched:
+            receipt = re.fullmatch(r'CHILD ([1-9][0-9]*)', receipts[0])
+            assert receipt is not None, f'invalid CHILD receipt: {receipts[0]!r}'
+            child = int(receipt.group(1))
         private = None
         for line in stdout.splitlines():
-            if line.startswith('CHILD '):
-                child = int(line.split()[1])
             if line.startswith('BOUND '):
                 private = Path(line.split()[1]).parent
         observed = {'command': command, 'exit': process.returncode, 'stdout': stdout, 'stderr': stderr,
                     'childAlive': child is not None and Path(f'/proc/{child}').exists(),
-                    'privateExists': private is not None and private.exists(), 'mode': mode}
+                    'privateExists': private is not None and private.exists(), 'mode': mode, 'childReceipts': len(receipts)}
         print(json.dumps(observed), flush=True)
         assert not observed['childAlive'], observed
         assert not observed['privateExists'], observed
@@ -86,7 +97,10 @@ conf_dir = '{directory}/cni-conf'
 '''
     (directory / 'config.toml').write_text(config)
     (directory / 'crictl.yaml').write_text('{}\n')
-    with (directory / 'daemon.log').open('w+') as log:
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as trap, (directory / 'daemon.log').open('w+') as log:
+        trap.bind(str(directory / 'image-trap.sock'))
+        trap.listen(4)
+        baseline_environment = {**os.environ, 'IMAGE_SERVICE_ENDPOINT': 'unix://' + str(directory / 'image-trap.sock')}
         daemon = subprocess.Popen(['/usr/bin/containerd', '--config', str(directory / 'config.toml')], stdout=log, stderr=log)
         try:
             deadline = time.monotonic() + 5
@@ -95,11 +109,15 @@ conf_dir = '{directory}/cni-conf'
                     log.seek(0)
                     raise RuntimeError('disposable containerd startup: ' + log.read())
                 time.sleep(.02)
+            # Proof: removing the private --image-endpoint makes the inherited IMAGE_SERVICE_ENDPOINT
+            # trap readable and fails the consuming CRI observation (2026-10-16).
             for command in [['version'], ['ps', '-a', '-o', 'json'], ['inspect', 'f9-probe-absent']]:
                 direct = subprocess.run([str(crictl), '--config', str(directory / 'crictl.yaml'),
-                    '--runtime-endpoint', 'unix://' + str(directory / 'runtime.sock'), '--timeout', '1s', *command],
-                    capture_output=True, text=True, timeout=3)
-                print(json.dumps({'direct': command, 'exit': direct.returncode, 'stdout': direct.stdout, 'stderr': direct.stderr}), flush=True)
+                    '--runtime-endpoint', 'unix://' + str(directory / 'runtime.sock'),
+                    '--image-endpoint', 'unix://' + str(directory / 'runtime.sock'), '--timeout', '1s', *command],
+                    capture_output=True, text=True, timeout=3, env=baseline_environment)
+                print(json.dumps({'direct': command, 'exit': direct.returncode, 'stdout': direct.stdout, 'stderr': direct.stderr, 'imageTrapContacted': bool(select.select([trap], [], [], 0)[0])}), flush=True)
+                assert not select.select([trap], [], [], 0)[0], 'inherited image-service trap was contacted'
                 if command[0] == 'version':
                     assert direct.returncode == 0 and 'RuntimeName:  containerd' in direct.stdout
                 elif command[0] == 'ps':
@@ -110,7 +128,9 @@ conf_dir = '{directory}/cni-conf'
             assert 'RuntimeName:  containerd' in version['stdout'] and 'RuntimeApiVersion:  v1' in version['stdout'], version
             assert (version['exit'] == 0 and version['stderr'] == '') or (version['exit'] == 1 and version['stderr'] in ['relay:read\n', 'relay:write\n']), version
             listing = run_probe(directory, executable, daemon, crictl, 'list')
-            assert listing['exit'] != 0 and 'validate CRI v1 image API' in listing['stdout'] and 'connection refused' in listing['stdout'], listing
+            # Proof: injecting native relay:deadline for list preserves the CLI refusal
+            # but fails this exact child-exit assertion (2026-10-16).
+            assert listing['exit'] == 1 and listing['stderr'] == 'relay:child-exit\n' and 'validate CRI v1 image API' in listing['stdout'] and 'connection refused' in listing['stdout'], listing
             status = run_probe(directory, executable, daemon, crictl, 'status')
             assert status['exit'] != 0 and 'validate CRI v1 image API' in status['stdout'] and 'connection refused' in status['stdout'] and status['stderr'] == 'relay:child-exit\n', status
             forbidden = run_probe(directory, executable, daemon, crictl, 'forbidden')

@@ -5,6 +5,8 @@
 - [x] 1.3 Observe unsupported-command and wrong-upstream refusals. Remove the new selection guard and executable digest comparison, watch their consuming negatives fail, then restore.
 - [x] 1.4 Run serial generic native regression and CRI controls; record source hashes, RSS, cleanup, exact shutdown blocker and skipped gates in verify.md.
 
+- [x] 1.5 Apply independent review corrections: both baseline endpoints private despite inherited image endpoint; exact List exit 1/child-exit provenance; exactly one valid CHILD receipt for launched commands and none for prelaunch refusals. Watch each corresponding omission/wrong-failure mutant and malformed CHILD receipt fail the consuming CRI observation, then restore.
+
 ## 2. Deferred protocol completion design
 
 - [ ] 2.1 Resolve complete-drain semantics for a crictl exit followed by upstream HTTP/2 PING acknowledgment; retain strict refusal until a reviewed contract models completion.

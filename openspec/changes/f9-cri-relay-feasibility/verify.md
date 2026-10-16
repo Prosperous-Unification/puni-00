@@ -1,7 +1,7 @@
 ## Scope and identity
 
 Authorized throwaway protocol feasibility only. Base: `233759a12` in the isolated
-`/tmp/f9-cri-transport-sol` clone. Source SHA256 identities and tool versions are
+`/tmp/f9-cri-transport-sol` clone. Initial source SHA256 identities and tool versions are
 in [environment.json](../../../tools/tool-devsync/feasibility/source-memory-relay/evidence/cri/environment.json).
 The reviewed diff retains only the single-connection explicit crictl mode.
 The abandoned paired candidate remains outside the repository as a hashed scratch
@@ -65,3 +65,38 @@ Canonical observations and next boundary live in the harness README. Recommend a
 reviewed definition of CRI completion that explicitly addresses late HTTP/2
 control frames; simply discarding bytes or accepting crictl stdout would violate
 the retained drain invariant. Request independent Astra review through the parent.
+
+## Independent review corrections
+
+Parent review subject: `b08f61f22c70ce2a8d8dda0757cba3ebbe425ada`. The successor
+changes only fixture assertions, direct baseline endpoint selection, specs and
+receipts; `relay.c` remains byte-identical. Current source identities are in
+[evidence/cri/review/environment.json](../../../tools/tool-devsync/feasibility/source-memory-relay/evidence/cri/review/environment.json).
+Initial receipts above remain historical evidence for the parent revision.
+
+The direct baselines now pass both private runtime and image endpoints. Every
+run supplies a bound private trap as inherited `IMAGE_SERVICE_ENDPOINT` and
+asserts that the trap has no pending connection. The original baseline contacted
+that trap. List now requires native exit **1** and exact stderr
+`relay:child-exit\n`. Launched Version/List/Status require exactly one valid
+positive numeric CHILD receipt, while prelaunch refusals require none; absent
+announcements can no longer masquerade as reaped children.
+
+| Check                                  | Injected fault                                                                      | Consuming failure                                                                | Restored outcome                                                                    |
+| -------------------------------------- | ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Both direct baseline endpoints private | Remove explicit image endpoint while retaining inherited private trap               | `inherited image-service trap was contacted`; trap readiness true in raw receipt | All three baseline receipts report imageTrapContacted false                         |
+| List failure provenance                | Native mutant reports relay:deadline for List with unchanged CLI connection refusal | Exact child-exit assertion fails despite exit 1 and expected crictl text         | List exits 1 with relay:child-exit                                                  |
+| Required CHILD receipt count           | Omit native CHILD announcement                                                      | Version has runtime output but fails CHILD receipt count before cleanup checks   | All three launched observations report childReceipts 1; prelaunch refusals report 0 |
+| CHILD receipt syntax                   | Replace native numeric receipt with CHILD invalid                                   | One receipt passes count but fails invalid CHILD receipt assertion               | One positive numeric PID parsed for each launched command                           |
+
+Each raw red and restored green output is preserved under
+[evidence/cri/review](../../../tools/tool-devsync/feasibility/source-memory-relay/evidence/cri/review/)
+with its original byte hash. Adjacent fixture Proof comments identify the watched
+faults. Final restored CRI control: **2 passed, 5 assertions, 590ms**, maximum RSS
+**56,252 KiB**, 0.59s, zero swaps. Serial generic regression: **26 passed,
+117 assertions, 28.72s**, maximum RSS **34,348 KiB**, zero swaps. GNU time's RSS
+is not a summed concurrent process-tree measurement. OpenSpec validation again
+reported **238/238 valid**, zero failures. Scoped formatting and diff checks ran;
+full-gate/project-check exclusions above still apply. Section 2, source-memory
+binding, WBS completion and production acceptance remain unchecked. No source
+push or deployment ran. Strict byte-drain behavior remains unchanged.

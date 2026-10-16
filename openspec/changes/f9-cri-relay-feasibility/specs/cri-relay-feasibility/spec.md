@@ -7,7 +7,7 @@ The explicit probe SHALL run pinned crictl as the native relay's direct child ag
 #### Scenario: Direct disposable baseline
 
 - **WHEN** the probe queries its disposable daemon directly
-- **THEN** it observes containerd Version, parses the empty ListContainers JSON and observes CRI NotFound for the absent fixture container.
+- **THEN** it explicitly binds both runtime and image endpoints to that daemon, observes containerd Version, parses the empty ListContainers JSON and observes CRI NotFound for the absent fixture container while an inherited IMAGE_SERVICE_ENDPOINT trap remains uncontacted.
 
 #### Scenario: Version observation distinguishes transport refusal
 
@@ -17,7 +17,7 @@ The explicit probe SHALL run pinned crictl as the native relay's direct child ag
 #### Scenario: Additional service connection is refused
 
 - **WHEN** crictl ListContainers or ContainerStatus initializes its separate image-service connection through the one-connection listener
-- **THEN** the probe records image-service connection refusal and relay child-exit; it does not claim either runtime operation reached its final CRI call through the relay.
+- **THEN** the probe records image-service connection refusal with native exit 1 and exact stderr `relay:child-exit\n`; it does not claim either runtime operation reached its final CRI call through the relay.
 
 #### Scenario: Unrecognized command is refused
 
@@ -33,3 +33,8 @@ The explicit probe SHALL run pinned crictl as the native relay's direct child ag
 
 - **WHEN** the configured crictl executable has a different SHA256 digest
 - **THEN** the fixture refuses before starting the disposable runtime.
+
+#### Scenario: Child cleanup evidence requires a receipt
+
+- **WHEN** Version, ListContainers or ContainerStatus is launched through the relay
+- **THEN** exactly one syntactically valid positive CHILD PID receipt is required before cleanup can be certified; prelaunch refusals require no CHILD receipts.
