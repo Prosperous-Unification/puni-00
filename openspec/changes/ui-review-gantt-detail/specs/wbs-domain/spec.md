@@ -4,8 +4,8 @@
 
 The panel SHALL show one labelled switch, `Detail`, that draws **every** mark
 the chart holds back and takes them all away again: the dependency arrows —
-elbows and heads both — a parent row's summary bracket, and an unestimated
-slice's assumed bar with the marks that follow it. There SHALL be no second
+elbows and heads both — and a parent row's summary bracket. An unestimated
+slice's assumed bar SHALL be drawn in both states (since 2026-09-11). There SHALL be no second
 control and no per-family answer: one press is the whole of the reader's say
 over what the chart draws.
 
@@ -19,7 +19,7 @@ decided again from the next plan's first read. With the switch off the chart
 SHALL hold no `data-gantt-arrow`, no `data-gantt-arrow-head` and no
 `data-gantt-bracket` mark.
 
-Pressed on, the chart SHALL draw each of the three families as it drew them
+Pressed on, the chart SHALL draw both families as it drew them
 before `gantt-declutter`, and the marks that follow from them SHALL follow: a
 hand-off line whose far end is an assumed bar, and a not-before caret on every
 row holding a start date, parents and uncosted leaves among them.
@@ -84,15 +84,15 @@ transparent bars. i want to encompass all decluttering into one button."
 #### Scenario: Asking for the detail
 
 - **WHEN** the switch is pressed
-- **THEN** every stored dependency's elbow and head, every parent's bracket and
-  every unestimated slice's assumed bar is drawn, and pressing it again takes
-  all three away
+- **THEN** every stored dependency's elbow and head and every parent's bracket
+  is drawn, and pressing it again takes them away; every unestimated slice's
+  assumed bar is drawn in both states
 
 #### Scenario: The answer outlives the page
 
 - **WHEN** the switch is pressed on and the page is reloaded
-- **THEN** the chart opens with the arrows, the brackets and the assumed bars
-  drawn, and `aria-pressed` reads `true`
+- **THEN** the chart opens with the arrows and the brackets drawn, and
+  `aria-pressed` reads `true`
 
 #### Scenario: A stored answer that is not one
 
