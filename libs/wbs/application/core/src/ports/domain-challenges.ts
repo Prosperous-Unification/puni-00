@@ -34,7 +34,18 @@ export type DomainVerificationSnapshot = DomainVerificationBase &
       }
   );
 
-/** Authoritative TXT records, one DNS TXT record per string; failure throws. */
+/** Expected DNS network, protocol or deadline unavailability, never cleanup failure. */
+export class DomainDnsUnavailableError extends Error {
+  override name = 'DomainDnsUnavailableError';
+}
+
+/**
+ * Authoritative TXT records, one DNS TXT record per string.
+ * Expected unavailability throws {@link DomainDnsUnavailableError}; unexpected
+ * invariant and cleanup failures propagate separately. Cancellation must join
+ * owned resources before settling. The production adapter must finish work and
+ * cleanup inside the proof service's five-second outer watchdog.
+ */
 export interface DomainResolver {
   lookupTxt(name: string, signal: AbortSignal): Promise<readonly string[]>;
 }

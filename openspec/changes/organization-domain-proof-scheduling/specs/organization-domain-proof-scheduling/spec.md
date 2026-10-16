@@ -44,3 +44,9 @@ Shutdown SHALL cancel future scheduling and in-flight DNS work, join the sweep b
 - **GIVEN** the resolver or repository throws an unexpected programming or cleanup failure
 - **WHEN** a scheduled sweep executes
 - **THEN** the completion promise rejects with that failure and no failed-proof completion masks it
+
+#### Scenario: Cancellation while completion waits for a write turn
+
+- **GIVEN** a day-fourteen proof completion is waiting for the database write turn
+- **WHEN** the scheduler is cancelled before the completion transaction begins
+- **THEN** the claim keeps its old check and success timestamps and verified status, and cancellation is returned without counting checked or stale work

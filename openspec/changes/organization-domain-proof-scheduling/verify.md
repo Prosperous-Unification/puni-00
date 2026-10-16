@@ -55,3 +55,15 @@ Existing repository proof comments remain adjacent to the currentness and truste
 ## Pending work and checks
 
 Cancellation before proof commit, modeled DNS failure contract, production boot/disposal binding, entrypoint failure ownership, exact Astra review and push remain pending. Full typecheck, build, host gate, CI, external live-domain evidence, spec synchronization and archive have not run. The full feature is not complete.
+
+## Core modeled failure and pre-completion cancellation checkpoint
+
+New core tests first observed a missing error export, then seven failures against the old service: unexpected errors were recorded as failed proofs; pre-abort read storage; snapshot-read and DNS cancellation still committed; the lookup signal did not abort; delayed unexpected cleanup was hidden. The new core contract exports DomainDnsUnavailableError without framework dependencies. Core catches that expected class only, propagates unexpected failures, forwards parent cancellation to DNS, joins modeled cancellation through the resolver, and checks cancellation before reading, looking up and completing proof work.
+
+Focused green run: 17 tests passed, 0 failed, 42 assertions across the new core service tests and repository worker tests. A day-fourteen repository case observed no timestamp change or suspension after cancellation during DNS.
+
+Seven separately watched and restored mutations failed: remove typed error narrowing; return early for parent abort before narrowing unexpected errors; remove the composed lookup signal; race parent abort before resolver cleanup; remove pre-read cancellation; remove pre-lookup cancellation; remove pre-completion cancellation. Receipts are `/tmp/domain-proof-cancellation-*.log`.
+
+Known incomplete race: held-gate RED fixture saved at `/tmp/domain-proof-worker.queued-cancellation.db.test.ts` showed a cancelled queued completion still wrote last_checked_at=1210600000 instead of 1000000 and suspended the claim. The proposed transaction-entry signal/outcome amendment is in design.md; production port/store cancellation change awaits Astra review. DNS adapter subclassing, boot and entrypoints remain untouched. This checkpoint does not claim full cancellation safety or feature completion.
+
+Final checkpoint regression: `bun test` for core proof service, runtime worker unit/DB, and mounted domain controller suites passed 77 tests, 0 failed, 265 assertions. Focused ESLint exited 0 (module-boundary rule still skipped); formatting and change-specific OpenSpec validation passed. Full gate, typecheck/build and adapter integration remain unverified.

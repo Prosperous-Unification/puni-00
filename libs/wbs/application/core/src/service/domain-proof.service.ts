@@ -1,4 +1,8 @@
-import type { DomainProofChecks, RetainedDomainProof } from '../ports/domain-challenges';
+import {
+  DomainDnsUnavailableError,
+  type DomainProofChecks,
+  type RetainedDomainProof,
+} from '../ports/domain-challenges';
 
 // Proof: 2026-09-28, raising this to 50 seconds made mounted `shows retained
 // proof check timestamps and a warning after a failed day-seven check` observe
@@ -10,32 +14,39 @@ async function matchesProof(
   checks: DomainProofChecks,
   proof: RetainedDomainProof,
   at: number,
+  cancellation?: AbortSignal,
 ): Promise<'current' | 'previous' | null> {
-  const signal = AbortSignal.timeout(LOOKUP_TIMEOUT_MS);
+  const deadline = AbortSignal.timeout(LOOKUP_TIMEOUT_MS);
+  // Proof: removing the composed signal made `parent abort joins` observe an un-aborted lookup.
+  const signal = cancellation === undefined ? deadline : AbortSignal.any([deadline, cancellation]);
+  const expiration = Promise.withResolvers<never>();
+  const expire = () => {
+    expiration.reject(new DomainDnsUnavailableError('DNS timeout'));
+  };
+  // Proof: racing parent abort made `parent abort joins` settle before delayed cleanup.
+  // Parent abort is passed to the resolver without racing its resource
+  // cleanup. Only the outer watchdog can bound a noncompliant resolver.
+  deadline.addEventListener('abort', expire, { once: true });
   let records: readonly string[];
   try {
     records = await Promise.race([
       checks.resolver.lookupTxt(`_wbs-verification.${proof.domain}`, signal),
-      new Promise<never>((_resolve, reject) => {
-        signal.addEventListener(
-          'abort',
-          () => {
-            reject(new Error('DNS timeout'));
-          },
-          { once: true },
-        );
-      }),
+      expiration.promise,
     ]);
     // Proof: 2026-09-28, bypassing response validation made mounted `records
     // a failed retained check for a malformed TXT response` throw a TypeError
     // on numeric TXT data instead of recording a failed check.
     if (!Array.isArray(records) || !records.every((record) => typeof record === 'string'))
       return null;
-  } catch {
-    // Proof: 2026-09-28, treating a resolver timeout as success made mounted
-    // `shows retained proof check timestamps and a warning after a failed day-seven check`
-    // advance lastSuccessAt and hide the warning.
+  } catch (failure) {
+    // Proof: removing this guard made `propagates unexpected resolver failures`
+    // record a failed proof. Checking parent abort first masked the fault in
+    // `delayed unexpected cleanup failure survives parent cancellation`.
+    if (!(failure instanceof DomainDnsUnavailableError)) throw failure;
+    // Cancellation is rechecked by the caller before any completion write.
     return null;
+  } finally {
+    deadline.removeEventListener('abort', expire);
   }
   const prefix = `wbs-domain-verification=${proof.organizationId}:${proof.domain}:`;
   let foundPrevious = false;
@@ -70,16 +81,30 @@ async function matchesProof(
   return foundPrevious ? 'previous' : null;
 }
 
-/** Checks due retained proofs once; `now` is read again inside the commit. */
+/**
+ * Checks due retained proofs once; `now` is read again inside the commit.
+ * Cancellation returns partial counts without recording the cancelled lookup.
+ * Unexpected DNS and repository failures reject, including cleanup failures
+ * after parent abort. The five-second watchdog can outlive cancellation and
+ * return before a noncompliant resolver joins; a production resolver must own
+ * a shorter total work-and-cleanup deadline.
+ */
 export async function checkDomainProofs(
   checks: DomainProofChecks,
   at: number,
   now: () => number = Date.now,
+  cancellation?: AbortSignal,
 ): Promise<{ checked: number; stale: number }> {
   let checked = 0;
   let stale = 0;
+  // Proof: removing this check made `pre-aborted cancellation` read trusted state.
+  if (cancellation?.aborted) return { checked, stale };
   for (const proof of await checks.readDueProofs(at)) {
-    const matched = await matchesProof(checks, proof, at);
+    // Proof: removing this check made `cancellation during snapshot read` start DNS.
+    if (cancellation?.aborted) return { checked, stale };
+    const matched = await matchesProof(checks, proof, at, cancellation);
+    // Proof: removing this check made both `cancellation before DNS reply` cases commit.
+    if (cancellation?.aborted) return { checked, stale };
     const finished = await checks.finishProofCheck(proof, matched, at, now);
     if (finished === 'checked') checked += 1;
     else stale += 1;

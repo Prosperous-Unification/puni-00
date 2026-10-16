@@ -9,3 +9,11 @@ Each sweep passes a 32-claim limit to the core service. The runtime sorts the fu
 ## Cancellation and DNS failure
 
 An optional caller signal propagates to bounded DNS lookup and is rechecked before each write. Cancellation returns a controlled partial outcome rather than a failed proof. A core port error identifies expected DNS unavailability; unexpected failures propagate, including adapter cleanup failures. Repository finishProofCheck remains the authority for activation, release, rotation and time currentness.
+
+## Cancellation at queued completion (pending architecture review)
+
+A service check immediately before finishProofCheck cannot prevent cancellation while the repository waits for its write gate. The proposed port change adds an optional cancellation signal to finishProofCheck and a `cancelled` completion outcome alongside checked/stale. The repository checks that signal inside the immediate transaction, after acquiring the gate and before any update. Core returns partial counts for cancelled completion. No asynchronous boundary exists between that final cancellation check and its synchronous SQLite update.
+
+The held-gate RED fixture at `/tmp/domain-proof-worker.queued-cancellation.db.test.ts` reproduced the defect: on day fourteen, cancellation while finish waited for the gate still changed last_checked_at from 1000000 to 1210600000 and status from verified to suspended. The transaction-time port/store implementation awaits Astra review; the fixture remains outside the green checkpoint's test discovery.
+
+The current core outer watchdog races only its five-second deadline, not parent abort. Parent cancellation reaches the resolver, which joins resource cleanup before settling. Unexpected cleanup failure remains an exception even after parent abort. The watchdog may return before a noncompliant injected resolver joins; the production adapter's shorter 4.9-second hard work-and-cleanup bound is the ownership requirement. Adapter subclass wiring is pending the reviewed DNS successor.

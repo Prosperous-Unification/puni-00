@@ -13,6 +13,7 @@ export function runDomainProofWorker(
   at: number,
   now = Date.now,
   limit = 32,
+  cancellation?: AbortSignal,
 ) {
   // Proof: removing integer, lower or upper validation separately let NaN,
   // zero or 33 survive `rejects sweep limits outside one through 32`.
@@ -41,6 +42,7 @@ export function runDomainProofWorker(
     },
     at,
     now,
+    cancellation,
   );
 }
 

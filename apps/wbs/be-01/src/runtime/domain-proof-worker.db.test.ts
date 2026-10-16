@@ -65,6 +65,27 @@ function plantProof(index: number, lastCheckedAt = START): string {
 }
 
 describe('bounded retained proof scheduling against SQLite', () => {
+  test('cancellation during DNS leaves a day-fourteen proof verified and unchecked', async () => {
+    const id = plantProof(0);
+    records.clear();
+    const cancellation = new AbortController();
+    beforeReply = () => {
+      cancellation.abort();
+    };
+    const at = START + 14 * DAY;
+    expect(await runDomainProofWorker(repository, at, () => at, 32, cancellation.signal)).toEqual({
+      checked: 0,
+      stale: 0,
+    });
+    expect(
+      sqlite
+        .query(
+          'SELECT last_checked_at, last_success_at, status FROM organization_domain_claim WHERE id = ?',
+        )
+        .get(id),
+    ).toEqual({ last_checked_at: START, last_success_at: START, status: 'verified' });
+  });
+
   for (const matches of [true, false]) {
     test(`checks 65 due proofs in three bounded scheduled sweeps with matching TXT ${String(matches)}`, async () => {
       // Reverse insertion order makes the ID tie-break visible through the real store.
