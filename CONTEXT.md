@@ -903,6 +903,12 @@ the **assumed duration** from its scheduled start. Its width is a visual placeho
 not the slice's scheduled duration.
 _Avoid_: ghost bar, placeholder bar
 
+**Lane stack**:
+The bars of one row drawn in lanes because they overlap at one instant beside an assumed span —
+a leaf whose unestimated steps take no schedule time. Its lanes carry no words; the stack writes
+one label across its band: the row's number, how many steps, how many nobody estimated.
+_Avoid_: cluster, pile, bar group
+
 **Done bar**:
 The drawing of a done work item: one bar from its fact start — or where its first slice
 started, when it has none — to its fact end, in place of its slices, and marked as done. A
