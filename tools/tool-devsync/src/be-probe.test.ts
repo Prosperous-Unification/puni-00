@@ -37,21 +37,56 @@ async function runProbe(origin: string): Promise<{ exitCode: number; output: str
 }
 
 describe('dev be deployment probe', () => {
-  it('accepts the canonical anonymous auth response', async () => {
-    const server = authServer({ user: null });
+  it.each([
+    { onboarding: false, organizations: false },
+    { onboarding: true, organizations: false },
+    { onboarding: true, organizations: true },
+  ])('accepts anonymous auth with deployment features %j', async (features) => {
+    const server = authServer({ user: null, features });
 
-    const result = await runProbe(`http://127.0.0.1:${String(server.port)}`);
+    const probe = await runProbe(`http://127.0.0.1:${String(server.port)}`);
 
-    expect(result.exitCode).toBe(0);
-    expect(result.output).toContain('be (auth routes mounted)');
+    expect(probe.exitCode).toBe(0);
+    expect(probe.output).toContain('be (auth routes mounted)');
+  });
+
+  it.each([
+    { user: null },
+    { user: { id: 'signed-in' }, features: { onboarding: false, organizations: false } },
+    { user: null, features: null },
+    { user: null, features: { onboarding: 'false', organizations: false } },
+    { user: null, features: { onboarding: false } },
+    { user: null, features: { onboarding: false, organizations: true } },
+  ])('rejects a malformed or authenticated auth response %j', async (body) => {
+    const server = authServer(body);
+
+    const probe = await runProbe(`http://127.0.0.1:${String(server.port)}`);
+
+    expect(probe.exitCode).not.toBe(0);
+    expect(probe.output).toContain('FAIL');
+  });
+
+  it.each([201, 401, 500])('rejects HTTP %i even with a valid anonymous body', async (status) => {
+    const server = authServer(
+      {
+        user: null,
+        features: { onboarding: false, organizations: false },
+      },
+      status,
+    );
+
+    const probe = await runProbe(`http://127.0.0.1:${String(server.port)}`);
+
+    expect(probe.exitCode).not.toBe(0);
+    expect(probe.output).toContain('FAIL');
   });
 
   it('rejects a response that does not match the auth controller contract', async () => {
     const server = authServer({ error: 'missing_token' }, 401);
 
-    const result = await runProbe(`http://127.0.0.1:${String(server.port)}`);
+    const probe = await runProbe(`http://127.0.0.1:${String(server.port)}`);
 
-    expect(result.exitCode).not.toBe(0);
-    expect(result.output).toContain('FAIL');
+    expect(probe.exitCode).not.toBe(0);
+    expect(probe.output).toContain('FAIL');
   });
 });
