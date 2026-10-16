@@ -144,6 +144,26 @@ The config records a full `devSourceSha`; `tool-devsync` also diffs the solver c
 paths between that commit and the requested commit, so a changed solver package cannot silently
 run under an older image.
 
+### Accept the installed dev supervisor
+
+From the installed dev host as `puni1`, with locked Bun dependencies and the expected source already
+available, run the read-only acceptance command with the exact backend SHA and installed solver digest:
+
+```sh
+bun run tools/tool-remote-scripts/src/check-installed-solver.ts \
+  --source-sha=FULL_DEV_SOURCE_COMMIT \
+  --image=REGISTRY/BE@sha256:INSTALLED_SOLVER_DIGEST
+```
+
+The command refuses conflicting poll, devsync or production deploy locks, missing prerequisites,
+source/health/compatibility/mapping disagreement and unknown Docker state. It executes baseline and
+shared-person clients inside the existing `wbs-dev-src`, inspects each managed child before allowing
+its bind, requires both revalidated feasible answers, proves invocation-owned child removal, and
+checks that the supervisor PID and systemd invocation stayed stable. Keep its JSON receipt with the
+selected SHA/digest. `imageSourceSha` identifies compatible image inputs and may differ from the
+backend `sourceSha`. This check installs or restarts nothing and changes no settings or database;
+API/browser acceptance and shared-mode activation remain separate work.
+
 ### Accept a locally available solver artifact
 
 To check an already published immutable backend image without publishing or installing a binding,

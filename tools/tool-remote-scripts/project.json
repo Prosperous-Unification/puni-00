@@ -10,7 +10,8 @@
       "options": {
         "commands": [
           "bun build tools/tool-remote-scripts/src/swap.ts --target=bun --outfile dist/tool-remote-scripts/swap.js",
-          "bun build tools/tool-remote-scripts/src/solver-supervisor.ts --target=bun --outfile dist/tool-remote-scripts/solver-supervisor.js"
+          "bun build tools/tool-remote-scripts/src/solver-supervisor.ts --target=bun --outfile dist/tool-remote-scripts/solver-supervisor.js",
+          "bun build tools/tool-remote-scripts/src/check-installed-solver.ts --target=bun --outfile dist/tool-remote-scripts/check-installed-solver.js"
         ],
         "parallel": false
       },
@@ -101,6 +102,13 @@
       "options": {
         "command": "bun run tools/tool-remote-scripts/test/backend-recreation.ts"
       }
+    },
+    "check-installed-solver": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun run tools/tool-remote-scripts/src/check-installed-solver.ts"
+      },
+      "cache": false
     }
   }
 }
