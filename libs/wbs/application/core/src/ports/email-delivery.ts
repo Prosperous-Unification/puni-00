@@ -1,4 +1,11 @@
-/** An injected dev/test sink; implementations must throw when delivery fails. */
+/** A single-recipient purpose-bound message; only the token's digest may enter durable storage. */
+export interface EmailMessage {
+  readonly purpose: 'verification' | 'invitation';
+  readonly recipient: string;
+  readonly token: string;
+}
+
+/** Submission rejects when disabled, refused or uncertain; success is not inbox delivery. */
 export interface EmailDelivery {
-  deliver(address: string, token: string): Promise<void>;
+  deliver(message: EmailMessage): Promise<void>;
 }

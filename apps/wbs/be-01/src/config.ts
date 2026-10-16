@@ -2,6 +2,9 @@ import { authModeOf } from '@wbs/auth';
 import { defineConfig } from '@wbs/config';
 import { type } from '@wbs/validation';
 
+import { parseResolvers } from './runtime/authoritative-dns/addresses';
+import { type EmailDeliveryConfig, readEmailDelivery } from './runtime/email-delivery-config';
+
 export const BeConfig = type({
   PORT: 'string.integer.parse',
   INTERNAL_AUTH_SECRET: 'string>=32',
@@ -20,6 +23,9 @@ export const BeConfig = type({
   BROWSER_SESSION_AUTHORITY: "'enabled'|'disabled'",
   'WBS_DELEGATION_SIGNING_KEY?': 'string',
   'WBS_DELEGATION_VERIFY_KEY?': 'string',
+  'ORGANIZATION_DNS_RESOLVERS?': 'string',
+  // Proof: widening this to string accepted invalid values in `proof scheduling overrides`.
+  'ORGANIZATION_DOMAIN_PROOF_SCHEDULING?': "'enabled'|'disabled'",
   'SOLVER_BUDGET_MS?': 'string.integer.parse',
   'SOLVER_SEARCH_WORKERS?': 'string.integer.parse',
   'SOLVER_MEMORY_LIMIT_MB?': 'string.integer.parse',
@@ -41,7 +47,12 @@ export interface DelegationKeys {
 
 export const loadConfig = (
   envSource: Record<string, string | undefined> = process.env,
-): BeConfig & { appOrigin: string; delegationKeys?: DelegationKeys } => {
+): BeConfig & {
+  appOrigin: string;
+  delegationKeys?: DelegationKeys;
+  organizationDnsResolvers?: readonly string[];
+  emailDelivery: EmailDeliveryConfig;
+} => {
   const mode = authModeOf(envSource);
   const config = defineConfig(BeConfig, envSource);
   const signingKey = envSource['WBS_DELEGATION_SIGNING_KEY'];
@@ -73,6 +84,9 @@ export const loadConfig = (
     ...config,
     delegationKeys,
     appOrigin,
+    organizationDnsResolvers: parseResolvers(config.ORGANIZATION_DNS_RESOLVERS),
+    // Proof: removing this binding failed the production config disabled-mode assertion.
+    emailDelivery: readEmailDelivery(envSource),
     SOLVER_BUDGET_MS: solverBudgetMs,
     SOLVER_SEARCH_WORKERS: solverSearchWorkers,
     SOLVER_MEMORY_LIMIT_MB: solverMemoryLimitMb,
