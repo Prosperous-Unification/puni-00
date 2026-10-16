@@ -1,0 +1,112 @@
+name: wbs-hover-card-placement-proof
+
+on:
+  push:
+    branches: [proof/wbs-hover-card-placement-20261016]
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: wbs100-hover-card-proof
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CI: '1'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          path: proof
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 3624eadc3799448dbb217c3c8f6aae0818328af7
+          fetch-depth: 0
+          path: candidate
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.4.2
+      - name: Pin exact sources and reserve ephemeral runner swap
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 proof/openspec/changes/wbs-hover-card-placement-boundary/evidence/hosted-proof/prove.py prepare
+          df -h > receipts/disk-before.txt
+          sudo fallocate -l 12G /mnt/wbs-hover-card-proof.swap
+          sudo chmod 600 /mnt/wbs-hover-card-proof.swap
+          sudo mkswap /mnt/wbs-hover-card-proof.swap > receipts/swap-setup.log
+          sudo swapon /mnt/wbs-hover-card-proof.swap
+          free -m > receipts/memory-with-swap.txt
+      - name: Download and verify the retained immutable evaluator package
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api repos/Prosperous-Unification/puni-00/actions/artifacts/12029728928/zip > evaluator-artifact.zip
+          python3 proof/openspec/changes/wbs-hover-card-placement-boundary/evidence/hosted-proof/prove.py recover
+      - name: Install one independent consumer from the pinned tarball
+        working-directory: consumer
+        shell: bash
+        run: |
+          set -euo pipefail
+          bun add --exact --ignore-scripts ../receipts/twilight-burokrat-0.1.0.tgz > ../receipts/consumer-install.log 2>&1
+      - name: Verify installed toolkit and executable identities
+        run: python3 proof/openspec/changes/wbs-hover-card-placement-boundary/evidence/hosted-proof/prove.py verify-installed
+      - name: Serial selected F7, committed oversized fault, and full fourteen-rule comparisons
+        run: python3 proof/openspec/changes/wbs-hover-card-placement-boundary/evidence/hosted-proof/prove.py surveys
+      - name: Install frozen candidate dependencies and Chromium after surveys exit
+        working-directory: candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          bun install --frozen-lockfile > ../receipts/candidate-install.log 2>&1
+          bunx playwright install --with-deps chromium > ../receipts/chromium-install.log 2>&1
+          bun run dev:setup > ../receipts/dev-setup.log 2>&1
+      - name: Serial card geometry, row ceiling, mouse paint and independent touch positives
+        run: python3 proof/openspec/changes/wbs-hover-card-placement-boundary/evidence/hosted-proof/prove.py browser
+      - name: Preserve browser diagnostics and final source state on every outcome
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p receipts/final-diagnostics
+          if [[ -d candidate/apps/wbs/fe-01/test-results ]]; then
+            cp -a candidate/apps/wbs/fe-01/test-results receipts/final-diagnostics/
+          fi
+          if [[ -d candidate/playwright-report ]]; then
+            cp -a candidate/playwright-report receipts/final-diagnostics/
+          fi
+          if [[ -f candidate/tmp/junit/wbs-fe-01.browser.ordinary.xml ]]; then
+            cp candidate/tmp/junit/wbs-fe-01.browser.ordinary.xml receipts/final-diagnostics/
+          fi
+          git -C candidate rev-parse HEAD HEAD^{tree} > receipts/final-source-identity.txt
+          git -C candidate status --porcelain --untracked-files=no > receipts/final-source-status.txt
+          free -m > receipts/memory-final.txt
+          df -h > receipts/disk-final.txt
+      - name: Preserve all immutable source proof receipts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: wbs-hover-card-3624ead-proof-${{ github.run_id }}-${{ github.run_attempt }}
+          path: receipts/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 1
+      - name: Release ephemeral runner swap
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if awk 'NR > 1 { print $1 }' /proc/swaps | rg --fixed-strings --line-regexp /mnt/wbs-hover-card-proof.swap; then
+            sudo swapoff /mnt/wbs-hover-card-proof.swap
+          fi
+          if [[ -f /mnt/wbs-hover-card-proof.swap ]]; then
+            sudo rm /mnt/wbs-hover-card-proof.swap
+          fi
