@@ -47,8 +47,16 @@ const validatorCommands = new Set([
   'inspect-performance-levels',
   // Proof: removing this route failed TEST-AXES-099's real installed scenario dispatch.
   'inspect-performance-scenarios',
+  // Proof: removing registration failed TEST-AXES-106's built installed ledger dispatch.
+  'inspect-scenario-ledger',
   // Proof: removing this registration failed TEST-AXES-095's real installed executable success.
   'inspect-browser-memberships',
+  // Proof: removing registration failed TEST-AXES-115's real built installed executable dispatch.
+  'inspect-browser-performance',
+  // Proof: removing registration failed TEST-AXES-111's real built installed executable success.
+  'inspect-browser-architecture',
+  // Proof: removing registration failed TEST-AXES-103's real built executable success.
+  'inspect-browser-conformance',
   'template',
   'validate-policy-activation',
 ]);
@@ -63,8 +71,12 @@ commands:
   twilight-burokrat inspect-performance <repository> <committed-sha> <external-rule-policy>
   twilight-burokrat inspect-performance-sources <repository> <committed-sha> <external-rule-policy>
   twilight-burokrat inspect-spec-sources <repository> <committed-sha>
+  twilight-burokrat inspect-browser-performance <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <external-authority>
+  twilight-burokrat inspect-browser-architecture <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <external-authority>
+  twilight-burokrat inspect-browser-conformance <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <external-authority>
   twilight-burokrat inspect-browser-memberships <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <external-authority>
   twilight-burokrat inspect-performance-levels <repository> <committed-sha> <external-facts-authority> <external-rule-policy>
+  twilight-burokrat inspect-scenario-ledger <repository> <committed-sha> <external-rule-policy> <external-level-authority> <capability> <external-ledger-authority> --now <UTC instant>
   twilight-burokrat inspect-performance-scenarios <repository> <committed-sha> <external-rule-policy> <external-level-authority> <capability>
   twilight-burokrat inspect-level-facts <repository> <committed-sha> <external-authority>
   twilight-burokrat inspect-manual <repository> <committed-sha> <external-rule-policy> <report-path> --now <UTC instant>

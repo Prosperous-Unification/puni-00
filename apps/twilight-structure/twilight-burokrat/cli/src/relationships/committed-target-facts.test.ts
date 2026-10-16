@@ -83,6 +83,8 @@ describe('current nx-target facts in the committed relationship declarations', (
       // both declaration comparisons on the missing input, matching the production pilot refusal.
       // Proof (2026-10-15): retaining cache:true after the installed-byte suite became
       // uncached failed both declarations on check.wiki-cli.test (expected false, received true).
+      // Proof (2026-10-16): retaining `bun test` after the target selected `bun test ./src`
+      // failed both declarations on check.wiki-cli.test's command (one changed line each).
       for (const fact of facts) {
         const live = targets.find(
           (target) => target.project === fact.project && target.target === fact.target,

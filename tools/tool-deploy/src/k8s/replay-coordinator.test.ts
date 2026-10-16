@@ -76,7 +76,9 @@ function fixture() {
   roots.push(root);
   const path = join(root, 'journal.sqlite');
   const db = new Database(path);
-  db.run('CREATE TABLE command_journal (payload TEXT, inverse TEXT, preconditions TEXT)');
+  db.run(
+    'CREATE TABLE __drizzle_migrations (name TEXT); CREATE TABLE command_journal (payload TEXT, inverse TEXT, preconditions TEXT)',
+  );
   db.query('INSERT INTO command_journal VALUES (?, ?, ?)').run(
     JSON.stringify({ forward: { do: 'patch' } }),
     JSON.stringify({
@@ -492,3 +494,31 @@ for (const supportsDelete of [false, true]) {
     }
   });
 }
+
+for (const incompatible of [old.images.backend, incoming.images.backend]) {
+  it(`refuses enabled-empty activation unsupported by exact image ${incompatible}`, async () => {
+    const { fake, vocabularies, run } = fixture();
+    fake.observeReplayInventory = () =>
+      Promise.resolve([{ kind: 'step_blockage_activation_v1', count: 1 }]);
+    for (const image of [old.images.backend, incoming.images.backend])
+      vocabularies.set(image, image === incompatible ? [] : ['step_blockage_activation_v1']);
+    expect(await rejectedMessage(run())).toContain(
+      `step_blockage_activation_v1 (1) unsupported by ${incompatible}`,
+    );
+    expect(fake.calls).not.toContain('capture');
+    expect(fake.calls).not.toContain('migrate');
+    expect(fake.writesOpen).toBe(incompatible === incoming.images.backend);
+  });
+}
+
+it('preserves enabled-empty admission in the durable coordinator receipt', async () => {
+  const { fake, journal, vocabularies, run } = fixture();
+  fake.observeReplayInventory = () =>
+    Promise.resolve([{ kind: 'step_blockage_activation_v1', count: 1 }]);
+  for (const image of [old.images.backend, incoming.images.backend])
+    vocabularies.set(image, ['step_blockage_activation_v1']);
+  expect((await run()).phase).toBe('lease-released');
+  expect(journal.read()?.state.replayForward?.inventory).toEqual([
+    { kind: 'step_blockage_activation_v1', count: 1 },
+  ]);
+});

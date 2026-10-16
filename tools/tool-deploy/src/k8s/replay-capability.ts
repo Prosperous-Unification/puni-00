@@ -1,3 +1,5 @@
+import { inventoryStepBlockageActivation } from '@tools/step-blockage-inventory';
+
 /** An observation belongs only to the exact backend image that executed its own CLI. */
 export interface ReplayCapabilities {
   image: string;
@@ -69,6 +71,8 @@ if (!path) throw new Error('DB_PATH must be set');
 // Proof: absent file and chmod 000 on the fixture database both refused in the trusted-state test.
 const db=new Database(path,{readonly:true,create:false});
 try {
+  ${inventoryStepBlockageActivation.toString()}
+  const activation=inventoryStepBlockageActivation(db);
   const exists=db.query("SELECT name FROM sqlite_master WHERE type='table' AND name='command_journal'").get();
   // Proof: treating a missing journal as empty failed the trusted-database refusal fixture.
   if (exists===null) throw new Error('command journal table is missing');
@@ -114,7 +118,7 @@ let deletions=0;
     if (hasGuardedMove) moves++;
     if (hasDeletionState) deletions++;
   }
-  console.log(JSON.stringify([...(count===0?[]:[{kind:'replace_blockage',count}]),...(moves===0?[]:[{kind:'move_progress_v1',count:moves}]),...(deletions===0?[]:[{kind:'delete_state_v1',count:deletions}])]));
+  console.log(JSON.stringify([...activation,...(count===0?[]:[{kind:'replace_blockage',count}]),...(moves===0?[]:[{kind:'move_progress_v1',count:moves}]),...(deletions===0?[]:[{kind:'delete_state_v1',count:deletions}])]));
 } finally {db.close();}`,
   ];
 }

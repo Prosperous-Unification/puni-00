@@ -106,6 +106,10 @@
       "@wbs/contracts/solver/supervisor-protocol": [
         "./libs/wbs/adapters/solver-supervisor-protocol/src/index.ts"
       ],
+      "@tools/step-blockage-inventory": [
+        "./tools/tool-remote-scripts/src/lib/step-blockage-inventory.ts"
+      ],
+      "@tools/docker": ["./tools/tool-remote-scripts/src/lib/docker.ts"],
       "@tools/deploy-contract": ["./tools/tool-remote-scripts/src/lib/deploy-contract.ts"],
       "@tools/compose": ["./tools/tool-compose/src/index.ts"],
       "@tools/test-scratch": ["./tools/test/scratch/index.ts"],

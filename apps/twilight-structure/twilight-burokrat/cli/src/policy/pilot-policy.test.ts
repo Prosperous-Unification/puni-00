@@ -464,6 +464,8 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     // production lint with authority-selector mismatch after all frozen tuple assertions passed.
     // Proof (2026-10-15): retaining cache:true in check.wiki-cli.test after disabling its cache
     // refused production lint with authority-selector mismatch (expected true, received false).
+    // Proof (2026-10-16): retaining `bun test` after the target selected `bun test ./src`
+    // refused production lint with `fact check.wiki-cli.test authority-selector mismatch`.
     // Proof (2026-10-12): omitting use-attempt-actions.ts from plan-commands' mapped consumers
     // while its index declared that production importer failed this case with exit 1 and
     // `pilot module external consumers disagree with index …/plan-commands/README.md` (0/1).
@@ -590,6 +592,34 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
       'unindexed candidate path in libs/wbs/domain/domain/src/saved-plan/README.md: libs/wbs/domain/domain/src/saved-plan/canonical-plan-input.ts',
     );
   }, 120_000);
+
+  test('refuses a stale Burokrat test command without its literal source selection', () => {
+    const candidate = createCandidate();
+    const declarationPath = join(candidate.repository, 'docs/wiki-policy/relationships.json');
+    const declaration = JSON.parse(readFileSync(declarationPath, 'utf8')) as {
+      facts: {
+        factId: string;
+        expectedConfiguration?: { options: { command: string } };
+      }[];
+    };
+    const target = declaration.facts.find((fact) => fact.factId === 'check.wiki-cli.test');
+    if (target?.expectedConfiguration === undefined) throw new Error('missing Burokrat test fact');
+    expect(target.expectedConfiguration.options.command).toContain('bun test ./src ');
+    target.expectedConfiguration.options.command =
+      target.expectedConfiguration.options.command.replace('bun test ./src ', 'bun test ');
+    write(declarationPath, `${JSON.stringify(declaration)}\n`);
+    git(candidate.repository, ['add', declarationPath]);
+    git(candidate.repository, ['commit', '--quiet', '--message', 'restore stale test selection']);
+    candidate.revision = git(candidate.repository, ['rev-parse', 'HEAD']);
+    const trust = createExternalTrust(candidate);
+
+    const invocation = lint(candidate, trust);
+    const observed = output(invocation);
+    // Proof: bypassing the authority comparison only for check.wiki-cli.test accepted the
+    // stale command in production observe lint; this case failed Expected: 1 / Received: 0.
+    expect(invocation.exitCode, observed).toBe(1);
+    expect(observed).toContain('fact check.wiki-cli.test authority-selector mismatch');
+  }, 240_000);
 
   test('refuses prose facts presented as applicable checks', () => {
     const candidate = createCandidate();

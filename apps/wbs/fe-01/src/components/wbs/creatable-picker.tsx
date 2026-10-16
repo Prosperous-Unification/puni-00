@@ -103,6 +103,7 @@ export const PICKER_PANEL_STYLE = {
   overflowY: 'auto',
 } as const satisfies CSSProperties;
 
+/** Directory options scroll to the active row; on a modal surface a line is cut with an ellipsis within the search width. */
 export function PickerList({
   id,
   label,

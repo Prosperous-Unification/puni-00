@@ -1535,7 +1535,11 @@
      end in an ellipsis instead (`creatable-picker.tsx`).
      Proof: without this rule, `a long option is cut with an ellipsis and
      never scrolls the sheet sideways` (`e2e/reference-cells.spec.ts`) failed
-     on `the sheet scrolled sideways`, `Received: 73`. Watched 2026-10-16. */
+     on `the sheet scrolled sideways`, `Received: 73`. Watched 2026-10-16.
+     This is also the one rule behind the reference round-trip's `scrollLeft`
+     guard from #504, which fixed the same flake by wrapping the lines in
+     bottom sheets instead; the two were merged into this one rule set
+     (truncate, the app's chip rule) and #504's wrap rules dropped. */
   [data-modal-surface] [data-picker-list] {
     max-width: 100%;
   }

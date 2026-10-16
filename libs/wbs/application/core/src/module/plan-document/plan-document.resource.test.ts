@@ -1024,3 +1024,20 @@ test('v9 trusted export refuses a malformed leaf blockage map', async () => {
   Reflect.set(tree.workItems[0] ?? {}, 'blockages', []);
   expect(await exportError(tree)).toMatch(/malformed blockages/);
 });
+
+test('plan document excludes derived node resources from isolated and captured exports', async () => {
+  const tree = structuredClone(TREE);
+  const row = tree.workItems.at(0);
+  if (row === undefined) throw new Error('missing fixture row');
+  row.nodeResources = {
+    'step-1': {
+      nodeId: 'sn1.w.s',
+      assignment: { kind: 'unassigned' },
+      teams: { kind: 'unstated' },
+      maxParallel: 3,
+      width: 3,
+    },
+  };
+  const exported = await exportDocument(tree);
+  expect(exported.workItems[0]).not.toHaveProperty('nodeResources');
+});

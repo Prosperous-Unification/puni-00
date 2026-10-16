@@ -22,6 +22,9 @@ for (const fault of ['none', 'migration-interruption'] as const) {
     try {
       cpSync(join(backend, 'drizzle'), join(root, 'drizzle'), { recursive: true });
       rmSync(join(root, 'drizzle', activation), { recursive: true });
+      rmSync(join(root, 'drizzle', '20261015100000_add_step_blockage_activation_receipt'), {
+        recursive: true,
+      });
       const cli = (file: string, args: string[]) =>
         Bun.spawnSync([process.execPath, 'run', join(backend, file), ...args], {
           cwd: root,
@@ -66,15 +69,21 @@ for (const fault of ['none', 'migration-interruption'] as const) {
       let stopped = false;
       let booted = false;
       const command = (args: string[]): string => {
+        if (args[0] === 'image' && args[3] === '{{json .}}')
+          return JSON.stringify({ Id: `sha256:${'b'.repeat(64)}` });
         if (args[0] === 'image') return image;
         if (args[0] === 'run') return '[]';
         if (args[0] === 'ps') return oldId;
-        if (args[0] === 'inspect' && args[1] === oldId)
+        if (
+          args[0] === 'inspect' &&
+          (args[1] === oldId || (args[1] === '--type' && args[3] === oldId))
+        )
           return JSON.stringify([
             {
               Id: oldId,
+              Image: `sha256:${'b'.repeat(64)}`,
               Name: '/be-01-blue',
-              Config: { Env: ['DB_PATH=/data/plan.db'] },
+              Config: { Image: image, Env: ['DB_PATH=/data/plan.db'] },
               Mounts: [{ Type: 'bind', Source: `${ROOT}/data`, Destination: '/data', RW: true }],
             },
           ]);
