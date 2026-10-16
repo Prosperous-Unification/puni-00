@@ -249,6 +249,7 @@ test('refuses inline escaped-newline and Unicode-separator ingress markers', asy
   for (const output of [
     'metadata: CHECK FAILED: web serves index.html',
     'metadata: error: CHECK FAILED: web serves index.html',
+    '\u001b[0mmetadata: \u001b[31merror\u001b[0m: CHECK FAILED: web serves index.html',
     'metadata: ' + JSON.stringify('\nerror: CHECK FAILED: web serves index.html'),
     'metadata: \u2028error: CHECK FAILED: web serves index.html',
     'metadata: \u2029CHECK FAILED: web serves index.html',

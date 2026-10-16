@@ -98,3 +98,22 @@ The authoritative classifier now accepts a failure prefix only at the start of o
 Both mutations were restored before final validation. Final focused tests: 37 passed, 0 failed; [actual output](evidence/classifier-focused-tests.log). Scoped Nx lint/typecheck/build and changed-file formatting passed; OpenSpec reported 222 passed and 0 failed. Exact outputs are retained as [Nx](evidence/classifier-nx-scoped.log), [format](evidence/classifier-format-scoped.log) and [OpenSpec](evidence/classifier-openspec.json). Same offline commands and fixture boundaries as sections 5 and 7. No full-tree format rerun, live acceptance, host gate, push or deployment was performed. Previously documented broader sampler and full-tree formatting limitations remain.
 
 The classifier repair commit is a direct child of `1a8e09ed564fcdd7c1e1e2fde47b6780de87a855`; its exact SHA and clean tree are reported in the handoff.
+
+## 9. Hosted CI terminal-format repair child of e7201df0
+
+Hosted workspace job `116755664392` failed two HTTP tests because Nx inherited `FORCE_COLOR=1`: Bun inserts VT sequences between `error`, `:` and the checker message. The coordinator could not recognize a real completed-response denial, and the spoofing regression's literal message assertion could not recognize its body-limit refusal. This restores the existing authoritative-line contract; no delta behavior or live acceptance claim is added.
+
+In an isolated checkout based exactly on `e7201df07f7e72f5a791a6f8546fe213ea320aeb`, `FORCE_COLOR=1 bun test tools/tool-devsync/src/k3s/forge-http-observation.test.ts tools/tool-devsync/src/k3s/forge-recovery-check.test.ts` reproduced the same two failures: 35 passed, 2 failed ([original red](evidence/ci-color-original-red.log)). The tests now force color in real checker children even when the parent has no color. Normalizing only the text assertion left the coordinator regression failing before production repair: 36 passed, 1 failed ([test-first red](evidence/ci-color-test-first-red.log)).
+
+The coordinator removes terminal formatting at its external checker-output boundary before applying the existing LF-only authoritative prefix matcher. The real forced-color completed-response denial earns ingress credit; transport/deadline/body-limit failures, inline metadata, escaped newlines and Unicode separators still refuse credit. A colored inline metadata fixture extends the existing refusal coverage. The raw checker output reaches the coordinator unchanged in the integration regressions.
+
+R5 watched negative: removing only the authoritative line boundary while retaining normalization made the actual oversized-response checker with forged content type earn ingress credit: the regression expected `fail` and observed `pass` ([boundary negative](evidence/ci-color-boundary-negative.log)). Removing normalization was observed in the test-first red above. Both faults were absent during final checks, and the production checks retain adjacent `Proof:` comments.
+
+Final checks in `/tmp/f9-516-ci-repair`:
+
+- Focused forced-color command above: 37 passed, 0 failed ([output](evidence/ci-color-focused-tests.log)).
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint typecheck build -p tool-devsync --skip-nx-cache --output-style=static`: passed, including six dependency tasks ([output](evidence/ci-color-nx-scoped.log)).
+- `bunx prettier --check` on the three changed TypeScript files and this verify document: passed.
+- `bun /tmp/puni-ci-repair-openspec-tool/node_modules/@fission-ai/openspec/bin/openspec.js validate --all --json` (existing OpenSpec 1.12.0): 222 passed, 0 failed ([output](evidence/ci-color-openspec.json)). The initial unqualified `bunx openspec` was unavailable and failed resolving its temporary directory; the pinned existing CLI completed validation.
+
+The first sandboxed test attempt could not listen on loopback (`EPERM`); approved local fixture runs produced the red/green receipts above. Dependencies are reused via the existing checkout's node_modules symlink; no frozen install was claimed. Full tool-devsync tests, full-tree formatting, the host gate, live lab, push, merge and deployment were not run. All previous live acceptance and sampler limitations remain. The commit SHA and clean tree are reported in the handoff.

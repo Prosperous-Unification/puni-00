@@ -1,0 +1,63 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/forge-http-observation.test.ts:
+(pass) records response identity and root marker without retaining response content [4.68ms]
+(pass) retains denial status and refuses a missing root marker [4.92ms]
+(pass) bounds both missing headers and a response body that never ends [82.70ms]
+(pass) refuses oversized and redirected responses [2.65ms]
+(pass) convergence preserves immediate failure despite later success and uses GET only [101.00ms]
+(pass) permanent denial converges to bounded refusal [70.73ms]
+(pass) rejects external authority, credentials, non-root paths and invalid bounds before fetching [2.16ms]
+174 |   expect(output).toContain('"contentType":"text/plain"');
+175 |   expect(output).toContain('"rootMarker":false');
+176 |   expect(output).toContain('"durationMs":');
+177 |   expect(methods).toEqual(['GET']);
+178 |   const verdict = await judgeDeniedChecker({ exitCode: await child.exited, output });
+179 |   expect(verdict.ingressNegative).toBe('pass');
+                                        ^
+error: expect(received).toBe(expected)
+
+Expected: "pass"
+Received: "fail"
+
+      at <anonymous> (/tmp/f9-516-ci-repair/tools/tool-devsync/src/k3s/forge-http-observation.test.ts:179:35)
+(fail) checker first failure emits evidence before any mutating phase [672.26ms]
+(pass) rejects credentials before opening the local fixture connection [0.91ms]
+(pass) rejects invalid request deadline without fetching [0.72ms]
+(pass) read-only CLI refuses mutation arguments before opening a connection [15.69ms]
+(pass) records connection refusal with absent response evidence [1.15ms]
+(pass) read-only observer sends GET and refuses even a local redirect [1.31ms]
+(pass) production checker transport deadline and body-limit failures never earn ingress credit [3946.90ms]
+(pass) retains a split root marker when the response later hangs or resets [213.10ms]
+(pass) retains root marker in the allowed prefix of an oversized chunk [1.74ms]
+(pass) convergence clamps slow initial and final requests and oversized pauses to its window [241.69ms]
+(pass) real checker metadata cannot spoof an authoritative ingress failure line [691.10ms]
+
+tools/tool-devsync/src/k3s/forge-recovery-check.test.ts:
+(pass) accepts MCP ingress refusal and executes restored full positive [0.46ms]
+(pass) preserves first OOM even when a later automatic container becomes ready [0.18ms]
+(pass) rejects cold restart without an observed OOM [49.89ms]
+(pass) rejects foreign Pod UID after PID1 termination [0.29ms]
+(pass) rejects unchanged container after PID1 termination [4.26ms]
+(pass) rejects unchanged restart count after PID1 termination [4.97ms]
+(pass) rejects omitted ingress negative even when both positive checkers pass [0.31ms]
+(pass) rejects unrelated checker failure as ingress proof [0.15ms]
+(pass) rejects policy restoration mismatch and still cleans up [0.25ms]
+(pass) records cleanup refusal independently and denies overall acceptance [0.18ms]
+(pass) parses first-container OOM before a replacement status exists [0.29ms]
+(pass) rejects malformed status rather than inventing a ready identity [0.06ms]
+(pass) models not-yet-created container status as pending startup [0.02ms]
+(pass) does not credit ingress negative when preceding positive checker failed [0.14ms]
+(pass) does not label a deliberate SIGKILL exit 137 as an OOM [0.06ms]
+(pass) accepts captured API edge-proxy denial after an immediately preceding full positive [0.20ms]
+(pass) refuses platform-only memory samples as first forge-container evidence [0.13ms]
+(pass) requires memory current, peak, events and RSS in the first source cgroup [0.09ms]
+(pass) refuses inline escaped-newline and Unicode-separator ingress markers [0.71ms]
+
+1 tests failed:
+(fail) checker first failure emits evidence before any mutating phase [672.26ms]
+
+ 36 pass
+ 1 fail
+ 106 expect() calls
+Ran 37 tests across 2 files. [6.17s]

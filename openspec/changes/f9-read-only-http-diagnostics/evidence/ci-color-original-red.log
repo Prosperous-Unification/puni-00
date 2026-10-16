@@ -1,0 +1,77 @@
+[0m[1mbun test [0m[2mv1.4.2 (744846f84)[0m
+[0m
+tools/tool-devsync/src/k3s/forge-http-observation.test.ts:
+[0m[32m✓[0m[0m[1m records response identity and root marker without retaining response content[0m [0m[2m[3.62ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m retains denial status and refuses a missing root marker[0m [0m[2m[3.01ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m bounds both missing headers and a response body that never ends[0m [0m[2m[[1m82.34ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses oversized and redirected responses[0m [0m[2m[3.30ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m convergence preserves immediate failure despite later success and uses GET only[0m [0m[2m[[1m101.83ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m permanent denial converges to bounded refusal[0m [0m[2m[[1m69.91ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects external authority, credentials, non-root paths and invalid bounds before fetching[0m [0m[2m[1.38ms[0m[2m][0m
+[0m[1m168 |[0m   expect(output)[0m[3m[1m.toContain[0m([0m[32m'"contentType":"text/plain"'[0m)[0m[2m;[0m
+[0m[1m169 |[0m   expect(output)[0m[3m[1m.toContain[0m([0m[32m'"rootMarker":false'[0m)[0m[2m;[0m
+[0m[1m170 |[0m   expect(output)[0m[3m[1m.toContain[0m([0m[32m'"durationMs":'[0m)[0m[2m;[0m
+[0m[1m171 |[0m   expect(methods)[0m[3m[1m.toEqual[0m([[0m[32m'GET'[0m])[0m[2m;[0m
+[0m[1m172 |[0m   [0m[35mconst[0m verdict = [0m[35mawait[0m judgeDeniedChecker({ exitCode: [0m[35mawait[0m child.exited, output })[0m[2m;[0m
+[0m[1m173 |[0m   expect(verdict.ingressNegative)[0m[3m[1m.toBe[0m([0m[32m'pass'[0m)[0m[2m;[0m
+                                        [31m[1m^[0m
+[0m[31merror[0m[2m:[0m [1m[2mexpect([0m[31mreceived[0m[2m).[0mtoBe[2m([0m[32mexpected[0m[2m)[0m
+
+Expected: [0m[32m"[0m[32mpass[0m[32m"[0m
+Received: [0m[31m"[0m[31mfail[0m[31m"[0m
+[0m
+[0m      [2mat [0m[0m[2m<anonymous>[0m[2m ([0m[0m[36m[2m/tmp/f9-516-ci-repair/[0m[36mtools/tool-devsync/src/k3s/forge-http-observation.test.ts[0m[2m:[0m[33m173[0m[2m:[33m35[0m[2m)[0m
+[0m[31m✗[0m[0m[1m checker first failure emits evidence before any mutating phase[0m [0m[2m[[1m700.10ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects credentials before opening the local fixture connection[0m [0m[2m[1.28ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects invalid request deadline without fetching[0m [0m[2m[1.03ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m read-only CLI refuses mutation arguments before opening a connection[0m [0m[2m[[1m18.63ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m records connection refusal with absent response evidence[0m [0m[2m[1.44ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m read-only observer sends GET and refuses even a local redirect[0m [0m[2m[1.25ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m production checker transport deadline and body-limit failures never earn ingress credit[0m [0m[2m[[1m4057.13ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m retains a split root marker when the response later hangs or resets[0m [0m[2m[[1m212.62ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m retains root marker in the allowed prefix of an oversized chunk[0m [0m[2m[2.14ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m convergence clamps slow initial and final requests and oversized pauses to its window[0m [0m[2m[[1m242.55ms[0m[2m][0m
+[0m[1m392 |[0m         headers: { [0m[32m'content-type'[0m: [0m[32m'text/plain; CHECK FAILED: web serves index.html'[0m },
+[0m[1m393 |[0m       }),
+[0m[1m394 |[0m   )[0m[2m;[0m
+[0m[1m395 |[0m   [0m[35mconst[0m checker = [0m[35mawait[0m runFailedChecker(origin)[0m[2m;[0m
+[0m[1m396 |[0m   expect(checker.exitCode).not[0m[3m[1m.toBe[0m([0m[33m0[0m)[0m[2m;[0m
+[0m[1m397 |[0m   expect(checker.output)[0m[3m[1m.toContain[0m([0m[32m'error: CHECK FAILED: web observation body-limit;'[0m)[0m[2m;[0m
+                               [31m[1m^[0m
+[0m[31merror[0m[2m:[0m [1m[2mexpect([0m[31mreceived[0m[2m).[0mtoContain[2m([0m[32mexpected[0m[2m)[0m
+
+Expected to contain: [32m"error: CHECK FAILED: web observation body-limit;"[0m
+Received: [31m"\u001B[0m\u001B[1m71 |\u001B[0m     ),\n\u001B[0m\u001B[1m72 |\u001B[0m   }\u001B[0m\u001B[2m;\u001B[0m\n\u001B[0m\u001B[1m73 |\u001B[0m }\n\u001B[0m\u001B[1m74 |\u001B[0m \n\u001B[0m\u001B[1m75 |\u001B[0m \u001B[0m\u001B[35mfunction\u001B[0m check(condition: \u001B[0m\u001B[34mboolean\u001B[0m, message: \u001B[0m\u001B[34mstring\u001B[0m): \u001B[0m\u001B[35mvoid\u001B[0m {\n\u001B[0m\u001B[1m76 |\u001B[0m   \u001B[0m\u001B[35mif\u001B[0m (!condition) \u001B[0m\u001B[35mthrow\u001B[0m \u001B[0m\u001B[35mnew\u001B[0m \u001B[0m\u001B[1mError\u001B[0m(\u001B[0m\u001B[32m`CHECK FAILED: \u001B[0m${message}\u001B[0m\u001B[32m`\u001B[0m)\u001B[0m\u001B[2m;\u001B[0m\n                                 \u001B[31m\u001B[1m^\u001B[0m\n\u001B[0m\u001B[31merror\u001B[0m\u001B[2m:\u001B[0m \u001B[1mCHECK FAILED: web observation body-limit; observation={\"path\":\"/\",\"status\":200,\"contentType\":\"text/plain; CHECK FAILED: web serves index.html\",\"rootMarker\":false,\"durationMs\":2.577682999999979,\"failure\":\"body-limit\"}\u001B[0m\n\u001B[0m      \u001B[2mat \u001B[0m\u001B[0m\u001B[1m\u001B[3mcheck\u001B[0m\u001B[2m (\u001B[0m\u001B[0m\u001B[36m\u001B[2m/tmp/f9-516-ci-repair/\u001B[0m\u001B[36mtools/tool-devsync/src/k3s/dev-environment-check.ts\u001B[0m\u001B[2m:\u001B[0m\u001B[33m76\u001B[0m\u001B[2m:\u001B[33m29\u001B[0m\u001B[2m)\u001B[0m\n\u001B[0m      \u001B[2mat \u001B[0m\u001B[0m\u001B[1m\u001B[3mcheckHttp\u001B[0m\u001B[2m (\u001B[0m\u001B[0m\u001B[36m\u001B[2m/tmp/f9-516-ci-repair/\u001B[0m\u001B[36mtools/tool-devsync/src/k3s/dev-environment-check.ts\u001B[0m\u001B[2m:\u001B[0m\u001B[33m145\u001B[0m\u001B[2m:\u001B[33m3\u001B[0m\u001B[2m)\u001B[0m\n\u001B[0m\n\u001B[2mBun v1.4.2 (Linux x64)\u001B[0m\n"[0m
+[0m
+[0m      [2mat [0m[0m[2m<anonymous>[0m[2m ([0m[0m[36m[2m/tmp/f9-516-ci-repair/[0m[36mtools/tool-devsync/src/k3s/forge-http-observation.test.ts[0m[2m:[0m[33m397[0m[2m:[33m26[0m[2m)[0m
+[0m[31m✗[0m[0m[1m real checker metadata cannot spoof an authoritative ingress failure line[0m [0m[2m[[1m650.12ms[0m[2m][0m
+[0m
+tools/tool-devsync/src/k3s/forge-recovery-check.test.ts:
+[0m[32m✓[0m[0m[1m accepts MCP ingress refusal and executes restored full positive[0m [0m[2m[0.52ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m preserves first OOM even when a later automatic container becomes ready[0m [0m[2m[0.18ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects cold restart without an observed OOM[0m [0m[2m[[1m52.24ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects foreign Pod UID after PID1 termination[0m [0m[2m[0.43ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects unchanged container after PID1 termination[0m [0m[2m[4.23ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects unchanged restart count after PID1 termination[0m [0m[2m[4.96ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects omitted ingress negative even when both positive checkers pass[0m [0m[2m[0.44ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects unrelated checker failure as ingress proof[0m [0m[2m[0.25ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects policy restoration mismatch and still cleans up[0m [0m[2m[0.33ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m records cleanup refusal independently and denies overall acceptance[0m [0m[2m[0.24ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m parses first-container OOM before a replacement status exists[0m [0m[2m[0.36ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects malformed status rather than inventing a ready identity[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m models not-yet-created container status as pending startup[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m does not credit ingress negative when preceding positive checker failed[0m [0m[2m[0.20ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m does not label a deliberate SIGKILL exit 137 as an OOM[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m accepts captured API edge-proxy denial after an immediately preceding full positive[0m [0m[2m[0.22ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses platform-only memory samples as first forge-container evidence[0m [0m[2m[0.13ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m requires memory current, peak, events and RSS in the first source cgroup[0m [0m[2m[0.10ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses inline escaped-newline and Unicode-separator ingress markers[0m [0m[2m[0.63ms[0m[2m][0m
+
+[0m[2m2 tests failed:[0m
+[0m[31m✗[0m[0m[1m checker first failure emits evidence before any mutating phase[0m [0m[2m[[1m700.10ms[0m[2m][0m
+[0m[31m✗[0m[0m[1m real checker metadata cannot spoof an authoritative ingress failure line[0m [0m[2m[[1m650.12ms[0m[2m][0m
+
+[0m[32m 35 pass[0m
+[0m[31m 2 fail[0m
+ 101 expect() calls
+Ran 37 tests across 2 files. [0m[2m[[1m6.26s[0m[2m][0m

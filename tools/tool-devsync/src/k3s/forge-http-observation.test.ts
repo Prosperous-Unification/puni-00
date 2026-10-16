@@ -1,4 +1,5 @@
 import { rejects } from 'node:assert/strict';
+import { stripVTControlCharacters } from 'node:util';
 
 import { afterEach, expect, test } from 'bun:test';
 
@@ -158,7 +159,12 @@ test('checker first failure emits evidence before any mutating phase', async () 
       '--pod',
       'dev-test',
     ],
-    { cwd: new URL('../../../../', import.meta.url).pathname, stdout: 'pipe', stderr: 'pipe' },
+    {
+      cwd: new URL('../../../../', import.meta.url).pathname,
+      env: { ...process.env, FORCE_COLOR: '1', NO_COLOR: undefined },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
   );
   const output = await new Response(child.stderr).text();
   expect(await child.exited).not.toBe(0);
@@ -254,7 +260,12 @@ async function runFailedChecker(origin: string): Promise<{ exitCode: number; out
       '--pod',
       'dev-test',
     ],
-    { cwd: new URL('../../../../', import.meta.url).pathname, stdout: 'pipe', stderr: 'pipe' },
+    {
+      cwd: new URL('../../../../', import.meta.url).pathname,
+      env: { ...process.env, FORCE_COLOR: '1', NO_COLOR: undefined },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
   );
   const timeout = setTimeout(() => {
     child.kill('SIGKILL');
@@ -394,7 +405,9 @@ test('real checker metadata cannot spoof an authoritative ingress failure line',
   );
   const checker = await runFailedChecker(origin);
   expect(checker.exitCode).not.toBe(0);
-  expect(checker.output).toContain('error: CHECK FAILED: web observation body-limit;');
+  expect(stripVTControlCharacters(checker.output)).toContain(
+    'error: CHECK FAILED: web observation body-limit;',
+  );
   expect(checker.output).toContain(
     '"contentType":"text/plain; CHECK FAILED: web serves index.html"',
   );
