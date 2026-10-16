@@ -97,7 +97,7 @@ const renameGoneReply = (): SavedPlanRenameReply => ({
  */
 const fakeDeps = (start: readonly SavedPlanListEntryView[] = [ROW]) => {
   let shelf = [...start];
-  let fire: (() => void) | undefined;
+  let fire: ((changed?: string | null) => void) | undefined;
   const list = vi.fn(() => Promise.resolve(listReply(shelf)));
   const save = vi.fn((): Promise<SavedPlanSaveReply> => Promise.resolve(saveReply(NEWER)));
   const compare = vi.fn((): Promise<SavedPlanCompareReply> =>
@@ -143,7 +143,11 @@ const fakeDeps = (start: readonly SavedPlanListEntryView[] = [ROW]) => {
     setShelf: (rows: readonly SavedPlanListEntryView[]) => {
       shelf = [...rows];
     },
-    broadcast: () => fire?.(),
+    /**
+     * One frame on the project's stream. `changed` is the event's type as
+     * `subscribeToProject` reports it; none is a frame whose type is unknown.
+     */
+    broadcast: (changed?: string | null) => fire?.(changed),
   };
 };
 
@@ -453,8 +457,8 @@ describe('the saved-plans panel', () => {
     expect(screen.getByText('the first answer')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Compare again' })).toBeNull();
 
-    // The plan moved: a collaborator saved, and be-01 published on the plan's
-    // stream. The next comparison would say something else.
+    // The plan moved: a collaborator edited it, and be-01 published on the
+    // plan's stream. The next comparison would say something else.
     wiring.setShelf([NEWER, ROW]);
     wiring.compare.mockResolvedValue(
       compareReply({
@@ -472,6 +476,125 @@ describe('the saved-plans panel', () => {
     // else's save is exactly what AC #4 forbids.
     expect(screen.getByText('the first answer')).toBeTruthy();
     expect(screen.queryByText('the second answer')).toBeNull();
+  });
+
+  itDom(
+    'a save, a delete or a collaborator’s shelf change is not a plan change (F-100)',
+    async () => {
+      /*
+      F-100. The shelf re-reads on every `saved_plans_changed`, so its rows are a
+      new array after a save, a delete or a rename, and none of those moved
+      either side of the comparison on screen: the live plan was not edited and
+      a saved plan never changes. The banner said it had.
+    */
+      const wiring = fakeDeps([ROW]);
+      render(<SavedPlansPanelOver projectId="p1" routes={wiring.deps} />);
+      await flush();
+      expect(wiring.compare).toHaveBeenLastCalledWith('p1', { saved: ROW.id }, 'current');
+      const banner = () => screen.queryByText(/has changed since the comparison/);
+
+      // The reader saves a second plan, and their own event comes back.
+      wiring.setShelf([NEWER, ROW]);
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+      await flush();
+      await act(async () => {
+        wiring.broadcast('saved_plans_changed');
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      await waitFor(() => {
+        expect(screen.getAllByText(NEWER.name).length).toBeGreaterThan(0);
+      });
+      // Proof: on 2026-10-16, against 3e06eb5a4 (stale = `comparison.rows !== rows`), this failed
+      // on `expected <p role="status" class="flex-1"></p> to be null` right after the save; so did
+      // counting `saved_plans_changed` as a plan move in `openSavedPlans`.
+      expect(banner()).toBeNull();
+
+      // It deletes the plan the comparison is not about.
+      fireEvent.click(screen.getByRole('button', { name: `Delete saved plan ${NEWER.name}` }));
+      fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+      await flush();
+      await act(async () => {
+        wiring.broadcast('saved_plans_changed');
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      expect(banner()).toBeNull();
+
+      // A collaborator renames one: the list moved, the plans did not.
+      wiring.setShelf([{ ...ROW, name: 'renamed elsewhere' }]);
+      await act(async () => {
+        wiring.broadcast('saved_plans_changed');
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      expect(banner()).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Compare again' })).toBeNull();
+    },
+  );
+
+  itDom(
+    'an edit to the live plan, or an event it cannot name, is a plan change (F-100)',
+    async () => {
+      const wiring = fakeDeps([ROW]);
+      render(<SavedPlansPanelOver projectId="p1" routes={wiring.deps} />);
+      await flush();
+
+      // The live plan moves and the list does not: the same rows come back.
+      await act(async () => {
+        wiring.broadcast('work_items_changed');
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      // Proof: on 2026-10-16, with the live-plan half of the stale test removed (`moved = false`),
+      // this failed on `Unable to find an element with the text: /has changed since the
+      // comparison/`.
+      expect(screen.getByText(/has changed since the comparison/)).toBeTruthy();
+      fireEvent.click(screen.getByRole('button', { name: 'Compare again' }));
+      await flush();
+      expect(screen.queryByText(/has changed since the comparison/)).toBeNull();
+
+      // A frame whose type this side does not know may have moved anything (R5).
+      await act(async () => {
+        wiring.broadcast(null);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      expect(screen.getByText(/has changed since the comparison/)).toBeTruthy();
+    },
+  );
+
+  itDom(
+    'a comparison between two saved plans never goes stale on a plan edit (F-100)',
+    async () => {
+      // Both sides are checkpoints, and a checkpoint does not change: an edit to
+      // the live plan is news about neither.
+      const wiring = fakeDeps([NEWER, ROW]);
+      render(<SavedPlansPanelOver projectId="p1" routes={wiring.deps} />);
+      await flush();
+      fireEvent.change(screen.getByLabelText('with'), { target: { value: ROW.id } });
+      await flush();
+      expect(wiring.compare).toHaveBeenLastCalledWith('p1', { saved: NEWER.id }, { saved: ROW.id });
+
+      await act(async () => {
+        wiring.broadcast('work_items_changed');
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      // Proof: on 2026-10-16, with the stale test asking the revision whatever the sides were, this
+      // failed on `expected <p role="status" class="flex-1"></p> to be null`.
+      expect(screen.queryByText(/has changed since the comparison/)).toBeNull();
+    },
+  );
+
+  itDom('says when a collaborator deleted a plan the comparison is about (F-100)', async () => {
+    const wiring = fakeDeps([NEWER, ROW]);
+    render(<SavedPlansPanelOver projectId="p1" routes={wiring.deps} />);
+    await flush();
+    expect(wiring.compare).toHaveBeenLastCalledWith('p1', { saved: NEWER.id }, 'current');
+
+    wiring.setShelf([ROW]);
+    await act(async () => {
+      wiring.broadcast('saved_plans_changed');
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(screen.getByText('A plan in this comparison has been deleted.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Compare again' })).toBeTruthy();
+    expect(screen.queryByText(/has changed since the comparison/)).toBeNull();
   });
 
   itDom('brings the comparison up to date when the refresh is used', async () => {

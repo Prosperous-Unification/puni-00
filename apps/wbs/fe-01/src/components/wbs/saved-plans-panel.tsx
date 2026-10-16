@@ -137,6 +137,10 @@ export function SavedPlansPanel({
   savedPlans: SavedPlans;
 }) {
   const shelfState = useSyncExternalStore(savedPlans.shelf.subscribe, savedPlans.shelf.snapshot);
+  const livePlanRevision = useSyncExternalStore(
+    savedPlans.livePlanRevision.subscribe,
+    savedPlans.livePlanRevision.snapshot,
+  );
   const { state: saveState, save } = useSavedPlanSave(saveOf(savedPlans), projectId);
   /**
    * The last rows the shelf actually delivered, kept across a shelf that stops
@@ -227,6 +231,10 @@ export function SavedPlansPanel({
     // reason: changing a picker twice leaves two requests in flight and the
     // slower one is the older answer roughly half the time.
     let cancelled = false;
+    // Read when the question is asked, not when it is answered: an edit that
+    // lands while the request is in flight may or may not be in the answer, so
+    // the comparison counts it as newer than itself and offers to compare again.
+    const askedAt = savedPlans.livePlanRevision.snapshot();
     setComparison({ kind: 'loading' });
     void savedPlans
       .compare(left, right)
@@ -240,6 +248,7 @@ export function SavedPlansPanel({
               diff: reply.body.diff,
               schedules: resolveSideSchedules(left, right, reply.body.diff, rows),
               rows,
+              livePlanRevision: askedAt,
             };
           case 'failure':
             return { kind: 'error', code: savedPlanFailureCode(reply.failure) };
@@ -293,25 +302,40 @@ export function SavedPlansPanel({
   }, [savedPlans, left, right, asked]);
 
   /**
-   * Whether the shelf has moved under a comparison that is on screen.
+   * Why the comparison on screen no longer answers its own question, or `null`
+   * while it still does.
    *
-   * Identity and not contents, and that is the honest test rather than a lazy
-   * one: `rows` is a fresh array per read, and the shelf reads exactly when
-   * something happened to it — on mount, on a project change, on a broadcast,
-   * and on the refresh a save or a rename triggers. Comparing ids instead would
-   * call a broadcast "nothing changed" whenever the *list* was untouched, and
-   * that is wrong because the list is not the only side of the comparison that
-   * can move: `right` is usually `current`, so an ordinary plan broadcast leaves
-   * every saved-plan id unchanged while the live side moves out from under the
-   * comparison on screen. (A `saved_plans_changed` broadcast from a save or a
-   * delete changes the id set, so ids would have caught those two; a rename does
-   * not, and neither does the case above. Identity catches all of them.)
+   * **Only a side of the comparison moving counts, never the shelf's list
+   * (F-100).** The shelf re-reads on every `saved_plans_changed`, so its rows are
+   * a fresh array after a save, a rename or a delete — and none of those moved a
+   * side: a saved plan is immutable, and the live plan was not edited. Keyed on
+   * the rows' identity, the panel told the reader their plan had changed after
+   * they saved a second one. So the two sides are asked separately:
+   *
+   * - `current` moved when {@link SavedPlans.livePlanRevision} has passed the
+   *   revision the comparison was asked at — any broadcast but the shelf's own,
+   *   including the reader's own edits and frames this side cannot name;
+   * - a saved side moved only when it left the shelf: a collaborator deleted it.
+   *   The reader's own delete re-points the picker instead (see `remove`), which
+   *   asks a new comparison.
    *
    * Only over `ready`. There is nothing to leave alone while a comparison is
    * loading, refused or failed, and offering to refresh one of those would be
    * a second control for what the pickers already do.
    */
-  const stale = comparison.kind === 'ready' && comparison.rows !== rows;
+  const stale: 'plan_changed' | 'side_deleted' | null = useMemo(() => {
+    if (comparison.kind !== 'ready') return null;
+    const sides = [comparison.left, comparison.right];
+    const deleted = sides.some(
+      (side) => side !== 'current' && !rows.some((row) => row.id === side.saved),
+    );
+    // Proof: on 2026-10-16, with this test removed, `says when a collaborator deleted a plan the
+    // comparison is about (F-100)` failed on `Unable to find an element with the text: A plan in
+    // this comparison has been deleted.`.
+    if (deleted) return 'side_deleted';
+    const moved = sides.includes('current') && livePlanRevision !== comparison.livePlanRevision;
+    return moved ? 'plan_changed' : null;
+  }, [comparison, rows, livePlanRevision]);
 
   /**
    * What the last rename said, or `null` while none has anything to say.
@@ -511,10 +535,12 @@ export function SavedPlansPanel({
             the button are siblings so the live region announces the fact rather
             than reading out a control the reader has not reached yet.
           */}
-          {stale && (
+          {stale !== null && (
             <div className="saved-plans-panel__stale flex items-center gap-2 text-xs">
               <p role="status" className="flex-1">
-                This plan has changed since the comparison below was made.
+                {stale === 'plan_changed'
+                  ? 'This plan has changed since the comparison below was made.'
+                  : 'A plan in this comparison has been deleted.'}
               </p>
               <Button
                 variant="outline"

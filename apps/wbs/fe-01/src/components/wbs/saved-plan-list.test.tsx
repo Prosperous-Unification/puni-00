@@ -88,6 +88,27 @@ describe('the shelf', () => {
     expect(stamped.textContent).toContain('saved by ada');
   });
 
+  it('gives the meta line its whole sentence as a fact and breaks it only between clauses (F-103)', () => {
+    render(<SavedPlanList state={{ kind: 'ready', rows: [ROW] }} />);
+    const meta = screen.getByRole('listitem').querySelector('.saved-plan-list__meta');
+    // Proof: on 2026-10-16, against 3e06eb5a4, this failed on `expected null not to be null`
+    // — the meta line was one `truncate` span with no fact, cut mid-clause at 380 px.
+    expect(meta).not.toBeNull();
+    expect(meta?.getAttribute('data-fact')).toBe(
+      '4 Sep 2026, 06:00 saved by ada with its schedule',
+    );
+    // Wraps between clauses rather than ellipsising inside one; each clause holds together.
+    expect(meta?.className).toContain('flex-wrap');
+    expect(meta?.className).not.toContain('truncate');
+    const clauses = [...(meta?.children ?? [])];
+    expect(clauses.map((clause) => clause.textContent)).toEqual([
+      '4 Sep 2026, 06:00',
+      'saved by ada',
+      'with its schedule',
+    ]);
+    for (const clause of clauses) expect(clause.className).toContain('whitespace-nowrap');
+  });
+
   it('keeps the order it was handed', () => {
     // be-01 orders the shelf newest first and this component does not re-sort.
     // Sorting here would be a second opinion about "newest" held by a clock that
