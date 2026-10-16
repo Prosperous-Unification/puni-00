@@ -1,5 +1,6 @@
 import { APP_NAME, IMAGE_NAME, PORT } from './deploy-contract';
 import type { Color, Tier } from './state';
+import { inventoryStepBlockageActivation } from './step-blockage-inventory';
 
 /**
  * Pure command builders and output parsers for the Docker/Compose side of a
@@ -1226,6 +1227,8 @@ const path=process.env.DB_PATH;
 if (!path) throw new Error('DB_PATH must be set');
 const db=new Database(path,{readonly:true,create:false});
 try {
+  ${inventoryStepBlockageActivation.toString()}
+  const activation=inventoryStepBlockageActivation(db);
   const exists=db.query("SELECT name FROM sqlite_master WHERE type='table' AND name='command_journal'").get();
   if (exists===null) throw new Error('command journal table is missing');
   let count=0;
@@ -1263,7 +1266,7 @@ try {
     if (hasGuardedMove) moves++;
     if (hasDeletionState) deletions++;
   }
-  console.log(JSON.stringify([...(count===0?[]:[{kind:'replace_blockage',count}]),...(moves===0?[]:[{kind:'move_progress_v1',count:moves}]),...(deletions===0?[]:[{kind:'delete_state_v1',count:deletions}])]));
+  console.log(JSON.stringify([...activation,...(count===0?[]:[{kind:'replace_blockage',count}]),...(moves===0?[]:[{kind:'move_progress_v1',count:moves}]),...(deletions===0?[]:[{kind:'delete_state_v1',count:deletions}])]));
 } finally {db.close();}`,
   ];
 }

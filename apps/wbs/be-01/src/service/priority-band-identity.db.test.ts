@@ -538,6 +538,7 @@ describe('a priority ladder moves no date', () => {
           readiness,
           hold,
           nodeReadings,
+          nodeResources,
           blockages,
           blockageCauses,
           charged,
@@ -637,6 +638,23 @@ describe('a priority ladder moves no date', () => {
           expect(
             nodeReadings === undefined ? 'parent' : [...new Set(Object.values(nodeReadings))],
           ).toEqual(row.rolledUp ? 'parent' : ['unknown']);
+          // The historical capture predates live resources. Assert leaf membership,
+          // stable identity and stored parallelism before comparing the original fields.
+          // Proof: omitting production nodeResources failed both historical suites here
+          // (4 failing replays, undefined instead of per-step entries), 2026-10-16.
+          expect(nodeResources).toEqual(
+            row.rolledUp
+              ? undefined
+              : Object.fromEntries(
+                  tree.steps.map((step) => [
+                    step.id,
+                    expect.objectContaining({
+                      nodeId: `sn1.${row.id}.${step.id}`,
+                      maxParallel: row.maxParallel,
+                    }),
+                  ]),
+                ),
+          );
           // The capture predates blockage fields. An unstated leaf has no facts and an empty
           // cause list for every project step; parents expose neither field.
           // Proof (2026-10-14): phantom facts, omitted step causes and parent field leakage

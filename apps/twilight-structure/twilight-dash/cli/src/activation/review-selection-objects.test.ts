@@ -125,6 +125,26 @@ function fixture(gitObjectFormat: 'sha1' | 'sha256' = 'sha1') {
   };
 }
 
+function pinGitWithoutMaintenance(input: ReturnType<typeof fixture>) {
+  const executable = join(dirname(input.sourceRepository), 'maintenance-free-git');
+  writeFileSync(
+    executable,
+    '#!/bin/sh\nfetch=0; disabled=0\nfor arg in "$@"; do case "$arg" in fetch) fetch=1;; --no-auto-maintenance) disabled=1;; esac; done\nif [ "$fetch" = 1 ] && [ "$disabled" != 1 ]; then exit 42; fi\nexec /usr/bin/git "$@"\n',
+    { mode: 0o700 },
+  );
+  return {
+    gitExecutablePath: executable,
+    gitExecutableIdentity: hashBytes(readFileSync(executable)),
+  };
+}
+
+test('acquisition disables automatic maintenance in the pinned Git fetch', () => {
+  const input = fixture();
+  expect(prepare({ ...input, ...pinGitWithoutMaintenance(input) }).manifest.entries).toHaveLength(
+    2,
+  );
+});
+
 test.each(['sha1', 'sha256'] as const)(
   'owned %s object store prepares, reopens, and reads real Git objects',
   (format) => {
@@ -184,6 +204,7 @@ test('retained declaration selects a third exact historical commit without readi
   });
   const owner = installLocalReviewSource({
     ...configuration,
+    ...pinGitWithoutMaintenance(input),
     maximumCandidateBytes: 8192,
     history: {
       request: relationshipRequest,
@@ -1017,6 +1038,126 @@ test('lock cleanup failure preserves an earlier retained-content failure', () =>
   }
 });
 
+function failingAcquisition() {
+  const input = fixture();
+  const executable = join(dirname(input.sourceRepository), 'refused-fetch-git');
+  writeFileSync(
+    executable,
+    '#!/bin/sh\nfor arg in "$@"; do if [ "$arg" = fetch ]; then exit 73; fi; done\nexec /usr/bin/git "$@"\n',
+    { mode: 0o700 },
+  );
+  return {
+    ...input,
+    gitExecutablePath: executable,
+    gitExecutableIdentity: hashBytes(readFileSync(executable)),
+  };
+}
+
+test('pending cleanup retries a successful removal that leaves a nested entry', () => {
+  const input = failingAcquisition();
+  const original = filesystem.rmSync;
+  let removals = 0;
+  const remove = spyOn(filesystem, 'rmSync').mockImplementation((path, options) => {
+    if (String(path).startsWith(join(input.storeBase, '.pending-'))) {
+      removals += 1;
+      if (removals === 1) {
+        unlinkSync(join(String(path), 'git', 'HEAD'));
+        return;
+      }
+    }
+    original(path, options);
+  });
+  try {
+    expect(() => prepare(input)).toThrow('Git operation failed');
+    expect(readdirSync(input.storeBase)).toEqual([]);
+    expect(removals).toBe(2);
+  } finally {
+    remove.mockRestore();
+  }
+});
+
+test('pending cleanup refuses a persistently incomplete successful removal', () => {
+  const input = failingAcquisition();
+  const original = filesystem.rmSync;
+  let removals = 0;
+  const remove = spyOn(filesystem, 'rmSync').mockImplementation((path, options) => {
+    if (String(path).startsWith(join(input.storeBase, '.pending-'))) {
+      removals += 1;
+      return;
+    }
+    original(path, options);
+  });
+  try {
+    expect(() => prepare(input)).toThrow('review acquisition and cleanup failed');
+    expect(removals).toBe(3);
+  } finally {
+    remove.mockRestore();
+  }
+});
+
+test('pending cleanup preserves a directory substituted after incomplete removal', () => {
+  const input = failingAcquisition();
+  const original = filesystem.rmSync;
+  const displaced = join(dirname(input.storeBase), 'displaced-pending');
+  let replacement: string | undefined;
+  const remove = spyOn(filesystem, 'rmSync').mockImplementation((path, options) => {
+    if (String(path).startsWith(join(input.storeBase, '.pending-'))) {
+      if (replacement !== undefined) {
+        original(path, options);
+        return;
+      }
+      replacement = String(path);
+      renameSync(replacement, displaced);
+      mkdirSync(replacement, { mode: 0o700 });
+      writeFileSync(join(replacement, 'foreign'), 'preserve');
+      return;
+    }
+    original(path, options);
+  });
+  try {
+    expect(() => prepare(input)).toThrow('review acquisition and cleanup failed');
+    if (replacement === undefined) throw new Error('replacement fixture absent');
+    expect(readFileSync(join(replacement, 'foreign'), 'utf8')).toBe('preserve');
+  } finally {
+    remove.mockRestore();
+  }
+});
+
+test.each(['dev', 'uid', 'mode', 'directory', 'unreadable'] as const)(
+  'pending cleanup refuses changed %s metadata after incomplete removal',
+  (field) => {
+    const input = failingAcquisition();
+    const originalRemove = filesystem.rmSync;
+    const originalStat = filesystem.lstatSync;
+    let incomplete = false;
+    let removals = 0;
+    const remove = spyOn(filesystem, 'rmSync').mockImplementation((path, options) => {
+      if (String(path).startsWith(join(input.storeBase, '.pending-'))) {
+        incomplete = true;
+        removals += 1;
+        return;
+      }
+      originalRemove(path, options);
+    });
+    const stat = spyOn(filesystem, 'lstatSync').mockImplementation(((path: string) => {
+      const entry = originalStat(path);
+      if (incomplete && path.startsWith(join(input.storeBase, '.pending-'))) {
+        if (field === 'unreadable') throw new Error('injected unreadable pending identity');
+        if (field === 'directory') return Object.assign(entry, { isDirectory: () => false });
+        return Object.assign(entry, { [field]: entry[field] + 1 });
+      }
+      return entry;
+    }) as typeof filesystem.lstatSync);
+    try {
+      expect(() => prepare(input)).toThrow('review acquisition and cleanup failed');
+      expect(removals).toBe(1);
+    } finally {
+      stat.mockRestore();
+      remove.mockRestore();
+    }
+  },
+);
+
 test('pending cleanup failure preserves an earlier Git acquisition failure', () => {
   const input = fixture();
   const request = createActivationRequest({
@@ -1058,22 +1199,28 @@ test('pending cleanup failure preserves an earlier Git acquisition failure', () 
 
 test('acquisition refuses when final pending cleanup consumes the whole deadline', () => {
   const input = fixture();
-  const original = filesystem.rmSync;
+  const original = filesystem.lstatSync;
   let expired = false;
-  const remove = spyOn(filesystem, 'rmSync').mockImplementation(((
-    path: string,
-    options?: filesystem.RmOptions,
-  ) => {
-    original(path, options);
-    if (path.startsWith(join(input.storeBase, '.pending-')) && !path.endsWith('/git'))
-      expired = true;
-  }) as typeof filesystem.rmSync);
+  const stat = spyOn(filesystem, 'lstatSync').mockImplementation(((path: string) => {
+    try {
+      return original(path);
+    } catch (cause) {
+      if (
+        path.startsWith(join(input.storeBase, '.pending-')) &&
+        cause instanceof Error &&
+        'code' in cause &&
+        cause.code === 'ENOENT'
+      )
+        expired = true;
+      throw cause;
+    }
+  }) as typeof filesystem.lstatSync);
   const clock = spyOn(performance, 'now').mockImplementation(() => (expired ? 10_001 : 0));
   try {
     expect(() => prepare(input)).toThrow('deadline exceeded');
   } finally {
     clock.mockRestore();
-    remove.mockRestore();
+    stat.mockRestore();
   }
 });
 

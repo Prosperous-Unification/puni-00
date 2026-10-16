@@ -5,6 +5,7 @@ import type {
   Days,
   IsoDate,
   NodeReading,
+  NodeResources,
   Scheduled,
   Span,
   StepState,
@@ -169,6 +170,8 @@ export interface NumberedWorkItem extends LabelledWorkItem {
    * nodes; empty on a leaf of a stepless project.
    */
   nodeReadings?: Record<string, NodeReading>;
+  /** Derived resources per project step on retained leaves, including held leaves; absent on parents and older servers. */
+  nodeResources?: Record<string, NodeResources>;
   /** Sparse direct blockage timestamps on a leaf; absent on a parent. */
   blockages?: Record<string, { blockedAt: number }>;
   /** Exact informational roots for each leaf node; absent on a parent. */

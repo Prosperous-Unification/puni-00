@@ -2061,3 +2061,19 @@
 [data-sheet-rows] > details[open] > summary::after {
   transform: rotate(90deg);
 }
+
+[data-picker-list] [role='option'] {
+  white-space: nowrap;
+}
+
+/* Intrinsic option widths let scrollIntoView pan the sheet and clip its chips.
+   Proof: removing these sheet rules failed the 390x844 reference round-trip
+   with a long directory tag and eight filler tags: expected scrollLeft 0, received 73. */
+[data-modal-surface='bottom'] [data-picker-list] {
+  width: 100%;
+  overflow-wrap: anywhere;
+}
+
+[data-modal-surface='bottom'] [data-picker-list] [role='option'] {
+  white-space: normal;
+}
