@@ -62,7 +62,7 @@ jobs:
           set -euo pipefail
           bun src/packaging/build.ts > "$GITHUB_WORKSPACE/receipts/evaluator-build.log" 2>&1
           bun src/packaging/pack.ts > "$GITHUB_WORKSPACE/receipts/evaluator-pack.log" 2>&1
-      - name: Install independent consumer and verify historical executable identity
+      - name: Install independent consumer and verify pinned recovery evaluator identity
         shell: bash
         run: |
           set -euo pipefail
