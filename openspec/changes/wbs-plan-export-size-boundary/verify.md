@@ -20,14 +20,17 @@ Commands ran from the checkout root unless marked frontend cwd.
 | `BUN_TMPDIR=/tmp/wbs100-plan-export-bun bun install --frozen-lockfile`                                                                                                                                                          | Checked 1573 installs across 1447 packages, no changes; exit 0. |
 | `TZ=UTC bunx vitest run src/components/wbs/plan-export.test.ts src/components/wbs/plan-mermaid.test.ts src/components/wbs/plan-export-bytes.test.ts src/test-tiers.test.ts --no-file-parallelism --maxWorkers=1` (frontend cwd) | 4 files, 124 tests passed; exit 0.                              |
 | `NX_DAEMON=false bunx nx run wbs-fe-01:typecheck --skip-nx-cache`                                                                                                                                                               | Typecheck and module dependency passed; exit 0.                 |
+| `NX_DAEMON=false bunx nx run wbs-fe-01:lint --skip-nx-cache`                                                                                                                                                                    | Final rerun passed; exit 0, 2m 40s.                             |
 | `bunx eslint apps/wbs/fe-01/src/components/wbs/plan-export.ts apps/wbs/fe-01/src/components/wbs/plan-export-model.ts apps/wbs/fe-01/src/components/wbs/plan-export-bytes.test.ts`                                               | Exit 0, no diagnostics.                                         |
 | `bunx prettier --check` over the three changed source files and this change directory                                                                                                                                           | All matched files use Prettier code style; exit 0.              |
 | `bunx @fission-ai/openspec@1.12.0 validate wbs-plan-export-size-boundary --json`                                                                                                                                                | 1 item passed, 0 failed; exit 0.                                |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                                                                                                                                        | 220 items passed, 0 failed; exit 0.                             |
 | `git diff --check`                                                                                                                                                                                                              | Exit 0.                                                         |
 
 The first typecheck found a missing local `FilteredScope` import, and the first
 lint found an unused import and export ordering. These were corrected before the
-passing reruns. An empty isolated Bun cache failed DNS resolution; using the
+passing reruns. The first full frontend lint command exited nonzero without
+ESLint diagnostics after 3m 34s; its final rerun passed in 2m 40s. An empty isolated Bun cache failed DNS resolution; using the
 existing frozen cache with writable `BUN_TMPDIR` succeeded. Vite emits its existing
 `__dirname` config warning. Nx reports sandbox socket denial and executes plugins
 in process.
