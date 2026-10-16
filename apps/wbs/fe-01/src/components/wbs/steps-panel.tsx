@@ -500,10 +500,17 @@ export function StepsPanel({
                     </button>
                   </form>
                   <div className="col-span-2 flex flex-wrap items-center gap-x-4 gap-y-2 sm:contents">
-                    {/* Proof: removing the estimate-count disabled arm failed blocks the unit control over estimates; watched 2026-10-12. */}
+                    {/*
+                      Proof: removing the estimate-count disabled arm failed blocks the unit control over estimates; watched 2026-10-12.
+                      The reason a unit is locked is said on the row, under its radios, and is the
+                      group's description (ui-review F-118): it was a hover `title`, and the greyed
+                      pair beside the New step row's live one read as a broken control.
+                    */}
                     <fieldset
-                      className="m-0 flex items-center gap-3 border-0 p-0 whitespace-nowrap"
-                      title={`${String(estimateCount(step.id))} ${estimateCount(step.id) === 1 ? 'estimate' : 'estimates'}`}
+                      className="m-0 flex flex-wrap items-center gap-x-3 border-0 p-0 whitespace-nowrap"
+                      aria-describedby={
+                        estimateCount(step.id) > 0 ? `unit-locked-${step.id}` : undefined
+                      }
                       disabled={section.busy || estimateCount(step.id) > 0}
                     >
                       <legend className="sr-only">{step.name} estimate unit</legend>
@@ -523,6 +530,14 @@ export function StepsPanel({
                           {unit}
                         </label>
                       ))}
+                      {estimateCount(step.id) > 0 && (
+                        <span
+                          id={`unit-locked-${step.id}`}
+                          className="text-muted-foreground basis-full text-xs"
+                        >
+                          fixed by {count(estimateCount(step.id), 'estimate')}
+                        </span>
+                      )}
                     </fieldset>
                     <div className="flex items-center gap-1.5 text-sm">
                       <span aria-hidden="true" className="text-muted-foreground sm:hidden">

@@ -69,11 +69,11 @@ describe('project optimization in the plan', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: 'Optimize schedules' }));
     await waitFor(() => {
       expect(screen.getByRole('checkbox', { name: 'Optimize schedules' })).toBeChecked();
-      expect(screen.getByRole('radio', { name: 'Time' })).toBeEnabled();
+      expect(screen.getByRole('radio', { name: 'Finish-first' })).toBeEnabled();
     });
-    fireEvent.click(screen.getByRole('radio', { name: 'Time' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Finish-first' }));
     await waitFor(() => {
-      expect(screen.getByRole('radio', { name: 'Time' })).toBeChecked();
+      expect(screen.getByRole('radio', { name: 'Finish-first' })).toBeChecked();
     });
 
     expect(setSettings.mock.calls).toEqual([
@@ -96,7 +96,7 @@ describe('project optimization in the plan', () => {
     render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await openOptimization();
     expect(screen.getByRole('checkbox', { name: 'Optimize schedules' })).toBeChecked();
-    expect(screen.getByRole('radio', { name: 'Time' })).toBeChecked();
+    expect(screen.getByRole('radio', { name: 'Finish-first' })).toBeChecked();
   });
 
   itDom('rereads another collaborator’s project settings event', async () => {
@@ -129,7 +129,7 @@ describe('project optimization in the plan', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('checkbox', { name: 'Optimize schedules' })).toBeChecked();
-      expect(screen.getByRole('radio', { name: 'Time' })).toBeChecked();
+      expect(screen.getByRole('radio', { name: 'Finish-first' })).toBeChecked();
     });
   });
 

@@ -5,6 +5,23 @@ import { type Factable, type Hintable } from '@/components/wbs/hint';
 import { cn } from '@/lib/utils';
 
 /**
+ * How every `aria-pressed="true"` button is drawn: filled in the primary, so a
+ * toggle's two states differ by its whole face. Its unpressed twin is whatever
+ * variant the caller chose — `outline` or `ghost` for a toggle — which is the
+ * Gantt strip's rule (plain when off, filled when pressed; ui-review F-013) made
+ * the button's own.
+ *
+ * The primary rather than the strip's first `bg-accent`: the accent is
+ * `--muted`'s slate, 1.1:1 against the light background, so a pressed and an
+ * unpressed toggle sat one shade apart. The primary stands at least 3:1 off the
+ * outline face in both palettes (WCAG 1.4.11), which `header.spec.ts` measures
+ * (ui-review F-116). The hover keeps the fill, at the default variant's own
+ * 90%, so the pointer resting on a pressed toggle cannot unfill it.
+ */
+const PRESSED =
+  'aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground';
+
+/**
  * Every shape a chrome button comes in, and the tokens each one reads.
  *
  * Colours are named, never mixed: `bg-primary` and `text-primary-foreground`
@@ -30,9 +47,14 @@ import { cn } from '@/lib/utils';
  * variant's "Have an account? Register" rendered inside the platform's grey
  * button box, on the signed-out page, 2026-08-09. `tailwind-merge` is what lets
  * the `outline` variant put its 1px border straight back.
+ *
+ * **A pressed toggle is drawn filled, whatever its variant** ({@link PRESSED}).
  */
 export const buttonVariants = cva(
-  'inline-flex shrink-0 items-center justify-center gap-2 border-0 bg-transparent rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50',
+  [
+    'inline-flex shrink-0 items-center justify-center gap-2 border-0 bg-transparent rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-ring focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50',
+    PRESSED,
+  ],
   {
     variants: {
       variant: {

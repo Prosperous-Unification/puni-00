@@ -546,7 +546,10 @@ export function ProjectSettingsModal({
                   aria-controls={panelId(section.id)}
                   tabIndex={selected ? 0 : -1}
                   data-state={selected ? 'active' : 'inactive'}
-                  className="data-[state=active]:bg-muted data-[state=inactive]:text-muted-foreground hover:bg-muted/60 rounded-md px-3 py-1.5 text-left text-sm"
+                  // `border-0 bg-transparent` is what `buttonVariants` brings every chrome
+                  // button: without it the platform's 2px border boxed each tab, the
+                  // only 2px edge in the app (ui-review F-117).
+                  className="data-[state=active]:bg-muted data-[state=inactive]:text-muted-foreground hover:bg-muted/60 rounded-md border-0 bg-transparent px-3 py-1.5 text-left text-sm"
                   onClick={() => {
                     show(section.id);
                   }}
@@ -566,7 +569,12 @@ export function ProjectSettingsModal({
             })}
           </div>
 
-          <div className="-mx-1 min-h-0 min-w-0 flex-1 overflow-y-auto px-1">
+          {/*
+            `pb-6`, the surface's own `p-6`: a section that scrolls ends with the
+            room the modal starts with, rather than its last line on the box's
+            edge (ui-review F-123, Estimating at 1024×768).
+          */}
+          <div className="-mx-1 min-h-0 min-w-0 flex-1 overflow-y-auto px-1 pb-6">
             <div
               role="tabpanel"
               id={panelId('teams')}

@@ -272,6 +272,66 @@ function headerFit(page: Page): Promise<{ rowsDeep: number; past: number; height
   });
 }
 
+/** What WCAG asks of a control's states against each other (1.4.11, non-text contrast). */
+const DISTINCT_STATES = 3;
+
+/**
+ * The colour a control's own face is painted, composited over every ancestor's
+ * paint the way `dark-mode.spec.ts`' `contrastOf` stacks a surface, and rasterised
+ * through a canvas because a token resolves to `oklch(…)`.
+ */
+function paintedFill(control: Locator): Promise<[number, number, number]> {
+  return control.evaluate((node) => {
+    const ctx = document.createElement('canvas').getContext('2d');
+    if (ctx === null) throw new Error('no 2d context to rasterise a colour in');
+    const rgbaOf = (colour: string): [number, number, number, number] => {
+      const sentinel = '#ff00ff';
+      ctx.fillStyle = sentinel;
+      ctx.fillStyle = colour;
+      if (ctx.fillStyle === sentinel) throw new Error(`this engine will not parse ${colour}`);
+      ctx.clearRect(0, 0, 1, 1);
+      ctx.fillRect(0, 0, 1, 1);
+      const painted = ctx.getImageData(0, 0, 1, 1).data;
+      return [painted[0], painted[1], painted[2], painted[3] / 255];
+    };
+    const stacked: [number, number, number, number][] = [];
+    let ancestor: Element | null = node;
+    while (ancestor !== null) {
+      const painted = rgbaOf(getComputedStyle(ancestor).backgroundColor);
+      if (painted[3] > 0) stacked.push(painted);
+      if (painted[3] === 1) break;
+      ancestor = ancestor.parentElement;
+    }
+    let surface: [number, number, number] = [255, 255, 255];
+    for (const layer of stacked.reverse()) {
+      surface = [
+        layer[0] * layer[3] + surface[0] * (1 - layer[3]),
+        layer[1] * layer[3] + surface[1] * (1 - layer[3]),
+        layer[2] * layer[3] + surface[2] * (1 - layer[3]),
+      ];
+    }
+    return surface;
+  });
+}
+
+/** The WCAG ratio between two opaque sRGB colours. */
+function ratioOf(one: [number, number, number], two: [number, number, number]): number {
+  const luminance = (colour: [number, number, number]): number => {
+    const channel = (raw: number): number => {
+      const unit = raw / 255;
+      return unit <= 0.04045 ? unit / 12.92 : Math.pow((unit + 0.055) / 1.055, 2.4);
+    };
+    return 0.2126 * channel(colour[0]) + 0.7152 * channel(colour[1]) + 0.0722 * channel(colour[2]);
+  };
+  const [brighter, dimmer] = [luminance(one), luminance(two)].sort((a, b) => b - a);
+  return (brighter + 0.05) / (dimmer + 0.05);
+}
+
+/** How far the pressed control's face stands off its unpressed neighbour's. */
+async function fillContrast(pressed: Locator, plain: Locator): Promise<number> {
+  return ratioOf(await paintedFill(pressed), await paintedFill(plain));
+}
+
 /** The account this test registered, which is what names the menu it opens. */
 let signedInAs = '';
 
@@ -585,6 +645,48 @@ test.describe('the header bar, read by eye and measured', () => {
       );
     expect(read.textLeft, 'Log out does not start on the menu’s text edge').toBe(signedInLeft);
   });
+
+  for (const scheme of ['light', 'dark'] as const) {
+    test(`draws a pressed toggle filled and its neighbour plain, 3:1 apart, ${scheme} (F-116)`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await page.emulateMedia({ colorScheme: scheme });
+      const bar = page.getByRole('banner');
+      const plan = bar.getByRole('button', { name: 'Plan', exact: true });
+      const board = bar.getByRole('button', { name: 'Board', exact: true });
+      await expect(plan).toHaveAttribute('aria-pressed', 'true');
+      // The resting pointer's hover is not a pressed style (the review's laptop capture).
+      await page.mouse.move(1, 899);
+      // Proof: on 3e06eb5a4 (default `Button`, no `aria-pressed:` rule) this failed with
+      // `Expected: >= 3 Received: 1` (light) and `1.175…` (dark), both buttons the filled
+      // primary. With the selector `outline` and `PRESSED` dropped from `buttonVariants`, it
+      // failed in both palettes on `Received: 1` (2026-10-16).
+      await expect
+        .poll(() => fillContrast(plan, board), { message: 'Plan pressed against Board' })
+        .toBeGreaterThanOrEqual(DISTINCT_STATES);
+      await board.click();
+      await expect(board).toHaveAttribute('aria-pressed', 'true');
+      await page.mouse.move(1, 899);
+      await expect
+        .poll(() => fillContrast(board, plan), { message: 'Board pressed against Plan' })
+        .toBeGreaterThanOrEqual(DISTINCT_STATES);
+      await plan.click();
+      // The same rule is the button's, not the selector's: the toolbar's Gantt toggle draws
+      // its own two states the same way.
+      const gantt = page.getByRole('button', { name: 'Gantt', exact: true });
+      await expect(gantt).toHaveAttribute('aria-pressed', 'false');
+      const off = await paintedFill(gantt);
+      await gantt.click();
+      await expect(gantt).toHaveAttribute('aria-pressed', 'true');
+      await page.mouse.move(1, 899);
+      await expect
+        .poll(async () => ratioOf(await paintedFill(gantt), off), {
+          message: 'Gantt on against Gantt off',
+        })
+        .toBeGreaterThanOrEqual(DISTINCT_STATES);
+    });
+  }
 });
 
 /**

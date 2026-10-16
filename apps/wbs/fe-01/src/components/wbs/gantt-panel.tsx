@@ -580,8 +580,8 @@ const BAR_RADIUS_PX = 3;
  *
  * **On and off since ui-review F-013** (2026-10-13): a toggle switched off
  * was dashed and struck through, which the review read as a disabled
- * control. Off is now drawn plain and pressed is drawn filled
- * ({@link CHART_TOGGLE_PRESSED}). The review also asked for the toolbar's
+ * control. Off is now drawn plain and pressed is drawn filled, by the rule
+ * every pressed button follows since ui-review F-116 (`button.tsx`'s `PRESSED`). The review also asked for the toolbar's
  * 32px size; that is left open in the lane record, because the strip's
  * metrics are pinned by a gate. The scroll-sync end no longer pins them
  * (`plan-terminal-tail.ts` fits the two faces' tails, ui-review F-055), and
@@ -603,16 +603,8 @@ const chartChip = (extra?: string): string =>
     // bar's border is `border-border`.
     'h-4 rounded border-border px-1.5 py-0 text-[10px] leading-none font-semibold tracking-wide normal-case',
     'focus-visible:ring-1 focus-visible:ring-offset-1',
-    CHART_TOGGLE_PRESSED,
     extra,
   );
-
-/**
- * How a pressed toggle on the strip is drawn: filled in the accent, so on and
- * off differ by more than a word, and neither looks like a disabled control.
- */
-const CHART_TOGGLE_PRESSED =
-  'aria-pressed:bg-accent aria-pressed:text-accent-foreground aria-pressed:border-ring/60';
 
 /**
  * How wide the priority cap at a bar's left edge is drawn, in px.
