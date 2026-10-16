@@ -793,3 +793,11 @@ of diagnostics refusal plus current and historical fetches (150 tests, zero
 failures); the acquisition trace contained no pending-repository maintenance child.
 The Git 2.43 object-store suite passed all 169 tests. Scoped uncached Twilight Dash
 lint, its TypeScript build and owned-file formatting also passed.
+
+The retry ceiling has a separate weakened-bound proof: changing `attempt === 3`
+to `attempt === 4` failed `pending cleanup refuses a persistently incomplete
+successful removal` with `Expected: 3, Received: 4` (one failure, exit 1).
+Restoring the three-attempt guard passed that same test (one pass, zero failures).
+The earlier `=== 1` mutation demonstrated premature refusal only; it did not prove
+the upper bound. Both the adjacent production comment and this record retain the
+weakened-bound observation instead. Runtime code is unchanged by this correction.

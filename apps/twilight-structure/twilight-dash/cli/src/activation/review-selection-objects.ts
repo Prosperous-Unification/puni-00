@@ -1090,8 +1090,8 @@ function prepareRetainedLocalReviewCandidate(
         current.mode !== pendingIdentity.mode
       )
         throw new Error('pending review cleanup ownership changed');
-      // Proof: a persistently successful no-op removal reached this bound in production;
-      // omitting the verified retry loop left nested entries in the transient-removal test.
+      // Proof: weakening attempt === 3 to === 4 made the persistent-removal production test
+      // fail with Expected: 3, Received: 4; omitting the retry loop left nested entries.
       if (attempt === 3) throw new Error('pending review cleanup did not converge');
       rmSync(pending, { recursive: true, force: true });
     }
