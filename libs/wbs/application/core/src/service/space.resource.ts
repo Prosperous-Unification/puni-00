@@ -10,7 +10,6 @@ import {
   sortInProgress,
 } from '@wbs/domain';
 
-import type { WorkItemService } from '../module/work-item/work-item.resource';
 import type { Clock } from '../ports/clock';
 import type { ResourceAccess } from '../ports/organization-access';
 import type { Broadcaster } from '../ports/project-event';
@@ -18,6 +17,7 @@ import type { ProjectRead } from '../ports/project-read';
 import type { ProjectWithAccess } from '../ports/project-store';
 import type { AccessRefused } from '../ports/shared-people-values';
 import type { Space, SpaceStore } from '../ports/space-store';
+import type { TreeRead } from '../ports/tree-read';
 
 /** The address of the virtual All projects space (spec `space-read`). */
 export const ALL_PROJECTS = 'all';
@@ -76,7 +76,7 @@ export interface SpaceResourceOptions {
   projects: ProjectRead;
   clock: Clock;
   /** The project page's own read and the shared aggregate projection for cache admission. */
-  trees: Pick<WorkItemService, 'treeWithin' | 'sharedTreesWithin'>;
+  trees: TreeRead;
   /** The project's event sequence, read before the tree to key the cache. */
   sequences: Pick<Broadcaster, 'latestSeq'>;
   /** One process's roll-ups; a fresh cache per process, shared by its requests. */
@@ -101,7 +101,7 @@ export interface RolledProject {
 }
 
 type SharedTreeEntry = Extract<
-  Awaited<ReturnType<WorkItemService['sharedTreesWithin']>>,
+  Awaited<ReturnType<TreeRead['sharedTreesWithin']>>,
   { readonly kind: 'shared' }
 >['entries'][number];
 
