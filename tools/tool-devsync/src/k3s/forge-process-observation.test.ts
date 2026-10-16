@@ -63,6 +63,7 @@ test('records stable Vite identity and memory without raw arguments or verdicts'
     ],
   });
   expect(JSON.stringify(samples)).not.toMatch(/super-secret|token|argv|Passed|verdict/);
+  expect(JSON.stringify(samples)).not.toContain('/usr/bin/bun');
 });
 
 test('unknown launcher arguments cannot impersonate the Vite launcher', async () => {
@@ -415,4 +416,29 @@ test('retains only complete emitted observations when a later sample fails', asy
   );
   expect(emitted).toHaveLength(1);
   expect(JSON.stringify(emitted)).toContain('vite');
+});
+
+test('refuses a changed executable target with the same basename and stable PID argv', async () => {
+  const { cgroup, roots } = await fixture();
+  const runner = join(roots.procRoot, 'runner.ts');
+  await writeFile(
+    runner,
+    `import { observeProcesses } from ${JSON.stringify(join(import.meta.dir, 'forge-process-observation.ts'))};\nconsole.log(JSON.stringify(await observeProcesses(${JSON.stringify({ cgroup, samples: 1, intervalMs: 0, windowMs: 1000 })}, ${JSON.stringify(roots)})));`,
+  );
+  const child = Bun.spawn(
+    [
+      process.execPath,
+      '--preload',
+      join(import.meta.dir, 'forge-process-observation.fault.preload.ts'),
+      runner,
+    ],
+    {
+      env: { ...process.env, FORGE_PROCESS_FAULT: 'executable-target' },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
+  );
+  expect(await child.exited).not.toBe(0);
+  expect(await new Response(child.stderr).text()).toContain('process executable changed');
+  expect(await new Response(child.stdout).text()).toBe('');
 });

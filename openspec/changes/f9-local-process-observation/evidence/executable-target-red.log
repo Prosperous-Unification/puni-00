@@ -1,0 +1,22 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/forge-process-observation.test.ts:
+426 |   );
+427 |   const child = Bun.spawn(
+428 |     [process.execPath, '--preload', join(import.meta.dir, 'forge-process-observation.fault.preload.ts'), runner],
+429 |     { env: { ...process.env, FORGE_PROCESS_FAULT: 'executable-target' }, stdout: 'pipe', stderr: 'pipe' },
+430 |   );
+431 |   expect(await child.exited).not.toBe(0);
+                                       ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/tmp/f9-process-sampler-e7201df/tools/tool-devsync/src/k3s/forge-process-observation.test.ts:431:34)
+(fail) refuses a changed executable target with the same basename and stable PID argv [38.41ms]
+
+ 0 pass
+ 21 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [73.00ms]

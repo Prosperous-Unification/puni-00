@@ -191,14 +191,16 @@ export async function observeProcesses(
           parseNatural(new RegExp(`^${name}:\\s+(\\d+)(?: kB)?$`, 'm').exec(status)?.at(1));
         const command = await readText(join(proc, 'cmdline'));
         const role = identifyRole(command);
-        const executable = basename(await readlink(join(proc, 'exe')));
+        const executableTarget = await readlink(join(proc, 'exe'));
+        const executable = basename(executableTarget);
         // Proof: unsafe executable fixture refuses path text outside the safe basename alphabet.
         if (!/^[a-zA-Z0-9._+-]{1,256}$/.test(executable))
           throw new Error('unsafe executable basename');
-        // Proof: exec preload changes cmdline after role inspection while retaining PID/start-time; test refuses.
+        // Proof: exec preload changes cmdline; executable-target preload swaps /usr/bin/bun for
+        // /opt/replacement/bun with stable PID/start-time/argv. Both production-path tests refuse.
         if (
           command !== (await readText(join(proc, 'cmdline'))) ||
-          executable !== basename(await readlink(join(proc, 'exe')))
+          executableTarget !== (await readlink(join(proc, 'exe')))
         )
           throw new Error('process executable changed');
         const after = parseIdentity(await readText(join(proc, 'stat')), pid);

@@ -105,3 +105,33 @@ causality. Sequential snapshots can miss short-lived processes and are not atomi
 member enumeration omits descendant cgroups even when their charges appear in memory
 counters. Local deadline timing has scheduler tolerance and does not promise recovery from
 kernel uninterruptible IO, remote termination, or global F9 acceptance.
+
+## Executable target review repair
+
+Astra found that the initial candidate `f2599382339f62c333c4b70c99e29178777f2399`
+compared executable basenames internally, so changing `/proc/PID/exe` from `/usr/bin/bun`
+to `/opt/replacement/bun` retained the same reported basename and escaped refusal.
+The collector now compares complete readlink targets internally while returning only the
+safe basename. The existing stable-observation test also asserts that `/usr/bin/bun` is
+absent from serialized output. No raw arguments or executable paths are added to reports.
+
+The new production-path regression holds PID/start-time/argv constant and replaces the
+actual fixture symlink after its first read. Against the unchanged parent implementation it
+failed because the child exited zero: [observed red](evidence/executable-target-red.log).
+After the repair it passes: [targeted green](evidence/executable-target-green.log).
+
+| Check                             | Fault injected                                                              | Observed failure                                                                                                                          |
+| --------------------------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Full executable target comparison | Remove only the full-target comparison while keeping the command comparison | Same-basename replacement regression fails because child exits zero; [watched output](evidence/executable-target-mutated.log), Bun exit 1 |
+
+The mutation was restored before exact child validation. All **59 focused fixtures passed**,
+including 22 sampler tests and the existing 37 HTTP/recovery cases; [output](evidence/executable-target-focused.log).
+The focused test command is the same as the original scoped command above and required
+loopback access for the HTTP fixtures. Scoped Nx lint/typecheck/build passed with six prerequisite
+tasks; [output](evidence/executable-target-nx.log). Changed-file formatting passed:
+[output](evidence/executable-target-format.log). All OpenSpec validation passed:
+[output](evidence/executable-target-openspec.json). Commands match the original scoped
+commands above. All four implementation tasks are complete; the delta remains unsynced.
+
+No broader host gate, full suite, full-tree format, push, merge, live sampler or lab operation
+was performed for this repair. The original F9 and remote-deadline limitations remain.

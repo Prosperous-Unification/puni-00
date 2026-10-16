@@ -3,10 +3,12 @@ import { dirname, join } from 'node:path';
 
 import { mock } from 'bun:test';
 
-const { open, readlink, realpath, writeFile, readFile, rename, mkdir } = filesystem;
+const { open, readlink, realpath, writeFile, readFile, rename, mkdir, unlink, symlink } =
+  filesystem;
 const fault = process.env['FORGE_PROCESS_FAULT'];
 const cgroupRoot = process.env['FORGE_PROCESS_CGROUP_ROOT'];
 let directoryReplaced = false;
+let executableReplaced = false;
 const nativeTimer = globalThis.setTimeout;
 if (fault === 'deadline') {
   globalThis.setTimeout = ((callback: (...arguments_: unknown[]) => void, milliseconds?: number) =>
@@ -30,6 +32,11 @@ void mock.module('node:fs/promises', () => ({
   },
   readlink: async (path: string) => {
     const executable = await readlink(path);
+    if (fault === 'executable-target' && !executableReplaced) {
+      executableReplaced = true;
+      await unlink(path);
+      await symlink('/opt/replacement/bun', path);
+    }
     if (fault === 'identity') {
       const stat = join(dirname(path), 'stat');
       await writeFile(stat, (await readFile(stat, 'utf8')).replace('1234', '9999'));

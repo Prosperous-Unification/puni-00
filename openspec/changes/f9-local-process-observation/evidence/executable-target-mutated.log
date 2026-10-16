@@ -1,0 +1,22 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/forge-process-observation.test.ts:
+436 |       env: { ...process.env, FORGE_PROCESS_FAULT: 'executable-target' },
+437 |       stdout: 'pipe',
+438 |       stderr: 'pipe',
+439 |     },
+440 |   );
+441 |   expect(await child.exited).not.toBe(0);
+                                       ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/tmp/f9-process-sampler-e7201df/tools/tool-devsync/src/k3s/forge-process-observation.test.ts:441:34)
+(fail) refuses a changed executable target with the same basename and stable PID argv [34.71ms]
+
+ 0 pass
+ 21 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [82.00ms]

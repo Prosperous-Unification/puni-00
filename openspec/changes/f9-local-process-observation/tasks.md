@@ -6,3 +6,7 @@
 ## 2. Scoped validation
 
 - [x] 2.1 Document explicit local invocation and limitations; record focused tests, scoped Nx checks, formatting, OpenSpec and watched proofs.
+
+## 3. Executable identity review repair
+
+- [x] 3.1 Compare full executable readlink targets internally while retaining basename-only output; prove same-basename replacement refusal and record scoped child validation.
