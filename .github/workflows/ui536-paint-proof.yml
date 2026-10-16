@@ -1,0 +1,139 @@
+name: UI 536 paint proof
+
+on:
+  push:
+    branches: [proof/ui536-paint-20261016]
+
+permissions:
+  contents: read
+
+jobs:
+  paint-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: '1'
+      SOURCE_SHA: 15202bdf5c2c6cb26b7e1dd70dd5d23c7eda2047
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: 15202bdf5c2c6cb26b7e1dd70dd5d23c7eda2047
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: .bun-version
+
+      - name: Install immutable dependencies and browser
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          bun install --frozen-lockfile
+          bunx playwright install --with-deps chromium
+          bun run dev:setup
+          mkdir -p proof-receipts
+          git rev-parse HEAD HEAD^{tree} > proof-receipts/source.txt
+
+      - name: Prepare exact named test receipt checker
+        run: |
+          cat > "$RUNNER_TEMP/check-paint.py" <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import shutil
+          import subprocess
+          import sys
+          import xml.etree.ElementTree as ET
+
+          phase = sys.argv[1]
+          if phase not in {"baseline", "fault", "restored"}:
+              raise RuntimeError(f"unknown proof phase: {phase}")
+          title = "an option fact card is painted above its reference sheet"
+          junit = Path("tmp/junit/wbs-fe-01.browser.ordinary.xml")
+          junit.unlink(missing_ok=True)
+          receipt = Path("proof-receipts") / phase
+          receipt.mkdir()
+          command = [
+              "bunx", "playwright", "test", "--config", "apps/wbs/fe-01/playwright.config.ts",
+              "reference-cells.spec.ts", "--project=chromium", "--grep", f"{title}$",
+              "--workers=1", "--retries=0",
+          ]
+          with (receipt / "command.log").open("w") as log:
+              completed = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, check=False)
+          print((receipt / "command.log").read_text())
+          for source in [
+              Path("apps/wbs/fe-01/test-results"),
+              Path("apps/wbs/fe-01/playwright-report"),
+          ]:
+              if source.exists():
+                  shutil.copytree(source, receipt / source.name)
+          shutil.copyfile(junit, receipt / "junit.xml")
+          root = ET.parse(junit).getroot()
+          cases = root.findall(".//testcase")
+          if len(cases) != 1:
+              raise RuntimeError(f"expected exactly one named test; received {len(cases)}")
+          case = cases[0]
+          if title not in case.attrib["name"] or "390x844 reference sheets with a mouse" not in case.attrib["name"]:
+              raise RuntimeError(f"wrong test selected: {case.attrib}")
+          if case.find("skipped") is not None or case.find("error") is not None:
+              raise RuntimeError("named paint test was skipped or had an infrastructure error")
+          failures = case.findall("failure")
+          if phase == "fault":
+              if completed.returncode != 1 or len(failures) != 1:
+                  raise RuntimeError(f"fault did not produce exactly one failure (exit {completed.returncode})")
+              message = "".join(failures[0].itertext())
+              if "the fact card is painted under" not in message or 'data-modal-surface="bottom"' not in message:
+                  raise RuntimeError(f"fault failed outside the expected sheet paint assertion: {message}")
+          elif completed.returncode != 0 or failures:
+              raise RuntimeError(f"{phase} did not pass (exit {completed.returncode})")
+          observed = {
+              "sourceSha": os.environ["SOURCE_SHA"], "phase": phase,
+              "command": command, "exitCode": completed.returncode,
+              "test": case.attrib, "expectedPaintFailure": phase == "fault",
+          }
+          (receipt / "observed.json").write_text(json.dumps(observed, indent=2) + "\n")
+          print(json.dumps(observed, indent=2))
+          PY
+
+      - name: Baseline exact named paint positive
+        run: python3 "$RUNNER_TEMP/check-paint.py" baseline
+
+      - name: Inject only the card z-index fault
+        run: |
+          set -euo pipefail
+          git diff --exit-code
+          python3 - <<'PY'
+          from pathlib import Path
+          source = Path("apps/wbs/fe-01/src/components/wbs/hover-card.tsx")
+          original = source.read_text()
+          needle = "zIndex: portalled ? 'var(--layer-card)' : 20,"
+          if original.count(needle) != 1:
+              raise RuntimeError("expected exactly one card z-index boundary")
+          source.write_text(original.replace(needle, "zIndex: 20,"))
+          PY
+          git diff -- apps/wbs/fe-01/src/components/wbs/hover-card.tsx > proof-receipts/fault.diff
+          test "$(git diff --name-only)" = apps/wbs/fe-01/src/components/wbs/hover-card.tsx
+
+      - name: Watch the named paint assertion fail under its sheet
+        run: python3 "$RUNNER_TEMP/check-paint.py" fault
+
+      - name: Restore the immutable source
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          git restore --source="$SOURCE_SHA" -- apps/wbs/fe-01/src/components/wbs/hover-card.tsx
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          git diff --exit-code
+          git diff --cached --exit-code
+          git rev-parse HEAD HEAD^{tree} > proof-receipts/restored-source.txt
+
+      - name: Restored exact named paint positive
+        if: ${{ success() }}
+        run: python3 "$RUNNER_TEMP/check-paint.py" restored
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: ${{ always() }}
+        with:
+          name: ui536-paint-proof-${{ github.run_id }}-${{ github.run_attempt }}
+          path: proof-receipts/
+          if-no-files-found: error
