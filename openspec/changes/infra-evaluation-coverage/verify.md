@@ -231,3 +231,76 @@ style!`. OpenSpec `--all --json` exited 0 with 235 items passed and 0 failed
 branch diff check relative to exact wave9 exited 0. The merge will
 be committed through normal hooks; the resulting exact head and tree go to PM
 before any guarded push. WBS120 remains `blocked_by_proxy` and noncertifying.
+
+## 8. Ordinary installed-root runtime identity repair
+
+Aggregate #546 source `a4caaeea41e53334c7deabc62ad00575b8aae649` failed hosted
+Twilight job `116882377923` in run `38873282372`. The retained job artifact
+`12035039562` reports `trusted node modules carry a non-regular entry: .bin/acorn`
+in the coverage fixture setup and executed-dependency identity test. The source target explicitly
+configures ordinary workspace `TOOL_WIKI_TRUSTED_NODE_MODULES`; the new runtime identifier had
+incorrectly sent that installation to the strict sealed-archive hasher. A focused reproduction
+with the same environment returned 2 pass, 1 fail and the same `.bin/acorn` refusal. This is a
+deterministic source-mode integration defect, not a timing flake.
+
+The separate installed-root hasher now walks all content: the compiler can request arbitrary
+packages, so release-only dependency selection would underbind its accessible bytes. Regular
+files and modeled launchers use JSON-tagged path/content records. Only root or nested
+`node_modules/.bin` launcher links are modeled, and their literal target plus contained regular
+target bytes are pinned. Dependency symlinks, escape, absent/cyclic targets, directory/special
+targets and unreadable inputs refuse. The existing `hashTrustedModules` archive routine is
+unchanged and still rejects a launcher symlink. The configured root is canonicalized for both
+reporting and traversal. This remains pre-execution hashing, with no concurrent-write snapshot
+or race-resistance claim.
+
+Coverage fixtures now use tiny explicit trusted roots, saved/restored around their suites. The
+bundled subprocess receives that same environment explicitly; Bun child inheritance otherwise
+retains the process-start environment. This prevents each fixture invocation from scanning the
+1.9 GB workspace installation and preserves identical producer/consumer runtime pins.
+
+Watched production-path faults (all restored before passing verification):
+
+| Injected fault                                      | Observed focused failure                                                                     |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Allow symlinks outside modeled launcher directories | file-link and unmanaged-bin cases both failed: function did not throw                        |
+| Remove canonical target containment                 | escape case failed: function did not throw                                                   |
+| Remove target regular-file check                    | directory case failed its named refusal with raw EISDIR instead                              |
+| Replace ordinary-file hashes with zeros             | unlinked arbitrary-package file edit retained its identity and failed the identity assertion |
+
+Missing-root, unreadable-root, unreadable-file, dangling/cyclic launcher, directory/special target,
+package symlink, nested launcher and strict-archive refusal cases are included in the focused
+runtime suite. The unlinked-file test prevents launcher target hashing from masking omitted
+ordinary-file hashing. Positive topology checks also distinguish literal link-target changes.
+
+A single real ordinary-root call, serial under `NODE_OPTIONS=--max-old-space-size=768`,
+`bun --smol` and a 60-second external timeout, succeeded in 5.29 seconds with measured maximum RSS
+1,081,668 kB. NODE_OPTIONS is a configured JS heap budget, not a hard bound on total process RSS.
+Every production call rereads the complete installed root; there is no metadata cache. Packaged
+closures are smaller, while source-root IO remains a documented cost. No broad local suite, full
+Nx, full Burokrat scan, browser run, host gate or deployment was performed. Final focused test,
+static, OpenSpec and normal-hook results are recorded below after completion. Exact aggregate CI
+and canonical h2puni gate remain pending; WBS120 remains blocked and noncertifying.
+
+Final focused repair runs used the source target environment
+`TOOL_WIKI_TRUSTED_NODE_MODULES=/tmp/wbs-wave10-20261016/node_modules` and
+`NODE_OPTIONS=--max-old-space-size=768`, serially:
+
+```sh
+bun test apps/twilight-structure/twilight-burokrat/cli/src/evidence/coverage-runtime.test.ts --preload ./tools/test/scratch/preload.ts --timeout=60000
+bun test apps/twilight-structure/twilight-burokrat/cli/src/evidence/evaluation-coverage.test.ts --preload ./tools/test/scratch/preload.ts --timeout=60000
+```
+
+Runtime: 16 pass, 0 fail, 30 assertions, 3.90 seconds elapsed, maximum RSS 833,268 kB.
+Evaluation coverage: 42 pass, 0 fail, 181 assertions, 9.87 seconds elapsed, maximum RSS 590,448 kB.
+Earlier intermediate runs are superseded by these restored final-source runs. The runtime special-file
+fixture initially expected the launcher-target diagnostic, but directory enumeration reached the
+FIFO directly first; its oracle now requires the production walker's non-regular-entry refusal.
+The directory-target case separately names and proves the launcher target check.
+
+Scoped ESLint over the four changed TypeScript files passed, with the Nx module-boundary rule
+explicitly skipped because this isolated checkout has no cached ProjectGraph. Scoped CLI
+`tsc --build --force` passed without diagnostics. Changed-file Prettier passed; pinned OpenSpec
+1.12.0 validated this change with one passed, zero failed and no issues. Normal commit hooks are
+required on the repair commit; aggregate CI and host acceptance remain pending. Explicit staged
+pre-commit jobs passed: lint, format, plaintext-secrets and private-nesting. Tool Wiki returned
+inactive/uncertified because no external activation root is provisioned; no admission is claimed.

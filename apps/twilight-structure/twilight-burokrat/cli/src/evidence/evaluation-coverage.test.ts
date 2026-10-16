@@ -48,6 +48,7 @@ interface CoverageReport {
   verdict: ReturnType<typeof checkCandidate>;
 }
 let root: string;
+let previousModules: string | undefined;
 let repository: string;
 let revision: string;
 let policyPath: string;
@@ -86,6 +87,10 @@ function selectRow(report: CoverageReport, path: string, ruleId: string): Covera
 }
 beforeAll(() => {
   root = mkdtempSync(join(tmpdir(), 'evaluation-coverage-'));
+  previousModules = process.env['TOOL_WIKI_TRUSTED_NODE_MODULES'];
+  const modules = join(root, 'trusted-modules');
+  mkdirSync(modules);
+  process.env['TOOL_WIKI_TRUSTED_NODE_MODULES'] = modules;
   repository = join(root, 'candidate');
   mkdirSync(repository);
   runGit('init', '--initial-branch=main');
@@ -192,6 +197,8 @@ beforeEach(() => {
   writeReview(original);
 });
 afterAll(() => {
+  if (previousModules === undefined) delete process.env['TOOL_WIKI_TRUSTED_NODE_MODULES'];
+  else process.env['TOOL_WIKI_TRUSTED_NODE_MODULES'] = previousModules;
   rmSync(root, { recursive: true });
 });
 
@@ -492,7 +499,7 @@ test('actual bundled validator reports its executed bytes and unresolved exit st
       policyPath,
       reviewPath,
     ],
-    { stdout: 'pipe', stderr: 'pipe' },
+    { stdout: 'pipe', stderr: 'pipe', env: { ...process.env } },
   );
   expect(invocation.exitCode, invocation.stderr.toString()).toBe(1);
   expect(invocation.stderr.toString()).toBe('');

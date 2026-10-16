@@ -1,5 +1,14 @@
-import { cpSync, lstatSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join, relative } from 'node:path';
+import {
+  cpSync,
+  lstatSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  readlinkSync,
+  realpathSync,
+  writeFileSync,
+} from 'node:fs';
+import { basename, dirname, isAbsolute, join, relative } from 'node:path';
 
 import { hashBytes } from '../evidence/content-manifest';
 import { RelocationRefusal } from './relocation-refusal';
@@ -161,6 +170,71 @@ const omittedPackageMetadata = new Set([
   'isexe/.npmignore',
   'stackback/.npmignore',
 ]);
+
+/**
+ * Pins every file accessible from a configured installed dependency root. Compiler requests can
+ * select packages outside the release closure, so no installed package or metadata is omitted.
+ * Only package-manager launcher symlinks in root or nested `node_modules/.bin` are modeled;
+ * their link text and contained regular target bytes are bound alongside ordinary files.
+ * {@link hashTrustedModules} retains the stricter copied-archive boundary.
+ * Every invocation rereads the full installed root; source installations can incur gigabytes of IO.
+ * This is a pre-execution identity, not a snapshot resistant to concurrent filesystem writes.
+ * @throws for unreadable input, an unmodeled symlink, or a launcher escaping the root or
+ * resolving to an absent, cyclic, non-file or unreadable target.
+ */
+export function hashInstalledTrustedModules(modulesRoot: string): string {
+  const root = realpathSync(modulesRoot);
+  const lines: string[] = [];
+  const walk = (directory: string, prefix: string): void => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const relativePath = prefix === '' ? entry.name : `${prefix}/${entry.name}`;
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) walk(path, relativePath);
+      else if (entry.isFile()) {
+        // Proof: replacing regular-file hashes with zeros made an unlinked arbitrary-package
+        // dependency edit retain its identity; the configured runtime identity test failed.
+        lines.push(
+          JSON.stringify({
+            kind: 'file',
+            path: relativePath,
+            sha256: hashBytes(readFileSync(path)),
+          }),
+        );
+      } else {
+        const isLauncherDirectory =
+          basename(directory) === '.bin' &&
+          (dirname(directory) === root || basename(dirname(directory)) === 'node_modules');
+        // Proof: allowing symlinks outside modeled .bin directories made the configured
+        // runtime file-link and unmanaged-bin production-path negatives fail to throw.
+        if (!entry.isSymbolicLink() || !isLauncherDirectory) {
+          throw new Error(`trusted node modules carry a non-regular entry: ${relativePath}`);
+        }
+        const target = realpathSync(path);
+        const offset = relative(root, target);
+        // Proof: removing containment made the configured runtime escape negative fail to throw.
+        if (offset === '..' || offset.startsWith('../') || isAbsolute(offset)) {
+          throw new Error(`trusted node module launcher escapes root: ${relativePath}`);
+        }
+        // Proof: removing this check changed the directory negative to raw EISDIR, losing its named refusal.
+        if (!lstatSync(target).isFile()) {
+          throw new Error(
+            `trusted node module launcher target is not a regular file: ${relativePath}`,
+          );
+        }
+        lines.push(
+          JSON.stringify({
+            kind: 'launcher',
+            path: relativePath,
+            target: readlinkSync(path),
+            sha256: hashBytes(readFileSync(target)),
+          }),
+        );
+      }
+    }
+  };
+  walk(root, '');
+  return hashBytes(new TextEncoder().encode(`${lines.sort().join('\n')}\n`));
+}
 
 /**
  * Copies only named package instances, preserving installed topology. Nested `node_modules`

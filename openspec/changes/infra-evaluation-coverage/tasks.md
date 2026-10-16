@@ -17,3 +17,10 @@
 
 - [x] 4.1 Record serial focused tests, changed-file format/type/lint evidence and every observed mutation proof in verify.md. Explicitly record full local Nx/Burokrat/browser/h2puni gates as unrun under the task memory constraint; leave WBS120 blocked.
 - [ ] 4.2 Obtain PM review of exact diff and evidence before any push, then create the authorized draft PR.
+
+## 5. Ordinary installed-root runtime identity repair
+
+- [x] 5.1 Reproduce hosted `.bin/acorn` refusal using the source target's configured environment.
+- [x] 5.2 Bind all installed bytes and modeled contained launcher links without weakening sealed archive hashing; isolate tiny fixture roots and explicitly propagate the bundled child's environment.
+- [x] 5.3 Observe dependency-symlink, escape, directory-target and unlinked-file hashing fault negatives; restore production and record focused checks and full-root IO limits.
+- [ ] 5.4 Obtain exact repair review, commit through normal hooks, and require new exact aggregate hosted CI plus canonical h2puni gate before release acceptance.

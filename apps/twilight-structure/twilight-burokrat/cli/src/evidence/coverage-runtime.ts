@@ -1,7 +1,7 @@
 import { readFileSync, realpathSync } from 'node:fs';
 
 import { resolveValidatorArtifactPaths } from '../policy/trust';
-import { hashTrustedModules } from '../policy/trusted-modules';
+import { hashInstalledTrustedModules } from '../policy/trusted-modules';
 import { hashBytes, hashCanonical } from './content-manifest';
 
 /**
@@ -20,7 +20,8 @@ export function identifyCoverageRuntime(entryPath: string) {
     // Proof: replacing artifact hashes with zeros made an imported dependency edit keep its identity; runtime identity changes failed.
     sha256: hashBytes(readFileSync(path)),
   }));
-  const modules = process.env['TOOL_WIKI_TRUSTED_NODE_MODULES'];
+  const configuredModules = process.env['TOOL_WIKI_TRUSTED_NODE_MODULES'];
+  const modules = configuredModules === undefined ? undefined : realpathSync(configuredModules);
   const runtime = {
     artifacts,
     runtimeVersion: Bun.version,
@@ -29,8 +30,8 @@ export function identifyCoverageRuntime(entryPath: string) {
         ? { kind: 'not-configured' as const }
         : {
             kind: 'configured' as const,
-            path: realpathSync(modules),
-            digest: hashTrustedModules(modules),
+            path: modules,
+            digest: hashInstalledTrustedModules(modules),
           },
   };
   return { ...runtime, digest: hashCanonical(runtime) };

@@ -111,3 +111,23 @@ reachable successful exit. Refusal findings MUST remain in the embedded verdict.
 
 - **WHEN** a caller supplies `--rule` or an extra operand
 - **THEN** the diagnostic refuses with its usage contract.
+
+### Requirement: Complete configured installed runtime identity
+
+The runtime identity SHALL bind every regular file in the canonical configured installed root,
+including arbitrary and nested dependency packages and metadata. It SHALL permit only package
+manager launcher links directly in a root or nested node_modules `.bin` directory, binding each
+link path, literal target and contained regular target bytes. Other symlinks and invalid launcher
+targets SHALL refuse. The sealed copied-closure hasher SHALL retain its existing strict policy.
+
+#### Scenario: Ordinary source installation with launchers
+
+- **WHEN** the configured source installation contains a contained `.bin` launcher link
+- **THEN** runtime identification succeeds and pins its target and the remaining installed bytes
+- **AND** editing an unlinked arbitrary dependency changes the runtime identity
+
+#### Scenario: Invalid installed runtime input
+
+- **WHEN** a configured root or file is unreadable, a root is absent, a dependency is a symlink,
+  or a launcher target escapes, is absent, cyclic, a directory or a special file
+- **THEN** runtime identification refuses without a coverage report

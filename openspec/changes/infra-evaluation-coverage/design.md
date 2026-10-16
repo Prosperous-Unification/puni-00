@@ -47,7 +47,14 @@ reads and graph evaluations. Export the canonical candidate digest rather than
 introducing a second identity algorithm. Runtime identity is derived from the actual entry dependency closure in source
 mode or the actual executed validator bundle and its remaining imports in
 packaged mode, including configured trusted runtime module bytes. It includes runtime version and executable bytes;
-review-supplied labels never stand in for runtime identity.
+review-supplied labels never stand in for runtime identity. Configured source installations bind the
+entire canonical installed root, including arbitrary and nested packages and metadata: compiler
+requests are not restricted to the release declaration roots. Files and modeled launcher links use
+unambiguous JSON records. Only symlinks directly in a root or nested `node_modules/.bin` are
+modeled; their literal link text and contained regular target bytes are pinned. Other symlinks,
+escaping/dangling/cyclic links, directory targets and special files refuse. The sealed archive
+hasher remains strict. This is a pre-execution digest with full-root IO on each invocation, not an
+immutable execution snapshot or a defense against concurrent filesystem writes.
 
 Generate the Cartesian matrix internally in stable candidate/registry order.
 Each row carries its exact subject tuple, rule contract, ruleMode, applicability,
