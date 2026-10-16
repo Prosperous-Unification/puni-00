@@ -18,7 +18,7 @@ index 9198931d1..9d106621b 100644
 -  workItems: TreeAnnouncement;
 +  workItems: Pick<WorkItemService, 'announceTreeNow'>;
  }
- 
+
  /**
 diff --git a/libs/wbs/application/core/src/ports/tree-announcement.ts b/libs/wbs/application/core/src/ports/tree-announcement.ts
 index 0a916b851..f0bc9c0bd 100644

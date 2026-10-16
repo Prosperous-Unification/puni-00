@@ -91,9 +91,44 @@ negative tests. Core/backend typecheck: **4 tasks successful**. Core/backend lin
 **2 tasks successful**. OpenSpec: **216 passed, 0 failed** (198 changes, 18 specs).
 Raw scoped command output is retained in evidence. Normal lefthook hooks were
 installed and ran on the implementation commit. Changed production TypeScript
-and change Markdown formatting and `git diff --check` passed.
+and change Markdown formatting passed. The original `git diff --check` claim
+did not cover the subsequently retained patch evidence; the committed-range
+correction and replay checks are recorded below.
 
 Full workspace format/test/lint/typecheck/build and `bin/h2puni-gate.sh <sha>`
 were not run; the coordinating agent owns release acceptance. No push, merge,
 deployment, archive or policy activation was performed. This report claims scoped
 verification only.
+
+## Retained patch whitespace correction
+
+Review reproduced `git diff --check
+6491ea6666065d3b56cdfc655d65b1ddc6865291..80033ad582701cf5f430f123d450a28680fc0120`
+exiting 2: line 21 in each retained fault patch contained a space-only context
+line. Each line is now empty, preserving Git's blank-context matching. No source,
+test, fault ID, verdict or oracle changed.
+
+Both normalized patches passed `git apply --cached --check` and were then applied
+with `git apply --cached` to separate temporary indexes initialized with
+`git read-tree ac626760285d9eaa1c198fe8c9824519b773d141`.
+`git write-tree` matched each original fault commit's tree exactly:
+
+| Patch  | Replayed tree                              | Original fault commit                      |
+| ------ | ------------------------------------------ | ------------------------------------------ |
+| Direct | `fe3c5efec97eff52b0fbacbbfe85f129d64e3885` | `e294c710d0f7d13d9546cf65a39c70ceb640d8d3` |
+| Barrel | `56b4ddc93d488f5d64ed75f982be921e067c5907` | `b593552f4dc2f97c3a3700a7f763e29a0c3bfed0` |
+
+Fresh correction checks:
+
+```sh
+git diff --check 6491ea6666065d3b56cdfc655d65b1ddc6865291
+bunx prettier --check openspec/changes/tree-announcement-port-boundary/*.md
+BUN_TMPDIR=/tmp bunx @fission-ai/openspec@1.12.0 validate tree-announcement-port-boundary --json
+```
+
+The whitespace check covers the complete reviewed-base-to-corrected-tree range,
+including the retained patches. Whitespace and Markdown formatting passed;
+scoped OpenSpec validation reported **1 passed, 0 failed**. Normal commit hooks
+ran for this documentation correction. K6 and the 111-test suites were not rerun:
+the replayed fault trees are identical and no executable file changed. The full
+workspace and host gates remain unrun as stated above.

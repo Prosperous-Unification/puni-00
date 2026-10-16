@@ -18,5 +18,5 @@ index 9198931d1..f706708b6 100644
 -  workItems: TreeAnnouncement;
 +  workItems: Pick<WorkItemService, 'announceTreeNow'>;
  }
- 
+
  /**
