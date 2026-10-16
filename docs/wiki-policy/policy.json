@@ -362,6 +362,10 @@
         ],
         "exclude": [
           {
+            "kind": "prefix",
+            "value": "openspec"
+          },
+          {
             "kind": "suffix",
             "value": ".test.ts"
           },
@@ -664,6 +668,24 @@
         "regenerationAuthority": {
           "kind": "source",
           "path": "infra/versions/toolchain.json"
+        }
+      },
+      {
+        "path": "openspec/changes/wbs120-yaml-trusted-declarations/evidence/installed-green-pack.log.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/wbs120-yaml-trusted-declarations/verify.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "openspec/changes/wbs120-yaml-trusted-declarations/verify.md"
+        }
+      },
+      {
+        "path": "openspec/changes/wbs120-yaml-trusted-declarations/evidence/installed-red-pack.log.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/wbs120-yaml-trusted-declarations/verify.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "openspec/changes/wbs120-yaml-trusted-declarations/verify.md"
         }
       }
     ],

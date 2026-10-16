@@ -1170,6 +1170,102 @@
       "id": "TEST-AXES-147",
       "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
       "title": "Browser source levels preserve canonical installed diagnostic boundaries"
+    },
+    {
+      "kind": "allocate",
+      "id": "YAML-TRUSTED-DECLARATIONS-001",
+      "source": "openspec/changes/wbs120-yaml-trusted-declarations/specs/yaml-trusted-declarations/spec.md",
+      "title": "Installed consumer resolves the real YAML parser"
+    },
+    {
+      "kind": "allocate",
+      "id": "YAML-TRUSTED-DECLARATIONS-002",
+      "source": "openspec/changes/wbs120-yaml-trusted-declarations/specs/yaml-trusted-declarations/spec.md",
+      "title": "Missing or altered trusted YAML is refused"
+    },
+    {
+      "kind": "allocate",
+      "id": "YAML-TRUSTED-DECLARATIONS-003",
+      "source": "openspec/changes/wbs120-yaml-trusted-declarations/specs/yaml-trusted-declarations/spec.md",
+      "title": "Unsupported candidate dependency stays outside the closure"
+    },
+    {
+      "kind": "allocate",
+      "id": "BROWSER-T2-POLICY-PREVIEW-001",
+      "source": "openspec/changes/browser-t2-policy-preview/specs/browser-t2-policy-preview/spec.md",
+      "title": "Real upstream inspection remains required"
+    },
+    {
+      "kind": "allocate",
+      "id": "BROWSER-T2-POLICY-PREVIEW-002",
+      "source": "openspec/changes/browser-t2-policy-preview/specs/browser-t2-policy-preview/spec.md",
+      "title": "Exact selection and explicit instant are mandatory"
+    },
+    {
+      "kind": "allocate",
+      "id": "BROWSER-T2-POLICY-PREVIEW-003",
+      "source": "openspec/changes/browser-t2-policy-preview/specs/browser-t2-policy-preview/spec.md",
+      "title": "Invalid or unavailable proposed policy refuses"
+    },
+    {
+      "kind": "allocate",
+      "id": "BROWSER-T2-POLICY-PREVIEW-004",
+      "source": "openspec/changes/browser-t2-policy-preview/specs/browser-t2-policy-preview/spec.md",
+      "title": "A valid proposal describes another observation"
+    },
+    {
+      "kind": "allocate",
+      "id": "BROWSER-T2-POLICY-PREVIEW-005",
+      "source": "openspec/changes/browser-t2-policy-preview/specs/browser-t2-policy-preview/spec.md",
+      "title": "Ratchet inputs are explicit and canonical"
+    },
+    {
+      "kind": "allocate",
+      "id": "BROWSER-T2-POLICY-PREVIEW-006",
+      "source": "openspec/changes/browser-t2-policy-preview/specs/browser-t2-policy-preview/spec.md",
+      "title": "Modes differ for the same missing citation"
+    },
+    {
+      "kind": "allocate",
+      "id": "BROWSER-T2-POLICY-PREVIEW-007",
+      "source": "openspec/changes/browser-t2-policy-preview/specs/browser-t2-policy-preview/spec.md",
+      "title": "Similar prefix is not adopted"
+    },
+    {
+      "kind": "allocate",
+      "id": "BROWSER-T2-POLICY-PREVIEW-008",
+      "source": "openspec/changes/browser-t2-policy-preview/specs/browser-t2-policy-preview/spec.md",
+      "title": "Outcomes and ledger debt stay independent"
+    },
+    {
+      "kind": "allocate",
+      "id": "BROWSER-T2-POLICY-PREVIEW-009",
+      "source": "openspec/changes/browser-t2-policy-preview/specs/browser-t2-policy-preview/spec.md",
+      "title": "Dependency partition is incomplete or inconsistent"
+    },
+    {
+      "kind": "allocate",
+      "id": "BROWSER-T2-POLICY-PREVIEW-010",
+      "source": "openspec/changes/browser-t2-policy-preview/specs/browser-t2-policy-preview/spec.md",
+      "title": "Proposed refusal emits a diagnostic and nonzero status"
+    },
+    {
+      "kind": "allocate",
+      "id": "BROWSER-T2-POLICY-PREVIEW-011",
+      "source": "openspec/changes/browser-t2-policy-preview/specs/browser-t2-policy-preview/spec.md",
+      "title": "Debt does not refuse a proposal"
+    },
+    {
+      "kind": "allocate",
+      "id": "BROWSER-T2-POLICY-PREVIEW-012",
+      "source": "openspec/changes/browser-t2-policy-preview/specs/browser-t2-policy-preview/spec.md",
+      "title": "Complete identity and installed dispatch are preserved"
+    },
+    {
+      "kind": "allocate",
+      "id": "BROWSER-T2-POLICY-PREVIEW-013",
+      "source": "openspec/changes/browser-t2-policy-preview/specs/browser-t2-policy-preview/spec.md",
+      "title": "Caller requests authority from a consistent preview"
     }
   ]
 }

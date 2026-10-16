@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts:
+6398 |     }));
+6399 |     expect(proof.kind).toBe('observed');
+6400 |     if (proof.kind !== 'observed') throw new Error('coherent tearing was not observed');
+6401 |     expect(proof.phase).toBe('saved-plan-capture:coherent:directory-outside-epoch');
+6402 |     expect(Bun.stripANSI(proof.observedFailure)).toContain('Tag after interleave');
+6403 |     expect(Bun.stripANSI(proof.observedFailure)).toContain('Tag 1');
+                                                        ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "Tag 1"
+Received: "expect(received).toEqual(expected)\n\n  {\n    \"change\": {\n      \"person\": {\n        \"ok\": true,\n        \"person\": {\n          \"id\": \"capture-person-unassigned\",\n          \"kind\": \"person\",\n          \"name\": \"Unassigned member\",\n          \"teamIds\": [\n            \"team-a\",\n          ],\n        },\n        \"projectIds\": [],\n      },\n      \"tag\": {\n        \"ok\": true,\n-       \"projectIds\": [\n-         \"project-a\",\n-       ],\n+       \"projectIds\": [],\n        \"tag\": {\n          \"id\": \"tag-a\",\n          \"name\": \"Tag after interleave\",\n        },\n      },\n    },\n    \"people\": [\n      {\n        \"id\": \"capture-person-unassigned\",\n        \"kind\": \"person\",\n        \"name\": \"Unassigned member\",\n        \"teamIds\": [\n          \"team-a\",\n        ],\n      },\n      {\n        \"id\": \"person-a\",\n        \"kind\": \"person\",\n        \"name\": \"Person 1\",\n        \"teamIds\": [\n          \"team-a\",\n        ],\n      },\n      {\n        \"id\": \"person-b\",\n        \"kind\": \"person\",\n        \"name\": \"Person 2\",\n        \"teamIds\": [\n          \"team-b\",\n        ],\n      },\n    ],\n    \"tags\": [\n      {\n        \"id\": \"capture-tag-only\",\n        \"name\": \"Capture-only tag\",\n      },\n      {\n        \"id\": \"tag-a\",\n        \"name\": \"Tag after interleave\",\n      },\n    ],\n  }\n\n- Expected  - 3\n+ Received  + 1\n"
+
+      at <anonymous> (/tmp/wbs-memory-stores-sol/libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts:6403:50)
+(fail) memory existing source conformance > Task 6.4 observes outside-epoch directory tearing and its reversals [19.76ms]
+
+ 0 pass
+ 73 filtered out
+ 1 fail
+ 37 expect() calls
+Ran 1 test across 1 file. [1.64s]

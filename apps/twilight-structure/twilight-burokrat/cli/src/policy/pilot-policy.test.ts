@@ -426,6 +426,8 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     // Proof: omitting step-unit.test.ts from the memory adapter index made this production CLI
     // invocation exit 1 with "unindexed candidate path" in the pins exact pre-index tuples test
     // (2026-10-13, PR #380 head 214dc6c86).
+    // Proof (2026-10-16): omitting memory-stores.ts from the memory adapter index made
+    // this production CLI refuse its exact unindexed candidate path in the F7 composition.
     expect(indexInvocation.exitCode, output(indexInvocation)).toBe(0);
     const indexReport = JSON.parse(pipeText(indexInvocation.stdout, 'index stdout')) as {
       indexes: {
@@ -471,6 +473,8 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     // `pilot module external consumers disagree with index …/plan-commands/README.md` (0/1).
     // Proof (2026-10-16): omitting the exact feasibility relay.c source selector made
     // this production CLI refuse with `relay.c matched 0 classification rules` (0/1).
+    // Proof (2026-10-16): omitting either exact WBS120 gzip row from each policy made
+    // production classify-candidate refuse the named artifact as undeclared binary content.
     expect(invocation.exitCode, output(invocation)).toBe(0);
     expect(JSON.parse(pipeText(invocation.stdout, 'lint stdout'))).toMatchObject({
       mode: 'observe',

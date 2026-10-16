@@ -1,0 +1,7 @@
+Command: ["bun", "apps/twilight-structure/twilight-burokrat/cli/src/packaging/build.ts"]
+CWD: /tmp/puni-wbs120-yaml-closure-sol-20261016
+Source HEAD: acb0a68a86848bea0ad00fe5e3a7f3b7eed0ddac
+Source tree: 8aa11026f2a6d4fd7b84c2a2de996e4e2f013beb
+Production blob: c9ccee6159ee73b8481145988b14b57e7f9c7b5f
+
+Exit: 0

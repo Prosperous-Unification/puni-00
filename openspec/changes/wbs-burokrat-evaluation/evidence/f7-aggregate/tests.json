@@ -1,0 +1,17 @@
+[
+  {
+    "name": "cache",
+    "command": "bun test libs/wbs/adapters/store-sqlite/src/optimized-cache.db.test.ts apps/wbs/be-01/src/service/optimized-plan-read.test.ts apps/wbs/be-01/src/service/optimization-coordinator.db.test.ts apps/wbs/be-01/src/service/deadline-plan-read.test.ts libs/wbs/adapters/store-sqlite/src/optimized-schedule-cache.db.test.ts libs/wbs/adapters/store-sqlite/src/captured-optimization-reader.db.test.ts --timeout=30000",
+    "exit": 0
+  },
+  {
+    "name": "memory",
+    "command": "bun test libs/wbs/adapters/store-memory/src/memory-source.test.ts libs/wbs/adapters/store-memory/src/source-conformance.test.ts libs/wbs/adapters/store-memory/src/targeted-readers.test.ts libs/wbs/adapters/store-memory/src/step-blockage-fixture.test.ts libs/wbs/adapters/store-memory/src/typed-dependency-fixture.test.ts libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts --timeout=10000",
+    "exit": 0
+  },
+  {
+    "name": "domain",
+    "command": "bun test apps/wbs/be-01/src/controller/domain-organization.controller.db.test.ts libs/wbs/adapters/store-sqlite/src/organization-records.db.test.ts --timeout=30000",
+    "exit": 0
+  }
+]

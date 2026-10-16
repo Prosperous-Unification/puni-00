@@ -52,6 +52,7 @@ describe('organization join request decisions', () => {
         .all(harness.userId('applicant')),
     ).toHaveLength(0);
     const token = harness.deliveredEmailToken('applicant@example.org');
+    expect(harness.deliveredEmailPurpose('applicant@example.org')).toBe('invitation');
     expect(harness.sqlite.query('SELECT token_digest FROM organization_invitation').get()).toEqual({
       token_digest: createHash('sha256').update(token).digest('hex'),
     });

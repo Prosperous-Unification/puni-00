@@ -70,7 +70,8 @@ export function joinRequestRoutes(
         );
         if (!answer.ok) return refused(answer.refusal);
         try {
-          await delivery.deliver(answer.value.email, token);
+          // Proof: swapping this purpose failed the mounted join-request message-purpose assertion.
+          await delivery.deliver({ purpose: 'invitation', recipient: answer.value.email, token });
         } catch {
           // Proof: 2026-09-28, omitting compensation failed `reopens a request and revokes its invitation when the injected sink fails`.
           await requests.failDelivery(params.id, answer.value.invitationId, {

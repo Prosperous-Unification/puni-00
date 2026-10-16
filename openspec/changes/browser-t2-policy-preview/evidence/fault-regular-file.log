@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:
+73 | async function refuse(argv: string[], message?: string) {
+74 |   const call = await invokeCli(argv);
+75 |   expect(call.exitCode, call.stderr).toBe(1);
+76 |   expect(call.stdout).toBe('');
+77 |   expect(call.stderr.length).toBeGreaterThan(0);
+78 |   if (message !== undefined) expect(call.stderr).toContain(message);
+                                                      ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "not a regular file"
+Received: "EISDIR: illegal operation on a directory, read\n"
+
+      at refuse (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:78:50)
+      at async <anonymous> (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:153:11)
+(fail) [BROWSER-T2-POLICY-PREVIEW-003] refuses directory proposed policy [1093.90ms]
+
+ 0 pass
+ 85 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [2.09s]

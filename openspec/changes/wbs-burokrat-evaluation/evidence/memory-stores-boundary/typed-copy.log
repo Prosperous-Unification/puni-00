@@ -1,0 +1,28 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-memory/src/memory-source.test.ts:
+549 |     expect((await source.stores.steps.listByProject('p1')).map((step) => step.name)).toContain(
+550 |       'QA',
+551 |     );
+552 |     expect((await source.stores.directory.listTags()).map((tag) => tag.name)).toContain('urgent');
+553 |     expect((await source.stores.projects.findById('p1'))?.name).toBe('Committed');
+554 |     expect((await source.stores.typedDependencies.listByProject('p1')).map(({ id }) => id)).toEqual(
+                                                                                                  ^
+error: expect(received).toEqual(expected)
+
+- [
+-   "committed-typed",
+- ]
++ []
+
+- Expected  - 3
++ Received  + 1
+
+      at <anonymous> (/tmp/wbs-memory-stores-sol/libs/wbs/adapters/store-memory/src/memory-source.test.ts:554:93)
+(fail) the staged memory source > commits all mixed-store writes together [7.48ms]
+
+ 0 pass
+ 14 filtered out
+ 1 fail
+ 5 expect() calls
+Ran 1 test across 1 file. [1.59s]

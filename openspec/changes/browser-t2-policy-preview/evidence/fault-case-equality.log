@@ -1,0 +1,37 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:
+456 |     const boundary: Record<string, string> = {
+457 |       digest: 'upstream digest differs', revision: 'upstream selection or instant differs', capability: 'upstream selection or instant differs', instant: 'upstream selection or instant differs',
+458 |       'duplicate case': 'duplicate case', 'foreign case': 'case differs from original report', 'altered case': 'case differs from original report',
+459 |       'conflicting cited finding': 'cited case has a finding', 'impossible citation': 'impossible citation variant',
+460 |     };
+461 |     expect(call.stderr.toString()).toContain(boundary[name] ?? 'Browser T2');
+                                         ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "case differs from original report"
+Received: "Browser T2 policy citation finding differs from case\n"
+
+      at <anonymous> (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:461:36)
+(fail) [BROWSER-T2-POLICY-PREVIEW-009] refuses resealed upstream foreign case [2430.54ms]
+456 |     const boundary: Record<string, string> = {
+457 |       digest: 'upstream digest differs', revision: 'upstream selection or instant differs', capability: 'upstream selection or instant differs', instant: 'upstream selection or instant differs',
+458 |       'duplicate case': 'duplicate case', 'foreign case': 'case differs from original report', 'altered case': 'case differs from original report',
+459 |       'conflicting cited finding': 'cited case has a finding', 'impossible citation': 'impossible citation variant',
+460 |     };
+461 |     expect(call.stderr.toString()).toContain(boundary[name] ?? 'Browser T2');
+                                         ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "case differs from original report"
+Received: "Browser T2 policy citation finding differs from case\n"
+
+      at <anonymous> (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:461:36)
+(fail) [BROWSER-T2-POLICY-PREVIEW-009] refuses resealed upstream altered case [2356.99ms]
+
+ 0 pass
+ 85 filtered out
+ 2 fail
+ 6 expect() calls
+Ran 2 tests across 1 file. [5.77s]

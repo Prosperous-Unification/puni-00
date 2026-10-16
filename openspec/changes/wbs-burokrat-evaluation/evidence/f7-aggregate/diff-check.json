@@ -1,0 +1,46 @@
+{
+  "checked_head": "31c1be09342b5dd09b0fdc7a844fb447741d96c5",
+  "command": [
+    "git",
+    "diff",
+    "--check",
+    "87a2b7edbfaabae889d91daa823f16f520a51cec",
+    "31c1be09342b5dd09b0fdc7a844fb447741d96c5"
+  ],
+  "exit": 2,
+  "stdout": "openspec/changes/wbs-burokrat-evaluation/evidence/domain-verification-boundary/commit-hooks.log:7: trailing whitespace.\n+\u2503  tool-wiki \u276f \nopenspec/changes/wbs-burokrat-evaluation/evidence/domain-verification-boundary/commit-hooks.log:10: trailing whitespace.\n+\u2503  plaintext-secrets \u276f \nopenspec/changes/wbs-burokrat-evaluation/evidence/domain-verification-boundary/commit-hooks.log:12: trailing whitespace.\n+\u2503  private-nesting \u276f \nopenspec/changes/wbs-burokrat-evaluation/evidence/domain-verification-boundary/commit-hooks.log:14: trailing whitespace.\n+\u2503  format \u276f \nopenspec/changes/wbs-burokrat-evaluation/evidence/domain-verification-boundary/commit-hooks.log:18: trailing whitespace.\n+\u2503  lint \u276f \nopenspec/changes/wbs-burokrat-evaluation/evidence/domain-verification-boundary/commit-hooks.log:30: trailing whitespace.\n+\u2503  agent-authored-by \u276f \nopenspec/changes/wbs-burokrat-evaluation/evidence/domain-verification-boundary/commit-hooks.log:38: trailing whitespace.\n+\u2503  agent-authored-by \u276f \nopenspec/changes/wbs-burokrat-evaluation/evidence/memory-stores-boundary/allowance-copy.log:8: trailing whitespace.\n+274 | \nopenspec/changes/wbs-burokrat-evaluation/evidence/memory-stores-boundary/journal-forward.log:4: trailing whitespace.\n+5093 | \nopenspec/changes/wbs-burokrat-evaluation/evidence/memory-stores-boundary/normal-hooks.log:7: trailing whitespace.\n+\u2503  tool-wiki \u276f \nopenspec/changes/wbs-burokrat-evaluation/evidence/memory-stores-boundary/normal-hooks.log:10: trailing whitespace.\n+\u2503  plaintext-secrets \u276f \nopenspec/changes/wbs-burokrat-evaluation/evidence/memory-stores-boundary/normal-hooks.log:12: trailing whitespace.\n+\u2503  private-nesting \u276f \nopenspec/changes/wbs-burokrat-evaluation/evidence/memory-stores-boundary/normal-hooks.log:14: trailing whitespace.\n+\u2503  format \u276f \nopenspec/changes/wbs-burokrat-evaluation/evidence/memory-stores-boundary/normal-hooks.log:18: trailing whitespace.\n+\u2503  lint \u276f \nopenspec/changes/wbs-burokrat-evaluation/evidence/memory-stores-boundary/normal-hooks.log:36: trailing whitespace.\n+\u2503  agent-authored-by \u276f \nopenspec/changes/wbs-burokrat-evaluation/evidence/memory-stores-boundary/normal-hooks.log:44: trailing whitespace.\n+\u2503  agent-authored-by \u276f \n",
+  "stderr": "",
+  "warning_count": 16,
+  "classification": [
+    {
+      "path": "openspec/changes/wbs-burokrat-evaluation/evidence/domain-verification-boundary/commit-hooks.log",
+      "lines": [7, 10, 12, 14, 18, 30, 38],
+      "classification": "inherited reviewed source evidence",
+      "reviewed_source": "f3f87016de0f4cdc1fa0e6f943894c76753bdcaf",
+      "exact_mode_blob": "100644 blob 9f26959987b2340baee767305710d8a17d5765cd\topenspec/changes/wbs-burokrat-evaluation/evidence/domain-verification-boundary/commit-hooks.log"
+    },
+    {
+      "path": "openspec/changes/wbs-burokrat-evaluation/evidence/memory-stores-boundary/allowance-copy.log",
+      "lines": [8],
+      "classification": "inherited reviewed source evidence",
+      "reviewed_source": "240b72d87789ee793e94c0c85612819605024382",
+      "exact_mode_blob": "100644 blob 9791521c5215293af942df8e612a8ebc13dc1067\topenspec/changes/wbs-burokrat-evaluation/evidence/memory-stores-boundary/allowance-copy.log"
+    },
+    {
+      "path": "openspec/changes/wbs-burokrat-evaluation/evidence/memory-stores-boundary/journal-forward.log",
+      "lines": [4],
+      "classification": "inherited reviewed source evidence",
+      "reviewed_source": "240b72d87789ee793e94c0c85612819605024382",
+      "exact_mode_blob": "100644 blob b9d0462db0d3daaa06f09bd8c8efab3e3a9b5c58\topenspec/changes/wbs-burokrat-evaluation/evidence/memory-stores-boundary/journal-forward.log"
+    },
+    {
+      "path": "openspec/changes/wbs-burokrat-evaluation/evidence/memory-stores-boundary/normal-hooks.log",
+      "lines": [7, 10, 12, 14, 18, 36, 44],
+      "classification": "inherited reviewed source evidence",
+      "reviewed_source": "240b72d87789ee793e94c0c85612819605024382",
+      "exact_mode_blob": "100644 blob 2db74ac3752880d276b799d28a64b85ec85e93bb\topenspec/changes/wbs-burokrat-evaluation/evidence/memory-stores-boundary/normal-hooks.log"
+    }
+  ],
+  "aggregate_added_warnings": 0,
+  "storage_note": "Exact captured output is encoded as JSON string escapes to avoid adding whitespace defects in the receipt itself."
+}

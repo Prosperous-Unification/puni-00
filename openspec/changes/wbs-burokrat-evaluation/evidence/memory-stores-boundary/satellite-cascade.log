@@ -1,0 +1,19 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-memory/src/memory-source.test.ts:
+47 |     const selected: { blockage: StoredStepBlockage; position: number }[] = [];
+48 |     for (const blockage of rows) {
+49 |       if (ids !== undefined && !ids.includes(blockage.workItemId)) continue;
+50 |       const owner = await workItems.findById(blockage.workItemId);
+51 |       // Proof: owner guard removed independently in read/set/transfer; named reference negatives failed; watched 2026-10-13.
+52 |       if (owner === null) throw new Error('step blockage has an invalid work-item reference');
+                                         ^
+error: step blockage has an invalid work-item reference
+      at <anonymous> (/tmp/wbs-memory-stores-sol/libs/wbs/adapters/store-memory/src/step-blockage-fixture.ts:52:37)
+(fail) commits and rolls back project-seeded blockage facts and cascades removed owners [4.71ms]
+
+ 0 pass
+ 14 filtered out
+ 1 fail
+ 9 expect() calls
+Ran 1 test across 1 file. [1.59s]

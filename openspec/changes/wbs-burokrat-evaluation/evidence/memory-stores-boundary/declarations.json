@@ -1,0 +1,46 @@
+{
+  "importsUnchanged": true,
+  "indexUnchanged": true,
+  "noReverseImport": true,
+  "base": "87a2b7edb",
+  "sourceBlob": "0e54a8559a06300ae59af8c070b9eb8ec3ba512f",
+  "moved": [
+    "MemoryTables",
+    "emptyTables",
+    "replaceMap",
+    "replaceArray",
+    "detachedStore",
+    "detachedStores",
+    "MemoryState",
+    "bindStores"
+  ],
+  "retained": [
+    "MemoryCoordinator",
+    "coordinatedStore",
+    "coordinatedStores",
+    "openMemorySource",
+    "MemorySourceFixture",
+    "openMemorySourceFixture",
+    "openMemorySourceWithLateWriteSeam",
+    "openMemorySourceWithCaptureReadSeam",
+    "openMemorySourceWithSeams",
+    "HistoryState",
+    "savedPlanRow",
+    "assertSavedPlanScheduleBoundary",
+    "refuseScopedSavedPlanWrite",
+    "memorySavedPlans",
+    "capturePlanInput",
+    "memoryHistory"
+  ],
+  "sourceExports": [
+    "MemorySourceFixture",
+    "MemoryState",
+    "openMemorySource",
+    "openMemorySourceFixture",
+    "openMemorySourceWithCaptureReadSeam",
+    "openMemorySourceWithLateWriteSeam"
+  ],
+  "internalExports": ["MemoryState", "bindStores", "replaceMap"],
+  "allDeclarationTokensIdentical": true,
+  "existingProofCommentsPreserved": 18
+}

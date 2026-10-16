@@ -101,7 +101,8 @@ export function invitationRoutes(
           throw new Error(`unexpected issue invitation refusal: ${answer.refusal}`);
         }
         try {
-          await delivery.deliver(email, token);
+          // Proof: swapping this purpose failed the mounted invitation message-purpose assertion.
+          await delivery.deliver({ purpose: 'invitation', recipient: email, token });
         } catch {
           // Proof: 2026-09-28, omitting this revocation failed `revokes an invitation when the injected mail sink rejects delivery`.
           await invitations.failDelivery(answer.value.id, clock.now());
