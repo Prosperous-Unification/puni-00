@@ -264,3 +264,64 @@ Final correction checks: scoped Nx lint/typecheck/build plus six dependencies pa
 passed 197 changes and 18 specs (`/tmp/puni-f9-unreadable-openspec.log`). The old checkout's
 full-target log `/tmp/puni-f9-review-full-test.log` was still running without a final exit-status
 file at this handoff. No full-target success is attributed to this new correction.
+
+### Wave7 aggregate descendant oracle repair — 2026-10-16
+
+Integration of the approved F9 head exposed a Linux procfs disappearance race in
+`forge-recovery-lab.test.ts`: the production command returned exit 0 without a
+timeout, but reading its killed descendant's `/proc/<pid>/stat` raised `ESRCH`.
+The original oracle accepted only `ENOENT`. An isolated rerun passed, confirming
+the timing dependence; the existing `performance-processes.ts` reader already
+models both disappearance codes.
+
+The direct-exit test now shares its extracted local oracle with deterministic
+regressions. Only `ENOENT` and `ESRCH` mean disappearance; `EACCES` and `EIO`
+propagate unchanged, a live status remains running, and a zombie is stopped.
+Production process-group behavior is unchanged. No delta spec is needed for this
+test correction restoring the existing descendant-cleanup contract.
+
+Watched proofs:
+
+- Injected `ESRCH` failed before the narrow catch correction: two regressions
+  passed and one failed ([RED](evidence/wave7-aggregate/descendant-red.log.txt)).
+- The complete restored fixture file passed 27 tests, zero failures, 96 assertions
+  ([GREEN](evidence/wave7-aggregate/descendant-green.log.txt)).
+- Temporarily removing only `runRecoveryCommand`'s final `killGroup()` made the
+  real direct-exit descendant test fail with expected stopped=true, actual=false
+  ([negative](evidence/wave7-aggregate/descendant-cleanup-negative.log.txt)).
+  The production file was restored byte identically before the final run.
+
+The initial broad fleet run encountered restricted listener/socket fixtures and
+a stalled QEMU fixture; it was interrupted, not accepted as evidence of a code
+failure or a passing full fleet suite. Its transcript remains at
+`/tmp/wave7-aggregate-focused.log`. The first narrower nine-file run returned
+226 pass and one failure at the procfs race above; its transcript remains at
+`/tmp/wave7-aggregate-focused-scoped.log`.
+
+Aggregate scoped validation on the restored tree:
+
+- Frozen Bun install passed: 1,573 installs across 1,447 packages.
+- Nine-file F9/forge, immutable-image smoke and rank controller/store command
+  passed: 230 tests, zero failures, 717 assertions
+  (`/tmp/wave7-aggregate-focused-restored.log`). The final extracted-oracle file
+  also independently passed 27/27 after its lint assertion adjustment.
+- Uncached Nx typecheck passed for tool-fleet, tool-devsync, twilight-burokrat,
+  wbs-core and wbs-be-01 plus two module tasks. Uncached Nx lint passed for
+  tool-fleet, tool-devsync, wbs-core and wbs-be-01; twilight-burokrat lint:source
+  passed separately. Direct lint and scoped Prettier passed after the oracle edit.
+- Pinned OpenSpec all: 222/222 valid, zero failures. Scenario validation returned
+  `{"unidentified":[]}`; solver smoke shellcheck and aggregate whitespace passed.
+- Production committed K6 and exact-edge oracle passed on pre-repair aggregate
+  `e3b37f95c39d9a8db70ee4e19d2a095359b2fc65`, preserving all four unrelated
+  findings. The repair changes only a test oracle and this evidence.
+
+All four approved source heads remain ancestors; the initial merge aggregate
+preserved all 126 source-path blobs exactly and had no conflicts. This repair
+intentionally diverges in `forge-recovery-lab.test.ts` and this appended verify
+document, adding only the three watched-proof transcripts beside the change.
+No Step/Navigator stack or K6 import follow-up was included. The base remains
+exact PR #504 head `24c5eda8c5b37280048aee9cbf9ef411c87b04f6`.
+
+Full host gate, full workspace checks, hosted aggregate CI, live infrastructure
+acceptance, push, release, merge and deployment were not run. The coordinator owns
+#504's separate hosted diagnostic and any later base reconciliation.

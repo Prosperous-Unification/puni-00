@@ -298,6 +298,42 @@ test('surviving lab state fails cleanup after every resource probe', async () =>
   ).toHaveLength(3);
 });
 
+async function isStopped(readStatus: () => Promise<string>): Promise<boolean> {
+  try {
+    return /\) [ZX] /.test(await readStatus());
+  } catch (failure) {
+    // Proof: injected ESRCH failed the disappearance regression before this branch; EACCES/EIO still reject.
+    if (
+      failure instanceof Error &&
+      'code' in failure &&
+      (failure.code === 'ENOENT' || failure.code === 'ESRCH')
+    )
+      return true;
+    throw failure;
+  }
+}
+
+for (const code of ['ENOENT', 'ESRCH']) {
+  test(`stopped descendant oracle accepts process disappearance ${code}`, async () => {
+    expect(await isStopped(() => Promise.reject(Object.assign(new Error(code), { code })))).toBe(
+      true,
+    );
+  });
+}
+
+test('stopped descendant oracle preserves unreadable and failed status reads', async () => {
+  for (const code of ['EACCES', 'EIO']) {
+    const failure = Object.assign(new Error(code), { code });
+    const observed = await isStopped(() => Promise.reject(failure)).then(
+      () => undefined,
+      (cause: unknown) => cause,
+    );
+    expect(observed).toBe(failure);
+  }
+  expect(await isStopped(() => Promise.resolve('1 (child) S 0'))).toBe(false);
+  expect(await isStopped(() => Promise.resolve('1 (child) Z 0'))).toBe(true);
+});
+
 test('terminates local descendants when a command exits before its deadline', async () => {
   const path = await directory();
   await writeFile(
@@ -315,14 +351,7 @@ test('terminates local descendants when a command exits before its deadline', as
   expect(receipt.exitCode).toBe(0);
   expect(receipt.timedOut).toBe(false);
   const pid = Number(await readFile(join(path, 'child-pid'), 'utf8'));
-  const stopped = async () => {
-    try {
-      return /\) [ZX] /.test(await readFile(`/proc/${String(pid)}/stat`, 'utf8'));
-    } catch (failure) {
-      if (failure instanceof Error && 'code' in failure && failure.code === 'ENOENT') return true;
-      throw failure;
-    }
-  };
+  const stopped = () => isStopped(() => readFile(`/proc/${String(pid)}/stat`, 'utf8'));
   const deadline = Date.now() + 300;
   while (!(await stopped()) && Date.now() < deadline) await Bun.sleep(5);
   expect(await stopped()).toBe(true);
