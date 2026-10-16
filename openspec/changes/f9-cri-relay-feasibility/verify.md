@@ -211,3 +211,48 @@ OpenSpec validation, full Nx/project lint/typecheck/build, h2puni heavy gate,
 hosted CI, deployment and source publication did not run for this follow-up.
 Selecting a maintained client/toolchain with the protected authority owner and
 proving Section 2 remain open. No archive or F9 production task is complete.
+
+## Connected terminal-status proof correction (2026-10-17)
+
+Independent Astra review of `576f7ae109d3029b9cc1df103e67ca0bab4109a6`
+identified an R5 gap: the original status mutant removed both the terminal frame
+read and its comparison. Missing-status exercised the read failure; it did not
+prove either comparison. That original receipt remains historical evidence for
+required frame presence only.
+
+The synthetic daemon now sends two additional negative controls: terminal kind
+`S` with value `1` (`nonzero-status`), and kind `X` with value `0`
+(`wrong-status-kind`). Both must produce `status-frame` refusal before completion.
+Two independent temporary mutants retain `kind, status = self.read_frame()`:
+
+| Mutant                               | Retained comparison | Consuming observed failure                                  |
+| ------------------------------------ | ------------------- | ----------------------------------------------------------- |
+| Remove status-value comparison only  | `kind != b'S'`      | `nonzero-status` accepts completion rather than refusing    |
+| Remove terminal-kind comparison only | `status != b'0'`    | `wrong-status-kind` accepts completion rather than refusing |
+
+Both mutated Bun invocations exited 1. The restored control passed 1 test,
+3 outer assertions and **15 internally asserted scenarios**, 879ms. Adjacent
+`Proof:` text now names these exact faults and observations. The read-budget
+Proof comment was also corrected: the constant-budget mutant yields `truncated`
+after delayed input, rather than accepting a complete response.
+
+Exact serial commands:
+
+- `/usr/bin/time -v python3 /tmp/f9-connected-status-mutations.py`: two expected consuming failures; harness exit 0, 0.52s, maximum RSS **30,812 KiB**, zero swaps.
+- `/usr/bin/time -v bun test ./tools/tool-devsync/feasibility/source-memory-relay/connected.probe.ts`: restored control exit 0, 0.88s, maximum RSS **29,080 KiB**, zero swaps.
+- `BUN_TMPDIR=/tmp OPENSPEC_TELEMETRY=0 bun --no-install /tmp/bunx-1000-@fission-ai/openspec@1.12.0/node_modules/.bin/openspec validate f9-cri-relay-feasibility --strict --json`: **1/1 valid**, no issues. The complete pre-existing cached CLI required no installation. Earlier attempts using the bare package cache were unavailable because cached dependencies did not resolve (`commander`, then `diff`); those attempts did not validate anything.
+
+RSS remains GNU time's command/children maximum, not summed process-tree memory.
+[Review receipts](../../../tools/tool-devsync/feasibility/source-memory-relay/evidence/connected/review)
+retain both reds, the restored green, the exact mutation runner, validator output
+and updated source hashes. All initial receipts remain tied to their original
+source identities; the earlier eight-fault runner is historical for its base.
+
+The native relay and original probes are byte-identical to the original base.
+Only synthetic fixture responses, their consuming expectations, Proof comments
+and evidence changed. Native and original CRI regression commands were not
+repeated for this focused test/evidence correction; their prior serial results
+are recorded above. Project lint/typecheck/build, full Nx and h2puni gates, hosted
+CI, deployment and source publication remain unrun. No maintained CRI client or
+production acceptance claim follows from these additional controls. Parent
+re-review remains pending.

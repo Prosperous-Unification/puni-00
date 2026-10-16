@@ -48,7 +48,9 @@ def serve_fixture(endpoint, scenario):
             length = len(payload) + (1 if scenario == 'truncated' else 0)
             connection.sendall(b'P' + struct.pack('!I', length) + payload)
             if scenario != 'truncated' and scenario != 'missing-status':
-                connection.sendall(b'S' + struct.pack('!I', 1) + b'0')
+                kind = b'X' if scenario == 'wrong-status-kind' else b'S'
+                status = b'1' if scenario == 'nonzero-status' else b'0'
+                connection.sendall(kind + struct.pack('!I', 1) + status)
             if scenario == 'late-control':
                 time.sleep(.02)
                 connection.sendall(b'C' + struct.pack('!I', 8) + b'control!')
@@ -96,7 +98,7 @@ class DescriptorOwner:
         while length > 0:
             self.require_live()
             remaining = self.deadline - time.monotonic()
-            # Proof: deadline-omission mutant completes delayed input and fails deadline.
+            # Proof: constant-budget mutant yields truncated after delayed input and fails deadline.
             if remaining <= 0:
                 raise Refusal('deadline')
             readable = select.select([self.connection, self.reference], [], [], remaining)[0]
@@ -127,8 +129,10 @@ class DescriptorOwner:
         kind, payload = self.read_frame()
         if kind != b'P':
             raise Refusal('payload-frame')
-        # Proof: status-omission mutant accepts missing-status and fails its consuming observation.
         kind, status = self.read_frame()
+        # Proof: removing only the status-value comparison accepts S/1 in nonzero-status;
+        # removing only the kind comparison accepts X/0 in wrong-status-kind. Each
+        # consuming observation fails while read_frame remains intact (2026-10-17).
         if kind != b'S' or status != b'0':
             raise Refusal('status-frame')
         completion_bytes = self.bytes
@@ -156,7 +160,7 @@ def observe(scenario, bun, script):
                 raise RuntimeError('server startup')
             connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             connection.connect(str(endpoint))
-            expected = {'wrong-pid': 'peer-identity', 'wrong-uid': 'peer-identity', 'peer-death': 'peer-death', 'active-peer-death': 'peer-death', 'truncated': 'truncated', 'missing-status': 'truncated', 'second-claim': 'second-claim', 'deadline': 'deadline', 'bytes': 'bytes'}.get(scenario, 'complete')
+            expected = {'wrong-pid': 'peer-identity', 'wrong-uid': 'peer-identity', 'peer-death': 'peer-death', 'active-peer-death': 'peer-death', 'truncated': 'truncated', 'missing-status': 'truncated', 'nonzero-status': 'status-frame', 'wrong-status-kind': 'status-frame', 'second-claim': 'second-claim', 'deadline': 'deadline', 'bytes': 'bytes'}.get(scenario, 'complete')
             try:
                 reference = authenticate_peer(connection, server.pid + (1 if scenario == 'wrong-pid' else 0), os.getuid() + (1 if scenario == 'wrong-uid' else 0))
                 owner = DescriptorOwner(connection, reference)
@@ -218,6 +222,6 @@ else:
     bun = shutil.which('bun')
     if bun is None:
         raise RuntimeError('missing bun')
-    scenarios = ['complete', 'truncated', 'missing-status', 'late-control', 'replace-path', 'wrong-pid', 'wrong-uid', 'peer-death', 'active-peer-death', 'second-claim', 'deadline', 'bytes', 'bun-incompatibility']
+    scenarios = ['complete', 'truncated', 'missing-status', 'nonzero-status', 'wrong-status-kind', 'late-control', 'replace-path', 'wrong-pid', 'wrong-uid', 'peer-death', 'active-peer-death', 'second-claim', 'deadline', 'bytes', 'bun-incompatibility']
     observations = [observe(scenario, bun, script) for scenario in scenarios]
     print(json.dumps({'scenarios': len(observations), 'observations': observations, 'criVerified': False}))

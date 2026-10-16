@@ -21,3 +21,5 @@ Section 2 blocks transport acceptance and archive. The attempted paired loop was
 - [x] 3.2 Run explicit synthetic Python descriptor controls for PID/UID identity, pre-use/active peer death refusal, repeated claim, receive bytes, deadline, complete/truncated response, required terminal status, late control, endpoint replacement and owned cleanup. Reproduce Bun's inherited-socket incompatibility separately.
 - [x] 3.3 Watch identity, UID, claim, liveness, deadline, receive-cap, status and socket-cleanup mutants fail the consuming observation; retain raw receipts and run the unchanged native regression serially.
 - [ ] 3.4 Obtain independent review and OpenSpec validation of this amendment; synthetic controls confer no CRI acceptance.
+
+- [x] 3.5 Address independent review R5 proof gap: observe S/1 and X/0 terminal frames refuse, independently omit only terminal-status value and kind comparisons while retaining read_frame, watch each consuming negative fail, restore, and validate the change with the complete cached OpenSpec CLI.

@@ -14,5 +14,5 @@ test('observes authenticated descriptor ownership and framed completion', async 
   console.log(stdout);
   expect(stderr).toBe('');
   expect(exitCode).toBe(0);
-  expect(JSON.parse(stdout).scenarios).toBe(13);
+  expect(JSON.parse(stdout).scenarios).toBe(15);
 }, 30000);
