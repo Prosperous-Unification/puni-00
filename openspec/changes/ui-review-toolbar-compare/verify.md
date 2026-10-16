@@ -2,9 +2,13 @@
 
 Branch `ui-review/toolbar-compare` from `origin/main` @ `3e06eb5a4`. fe-01 only. No migration, no dependency, no be-01 change. Every run below is fresh, 2026-10-16, with `E2E_PORT_SHIFT=3300`.
 
-| Command       | Result |
-| ------------- | ------ |
-| RESULTS_TABLE |
+| Command                                                                                                                              | Result                                                                                                                                                                                                                                |
+| ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+|                                                                                                                                      | `bunx nx run-many -t lint:fast typecheck -p wbs-fe-01 --skip-nx-cache` (`env -u CLAUDECODE`), final tree                                                                                                                              | Successfully ran |
+| `bunx nx run-many -t test:unit test -p wbs-fe-01 --skip-nx-cache` before F-127                                                       | test:unit 940/940; `test` 4133/4134: `app.test.tsx › log out › returns to the sign-in form …` (`expected [] to deeply equal [ '/api/auth/methods' ]`), not a touched file, 41/41 when rerun alone; the zoned half run separately: 5/5 |
+| Vitest after F-127: `plan-toolbar.test.tsx`, `plan-cards.test.tsx`, `import-with-ai-help.test.tsx`                                   | 181/181                                                                                                                                                                                                                               |
+| Playwright, final tree: toolbar-panels, import-with-ai, plan-import, deadline, home, mobile, layout, header, hints, project-settings | 139 passed (19.9m)                                                                                                                                                                                                                    |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                                             | 215 of 215 passed                                                                                                                                                                                                                     |                  |
 
 ## R5 proofs (each fault injected alone, then watched fail)
 
