@@ -31,8 +31,17 @@ relay classification and prerequisite corpus repair remain present.
 
 The new clone initially had only sample hooks. The two merge commits therefore
 had no installed repository hooks; neither used `--no-verify`. Normal hooks were
-installed before the final commit; its complete outcome is retained separately
-in `/tmp/puni-org-f7-receipts-20261016/commit.log`. No merge history was rewritten.
+installed before declaration/receipt commit
+`3e2224cda6ce9f329c7fcc0d3582494bf1c4b8f6`, tree
+`287fd3a89bbc15369862424afdb94d97603bd129`. Lint, format, plaintext secrets,
+private nesting and agent trailers passed. The Nx module-boundary rule explicitly
+skipped because no cached ProjectGraph exists; that rule remains unverified.
+Tool Wiki reported inactive and uncertified because the external activation root
+is not provisioned. Migration and doc-cap hooks had no matching files. Full hook
+output is embedded in checks.json and retained separately in
+`/tmp/puni-org-f7-receipts-20261016/commit.log`. Its monitored sampled group peak
+was 769,884 KiB. This receipt-only successor changes no production or test blobs.
+No merge history was rewritten.
 
 ## Declaration repair and watched failures
 

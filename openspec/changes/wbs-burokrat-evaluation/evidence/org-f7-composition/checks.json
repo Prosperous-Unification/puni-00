@@ -842,5 +842,32 @@
     "terminatedCaseIndices": [2],
     "notRunCaseIndices": [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24],
     "note": "Final repaired cases1,3\u20137 each ran separately; case8 passed permitted2m rerun; positivecase2 terminated at final2m cap. Original24case suite13pass11fail predates repair."
+  },
+  "normalHooks": {
+    "commit": "3e2224cda6ce9f329c7fcc0d3582494bf1c4b8f6",
+    "tree": "287fd3a89bbc15369862424afdb94d97603bd129",
+    "output": "\u256d\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256e\n\u2502 lefthook  v2.1.12   hook:  \u001b[1mpre-commit\u001b[m \u2502\n\u2570\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256f\n\u2502  website-migration-lint (skip) no files for inspection\n\u2502  doc-caps (skip) no matching staged files\n\u2502  migration-lint (skip) no files for inspection\n\u2503  tool-wiki \u276f \n{\"schemaVersion\":1,\"status\":\"inactive\",\"certified\":false,\"reason\":\"external activation root is not provisioned\"}\n\n\u2503  plaintext-secrets \u276f \n\n\u2503  private-nesting \u276f \n\n\u2503  format \u276f \nChecking formatting...\nAll matched files use Prettier code style!\n\n\u2503  lint \u276f \nwarning No cached ProjectGraph is available. The rule will be skipped.\n          If you encounter this error as part of running standard `nx` commands then please open an issue on https://github.com/nrwl/nx\n          @nx/enforce-module-boundaries\n\n\u001b[38;2;56;56;56m  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u001b[m\nsummary: (done in 4.06 seconds)\n\u2713 tool-wiki (0.00 seconds)\n\u2713 plaintext-secrets (0.01 seconds)\n\u2713 private-nesting (0.03 seconds)\n\u2713 format (0.72 seconds)\n\u2713 lint (4.03 seconds)\n\u256d\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256e\n\u2502 lefthook  v2.1.12   hook:  \u001b[1mprepare-commit-msg\u001b[m \u2502\n\u2570\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256f\n\u2503  agent-authored-by \u276f \n\n\u001b[38;2;56;56;56m  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u001b[m\nsummary: (done in 0.01 seconds)\n\u2713 agent-authored-by (0.01 seconds)\n\u256d\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256e\n\u2502 lefthook  v2.1.12   hook:  \u001b[1mcommit-msg\u001b[m \u2502\n\u2570\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256f\n\u2503  agent-authored-by \u276f \n\n\u001b[38;2;56;56;56m  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u001b[m\nsummary: (done in 0.01 seconds)\n\u2713 agent-authored-by (0.01 seconds)\n[local/org-f7-composition 3e2224cda] fix(wbs): compose F7 organization declarations and record local checks\n 9 files changed, 1167 insertions(+), 1 deletion(-)\n create mode 100644 openspec/changes/wbs-burokrat-evaluation/evidence/org-f7-composition/checks.json\n create mode 100644 openspec/changes/wbs-burokrat-evaluation/evidence/org-f7-composition/repair-audit.json\n create mode 100644 openspec/changes/wbs-burokrat-evaluation/evidence/org-f7-composition/source-union.json\n create mode 100644 openspec/changes/wbs-burokrat-evaluation/evidence/org-f7-composition/verify.md\nelapsed=4.21 max_rss_kib=722008 exit=0\n",
+    "monitor": {
+      "command": [
+        "timeout",
+        "120s",
+        "git",
+        "commit",
+        "-m",
+        "fix(wbs): compose F7 organization declarations and record local checks"
+      ],
+      "exit": 0,
+      "elapsedSeconds": 4.5123520260021905,
+      "minimumMemAvailableKiB": 19210688,
+      "peakSampledProcessRssKiB": 724576,
+      "peakSampledGroupRssKiB": 769884,
+      "limitsKiB": {
+        "minimumAvailable": 10000000,
+        "maximumProcessRss": 2000000
+      },
+      "stopped": null
+    },
+    "moduleBoundaryRule": "skipped because no cached ProjectGraph",
+    "toolWiki": "inactive and uncertified; external activation root absent"
   }
 }
