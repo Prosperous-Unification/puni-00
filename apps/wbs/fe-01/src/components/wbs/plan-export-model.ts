@@ -260,7 +260,7 @@ export interface PlanExport {
    * Every slice be-01 placed, in its own order.
    *
    * Empty on a plan that could not be scheduled, which is the same absence the
-   * dates report as {@link NO_SCHEDULE}: a parallelism column filled in from
+   * dates report as `—`: a parallelism column filled in from
    * nothing would be this document's own invention.
    */
   slices: readonly ExportSlice[];
