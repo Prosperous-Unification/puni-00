@@ -244,3 +244,21 @@ test('requires memory current, peak, events and RSS in the first source cgroup',
     requireMemoryEvidence(sample.replace('memory.peak', 'omitted'), initial);
   }).toThrow();
 });
+
+test('refuses inline escaped-newline and Unicode-separator ingress markers', async () => {
+  for (const output of [
+    'metadata: CHECK FAILED: web serves index.html',
+    'metadata: error: CHECK FAILED: web serves index.html',
+    'metadata: ' + JSON.stringify('\nerror: CHECK FAILED: web serves index.html'),
+    'metadata: \u2028error: CHECK FAILED: web serves index.html',
+    'metadata: \u2029CHECK FAILED: web serves index.html',
+  ]) {
+    const { driver } = fixture();
+    const runCheck = driver.check.bind(driver);
+    driver.check = (phase) =>
+      phase === 'ingress-denied' ? Promise.resolve({ exitCode: 1, output }) : runCheck(phase);
+    const report = await rehearseRecovery(driver, 50);
+    expect(report.ingressNegative).toBe('fail');
+    expect(report.acceptancePassed).toBe(false);
+  }
+});

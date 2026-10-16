@@ -12,7 +12,7 @@ Capture the first response safely and observe later HTTP availability independen
 
 `observeConvergence` owns a fixed elapsed window including its immediate observation. Later requests receive the remaining time budget, and pauses cannot extend the window intentionally. Its initial verdict is independent of all later samples. The CLI always prints this report and exits according to the initial verdict. It has no process, Kubernetes, Docker, database, filesystem write or policy capabilities.
 
-Root-marker evidence is updated on each decoded chunk, including only the prefix within the 64KiB cap. A received marker survives later failure. Transport, deadline and body-limit failures use a web-observation message distinct from the completed-response failure prefix consumed by the recovery coordinator. They cannot prove ingress denial.
+Root-marker evidence is updated on each decoded chunk, including only the prefix within the 64KiB cap. A received marker survives later failure. Transport, deadline and body-limit failures use a web-observation message distinct from the completed-response failure prefix consumed by the recovery coordinator. They cannot prove ingress denial. The coordinator accepts only failure messages at the start of output or immediately after an LF, optionally prefixed by Bun's `error: `; retained JSON metadata, escaped newlines and Unicode separators cannot supply an authoritative verdict line.
 
 The full checker uses only `observeWeb` for its existing first web assertion. Its subsequent mutations and checks are unchanged. The separate convergence command must be invoked explicitly; it never calls the full checker.
 

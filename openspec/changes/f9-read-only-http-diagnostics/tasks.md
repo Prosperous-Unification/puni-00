@@ -18,3 +18,8 @@
 - [x] 4.2 Retain streamed root-marker evidence within the body cap — tests: split marker then hang/reset, allowed oversized-chunk prefix; negative: remove incremental marker detection and watch each test fail.
 - [x] 4.3 Prove convergence's remaining-window clamps — test: slow initial/final requests and oversized pause; negatives: independently remove initial deadline, final deadline and pause clamps.
 - [x] 4.4 Record fresh focused tests, scoped Nx checks, formatting and OpenSpec validation for the review child.
+
+## 5. Authoritative classifier repair
+
+- [x] 5.1 Anchor ingress verdicts to real checker output lines — test: actual oversized checker response with forged content-type marker flows through coordinator and refuses credit; negatives: remove anchor and watch real-checker regression fail; broaden newline semantics and watch Unicode-separator regression fail.
+- [x] 5.2 Record exact child focused tests, scoped Nx checks, formatting and OpenSpec validation.

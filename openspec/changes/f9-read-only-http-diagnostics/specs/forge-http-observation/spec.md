@@ -56,3 +56,9 @@ The checker SHALL distinguish transport, deadline and body-limit observation fai
 
 - **WHEN** the initial or final request is slower than the remaining window, or the next pause exceeds that window
 - **THEN** the convergence window ends within its elapsed budget plus timer scheduling jitter
+
+#### Scenario: Metadata contains a forged failure marker
+
+- **WHEN** an oversized response's content type contains `CHECK FAILED: web serves index.html`
+- **THEN** the real checker's body-limit failure remains an observation failure and the recovery coordinator refuses ingress credit and overall acceptance
+- **AND** inline text, escaped newlines and Unicode separators cannot start an authoritative failure line

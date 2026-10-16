@@ -36,6 +36,8 @@ interface RecoveryReport {
 /**
  * Runs first-attempt diagnostics with independent verdicts. External commands belong to the
  * driver; this coordinator never converts later readiness into a successful cold start.
+ * Ingress failure evidence must start a real output line, optionally prefixed by Bun's
+ * `error: `; embedded substrings in JSON metadata cannot authorize its negative verdict.
  * Every observation and command must have its own finite deadline in the driver.
  */
 export async function rehearseRecovery(
@@ -99,11 +101,12 @@ export async function rehearseRecovery(
     saved = await driver.readPolicy();
     await driver.writePolicy({ ...saved, ingress: [] });
     const negative = await driver.check('ingress-denied');
-    // Proof: omitted denial, unrelated failure, missing preceding positive and captured API/MCP failures exercise this classifier.
+    // Proof: removing the line boundary credits adversarial content-type metadata from the
+    // real checker as ingress denial; Unicode separator/inline fixtures also refuse credit.
     report.ingressNegative =
       report.ingressPositive === 'pass' &&
       negative.exitCode !== 0 &&
-      /CHECK FAILED: (?:web serves index.html|API through the edge proxy writes as the local-auth identity|MCP answers 401|MCP resource URL|gateway WebSocket|browser opens the gateway|timed out .* (?:page|browser|ingress))/.test(
+      /(?:^|\n)(?:error: )?CHECK FAILED: (?:web serves index.html|API through the edge proxy writes as the local-auth identity|MCP answers 401|MCP resource URL|gateway WebSocket|browser opens the gateway|timed out .* (?:page|browser|ingress))/.test(
         negative.output,
       )
         ? 'pass'

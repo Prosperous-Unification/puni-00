@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/forge-http-observation.test.ts:
+
+tools/tool-devsync/src/k3s/forge-recovery-check.test.ts:
+256 |     const { driver } = fixture();
+257 |     const runCheck = driver.check.bind(driver);
+258 |     driver.check = (phase) =>
+259 |       phase === 'ingress-denied' ? Promise.resolve({ exitCode: 1, output }) : runCheck(phase);
+260 |     const report = await rehearseRecovery(driver, 50);
+261 |     expect(report.ingressNegative).toBe('fail');
+                                         ^
+error: expect(received).toBe(expected)
+
+Expected: "fail"
+Received: "pass"
+
+      at <anonymous> (/tmp/f9-diagnostic-sol-oct16/tools/tool-devsync/src/k3s/forge-recovery-check.test.ts:261:36)
+(fail) refuses inline escaped-newline and Unicode-separator ingress markers [2.62ms]
+
+ 0 pass
+ 36 filtered out
+ 1 fail
+ 7 expect() calls
+Ran 1 test across 2 files. [47.00ms]

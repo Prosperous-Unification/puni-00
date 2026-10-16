@@ -83,3 +83,18 @@ Root-marker evidence is updated for every received chunk, including only the byt
 The watched mutations were restored before final validation. Focused tests: 35 passed, 0 failed; scoped Nx lint/typecheck/build: passed; changed-file formatting: passed; OpenSpec: 222 items passed, 0 failed. Final exact-candidate output is retained separately from the original candidate's receipts: [focused tests](evidence/review-focused-tests.log), [scoped Nx lint/typecheck/build](evidence/review-nx-scoped.log), [changed-file formatting](evidence/review-format-scoped.log), [all OpenSpec validation](evidence/review-openspec.json). The repair uses the same commands and offline fixture boundaries as section 5. No additional full-tree format scan or host gate was run; the original full-tree format limitation remains. All broader process-identity, remote-sampler, retained-evidence and live-acceptance limitations remain.
 
 The repair commit is a direct child of `da15e46afefb12d8aa478a8c5eaaf6fb2b3e3c7d`; its exact SHA and clean working tree are reported in the handoff. Nothing was pushed or deployed.
+
+## 8. Metadata spoofing repair child of 1a8e09ed
+
+Astra reproduced a residual false ingress verdict: an oversized response's content type contained `CHECK FAILED: web serves index.html`, and the unanchored coordinator found that string inside retained observation JSON. The real checker-to-coordinator regression first failed with ingress credit and overall acceptance despite body-limit refusal. [Observed red output](evidence/classifier-red.log).
+
+The authoritative classifier now accepts a failure prefix only at the start of output or immediately after a real LF, with the checker's optional `error: ` runtime prefix. It does not use JavaScript's multiline flag, which would also treat Unicode separators as line starts. Metadata is retained as escaped JSON and cannot provide that authoritative prefix. Existing standalone fixture verdicts, actual completed-response checker failures and captured Bun error lines remain covered by positive controls.
+
+| Classifier check            | Injected fault                         | Observed production-path failure                                               | Evidence                                                     |
+| --------------------------- | -------------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------ |
+| Authoritative line boundary | Remove the line boundary               | Actual checker body-limit output with forged content type earns ingress credit | [unanchored](evidence/classifier-unanchored.log)             |
+| Literal newline semantics   | Replace LF boundary with multiline `^` | Unicode-separator metadata is credited as a new verdict line                   | [Unicode boundary](evidence/classifier-unicode-boundary.log) |
+
+Both mutations were restored before final validation. Final focused tests: 37 passed, 0 failed; [actual output](evidence/classifier-focused-tests.log). Scoped Nx lint/typecheck/build and changed-file formatting passed; OpenSpec reported 222 passed and 0 failed. Exact outputs are retained as [Nx](evidence/classifier-nx-scoped.log), [format](evidence/classifier-format-scoped.log) and [OpenSpec](evidence/classifier-openspec.json). Same offline commands and fixture boundaries as sections 5 and 7. No full-tree format rerun, live acceptance, host gate, push or deployment was performed. Previously documented broader sampler and full-tree formatting limitations remain.
+
+The classifier repair commit is a direct child of `1a8e09ed564fcdd7c1e1e2fde47b6780de87a855`; its exact SHA and clean tree are reported in the handoff.

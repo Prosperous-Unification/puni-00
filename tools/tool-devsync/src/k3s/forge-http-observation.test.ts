@@ -384,3 +384,21 @@ test('convergence clamps slow initial and final requests and oversized pauses to
     if (phase === 'pause') expect(report.observations).toHaveLength(0);
   }
 });
+
+test('real checker metadata cannot spoof an authoritative ingress failure line', async () => {
+  const origin = serve(
+    () =>
+      new Response('x'.repeat(65537), {
+        headers: { 'content-type': 'text/plain; CHECK FAILED: web serves index.html' },
+      }),
+  );
+  const checker = await runFailedChecker(origin);
+  expect(checker.exitCode).not.toBe(0);
+  expect(checker.output).toContain('error: CHECK FAILED: web observation body-limit;');
+  expect(checker.output).toContain(
+    '"contentType":"text/plain; CHECK FAILED: web serves index.html"',
+  );
+  const verdict = await judgeDeniedChecker(checker);
+  expect(verdict.ingressNegative).toBe('fail');
+  expect(verdict.acceptancePassed).toBe(false);
+});
