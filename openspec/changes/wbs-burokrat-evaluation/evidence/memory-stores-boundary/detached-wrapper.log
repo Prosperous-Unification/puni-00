@@ -1,0 +1,58 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-memory/src/memory-source.test.ts:
+409 |     const before = structuredClone(checked.returned);
+410 |     expect((checked.mutate ?? mutateReturned)(checked.returned), checked.name).toBeTrue();
+411 |     expect(checked.returned, checked.name).not.toEqual(before);
+412 |     // Proof: bypassing the catalog detacher made both boundary cases reread the
+413 |     // user id as `reader:caller-mutation` instead of `reader`.
+414 |     expect(await checked.reread(), checked.name).toEqual(before);
+                                                       ^
+error: users
+
+  {
+    "createdAt": 2,
+-   "id": "reader",
++   "id": "reader:caller-mutation",
+    "passwordHash": "x",
+    "username": "reader",
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at expectDetachedReads (/tmp/wbs-memory-stores-sol/libs/wbs/adapters/store-memory/src/memory-source.test.ts:414:50)
+      at async <anonymous> (/tmp/wbs-memory-stores-sol/libs/wbs/adapters/store-memory/src/memory-source.test.ts:639:40)
+(fail) the staged memory source > returns detached values from every public storage shape [9.58ms]
+409 |     const before = structuredClone(checked.returned);
+410 |     expect((checked.mutate ?? mutateReturned)(checked.returned), checked.name).toBeTrue();
+411 |     expect(checked.returned, checked.name).not.toEqual(before);
+412 |     // Proof: bypassing the catalog detacher made both boundary cases reread the
+413 |     // user id as `reader:caller-mutation` instead of `reader`.
+414 |     expect(await checked.reread(), checked.name).toEqual(before);
+                                                       ^
+error: users
+
+  {
+    "createdAt": 2,
+-   "id": "reader",
++   "id": "reader:caller-mutation",
+    "passwordHash": "x",
+    "username": "reader",
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at expectDetachedReads (/tmp/wbs-memory-stores-sol/libs/wbs/adapters/store-memory/src/memory-source.test.ts:414:50)
+      at async <anonymous> (/tmp/wbs-memory-stores-sol/libs/wbs/adapters/store-memory/src/memory-source.test.ts:642:17)
+      at async <anonymous> (/tmp/wbs-memory-stores-sol/libs/wbs/adapters/store-memory/src/source.ts:450:36)
+      at async run (/tmp/wbs-memory-stores-sol/libs/wbs/adapters/store-memory/src/source.ts:33:20)
+      at async <anonymous> (/tmp/wbs-memory-stores-sol/libs/wbs/adapters/store-memory/src/memory-source.test.ts:641:26)
+(fail) the staged memory source > returns detached values from every admitted storage shape [0.71ms]
+
+ 0 pass
+ 13 filtered out
+ 2 fail
+ 8 expect() calls
+Ran 2 tests across 1 file. [1.61s]
