@@ -1,6 +1,7 @@
 import { cleanName, type OrganizationScope, PERSON_KINDS, type PersonKind } from '@wbs/domain';
 
 import type { Clock } from '../../ports/clock';
+import type { DirectoryOutcome } from '../../ports/directory-outcome';
 import type {
   DirectoryCatalog,
   DirectoryCatalogRows,
@@ -33,6 +34,8 @@ import {
   directoryUsageOfWorkItemType,
 } from '../../service/directory-usage';
 
+export type { DirectoryOutcome, DirectoryRefusal } from '../../ports/directory-outcome';
+
 /** How many fresh ids an opaque root name is tried under before a create gives up. */
 const OPAQUE_NAME_ATTEMPTS = 3;
 
@@ -55,26 +58,6 @@ export interface DirectoryServiceOptions {
   /** The instant every write is dated from and the ids it mints — see {@link Clock}. */
   clock: Clock;
 }
-
-/**
- * Why a directory write was refused. Every one is a state of the directory or
- * of the request, never a fault: the controller turns each into a 4xx.
- *
- * `nothing_to_change` is a patch naming neither a name nor memberships, and
- * neither a name nor owned services on a team. Accepting it as a no-op would
- * answer 200 to a request that was almost certainly a client bug, and leave
- * nothing on the wire to notice it by.
- *
- * `unknown_service` is an ownership map naming a service the directory does not
- * hold — `unknown_team`'s twin, one dimension over.
- */
-export type DirectoryRefusal =
-  | 'invalid_kind'
-  | 'name_required'
-  | 'not_found'
-  | 'nothing_to_change'
-  | 'unknown_service'
-  | 'unknown_team';
 
 /**
  * Whether a caller named one of the things a person can be.
@@ -100,18 +83,6 @@ function holdsKind(kind: string): kind is PersonKind {
  * other.
  */
 export type PersonPatchInput = Omit<PersonPatch, 'kind'> & { kind?: string };
-
-/**
- * What a directory write answered.
- *
- * The `taken` arm carries the **surviving** name — the one the row that already
- * holds it keeps. A bare `taken` would leave a caller who asked for a trimmed
- * name unable to say which of the two spellings is now on screen.
- */
-export type DirectoryOutcome<T> =
-  | { ok: true; value: T }
-  | { ok: false; reason: DirectoryRefusal }
-  | { ok: false; reason: 'taken'; name: string };
 
 /**
  * How a removal answered.
