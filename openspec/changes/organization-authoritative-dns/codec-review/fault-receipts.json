@@ -1,0 +1,963 @@
+{
+  "date": "2026-10-16",
+  "method": "Serial one-fault-at-a-time edits; every source restored in finally; required nonzero exit and named failed test, rejected parse errors and timeouts. Restored focused success is recorded in verify.md.",
+  "proofs": [
+    {
+      "guard": "bare-IP",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/addresses.ts",
+      "mutation": {
+        "from": "default:\n      throw new Error('DNS destination requires a bare IP literal');",
+        "to": "default:\n      return value;"
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/resolver.test.ts -t 'rejects invalid owner'",
+      "exit": 1,
+      "observed": "(fail) authoritative DNS resolver production boundary > rejects invalid owner input before any packet and refuses configured hostnames"
+    },
+    {
+      "guard": "config-distinct",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/addresses.ts",
+      "mutation": {
+        "from": "new Set(addresses).size !== addresses.length",
+        "to": "false"
+      },
+      "command": "bun test apps/wbs/be-01/src/config.test.ts -t 'DNS'",
+      "exit": 1,
+      "observed": "(fail) BeConfig > keeps DNS disabled only for absent resolver configuration"
+    },
+    {
+      "guard": "verification-owner",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/resolver.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS verification owner refused",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/resolver.test.ts -t 'rejects invalid owner'",
+      "exit": 1,
+      "observed": "(fail) authoritative DNS resolver production boundary > rejects invalid owner input before any packet and refuses configured hostnames"
+    },
+    {
+      "guard": "TXT-BOM",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/resolver.ts",
+      "mutation": {
+        "from": "fatal: true, ignoreBOM: true",
+        "to": "fatal: true, ignoreBOM: false"
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/resolver.test.ts -t 'preserves BOM'",
+      "exit": 1,
+      "observed": "(fail) authoritative DNS resolver production boundary > preserves BOM, whitespace, case and duplicate TXT records"
+    },
+    {
+      "guard": "TXT-record-boundary",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/resolver.ts",
+      "mutation": {
+        "from": "Buffer.concat(record.data)",
+        "to": "Buffer.concat(records.flatMap((proof) => proof.data))"
+      },
+      "command": "bun test apps/wbs/be-01/src/authoritative-dns.boot.db.test.ts -t 'separate TXT records cannot'",
+      "exit": 1,
+      "observed": "(fail) separate TXT records cannot be joined into the current proof"
+    },
+    {
+      "guard": "cleanup-absolute-deadline",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/transport.ts",
+      "mutation": {
+        "from": "Math.min(timers.nowMs() + 100, hardExpiresAt)",
+        "to": "timers.nowMs() + 100"
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/transport.test.ts -t 'absolute'",
+      "exit": 1,
+      "observed": "(fail) owned DNS socket transport > cleanup cannot extend the absolute attempt hard deadline"
+    },
+    {
+      "guard": "boot-binding",
+      "file": "apps/wbs/be-01/src/boot.ts",
+      "mutation": {
+        "from": "new DomainClaimRepository(db, services.gate, undefined, domainResolver)",
+        "to": "new DomainClaimRepository(db, services.gate)"
+      },
+      "command": "bun test apps/wbs/be-01/src/authoritative-dns.boot.db.test.ts -t 'configured boot verifies'",
+      "exit": 1,
+      "observed": "(fail) configured boot verifies through real DNS adapter and preserves separate TXT records"
+    },
+    {
+      "guard": "commit-membership",
+      "file": "libs/wbs/adapters/store-sqlite/src/domain-claim.ts",
+      "mutation": {
+        "from": "if (member?.role !== 'super_admin') return 'forbidden' as const;",
+        "to": "if (false) return 'forbidden' as const;",
+        "anchor": "  async verifyClaim("
+      },
+      "command": "bun test apps/wbs/be-01/src/authoritative-dns.boot.db.test.ts -t 'lookup: membership'",
+      "exit": 1,
+      "observed": "(fail) retains commit-time checks after lookup: membership"
+    },
+    {
+      "guard": "commit-activation",
+      "file": "libs/wbs/adapters/store-sqlite/src/domain-claim.ts",
+      "mutation": {
+        "from": "if (readOrganizationActivation(tx) !== 'activated') return 'inactive' as const;",
+        "to": "if (false) return 'inactive' as const;",
+        "anchor": "  async verifyClaim("
+      },
+      "command": "bun test apps/wbs/be-01/src/authoritative-dns.boot.db.test.ts -t 'lookup: activation'",
+      "exit": 1,
+      "observed": "(fail) retains commit-time checks after lookup: activation"
+    },
+    {
+      "guard": "commit-challenge",
+      "file": "libs/wbs/adapters/store-sqlite/src/domain-claim.ts",
+      "mutation": {
+        "from": "current.challengeDigest !== claim.challengeDigest ||",
+        "to": "false ||",
+        "anchor": "  async verifyClaim("
+      },
+      "command": "bun test apps/wbs/be-01/src/authoritative-dns.boot.db.test.ts -t 'lookup: challenge'",
+      "exit": 1,
+      "observed": "(fail) retains commit-time checks after lookup: challenge"
+    },
+    {
+      "guard": "commit-expiry-snapshot",
+      "file": "libs/wbs/adapters/store-sqlite/src/domain-claim.ts",
+      "mutation": {
+        "from": "current.challengeExpiresAt !== claim.challengeExpiresAt ||",
+        "to": "false ||",
+        "anchor": "  async verifyClaim("
+      },
+      "command": "bun test apps/wbs/be-01/src/authoritative-dns.boot.db.test.ts -t 'changed expiry snapshot'",
+      "exit": 1,
+      "observed": "(fail) refuses a changed expiry snapshot even when the new expiry is in the future"
+    },
+    {
+      "guard": "commit-expiry-time",
+      "file": "libs/wbs/adapters/store-sqlite/src/domain-claim.ts",
+      "mutation": {
+        "from": "current.challengeExpiresAt <= now() ||",
+        "to": "false ||",
+        "anchor": "  async verifyClaim("
+      },
+      "command": "bun test apps/wbs/be-01/src/authoritative-dns.boot.db.test.ts -t 'expires during DNS'",
+      "exit": 1,
+      "observed": "(fail) refuses a challenge that expires during DNS without changing its snapshot"
+    },
+    {
+      "guard": "owner-unique-index",
+      "file": "apps/wbs/be-01/src/authoritative-dns.boot.db.test.ts",
+      "mutation": {
+        "from": "  values = [first.dnsValue, second.dnsValue];",
+        "to": "  process.sqlite.run('DROP INDEX organization_domain_claim_owner');\n  values = [first.dnsValue, second.dnsValue];"
+      },
+      "command": "bun test apps/wbs/be-01/src/authoritative-dns.boot.db.test.ts -t 'concurrent organizations'",
+      "exit": 1,
+      "observed": "(fail) concurrent organizations cannot acquire one domain through production composition"
+    },
+    {
+      "guard": "packet-size",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/packet.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS packet size refused",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/packet.test.ts -t 'packet size, incomplete'",
+      "exit": 1,
+      "observed": "(fail) bounded authoritative DNS packet boundary > refuses packet size, incomplete question, record headers and name spans as modeled faults"
+    },
+    {
+      "guard": "question-span",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/packet.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS question incomplete",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/packet.test.ts -t 'packet size, incomplete'",
+      "exit": 1,
+      "observed": "(fail) bounded authoritative DNS packet boundary > refuses packet size, incomplete question, record headers and name spans as modeled faults"
+    },
+    {
+      "guard": "record-header-span",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/packet.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS record header incomplete",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/packet.test.ts -t 'packet size, incomplete'",
+      "exit": 1,
+      "observed": "(fail) bounded authoritative DNS packet boundary > refuses packet size, incomplete question, record headers and name spans as modeled faults"
+    },
+    {
+      "guard": "name-span",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/packet.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS name span incomplete",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/packet.test.ts -t 'packet size, incomplete'",
+      "exit": 1,
+      "observed": "(fail) bounded authoritative DNS packet boundary > refuses packet size, incomplete question, record headers and name spans as modeled faults"
+    },
+    {
+      "guard": "pointer-span",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/packet.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS pointer span incomplete",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/packet.test.ts -t 'packet size, incomplete'",
+      "exit": 1,
+      "observed": "(fail) bounded authoritative DNS packet boundary > refuses packet size, incomplete question, record headers and name spans as modeled faults"
+    },
+    {
+      "guard": "label-span",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/packet.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS label span refused",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/packet.test.ts -t 'packet size, incomplete'",
+      "exit": 1,
+      "observed": "(fail) bounded authoritative DNS packet boundary > refuses packet size, incomplete question, record headers and name spans as modeled faults"
+    },
+    {
+      "guard": "mailbox-pointer-identity",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/packet.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS name identity refused",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/packet.test.ts -t 'owner pointer into an escaped'",
+      "exit": 1,
+      "observed": "(fail) bounded authoritative DNS packet boundary > refuses an owner pointer into an escaped SOA mailbox label"
+    },
+    {
+      "guard": "routing-alias",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/resolver.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS alias substitution refused",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/resolver.test.ts -t 'authority evidence: alias'",
+      "exit": 1,
+      "observed": "(fail) authoritative DNS resolver production boundary > refuses invalid recursive authority evidence: alias"
+    },
+    {
+      "guard": "routing-owner",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/resolver.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS routing owner or type refused",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/resolver.test.ts -t 'authority evidence: owner'",
+      "exit": 1,
+      "observed": "(fail) authoritative DNS resolver production boundary > refuses invalid recursive authority evidence: owner"
+    },
+    {
+      "guard": "NS-identity",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/resolver.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS NS identity refused",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/resolver.test.ts -t 'authority evidence: invalid_ns'",
+      "exit": 1,
+      "observed": "(fail) authoritative DNS resolver production boundary > refuses invalid recursive authority evidence: invalid_ns"
+    },
+    {
+      "guard": "routing-rcode",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/resolver.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS routing response unavailable",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/resolver.test.ts -t 'next configured recursive resolver'",
+      "exit": 1,
+      "observed": "(fail) authoritative DNS resolver production boundary > tries the next configured recursive resolver only after modeled failure"
+    },
+    {
+      "guard": "routing-NXDOMAIN",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/resolver.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS contradictory routing negative refused",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/resolver.test.ts -t 'authority evidence: nxdomain_answer'",
+      "exit": 1,
+      "observed": "(fail) authoritative DNS resolver production boundary > refuses invalid recursive authority evidence: nxdomain_answer"
+    },
+    {
+      "guard": "authoritative-rcode",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/resolver.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS authoritative response unavailable",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/resolver.test.ts -t 'rcode 2'",
+      "exit": 1,
+      "observed": "(fail) authoritative DNS resolver production boundary > refuses a non-NOERROR authoritative proof with rcode 2"
+    },
+    {
+      "guard": "authoritative-NXDOMAIN",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/resolver.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS contradictory authoritative negative refused",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/resolver.test.ts -t 'rcode 3'",
+      "exit": 1,
+      "observed": "(fail) authoritative DNS resolver production boundary > refuses a non-NOERROR authoritative proof with rcode 3"
+    },
+    {
+      "guard": "authoritative-alias",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/resolver.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS authoritative alias refused",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/resolver.test.ts -t 'exact-owner answers: alias'",
+      "exit": 1,
+      "observed": "(fail) authoritative DNS resolver production boundary > requires authoritative exact-owner answers: alias"
+    },
+    {
+      "guard": "NS-absence",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/resolver.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS enclosing authority unavailable",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/resolver.test.ts -t 'validated NS absence'",
+      "exit": 1,
+      "observed": "(fail) authoritative DNS resolver production boundary > reports validated NS absence and address absence without sending an authoritative packet"
+    },
+    {
+      "guard": "delayed-clock",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/resolver.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS lookup work budget exhausted",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/resolver.test.ts -t 'delayed lookup work timer'",
+      "exit": 1,
+      "observed": "(fail) authoritative DNS resolver production boundary > starts no new exchange after the clock passes a delayed lookup work timer"
+    },
+    {
+      "guard": "pre-abort",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/resolver.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS lookup cancelled",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/resolver.test.ts -t 'sanitizes pre-abort'",
+      "exit": 1,
+      "observed": "(fail) authoritative DNS resolver production boundary > sanitizes pre-abort reasons and sends no packets"
+    },
+    {
+      "guard": "TCP-close-ack",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/transport.ts",
+      "mutation": {
+        "from": "  try {\n    close(() => {",
+        "to": "  try {\n    if (reply instanceof Error) reject(reply); else resolve(reply);\n    close(() => {"
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/transport.test.ts -t 'TCP publishes no proof'",
+      "exit": 1,
+      "observed": "(fail) owned DNS socket transport > TCP publishes no proof until deferred close acknowledgment"
+    },
+    {
+      "guard": "pointer-target",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/packet.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS pointer target refused",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/packet.test.ts -t 'pointers into bytes'",
+      "exit": 1,
+      "observed": "(fail) bounded authoritative DNS packet boundary > rejects pointers into bytes that never began a validated name"
+    },
+    {
+      "guard": "question-packet-class",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/packet.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS question class refused",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/packet.test.ts -t 'non-IN question'",
+      "exit": 1,
+      "observed": "(fail) bounded authoritative DNS packet boundary > rejects a non-IN question before full packet decoding"
+    },
+    {
+      "guard": "question-envelope-class",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/packet.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS question span or class refused",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/resolver.test.ts -t 'truncated UDP question with wrong class'",
+      "exit": 1,
+      "observed": "(fail) authoritative DNS resolver production boundary > refuses a truncated UDP question with wrong class before TCP fallback"
+    },
+    {
+      "guard": "TCP-frame",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/resolver.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS TCP frame refused",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/resolver.test.ts -t 'incorrect TCP length'",
+      "exit": 1,
+      "observed": "(fail) authoritative DNS resolver production boundary > rejects incorrect TCP length even when its DNS payload matches"
+    },
+    {
+      "guard": "preallocation-count",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/packet.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS section counts refused",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/packet.test.ts -t 'refuses oversized counts'",
+      "exit": 1,
+      "observed": "(fail) bounded authoritative DNS packet boundary > refuses oversized counts before allocating full decode"
+    },
+    {
+      "guard": "unsupported-dispatch",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/packet.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS record type unsupported",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/packet.test.ts -t 'unsupported record decoders'",
+      "exit": 1,
+      "observed": "(fail) bounded authoritative DNS packet boundary > rejects unsupported record decoders before dispatch"
+    },
+    {
+      "guard": "raw-record-class",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/packet.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS record class refused",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/packet.test.ts -t 'mDNS class masking'",
+      "exit": 1,
+      "observed": "(fail) bounded authoritative DNS packet boundary > rejects mDNS class masking in unicast answers"
+    },
+    {
+      "guard": "trailing-bytes",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/packet.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS trailing payload refused",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/packet.test.ts -t 'trailing payload'",
+      "exit": 1,
+      "observed": "(fail) bounded authoritative DNS packet boundary > rejects a trailing payload and a missing question"
+    },
+    {
+      "guard": "pointer-hops",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/packet.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS pointer work refused",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/packet.test.ts -t 'compression dereferences'",
+      "exit": 1,
+      "observed": "(fail) bounded authoritative DNS packet boundary > bounds compression dereferences while accepting valid compressed names"
+    },
+    {
+      "guard": "aggregate-name-work",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/packet.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS packet name work refused",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/packet.test.ts -t 'aggregate name work'",
+      "exit": 1,
+      "observed": "(fail) bounded authoritative DNS packet boundary > bounds aggregate name work before the full packet decoder"
+    },
+    {
+      "guard": "name-label-identity",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/packet.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS name identity refused",
+        "occurrence": 1
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/packet.test.ts -t 'embedded-dot owner'",
+      "exit": 1,
+      "observed": "(fail) bounded authoritative DNS packet boundary > refuses embedded-dot owner identity confusion"
+    },
+    {
+      "guard": "expanded-name-bound",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/packet.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS expanded name refused",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/packet.test.ts -t 'bounds expansion'",
+      "exit": 1,
+      "observed": "(fail) bounded authoritative DNS packet boundary > bounds expansion before invoking the codec name decoder"
+    },
+    {
+      "guard": "NS-consumption",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/packet.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS name RDATA consumption refused",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/packet.test.ts -t 'NS and SOA RDATA'",
+      "exit": 1,
+      "observed": "(fail) bounded authoritative DNS packet boundary > rejects NS and SOA RDATA that cross declared boundaries"
+    },
+    {
+      "guard": "SOA-consumption",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/packet.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS SOA consumption refused",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/packet.test.ts -t 'NS and SOA RDATA'",
+      "exit": 1,
+      "observed": "(fail) bounded authoritative DNS packet boundary > rejects NS and SOA RDATA that cross declared boundaries"
+    },
+    {
+      "guard": "address-width",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/packet.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS address width refused",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/packet.test.ts -t 'incorrect fixed widths'",
+      "exit": 1,
+      "observed": "(fail) bounded authoritative DNS packet boundary > rejects A and AAAA RDATA with incorrect fixed widths"
+    },
+    {
+      "guard": "record-span",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/packet.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS record span incomplete",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/packet.test.ts -t 'truncated RDATA'",
+      "exit": 1,
+      "observed": "(fail) bounded authoritative DNS packet boundary > rejects truncated RDATA and empty TXT as modeled protocol failures"
+    },
+    {
+      "guard": "TXT-span",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/packet.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS TXT fragment span refused",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/packet.test.ts -t 'TXT fragment overrun'",
+      "exit": 1,
+      "observed": "(fail) bounded authoritative DNS packet boundary > rejects TXT fragment overrun and invalid UTF-8 bytes"
+    },
+    {
+      "guard": "TXT-nonempty",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/packet.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS TXT has no character string",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/packet.test.ts -t 'empty TXT'",
+      "exit": 1,
+      "observed": "(fail) bounded authoritative DNS packet boundary > rejects truncated RDATA and empty TXT as modeled protocol failures"
+    },
+    {
+      "guard": "TXT-encoding",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/packet.ts",
+      "mutation": {
+        "from": "utf8.decode(Buffer.concat(fragments));",
+        "to": "void fragments;"
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/packet.test.ts -t 'invalid UTF-8'",
+      "exit": 1,
+      "observed": "(fail) bounded authoritative DNS packet boundary > rejects TXT fragment overrun and invalid UTF-8 bytes"
+    },
+    {
+      "guard": "packet-codec-contract",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/packet.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS codec consumption refused",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/packet.test.ts -t 'incorrect packet consumption'",
+      "exit": 1,
+      "observed": "(fail) bounded authoritative DNS packet boundary > refuses a codec dependency that reports incorrect packet consumption"
+    },
+    {
+      "guard": "name-codec-contract",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/packet.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS name codec consumption refused",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/packet.test.ts -t 'incorrect name consumption'",
+      "exit": 1,
+      "observed": "(fail) bounded authoritative DNS packet boundary > refuses a codec dependency that reports incorrect name consumption before full decode"
+    },
+    {
+      "guard": "ipv4-guard",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/addresses.ts",
+      "mutation": {
+        "from": "return !prohibitedV4.check(address, 'ipv4');",
+        "to": "return true;"
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/resolver.test.ts -t 'mapped endpoints through lookup 127'",
+      "exit": 1,
+      "observed": "(fail) authoritative DNS resolver production boundary > refuses special-purpose and mapped endpoints through lookup 127.0.0.1"
+    },
+    {
+      "guard": "ipv6-guard",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/addresses.ts",
+      "mutation": {
+        "from": "return globalV6.check(address, 'ipv6') && !prohibitedV6.check(address, 'ipv6');",
+        "to": "return true;"
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/resolver.test.ts -t 'mapped endpoints through lookup 2001'",
+      "exit": 1,
+      "observed": "(fail) authoritative DNS resolver production boundary > refuses special-purpose and mapped endpoints through lookup 2001:db8::1"
+    },
+    {
+      "guard": "authority-set-limit",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/resolver.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS authority count refused",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/resolver.test.ts -t 'oversized authority sets: NS'",
+      "exit": 1,
+      "observed": "(fail) authoritative DNS resolver production boundary > rejects oversized authority sets: NS"
+    },
+    {
+      "guard": "endpoint-set-limit",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/resolver.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS endpoint count refused",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/resolver.test.ts -t 'oversized authority sets: A'",
+      "exit": 1,
+      "observed": "(fail) authoritative DNS resolver production boundary > rejects oversized authority sets: A"
+    },
+    {
+      "guard": "peer-identity",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/resolver.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS response peer refused",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/resolver.test.ts -t 'unrelated DNS replies: peer'",
+      "exit": 1,
+      "observed": "(fail) authoritative DNS resolver production boundary > rejects unrelated DNS replies: peer"
+    },
+    {
+      "guard": "peer-port",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/resolver.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS response peer refused",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/resolver.test.ts -t 'unrelated DNS replies: port'",
+      "exit": 1,
+      "observed": "(fail) authoritative DNS resolver production boundary > rejects unrelated DNS replies: port"
+    },
+    {
+      "guard": "transaction-ID",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/resolver.ts",
+      "mutation": {
+        "from": "question.id !== id ||",
+        "to": "false ||"
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/resolver.test.ts -t 'unrelated DNS replies: id'",
+      "exit": 1,
+      "observed": "(fail) authoritative DNS resolver production boundary > rejects unrelated DNS replies: id"
+    },
+    {
+      "guard": "response-bit",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/resolver.ts",
+      "mutation": {
+        "from": "(question.flags & 0x8000) === 0 ||",
+        "to": "false ||"
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/resolver.test.ts -t 'unrelated DNS replies: query'",
+      "exit": 1,
+      "observed": "(fail) authoritative DNS resolver production boundary > rejects unrelated DNS replies: query"
+    },
+    {
+      "guard": "query-opcode",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/resolver.ts",
+      "mutation": {
+        "from": "(question.flags & 0x7800) !== 0 ||",
+        "to": "false ||"
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/resolver.test.ts -t 'unrelated DNS replies: opcode'",
+      "exit": 1,
+      "observed": "(fail) authoritative DNS resolver production boundary > rejects unrelated DNS replies: opcode"
+    },
+    {
+      "guard": "question-name",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/resolver.ts",
+      "mutation": {
+        "from": "question.name.toLowerCase() !== name ||",
+        "to": "false ||"
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/resolver.test.ts -t 'unrelated DNS replies: name'",
+      "exit": 1,
+      "observed": "(fail) authoritative DNS resolver production boundary > rejects unrelated DNS replies: name"
+    },
+    {
+      "guard": "question-type",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/resolver.ts",
+      "mutation": {
+        "from": "question.type !== numericType",
+        "to": "false"
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/resolver.test.ts -t 'unrelated DNS replies: type'",
+      "exit": 1,
+      "observed": "(fail) authoritative DNS resolver production boundary > rejects unrelated DNS replies: type"
+    },
+    {
+      "guard": "AA",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/resolver.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS authority flag absent",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/resolver.test.ts -t 'exact-owner answers: aa'",
+      "exit": 1,
+      "observed": "(fail) authoritative DNS resolver production boundary > requires authoritative exact-owner answers: aa"
+    },
+    {
+      "guard": "answer-owner",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/resolver.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS authoritative owner or type refused",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/resolver.test.ts -t 'exact-owner answers: owner'",
+      "exit": 1,
+      "observed": "(fail) authoritative DNS resolver production boundary > requires authoritative exact-owner answers: owner"
+    },
+    {
+      "guard": "negative-SOA",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/resolver.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS authoritative negative lacks enclosing SOA",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/resolver.test.ts -t 'negative only with enclosing SOA'",
+      "exit": 1,
+      "observed": "(fail) authoritative DNS resolver production boundary > accepts authoritative negative only with enclosing SOA: rcode 0"
+    },
+    {
+      "guard": "authority-TXT",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/resolver.ts",
+      "mutation": {
+        "from": "record.type === 'NS' || record.type === 'TXT'",
+        "to": "record.type === 'NS'"
+      },
+      "command": "bun test apps/wbs/be-01/src/authoritative-dns.boot.db.test.ts -t 'evidence: authority_txt'",
+      "exit": 1,
+      "observed": "(fail) distinguishes authoritative absence from unusable DNS evidence: authority_txt"
+    },
+    {
+      "guard": "additional-TXT",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/resolver.ts",
+      "mutation": {
+        "from": "reply.additionals.some((record) => record.type === 'TXT') ||",
+        "to": "false ||"
+      },
+      "command": "bun test apps/wbs/be-01/src/authoritative-dns.boot.db.test.ts -t 'evidence: additional_txt'",
+      "exit": 1,
+      "observed": "(fail) distinguishes authoritative absence from unusable DNS evidence: additional_txt"
+    },
+    {
+      "guard": "bounded-join",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/transport.ts",
+      "mutation": {
+        "from": "timers.nowMs() + 100, hardExpiresAt",
+        "to": "timers.nowMs() + 10_000, hardExpiresAt"
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/transport.test.ts -t 'unacknowledged close'",
+      "exit": 1,
+      "observed": "(fail) owned DNS socket transport > bounds unacknowledged close and names closure as unconfirmed"
+    },
+    {
+      "guard": "closing-error",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/transport.ts",
+      "mutation": {
+        "from": "const closingFailure = readClosingFailure();",
+        "to": "const closingFailure = undefined;"
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/transport.test.ts -t 'arriving while'",
+      "exit": 1,
+      "observed": "(fail) owned DNS socket transport > refuses a socket error arriving while successful reply closure is pending"
+    },
+    {
+      "guard": "close-acknowledgment",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/transport.ts",
+      "mutation": {
+        "from": "(acknowledge) => socket.close(acknowledge)",
+        "to": "(acknowledge) => { socket.close(acknowledge); acknowledge(); }"
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/transport.test.ts -t 'lookup cancellation joins deferred'",
+      "exit": 1,
+      "observed": "(fail) owned DNS socket transport > lookup cancellation joins deferred UDP closure before it settles"
+    },
+    {
+      "guard": "total-deadline",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/resolver.ts",
+      "mutation": {
+        "from": "4_800",
+        "to": "48_000",
+        "alsoReplace": {
+          "from": "4_900",
+          "to": "49_000"
+        },
+        "allOccurrences": true
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/resolver.test.ts -t 'shares five seconds'",
+      "exit": 1,
+      "observed": "(fail) authoritative DNS resolver production boundary > shares five seconds across discovery and retries and releases every timer"
+    },
+    {
+      "guard": "attempt-deadline",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/resolver.ts",
+      "mutation": {
+        "from": "started + 900",
+        "to": "started + 9_000"
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/resolver.test.ts -t 'retries a timed-out authoritative'",
+      "exit": 1,
+      "observed": "(fail) authoritative DNS resolver production boundary > retries a timed-out authoritative peer after acknowledged cancellation"
+    },
+    {
+      "guard": "empty-on-error",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/resolver.ts",
+      "mutation": {
+        "from": "if (!(failure instanceof DnsUnavailableError)) throw failure;\n          lifetime.signal.throwIfAborted();",
+        "to": "if (!(failure instanceof DnsUnavailableError)) throw failure;\n          return [];"
+      },
+      "command": "bun test apps/wbs/be-01/src/authoritative-dns.boot.db.test.ts -t 'evidence: outage'",
+      "exit": 1,
+      "observed": "(fail) distinguishes authoritative absence from unusable DNS evidence: outage"
+    },
+    {
+      "guard": "activation-bypass",
+      "file": "libs/wbs/adapters/store-sqlite/src/organization-activation.ts",
+      "mutation": {
+        "from": "const state = parseActivationState(rows);",
+        "to": "const state = 'activated' as const;"
+      },
+      "command": "bun test apps/wbs/be-01/src/authoritative-dns.boot.db.test.ts -t 'inactive or unauthorized'",
+      "exit": 1,
+      "observed": "(fail) inactive or unauthorized route sends no packets"
+    },
+    {
+      "guard": "resolver-bypass",
+      "file": "apps/wbs/be-01/src/boot.ts",
+      "mutation": {
+        "from": "undefined, domainResolver)",
+        "to": "undefined, { lookupTxt: async () => [] })"
+      },
+      "command": "bun test apps/wbs/be-01/src/authoritative-dns.boot.db.test.ts -t 'configured boot verifies'",
+      "exit": 1,
+      "observed": "(fail) configured boot verifies through real DNS adapter and preserves separate TXT records"
+    },
+    {
+      "guard": "config-count",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/addresses.ts",
+      "mutation": {
+        "from": "addresses.length > 3 ||",
+        "to": "false ||"
+      },
+      "command": "bun test apps/wbs/be-01/src/config.test.ts -t 'DNS'",
+      "exit": 1,
+      "observed": "(fail) BeConfig > keeps DNS disabled only for absent resolver configuration"
+    },
+    {
+      "guard": "trusted-TXT-UTF8",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/resolver.ts",
+      "mutation": {
+        "from": "fatal: true, ignoreBOM: true",
+        "to": "fatal: false, ignoreBOM: true"
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/resolver.test.ts -t 'corrupted UTF-8'",
+      "exit": 1,
+      "observed": "(fail) authoritative DNS resolver production boundary > rejects corrupted UTF-8 returned by the trusted codec after wire validation"
+    },
+    {
+      "guard": "native-outgoing-span",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/transport.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS outgoing packet size refused",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/transport.test.ts -t 'invalid outgoing spans'",
+      "exit": 1,
+      "observed": "(fail) owned DNS socket transport > refuses a hostname and invalid outgoing spans before socket allocation"
+    },
+    {
+      "guard": "native-TCP-buffer",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/transport.ts",
+      "mutation": {
+        "from": "if (chunk.length > frame.length - received)",
+        "to": "if (false)"
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/transport.test.ts -t 'incomplete, trailing and oversized'",
+      "exit": 1,
+      "observed": "(fail) owned DNS socket transport > refuses incomplete, trailing and oversized TCP frames"
+    },
+    {
+      "guard": "native-TCP-span",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/transport.ts",
+      "mutation": {
+        "from": "if (received > expected || expected < 14)",
+        "to": "if (false)"
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/transport.test.ts -t 'incomplete, trailing and oversized'",
+      "exit": 1,
+      "observed": "(fail) owned DNS socket transport > refuses incomplete, trailing and oversized TCP frames"
+    },
+    {
+      "guard": "native-TCP-metadata",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/transport.ts",
+      "mutation": {
+        "from": "if (peer === undefined || port === undefined)",
+        "to": "if (false)"
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/transport.test.ts -t 'without numeric peer'",
+      "exit": 1,
+      "observed": "(fail) owned DNS socket transport > refuses a TCP reply without numeric peer metadata: remoteAddress"
+    },
+    {
+      "guard": "native-numeric-peer",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/transport.ts",
+      "mutation": {
+        "from": "    canonicalizeIp(request.address);",
+        "to": "    void request.address;"
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/transport.test.ts -t 'invalid outgoing spans'",
+      "exit": 1,
+      "observed": "(fail) owned DNS socket transport > refuses a hostname and invalid outgoing spans before socket allocation"
+    },
+    {
+      "guard": "required-cleanup-after-abort",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/resolver.ts",
+      "mutation": {
+        "from": "if (!(failure instanceof DnsUnavailableError)) throw failure;",
+        "to": "lifetime.signal.throwIfAborted(); if (!(failure instanceof DnsUnavailableError)) throw failure;",
+        "allOccurrences": true
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/transport.test.ts -t 'cleanup failure after abort'",
+      "exit": 1,
+      "observed": "(fail) owned DNS socket transport > cleanup failure after abort wins over the deadline and refuses fallback"
+    },
+    {
+      "guard": "hard-transport-join",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/resolver.ts",
+      "mutation": {
+        "from": "reject(new DnsCleanupError('DNS transport cleanup unconfirmed'));",
+        "to": "void new DnsCleanupError('DNS transport cleanup unconfirmed');"
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/resolver.test.ts -t 'bounds one endpoint attempt'",
+      "exit": 1,
+      "observed": "(fail) authoritative DNS resolver production boundary > bounds one endpoint attempt and ignores late replies after abort"
+    }
+  ]
+}

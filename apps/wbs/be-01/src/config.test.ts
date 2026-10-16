@@ -15,6 +15,20 @@ const VALID = {
 };
 
 describe('BeConfig', () => {
+  it('keeps DNS disabled only for absent resolver configuration', () => {
+    expect(loadConfig(VALID).organizationDnsResolvers).toBeUndefined();
+    expect(
+      loadConfig({ ...VALID, ORGANIZATION_DNS_RESOLVERS: '10.0.0.53,2001:4860:4860::8888' })
+        .organizationDnsResolvers,
+    ).toEqual(['10.0.0.53', '2001:4860:4860::8888']);
+    for (const configured of [
+      '',
+      'dns.example.com',
+      '8.8.8.8,8.8.8.8',
+      '1.1.1.1,2.2.2.2,3.3.3.3,4.4.4.4',
+    ])
+      expect(() => loadConfig({ ...VALID, ORGANIZATION_DNS_RESOLVERS: configured })).toThrow();
+  });
   it('refuses partial delegation key configuration', () => {
     expect(() => loadConfig({ ...VALID, WBS_DELEGATION_SIGNING_KEY: 'x' })).toThrow();
     expect(() => loadConfig({ ...VALID, WBS_DELEGATION_VERIFY_KEY: 'x' })).toThrow();

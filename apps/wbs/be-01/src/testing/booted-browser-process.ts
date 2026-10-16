@@ -10,6 +10,7 @@ import { bootBe01, type BootOptions, type RunningBe } from '../boot';
 import type { OidcRouteOptions } from '../controller/oidc-options';
 import { openDatabase } from '../repository/db';
 import { runMigrations } from '../repository/migrate';
+import type { DnsTransport } from '../runtime/authoritative-dns/resolver';
 import { TEST_JWT_KEY } from './auth-fixture';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
@@ -45,6 +46,7 @@ export class BootedBrowserProcess {
     browserSessionAuthority: BootOptions['browserSessionAuthority'],
     oidc?: OidcRouteOptions,
     appOrigin = BOOTED_ORIGIN,
+    dns?: { readonly resolvers?: readonly string[]; readonly transport?: DnsTransport },
   ): Promise<BootedBrowserProcess> {
     const dir = mkdtempSync(join(tmpdir(), 'wbs-booted-browser-'));
     const dbPath = join(dir, 'test.db');
@@ -62,9 +64,11 @@ export class BootedBrowserProcess {
         browserSessionAuthority,
         oidc,
         commitDir: dir,
+        organizationDnsResolvers: dns?.resolvers,
       },
       {
         openSource: openSqliteSource,
+        dnsTransport: dns?.transport,
         makeApp: (options) => {
           const app = buildApp(options);
           // No socket was opened, so there is no server for Elysia to stop.

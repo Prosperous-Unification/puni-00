@@ -79,7 +79,7 @@ The adapter SHALL return one string for each exact-owner IN/TXT resource record,
 
 ### Requirement: Total deadline and resource cleanup
 
-Discovery, authoritative attempts and TCP fallback SHALL share a maximum five-second call deadline shortened by caller cancellation. Each authoritative endpoint attempt SHALL consume at most one second of that total. Completion SHALL close all owned sockets and timers; no late response or other request's reply SHALL publish proof. No raw TXT value, packet or challenge digest SHALL appear in error output. Existing commit-time challenge, current membership, expiry and unique-owner checks SHALL remain authoritative after DNS completes.
+Discovery, authoritative attempts and TCP fallback SHALL share a maximum five-second call deadline shortened by caller cancellation. Each authoritative endpoint attempt SHALL consume at most one second of that total. The adapter SHALL reserve cleanup time within those maxima as specified in `design.md`. Cancellation SHALL stop work immediately and settle after bounded cleanup. Proof and ordinary failure SHALL publish only after owned socket closure is acknowledged; thrown or unacknowledged closure SHALL produce terminal explicit cleanup failure, without retry or proof, and SHALL NOT be represented as confirmed closure. Settlement SHALL cancel all owned timers; no late response or other request's reply SHALL publish proof. No raw TXT value, packet or challenge digest SHALL appear in error output. Existing commit-time challenge, current membership, expiry and unique-owner checks SHALL remain authoritative after DNS completes.
 
 #### Scenario: Abort and delayed packets cannot publish
 
