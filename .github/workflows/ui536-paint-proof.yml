@@ -82,7 +82,10 @@ jobs:
               if completed.returncode != 1 or len(failures) != 1:
                   raise RuntimeError(f"fault did not produce exactly one failure (exit {completed.returncode})")
               message = "".join(failures[0].itertext())
-              if "the fact card is painted under" not in message or 'data-modal-surface="bottom"' not in message:
+              # The production probe bounds outerHTML at 80 characters; Radix's id
+              # can leave the final attribute value incomplete in its diagnostic.
+              expected = ["the fact card is painted under", "data-modal-surface=", "Expected: true", "Received: false"]
+              if not all(fragment in message for fragment in expected):
                   raise RuntimeError(f"fault failed outside the expected sheet paint assertion: {message}")
           elif completed.returncode != 0 or failures:
               raise RuntimeError(f"{phase} did not pass (exit {completed.returncode})")
