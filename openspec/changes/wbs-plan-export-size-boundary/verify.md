@@ -108,3 +108,84 @@ monorepo gate, build, browser tests, CI secrets/migration lint and
 deployment, WBS100 closure or debt elimination outside the selected file is claimed.
 Delta spec sync and archive remain pending review. No domain terms or ADR were
 introduced.
+
+## Hosted exact-source full survey, 2026-10-16
+
+[Hosted run 38863439207](https://github.com/Prosperous-Unification/puni-00/actions/runs/38863439207)
+succeeded on isolated proof branch commit
+`979912250cd23f552f0bcd69e3ec6a11b7bba381`. It evaluated every registered rule,
+serially, for exact base `4f098bfe2bf64343b8f503b5bdebd6e1a6fa34f4` and reviewed
+#534 source head `26732f5440eed8123540202b6dc8eba966835244`, tree
+`d1cf5f0e6026914eb412026b578dfb9be85487b4`. This documentation successor changes
+only verification evidence; its new CI status is separate from the surveyed source.
+
+The [complete comparison](evidence/hosted-full-survey/full-comparison.json.txt)
+shows 57 findings becoming 56 solely through removal of the production
+`plan-export.ts` F7 finding: F7 41 to 40, K6 12 unchanged, MOD-LAYOUT 4 unchanged.
+Every unrelated finding and both unevaluated entries, including their exact reason
+text, are identical. All 14 rule IDs are present in both raw verdicts. The exact
+candidate identities are `fdd5cf83c5ef387a2c0696cfce4ea30eb624c58fc841e10f7bfb6a0618186656`
+for base and `1446e69f16d34221281cffd3a03eba11a9b9eb035bd5a44fc6461b924bcac8d0`
+for #534. Both commands returned valid refusal verdicts with exit 1, null wrapper
+signal, `allowed:false` and `certifies:false`; their raw streams and exact command
+receipts are retained beside the comparison.
+
+The remaining unevaluated rules are `PERF-THRESHOLD` (performance config content
+differs from reviewed authority) and `SPEC-SCENARIOS` (competing `wbs-domain`
+leaf-status overlay). This closes the exact-source full-comparison proof hold.
+It does not certify WBS, close WBS100 or remove other debt.
+
+### Recovered identities and historical limits
+
+The original local exact-final full attempt produced empty stdout and
+`validator exited null` during concurrent host OOM pressure. It supplied no
+verdict. The earlier `b9f8c9` intermediate full comparison and selected-rule F7
+proof remain historical evidence. A reboot removed their `/tmp` executable,
+policy and raw files; they are not claimed recovered by this hosted run.
+
+This run rebuilt fixed evaluator source
+`ac774f0c358db369c2048e537151e263cc29361e`, packed it and installed it once in an
+independent consumer, with lifecycle scripts disabled. The same installed
+consumer evaluated both revisions. Its separately pinned recovery identities are:
+
+- Toolkit: `2417f876901efadcc817e7518a8f796985c9e62409ab6f68458b55ea21d2b69a`.
+- Executable: `92ca1424826b325dad64a160090fb8c83521a5e581a48f6bed510a1d7d00ef4c`.
+- Trusted dependency closure: `efe812480b995ccef8634e9c17adf9a51d8f3e016c771232ec49ea71aaba94ac`.
+
+The [new recovery policy](evidence/hosted-full-survey/recovery-full-policy.json.txt),
+`wbs.plan-export.recovery.full.v1`, has SHA-256
+`3cff7523646c98f4b405c7aea21df6b913ce90f0c1f6545157007fc31f73a00c`, checked for
+both invocations. Its [provenance](evidence/hosted-full-survey/policy-provenance.json.txt)
+records the retained diagnostic policy plus exact-source classification policy:
+five website binary declarations and one cert-manager consumer relocation. All
+14 observe modes, 21 graph configs, 442 plain-source selectors, performance and
+scenario authority, 800-line ceiling and empty adoption remain intact. This is
+not an alias for the lost `052a3a...` policy or the old `db3dcf...`/`3432df...`
+toolkit/executable. No policy exemption or authority refresh was introduced.
+
+### Hosted failure proofs and receipts
+
+Proof: the actual production baseline verdict reused as a candidate failed with
+`selected plan-export finding remains`. Appending one unrelated finding failed
+with `unrelated findings changed`; appending one unevaluated entry failed with
+`unevaluated entries changed`. All three named failure logs are retained. The
+original pair then passed again, with an identical restored comparison. These
+receipt mutations prove the comparator; the original committed oversized-file
+production negative above remains a distinct historical proof.
+
+[Artifact 12029728928](https://github.com/Prosperous-Unification/puni-00/actions/runs/38863439207/artifacts/12029728928),
+`wbs-plan-export-26732f-full-survey`, is 31,913,057 bytes, with GitHub-reported
+archive digest `sha256:67f6050bcfe58f563a86a3eeb82d560ffc7a1244e5138076d6fe739064e0b7c5`.
+It expires on 2026-11-15. Full raw artifact receipts include the packed evaluator,
+producer tarball digest and per-run memory samples. The small receipts copied
+here were independently read through HTTPS ZIP byte ranges with entry CRC and
+size verification; the large tarball and pack log remain in the hosted artifact.
+No independent local full-archive or tarball rehash is claimed.
+
+The job grants only `contents:read`, uses immutable source checkouts, persists no
+checkout credentials, uses no secrets or deploy operations, and reserves 12 GiB
+of ephemeral runner swap. No local survey, build, browser or Nx command was run
+for this follow-up. The canonical #535 h2puni gate was not touched. Normal scoped
+commit hooks passed; local Tool Wiki remained explicitly inactive, not certified.
+The source head's hosted CI was green before this docs-only successor; fresh
+successor CI must be assessed on its own head. No merge or deployment was performed.
